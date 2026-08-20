@@ -84,7 +84,7 @@ fun EditLocalFileMetadataDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit metadata") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit_metadata)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Cover preview with gallery-pick overlay
@@ -111,35 +111,35 @@ fun EditLocalFileMetadataDialog(
                         onClick = { galleryLauncher.launch("image/*") },
                         modifier = Modifier.size(36.dp),
                     ) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Pick cover image")
+                        Icon(Icons.Filled.Edit, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_pick_cover_image))
                     }
                 }
 
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_title)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = author,
                     onValueChange = { author = it },
-                    label = { Text("Author") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_author)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = seriesName,
                     onValueChange = { seriesName = it },
-                    label = { Text("Series") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_series)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = seriesIndexText,
                     onValueChange = { seriesIndexText = it },
-                    label = { Text("Series number") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_series_number)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
@@ -150,14 +150,14 @@ fun EditLocalFileMetadataDialog(
                         onClick = { restoreFromMetadata() },
                         modifier = Modifier.align(Alignment.Start),
                     ) {
-                        Text("Restore from file metadata")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_restore_from_file_metadata))
                     }
                 }
             }
         },
         confirmButton = {
             Row(modifier = Modifier.padding(end = 8.dp, bottom = 4.dp)) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
                     onClick = {
@@ -174,7 +174,7 @@ fun EditLocalFileMetadataDialog(
                     },
                     enabled = title.isNotBlank(),
                 ) {
-                    Text("Save")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save))
                 }
             }
         },

@@ -46,6 +46,7 @@ internal fun WpmSliderRow(
     wpm: Int,
     onWpmChange: (Int) -> Unit,
 ) {
+    val speedContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_speed_named, label)
     Column(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
         // Icon-tap step is coarser than the slider's own 10-wpm snap: single-snap deltas
         // are imperceptible for reading pace, and 20 wpm lands on the 100-wpm major ticks.
@@ -61,7 +62,7 @@ internal fun WpmSliderRow(
             edgeLeft = { SlowIcon() },
             edgeRight = { FastIcon() },
             bubbleLabel = ::wpmBubble,
-            contentDescription = "$label speed",
+            contentDescription = speedContentDescription,
             onDecrement = { onWpmChange(AutoScrollSpeed.of(wpm - wpmButtonStep).wpm) },
             onIncrement = { onWpmChange(AutoScrollSpeed.of(wpm + wpmButtonStep).wpm) },
         )
@@ -121,8 +122,8 @@ internal fun HighlightColorRow(
     onSelectedChange: (HighlightColor) -> Unit,
 ) {
     ListItem(
-        headlineContent = { Text("Highlight color") },
-        supportingContent = { Text("Independent from Readaloud. Same palette.") },
+        headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_highlight_color)) },
+        supportingContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_independent_from_readaloud_same_palette)) },
         trailingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HighlightColor.entries.forEach { color ->

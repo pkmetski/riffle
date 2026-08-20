@@ -135,9 +135,11 @@ fun PdfReaderScreen(
         }
     }
 
+    val syncProgressError = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_could_not_sync_reading_progress)
+
     LaunchedEffect(viewModel) {
         viewModel.syncErrorEvents.collect {
-            Toast.makeText(context, "Could not sync reading progress", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, syncProgressError, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -255,11 +257,12 @@ fun PdfReaderScreen(
             enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
             exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
         ) {
+            val formatContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_format)
             TopAppBar(
                 title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
                 actions = {
@@ -268,13 +271,13 @@ fun PdfReaderScreen(
                             onClick = viewModel::openToc,
                             modifier = Modifier.testTag("pdf_open_toc"),
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents))
                         }
                         IconButton(
                             onClick = viewModel::openAnnotationsPanel,
                             modifier = Modifier.testTag("pdf_open_annotations"),
                         ) {
-                            Icon(RiffleIcons.Annotations, contentDescription = "Annotations")
+                            Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations))
                         }
                         IconButton(
                             onClick = { showFormattingPanel = true },
@@ -284,7 +287,7 @@ fun PdfReaderScreen(
                                 "Aa",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.semantics { contentDescription = "Format" },
+                                modifier = Modifier.semantics { contentDescription = formatContentDescription },
                             )
                         }
                     }

@@ -1,6 +1,8 @@
 package com.riffle.app.feature.settings.panels
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
 import com.riffle.app.feature.reader.BehaviorSection
 
 @Composable
@@ -12,7 +14,7 @@ fun BehaviorSettingsPanel(
     invertVolumeKeys: Boolean,
     onInvertVolumeKeysChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
-) = DetailScaffold("Behavior", onDismiss) {
+) = DetailScaffold(stringResource(R.string.ui_behavior), onDismiss) {
     BehaviorSection(
         keepScreenOn, onKeepScreenOnChange,
         volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange,

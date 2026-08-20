@@ -177,7 +177,7 @@ fun LibraryItemDetailScreen(
     if (showUploadDestinationDialog && readyState != null) {
         AlertDialog(
             onDismissRequest = { showUploadDestinationDialog = false },
-            title = { Text("Upload to…") },
+            title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_upload_to)) },
             text = {
                 Column {
                     if (uploadDestinations.isEmpty()) {
@@ -192,7 +192,7 @@ fun LibraryItemDetailScreen(
                                 )
                             }
                             if (destination.libraries.isEmpty()) {
-                                Text("No libraries configured")
+                                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_libraries_configured))
                             } else {
                                 destination.libraries.forEach { library ->
                                     TextButton(
@@ -211,7 +211,7 @@ fun LibraryItemDetailScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showUploadDestinationDialog = false }) {
-                    Text("Cancel")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel))
                 }
             },
         )
@@ -220,7 +220,7 @@ fun LibraryItemDetailScreen(
     when (val preflight = uploadPreflight) {
         is UploadPreflight.ExistingItem -> AlertDialog(
             onDismissRequest = viewModel::dismissUploadPreflight,
-            title = { Text("Item already exists") },
+            title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_item_already_exists)) },
             text = {
                 Text(
                     if (preflight.canOverwrite) {
@@ -236,18 +236,18 @@ fun LibraryItemDetailScreen(
                         onClick = {
                             viewModel.importToDestination(preflight.destination, preflight.library)
                         },
-                    ) { Text("Overwrite") }
+                    ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_overwrite)) }
                 } else {
-                    TextButton(onClick = viewModel::dismissUploadPreflight) { Text("OK") }
+                    TextButton(onClick = viewModel::dismissUploadPreflight) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_ok)) }
                 }
             },
         )
         is UploadPreflight.Blocked -> AlertDialog(
             onDismissRequest = viewModel::dismissUploadPreflight,
-            title = { Text("Upload unavailable") },
+            title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_upload_unavailable)) },
             text = { Text(preflight.reason) },
             confirmButton = {
-                TextButton(onClick = viewModel::dismissUploadPreflight) { Text("OK") }
+                TextButton(onClick = viewModel::dismissUploadPreflight) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_ok)) }
             },
         )
         UploadPreflight.Idle, UploadPreflight.Checking -> Unit
@@ -264,16 +264,16 @@ fun LibraryItemDetailScreen(
                                 when (val importState = bookImportState) {
                                     is BookImportState.InProgress -> Text(
                                         text = when (importState.phase) {
-                                            com.riffle.core.catalog.CatalogImportPhase.Preparing -> "Preparing files…"
-                                            com.riffle.core.catalog.CatalogImportPhase.Uploading -> "Uploading…"
-                                            com.riffle.core.catalog.CatalogImportPhase.Reconciling -> "Uploaded — waiting for ABS…"
-                                            com.riffle.core.catalog.CatalogImportPhase.Finalizing -> "Uploaded — applying metadata…"
-                                            com.riffle.core.catalog.CatalogImportPhase.Uploaded -> "Uploaded — finishing…"
+                                            com.riffle.core.catalog.CatalogImportPhase.Preparing -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_preparing_files)
+                                            com.riffle.core.catalog.CatalogImportPhase.Uploading -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_uploading)
+                                            com.riffle.core.catalog.CatalogImportPhase.Reconciling -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_uploaded_waiting_for_abs)
+                                            com.riffle.core.catalog.CatalogImportPhase.Finalizing -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_uploaded_applying_metadata)
+                                            com.riffle.core.catalog.CatalogImportPhase.Uploaded -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_uploaded_finishing)
                                         },
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                     is BookImportState.Failed -> Text(
-                                        text = "Upload failed",
+                                        text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_upload_failed),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                     BookImportState.Idle, BookImportState.Completed -> Unit
@@ -283,7 +283,7 @@ fun LibraryItemDetailScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                         }
                     },
                     actions = {
@@ -292,7 +292,7 @@ fun LibraryItemDetailScreen(
                     ) {
                         Box {
                             IconButton(onClick = { showMetadataOverflowMenu = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                                Icon(Icons.Filled.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_more_options))
                             }
                             DropdownMenu(
                                 expanded = showMetadataOverflowMenu,
@@ -300,7 +300,7 @@ fun LibraryItemDetailScreen(
                             ) {
                                 if (readyState?.capabilities?.canEditMetadata == true) {
                                     DropdownMenuItem(
-                                        text = { Text("Edit metadata") },
+                                        text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit_metadata)) },
                                         onClick = {
                                             showMetadataOverflowMenu = false
                                             showEditMetadataDialog = true
@@ -309,7 +309,7 @@ fun LibraryItemDetailScreen(
                                 }
                                 if (readyState?.capabilities?.canUploadToConfiguredSource == true) {
                                     DropdownMenuItem(
-                                        text = { Text("Upload to…") },
+                                        text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_upload_to)) },
                                         onClick = {
                                             showMetadataOverflowMenu = false
                                             showUploadDestinationDialog = true
@@ -374,7 +374,7 @@ fun LibraryItemDetailScreen(
                         .padding(padding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Could not load book details.")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_could_not_load_book_details))
                 }
             }
 
@@ -511,7 +511,7 @@ private fun CollapsibleDescription(description: String) {
     val formatted = remember(description) { AnnotatedString.fromHtml(description) }
 
     Column(modifier = Modifier.animateContentSize()) {
-        Text(text = "Summary", style = MaterialTheme.typography.titleLarge)
+        Text(text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_summary), style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = formatted,
@@ -523,7 +523,13 @@ private fun CollapsibleDescription(description: String) {
         )
         if (isOverflowing || expanded) {
             TextButton(onClick = { expanded = !expanded }) {
-                Text(if (expanded) "Show less" else "Show more")
+                Text(
+                    if (expanded) {
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_show_less)
+                    } else {
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_show_more)
+                    },
+                )
             }
         }
     }
@@ -661,11 +667,11 @@ internal fun LibraryItemDetailContent(
         if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
             HorizontalDivider()
             ListItem(
-                headlineContent = { Text("Table of Contents") },
+                headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents)) },
                 supportingContent = {
                     when (val s = tocState) {
-                        is TocState.Loading -> Text("Loading…")
-                        is TocState.Ready -> Text("${s.entries.size} sections")
+                        is TocState.Loading -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
+                        is TocState.Ready -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sections_count, s.entries.size))
                     }
                 },
                 leadingContent = {
@@ -686,11 +692,11 @@ internal fun LibraryItemDetailContent(
         if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
             HorizontalDivider()
             ListItem(
-                headlineContent = { Text("Chapters") },
+                headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters)) },
                 supportingContent = {
                     when (val s = chaptersState) {
-                        is ChaptersState.Loading -> Text("Loading…")
-                        is ChaptersState.Ready -> Text("${s.chapters.size} chapters")
+                        is ChaptersState.Loading -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
+                        is ChaptersState.Ready -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters_count, s.chapters.size))
                     }
                 },
                 leadingContent = {
@@ -977,11 +983,11 @@ internal fun LibraryItemDetailContentTablet(
             if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Table of Contents") },
+                    headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents)) },
                     supportingContent = {
                         when (val s = tocState) {
-                            is TocState.Loading -> Text("Loading…")
-                            is TocState.Ready -> Text("${s.entries.size} sections")
+                            is TocState.Loading -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
+                            is TocState.Ready -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sections_count, s.entries.size))
                         }
                     },
                     leadingContent = {
@@ -1002,11 +1008,11 @@ internal fun LibraryItemDetailContentTablet(
             if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Chapters") },
+                    headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters)) },
                     supportingContent = {
                         when (val s = chaptersState) {
-                            is ChaptersState.Loading -> Text("Loading…")
-                            is ChaptersState.Ready -> Text("${s.chapters.size} chapters")
+                            is ChaptersState.Loading -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
+                            is ChaptersState.Ready -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters_count, s.chapters.size))
                         }
                     },
                     leadingContent = {
@@ -1189,11 +1195,11 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Table of Contents") },
+                    headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents)) },
                     supportingContent = {
                         when (val s = tocState) {
-                            is TocState.Loading -> Text("Loading…")
-                            is TocState.Ready -> Text("${s.entries.size} sections")
+                            is TocState.Loading -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
+                            is TocState.Ready -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sections_count, s.entries.size))
                         }
                     },
                     leadingContent = {
@@ -1214,11 +1220,11 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Chapters") },
+                    headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters)) },
                     supportingContent = {
                         when (val s = chaptersState) {
-                            is ChaptersState.Loading -> Text("Loading…")
-                            is ChaptersState.Ready -> Text("${s.chapters.size} chapters")
+                            is ChaptersState.Loading -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
+                            is ChaptersState.Ready -> Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters_count, s.chapters.size))
                         }
                     },
                     leadingContent = {
@@ -1278,7 +1284,7 @@ private fun TitleWithReadaloudIndicator(
             // (ADR 0033) — self-gating, since the badge only shows when the book has a readaloud.
             Icon(
                 painter = painterResource(R.drawable.ic_readaloud),
-                contentDescription = "Show all readalouds",
+                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_show_all_readalouds),
                 tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier
                     .size(22.dp)
@@ -1403,7 +1409,7 @@ private fun ActionRow(
     val effectivelyListenable = item.isListenable && capabilities.hasAudiobookMedia
     if (!item.isReadable && !effectivelyListenable) {
         Text(
-            text = "Nothing to read or listen to for this item on the source.",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_nothing_to_read_or_listen_to_for_this_item_on_the_source),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1421,12 +1427,12 @@ private fun ActionRow(
             if (readDisabledByOffline) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text("Connect to download book") } },
+                    tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_book)) } },
                     state = rememberTooltipState(),
                     modifier = Modifier.weight(1f),
                 ) {
                     Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text("Read")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_read))
                     }
                 }
             } else {
@@ -1435,7 +1441,7 @@ private fun ActionRow(
                     enabled = downloadState !is DownloadState.InProgress,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Read")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_read))
                 }
             }
         }
@@ -1451,12 +1457,12 @@ private fun ActionRow(
             if (listenBlockedOffline) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text("Connect to stream audio") } },
+                    tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_stream_audio)) } },
                     state = rememberTooltipState(),
                     modifier = Modifier.weight(1f),
                 ) {
                     Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text("Listen")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_listen))
                     }
                 }
             } else {
@@ -1464,7 +1470,7 @@ private fun ActionRow(
                     onClick = { onListenItem(item) },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Listen")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_listen))
                 }
             }
         }
@@ -1510,7 +1516,7 @@ private fun ActionRow(
             if (audioOfflineBlocked) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text("Connect to download audiobook") } },
+                    tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_audiobook)) } },
                     state = rememberTooltipState(),
                 ) { audioButton() }
             } else {
@@ -1530,7 +1536,7 @@ private fun ActionRow(
             if (readaloudOfflineBlocked) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text("Connect to download readaloud audio") } },
+                    tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_readaloud_audio)) } },
                     state = rememberTooltipState(),
                 ) { readaloudButton() }
             } else {
@@ -1549,7 +1555,10 @@ private fun ReadingProgressIndicator(progress: Float, listened: Boolean = false)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "${(progress * 100).toInt()}% ${if (listened) "listened" else "read"}",
+            text = androidx.compose.ui.res.stringResource(
+                if (listened) com.riffle.app.R.string.ui_progress_listened else com.riffle.app.R.string.ui_progress_read,
+                (progress * 100).toInt(),
+            ),
             style = MaterialTheme.typography.bodyMedium,
         )
     }
@@ -1563,13 +1572,13 @@ private fun MetadataLines(item: LibraryItem, onFacet: (FacetType, String) -> Uni
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         item.publishedYear?.let { year ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Published: ", style = MaterialTheme.typography.bodyMedium)
+                Text(text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_published), style = MaterialTheme.typography.bodyMedium)
                 FacetValue(text = year) { onFacet(FacetType.YEAR, year) }
             }
         }
         if (item.genres.isNotEmpty()) {
             ClickableTokenLine(
-                prefix = "Genres: ",
+                prefix = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_genres),
                 tokens = item.genres,
                 style = MaterialTheme.typography.bodyMedium,
                 onTokenClick = { onFacet(FacetType.GENRE, it) },
@@ -1577,12 +1586,12 @@ private fun MetadataLines(item: LibraryItem, onFacet: (FacetType, String) -> Uni
         }
         item.language?.takeIf { it.isNotBlank() }?.let { language ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Language: ", style = MaterialTheme.typography.bodyMedium)
+                Text(text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_language), style = MaterialTheme.typography.bodyMedium)
                 FacetValue(text = language) { onFacet(FacetType.LANGUAGE, language) }
             }
         }
         item.publisher?.let { publisher ->
-            Text(text = "Publisher: $publisher", style = MaterialTheme.typography.bodyMedium)
+            Text(text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_publisher, publisher), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

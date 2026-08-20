@@ -10,7 +10,7 @@ import com.riffle.app.feature.settings.DrillInChevron
 @Composable
 internal fun DeveloperOptionsSection(onOpen: () -> Unit) {
     ListItem(
-        headlineContent = { Text("Developer options") },
+        headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_developer_options)) },
         trailingContent = { DrillInChevron() },
         modifier = Modifier.clickable(onClick = onOpen),
     )

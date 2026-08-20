@@ -11,7 +11,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.settings.AppUpdateUiState
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
@@ -31,20 +33,20 @@ internal fun AppVersionSection(
     onNavigateToChangelog: () -> Unit,
     onVersionTap: () -> Unit = {},
 ) {
-    SettingsSectionHeader("App version")
+    SettingsSectionHeader(stringResource(R.string.ui_app_version_section))
     val supporting = when (state) {
-        is AppUpdateUiState.Idle -> "Installed: v$installedVersionName"
-        is AppUpdateUiState.Checking -> "Checking for updates…"
-        is AppUpdateUiState.UpToDate -> "Installed: v$installedVersionName · Up to date"
-        is AppUpdateUiState.UpdateAvailable -> "Update available: v${state.versionName}"
-        is AppUpdateUiState.Downloading -> "Downloading update… ${state.percent}%"
-        is AppUpdateUiState.Installing -> "Starting installer…"
-        is AppUpdateUiState.Failed -> "Update check failed: ${state.message}"
+        is AppUpdateUiState.Idle -> stringResource(R.string.ui_installed_version, installedVersionName)
+        is AppUpdateUiState.Checking -> stringResource(R.string.ui_checking_for_updates)
+        is AppUpdateUiState.UpToDate -> stringResource(R.string.ui_installed_version_up_to_date, installedVersionName)
+        is AppUpdateUiState.UpdateAvailable -> stringResource(R.string.ui_update_available_version, state.versionName)
+        is AppUpdateUiState.Downloading -> stringResource(R.string.ui_downloading_update_percent, state.percent)
+        is AppUpdateUiState.Installing -> stringResource(R.string.ui_starting_installer)
+        is AppUpdateUiState.Failed -> stringResource(R.string.ui_update_check_failed, state.message)
     }
     ListItem(
         headlineContent = {
             Column(modifier = Modifier.clickable(onClick = onVersionTap)) {
-                Text("Riffle")
+                Text(stringResource(R.string.app_name))
                 Text(supporting)
             }
         },
@@ -60,16 +62,16 @@ internal fun AppVersionSection(
                     )
                 is AppUpdateUiState.Installing -> {}
                 is AppUpdateUiState.UpdateAvailable ->
-                    Button(onClick = onInstallUpdate) { Text("Update") }
+                    Button(onClick = onInstallUpdate) { Text(stringResource(R.string.ui_update)) }
                 is AppUpdateUiState.Failed ->
-                    TextButton(onClick = onCheckForUpdate) { Text("Retry") }
+                    TextButton(onClick = onCheckForUpdate) { Text(stringResource(R.string.ui_retry)) }
                 else ->
-                    TextButton(onClick = onCheckForUpdate) { Text("Check for updates") }
+                    TextButton(onClick = onCheckForUpdate) { Text(stringResource(R.string.ui_check_for_updates)) }
             }
         },
     )
     ListItem(
-        headlineContent = { Text("Check for updates on startup") },
+        headlineContent = { Text(stringResource(R.string.ui_check_for_updates_on_startup)) },
         trailingContent = {
             Switch(
                 checked = autoUpdateEnabled,
@@ -78,7 +80,7 @@ internal fun AppVersionSection(
         },
     )
     ListItem(
-        headlineContent = { Text("Release history") },
+        headlineContent = { Text(stringResource(R.string.ui_release_history)) },
         trailingContent = { DrillInChevron() },
         modifier = Modifier.clickable(onClick = onNavigateToChangelog),
     )

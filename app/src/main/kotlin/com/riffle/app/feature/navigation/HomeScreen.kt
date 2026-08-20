@@ -65,12 +65,12 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "Unable to connect to source",
+                    text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unable_to_connect_to_source),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = { retryKey++ }) {
-                    Text("Retry")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_retry))
                 }
             }
         } else {

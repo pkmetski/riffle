@@ -1,10 +1,12 @@
 package com.riffle.app.feature.settings.sections
 
 import androidx.compose.runtime.Composable
-import com.riffle.app.feature.reader.autoScrollSummary
-import com.riffle.app.feature.reader.cadenceSummary
-import com.riffle.app.feature.reader.displaySummary
-import com.riffle.app.feature.reader.formattingSummary
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
+import com.riffle.app.feature.reader.localizedAutoScrollSummary
+import com.riffle.app.feature.reader.localizedCadenceSummary
+import com.riffle.app.feature.reader.localizedDisplaySummary
+import com.riffle.app.feature.reader.localizedFormattingSummary
 import com.riffle.app.feature.settings.SettingsDrillInRow
 import com.riffle.app.feature.settings.SettingsPanel
 import com.riffle.app.feature.settings.SettingsSectionHeader
@@ -15,26 +17,26 @@ internal fun ReadingSection(
     globalFormatting: FormattingPreferences,
     onOpenPanel: (SettingsPanel) -> Unit,
 ) {
-    SettingsSectionHeader("Books")
+    SettingsSectionHeader(stringResource(R.string.ui_books))
     SettingsDrillInRow(
-        title = "Formatting",
-        summary = formattingSummary(globalFormatting),
+        title = stringResource(R.string.ui_formatting),
+        summary = localizedFormattingSummary(globalFormatting),
         onClick = { onOpenPanel(SettingsPanel.Formatting) },
     )
     SettingsDrillInRow(
-        title = "Display",
-        summary = displaySummary(globalFormatting),
+        title = stringResource(R.string.ui_display),
+        summary = localizedDisplaySummary(globalFormatting),
         onClick = { onOpenPanel(SettingsPanel.Display) },
     )
     SettingsDrillInRow(
-        title = "Auto-Scroll",
-        summary = autoScrollSummary(globalFormatting),
+        title = stringResource(R.string.ui_auto_scroll),
+        summary = localizedAutoScrollSummary(globalFormatting),
         onClick = { onOpenPanel(SettingsPanel.AutoScroll) },
     )
     if (globalFormatting.cadencePlatformSupported) {
         SettingsDrillInRow(
-            title = "Cadence",
-            summary = cadenceSummary(globalFormatting),
+            title = stringResource(R.string.ui_cadence),
+            summary = localizedCadenceSummary(globalFormatting),
             onClick = { onOpenPanel(SettingsPanel.Cadence) },
         )
     }

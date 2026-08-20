@@ -61,12 +61,12 @@ fun AddGutenbergScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SourceTypeIcon(type = SourceType.GUTENBERG, size = 28.dp)
                         Spacer(Modifier.width(12.dp))
-                        Text("Add Project Gutenberg")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_project_gutenberg))
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -83,20 +83,16 @@ fun AddGutenbergScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    "Project Gutenberg",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.source_project_gutenberg_name),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                Text(
-                    "Browse tens of thousands of free public-domain ebooks. No account is " +
-                        "needed — everything is read directly from the public catalogue.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_gutenberg_source_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Content is provided by gutenberg.org via the gutendex.com API.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_content_is_provided_by_gutenberg_org_via_the_gutendex_com_api),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -107,7 +103,7 @@ fun AddGutenbergScreen(
                         Button(
                             onClick = viewModel::install,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Add source") }
+                        ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_source)) }
                     }
                     is AddGutenbergViewModel.State.Installing -> {
                         CircularProgressIndicator()
@@ -125,7 +121,7 @@ fun AddGutenbergScreen(
                         Button(
                             onClick = viewModel::install,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Try again") }
+                        ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_try_again)) }
                     }
                 }
             }

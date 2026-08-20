@@ -81,6 +81,15 @@ test: wrapper ## Run all unit tests
 lint: wrapper ## Run lint checks
 	./gradlew lint
 
+.PHONY: translation
+translation: wrapper ## Create/update a locale resource file, e.g. make translation LOCALE=es
+	@test -n "$(LOCALE)" || { echo "Usage: make translation LOCALE=<tag> (example: LOCALE=fr or LOCALE=pt-rBR)"; exit 2; }
+	./gradlew createTranslation -Plocale=$(LOCALE)
+
+.PHONY: check-translations
+check-translations: wrapper ## Verify localized string resources are complete
+	./gradlew checkTranslations
+
 .PHONY: check
 check: wrapper ## Run build + lint + tests
 	./gradlew build lint test -PversionName=0.0.0-ci

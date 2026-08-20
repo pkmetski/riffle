@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.reader.BehaviorSection
 import com.riffle.app.feature.settings.SettingsSectionHeader
 
@@ -17,7 +19,7 @@ internal fun AppBehaviorSection(
     invertVolumeKeys: Boolean,
     onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
-    SettingsSectionHeader("Behavior")
+    SettingsSectionHeader(stringResource(R.string.ui_behavior))
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         BehaviorSection(
             keepScreenOn, onKeepScreenOnChange,

@@ -75,13 +75,13 @@ fun AnnotationsPanel(
     ) {
         Column(modifier = Modifier.fillMaxHeight()) {
             Text(
-                text = "Annotations",
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
             )
             if (annotations.isEmpty()) {
                 Text(
-                    text = "No annotations yet.",
+                    text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_annotations_yet),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -409,12 +409,12 @@ private fun AnnotationOverflow(
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Options")
+            Icon(Icons.Filled.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_options))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             if (isBookmark) {
                 DropdownMenuItem(
-                    text = { Text("Rename") },
+                    text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename)) },
                     leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                     onClick = {
                         expanded = false
@@ -423,7 +423,7 @@ private fun AnnotationOverflow(
                 )
             }
             DropdownMenuItem(
-                text = { Text("Delete") },
+                text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete)) },
                 leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
                 onClick = {
                     expanded = false
@@ -473,7 +473,7 @@ private fun BookmarkRenameDialog(
     var title by remember { mutableStateOf(initialTitle) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename bookmark") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename_bookmark)) },
         text = {
             OutlinedTextField(
                 value = title,
@@ -487,10 +487,10 @@ private fun BookmarkRenameDialog(
             TextButton(
                 onClick = { onConfirm(trimmed) },
                 enabled = trimmed.isNotEmpty(),
-            ) { Text("Save") }
+            ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
         },
     )
 }

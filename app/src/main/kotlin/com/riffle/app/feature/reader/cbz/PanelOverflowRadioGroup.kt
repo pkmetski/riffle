@@ -9,13 +9,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import com.riffle.app.R
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 
 private val PANEL_OVERFLOW_OPTIONS = listOf(
-    Triple(PanelOverflowBehavior.OFF, "No split", "Show oversized panels as-is without splitting"),
-    Triple(PanelOverflowBehavior.SPLIT, "Split", "Cuts oversized panels in half and shows each half as its own page"),
-    Triple(PanelOverflowBehavior.SMART_SPLIT, "Smart split", "Like Split, but finds a natural seam (gutter or whitespace) to cut at a cleaner boundary"),
+    Triple(PanelOverflowBehavior.OFF, R.string.ui_no_split, R.string.ui_show_oversized_panels_as_is_without_splitting),
+    Triple(PanelOverflowBehavior.SPLIT, R.string.ui_split, R.string.ui_cuts_oversized_panels_in_half),
+    Triple(PanelOverflowBehavior.SMART_SPLIT, R.string.ui_smart_split, R.string.ui_smart_split_description),
 )
 
 @Composable
@@ -25,10 +27,10 @@ internal fun PanelOverflowRadioGroup(
     onSelect: (PanelOverflowBehavior) -> Unit,
 ) {
     Column(Modifier.selectableGroup()) {
-        PANEL_OVERFLOW_OPTIONS.forEach { (behavior, label, description) ->
+        PANEL_OVERFLOW_OPTIONS.forEach { (behavior, labelRes, descriptionRes) ->
             ListItem(
-                headlineContent = { Text(label) },
-                supportingContent = { Text(description) },
+                headlineContent = { Text(stringResource(labelRes)) },
+                supportingContent = { Text(stringResource(descriptionRes)) },
                 leadingContent = {
                     RadioButton(selected = selected == behavior, onClick = null, enabled = enabled)
                 },

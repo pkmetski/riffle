@@ -17,8 +17,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import androidx.core.content.FileProvider
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
@@ -42,35 +44,34 @@ internal fun DiagnosticsSection(
     onNavigateToDebugLogs: () -> Unit,
 ) {
     val context = LocalContext.current
-    SettingsSectionHeader("Diagnostics")
+    SettingsSectionHeader(stringResource(R.string.ui_diagnostics))
     ListItem(
         modifier = Modifier.clickable(onClick = onNavigateToDebugLogs),
-        headlineContent = { Text("Debug logs") },
-        supportingContent = { Text("View / share the in-app log buffer") },
+        headlineContent = { Text(stringResource(R.string.ui_debug_logs)) },
+        supportingContent = { Text(stringResource(R.string.ui_view_share_the_in_app_log_buffer)) },
         trailingContent = { DrillInChevron() },
     )
     HorizontalDivider()
     if (crashReports.isEmpty()) {
         ListItem(
-            headlineContent = { Text("No crashes recorded") },
-            supportingContent = { Text("The app has not crashed since installation") },
+            headlineContent = { Text(stringResource(R.string.ui_no_crashes_recorded)) },
+            supportingContent = { Text(stringResource(R.string.ui_the_app_has_not_crashed_since_installation)) },
         )
     } else {
         ListItem(
             headlineContent = {
-                val plural = if (crashReports.size == 1) "" else "s"
-                Text("${crashReports.size} crash report$plural")
+                Text(stringResource(R.string.ui_crash_report_count, crashReports.size))
             },
-            supportingContent = { Text("Newest first") },
+            supportingContent = { Text(stringResource(R.string.ui_newest_first)) },
             trailingContent = {
                 Row {
                     TextButton(onClick = {
                         shareCrashReports(context, crashReportFiles())
-                    }) { Text("Share all") }
+                    }) { Text(stringResource(R.string.ui_share_all)) }
                     TextButton(onClick = {
                         onClearCrashReports()
                         expandedCrashes.clear()
-                    }) { Text("Clear") }
+                    }) { Text(stringResource(R.string.ui_clear)) }
                 }
             },
         )
@@ -90,9 +91,15 @@ internal fun DiagnosticsSection(
                     Row {
                         TextButton(onClick = {
                             shareSingleCrashReport(context, timestamp, item.content)
-                        }) { Text("Share") }
+                        }) { Text(stringResource(R.string.ui_share)) }
                         TextButton(onClick = { expandedCrashes[item.id] = !isOpen }) {
-                            Text(if (isOpen) "Hide" else "Show")
+                            Text(
+                                if (isOpen) {
+                                    stringResource(R.string.ui_hide)
+                                } else {
+                                    stringResource(R.string.ui_show)
+                                },
+                            )
                         }
                     }
                 },
@@ -120,10 +127,10 @@ private fun shareCrashReports(context: Context, files: List<File>) {
     val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
         type = "text/plain"
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-        putExtra(Intent.EXTRA_SUBJECT, "Riffle crash reports (${files.size})")
+        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.ui_crash_reports_subject, files.size))
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, "Share crash reports"))
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.ui_share_crash_reports)))
 }
 
 private fun shareSingleCrashReport(context: Context, timestamp: String, content: String) {
@@ -132,5 +139,5 @@ private fun shareSingleCrashReport(context: Context, timestamp: String, content:
         putExtra(Intent.EXTRA_SUBJECT, crashReportShareSubject(timestamp))
         putExtra(Intent.EXTRA_TEXT, content)
     }
-    context.startActivity(Intent.createChooser(intent, "Share crash report"))
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.ui_share_crash_report)))
 }

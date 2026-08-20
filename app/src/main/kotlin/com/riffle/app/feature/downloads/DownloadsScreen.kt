@@ -44,8 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.models.LibraryItem
@@ -66,16 +68,16 @@ fun DownloadsScreen(
     if (showRemoveAllDownloadsDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveAllDownloadsDialog = false },
-            title = { Text("Remove all downloads?") },
-            text = { Text("This will remove all downloaded media from your device.") },
+            title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove_all_downloads)) },
+            text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_this_will_remove_all_downloaded_media_from_your_device)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.removeAllDownloads()
                     showRemoveAllDownloadsDialog = false
-                }) { Text("Remove all") }
+                }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove_all)) }
             },
             dismissButton = {
-                TextButton(onClick = { showRemoveAllDownloadsDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showRemoveAllDownloadsDialog = false }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
             },
         )
     }
@@ -91,10 +93,10 @@ fun DownloadsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Downloads") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_downloads)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -109,15 +111,15 @@ fun DownloadsScreen(
             ) {
                 item {
                     SectionHeader(
-                        title = "Downloaded",
+                        title = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_downloaded),
                         totalLabel = if (uiState.downloadedItems.isNotEmpty()) formatBytes(uiState.downloadedTotalBytes) else null,
-                        actionLabel = if (uiState.downloadedItems.isNotEmpty()) "Remove all" else null,
+                        actionLabel = if (uiState.downloadedItems.isNotEmpty()) stringResource(R.string.ui_remove_all) else null,
                         onAction = { showRemoveAllDownloadsDialog = true },
                     )
                 }
                 if (uiState.downloadedItems.isEmpty()) {
                     item {
-                        EmptySection("No downloaded media")
+                        EmptySection(stringResource(R.string.ui_no_downloaded_media))
                     }
                 } else {
                     items(uiState.downloadedItems, key = { "${it.sourceId}_${it.item.id}" }) { entry ->
@@ -132,9 +134,9 @@ fun DownloadsScreen(
 
                 item {
                     SectionHeader(
-                        title = "Cached",
+                        title = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cached),
                         totalLabel = if (uiState.cachedItems.isNotEmpty()) formatBytes(uiState.cachedTotalBytes) else null,
-                        actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
+                        actionLabel = if (uiState.cachedItems.isNotEmpty()) stringResource(R.string.ui_clear_all) else null,
                         onAction = { viewModel.clearAllCached() },
                     )
                 }
@@ -146,7 +148,7 @@ fun DownloadsScreen(
                 }
                 if (uiState.cachedItems.isEmpty()) {
                     item {
-                        EmptySection("No cached media")
+                        EmptySection(stringResource(R.string.ui_no_cached_media))
                     }
                 } else {
                     items(uiState.cachedItems, key = { "${it.sourceId}_${it.item.id}" }) { entry ->
@@ -178,11 +180,11 @@ private fun CacheSettingsRow(autoClear: ContentCacheAutoClear, onClick: () -> Un
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Cache settings")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings))
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = autoClear.summaryLabel(),
+            text = autoClear.localizedSummaryLabel(),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -198,11 +200,11 @@ private fun CacheSettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cache settings") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.",
+                    text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -219,13 +221,13 @@ private fun CacheSettingsDialog(
                             onClick = { onSelected(option) },
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(option.optionLabel(), style = MaterialTheme.typography.bodyLarge)
+                        Text(option.localizedOptionLabel(), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_done)) }
         },
     )
 }
@@ -281,7 +283,7 @@ private fun LocalItemRow(
         PillColor.Downloaded -> MaterialTheme.colorScheme.onPrimary
         PillColor.Cached -> MaterialTheme.colorScheme.onSecondary
     }
-    val mediaTypeLabel = entry.mediaTypes.displayLabel()
+    val mediaTypeLabel = entry.mediaTypes.localizedDisplayLabel()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -325,26 +327,32 @@ private fun LocalItemRow(
         IconButton(onClick = onRemove) {
             Icon(
                 imageVector = Icons.Default.Delete,
-                contentDescription = "Remove ${entry.item.title}",
+                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove_named_item, entry.item.title),
             )
         }
     }
 }
 
-private fun Set<LocalMediaType>.displayLabel(): String =
-    sortedBy { it.displayOrder }.joinToString(" + ") { it.label }
+@Composable
+private fun Set<LocalMediaType>.localizedDisplayLabel(): String {
+    val labels = mutableListOf<String>()
+    for (type in sortedBy { it.displayOrder }) {
+        labels += type.localizedLabel()
+    }
+    return labels.joinToString(" + ")
+}
 
 private fun Set<LocalMediaType>.primaryIcon(): ImageVector =
     minByOrNull { it.displayOrder }?.icon ?: Icons.AutoMirrored.Filled.MenuBook
 
-private val LocalMediaType.label: String
-    get() = when (this) {
-        LocalMediaType.Epub -> "EPUB"
-        LocalMediaType.Pdf -> "PDF"
-        LocalMediaType.Comic -> "Comic"
-        LocalMediaType.Audiobook -> "Audiobook"
-        LocalMediaType.Readaloud -> "Readaloud"
-    }
+@Composable
+private fun LocalMediaType.localizedLabel(): String = when (this) {
+    LocalMediaType.Epub -> "EPUB"
+    LocalMediaType.Pdf -> "PDF"
+    LocalMediaType.Comic -> stringResource(R.string.ui_comic)
+    LocalMediaType.Audiobook -> stringResource(R.string.ui_audiobook)
+    LocalMediaType.Readaloud -> stringResource(R.string.ui_readaloud)
+}
 
 private val LocalMediaType.displayOrder: Int
     get() = when (this) {
@@ -381,8 +389,10 @@ internal fun formatBytes(bytes: Long): String {
     }
 }
 
-private fun ContentCacheAutoClear.summaryLabel(): String =
-    days?.let { "Auto-clear after $it days" } ?: "Auto-clear off"
+@Composable
+private fun ContentCacheAutoClear.localizedSummaryLabel(): String =
+    days?.let { stringResource(R.string.ui_auto_clear_after_days, it) } ?: stringResource(R.string.ui_auto_clear_off)
 
-private fun ContentCacheAutoClear.optionLabel(): String =
-    days?.let { "After $it days" } ?: "Off"
+@Composable
+private fun ContentCacheAutoClear.localizedOptionLabel(): String =
+    days?.let { stringResource(R.string.ui_after_days, it) } ?: stringResource(R.string.ui_off)

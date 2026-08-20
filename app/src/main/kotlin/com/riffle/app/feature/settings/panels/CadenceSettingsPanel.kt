@@ -12,7 +12,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.reader.cadence.CadenceHeroIcon
 import com.riffle.app.feature.reader.swatchBackdropColor
 import com.riffle.core.domain.AppTheme
@@ -36,7 +38,7 @@ fun CadenceSettingsPanel(
     onPrefsChange: (FormattingPreferences) -> Unit,
     platformSupported: Boolean = true,
     onDismiss: () -> Unit,
-) = DetailScaffold("Cadence", onDismiss) {
+) = DetailScaffold(stringResource(R.string.ui_cadence), onDismiss) {
     val systemInDark = isSystemInDarkTheme()
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -45,22 +47,19 @@ fun CadenceSettingsPanel(
         CadenceHeroIcon()
     }
     Text(
-        text = "Cadence highlights one sentence at a time and advances on its own at a set " +
-            "pace, so you can read hands-free. Start and stop from the reader top bar; " +
-            "nudge speed with the volume keys while running.",
+        text = stringResource(R.string.ui_cadence_description),
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
     )
     Text(
-        text = "This icon appears in the reader top bar to start and stop Cadence.",
+        text = stringResource(R.string.ui_this_icon_appears_in_the_reader_top_bar_to_start_and_stop_cadence),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 20.dp),
     )
     if (!platformSupported) {
         Text(
-            text = "Cadence isn't available on this device's WebView. Update the Android System " +
-                "WebView from the Play Store to enable it.",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cadence_webview_unavailable),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -71,15 +70,15 @@ fun CadenceSettingsPanel(
             value = prefs.showCadence,
             onValueChange = { onPrefsChange(prefs.copy(showCadence = it)) },
         ),
-        headlineContent = { Text("Show Cadence") },
-        supportingContent = { Text("Adds the toggle to the reader top bar (all orientations)") },
+        headlineContent = { Text(stringResource(R.string.ui_show_cadence)) },
+        supportingContent = { Text(stringResource(R.string.ui_adds_the_toggle_to_the_reader_top_bar_all_orientations)) },
         trailingContent = {
             Switch(checked = prefs.showCadence, onCheckedChange = null)
         },
     )
     WpmSliderRow(
-        label = "Default speed",
-        helper = "Per-book override in the reader's Formatting panel. Adjust live with the volume keys while running.",
+        label = stringResource(R.string.ui_default_speed),
+        helper = stringResource(R.string.ui_per_book_override_formatting_panel_volume_keys),
         wpm = prefs.cadenceWpm,
         onWpmChange = { onPrefsChange(prefs.copy(cadenceWpm = it)) },
     )

@@ -334,7 +334,7 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
                     )
                 else ButtonDefaults.filledTonalButtonColors(),
             ) {
-                Icon(Icons.Filled.Bedtime, contentDescription = "Sleep timer", modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Bedtime, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleep_timer), modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
                 Text(timerLabel, style = MaterialTheme.typography.titleSmall)
             }
@@ -370,7 +370,7 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {
-            Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous chapter", modifier = Modifier.size(secondaryIcon))
+            Icon(Icons.Filled.SkipPrevious, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_previous_chapter), modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
         Surface(
@@ -389,7 +389,7 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onNextChapter, enabled = state.canNextChapter, modifier = Modifier.size(secondaryButton)) {
-            Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter", modifier = Modifier.size(secondaryIcon))
+            Icon(Icons.Filled.SkipNext, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_next_chapter), modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton)) {

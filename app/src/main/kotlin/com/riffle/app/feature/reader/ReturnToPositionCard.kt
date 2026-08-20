@@ -44,6 +44,7 @@ fun ReturnToPositionCard(
     onReturn: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val returnContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_return_to_previous_position)
     Box(modifier = Modifier.fillMaxSize()) {
         Surface(
             modifier = Modifier
@@ -52,7 +53,7 @@ fun ReturnToPositionCard(
                 .navigationBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 12.dp)
                 .testTag(TAG_RETURN_CARD)
-                .semantics { contentDescription = "Return to previous position" },
+                .semantics { contentDescription = returnContentDescription },
             shape = RoundedCornerShape(16.dp),
             tonalElevation = 8.dp,
             shadowElevation = 8.dp,
@@ -73,7 +74,7 @@ fun ReturnToPositionCard(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        text = "Back",
+                        text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -86,7 +87,7 @@ fun ReturnToPositionCard(
                 ) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Dismiss",
+                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_dismiss),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

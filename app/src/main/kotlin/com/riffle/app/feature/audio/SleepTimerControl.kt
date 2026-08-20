@@ -46,7 +46,7 @@ fun SleepTimerControl(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Sleep Timer",
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleep_timer_3),
                 style = MaterialTheme.typography.titleMedium,
             )
 
@@ -59,9 +59,9 @@ fun SleepTimerControl(
                 ) {
                     val bannerText = when (timerMode) {
                         is SleepTimerMode.CountDown ->
-                            "Sleeping in ${timerMode.formatCountdown()}"
+                            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleeping_in, timerMode.formatCountdown())
                         is SleepTimerMode.EndOfChapter ->
-                            "Sleeping at end of chapter"
+                            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleeping_at_end_of_chapter)
                         is SleepTimerMode.None -> ""
                     }
                     Text(
@@ -70,7 +70,7 @@ fun SleepTimerControl(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     IconButton(onClick = { onCancel(); onDismiss() }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Cancel timer")
+                        Icon(Icons.Filled.Close, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel_timer))
                     }
                 }
             }
@@ -83,7 +83,7 @@ fun SleepTimerControl(
             ) {
                 Icon(Icons.Filled.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
-                Text("End of chapter")
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_end_of_chapter))
             }
 
             // 3-column preset grid: row 1 = 5/15/30, row 2 = 45/60/90.
@@ -136,6 +136,6 @@ private fun PresetButton(
         modifier = modifier,
         shape = RoundedCornerShape(50),
     ) {
-        Text("$minutes min", style = MaterialTheme.typography.labelLarge)
+        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_minutes_short, minutes), style = MaterialTheme.typography.labelLarge)
     }
 }

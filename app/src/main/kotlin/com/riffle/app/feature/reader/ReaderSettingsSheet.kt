@@ -106,7 +106,7 @@ fun ReaderSettingsSheet(
                         .padding(vertical = 4.dp)
                         .navigationBarsPadding(),
                 ) {
-                    Text("Reset to global defaults")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_reset_to_global_defaults))
                 }
             }
         }

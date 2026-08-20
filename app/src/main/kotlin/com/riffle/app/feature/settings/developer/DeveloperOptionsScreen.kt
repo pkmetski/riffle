@@ -31,9 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
@@ -52,10 +54,10 @@ fun DeveloperOptionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Developer options") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_developer_options)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -68,9 +70,9 @@ fun DeveloperOptionsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             HorizontalDivider()
-            SettingsSectionHeader("GitHub PAT")
+            SettingsSectionHeader(stringResource(R.string.ui_github_pat))
             Text(
-                text = "Used to submit panel detection bug reports to the GitHub repository.",
+                text = stringResource(R.string.ui_used_to_submit_panel_detection_bug_reports_to_the_github_repository),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -110,7 +112,7 @@ private fun GithubPatField(
         OutlinedTextField(
             value = pat,
             onValueChange = { pat = it; isSaved = false },
-            label = { Text("GitHub PAT (public_repo scope)") },
+            label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_github_pat_public_repo_scope)) },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             singleLine = true,
@@ -124,7 +126,7 @@ private fun GithubPatField(
             Button(
                 onClick = { onSaveGithubPat(pat); isSaved = true },
                 enabled = pat.isNotBlank() && !isSaved,
-            ) { Text("Save") }
+            ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save)) }
         }
     }
 }

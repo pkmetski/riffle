@@ -1,6 +1,8 @@
 package com.riffle.app.feature.settings.panels
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
 import com.riffle.app.feature.reader.FormattingSection
 import com.riffle.core.domain.FormattingPreferences
 
@@ -9,4 +11,4 @@ fun FormattingSettingsPanel(
     prefs: FormattingPreferences,
     onPrefsChange: (FormattingPreferences) -> Unit,
     onDismiss: () -> Unit,
-) = DetailScaffold("Formatting", onDismiss) { FormattingSection(prefs, onPrefsChange) }
+) = DetailScaffold(stringResource(R.string.ui_formatting), onDismiss) { FormattingSection(prefs, onPrefsChange) }

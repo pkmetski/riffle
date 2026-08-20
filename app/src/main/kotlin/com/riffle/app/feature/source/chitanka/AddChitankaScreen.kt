@@ -61,12 +61,12 @@ fun AddChitankaScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SourceTypeIcon(type = SourceType.CHITANKA, size = 28.dp)
                         Spacer(Modifier.width(12.dp))
-                        Text("Add Chitanka")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_chitanka))
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -83,20 +83,16 @@ fun AddChitankaScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    "Chitanka",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.source_chitanka_name),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                Text(
-                    "Browse Bulgarian ebooks and audiobooks from two public digital libraries. " +
-                        "No account is needed — everything is read directly from the public sites.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chitanka_source_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Content is provided by chitanka.info and gramofonche.chitanka.info.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_content_is_provided_by_chitanka_info_and_gramofonche_chitanka_info),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -107,7 +103,7 @@ fun AddChitankaScreen(
                         Button(
                             onClick = viewModel::install,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Add source") }
+                        ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_source)) }
                     }
                     is AddChitankaViewModel.State.Installing -> {
                         CircularProgressIndicator()
@@ -125,7 +121,7 @@ fun AddChitankaScreen(
                         Button(
                             onClick = viewModel::install,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Try again") }
+                        ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_try_again)) }
                     }
                 }
             }

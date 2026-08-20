@@ -154,21 +154,21 @@ private fun DrawerSheetContent(
         HorizontalDivider()
         if (showDownloadsLink) {
             NavigationDrawerItem(
-                label = { Text("Downloads") },
+                label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_downloads)) },
                 icon = { Icon(Icons.Default.Download, contentDescription = null) },
                 selected = false,
                 onClick = onDownloadsSelected,
             )
         }
         NavigationDrawerItem(
-            label = { Text("Settings") },
+            label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_settings)) },
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
             selected = false,
             onClick = onSettingsSelected,
         )
         val uriHandler = LocalUriHandler.current
         Text(
-            text = "☕ Support on Ko-fi",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_support_support_on_ko_fi),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier
@@ -179,7 +179,11 @@ private fun DrawerSheetContent(
         )
         val sha = BuildConfig.GIT_SHA.takeIf { it.isNotEmpty() }
         Text(
-            text = "Riffle v${BuildConfig.VERSION_NAME}" + (sha?.let { " ($it)" } ?: ""),
+            text = androidx.compose.ui.res.stringResource(
+                com.riffle.app.R.string.ui_app_version,
+                BuildConfig.VERSION_NAME,
+                sha?.let { " ($it)" } ?: "",
+            ),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier
@@ -211,7 +215,8 @@ private fun DrawerHeader(
                 { SourceRowIcon(server = server) }
             },
             headlineContent = {
-                val name = activeServer?.let(::sourceDisplayName) ?: "No source"
+                val name = activeServer?.let(::sourceDisplayName)
+                    ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
                 val username = activeServer
                     ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                     ?.username?.takeIf { it.isNotEmpty() }
@@ -245,7 +250,7 @@ private fun DrawerHeader(
             trailingContent = {
                 Icon(
                     imageVector = if (switcherExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Toggle source switcher",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_toggle_source_switcher),
                 )
             },
             modifier = Modifier.clickable { switcherExpanded = !switcherExpanded },
@@ -294,7 +299,7 @@ private fun DrawerHeader(
                     leadingIcon = { SourceRowIcon(server = server) },
                     trailingIcon = {
                         if (server.isActive) {
-                            Icon(Icons.Default.Check, contentDescription = "Active source")
+                            Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))
                         }

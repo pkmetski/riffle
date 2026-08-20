@@ -23,8 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.R
 import com.riffle.app.feature.annotationsync.WebdavUiCopy
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge
@@ -61,7 +63,7 @@ fun AnnotationsSyncSettingsScreen(
                 title = { Text(WebdavUiCopy.SCREEN_TITLE) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -74,7 +76,7 @@ fun AnnotationsSyncSettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             HorizontalDivider()
-            SettingsSectionHeader("Server")
+            SettingsSectionHeader(stringResource(R.string.ui_server))
             ListItem(
                 modifier = Modifier.clickable {
                     onNavigateToAddSource(AddSourceBackend.Webdav, null)
@@ -95,17 +97,17 @@ fun AnnotationsSyncSettingsScreen(
             )
             HorizontalDivider()
 
-            SettingsSectionHeader("Devices")
+            SettingsSectionHeader(stringResource(R.string.ui_devices))
             val maintenanceEnabled = row.badge != AnnotationSyncRowState.Badge.Local
             ListItem(
                 modifier = if (maintenanceEnabled) {
                     Modifier.clickable(onClick = onNavigateToMaintenance)
                 } else Modifier,
-                headlineContent = { Text("Maintenance") },
+                headlineContent = { Text(stringResource(R.string.ui_maintenance)) },
                 supportingContent = {
                     Text(
-                        if (maintenanceEnabled) "Forget devices, rename this device"
-                        else "Set up WebDAV first to manage devices",
+                        if (maintenanceEnabled) stringResource(R.string.ui_forget_devices_rename_this_device)
+                        else stringResource(R.string.ui_set_up_webdav_first_to_manage_devices),
                     )
                 },
                 colors = if (maintenanceEnabled) ListItemDefaults.colors() else disabledListItemColors(),

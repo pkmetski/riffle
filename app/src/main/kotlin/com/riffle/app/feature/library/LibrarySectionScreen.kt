@@ -42,7 +42,7 @@ fun LibrarySectionScreen(
                 title = { Text(sectionType.displayName) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -71,7 +71,7 @@ private fun BookGrid(
             modifier = Modifier.fillMaxSize().padding(contentPadding),
             contentAlignment = Alignment.Center,
         ) {
-            Text("No items")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_items))
         }
         return
     }

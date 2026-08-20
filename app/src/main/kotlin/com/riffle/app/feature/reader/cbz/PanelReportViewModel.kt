@@ -36,6 +36,7 @@ class PanelReportViewModel(
     val detectedPanels: List<PanelRegion>,
     val detectedSource: PanelSource,
     private val repository: PanelReportRepository,
+    private val selectFailureTypeMessage: String,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PanelReportUiState())
@@ -101,7 +102,7 @@ class PanelReportViewModel(
     fun submit(maskPng: ByteArray) {
         val ft = _state.value.failureType
         if (ft == null) {
-            _state.update { it.copy(error = "Select a failure type before submitting") }
+            _state.update { it.copy(error = selectFailureTypeMessage) }
             return
         }
         viewModelScope.launch {

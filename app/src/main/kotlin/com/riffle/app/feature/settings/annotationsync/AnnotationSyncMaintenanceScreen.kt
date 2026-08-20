@@ -58,10 +58,10 @@ fun AnnotationSyncMaintenanceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Maintenance") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_maintenance)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -75,21 +75,17 @@ fun AnnotationSyncMaintenanceScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                "Each device using this account writes its own annotation file per book to WebDAV. " +
-                    "The list below shows every device whose files are currently on the server.",
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations_webdav_maintenance_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             when (val s = state.devices) {
-                MaintenanceScreenUiState.NotConfigured -> StatusText(
-                    "Annotation sync isn't set up yet. Configure a WebDAV server first to manage devices.",
+                MaintenanceScreenUiState.NotConfigured -> StatusText(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotation_sync_isn_t_set_up_yet_configure_a_webdav_server_first_to_manage_devic),
                 )
-                MaintenanceScreenUiState.NoNamespace -> StatusText(
-                    "Sign in to an Audiobookshelf server to see device files (the sync namespace is your ABS user id).",
+                MaintenanceScreenUiState.NoNamespace -> StatusText(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sign_in_to_an_audiobookshelf_server_to_see_device_files_the_sync_namespace_is_yo),
                 )
-                MaintenanceScreenUiState.Loading -> StatusText("Loading devices…")
+                MaintenanceScreenUiState.Loading -> StatusText(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading_devices))
                 is MaintenanceScreenUiState.Error -> Text(
                     s.message,
                     style = MaterialTheme.typography.bodyMedium,
@@ -103,7 +99,7 @@ fun AnnotationSyncMaintenanceScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = viewModel::onRefresh, enabled = !state.busy) { Text("Refresh") }
+                TextButton(onClick = viewModel::onRefresh, enabled = !state.busy) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_refresh)) }
             }
 
             MaintenanceSnackBanner(state.snack, viewModel::onSnackDismissed)
@@ -149,7 +145,7 @@ private fun StatusText(text: String) {
 @Composable
 private fun DeviceListCard(devices: List<MaintenanceDeviceRowUiState>, vm: AnnotationSyncMaintenanceViewModel) {
     if (devices.isEmpty()) {
-        StatusText("No device files found on the server yet.")
+        StatusText(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_device_files_found_on_the_server_yet))
         return
     }
     Surface(
@@ -184,7 +180,7 @@ private fun DeviceRow(row: MaintenanceDeviceRowUiState, vm: AnnotationSyncMainte
                     AssistChip(
                         onClick = {},
                         enabled = false,
-                        label = { Text("This device", style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_this_device), style = MaterialTheme.typography.labelSmall) },
                         colors = AssistChipDefaults.assistChipColors(
                             disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -202,10 +198,10 @@ private fun DeviceRow(row: MaintenanceDeviceRowUiState, vm: AnnotationSyncMainte
         }
         if (row.isThisDevice) {
             IconButton(onClick = vm::onRenameDeviceRequested) {
-                Icon(Icons.Filled.Edit, contentDescription = "Rename this device")
+                Icon(Icons.Filled.Edit, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename_this_device))
             }
         } else {
-            OutlinedButton(onClick = { vm.onForgetRequested(row) }) { Text("Forget") }
+            OutlinedButton(onClick = { vm.onForgetRequested(row) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget)) }
         }
     }
 }
@@ -214,23 +210,18 @@ private fun DeviceRow(row: MaintenanceDeviceRowUiState, vm: AnnotationSyncMainte
 private fun ForgetDialog(row: MaintenanceDeviceRowUiState, onCancel: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Forget \"${row.label}\"?") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_device_title, row.label)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Removes this device's files from the WebDAV server. Other devices still have copies of " +
-                        "these annotations in their own files, so the records are preserved.",
-                )
-                Text(
-                    "Edge case: if this device went offline before any other device synced its last edits, " +
-                        "those edits exist only on its files and will be lost.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_device_explanation))
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_device_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Forget device") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_device)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) } },
     )
 }
 
@@ -239,11 +230,10 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
     var value by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Rename this device") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename_this_device)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Shown on every device in the household.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_shown_on_every_device_in_the_household),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -251,13 +241,13 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
                     value = value,
                     onValueChange = { value = it },
                     singleLine = true,
-                    label = { Text("Name") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_name)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(value) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = { onConfirm(value) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) } },
     )
 }
 
@@ -266,15 +256,11 @@ private fun OtherUsersSection(
     groups: List<OtherUserGroupUiState>,
     vm: AnnotationSyncMaintenanceViewModel,
 ) {
-    Text(
-        "Other users on this share",
+    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_other_users_on_this_share),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
     )
-    Text(
-        "Files written by a different Audiobookshelf account. They aren't read by any device " +
-            "using your current account. Expand to forget individual devices, or remove the " +
-            "whole user.",
+    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_other_users_description),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -321,23 +307,32 @@ private fun OtherUserGroup(
         ) {
             Icon(
                 Icons.Filled.KeyboardArrowRight,
-                contentDescription = if (isOpen) "Collapse" else "Expand",
+                contentDescription = if (isOpen) {
+                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_collapse)
+                } else {
+                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_expand)
+                },
                 modifier = Modifier.rotate(caretRotation),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    group.displayLabel ?: "Unknown user",
+                    group.displayLabel ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unknown_user),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                 )
-                val countLabel = "${group.devices.size} device" +
-                    (if (group.devices.size == 1) "" else "s") +
-                    " · " +
-                    "${group.totalFileCount} file" + (if (group.totalFileCount == 1) "" else "s")
+                val countLabel = androidx.compose.ui.res.stringResource(
+                    com.riffle.app.R.string.ui_device_file_count,
+                    group.devices.size,
+                    group.totalFileCount,
+                )
                 val secondary = if (group.displayLabel == null) {
-                    "${group.namespace.take(8)}… · $countLabel"
+                    androidx.compose.ui.res.stringResource(
+                        com.riffle.app.R.string.ui_unknown_user_secondary,
+                        group.namespace.take(8),
+                        countLabel,
+                    )
                 } else {
                     countLabel
                 }
@@ -374,7 +369,7 @@ private fun OtherUserGroup(
                                 }
                             }
                             OutlinedButton(onClick = { vm.onForgetRequested(device) }) {
-                                Text("Forget")
+                                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget))
                             }
                         }
                         if (idx != group.devices.lastIndex) {
@@ -390,7 +385,7 @@ private fun OtherUserGroup(
                         TextButton(
                             onClick = { vm.onForgetUserRequested(group) },
                         ) {
-                            Text("Forget all from this user", color = MaterialTheme.colorScheme.error)
+                            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_all_from_this_user), color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -405,32 +400,27 @@ private fun ForgetUserDialog(
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val label = group.displayLabel ?: "this user"
+    val label = group.displayLabel ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_this_user)
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Forget all from \"$label\"?") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_all_from_user_title, label)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    buildString {
-                        append("Removes every file from this user on the WebDAV server — ")
-                        append("${group.devices.size} device")
-                        if (group.devices.size != 1) append("s")
-                        append(", ${group.totalFileCount} file")
-                        if (group.totalFileCount != 1) append("s")
-                        append(".")
-                    },
+                    androidx.compose.ui.res.stringResource(
+                        com.riffle.app.R.string.ui_forget_user_summary,
+                        group.devices.size,
+                        group.totalFileCount,
+                    ),
                 )
-                Text(
-                    "Only do this if you're sure no device is still using this account — usually " +
-                        "it's an old account you no longer sync from.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_user_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Forget all") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forget_all)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) } },
     )
 }
 
@@ -440,19 +430,29 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
         MaintenanceSnack.None -> return
         is MaintenanceSnack.Forgot -> {
             val parts = mutableListOf<String>()
-            parts += "Forgot \"${snack.label}\""
-            parts += "${snack.files} file(s) removed"
-            if (snack.failures > 0) parts += "${snack.failures} failure(s)"
+            parts += androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_forgot_device_snack, snack.label)
+            parts += androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_files_removed_count, snack.files)
+            if (snack.failures > 0) {
+                parts += androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_failures_count, snack.failures)
+            }
             parts.joinToString(" · ") to (snack.failures > 0)
         }
         is MaintenanceSnack.Renamed -> {
             // The sentinel is a single file; reporting a count would always say "1 file(s) updated"
             // on success, which carries no information. Surface only success vs. failure.
-            val text = if (snack.failures > 0) "Device rename failed" else "Device renamed"
+            val text = if (snack.failures > 0) {
+                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_device_rename_failed)
+            } else {
+                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_device_renamed)
+            }
             text to (snack.failures > 0)
         }
         is MaintenanceSnack.ForgotUser ->
-            "Forgot \"${snack.userLabel}\" · ${snack.files} file(s) removed" to false
+            androidx.compose.ui.res.stringResource(
+                com.riffle.app.R.string.ui_forgot_user_snack,
+                snack.userLabel,
+                snack.files,
+            ) to false
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -469,7 +469,7 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
             )
-            TextButton(onClick = onDismiss) { Text("Dismiss") }
+            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_dismiss)) }
         }
     }
 }

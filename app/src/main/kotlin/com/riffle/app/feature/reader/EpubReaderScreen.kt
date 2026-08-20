@@ -267,10 +267,12 @@ fun EpubReaderScreen(
         }
     }
 
+    val syncProgressError = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_could_not_sync_reading_progress)
+
     // Toast on sync error
     LaunchedEffect(viewModel) {
         viewModel.syncErrorEvents.collect {
-            Toast.makeText(context, "Could not sync reading progress", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, syncProgressError, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -815,30 +817,31 @@ fun EpubReaderScreen(
                     onNavigateBack = onNavigateBack,
                 )
             } else {
+                val formatContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_format)
                 TopAppBar(
                     title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                         }
                     },
                     actions = {
                         if (state is ReaderState.Ready) {
                             IconButton(onClick = viewModel::openSearch) {
-                                Icon(Icons.Default.Search, contentDescription = "Search")
+                                Icon(Icons.Default.Search, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search))
                             }
                             IconButton(onClick = viewModel::openToc) {
-                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents))
                             }
                             IconButton(onClick = viewModel::openAnnotationsPanel) {
-                                Icon(RiffleIcons.Annotations, contentDescription = "Annotations")
+                                Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations))
                             }
                             IconButton(onClick = { showFormattingPanel = true }) {
                                 Text(
                                     "Aa",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.semantics { contentDescription = "Format" },
+                                    modifier = Modifier.semantics { contentDescription = formatContentDescription },
                                 )
                             }
                             val autoScrollState by viewModel.autoScrollState.collectAsState()
@@ -877,7 +880,7 @@ fun EpubReaderScreen(
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_readaloud),
-                                        contentDescription = "Readaloud",
+                                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud),
                                     )
                                 }
                             }
@@ -896,7 +899,7 @@ fun EpubReaderScreen(
                                     IconButton(onClick = viewModel::onShareElidedView) {
                                         Icon(
                                             imageVector = Icons.Default.Share,
-                                            contentDescription = "Share annotations as PDF",
+                                            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_share_annotations_as_pdf),
                                         )
                                     }
                                 }
@@ -1631,7 +1634,7 @@ private fun EpubNavigatorView(
                 when (item.itemId) {
                     copyMenuId -> withSelectionText { text ->
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Riffle", text))
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(context.getString(com.riffle.app.R.string.app_name), text))
                     }
                     searchMenuId -> withSelectionText { text ->
                         val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
@@ -2993,12 +2996,13 @@ private fun EpubNavigatorView(
         // the reader; the page colour makes it read as a brief blank rather than a flash of the
         // wrong page.
         if (navigating) {
+            val loadingContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading_3)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(formattingPrefs.theme.palette.background)
                     .testTag("reader_nav_cover")
-                    .semantics { contentDescription = "Loading" },
+                    .semantics { contentDescription = loadingContentDescription },
             )
         }
 

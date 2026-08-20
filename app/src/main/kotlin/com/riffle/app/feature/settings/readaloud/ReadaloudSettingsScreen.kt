@@ -35,10 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.R
 import com.riffle.app.feature.reader.swatchBackdropColor
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.core.domain.withResolvedTheme
@@ -90,10 +92,10 @@ fun ReadaloudSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Readaloud") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -106,15 +108,15 @@ fun ReadaloudSettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             HorizontalDivider()
-            SettingsSectionHeader("Server")
+            SettingsSectionHeader(stringResource(R.string.ui_server))
             if (storyteller == null) {
                 ListItem(
                     modifier = Modifier.clickable {
                         onNavigateToAddSource(AddSourceBackend.Storyteller, null)
                     },
                     leadingContent = { StorytellerBadge(configured = false) },
-                    headlineContent = { Text("Configure Storyteller") },
-                    supportingContent = { Text("Not configured") },
+                    headlineContent = { Text(stringResource(R.string.ui_configure_storyteller)) },
+                    supportingContent = { Text(stringResource(R.string.ui_not_configured)) },
                     trailingContent = { DrillInChevron() },
                 )
             } else {
@@ -136,30 +138,33 @@ fun ReadaloudSettingsScreen(
                         onNavigateToAddSource(AddSourceBackend.Storyteller, storyteller.id)
                     },
                     leadingContent = { StorytellerBadge(configured = true) },
-                    headlineContent = { Text("Storyteller") },
+                    headlineContent = { Text(stringResource(R.string.source_storyteller_name)) },
                     supportingContent = { Text(subtitle) },
                     trailingContent = { DrillInChevron() },
                 )
             }
             HorizontalDivider()
 
-            SettingsSectionHeader("Matches")
+            SettingsSectionHeader(stringResource(R.string.ui_matches))
             val summary = storyteller?.let { readaloudSummaries[it.id] }
             ListItem(
                 modifier = if (storyteller != null) {
                     Modifier.clickable { onNavigateToReadaloudMatches(storyteller.id) }
                 } else Modifier,
-                headlineContent = { Text("Review readaloud matches") },
+                headlineContent = { Text(stringResource(R.string.ui_review_readaloud_matches)) },
                 supportingContent = {
                     if (summary != null) {
                         Text(
-                            "${summary.unmatchedCount} unmatched · " +
-                                "${summary.suggestedCount} suggested · " +
-                                "${summary.partiallyMatchedCount} partially matched · " +
-                                "${summary.matchedCount} matched",
+                            stringResource(
+                                R.string.ui_readaloud_match_counts,
+                                summary.unmatchedCount,
+                                summary.suggestedCount,
+                                summary.partiallyMatchedCount,
+                                summary.matchedCount,
+                            ),
                         )
                     } else {
-                        Text("Configure Storyteller first to review matches")
+                        Text(stringResource(R.string.ui_configure_storyteller_first_to_review_matches))
                     }
                 },
                 colors = if (storyteller != null) ListItemDefaults.colors() else disabledListItemColors(),
@@ -171,10 +176,10 @@ fun ReadaloudSettingsScreen(
             )
             HorizontalDivider()
 
-            SettingsSectionHeader("Appearance")
+            SettingsSectionHeader(stringResource(R.string.ui_appearance))
             val highlightEnabled = storyteller != null
             ListItem(
-                headlineContent = { Text("Sentence highlight") },
+                headlineContent = { Text(stringResource(R.string.ui_sentence_highlight)) },
                 colors = if (highlightEnabled) ListItemDefaults.colors() else disabledListItemColors(),
                 trailingContent = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

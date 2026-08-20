@@ -40,7 +40,7 @@ fun FilteredBooksScreen(
                 title = { Text(facetTitle(viewModel.facetType, viewModel.facetValue), maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -52,7 +52,7 @@ fun FilteredBooksScreen(
             }
             if (items.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No books found")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_books_found))
                 }
             } else {
                 LazyVerticalGrid(

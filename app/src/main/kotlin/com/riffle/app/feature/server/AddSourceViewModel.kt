@@ -1,5 +1,7 @@
 package com.riffle.app.feature.server
 
+import android.content.Context
+import com.riffle.app.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -31,6 +33,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -97,6 +100,7 @@ sealed class AddSourceBackend {
 
 @HiltViewModel
 class AddSourceViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: SourceRepository,
     // Per-SourceType credentialed authenticators (ADR 0053). Injected as a Hilt multibinding —
     // adding a new credentialed source contributes one entry via @IntoMap without touching this
@@ -238,7 +242,7 @@ class AddSourceViewModel @Inject constructor(
     private fun connectServer() {
         val serverUrl = SourceUrl.parse(url.trim())
         if (serverUrl == null) {
-            error = "Enter a valid URL (e.g. https://abs.example.com)"
+            error = context.getString(R.string.error_enter_valid_url)
             return
         }
         if (serverUrl.value.startsWith("http://")) {
@@ -252,7 +256,7 @@ class AddSourceViewModel @Inject constructor(
         val config = AnnotationSyncConfig(url.trim(), username, password)
         val target = webdavTargetFactory.create(config)
         if (target == null) {
-            error = "Could not parse URL — it should look like https://example.com/dav/path"
+            error = context.getString(R.string.error_parse_webdav_url)
             return
         }
         viewModelScope.launch {
@@ -265,14 +269,14 @@ class AddSourceViewModel @Inject constructor(
                     _navigateHome.send(Unit)
                 }
                 TestConnectionResult.AuthFailed ->
-                    error = "Authentication failed — check your username and password."
+                    error = context.getString(R.string.error_auth_failed_check_credentials)
                 is TestConnectionResult.InvalidUrl -> error = result.message
                 is TestConnectionResult.NetworkError ->
-                    error = "Couldn't reach the server: ${result.message}"
+                    error = context.getString(R.string.error_couldnt_reach_server, result.message)
                 is TestConnectionResult.TlsError ->
-                    error = "TLS error: ${result.message}"
+                    error = context.getString(R.string.error_tls, result.message)
                 is TestConnectionResult.ServerError ->
-                    error = "Source returned HTTP ${result.code}."
+                    error = context.getString(R.string.error_source_http, result.code)
             }
             isLoading = false
         }
@@ -313,16 +317,16 @@ class AddSourceViewModel @Inject constructor(
                                 _navigateHome.send(Unit)
                             }
                             is CommitSourceResult.Failure ->
-                                error = "Couldn't save source: ${c.cause.message}"
+                                error = context.getString(R.string.error_couldnt_save_source, c.cause.message)
                         }
                     } else {
                         _navigateToSelectLibraries.send(pending)
                     }
                 }
                 is AuthenticateResult.WrongCredentials -> error = result.message
-                is AuthenticateResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
+                is AuthenticateResult.NetworkError -> error = context.getString(R.string.error_connection_failed, result.cause.message)
                 is AuthenticateResult.LibraryFetchFailed ->
-                    error = "Connected, but couldn't load libraries: ${result.cause.message}"
+                    error = context.getString(R.string.error_connected_library_load_failed, result.cause.message)
                 is AuthenticateResult.InsecureConnection -> insecureWarning = result.type
             }
             isLoading = false
@@ -360,19 +364,19 @@ class AddSourceViewModel @Inject constructor(
         }
         val prescription = when {
             outcome is CycleOutcome.Failed.Auth ->
-                "Authentication failed — your credentials may have expired. Re-enter them below; sync will retry once saved."
+                context.getString(R.string.ui_webdav_auth_failed_prescription)
             outcome is CycleOutcome.Failed.Tls ->
-                "TLS error — the server's certificate could not be verified. Update the URL below; sync will retry once saved."
+                context.getString(R.string.ui_webdav_tls_failed_prescription)
             outcome is CycleOutcome.Failed.Server ->
-                "Source returned HTTP ${outcome.code}. Will retry automatically."
+                context.getString(R.string.ui_source_http_retry, outcome.code)
             outcome is CycleOutcome.Failed.Unknown ->
-                "Sync failed. Will retry automatically."
+                context.getString(R.string.ui_sync_failed_retry)
             outcome is CycleOutcome.Failed.Network ->
-                "Couldn't reach the server. Will retry automatically when connectivity returns."
+                context.getString(R.string.ui_couldnt_reach_server_retry)
             outcome is CycleOutcome.Success && pendingBookCount > 0 ->
-                "$pendingBookCount book(s) pending · will sync shortly."
+                context.getString(R.string.ui_books_pending_sync_shortly, pendingBookCount)
             outcome is CycleOutcome.NeverRun && pendingBookCount > 0 ->
-                "$pendingBookCount book(s) pending · waiting for first sync."
+                context.getString(R.string.ui_books_pending_waiting_first_sync, pendingBookCount)
             else -> null
         }
         val host = runCatching { java.net.URI(config.baseUrl).host ?: config.baseUrl }
@@ -393,13 +397,13 @@ class AddSourceViewModel @Inject constructor(
      * "just now" while sync is in fact still broken.
      */
     private fun relativeSuccessTime(lastSuccessAtMs: Long?): String {
-        if (lastSuccessAtMs == null) return "Never"
+        if (lastSuccessAtMs == null) return context.getString(R.string.ui_never)
         val elapsedSec = (clock.nowMs() - lastSuccessAtMs) / 1_000L
         return when {
-            elapsedSec < 60 -> "just now"
-            elapsedSec < 3_600 -> "${elapsedSec / 60} min ago"
-            elapsedSec < 86_400 -> "${elapsedSec / 3_600} h ago"
-            else -> "${elapsedSec / 86_400} d ago"
+            elapsedSec < 60 -> context.getString(R.string.ui_just_now)
+            elapsedSec < 3_600 -> context.getString(R.string.ui_minutes_ago, elapsedSec / 60)
+            elapsedSec < 86_400 -> context.getString(R.string.ui_hours_ago, elapsedSec / 3_600)
+            else -> context.getString(R.string.ui_days_ago, elapsedSec / 86_400)
         }
     }
 

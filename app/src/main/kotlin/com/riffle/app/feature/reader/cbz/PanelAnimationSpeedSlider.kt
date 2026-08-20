@@ -19,7 +19,7 @@ internal fun PanelAnimationSpeedSlider(
 ) {
     val value = speedMs.toFloat().coerceIn(ANIM_SPEED_RANGE)
     UnifiedSliderRow(
-        title = "Animation Speed",
+        title = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_animation_speed),
         caption = animSpeedLabel(speedMs),
         value = value,
         onValueChange = { onSpeedChange(it.toInt()) },

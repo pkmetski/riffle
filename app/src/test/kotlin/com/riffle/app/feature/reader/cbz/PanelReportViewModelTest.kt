@@ -231,5 +231,6 @@ class PanelReportViewModelTest {
         detectedPanels = panels,
         detectedSource = PanelSource.Auto,
         repository = repository,
+        selectFailureTypeMessage = "Select a failure type before submitting",
     )
 }

@@ -73,7 +73,7 @@ fun AnnotationsListScreen(
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
-                            text = "Annotations (${state.books.size})",
+                            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations_count, state.books.size),
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                         )
@@ -101,12 +101,12 @@ private fun AnnotationsEmptyState(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "No highlights yet.",
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_highlights_yet),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Long-press text while reading to highlight it.",
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_long_press_text_while_reading_to_highlight_it),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

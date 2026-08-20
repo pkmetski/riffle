@@ -1,6 +1,8 @@
 package com.riffle.app.feature.server
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.app.R
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
@@ -41,6 +43,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import io.mockk.every
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddSourceViewModelTest {
@@ -181,6 +184,7 @@ class AddSourceViewModelTest {
         annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
         bannerTicker: Flow<Unit> = flowOf(Unit),
     ): AddSourceViewModel = AddSourceViewModel(
+        context = fakeContext(),
         repository = repository,
         // `RecordingRepository` implements both SourceRepository and CredentialedAuthenticator, so
         // when tests pass one in it doubles as the ABS-keyed authenticator. Anything else falls
@@ -200,6 +204,32 @@ class AddSourceViewModelTest {
         bannerTicker = bannerTicker,
         savedStateHandle = savedState,
     )
+
+    private fun fakeContext(): Context {
+        val context = io.mockk.mockk<Context>()
+        every { context.getString(R.string.error_enter_valid_url) } returns
+            "Enter a valid URL (e.g. https://abs.example.com)"
+        every { context.getString(R.string.error_parse_webdav_url) } returns
+            "Could not parse URL — it should look like https://example.com/dav/path"
+        every { context.getString(R.string.error_auth_failed_check_credentials) } returns
+            "Authentication failed — check your username and password."
+        every { context.getString(R.string.error_couldnt_reach_server, any()) } answers
+            { "Couldn't reach the server: ${firstFormatArg(invocation.args[1])}" }
+        every { context.getString(R.string.error_tls, any()) } answers
+            { "TLS error: ${firstFormatArg(invocation.args[1])}" }
+        every { context.getString(R.string.error_source_http, any()) } answers
+            { "Source returned HTTP ${firstFormatArg(invocation.args[1])}." }
+        every { context.getString(R.string.error_couldnt_save_source, any()) } answers
+            { "Couldn't save source: ${firstFormatArg(invocation.args[1])}" }
+        every { context.getString(R.string.error_connection_failed, any()) } answers
+            { "Connection failed: ${firstFormatArg(invocation.args[1])}" }
+        every { context.getString(R.string.error_connected_library_load_failed, any()) } answers
+            { "Connected, but couldn't load libraries: ${firstFormatArg(invocation.args[1])}" }
+        return context
+    }
+
+    private fun firstFormatArg(arg: Any?): Any? =
+        (arg as? Array<*>)?.firstOrNull() ?: arg
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
         override fun observeForItem(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())

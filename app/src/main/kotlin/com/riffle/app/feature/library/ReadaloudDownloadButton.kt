@@ -54,7 +54,7 @@ fun ReadaloudDownloadButton(
         DownloadState.Cached -> {
             BadgedDownloadCircle(
                 modifier = modifier,
-                contentDescription = "Download readaloud",
+                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download_readaloud),
                 tint = MaterialTheme.colorScheme.outline,
                 badgeTint = MaterialTheme.colorScheme.outline,
                 circleModifier = Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape),
@@ -65,7 +65,7 @@ fun ReadaloudDownloadButton(
         DownloadState.Downloaded -> {
             BadgedDownloadCircle(
                 modifier = modifier,
-                contentDescription = "Remove readaloud download",
+                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove_readaloud_download),
                 tint = MaterialTheme.colorScheme.onPrimary,
                 // The badge sits on a surface-colored chip, so it keeps a surface-readable tint
                 // rather than the circle's onPrimary content color.

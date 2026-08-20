@@ -74,8 +74,7 @@ internal fun PanelReportSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                "Report panel detection issue",
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_report_panel_detection_issue),
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             )
 
@@ -141,8 +140,7 @@ internal fun PanelReportSheet(
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
             if (orderMode) {
-                Text(
-                    "Tap panels in the correct reading order. Tap a numbered panel to reset from that point.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_tap_panels_in_the_correct_reading_order_tap_a_numbered_panel_to_reset_from_that),
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
             }
@@ -277,7 +275,7 @@ internal fun PanelReportSheet(
                             else
                                 viewModel.clearLastDrawnBoundary()
                         }) {
-                            Text("Clear last")
+                            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_clear_last))
                         }
                     }
                 }
@@ -286,7 +284,7 @@ internal fun PanelReportSheet(
             OutlinedTextField(
                 value = state.notes,
                 onValueChange = viewModel::setNotes,
-                label = { Text("Notes (optional)") },
+                label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_notes_optional)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
@@ -295,8 +293,12 @@ internal fun PanelReportSheet(
                 Text(state.error!!, color = Color.Red)
             }
 
-            if (state.submittedIssueUrl != null) {
-                Text("Created: ${state.submittedIssueUrl}", color = Color(0xFF388E3C))
+            val submittedIssueUrl = state.submittedIssueUrl
+            if (submittedIssueUrl != null) {
+                Text(
+                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_created, submittedIssueUrl),
+                    color = Color(0xFF388E3C),
+                )
             }
 
             Button(
@@ -305,7 +307,7 @@ internal fun PanelReportSheet(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.submitting) CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                else Text("Submit to GitHub")
+                else Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_submit_to_github))
             }
 
             Spacer(Modifier.height(16.dp))

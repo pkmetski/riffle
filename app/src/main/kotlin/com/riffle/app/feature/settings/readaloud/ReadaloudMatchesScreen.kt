@@ -78,10 +78,10 @@ fun ReadaloudMatchesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Readaloud matches") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud_matches)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -97,14 +97,22 @@ fun ReadaloudMatchesScreen(
             viewModel.setPickerFilter(filter)
             pairingBookId = bookId
         }
+        val partiallyMatchedTitle = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_partially_matched)
+        val matchedTitle = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_matched)
+        val unmatchedHeader = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unmatched_count_header, review.unmatched.size)
+        val unmatchedEmpty = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_every_readaloud_matched_or_suggested)
+        val suggestedHeader = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_suggested_count_header, review.pending.size)
+        val suggestedEmpty = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_suggested_matches_right_now)
+        val partialEmpty = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_every_match_has_ebook_and_audiobook)
+        val matchedEmpty = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_fully_matched_readalouds_yet)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            sectionHeader("Unmatched (${review.unmatched.size})")
+            sectionHeader(unmatchedHeader)
             if (review.unmatched.isEmpty()) {
-                emptyRow("Every readaloud is matched or suggested.")
+                emptyRow(unmatchedEmpty)
             } else {
                 items(review.unmatched, key = { it.storytellerBookId }) { book ->
                     UnmatchedReadaloudRow(
@@ -116,9 +124,9 @@ fun ReadaloudMatchesScreen(
                 }
             }
 
-            sectionHeader("Suggested (${review.pending.size})")
+            sectionHeader(suggestedHeader)
             if (review.pending.isEmpty()) {
-                emptyRow("No suggested matches right now.")
+                emptyRow(suggestedEmpty)
             } else {
                 items(review.pending, key = { it.storytellerBookId }) { book ->
                     PendingReadaloudCard(
@@ -133,17 +141,17 @@ fun ReadaloudMatchesScreen(
             }
 
             confirmedSection(
-                title = "Partially matched",
+                title = partiallyMatchedTitle,
                 links = partiallyMatched,
-                emptyText = "Every match has both an ebook and an audiobook.",
+                emptyText = partialEmpty,
                 onUnlink = { viewModel.unlinkBook(it) },
                 onAddMissing = { link, filter -> openPicker(link.storytellerBookId, filter) },
             )
 
             confirmedSection(
-                title = "Matched",
+                title = matchedTitle,
                 links = matched,
-                emptyText = "No fully matched readalouds yet.",
+                emptyText = matchedEmpty,
                 onUnlink = { viewModel.unlinkBook(it) },
                 onAddMissing = { link, filter -> openPicker(link.storytellerBookId, filter) },
             )
@@ -250,7 +258,7 @@ private fun PendingReadaloudCard(
         }
         Spacer(Modifier.height(4.dp))
         TextButton(onClick = onNoMatch) {
-            Text("No match — don't ask again")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_match_don_t_ask_again))
         }
     }
 }
@@ -276,9 +284,9 @@ private fun CandidateRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Row {
-                Button(onClick = onConfirm) { Text("Confirm") }
+                Button(onClick = onConfirm) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_confirm)) }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = onDismiss) { Text("Dismiss") }
+                OutlinedButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_dismiss)) }
             }
         }
     }
@@ -300,7 +308,7 @@ private fun UnmatchedReadaloudRow(
             Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(book.author, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        OutlinedButton(onClick = onMatchManually) { Text("Match manually…") }
+        OutlinedButton(onClick = onMatchManually) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_match_manually)) }
     }
 }
 
@@ -319,21 +327,21 @@ private fun ConfirmedReadaloudRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onUnlink) { Text("Unmatch") }
+            TextButton(onClick = onUnlink) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unmatch)) }
         }
         Spacer(Modifier.height(8.dp))
         // Two fixed slots — a combined ABS item fills both; a one-sided match leaves the other
         // slot empty and tappable so the missing side can be linked in place.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FormatSlot(
-                label = "📖 Ebook",
+                label = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_ebook_ebook),
                 targets = link.targets.filter { it.hasEbook },
                 onAdd = { onAddMissing(AbsFormatFilter.EBOOK) },
                 kind = FormatSlotKind.EBOOK,
                 modifier = Modifier.weight(1f),
             )
             FormatSlot(
-                label = "🎧 Audiobook",
+                label = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_audiobook_audiobook),
                 targets = link.targets.filter { it.hasAudio },
                 onAdd = { onAddMissing(AbsFormatFilter.AUDIO) },
                 kind = FormatSlotKind.AUDIOBOOK,
@@ -343,11 +351,11 @@ private fun ConfirmedReadaloudRow(
         // Streaming status (ADR 0040): how this book's audio is delivered.
         when (link.streamingStatus) {
             ConfirmedReadaloud.StreamingStatus.STREAMING ->
-                Text("Streaming", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_streaming), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             ConfirmedReadaloud.StreamingStatus.DOWNLOAD_ONLY_NO_AUDIOBOOK ->
-                Text("Download only · no audiobook linked", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download_only_no_audiobook_linked), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ConfirmedReadaloud.StreamingStatus.DOWNLOAD_ONLY_MISMATCH ->
-                Text("Download only · audio doesn't match", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download_only_audio_doesn_t_match), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
             ConfirmedReadaloud.StreamingStatus.UNKNOWN -> Unit
         }
     }
@@ -401,8 +409,7 @@ private fun FormatSlot(
         )
         Spacer(Modifier.height(3.dp))
         if (isEmpty) {
-            Text(
-                "＋ Not linked",
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_plus_not_linked),
                 style = MaterialTheme.typography.bodyMedium,
                 color = amber,
             )
@@ -448,14 +455,14 @@ private fun AbsPickerDialog(
     // When opened from an empty slot the list is filtered to that format — say so, otherwise an
     // empty result reads as "nothing found" rather than "filtered to ebooks/audiobooks".
     val title = when (filter) {
-        AbsFormatFilter.EBOOK -> "Link an ebook"
-        AbsFormatFilter.AUDIO -> "Link an audiobook"
-        AbsFormatFilter.ANY -> "Match manually"
+        AbsFormatFilter.EBOOK -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_link_an_ebook)
+        AbsFormatFilter.AUDIO -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_link_an_audiobook)
+        AbsFormatFilter.ANY -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_match_manually)
     }
     val subtitle = when (filter) {
-        AbsFormatFilter.EBOOK -> "Showing ABS items that have an ebook."
-        AbsFormatFilter.AUDIO -> "Showing ABS items that have an audiobook."
-        AbsFormatFilter.ANY -> "A readaloud can link to more than one book (e.g. an ebook and an audiobook)."
+        AbsFormatFilter.EBOOK -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_showing_abs_items_with_ebook)
+        AbsFormatFilter.AUDIO -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_showing_abs_items_with_audiobook)
+        AbsFormatFilter.ANY -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud_can_link_more_than_one_book)
     }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
@@ -470,7 +477,7 @@ private fun AbsPickerDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = onQueryChange,
-                    label = { Text("Search ABS by title or author") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search_abs_by_title_or_author)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -494,9 +501,9 @@ private fun AbsPickerDialog(
                             }
                             Spacer(Modifier.width(8.dp))
                             if (isLinked) {
-                                OutlinedButton(onClick = { onUnlink(item) }) { Text("Unlink") }
+                                OutlinedButton(onClick = { onUnlink(item) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unlink)) }
                             } else {
-                                Button(onClick = { onLink(item) }) { Text("Link") }
+                                Button(onClick = { onLink(item) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_link)) }
                             }
                         }
                         HorizontalDivider()
@@ -504,7 +511,7 @@ private fun AbsPickerDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_done)) }
                 }
             }
         }

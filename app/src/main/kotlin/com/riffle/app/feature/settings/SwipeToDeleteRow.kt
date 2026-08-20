@@ -53,7 +53,7 @@ internal fun SwipeToDeleteRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete),
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }

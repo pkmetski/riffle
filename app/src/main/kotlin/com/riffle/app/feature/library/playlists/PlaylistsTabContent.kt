@@ -41,7 +41,7 @@ fun PlaylistsTabContent(
 ) {
     if (playlists.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No playlists yet. Create one from any item.")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_playlists_yet_create_one_from_any_item))
         }
         return
     }

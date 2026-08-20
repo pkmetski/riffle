@@ -61,7 +61,7 @@ private fun DefaultError(
         )
         if (onRetry != null) {
             TextButton(onClick = onRetry) {
-                Text("Retry")
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_retry))
             }
         }
     }

@@ -72,10 +72,10 @@ fun AddLocalFilesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add local folder") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_local_folder)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -89,7 +89,7 @@ fun AddLocalFilesScreen(
                 when (val s = state) {
                     AddLocalFilesViewModel.State.Idle -> {
                         // Waiting for the picker to launch — usually invisible.
-                        Text("Opening folder picker…")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_opening_folder_picker))
                     }
                     AddLocalFilesViewModel.State.Cancelled -> CancelledView(
                         onPickAgain = { launcher.launch(Unit) },
@@ -117,7 +117,7 @@ private fun InstallingView() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         CircularProgressIndicator()
         Spacer(Modifier.size(16.dp))
-        Text("Scanning your folder…")
+        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_scanning_your_folder))
     }
 }
 
@@ -128,24 +128,24 @@ private fun SuccessView(added: Int, failures: Int, onDone: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Added $added book${if (added == 1) "" else "s"}.",
+            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_added_books_count, added),
             style = MaterialTheme.typography.titleMedium,
         )
         if (failures > 0) {
             Text(
-                "$failures item${if (failures == 1) "" else "s"} could not be read.",
+                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_items_could_not_be_read_count, failures),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else if (added == 0) {
             Text(
-                EMPTY_SCAN_MESSAGE,
+                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_supported_books_found_in_folder),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Button(onClick = onDone, modifier = Modifier.testTag("AddLocalFiles.Done")) {
-            Text("Done")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_done))
         }
     }
 }
@@ -156,11 +156,11 @@ private fun CancelledView(onPickAgain: () -> Unit, onNavigateBack: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("No folder picked.", style = MaterialTheme.typography.titleMedium)
+        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_folder_picked), style = MaterialTheme.typography.titleMedium)
         Button(onClick = onPickAgain, modifier = Modifier.testTag("AddLocalFiles.PickAgain")) {
-            Text("Pick a folder")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_pick_a_folder))
         }
-        Button(onClick = onNavigateBack) { Text("Cancel") }
+        Button(onClick = onNavigateBack) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
     }
 }
 
@@ -171,13 +171,13 @@ private fun ErrorView(message: String, onRetry: () -> Unit, onNavigateBack: () -
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text("Couldn't add that folder.", style = MaterialTheme.typography.titleMedium)
+        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_couldn_t_add_that_folder), style = MaterialTheme.typography.titleMedium)
         Text(
             message,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = onRetry) { Text("Try again") }
-        Button(onClick = onNavigateBack) { Text("Cancel") }
+        Button(onClick = onRetry) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_try_again)) }
+        Button(onClick = onNavigateBack) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -49,6 +50,8 @@ import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
 import com.riffle.app.feature.settings.sections.ReadingSection
 import com.riffle.app.feature.settings.sections.SourcesSection
+import com.riffle.app.i18n.AppLocaleController
+import com.riffle.app.i18n.findActivity
 import com.riffle.app.ui.TabletContentWidthContainer
 
 /** Subject line used when sharing a single crash report. Kept here so tests can pin the format. */
@@ -83,6 +86,8 @@ fun SettingsScreen(
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val appTheme by viewModel.appTheme.collectAsState()
+    val context = LocalContext.current
+    var appLanguage by remember { mutableStateOf(AppLocaleController.currentLanguage(context)) }
     val servers by viewModel.servers.collectAsState()
     val localFilesSource by viewModel.localFilesSource.collectAsState()
     val localFilesFolders by viewModel.localFilesFolders.collectAsState()
@@ -102,9 +107,10 @@ fun SettingsScreen(
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val developerOptionsEnabledText = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_developer_options_enabled)
 
     LaunchedEffect(Unit) {
-        viewModel.developerUnlockEvents.collect { snackbarHostState.showSnackbar("Developer options enabled") }
+        viewModel.developerUnlockEvents.collect { snackbarHostState.showSnackbar(developerOptionsEnabledText) }
     }
 
     LaunchedEffect(Unit) {
@@ -129,10 +135,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_settings)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -174,6 +180,12 @@ fun SettingsScreen(
                 AppearanceSection(
                     appTheme = appTheme,
                     onAppThemeChange = viewModel::setAppTheme,
+                    appLanguage = appLanguage,
+                    onAppLanguageChange = { language ->
+                        appLanguage = language
+                        AppLocaleController.setLanguage(context, language)
+                        context.findActivity()?.recreate()
+                    },
                 )
                 HorizontalDivider()
 
@@ -278,4 +290,3 @@ fun SettingsScreen(
         null -> {}
     }
 }
-

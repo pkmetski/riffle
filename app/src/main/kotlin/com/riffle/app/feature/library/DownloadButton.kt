@@ -44,7 +44,7 @@ fun DownloadButton(
             ) {
                 Icon(
                     imageVector = Icons.Default.ArrowDownward,
-                    contentDescription = "Download",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download),
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(20.dp),
                 )
@@ -69,7 +69,7 @@ fun DownloadButton(
             ) {
                 Icon(
                     imageVector = Icons.Default.ArrowDownward,
-                    contentDescription = "Download cached item",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download_cached_item),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.size(20.dp),
                 )
@@ -86,7 +86,7 @@ fun DownloadButton(
             ) {
                 Icon(
                     imageVector = Icons.Default.ArrowDownward,
-                    contentDescription = "Remove download",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove_download),
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(20.dp),
                 )

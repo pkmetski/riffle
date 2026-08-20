@@ -190,7 +190,7 @@ fun CbzReaderScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
                 actions = {
@@ -198,17 +198,17 @@ fun CbzReaderScreen(
                         IconButton(onClick = { formattingSheetOpen = true }) {
                             Icon(
                                 imageVector = Icons.Outlined.Tune,
-                                contentDescription = "Comic formatting",
+                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_formatting),
                             )
                         }
                         if (developerModeEnabled) {
                             var menuOpen by remember { mutableStateOf(false) }
                             IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                                Icon(Icons.Default.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_more_options))
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Report panel detection issue") },
+                                    text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_report_panel_detection_issue)) },
                                     onClick = {
                                         menuOpen = false
                                         coroutineScope.launch(Dispatchers.IO) {
@@ -345,12 +345,13 @@ fun CbzReaderScreen(
     val data = reportData
     if (reportSheetOpen && data != null) {
         val (mask, maskPng) = data
+        val selectFailureTypeMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_select_failure_type)
         val maskBitmap = remember(mask) {
             val pixels = PanelMaskEncoder.toArgbPixels(mask)
             android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
                 .asImageBitmap()
         }
-        val panelReportVm = remember(currentPage) {
+        val panelReportVm = remember(currentPage, selectFailureTypeMessage) {
             PanelReportViewModel(
                 bookId = viewModel.bookId,
                 pageIndex = currentPage,
@@ -361,6 +362,7 @@ fun CbzReaderScreen(
                 detectedPanels = effectivePanels?.panels ?: emptyList(),
                 detectedSource = effectivePanels?.source ?: PanelSource.Fallback,
                 repository = viewModel.panelReportRepository,
+                selectFailureTypeMessage = selectFailureTypeMessage,
             )
         }
         PanelReportSheet(
@@ -500,7 +502,7 @@ private fun CbzPage(
                 .data(bitmap)
                 .crossfade(false)
                 .build(),
-            contentDescription = "Comic page ${pageIndex + 1}",
+            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_number, pageIndex + 1),
             loading = { CircularProgressIndicator() },
             modifier = Modifier
                 .fillMaxSize()
@@ -629,7 +631,11 @@ private fun CbzPanelViewer(
                 .data(bitmap)
                 .crossfade(false)
                 .build(),
-            contentDescription = "Comic page ${currentPage + 1} panel ${panelIndex + 1}",
+            contentDescription = androidx.compose.ui.res.stringResource(
+                com.riffle.app.R.string.ui_comic_page_panel,
+                currentPage + 1,
+                panelIndex + 1,
+            ),
             loading = { CircularProgressIndicator() },
             modifier = Modifier
                 .fillMaxSize()
@@ -674,7 +680,7 @@ private fun CbzPanelPeekOverlay(
                 .padding(24.dp)
                 .testTag("cbz_panel_peek_skip"),
         ) {
-            Text("Skip guided panels on this page")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_skip_guided_panels_on_this_page))
         }
     }
 }

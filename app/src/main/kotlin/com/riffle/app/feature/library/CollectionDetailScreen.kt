@@ -41,7 +41,7 @@ fun CollectionDetailScreen(
                 title = { Text(collectionName) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -53,7 +53,7 @@ fun CollectionDetailScreen(
             }
             if (items.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No books in this collection")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_books_in_this_collection))
                 }
             } else {
                 LazyVerticalGrid(

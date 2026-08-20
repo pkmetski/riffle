@@ -56,8 +56,8 @@ class RiffleApplication : Application(), ImageLoaderFactory {
             // open Settings → Crash reports to share the details. Without this, the only
             // signal was the process restart itself.
             dialog {
-                text = "Riffle crashed. Open Settings → Crash reports to view or share the details."
-                title = "Crash report"
+                text = getString(com.riffle.app.R.string.crash_report_text)
+                title = getString(com.riffle.app.R.string.crash_report_title)
                 // Single OK button — the previous Save report / Discard pair looked like two
                 // "close" options because ACRA's positive/negative both close the dialog and either
                 // way the report is saved locally (FileCrashReportSender), so the choice was noise.

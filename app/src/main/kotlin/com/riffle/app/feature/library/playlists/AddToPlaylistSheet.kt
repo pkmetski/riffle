@@ -65,8 +65,7 @@ fun AddToPlaylistSheet(
         sheetState = sheetState,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-            Text(
-                "Add to playlist",
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_to_playlist),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
             )
@@ -79,11 +78,10 @@ fun AddToPlaylistSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null)
-                Text("New playlist", style = MaterialTheme.typography.bodyLarge)
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_new_playlist), style = MaterialTheme.typography.bodyLarge)
             }
             if (playlists.isEmpty()) {
-                Text(
-                    "No playlists yet. Create one to get started.",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_playlists_yet_create_one_to_get_started),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -129,7 +127,7 @@ private fun PickerRow(
             if (isSelected) {
                 Icon(
                     Icons.Filled.Check,
-                    contentDescription = "In this playlist",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_in_this_playlist),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
@@ -162,7 +160,7 @@ private fun NewPlaylistDialog(
     val scope = rememberCoroutineScope()
     AlertDialog(
         onDismissRequest = { if (!isCreating) onDismiss() },
-        title = { Text("New playlist") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_new_playlist)) },
         text = {
             Column {
                 OutlinedTextField(
@@ -171,7 +169,7 @@ private fun NewPlaylistDialog(
                         name = it
                         if (error != null) error = null
                     },
-                    label = { Text("Name") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_name)) },
                     singleLine = true,
                     enabled = !isCreating,
                     isError = error != null,
@@ -206,10 +204,10 @@ private fun NewPlaylistDialog(
                         if (err.isEmpty()) onSuccess() else error = err
                     }
                 },
-            ) { Text("Create") }
+            ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_create)) }
         },
         dismissButton = {
-            TextButton(enabled = !isCreating, onClick = onDismiss) { Text("Cancel") }
+            TextButton(enabled = !isCreating, onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
         },
     )
 }
