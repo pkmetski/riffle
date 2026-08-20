@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
 import android.database.sqlite.SQLiteConstraintException
-import androidx.sqlite.SQLiteException as SQLiteDriverException
+import android.database.sqlite.SQLiteException as SQLiteDriverException
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
