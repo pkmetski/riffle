@@ -5,6 +5,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 
@@ -12,11 +14,11 @@ import com.riffle.app.feature.settings.SettingsSectionHeader
 internal fun DictionaryPacksSection(
     onOpen: () -> Unit,
 ) {
-    SettingsSectionHeader("Dictionary")
+    SettingsSectionHeader(stringResource(R.string.ui_dictionary))
     ListItem(
         modifier = Modifier.clickable(onClick = onOpen),
-        headlineContent = { Text("Dictionary packs") },
-        supportingContent = { Text("Manage offline word lookup packs") },
+        headlineContent = { Text(stringResource(R.string.ui_dictionary_packs)) },
+        supportingContent = { Text(stringResource(R.string.ui_manage_offline_word_lookup_packs)) },
         trailingContent = { DrillInChevron() },
     )
 }
