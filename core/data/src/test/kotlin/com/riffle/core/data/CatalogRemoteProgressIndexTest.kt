@@ -159,6 +159,24 @@ class CatalogRemoteProgressIndexTest {
         assertTrue(idx.remoteEbookItems("abs-1").isEmpty())
     }
 
+    @Test fun `remoteEbookItems includes previously-synced items missing from server`() = runTest {
+        // book/12073 was once synced (lastSyncedAt=100>0) but has no file on the server.
+        // The reconciler's re-sync branch will push it back; the index must surface it.
+        val idx = makeIndex(
+            ebookSafeIds = emptyList(),         // PROPFIND returns nothing
+            localEbookIds = listOf("book/12073-title"),  // local row with lastSyncedAt=100>0
+        )
+        assertEquals(listOf("book/12073-title"), idx.remoteEbookItems(chitankaSourceId))
+    }
+
+    @Test fun `remoteEbookItems does not duplicate items that are both on server and previously synced`() = runTest {
+        val idx = makeIndex(
+            ebookSafeIds = listOf("book.12073-title"),
+            localEbookIds = listOf("book/12073-title"),
+        )
+        assertEquals(listOf("book/12073-title"), idx.remoteEbookItems(chitankaSourceId))
+    }
+
     // ── remoteAudioItems ────────────────────────────────────────────────────
 
     @Test fun `remoteAudioItems resolves audio safe IDs to local IDs`() = runTest {

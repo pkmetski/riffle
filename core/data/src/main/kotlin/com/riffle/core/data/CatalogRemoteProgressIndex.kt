@@ -46,15 +46,29 @@ class CatalogRemoteProgressIndex @Inject constructor(
     override suspend fun remoteEbookItems(sourceId: String): List<String> {
         val (config, namespace) = configAndNamespace(sourceId) ?: return emptyList()
         val enumerated = enumerator.enumerate(config, namespace)
-        val localIds = readingPositionDao.allForSource(sourceId).map { it.itemId }
-        return resolveItemIds(enumerated.ebookSafeIds, localIds)
+        val localRows = readingPositionDao.allForSource(sourceId)
+        val localIds = localRows.map { it.itemId }
+        // Items found on the server via PROPFIND — covers the inbound clean-row gap.
+        val fromServer = resolveItemIds(enumerated.ebookSafeIds, localIds)
+        // Items previously synced (lastSyncedAt > 0) whose server file is now missing.
+        // The reconciler's re-sync branch will push them back without a full GET round-trip
+        // for items that are correctly on the server (they appear in fromServer above).
+        val missingFromServer = localRows
+            .filter { it.lastSyncedAt > 0L && !enumerated.ebookSafeIds.contains(it.itemId.replace("/", ".")) }
+            .map { it.itemId }
+        return (fromServer + missingFromServer).distinct()
     }
 
     override suspend fun remoteAudioItems(sourceId: String): List<String> {
         val (config, namespace) = configAndNamespace(sourceId) ?: return emptyList()
         val enumerated = enumerator.enumerate(config, namespace)
-        val localIds = audiobookPositionDao.allForSource(sourceId).map { it.itemId }
-        return resolveItemIds(enumerated.audioSafeIds, localIds)
+        val localRows = audiobookPositionDao.allForSource(sourceId)
+        val localIds = localRows.map { it.itemId }
+        val fromServer = resolveItemIds(enumerated.audioSafeIds, localIds)
+        val missingFromServer = localRows
+            .filter { it.lastSyncedAt > 0L && !enumerated.audioSafeIds.contains(it.itemId.replace("/", ".")) }
+            .map { it.itemId }
+        return (fromServer + missingFromServer).distinct()
     }
 
     private suspend fun configAndNamespace(sourceId: String): Pair<AnnotationSyncConfig, String>? {
