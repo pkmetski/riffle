@@ -525,4 +525,9 @@
     <string name="ui_minutes_ago">hace %1$d min</string>
     <string name="ui_hours_ago">hace %1$d h</string>
     <string name="ui_days_ago">hace %1$d d</string>
+    <string name="ui_dictionary_packs">Paquetes de diccionario</string>
+    <string name="ui_installed">Instalados</string>
+    <string name="ui_available">Disponibles</string>
+    <string name="ui_all_packs_installed">Todos los paquetes disponibles están instalados.</string>
+    <string name="ui_approx_size">~%1$s</string>
 </resources>

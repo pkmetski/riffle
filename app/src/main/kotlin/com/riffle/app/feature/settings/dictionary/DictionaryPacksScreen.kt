@@ -24,11 +24,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.R
+import com.riffle.app.feature.library.DownloadProgressIndicator
+import com.riffle.app.feature.library.DownloadState
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
@@ -40,7 +43,7 @@ fun DictionaryPacksScreen(
     viewModel: DictionaryPacksViewModel = hiltViewModel(),
 ) {
     val installedPacks by viewModel.installedPacks.collectAsState()
-    val context = LocalContext.current
+    val downloadStates by viewModel.downloadStates.collectAsState()
 
     val installedTags = installedPacks.map { it.languageTag }.toSet()
     val availablePacks = viewModel.catalog.filter { it.languageTag !in installedTags }
@@ -48,10 +51,10 @@ fun DictionaryPacksScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Dictionary packs") },
+                title = { Text(stringResource(R.string.ui_dictionary_packs)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.ui_back))
                     }
                 },
             )
@@ -65,7 +68,7 @@ fun DictionaryPacksScreen(
         ) {
             if (installedPacks.isNotEmpty()) {
                 Text(
-                    text = "Installed",
+                    text = stringResource(R.string.ui_installed),
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
@@ -73,21 +76,21 @@ fun DictionaryPacksScreen(
                     InstalledPackRow(
                         pack = pack,
                         onDelete = { viewModel.deleteInstalledPack(pack.languageTag) },
-                        onUpdate = { viewModel.enqueueUpdate(context, pack.languageTag) },
+                        onUpdate = { viewModel.enqueueUpdate(pack.languageTag) },
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
             Text(
-                text = "Available",
+                text = stringResource(R.string.ui_available),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
             if (availablePacks.isEmpty()) {
                 Text(
-                    text = "All available packs are installed.",
+                    text = stringResource(R.string.ui_all_packs_installed),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
@@ -95,7 +98,8 @@ fun DictionaryPacksScreen(
                 availablePacks.forEach { entry ->
                     AvailablePackRow(
                         entry = entry,
-                        onDownload = { viewModel.enqueueDownload(context, entry) },
+                        downloadState = downloadStates[DictionaryPacksViewModel.downloadKey(entry.languageTag)],
+                        onDownload = { viewModel.enqueueDownload(entry) },
                     )
                 }
             }
@@ -134,8 +138,8 @@ private fun InstalledPackRow(
         }
         Row {
             Spacer(modifier = Modifier.weight(1f))
-            TextButton(onClick = onUpdate) { Text("Update") }
-            TextButton(onClick = onDelete) { Text("Delete") }
+            TextButton(onClick = onUpdate) { Text(stringResource(R.string.ui_update)) }
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.ui_delete)) }
         }
     }
 }
@@ -143,13 +147,23 @@ private fun InstalledPackRow(
 @Composable
 private fun AvailablePackRow(
     entry: LanguageCatalogEntry,
+    downloadState: DownloadState?,
     onDownload: () -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(entry.displayName) },
-        supportingContent = { Text("~${formatBytes(entry.approximateSizeBytes)}") },
+        supportingContent = { Text(stringResource(R.string.ui_approx_size, formatBytes(entry.approximateSizeBytes))) },
         trailingContent = {
-            TextButton(onClick = onDownload) { Text("Download") }
+            if (downloadState is DownloadState.InProgress) {
+                DownloadProgressIndicator(
+                    percent = downloadState.percent,
+                    size = 36.dp,
+                    label = "Downloading ${entry.displayName}",
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            } else {
+                TextButton(onClick = onDownload) { Text(stringResource(R.string.ui_download)) }
+            }
         },
     )
 }

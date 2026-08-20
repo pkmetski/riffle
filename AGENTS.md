@@ -89,6 +89,8 @@ Mechanical updates (renaming a symbol the test references, adjusting a construct
 
 Deleting or `@Ignore`-ing a red test to unblock a PR is never acceptable.
 
+**No pre-existing failures.** There is no such thing as a pre-existing failure that is acceptable to leave in. If `./gradlew test jvmTest` (or any test task) reports a failure on the branch — regardless of whether the same failure exists on main — it must be fixed before opening a PR. "It was already failing on main" is not an excuse; main is the quality gate, and anything that fails locally fails the bar.
+
 **Enforced by `checkTestGuardrails`** (part of `check` and run on CI via `riffleChecks` in the Lint job): any `@Test` function that exists at the merge base with main but not on the branch — deleted or renamed — fails the build unless a commit message on the branch carries a `Removed-test: <exact test name>` trailer (one line per test; backticks optional). The trailer is a declaration, not a bypass: the commit body and PR must still explain which behavioral claim is being retired and why, per the questions above. Moving a test between files needs no trailer. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/TestGuardrailLint.kt`.
 
 ## Validate before claiming done
