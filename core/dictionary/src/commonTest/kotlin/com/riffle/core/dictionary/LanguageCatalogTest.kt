@@ -2,6 +2,7 @@ package com.riffle.core.dictionary
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,5 +44,12 @@ class LanguageCatalogTest {
     @Test
     fun `catalog has at least 10 entries`() {
         assertTrue("Expected at least 10 catalog entries", LanguageCatalog.all.size >= 10)
+    }
+
+    @Test
+    fun `Bulgarian is present and Arabic and Turkish are absent`() {
+        assertNotNull("Bulgarian (bg) must be in catalog", LanguageCatalog.entryFor("bg"))
+        assertNull("Arabic (ar) must not be in catalog", LanguageCatalog.entryFor("ar"))
+        assertNull("Turkish (tr) must not be in catalog", LanguageCatalog.entryFor("tr"))
     }
 }
