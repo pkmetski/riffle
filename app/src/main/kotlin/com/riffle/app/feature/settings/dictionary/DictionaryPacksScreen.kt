@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -100,6 +101,7 @@ fun DictionaryPacksScreen(
                         entry = entry,
                         downloadState = downloadStates[DictionaryPacksViewModel.downloadKey(entry.languageTag)],
                         onDownload = { viewModel.enqueueDownload(entry) },
+                        onCancel = { viewModel.cancelDownload(entry.languageTag) },
                     )
                 }
             }
@@ -149,18 +151,24 @@ private fun AvailablePackRow(
     entry: LanguageCatalogEntry,
     downloadState: DownloadState?,
     onDownload: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(entry.displayName) },
         supportingContent = { Text(stringResource(R.string.ui_approx_size, formatBytes(entry.approximateSizeBytes))) },
         trailingContent = {
             if (downloadState is DownloadState.InProgress) {
-                DownloadProgressIndicator(
-                    percent = downloadState.percent,
-                    size = 36.dp,
-                    label = "Downloading ${entry.displayName}",
-                    modifier = Modifier.padding(end = 8.dp),
-                )
+                Row {
+                    DownloadProgressIndicator(
+                        percent = downloadState.percent,
+                        size = 36.dp,
+                        label = "Downloading ${entry.displayName}",
+                        modifier = Modifier.padding(end = 4.dp),
+                    )
+                    IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ui_cancel))
+                    }
+                }
             } else {
                 TextButton(onClick = onDownload) { Text(stringResource(R.string.ui_download)) }
             }

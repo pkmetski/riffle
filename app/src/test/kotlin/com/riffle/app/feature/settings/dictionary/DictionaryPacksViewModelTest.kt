@@ -129,6 +129,17 @@ class DictionaryPacksViewModelTest {
         assertEquals(1, callCount.get())
     }
 
+    @Test
+    fun `cancelDownload clears in-progress download state`() = runTest {
+        val vm = viewModel(downloader = mockDownloader(returns = true))
+        val frEntry = LanguageCatalog.entryFor("fr")!!
+        val key = DictionaryPacksViewModel.downloadKey("fr")
+        vm.enqueueDownload(frEntry)
+        assertTrue(vm.downloadStates.value[key] is DownloadState.InProgress)
+        vm.cancelDownload("fr")
+        assertEquals(null, vm.downloadStates.value[key])
+    }
+
     // --- Helpers ---
 
     private fun mockDownloader(returns: Boolean): PackDownloader {

@@ -46,6 +46,10 @@ class DictionaryPacksViewModel @Inject constructor(
         LanguageCatalog.entryFor(languageTag)?.let { enqueueDownload(it) }
     }
 
+    fun cancelDownload(languageTag: String) {
+        downloadManager.cancel(downloadKey(languageTag))
+    }
+
     fun deleteInstalledPack(languageTag: String) {
         viewModelScope.launch { packStore.deleteInstalledPack(languageTag) }
         downloadManager.clear(downloadKey(languageTag))

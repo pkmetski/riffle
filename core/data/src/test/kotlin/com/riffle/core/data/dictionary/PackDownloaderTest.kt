@@ -116,7 +116,7 @@ class PackDownloaderTest {
 
 private class FakeJsonlConverter : JsonlToSqliteConverter {
     var throwOnConvert = false
-    override fun convert(jsonlFile: File, dbFile: File) {
+    override fun convert(jsonlFile: File, dbFile: File, onProgress: (Long, Long) -> Unit) {
         if (throwOnConvert) throw RuntimeException("converter error")
         dbFile.createNewFile()
     }

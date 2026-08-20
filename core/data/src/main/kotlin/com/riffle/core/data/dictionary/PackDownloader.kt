@@ -15,6 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 
 class PackDownloader @Inject constructor(
     private val filesDir: File,
@@ -72,10 +73,14 @@ class PackDownloader @Inject constructor(
                 return false
             }
 
-            // 2. Convert JSONL → SQLite
+            // 2. Convert JSONL → SQLite — report progress against the JSONL file size.
             tmpDbFile.delete()
             try {
-                converter.convert(tmpJsonFile, tmpDbFile)
+                converter.convert(tmpJsonFile, tmpDbFile, onProgress)
+            } catch (e: CancellationException) {
+                tmpJsonFile.delete()
+                tmpDbFile.delete()
+                throw e
             } catch (_: Exception) {
                 tmpJsonFile.delete()
                 tmpDbFile.delete()
@@ -104,6 +109,11 @@ class PackDownloader @Inject constructor(
                 )
             )
             true
+        } catch (e: CancellationException) {
+            tmpJsonFile.delete()
+            tmpDbFile.delete()
+            finalFile.delete()
+            throw e
         } catch (e: Exception) {
             tmpJsonFile.delete()
             tmpDbFile.delete()

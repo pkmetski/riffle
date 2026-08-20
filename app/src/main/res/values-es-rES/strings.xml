@@ -531,5 +531,5 @@
     <string name="ui_installed">Instalados</string>
     <string name="ui_available">Disponibles</string>
     <string name="ui_all_packs_installed">Todos los paquetes disponibles están instalados.</string>
-    <string name="ui_approx_size">~%1$s</string>
+    <string name="ui_approx_size">~%1$s descarga</string>
 </resources>

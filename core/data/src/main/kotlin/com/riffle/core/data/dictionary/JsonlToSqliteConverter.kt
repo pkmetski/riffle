@@ -6,19 +6,27 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
 
-fun interface JsonlToSqliteConverter {
-    fun convert(jsonlFile: File, dbFile: File)
+interface JsonlToSqliteConverter {
+    fun convert(jsonlFile: File, dbFile: File, onProgress: (processed: Long, total: Long) -> Unit = { _, _ -> })
 }
 
 internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
-    override fun convert(jsonlFile: File, dbFile: File) {
+    override fun convert(jsonlFile: File, dbFile: File, onProgress: (Long, Long) -> Unit) {
         // Phase 1: Parse JSONL and accumulate glosses per (form, pos).
         // kaikki.org emits one line per etymology, so the same word+pos may appear multiple times.
         // Accumulating here merges all etymologies' senses rather than silently overwriting them.
         val accumulated = HashMap<Pair<String, String>, JSONArray>()
+        val fileSize = jsonlFile.length().coerceAtLeast(1L)
+        var bytesApprox = 0L
+        var lineNum = 0
         BufferedReader(jsonlFile.reader()).use { reader ->
             var line = reader.readLine()
             while (line != null) {
+                bytesApprox += line.length + 1L
+                lineNum++
+                if (lineNum % 5_000 == 0) {
+                    onProgress(bytesApprox.coerceAtMost(fileSize), fileSize)
+                }
                 try {
                     val obj = JSONObject(line)
                     val form = obj.optString("word").trim()
@@ -39,6 +47,7 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
                 line = reader.readLine()
             }
         }
+        onProgress(fileSize, fileSize)
 
         if (accumulated.isEmpty()) {
             throw IllegalStateException("No valid entries found in JSONL — file may be malformed or an HTML error page")
