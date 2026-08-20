@@ -89,6 +89,8 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "showCurrentChapterLabel" to "UI affordance outside the reader content; no CSS implication.",
     "showReadingTimeEstimate" to "UI affordance outside the reader content; no CSS implication.",
     "themeSchedule" to "Schedule metadata used to derive the resolved theme at runtime; has no direct CSS implication.",
+    "autoReaderThemeMode" to "Auto-theme resolution mode metadata; the resolved concrete theme is applied through Readium's theme stylesheet, not a targeted CSS override.",
+    "appThemeReaderThemes" to "Light-app/dark-app Auto-theme mapping metadata; the resolved concrete theme is applied through Readium's theme stylesheet, not a targeted CSS override.",
     "autoScrollWpm" to "Auto-Scroll pace (words-per-minute); a kinetics setting consumed by AutoScrollController, not a CSS property.",
     "showAutoScroll" to "Settings toggle gating the reader top-bar Auto-Scroll icon; UI affordance, not a CSS property.",
     "cadenceWpm" to "Cadence pace (words-per-minute); a timing setting consumed by CadenceController/WpmTicker, not a CSS property.",

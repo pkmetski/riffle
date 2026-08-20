@@ -8,8 +8,10 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.data.di.FormattingPreferencesDataStore
+import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
@@ -53,6 +55,19 @@ class FormattingPreferencesStoreImpl @Inject constructor(
                 ?: FormattingPreferences.DEFAULT_CADENCE_HIGHLIGHT_COLOR,
             cadencePlatformSupported = prefs[KEY_CADENCE_PLATFORM_SUPPORTED]
                 ?: FormattingPreferences.DEFAULT_CADENCE_PLATFORM_SUPPORTED,
+            autoReaderThemeMode = prefs[KEY_AUTO_READER_THEME_MODE]
+                ?.let { runCatching { AutoReaderThemeMode.valueOf(it) }.getOrNull() }
+                ?: FormattingPreferences.DEFAULT_AUTO_READER_THEME_MODE,
+            appThemeReaderThemes = AppThemeReaderThemes(
+                lightTheme = prefs[KEY_APP_THEME_LIGHT_READER_THEME]
+                    ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                    ?.takeIf { it != ReaderTheme.Auto }
+                    ?: AppThemeReaderThemes.DEFAULT_LIGHT_THEME,
+                darkTheme = prefs[KEY_APP_THEME_DARK_READER_THEME]
+                    ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                    ?.takeIf { it != ReaderTheme.Auto }
+                    ?: AppThemeReaderThemes.DEFAULT_DARK_THEME,
+            ),
             themeSchedule = ThemeSchedule(
                 dayStart = prefs[KEY_SCHEDULE_DAY_START]?.let(::minuteOfDayToLocalTime)
                     ?: ThemeSchedule.DEFAULT_DAY_START,
@@ -90,6 +105,9 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_CADENCE_WPM] = preferences.cadenceWpm
             prefs[KEY_SHOW_CADENCE] = preferences.showCadence
             prefs[KEY_CADENCE_HIGHLIGHT_COLOR] = preferences.cadenceHighlightColor.name
+            prefs[KEY_AUTO_READER_THEME_MODE] = preferences.autoReaderThemeMode.name
+            prefs[KEY_APP_THEME_LIGHT_READER_THEME] = preferences.appThemeReaderThemes.lightTheme.name
+            prefs[KEY_APP_THEME_DARK_READER_THEME] = preferences.appThemeReaderThemes.darkTheme.name
             prefs[KEY_SCHEDULE_DAY_START] = preferences.themeSchedule.dayStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_NIGHT_START] = preferences.themeSchedule.nightStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_DAY_THEME] = preferences.themeSchedule.dayTheme.name
@@ -126,6 +144,9 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_SHOW_CADENCE = booleanPreferencesKey("show_cadence")
         val KEY_CADENCE_HIGHLIGHT_COLOR = stringPreferencesKey("cadence_highlight_color")
         val KEY_CADENCE_PLATFORM_SUPPORTED = booleanPreferencesKey("cadence_platform_supported")
+        val KEY_AUTO_READER_THEME_MODE = stringPreferencesKey("auto_reader_theme_mode")
+        val KEY_APP_THEME_LIGHT_READER_THEME = stringPreferencesKey("app_theme_light_reader_theme")
+        val KEY_APP_THEME_DARK_READER_THEME = stringPreferencesKey("app_theme_dark_reader_theme")
         val KEY_SCHEDULE_DAY_START = intPreferencesKey("theme_schedule_day_start_minute_of_day")
         val KEY_SCHEDULE_NIGHT_START = intPreferencesKey("theme_schedule_night_start_minute_of_day")
         val KEY_SCHEDULE_DAY_THEME = stringPreferencesKey("theme_schedule_day_theme")

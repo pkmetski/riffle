@@ -3,6 +3,7 @@ package com.riffle.app.feature.settings.readaloud
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,12 +74,16 @@ fun ReadaloudSettingsScreen(
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
     val formattingPreferences by viewModel.globalFormattingPreferences.collectAsState()
+    val appTheme by viewModel.appTheme.collectAsState()
+    val systemInDark = isSystemInDarkTheme()
     // Swatches must preview against the paper the reader draws, not the app's Material surface.
     // A dark-app / light-reader combo (or vice-versa) otherwise makes the swatches look nothing
     // like the highlight that lands on the page. The store persists Auto verbatim, so resolve to
     // the currently-scheduled concrete theme here — otherwise a night-schedule user opening
     // Settings during the dark arc would still see swatches on the Light fallback.
-    val readerBackground = formattingPreferences.withResolvedTheme(LocalTime.now()).swatchBackdropColor
+    val readerBackground = formattingPreferences
+        .withResolvedTheme(LocalTime.now(), appTheme, systemInDark)
+        .swatchBackdropColor
 
     val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }
 

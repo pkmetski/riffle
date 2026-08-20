@@ -16,12 +16,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -46,6 +50,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.AppThemeReaderThemes
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -54,9 +60,14 @@ import java.time.LocalTime
 import kotlin.math.roundToInt
 
 @Composable
-internal fun ThemeSwatch(theme: ReaderTheme, schedule: ThemeSchedule) {
+internal fun ThemeSwatch(
+    theme: ReaderTheme,
+    schedule: ThemeSchedule,
+    autoMode: AutoReaderThemeMode = AutoReaderThemeMode.Schedule,
+    appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
+) {
     if (theme == ReaderTheme.Auto) {
-        AutoThemeSwatch(schedule)
+        AutoThemeSwatch(schedule, autoMode, appThemeReaderThemes)
     } else {
         ConcreteThemeSwatch(theme)
     }
@@ -77,9 +88,19 @@ private fun ConcreteThemeSwatch(theme: ReaderTheme) {
 }
 
 @Composable
-private fun AutoThemeSwatch(schedule: ThemeSchedule) {
-    val day = schedule.dayTheme.palette
-    val night = schedule.nightTheme.palette
+private fun AutoThemeSwatch(
+    schedule: ThemeSchedule,
+    autoMode: AutoReaderThemeMode,
+    appThemeReaderThemes: AppThemeReaderThemes,
+) {
+    val day = when (autoMode) {
+        AutoReaderThemeMode.Schedule -> schedule.dayTheme
+        AutoReaderThemeMode.AppTheme -> appThemeReaderThemes.lightTheme
+    }.palette
+    val night = when (autoMode) {
+        AutoReaderThemeMode.Schedule -> schedule.nightTheme
+        AutoReaderThemeMode.AppTheme -> appThemeReaderThemes.darkTheme
+    }.palette
     val shape = RoundedCornerShape(percent = 50)
     Box(
         modifier = Modifier
@@ -202,9 +223,13 @@ private fun rememberAssetFontFamily(familyPrefix: String): FontFamily? {
 
 internal fun Float.round1() = (this * 10).roundToInt() / 10f
 
-// Read-only Auto-schedule summary for the in-reader Display tab, which cannot edit times.
+// Read-only Auto summary for the in-reader Display tab, which cannot edit global Auto settings.
 @Composable
-internal fun AutoScheduleSummaryCard(schedule: ThemeSchedule) {
+internal fun AutoThemeSummaryCard(
+    schedule: ThemeSchedule,
+    autoMode: AutoReaderThemeMode,
+    appThemeReaderThemes: AppThemeReaderThemes,
+) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -212,51 +237,161 @@ internal fun AutoScheduleSummaryCard(schedule: ThemeSchedule) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
-            Text(autoScheduleSummary(schedule), style = MaterialTheme.typography.bodyMedium)
+            Text(autoThemeSummary(schedule, autoMode, appThemeReaderThemes), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(2.dp))
-            Text(
-                "Edit the schedule in Settings → Display",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text("Edit Auto in Settings → Display", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+internal fun AutoThemeControls(
+    schedule: ThemeSchedule,
+    autoMode: AutoReaderThemeMode,
+    appThemeReaderThemes: AppThemeReaderThemes,
+    onAutoModeChange: (AutoReaderThemeMode) -> Unit,
+    onAppThemeReaderThemesChange: (AppThemeReaderThemes) -> Unit,
+    onScheduleChange: (ThemeSchedule) -> Unit,
+) {
+    Column {
+        Text("Auto follows", style = MaterialTheme.typography.labelMedium)
+        AutoModeDropdown(
+            selected = autoMode,
+            onSelect = onAutoModeChange,
+        )
+        if (autoMode == AutoReaderThemeMode.Schedule) {
+            Spacer(Modifier.height(12.dp))
+            ScheduleThemeRow(
+                timeLabel = "Day starts at",
+                time = schedule.dayStart,
+                timeContentDescription = "Day start time",
+                onTimeChange = { onScheduleChange(schedule.copy(dayStart = it)) },
+                themeLabel = "Day theme",
+                theme = schedule.dayTheme,
+                themeContentDescription = "Day theme",
+                onThemeChange = { onScheduleChange(schedule.copy(dayTheme = it)) },
+            )
+            Spacer(Modifier.height(8.dp))
+            ScheduleThemeRow(
+                timeLabel = "Night starts at",
+                time = schedule.nightStart,
+                timeContentDescription = "Night start time",
+                onTimeChange = { onScheduleChange(schedule.copy(nightStart = it)) },
+                themeLabel = "Night theme",
+                theme = schedule.nightTheme,
+                themeContentDescription = "Night theme",
+                onThemeChange = { onScheduleChange(schedule.copy(nightTheme = it)) },
+            )
+        } else {
+            Spacer(Modifier.height(12.dp))
+            Text("Light app theme", style = MaterialTheme.typography.labelMedium)
+            ConcreteThemeDropdown(
+                selected = appThemeReaderThemes.lightTheme,
+                fieldContentDescription = "Light app reader theme",
+                onSelect = {
+                    onAppThemeReaderThemesChange(appThemeReaderThemes.copy(lightTheme = it))
+                },
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Dark app theme", style = MaterialTheme.typography.labelMedium)
+            ConcreteThemeDropdown(
+                selected = appThemeReaderThemes.darkTheme,
+                fieldContentDescription = "Dark app reader theme",
+                onSelect = {
+                    onAppThemeReaderThemesChange(appThemeReaderThemes.copy(darkTheme = it))
+                },
             )
         }
     }
 }
 
 @Composable
-internal fun AutoScheduleControls(
-    schedule: ThemeSchedule,
-    onScheduleChange: (ThemeSchedule) -> Unit,
+private fun ScheduleThemeRow(
+    timeLabel: String,
+    time: LocalTime,
+    timeContentDescription: String,
+    onTimeChange: (LocalTime) -> Unit,
+    themeLabel: String,
+    theme: ReaderTheme,
+    themeContentDescription: String,
+    onThemeChange: (ReaderTheme) -> Unit,
 ) {
-    Column {
-        Text("Day starts at", style = MaterialTheme.typography.labelMedium)
-        TimeField(
-            time = schedule.dayStart,
-            contentDescription = "Day start time",
-            onTimeChange = { onScheduleChange(schedule.copy(dayStart = it)) },
-        )
-        Spacer(Modifier.height(8.dp))
-        Text("Night starts at", style = MaterialTheme.typography.labelMedium)
-        TimeField(
-            time = schedule.nightStart,
-            contentDescription = "Night start time",
-            onTimeChange = { onScheduleChange(schedule.copy(nightStart = it)) },
-        )
-        Spacer(Modifier.height(12.dp))
-        Text("Day theme", style = MaterialTheme.typography.labelMedium)
-        ConcreteThemeDropdown(
-            selected = schedule.dayTheme,
-            fieldContentDescription = "Day theme",
-            onSelect = { onScheduleChange(schedule.copy(dayTheme = it)) },
-        )
-        Spacer(Modifier.height(8.dp))
-        Text("Night theme", style = MaterialTheme.typography.labelMedium)
-        ConcreteThemeDropdown(
-            selected = schedule.nightTheme,
-            fieldContentDescription = "Night theme",
-            onSelect = { onScheduleChange(schedule.copy(nightTheme = it)) },
-        )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(timeLabel, style = MaterialTheme.typography.labelMedium)
+            TimeField(
+                time = time,
+                contentDescription = timeContentDescription,
+                onTimeChange = onTimeChange,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(themeLabel, style = MaterialTheme.typography.labelMedium)
+            ConcreteThemeDropdown(
+                selected = theme,
+                fieldContentDescription = themeContentDescription,
+                onSelect = onThemeChange,
+            )
+        }
     }
+}
+
+@Composable
+private fun AutoModeDropdown(
+    selected: AutoReaderThemeMode,
+    onSelect: (AutoReaderThemeMode) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selected.label(),
+            onValueChange = {},
+            readOnly = true,
+            leadingIcon = { AutoModeIcon(selected) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+                .semantics { contentDescription = "Auto theme mode" },
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            AutoReaderThemeMode.entries.forEach { mode ->
+                val label = mode.label()
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { AutoModeIcon(mode) },
+                    onClick = {
+                        onSelect(mode)
+                        expanded = false
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Auto follows $label" },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoModeIcon(mode: AutoReaderThemeMode) {
+    val imageVector = when (mode) {
+        AutoReaderThemeMode.Schedule -> Icons.Filled.Bedtime
+        AutoReaderThemeMode.AppTheme -> Icons.Filled.Home
+    }
+    Icon(
+        imageVector = imageVector,
+        contentDescription = null,
+        modifier = Modifier.size(18.dp),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

@@ -1,8 +1,10 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.resolveAutoReaderTheme
 import com.riffle.core.common.TimeProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
@@ -51,7 +53,7 @@ class AppearanceCoordinatorImpl(
     ) { appTheme, prefs, sysDark, _ ->
         val now = timeProvider.nowLocalTime()
         val resolvedReader = if (prefs.theme == ReaderTheme.Auto) {
-            prefs.themeSchedule.resolve(now)
+            prefs.resolveAutoReaderTheme(now, appTheme, sysDark)
         } else {
             prefs.theme
         }
@@ -76,7 +78,11 @@ class AppearanceCoordinatorImpl(
         // "Boundary crossings during an open reading session repaint live").
         scope.launch {
             formattingPreferencesStore.preferences
-                .map { it.themeSchedule to (it.theme == ReaderTheme.Auto) }
+                .map { prefs ->
+                    prefs.themeSchedule to
+                        (prefs.theme == ReaderTheme.Auto &&
+                            prefs.autoReaderThemeMode == AutoReaderThemeMode.Schedule)
+                }
                 .distinctUntilChanged()
                 .collectLatest { (schedule, autoActive) ->
                     if (!autoActive) return@collectLatest

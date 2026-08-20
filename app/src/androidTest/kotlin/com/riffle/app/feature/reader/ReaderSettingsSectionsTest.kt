@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertFalse
@@ -68,7 +69,25 @@ class ReaderSettingsSectionsTest {
                 scheduleEditable = false,
             )
         }
-        composeTestRule.onNodeWithText("Edit the schedule in Settings → Display").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Edit Auto in Settings → Display").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Day starts at").assertCountEquals(0)
+    }
+
+    @Test
+    fun displaySection_appThemeAutoModeHidesScheduleEditor() {
+        composeTestRule.setContent {
+            DisplaySection(
+                prefs = FormattingPreferences().copy(
+                    theme = ReaderTheme.Auto,
+                    autoReaderThemeMode = AutoReaderThemeMode.AppTheme,
+                ),
+                onPrefsChange = {},
+                scheduleEditable = true,
+            )
+        }
+        composeTestRule.onNodeWithText("App theme").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Light app theme").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Dark app theme").assertIsDisplayed()
         composeTestRule.onAllNodesWithText("Day starts at").assertCountEquals(0)
     }
 

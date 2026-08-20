@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.AppThemeReaderThemes
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -14,6 +16,11 @@ fun ReaderTheme.label(): String = when (this) {
     ReaderTheme.DarkDim -> "Dim"
     ReaderTheme.Sepia -> "Sepia"
     ReaderTheme.Auto -> "Auto"
+}
+
+fun AutoReaderThemeMode.label(): String = when (this) {
+    AutoReaderThemeMode.Schedule -> "Time based"
+    AutoReaderThemeMode.AppTheme -> "App theme"
 }
 
 fun ReaderFontFamily.label(): String = when (this) {
@@ -54,7 +61,12 @@ fun displaySummary(prefs: FormattingPreferences): String {
         ReaderOrientation.Continuous -> "Continuous"
     }
     val map = if (prefs.showChapterMap) "map on" else "map off"
-    return "${prefs.theme.label()} · $mode · $map"
+    val theme = if (prefs.theme == ReaderTheme.Auto) {
+        "Auto ${prefs.autoReaderThemeMode.label()}"
+    } else {
+        prefs.theme.label()
+    }
+    return "$theme · $mode · $map"
 }
 
 fun behaviorSummary(keepScreenOn: Boolean, volumeKeyNavigationEnabled: Boolean): String =
@@ -70,4 +82,14 @@ fun autoScheduleSummary(schedule: ThemeSchedule): String {
     fun t(time: LocalTime) = "%02d:%02d".format(time.hour, time.minute)
     return "Day ${t(schedule.dayStart)} · ${schedule.dayTheme.label()} → " +
         "Night ${t(schedule.nightStart)} · ${schedule.nightTheme.label()}"
+}
+
+fun autoThemeSummary(
+    schedule: ThemeSchedule,
+    autoMode: AutoReaderThemeMode,
+    appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
+): String = when (autoMode) {
+    AutoReaderThemeMode.Schedule -> autoScheduleSummary(schedule)
+    AutoReaderThemeMode.AppTheme -> "Light app · ${appThemeReaderThemes.lightTheme.label()} → " +
+        "Dark app · ${appThemeReaderThemes.darkTheme.label()}"
 }

@@ -53,7 +53,14 @@ fun DisplaySection(
                         selected = prefs.theme == theme,
                         onClick = { onPrefsChange(prefs.copy(theme = theme)) },
                         label = { Text(theme.label()) },
-                        leadingIcon = { ThemeSwatch(theme, prefs.themeSchedule) },
+                        leadingIcon = {
+                            ThemeSwatch(
+                                theme = theme,
+                                schedule = prefs.themeSchedule,
+                                autoMode = prefs.autoReaderThemeMode,
+                                appThemeReaderThemes = prefs.appThemeReaderThemes,
+                            )
+                        },
                         modifier = Modifier.semantics { contentDescription = "${theme.label()} theme" },
                     )
                 }
@@ -64,19 +71,36 @@ fun DisplaySection(
                     selected = prefs.theme == ReaderTheme.Auto,
                     onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
                     label = { Text(ReaderTheme.Auto.label()) },
-                    leadingIcon = { ThemeSwatch(ReaderTheme.Auto, prefs.themeSchedule) },
+                    leadingIcon = {
+                        ThemeSwatch(
+                            theme = ReaderTheme.Auto,
+                            schedule = prefs.themeSchedule,
+                            autoMode = prefs.autoReaderThemeMode,
+                            appThemeReaderThemes = prefs.appThemeReaderThemes,
+                        )
+                    },
                     modifier = Modifier.semantics { contentDescription = "${ReaderTheme.Auto.label()} theme" },
                 )
             }
             if (prefs.theme == ReaderTheme.Auto) {
                 Spacer(Modifier.height(12.dp))
                 if (scheduleEditable) {
-                    AutoScheduleControls(
+                    AutoThemeControls(
                         schedule = prefs.themeSchedule,
+                        autoMode = prefs.autoReaderThemeMode,
+                        appThemeReaderThemes = prefs.appThemeReaderThemes,
+                        onAutoModeChange = { onPrefsChange(prefs.copy(autoReaderThemeMode = it)) },
+                        onAppThemeReaderThemesChange = {
+                            onPrefsChange(prefs.copy(appThemeReaderThemes = it))
+                        },
                         onScheduleChange = { onPrefsChange(prefs.copy(themeSchedule = it)) },
                     )
                 } else {
-                    AutoScheduleSummaryCard(prefs.themeSchedule)
+                    AutoThemeSummaryCard(
+                        prefs.themeSchedule,
+                        prefs.autoReaderThemeMode,
+                        prefs.appThemeReaderThemes,
+                    )
                 }
             }
             Spacer(Modifier.height(20.dp))

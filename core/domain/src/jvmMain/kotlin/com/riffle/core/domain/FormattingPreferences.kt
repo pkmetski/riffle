@@ -17,6 +17,8 @@ data class FormattingPreferences(
     val showReadingTimeEstimate: Boolean = DEFAULT_SHOW_READING_TIME_ESTIMATE,
     val doublePageSpread: Boolean = DEFAULT_DOUBLE_PAGE_SPREAD,
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
+    val autoReaderThemeMode: AutoReaderThemeMode = DEFAULT_AUTO_READER_THEME_MODE,
+    val appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
     val themeSchedule: ThemeSchedule = ThemeSchedule(),
     val autoScrollWpm: Int = DEFAULT_AUTO_SCROLL_WPM,
     val showAutoScroll: Boolean = DEFAULT_SHOW_AUTO_SCROLL,
@@ -49,14 +51,26 @@ data class FormattingPreferences(
         const val DEFAULT_CADENCE_PLATFORM_SUPPORTED: Boolean = true
         val DEFAULT_CADENCE_HIGHLIGHT_COLOR: HighlightColor = HighlightColor.YELLOW
         val DEFAULT_THEME: ReaderTheme = ReaderTheme.Light
+        val DEFAULT_AUTO_READER_THEME_MODE: AutoReaderThemeMode = AutoReaderThemeMode.Schedule
         val DEFAULT_FONT_FAMILY: ReaderFontFamily = ReaderFontFamily.Original
         val DEFAULT_ORIENTATION: ReaderOrientation = ReaderOrientation.Horizontal
     }
 }
 
 enum class ReaderTheme { Light, Dark, DarkDim, Sepia, Auto }
+enum class AutoReaderThemeMode { Schedule, AppTheme }
 enum class ReaderFontFamily { Original, Serif, SansSerif, Monospace, Literata, Merriweather, OpenDyslexic }
 enum class ReaderOrientation { Horizontal, Vertical, Continuous }
+
+data class AppThemeReaderThemes(
+    val lightTheme: ReaderTheme = DEFAULT_LIGHT_THEME,
+    val darkTheme: ReaderTheme = DEFAULT_DARK_THEME,
+) {
+    companion object {
+        val DEFAULT_LIGHT_THEME: ReaderTheme = ReaderTheme.Light
+        val DEFAULT_DARK_THEME: ReaderTheme = ReaderTheme.Dark
+    }
+}
 
 data class ThemeSchedule(
     val dayStart: LocalTime = DEFAULT_DAY_START,
@@ -101,4 +115,26 @@ data class ThemeSchedule(
 // run this at render-time so every downstream consumer (Readium mapper, palette,
 // chapter-rail backdrop) keeps reading `prefs.theme` and stays ignorant of Auto.
 fun FormattingPreferences.withResolvedTheme(now: LocalTime): FormattingPreferences =
-    if (theme == ReaderTheme.Auto) copy(theme = themeSchedule.resolve(now)) else this
+    withResolvedTheme(now, appTheme = AppTheme.System, systemInDark = false)
+
+fun FormattingPreferences.withResolvedTheme(
+    now: LocalTime,
+    appTheme: AppTheme,
+    systemInDark: Boolean,
+): FormattingPreferences =
+    if (theme == ReaderTheme.Auto) copy(theme = resolveAutoReaderTheme(now, appTheme, systemInDark)) else this
+
+fun FormattingPreferences.resolveAutoReaderTheme(
+    now: LocalTime,
+    appTheme: AppTheme,
+    systemInDark: Boolean,
+): ReaderTheme = when (autoReaderThemeMode) {
+    AutoReaderThemeMode.Schedule -> themeSchedule.resolve(now)
+    AutoReaderThemeMode.AppTheme -> if (appTheme.isDark(systemInDark)) {
+        appThemeReaderThemes.darkTheme.takeUnless { it == ReaderTheme.Auto }
+            ?: AppThemeReaderThemes.DEFAULT_DARK_THEME
+    } else {
+        appThemeReaderThemes.lightTheme.takeUnless { it == ReaderTheme.Auto }
+            ?: AppThemeReaderThemes.DEFAULT_LIGHT_THEME
+    }
+}

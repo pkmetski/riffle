@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.AppThemeReaderThemes
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -17,6 +19,8 @@ class ReaderSettingsSummariesTest {
         assertEquals("Light", ReaderTheme.Light.label())
         assertEquals("Dim", ReaderTheme.DarkDim.label())
         assertEquals("Auto", ReaderTheme.Auto.label())
+        assertEquals("Time based", AutoReaderThemeMode.Schedule.label())
+        assertEquals("App theme", AutoReaderThemeMode.AppTheme.label())
     }
 
     @Test fun fontLabels() {
@@ -54,6 +58,16 @@ class ReaderSettingsSummariesTest {
         assertEquals("Light · Paginated · map on", displaySummary(prefs))
     }
 
+    @Test fun displaySummaryShowsAutoMode() {
+        val prefs = defaults.copy(
+            theme = ReaderTheme.Auto,
+            autoReaderThemeMode = AutoReaderThemeMode.AppTheme,
+            orientation = ReaderOrientation.Horizontal,
+            showChapterMap = true,
+        )
+        assertEquals("Auto App theme · Paginated · map on", displaySummary(prefs))
+    }
+
     @Test fun displaySummaryScrollAndMapOff() {
         val prefs = defaults.copy(
             theme = ReaderTheme.Sepia,
@@ -86,5 +100,16 @@ class ReaderSettingsSummariesTest {
             nightTheme = ReaderTheme.Dark,
         )
         assertEquals("Day 07:00 · Light → Night 21:00 · Dark", autoScheduleSummary(schedule))
+    }
+
+    @Test fun autoThemeSummaryShowsAppThemeMode() {
+        val appThemeReaderThemes = AppThemeReaderThemes(
+            lightTheme = ReaderTheme.Sepia,
+            darkTheme = ReaderTheme.DarkDim,
+        )
+        assertEquals(
+            "Light app · Sepia → Dark app · Dim",
+            autoThemeSummary(ThemeSchedule(), AutoReaderThemeMode.AppTheme, appThemeReaderThemes),
+        )
     }
 }

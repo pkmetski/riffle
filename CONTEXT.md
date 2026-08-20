@@ -197,10 +197,13 @@ User-controlled reading display settings. Scope varies by format:
 Formatting Preferences are per-device and Source-agnostic.
 
 ### Auto Theme
-A theme value that sits alongside Light, Dark, DarkDim, and Sepia in the [Formatting Preferences] theme picker. Selected like any other theme — globally as the default or per-book as an override — but resolves at render-time according to the [Theme Schedule]. The chip in the formatting panel uses a split day/night swatch. A book pinned to a concrete theme is unaffected; a book pinned to Auto follows the schedule.
+A theme value that sits alongside Light, Dark, DarkDim, and Sepia in the [Formatting Preferences] theme picker. Selected like any other theme — globally as the default or per-book as an override — but resolves at render-time according to the global Auto mode. The chip in the formatting panel uses a split swatch. A book pinned to a concrete theme is unaffected; a book pinned to Auto follows the global Auto mode.
+
+### Auto Theme Mode
+A global setting that controls how [Auto Theme] resolves. Modes: **Schedule** (the existing day/night clock behavior) and **App theme** (the reader picks from configurable light-app and dark-app reader themes according to the resolved app chrome; if the app theme is System, this follows the device dark-mode flag). Editable only on the full-screen Settings panel.
 
 ### Theme Schedule
-A global, user-configured pair of clock times and theme picks that drive [Auto Theme]. Four fields: day-start, night-start, day-theme, night-theme. Theme picks restricted to the four concrete themes. Interpreted on the device's local clock as two arcs on a 24-hour circle; the night arc may cross midnight. Defaults: 07:00, 21:00, Light, Dark. Applies uniformly to EPUB and PDF. Boundary crossings during an open reading session repaint live. Editable only on the full-screen Settings panel. See [ADR 0026].
+A global, user-configured pair of clock times and theme picks that drive [Auto Theme] when Auto mode is Schedule. Four fields: day-start, night-start, day-theme, night-theme. Theme picks restricted to the four concrete themes. Interpreted on the device's local clock as two arcs on a 24-hour circle; the night arc may cross midnight. Defaults: 07:00, 21:00, Light, Dark. Applies uniformly to EPUB and PDF. Boundary crossings during an open reading session repaint live. Editable only on the full-screen Settings panel. See [ADR 0026].
 
 ### EPUB CFI
 An EPUB Canonical Fragment Identifier — `epubcfi(/6/N!<docPath>)` pinpointing a location within an EPUB chapter. Two dialects: Readium (XPath-style) and epub.js (character-count, used by ABS). See [ADR 0013].
