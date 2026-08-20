@@ -225,6 +225,28 @@ class AddSourceViewModelTest {
             { "Connection failed: ${firstFormatArg(invocation.args[1])}" }
         every { context.getString(R.string.error_connected_library_load_failed, any()) } answers
             { "Connected, but couldn't load libraries: ${firstFormatArg(invocation.args[1])}" }
+        every { context.getString(R.string.ui_webdav_auth_failed_prescription) } returns
+            "Authentication failed — your credentials may have expired. Re-enter them below; sync will retry once saved."
+        every { context.getString(R.string.ui_webdav_tls_failed_prescription) } returns
+            "TLS error — the server's certificate could not be verified. Update the URL below; sync will retry once saved."
+        every { context.getString(R.string.ui_source_http_retry, any()) } answers
+            { "Source returned HTTP ${firstFormatArg(invocation.args[1])}. Will retry automatically." }
+        every { context.getString(R.string.ui_sync_failed_retry) } returns
+            "Sync failed. Will retry automatically."
+        every { context.getString(R.string.ui_couldnt_reach_server_retry) } returns
+            "Couldn't reach the server. Will retry automatically when connectivity returns."
+        every { context.getString(R.string.ui_books_pending_sync_shortly, any()) } answers
+            { "${firstFormatArg(invocation.args[1])} book(s) pending · will sync shortly." }
+        every { context.getString(R.string.ui_books_pending_waiting_first_sync, any()) } answers
+            { "${firstFormatArg(invocation.args[1])} book(s) pending · waiting for first sync." }
+        every { context.getString(R.string.ui_never) } returns "Never"
+        every { context.getString(R.string.ui_just_now) } returns "just now"
+        every { context.getString(R.string.ui_minutes_ago, any()) } answers
+            { "${firstFormatArg(invocation.args[1])} min ago" }
+        every { context.getString(R.string.ui_hours_ago, any()) } answers
+            { "${firstFormatArg(invocation.args[1])} h ago" }
+        every { context.getString(R.string.ui_days_ago, any()) } answers
+            { "${firstFormatArg(invocation.args[1])} d ago" }
         return context
     }
 
