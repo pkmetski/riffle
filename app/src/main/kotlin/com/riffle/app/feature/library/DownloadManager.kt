@@ -2,6 +2,7 @@ package com.riffle.app.feature.library
 
 import com.riffle.app.di.DownloadScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -23,6 +24,7 @@ class DownloadManager @Inject constructor(
     val states: StateFlow<Map<String, DownloadState>> = _states
     private val lock = Any()
     private val silentKeys = mutableSetOf<String>()
+    private val jobs = mutableMapOf<String, Job>()
 
     /**
      * Starts [work] for [key] on the application scope unless a download for [key] is already in
@@ -32,7 +34,7 @@ class DownloadManager @Inject constructor(
     fun start(key: String, work: suspend (onProgress: (Long, Long) -> Unit) -> DownloadState) {
         if (_states.value[key] is DownloadState.InProgress) return
         set(key, DownloadState.InProgress())
-        scope.launch {
+        val job = scope.launch {
             val terminal = try {
                 work { downloaded, total ->
                     set(key, DownloadState.InProgress(downloadPercent(downloaded, total)))
@@ -43,8 +45,10 @@ class DownloadManager @Inject constructor(
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 DownloadState.NotDownloaded
             }
+            synchronized(lock) { jobs.remove(key) }
             set(key, terminal)
         }
+        synchronized(lock) { jobs[key] = job }
     }
 
     /**
@@ -77,6 +81,12 @@ class DownloadManager @Inject constructor(
             }
             set(key, terminal)
         }
+    }
+
+    /** Cancels an in-flight download for [key] and clears its state. */
+    fun cancel(key: String) {
+        synchronized(lock) { jobs.remove(key) }?.cancel()
+        _states.update { it - key }
     }
 
     /** Drops any tracked state for [key], e.g. after the user removes the download. */

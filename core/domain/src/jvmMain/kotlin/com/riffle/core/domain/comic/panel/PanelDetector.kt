@@ -185,25 +185,54 @@ class PanelDetector(
     ): PagePanels {
         require(originalWidth > 0 && originalHeight > 0) { "original dimensions must be positive" }
         val fallback = fitWhole(pageIndex, originalWidth, originalHeight)
-
         val mask = binarize(grid) ?: return fallback
+        return detectFromMask(mask, grid.width, grid.height, pageIndex, originalWidth, originalHeight, fallback)
+    }
+
+    /**
+     * Detect panels from a [PanelBinaryMask] produced by [PanelMaskBinarizer.binarize], bypassing
+     * the binarization step. Use this when the mask is already authoritative (e.g. when verifying
+     * that a stored mask produces the same layout as the original page — re-binarizing the mask
+     * would introduce texture-border drift that changes the result).
+     */
+    fun detect(
+        mask: PanelBinaryMask,
+        pageIndex: Int,
+        originalWidth: Int,
+        originalHeight: Int,
+    ): PagePanels {
+        require(originalWidth > 0 && originalHeight > 0) { "original dimensions must be positive" }
+        val fallback = fitWhole(pageIndex, originalWidth, originalHeight)
+        val binaryMask = BinaryMask(mask.width, mask.height, mask.data)
+        return detectFromMask(binaryMask, mask.width, mask.height, pageIndex, originalWidth, originalHeight, fallback)
+    }
+
+    private fun detectFromMask(
+        mask: BinaryMask,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+        pageIndex: Int,
+        originalWidth: Int,
+        originalHeight: Int,
+        fallback: PagePanels,
+    ): PagePanels {
         val cropped = trimMargin(mask) ?: return fallback
 
-        val projResult = gridByProjection(cropped, pageIndex, originalWidth, originalHeight, grid.width, grid.height)
+        val projResult = gridByProjection(cropped, pageIndex, originalWidth, originalHeight, downscaledWidth, downscaledHeight)
         if (projResult != null) return projResult
 
         val gutter = floodFillGutter(cropped)
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
-        val split = splitAtInternalGutters(filtered, cropped, gutter, grid.width, grid.height)
+        val split = splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight)
 
         val result = sanityCheck(
             candidates = split,
             cropped = cropped,
             originalWidth = originalWidth,
             originalHeight = originalHeight,
-            downscaledWidth = grid.width,
-            downscaledHeight = grid.height,
+            downscaledWidth = downscaledWidth,
+            downscaledHeight = downscaledHeight,
             pageIndex = pageIndex,
         )
         return result ?: fallback

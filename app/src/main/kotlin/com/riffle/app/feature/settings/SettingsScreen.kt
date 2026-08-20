@@ -42,6 +42,7 @@ import com.riffle.app.feature.settings.panels.ListeningPreferencesPanel
 import com.riffle.app.feature.settings.panels.ComicDisplaySettingsPanel
 import com.riffle.app.feature.settings.sections.AnnotationsSyncSection
 import com.riffle.app.feature.settings.sections.AppBehaviorSection
+import com.riffle.app.feature.settings.sections.DictionaryPacksSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.ComicsSection
@@ -76,6 +77,7 @@ fun SettingsScreen(
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},
     onNavigateToDeveloperOptions: () -> Unit = {},
+    onNavigateToDictionaryPacks: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
     onNavigateToChangelog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -225,6 +227,11 @@ fun SettingsScreen(
                 AnnotationsSyncSection(
                     row = annotationSyncRow,
                     onOpen = onNavigateToAnnotationsSyncSettings,
+                )
+                HorizontalDivider()
+
+                DictionaryPacksSection(
+                    onOpen = onNavigateToDictionaryPacks,
                 )
                 HorizontalDivider()
 

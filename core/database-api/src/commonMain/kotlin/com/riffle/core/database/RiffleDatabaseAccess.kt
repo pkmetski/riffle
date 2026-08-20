@@ -35,4 +35,6 @@ interface RiffleDatabaseAccess {
     fun playlistDao(): PlaylistDao
     fun publicationMetricsCacheDao(): PublicationMetricsCacheDao
     fun bookComicFormattingPreferencesDao(): BookComicFormattingPreferencesDao
+    fun dictionaryPackDao(): DictionaryPackDao
+    fun lookupHistoryDao(): LookupHistoryDao
 }

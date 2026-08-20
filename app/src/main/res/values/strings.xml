@@ -529,4 +529,26 @@
     <string name="ui_minutes_ago">%1$d min ago</string>
     <string name="ui_hours_ago">%1$d h ago</string>
     <string name="ui_days_ago">%1$d d ago</string>
+    <string name="ui_dictionary">Dictionary</string>
+    <string name="ui_dictionary_packs">Dictionary packs</string>
+    <string name="ui_manage_offline_word_lookup_packs">Manage offline word lookup packs</string>
+    <string name="ui_installed">Installed</string>
+    <string name="ui_available">Available</string>
+    <string name="ui_all_packs_installed">All available packs are installed.</string>
+    <string name="ui_approx_size">~%1$s download</string>
+    <string name="ui_dictionary_source_description">Definitions in English · Data from Wiktionary (CC BY-SA 3.0)</string>
+    <string name="ui_annotate">Annotate</string>
+    <string name="ui_look_up">Look up</string>
+    <string name="ui_no_dictionary_installed">No dictionary installed for this language.</string>
+    <string name="ui_download_dictionary_pack_with_size">Download the %1$s dictionary pack (%2$s) to look up words offline.</string>
+    <string name="ui_download_dictionary_pack">Download the %1$s dictionary pack to look up words offline.</string>
+    <string name="ui_downloading_dictionary">Downloading dictionary…</string>
+    <string name="ui_downloading_dictionary_name">Downloading %1$s dictionary</string>
+    <string name="ui_download_failed_retry">Download failed. Check your connection and try again.</string>
+    <string name="ui_by">By</string>
+    <string name="ui_reading_time_estimated">%1$s estimated</string>
+    <string name="ui_reading_time_estimated_total">%1$s estimated total</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s estimated total · %2$s remaining</string>
+    <string name="ui_pages">%1$d pages</string>
+    <string name="ui_pages_of_read">%1$d of %2$d pages read</string>
 </resources>

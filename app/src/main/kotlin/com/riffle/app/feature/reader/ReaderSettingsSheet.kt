@@ -26,7 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 
@@ -48,7 +50,7 @@ fun ReaderSettingsSheet(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val tabs = listOf("Formatting", "Display")
+    val tabs = listOf(stringResource(R.string.ui_formatting), stringResource(R.string.ui_display))
     var selectedTab by remember { mutableIntStateOf(0) }
 
     BackHandler(onBack = onDismiss)

@@ -90,6 +90,7 @@ private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val READALOUD_SETTINGS = "settings/readaloud"
 private const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
+private const val DICTIONARY_PACKS_SETTINGS = "settings/dictionary_packs"
 private const val CHANGELOG = "settings/changelog"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val DEBUG_LOGS = "settings/debug_logs"
@@ -525,6 +526,7 @@ fun MainScreen(
                     onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
                     onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
                     onNavigateToDeveloperOptions = { navController.navigate(DEVELOPER_OPTIONS) },
+                    onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
                     onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
                     onNavigateToChangelog = { navController.navigate(CHANGELOG) },
                 )
@@ -577,6 +579,11 @@ fun MainScreen(
                     },
                     onNavigateToMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
                     viewModel = settingsVm,
+                )
+            }
+            composable(DICTIONARY_PACKS_SETTINGS) { backStackEntry ->
+                com.riffle.app.feature.settings.dictionary.DictionaryPacksScreen(
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
             composable(ANNOTATION_SYNC_MAINTENANCE) { backStackEntry ->

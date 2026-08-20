@@ -34,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -763,16 +764,26 @@ private fun PublicationFactsLine(
     estimatedTotalReadingTimeSec: Long?,
     extractedPdfPageCount: Int?,
 ) {
+    val fmtEstimated = stringResource(R.string.ui_reading_time_estimated)
+    val fmtEstimatedTotal = stringResource(R.string.ui_reading_time_estimated_total)
+    val fmtEstimatedTotalRemaining = stringResource(R.string.ui_reading_time_estimated_total_remaining)
+    val fmtPages = stringResource(R.string.ui_pages)
+    val fmtPagesRead = stringResource(R.string.ui_pages_of_read)
     val text = when (item.ebookFormat) {
         EbookFormat.Epub -> estimatedTotalReadingTimeSec?.let {
-            ebookReadingTimeText(it, item.readingProgress)
+            ebookReadingTimeText(
+                it, item.readingProgress,
+                estimated = { d -> fmtEstimated.format(d) },
+                estimatedTotal = { d -> fmtEstimatedTotal.format(d) },
+                estimatedTotalRemaining = { d, r -> fmtEstimatedTotalRemaining.format(d, r) },
+            )
         }
         EbookFormat.Pdf -> (extractedPdfPageCount ?: item.pageCount)
             ?.takeIf { it > 0 }
-            ?.let { publicationPageCountText(it, item.readingProgress) }
+            ?.let { publicationPageCountText(it, item.readingProgress, { n -> fmtPages.format(n) }, { read, total -> fmtPagesRead.format(read, total) }) }
         EbookFormat.Cbz -> item.pageCount
             ?.takeIf { it > 0 }
-            ?.let { publicationPageCountText(it, item.readingProgress) }
+            ?.let { publicationPageCountText(it, item.readingProgress, { n -> fmtPages.format(n) }, { read, total -> fmtPagesRead.format(read, total) }) }
         EbookFormat.Unsupported -> null
     }
     // EPUB reading time and the extracted PDF page count arrive asynchronously, seconds after
@@ -795,26 +806,37 @@ private fun PublicationFactsLine(
 internal fun publicationFactsLineReservesSpace(format: EbookFormat): Boolean =
     format == EbookFormat.Epub || format == EbookFormat.Pdf
 
-internal fun ebookReadingTimeText(totalSec: Long, readingProgress: Float): String {
+internal fun ebookReadingTimeText(
+    totalSec: Long,
+    readingProgress: Float,
+    estimated: (String) -> String = { "$it estimated" },
+    estimatedTotal: (String) -> String = { "$it estimated total" },
+    estimatedTotalRemaining: (String, String) -> String = { total, rem -> "$total estimated total · $rem remaining" },
+): String {
     val total = formatDuration(totalSec)
     return when {
-        readingProgress >= READ_PROGRESS_THRESHOLD -> "$total estimated total"
+        readingProgress >= READ_PROGRESS_THRESHOLD -> estimatedTotal(total)
         readingProgress > 0f -> {
             val remainingSec = ((1f - readingProgress) * totalSec).toLong().coerceAtLeast(0L)
-            "$total estimated total · ${formatDuration(remainingSec)} remaining"
+            estimatedTotalRemaining(total, formatDuration(remainingSec))
         }
-        else -> "$total estimated"
+        else -> estimated(total)
     }
 }
 
-internal fun publicationPageCountText(pageCount: Int, readingProgress: Float): String {
+internal fun publicationPageCountText(
+    pageCount: Int,
+    readingProgress: Float,
+    formatPages: (Int) -> String = { "$it pages" },
+    formatPagesRead: (Int, Int) -> String = { read, total -> "$read of $total pages read" },
+): String {
     if (pageCount <= 0) return ""
-    if (!readingProgress.isFinite() || readingProgress <= 0f) return "$pageCount pages"
+    if (!readingProgress.isFinite() || readingProgress <= 0f) return formatPages(pageCount)
 
     val pagesRead = (pageCount * readingProgress)
         .roundToInt()
         .coerceIn(1, pageCount)
-    return "$pagesRead of $pageCount pages read"
+    return formatPagesRead(pagesRead, pageCount)
 }
 
 /** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0035). */
@@ -1303,7 +1325,7 @@ private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
     if (author.isBlank()) return
     val authors = author.split(", ").filter { it.isNotBlank() }
     ClickableTokenLine(
-        prefix = "By ",
+        prefix = stringResource(R.string.ui_by) + " ",
         tokens = authors,
         style = MaterialTheme.typography.titleLarge,
         onTokenClick = onAuthorClick,

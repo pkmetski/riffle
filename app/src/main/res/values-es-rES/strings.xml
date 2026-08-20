@@ -525,4 +525,26 @@
     <string name="ui_minutes_ago">hace %1$d min</string>
     <string name="ui_hours_ago">hace %1$d h</string>
     <string name="ui_days_ago">hace %1$d d</string>
+    <string name="ui_dictionary">Diccionario</string>
+    <string name="ui_dictionary_packs">Paquetes de diccionario</string>
+    <string name="ui_manage_offline_word_lookup_packs">Gestionar paquetes de consulta de palabras sin conexión</string>
+    <string name="ui_installed">Instalados</string>
+    <string name="ui_available">Disponibles</string>
+    <string name="ui_all_packs_installed">Todos los paquetes disponibles están instalados.</string>
+    <string name="ui_approx_size">~%1$s descarga</string>
+    <string name="ui_dictionary_source_description">Definiciones en inglés · Datos de Wikcionario (CC BY-SA 3.0)</string>
+    <string name="ui_annotate">Anotar</string>
+    <string name="ui_look_up">Buscar en diccionario</string>
+    <string name="ui_no_dictionary_installed">No hay ningún diccionario instalado para este idioma.</string>
+    <string name="ui_download_dictionary_pack_with_size">Descarga el paquete de diccionario de %1$s (%2$s) para buscar palabras sin conexión.</string>
+    <string name="ui_download_dictionary_pack">Descarga el paquete de diccionario de %1$s para buscar palabras sin conexión.</string>
+    <string name="ui_downloading_dictionary">Descargando diccionario…</string>
+    <string name="ui_downloading_dictionary_name">Descargando diccionario %1$s</string>
+    <string name="ui_download_failed_retry">Error en la descarga. Comprueba tu conexión e inténtalo de nuevo.</string>
+    <string name="ui_by">De</string>
+    <string name="ui_reading_time_estimated">%1$s estimado</string>
+    <string name="ui_reading_time_estimated_total">%1$s estimado total</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s estimado total · %2$s restante</string>
+    <string name="ui_pages">%1$d páginas</string>
+    <string name="ui_pages_of_read">%1$d de %2$d páginas leídas</string>
 </resources>

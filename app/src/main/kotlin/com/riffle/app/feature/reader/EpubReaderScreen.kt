@@ -320,6 +320,7 @@ fun EpubReaderScreen(
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudBarMessage by viewModel.readaloudBarMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val lookupTarget by viewModel.lookupTarget.collectAsState()
 
     // Starting (or resuming) readaloud is a "lean back and listen" intent, so drop into
     // immersive mode. See ImmersiveOnReadaloudPlay for the why (hides system bars + TopAppBar
@@ -613,6 +614,7 @@ fun EpubReaderScreen(
                         } else null,
                         cadenceEndOfChapterEvents = viewModel.cadenceEndOfChapterEvents,
                         publicationLanguageTag = s.publication.metadata.languages.firstOrNull()?.toString(),
+                        onLookupWord = { word, lang -> viewModel.onLookupWord(word, lang) },
                         onCadenceChapterTokenised = if (formattingPrefs.showCadence) {
                             { quotes, hrefs -> viewModel.onCadenceChapterTokenised(quotes, hrefs) }
                         } else null,
@@ -666,6 +668,14 @@ fun EpubReaderScreen(
                             onDelete = { id -> viewModel.deleteAnnotation(id) },
                             onRename = { id, title -> viewModel.renameBookmark(id, title) },
                             onDismiss = viewModel::closeAnnotationsPanel,
+                        )
+                    }
+                    lookupTarget?.let { target ->
+                        WordLookupSheet(
+                            target = target,
+                            resultFlow = remember(target) { viewModel.observeLookupResult(target) },
+                            onDismiss = viewModel::dismissLookup,
+                            onEnqueueDownload = { entry -> viewModel.enqueuePackDownload(entry) },
                         )
                     }
                     // Corner bookmark ribbon: must live inside this inner Box (sibling of
@@ -1261,6 +1271,7 @@ private fun EpubNavigatorView(
     // only when the outer caller has Cadence enabled; the paginationListener invokes the
     // tokenise result callback and the platform-supported gate.
     publicationLanguageTag: String? = null,
+    onLookupWord: ((word: String, languageTag: String) -> Unit)? = null,
     onCadenceChapterTokenised: ((Map<String, SentenceQuote>, Map<String, String>) -> Unit)? = null,
     onCadencePlatformSupportedChanged: ((Boolean) -> Unit)? = null,
     // Cadence page-top probe — mirrors Readaloud's [pageTopProbeRequests]/[onPageTopResolved]
@@ -1520,6 +1531,17 @@ private fun EpubNavigatorView(
     val currentOnUpdateHighlightNote by rememberUpdatedState(onUpdateHighlightNote)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
+    val currentOnLookupWord by rememberUpdatedState(onLookupWord)
+    val labelAnnotate = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotate)
+    val labelSearch = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search)
+    val labelPlay = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_play)
+    val labelShare = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_share)
+    val labelLookUp = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_look_up)
+    val currentLabelAnnotate by rememberUpdatedState(labelAnnotate)
+    val currentLabelSearch by rememberUpdatedState(labelSearch)
+    val currentLabelPlay by rememberUpdatedState(labelPlay)
+    val currentLabelShare by rememberUpdatedState(labelShare)
+    val currentLabelLookUp by rememberUpdatedState(labelLookUp)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
     // freshly loaded page re-applies the current value.
     val currentPublication by rememberUpdatedState(state.publication)
@@ -1591,6 +1613,7 @@ private fun EpubNavigatorView(
     val copyMenuId = remember { View.generateViewId() }
     val searchMenuId = remember { View.generateViewId() }
     val shareMenuId = remember { View.generateViewId() }
+    val lookupMenuId = remember { View.generateViewId() }
     val playFromHereActionMode = remember {
         // See [SelectionHandoffLatch]. Latched by the highlightMenuId branch and cleared by the
         // coroutine's `finally`, this bridges the frame-scale gap between mode.finish() (which
@@ -1607,15 +1630,19 @@ private fun EpubNavigatorView(
                 handoff.reset()
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
-                    menu.add(0, highlightMenuId, 1, "Annotate")
+                    menu.add(0, highlightMenuId, 1, currentLabelAnnotate)
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (currentReadaloudAvailable) {
-                    menu.add(0, playFromHereMenuId, 2, "Play")
+                    menu.add(0, playFromHereMenuId, 2, currentLabelPlay)
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
-                menu.add(0, searchMenuId, 3, "Search")
-                menu.add(0, shareMenuId, 4, "Share")
+                menu.add(0, searchMenuId, 3, currentLabelSearch)
+                menu.add(0, shareMenuId, 4, currentLabelShare)
+                if (publicationLanguageTag != null && currentOnLookupWord != null) {
+                    menu.add(0, lookupMenuId, 5, currentLabelLookUp)
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
                 return true
             }
 
@@ -1647,6 +1674,9 @@ private fun EpubNavigatorView(
                             .setType("text/plain")
                             .putExtra(android.content.Intent.EXTRA_TEXT, text)
                         context.startActivity(android.content.Intent.createChooser(send, null))
+                    }
+                    lookupMenuId -> withSelectionText { text ->
+                        publicationLanguageTag?.let { lang -> currentOnLookupWord?.invoke(text, lang) }
                     }
                     highlightMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator

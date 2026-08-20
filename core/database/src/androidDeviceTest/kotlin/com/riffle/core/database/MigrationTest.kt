@@ -1921,7 +1921,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 68, true,
+            TEST_DB, 69, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1989,6 +1989,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_65_66,
             RiffleDatabase.MIGRATION_66_67,
             RiffleDatabase.MIGRATION_67_68,
+            RiffleDatabase.MIGRATION_68_69,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2002,7 +2003,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(68, cursor.getInt(0))
+            assertEquals(69, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
@@ -3118,6 +3119,34 @@ class MigrationTest {
             db.query("SELECT background_theme FROM book_comic_formatting_preferences WHERE item_id = 'item2'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals("Sepia", cursor.getString(cursor.getColumnIndexOrThrow("background_theme")))
+            }
+        }
+    }
+
+    @Test
+    fun migration68To69_addsDictionaryAndLookupHistoryTables() {
+        helper.createDatabase(TEST_DB, 68).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+        }
+        helper.runMigrationsAndValidate(
+            TEST_DB, 69, true, RiffleDatabase.MIGRATION_68_69
+        ).use { db ->
+            db.query("SELECT * FROM dictionary_packs").use { c ->
+                assertEquals(0, c.count)
+            }
+            db.query("SELECT * FROM lookup_history").use { c ->
+                assertEquals(0, c.count)
+            }
+            db.execSQL(
+                "INSERT INTO dictionary_packs (languageTag, packVersion, installedAt, sizeBytes, attributionHtml, licenseUrl, state) " +
+                    "VALUES ('fr', '2026-08-18', 0, 120000000, '<a>Wiktionary</a>', 'https://cc.org', 'INSTALLED')"
+            )
+            db.query("SELECT state FROM dictionary_packs WHERE languageTag = 'fr'").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals("INSTALLED", c.getString(0))
             }
         }
     }
