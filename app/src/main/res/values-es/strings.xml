@@ -405,6 +405,7 @@
     <string name="ui_map_on">mapa activado</string>
     <string name="ui_map_off">mapa desactivado</string>
     <string name="ui_display_summary">%1$s · %2$s · %3$s</string>
+    <string name="ui_auto_theme_summary">Automático · %1$s</string>
     <string name="ui_auto_scroll_running_summary">Desplazamiento manos libres — %1$d ppm</string>
     <string name="ui_cadence_running_summary">Resaltado de frases — %1$d ppm</string>
     <string name="ui_auto_schedule_summary">Día %1$s · %2$s → Noche %3$s · %4$s</string>

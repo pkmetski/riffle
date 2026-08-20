@@ -138,7 +138,11 @@ fun ReaderOrientation.localizedLabel(): String = when (this) {
 fun localizedDisplaySummary(prefs: FormattingPreferences): String =
     stringResource(
         R.string.ui_display_summary,
-        prefs.theme.localizedLabel(),
+        if (prefs.theme == ReaderTheme.Auto) {
+            stringResource(R.string.ui_auto_theme_summary, prefs.autoReaderThemeMode.localizedLabel())
+        } else {
+            prefs.theme.localizedLabel()
+        },
         prefs.orientation.localizedLabel(),
         if (prefs.showChapterMap) stringResource(R.string.ui_map_on) else stringResource(R.string.ui_map_off),
     )

@@ -405,6 +405,7 @@
     <string name="ui_map_on">картата е включена</string>
     <string name="ui_map_off">картата е изключена</string>
     <string name="ui_display_summary">%1$s · %2$s · %3$s</string>
+    <string name="ui_auto_theme_summary">Автоматично · %1$s</string>
     <string name="ui_auto_scroll_running_summary">Четене без ръце — %1$d думи/мин</string>
     <string name="ui_cadence_running_summary">Осветяване на изречения — %1$d думи/мин</string>
     <string name="ui_auto_schedule_summary">Ден %1$s · %2$s → Нощ %3$s · %4$s</string>

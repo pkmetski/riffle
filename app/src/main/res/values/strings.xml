@@ -409,6 +409,7 @@
     <string name="ui_map_on">map on</string>
     <string name="ui_map_off">map off</string>
     <string name="ui_display_summary">%1$s · %2$s · %3$s</string>
+    <string name="ui_auto_theme_summary">Auto %1$s</string>
     <string name="ui_auto_scroll_running_summary">Hands-free scroll — %1$d wpm</string>
     <string name="ui_cadence_running_summary">Sentence highlight — %1$d wpm</string>
     <string name="ui_auto_schedule_summary">Day %1$s · %2$s → Night %3$s · %4$s</string>
