@@ -13,7 +13,7 @@ class MaskDetectionRoundTripTest {
     private val detector = PanelDetector()
 
     @Test
-    fun `panel count is preserved after binarize round-trip on real pages`() {
+    fun `panel count is preserved when detecting issue 773 binarized masks`() {
         val pages = listOf(
             TestMask("fixture-a", "panel-detection-fixtures/issue-773-fixture-a.png", expectedPanels = 14),
             TestMask("fixture-b", "panel-detection-fixtures/issue-773-fixture-b.png", expectedPanels = 6),
