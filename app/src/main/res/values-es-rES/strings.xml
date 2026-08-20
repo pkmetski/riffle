@@ -532,4 +532,9 @@
     <string name="ui_available">Disponibles</string>
     <string name="ui_all_packs_installed">Todos los paquetes disponibles están instalados.</string>
     <string name="ui_approx_size">~%1$s descarga</string>
+    <string name="ui_no_dictionary_installed">No hay ningún diccionario instalado para este idioma.</string>
+    <string name="ui_download_dictionary_pack_with_size">Descarga el paquete de diccionario de %1$s (%2$s) para buscar palabras sin conexión.</string>
+    <string name="ui_download_dictionary_pack">Descarga el paquete de diccionario de %1$s para buscar palabras sin conexión.</string>
+    <string name="ui_downloading_dictionary">Descargando diccionario…</string>
+    <string name="ui_download_failed_retry">Error en la descarga. Comprueba tu conexión e inténtalo de nuevo.</string>
 </resources>

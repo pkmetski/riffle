@@ -31,9 +31,8 @@ object LanguageCatalog {
         entry("ja", "Japanese",    60_000_000L),
         entry("zh", "Chinese",    100_000_000L),
         entry("ko", "Korean",      50_000_000L),
-        entry("ar", "Arabic",      60_000_000L),
+        entry("bg", "Bulgarian",   60_000_000L),
         entry("la", "Latin",       50_000_000L),
-        entry("tr", "Turkish",     50_000_000L),
         entry("pl", "Polish",      80_000_000L),
         entry("sv", "Swedish",     50_000_000L),
     )

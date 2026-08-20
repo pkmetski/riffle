@@ -19,7 +19,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import kotlinx.coroutines.flow.Flow
@@ -56,17 +58,20 @@ internal fun WordLookupSheet(
                 }
                 is LookupUiState.NoPackInstalled -> {
                     Text(
-                        text = "No dictionary installed for this language.",
+                        text = stringResource(R.string.ui_no_dictionary_installed),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     val entry = state.entry
                     Text(
                         text = if (entry != null) {
-                            "Download the ${state.languageTag} dictionary pack " +
-                                "(${formatBytes(entry.approximateSizeBytes)}) to look up words offline."
+                            stringResource(
+                                R.string.ui_download_dictionary_pack_with_size,
+                                state.languageTag,
+                                formatBytes(entry.approximateSizeBytes),
+                            )
                         } else {
-                            "Download the ${state.languageTag} dictionary pack to look up words offline."
+                            stringResource(R.string.ui_download_dictionary_pack, state.languageTag)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -80,19 +85,19 @@ internal fun WordLookupSheet(
                             },
                             modifier = Modifier.align(Alignment.End),
                         ) {
-                            Text("Download")
+                            Text(stringResource(R.string.ui_download))
                         }
                     }
                 }
                 LookupUiState.Downloading -> {
                     Text(
-                        text = "Downloading dictionary…",
+                        text = stringResource(R.string.ui_downloading_dictionary),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 is LookupUiState.DownloadFailed -> {
                     Text(
-                        text = "Download failed. Check your connection and try again.",
+                        text = stringResource(R.string.ui_download_failed_retry),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
@@ -106,13 +111,13 @@ internal fun WordLookupSheet(
                             },
                             modifier = Modifier.align(Alignment.End),
                         ) {
-                            Text("Retry")
+                            Text(stringResource(R.string.ui_retry))
                         }
                     }
                 }
                 is LookupUiState.NoResults -> {
                     Text(
-                        text = "No results found for “${state.word}”.",
+                        text = stringResource(R.string.ui_no_results_for, state.word),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
