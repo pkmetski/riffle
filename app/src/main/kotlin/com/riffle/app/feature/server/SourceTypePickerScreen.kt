@@ -82,10 +82,10 @@ fun SourceTypePickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add source") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_source)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -171,7 +171,7 @@ private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 ) {
                     Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                        Text("Coming soon", style = MaterialTheme.typography.labelMedium)
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_coming_soon), style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

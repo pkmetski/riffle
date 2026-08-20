@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun OfflineBanner(modifier: Modifier = Modifier) {
     Text(
-        text = "Offline — showing cached data",
+        text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_offline_showing_cached_data),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSecondaryContainer,
         textAlign = TextAlign.Center,

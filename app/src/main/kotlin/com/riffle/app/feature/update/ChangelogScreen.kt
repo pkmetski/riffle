@@ -49,10 +49,10 @@ fun ChangelogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Release history") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_release_history)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -70,7 +70,7 @@ fun ChangelogScreen(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("No releases found.", style = MaterialTheme.typography.bodyMedium)
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_releases_found), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 Column(
@@ -130,7 +130,11 @@ private fun ReleaseEntry(release: ReleaseInfo) {
         ReleaseDateText(release.publishedAt)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = release.changelog.ifBlank { "No release notes." },
+            text = if (release.changelog.isBlank()) {
+                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_release_notes)
+            } else {
+                release.changelog
+            },
             style = MaterialTheme.typography.bodySmall,
         )
     }

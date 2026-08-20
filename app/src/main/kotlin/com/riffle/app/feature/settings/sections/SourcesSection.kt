@@ -31,7 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.settings.ExpandableSourceRow
 import com.riffle.app.feature.settings.LibraryUiItem
 import com.riffle.app.feature.settings.ReadaloudMatchSummary
@@ -74,7 +76,7 @@ internal fun SourcesSection(
     onSetLibraryVisible: (String, String, Boolean) -> Unit,
     onReorderLibraries: (String, List<String>) -> Unit,
 ) {
-    SettingsSectionHeader("Sources")
+    SettingsSectionHeader(stringResource(R.string.ui_sources))
     // Credentialed multi-instance sources: any Source whose [WebSourceDescriptor] declares
     // hasCredentials=true && isSingleton=false renders here. Storyteller Services are excluded
     // because they live under the Readaloud drill-in (ADR 0024) — the exclusion is by
@@ -154,7 +156,7 @@ internal fun SourcesSection(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Text("Add source")
+        Text(stringResource(R.string.ui_add_source))
     }
 }
 
@@ -206,7 +208,7 @@ internal fun ServerRow(
         headlineContent = { Text(headline) },
         supportingContent = { Text(subtitle) },
         trailingContent = if (server.isActive) {
-            { Text("Active", style = MaterialTheme.typography.labelSmall) }
+            { Text(stringResource(R.string.ui_active), style = MaterialTheme.typography.labelSmall) }
         } else null,
     ) {
         ServerSettingsExpansion(
@@ -240,7 +242,7 @@ internal fun ServerSettingsExpansion(
         when (server.serverType) {
             ServerType.AUDIOBOOKSHELF -> {
                 if (libraryItems.isEmpty()) {
-                    ExpansionNote("No libraries found.")
+                    ExpansionNote(stringResource(R.string.ui_no_libraries_found))
                 } else {
                     ReorderableLibraryList(
                         items = libraryItems,
@@ -250,20 +252,23 @@ internal fun ServerSettingsExpansion(
                 }
             }
             ServerType.STORYTELLER_SERVICE -> {
-                ExpansionHeader("Readaloud matches")
+                ExpansionHeader(stringResource(R.string.ui_readaloud_matches))
                 val counts = summary ?: ReadaloudMatchSummary(0, 0, 0, 0)
                 ListItem(
                     colors = transparentColors,
                     modifier = Modifier
                         .padding(start = 24.dp)
                         .clickable { onOpenReadaloudMatches() },
-                    headlineContent = { Text("Review & match readalouds") },
+                    headlineContent = { Text(stringResource(R.string.ui_review_and_match_readalouds)) },
                     supportingContent = {
                         Text(
-                            "${counts.unmatchedCount} unmatched · " +
-                                "${counts.suggestedCount} suggested · " +
-                                "${counts.partiallyMatchedCount} partially matched · " +
-                                "${counts.matchedCount} matched",
+                            stringResource(
+                                R.string.ui_readaloud_match_counts,
+                                counts.unmatchedCount,
+                                counts.suggestedCount,
+                                counts.partiallyMatchedCount,
+                                counts.matchedCount,
+                            ),
                         )
                     },
                     trailingContent = {
@@ -324,20 +329,18 @@ internal fun LocalFilesSourceRow(
         onRemove = onRemoveSource,
         headerTestTag = "LocalFilesSourceRow",
         leadingIcon = { SourceIcon(source = source, size = 32.dp) },
-        headlineContent = { Text("Local files") },
+        headlineContent = { Text(stringResource(R.string.ui_local_files)) },
         supportingContent = {
-            val folderWord = if (folders.size == 1) "folder" else "folders"
-            val summary = buildString {
-                append("${folders.size} $folderWord on this device")
-                if (unhealthyCount > 0) append(" · $unhealthyCount need attention")
-            }
+            val parts = mutableListOf(stringResource(R.string.ui_local_folders_summary, folders.size))
+            if (unhealthyCount > 0) parts += stringResource(R.string.ui_need_attention_count, unhealthyCount)
+            val summary = parts.joinToString(" · ")
             Text(summary)
         },
         trailingContent = if (unhealthyCount > 0) {
             {
                 Icon(
                     Icons.Default.Warning,
-                    contentDescription = "Some folders need attention",
+                    contentDescription = stringResource(R.string.ui_some_folders_need_attention),
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
@@ -355,14 +358,14 @@ internal fun LocalFilesSourceRow(
                         )
                     },
                     headlineContent = {
-                        Text("Add folder", color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.ui_add_folder), color = MaterialTheme.colorScheme.primary)
                     },
                 )
                 if (folders.isEmpty()) {
                     ListItem(
-                        headlineContent = { Text("No folders yet") },
+                        headlineContent = { Text(stringResource(R.string.ui_no_folders_yet)) },
                         supportingContent = {
-                            Text("Tap \"Add folder\" above to pick a folder to monitor.")
+                            Text(stringResource(R.string.ui_tap_add_folder_above_to_pick_a_folder_to_monitor))
                         },
                     )
                 } else {
@@ -394,7 +397,7 @@ internal fun LocalFilesSourceRow(
                                 if (!isHealthy) {
                                     Icon(
                                         Icons.Default.Warning,
-                                        contentDescription = "Permission revoked",
+                                        contentDescription = stringResource(R.string.ui_permission_revoked),
                                         tint = MaterialTheme.colorScheme.error,
                                     )
                                 }
@@ -402,7 +405,7 @@ internal fun LocalFilesSourceRow(
                             headlineContent = { Text(folder.displayName) },
                             supportingContent = {
                                 Text(
-                                    if (isHealthy) folder.treeUri else "Permission revoked — remove and re-add",
+                                    if (isHealthy) folder.treeUri else stringResource(R.string.ui_permission_revoked_remove_and_readd),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (isHealthy) MaterialTheme.colorScheme.onSurfaceVariant
                                     else MaterialTheme.colorScheme.error,
@@ -419,7 +422,7 @@ internal fun LocalFilesSourceRow(
                                         ) {
                                             Icon(
                                                 Icons.Filled.KeyboardArrowUp,
-                                                contentDescription = "Move ${folder.displayName} up",
+                                                contentDescription = stringResource(R.string.ui_move_named_item_up, folder.displayName),
                                             )
                                         }
                                         IconButton(
@@ -430,7 +433,7 @@ internal fun LocalFilesSourceRow(
                                         ) {
                                             Icon(
                                                 Icons.Filled.KeyboardArrowDown,
-                                                contentDescription = "Move ${folder.displayName} down",
+                                                contentDescription = stringResource(R.string.ui_move_named_item_down, folder.displayName),
                                             )
                                         }
                                     }
@@ -447,7 +450,7 @@ internal fun LocalFilesSourceRow(
                                         onClick = { pendingFolderRemoval = folder },
                                         enabled = folders.size > 1,
                                     ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove folder")
+                                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.ui_remove_folder_3))
                                     }
                                 }
                             },
@@ -459,22 +462,20 @@ internal fun LocalFilesSourceRow(
     pendingFolderRemoval?.let { folder ->
         AlertDialog(
             onDismissRequest = { pendingFolderRemoval = null },
-            title = { Text("Remove folder?") },
+            title = { Text(stringResource(R.string.ui_remove_folder)) },
             text = {
                 Text(
-                    "\"${folder.displayName}\" will be removed and any books that came from it " +
-                        "will be deleted from this device. Books shared with another configured " +
-                        "folder are kept.",
+                    stringResource(R.string.ui_remove_folder_explanation, folder.displayName),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     onRemoveFolder(folder.treeUri)
                     pendingFolderRemoval = null
-                }) { Text("Remove") }
+                }) { Text(stringResource(R.string.ui_remove)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingFolderRemoval = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingFolderRemoval = null }) { Text(stringResource(R.string.ui_cancel)) }
             },
         )
     }

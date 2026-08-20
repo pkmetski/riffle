@@ -61,7 +61,7 @@ internal fun SettingsDrillInRow(
         leadingContent = leadingContent,
         headlineContent = { Text(title) },
         supportingContent = { Text(summary) },
-        trailingContent = { TextButton(onClick = onClick) { Text("Edit") } },
+        trailingContent = { TextButton(onClick = onClick) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit)) } },
     )
 }
 

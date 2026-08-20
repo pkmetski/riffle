@@ -16,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
@@ -36,7 +38,7 @@ fun FormattingSection(
 ) {
     Column {
         if (capabilities.supportsTextTypography || capabilities.supportsFontFamily) {
-            Text("Text", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_text), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
         }
 
@@ -44,7 +46,7 @@ fun FormattingSection(
             val fontSizeRange = 0.5f..2.5f
             val fontSizeStep = 0.1f
             UnifiedSliderRow(
-                title = "Font size",
+                title = stringResource(R.string.ui_font_size),
                 caption = "%.0f%%".format(Locale.ROOT, prefs.fontSize * 100),
                 value = prefs.fontSize,
                 onValueChange = { onPrefsChange(prefs.copy(fontSize = it.round1())) },
@@ -54,7 +56,7 @@ fun FormattingSection(
                 edgeLeft = { Text("A", style = MaterialTheme.typography.labelMedium) },
                 edgeRight = { Text("A", style = MaterialTheme.typography.titleLarge) },
                 bubbleLabel = ::fontSizeBubble,
-                contentDescription = "Font size",
+                contentDescription = stringResource(R.string.ui_font_size),
                 onDecrement = {
                     onPrefsChange(prefs.copy(fontSize = steppedTypographyValue(prefs.fontSize, -fontSizeStep, fontSizeRange)))
                 },
@@ -66,7 +68,7 @@ fun FormattingSection(
         }
 
         if (capabilities.supportsFontFamily) {
-            Text("Font", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_font), style = MaterialTheme.typography.labelMedium)
             val genericFonts = listOf(ReaderFontFamily.Original, ReaderFontFamily.Serif, ReaderFontFamily.SansSerif, ReaderFontFamily.Monospace)
             val bundledFonts = listOf(ReaderFontFamily.Literata, ReaderFontFamily.Merriweather, ReaderFontFamily.OpenDyslexic)
             FontChipRow(genericFonts, prefs.fontFamily) { onPrefsChange(prefs.copy(fontFamily = it)) }
@@ -77,7 +79,7 @@ fun FormattingSection(
 
         if (capabilities.supportsTextTypography) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Justify text", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.ui_justify_text), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(checked = prefs.justifyText, onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) })
             }
             Spacer(Modifier.height(16.dp))
@@ -85,8 +87,8 @@ fun FormattingSection(
             val lineSpacingRange = 1.0f..2.0f
             val lineSpacingStep = 0.1f
             UnifiedSliderRow(
-                title = "Line spacing",
-                caption = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(Locale.ROOT, prefs.lineSpacing),
+                title = stringResource(R.string.ui_line_spacing),
+                caption = "${lineSpacingLabel(prefs.lineSpacing)} · %.1f×".format(Locale.ROOT, prefs.lineSpacing),
                 value = prefs.lineSpacing,
                 onValueChange = { onPrefsChange(prefs.copy(lineSpacing = it.round1())) },
                 valueRange = lineSpacingRange,
@@ -95,7 +97,7 @@ fun FormattingSection(
                 edgeLeft = { TightLinesIcon() },
                 edgeRight = { LooseLinesIcon() },
                 bubbleLabel = ::lineSpacingBubble,
-                contentDescription = "Line spacing",
+                contentDescription = stringResource(R.string.ui_line_spacing),
                 onDecrement = {
                     onPrefsChange(prefs.copy(lineSpacing = steppedTypographyValue(prefs.lineSpacing, -lineSpacingStep, lineSpacingRange)))
                 },
@@ -109,14 +111,14 @@ fun FormattingSection(
         if (capabilities.supportsTextTypography || capabilities.supportsFontFamily) {
             // Only render the "Page" section header when there's a preceding "Text" section
             // to separate from — otherwise it reads as a redundant header for a single control.
-            Text("Page", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_page), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
         }
         val marginsRange = 0.2f..3.0f
         val marginsStep = 0.2f
         UnifiedSliderRow(
-            title = "Margins",
-            caption = "${marginsWord(prefs.margins)} · %.1f×".format(Locale.ROOT, prefs.margins),
+            title = stringResource(R.string.ui_margins),
+            caption = "${marginsLabel(prefs.margins)} · %.1f×".format(Locale.ROOT, prefs.margins),
             value = prefs.margins,
             onValueChange = { onPrefsChange(prefs.copy(margins = it.round1())) },
             valueRange = marginsRange,
@@ -125,7 +127,7 @@ fun FormattingSection(
             edgeLeft = { NarrowMarginsIcon() },
             edgeRight = { WideMarginsIcon() },
             bubbleLabel = ::marginsBubble,
-            contentDescription = "Margins",
+            contentDescription = stringResource(R.string.ui_margins),
             onDecrement = {
                 onPrefsChange(prefs.copy(margins = steppedTypographyValue(prefs.margins, -marginsStep, marginsRange)))
             },

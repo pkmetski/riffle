@@ -1,4 +1,6 @@
 import com.riffle.buildlogic.AndroidImportLint
+import com.riffle.buildlogic.CheckTranslationsTask
+import com.riffle.buildlogic.CreateTranslationTask
 import com.riffle.buildlogic.DatabaseImplLeakLint
 import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
@@ -398,6 +400,25 @@ tasks.register("checkNoDatabaseImplLeak") {
     }
 }
 
+// Keeps localized string files complete when new user-facing resources are added.
+// Add a locale with `./gradlew createTranslation -Plocale=es-rES` (or `make translation LOCALE=es-rES`),
+// fill the generated strings, then run this check.
+tasks.register<CheckTranslationsTask>("checkTranslations") {
+    group = "verification"
+    description = "Fails if localized Android strings are missing, blank, or stale."
+    resRoot.set(layout.projectDirectory.dir("app/src/main/res"))
+    projectRoot.set(layout.projectDirectory)
+}
+
+val translationLocale = providers.gradleProperty("locale")
+tasks.register<CreateTranslationTask>("createTranslation") {
+    group = "localization"
+    description = "Creates or updates app/src/main/res/values-<locale>/strings.xml with missing translatable keys."
+    resRoot.set(layout.projectDirectory.dir("app/src/main/res"))
+    projectRoot.set(layout.projectDirectory)
+    locale.set(translationLocale)
+}
+
 // Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
@@ -412,6 +433,7 @@ tasks.register("riffleChecks") {
         "checkNoAndroidImports",
         "checkNoDatabaseImplLeak",
         "checkNoOkHttpOutsideCoreNet",
+        "checkTranslations",
         "checkTestGuardrails",
     )
 }
@@ -426,6 +448,7 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkNoAndroidImports"))
         dependsOn(rootProject.tasks.named("checkNoDatabaseImplLeak"))
         dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
+        dependsOn(rootProject.tasks.named("checkTranslations"))
         dependsOn(rootProject.tasks.named("checkTestGuardrails"))
     }
 }

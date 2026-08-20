@@ -738,7 +738,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
 
     private fun copyToClipboard(text: String) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        cm.setPrimaryClip(android.content.ClipData.newPlainText("Riffle", text))
+        cm.setPrimaryClip(android.content.ClipData.newPlainText(context.getString(com.riffle.app.R.string.app_name), text))
     }
 
     private fun webSearch(text: String) {

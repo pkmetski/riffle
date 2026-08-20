@@ -43,6 +43,7 @@ fun FootnotePopup(
     onDismiss: () -> Unit,
     onLinkTap: ((String) -> Unit)? = null,
 ) {
+    val footnoteContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_footnote)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -60,7 +61,7 @@ fun FootnotePopup(
                 .padding(horizontal = 12.dp, vertical = 12.dp)
                 .heightIn(max = POPUP_MAX_HEIGHT)
                 .testTag(TAG_FOOTNOTE_POPUP)
-                .semantics { contentDescription = "Footnote" }
+                .semantics { contentDescription = footnoteContentDescription }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -104,7 +105,7 @@ fun FootnotePopup(
                 ) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close footnote",
+                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_close_footnote),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

@@ -48,7 +48,7 @@ internal fun ReorderableLibraryList(
                         ) {
                             Icon(
                                 Icons.Filled.KeyboardArrowUp,
-                                contentDescription = "Move ${item.library.name} up",
+                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_move_named_item_up, item.library.name),
                             )
                         }
                         IconButton(
@@ -57,7 +57,7 @@ internal fun ReorderableLibraryList(
                         ) {
                             Icon(
                                 Icons.Filled.KeyboardArrowDown,
-                                contentDescription = "Move ${item.library.name} down",
+                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_move_named_item_down, item.library.name),
                             )
                         }
                     }

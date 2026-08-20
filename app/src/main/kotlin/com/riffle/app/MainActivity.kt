@@ -1,6 +1,7 @@
 package com.riffle.app
 
 import android.content.Intent
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -26,6 +27,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentFactory
 import com.riffle.app.feature.reader.ReaderStateHolder
+import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.feature.reader.VolumeKeyAction
 import com.riffle.app.feature.reader.VolumeKeyEventHandler
 import com.riffle.app.feature.reader.VolumeNavEvent
@@ -61,6 +63,10 @@ class MainActivity : FragmentActivity() {
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocaleController.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (savedInstanceState != null) {

@@ -71,11 +71,11 @@ fun BookmarkCreateDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text.trim().ifEmpty { initialTitle }) }) {
-                Text("Save")
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
         },
     )
 }

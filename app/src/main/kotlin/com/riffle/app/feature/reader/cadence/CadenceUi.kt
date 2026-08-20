@@ -169,13 +169,13 @@ fun CadenceHudPill(
             IconButton(onClick = onSlower, modifier = Modifier.size(28.dp)) {
                 Icon(
                     Icons.Filled.Remove,
-                    contentDescription = "Slower",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_slower),
                     tint = Color.White,
                     modifier = Modifier.size(14.dp),
                 )
             }
             Text(
-                text = "$speed wpm",
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_words_per_minute, speed),
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 11.sp,
@@ -184,7 +184,7 @@ fun CadenceHudPill(
             IconButton(onClick = onFaster, modifier = Modifier.size(28.dp)) {
                 Icon(
                     Icons.Filled.Add,
-                    contentDescription = "Faster",
+                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_faster),
                     tint = Color.White,
                     modifier = Modifier.size(14.dp),
                 )

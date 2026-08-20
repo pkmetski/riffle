@@ -124,7 +124,7 @@ fun ChitankaBrowseScreen(
                 title = { Text(libraryName) },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "Open drawer")
+                        Icon(Icons.Default.Menu, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_open_drawer))
                     }
                 },
                 actions = {
@@ -148,13 +148,13 @@ fun ChitankaBrowseScreen(
                 NavigationBarItem(
                     selected = selectedTab == TAB_HOME,
                     onClick = { selectedTab = TAB_HOME },
-                    icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_home)) },
                 )
                 if (visibility.toRead) {
                     NavigationBarItem(
                         selected = selectedTab == TAB_TO_READ,
                         onClick = { selectedTab = TAB_TO_READ },
-                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_to_read)) },
                     )
                 }
                 // Annotations are anchored to ebook text — Gramofonche (the audiobook root) can
@@ -163,13 +163,13 @@ fun ChitankaBrowseScreen(
                     NavigationBarItem(
                         selected = selectedTab == TAB_ANNOTATIONS,
                         onClick = { selectedTab = TAB_ANNOTATIONS },
-                        icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                        icon = { Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations)) },
                     )
                 }
                 NavigationBarItem(
                     selected = selectedTab == TAB_LIBRARY,
                     onClick = { selectedTab = TAB_LIBRARY },
-                    icon = { Icon(Icons.Filled.GridView, contentDescription = "All Books") },
+                    icon = { Icon(Icons.Filled.GridView, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_all_books)) },
                 )
             }
         },
@@ -237,7 +237,7 @@ private fun LibraryTabContent(
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
-                placeholder = { Text("Search Chitanka…") },
+                placeholder = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search_chitanka)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -253,7 +253,7 @@ private fun LibraryTabContent(
                 FilterChip(
                     selected = notStartedFilterActive,
                     onClick = { viewModel.toggleNotStartedFilter() },
-                    label = { Text("Not Started") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_not_started)) },
                     leadingIcon = if (notStartedFilterActive) {
                         {
                             Icon(
@@ -270,7 +270,7 @@ private fun LibraryTabContent(
                     FilterChip(
                         selected = unownedFilterActive,
                         onClick = { viewModel.toggleUnownedFilter() },
-                        label = { Text("Unowned") },
+                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unowned)) },
                         leadingIcon = if (unownedFilterActive) {
                             {
                                 Icon(
@@ -288,7 +288,7 @@ private fun LibraryTabContent(
                     FilterChip(
                         selected = selectedFacet == null,
                         onClick = { viewModel.selectFacet(null) },
-                        label = { Text("All") },
+                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_all)) },
                     )
                 }
                 items(facets, key = { it.key }) { facet ->
@@ -314,7 +314,11 @@ private fun LibraryTabContent(
                 }
                 items.isEmpty() -> {
                     Text(
-                        if (query.isNotBlank()) "No results" else "Nothing to show",
+                        if (query.isNotBlank()) {
+                            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_results)
+                        } else {
+                            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_nothing_to_show)
+                        },
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
                     )
                 }

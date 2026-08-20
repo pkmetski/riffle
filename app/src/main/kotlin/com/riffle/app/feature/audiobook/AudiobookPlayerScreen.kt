@@ -109,7 +109,7 @@ private fun PlayerListPills(
     ) {
         AssistChip(
             onClick = onOpenChapters,
-            label = { Text("Chapters") },
+            label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters)) },
             leadingIcon = {
                 Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
             },
@@ -212,7 +212,7 @@ fun AudiobookPlayerScreen(
                 when {
                 state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
                 state.failed -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    Text("This audiobook can't be played right now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_this_audiobook_can_t_be_played_right_now), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 // navigationBarsPadding so the pills row at the bottom clears the system nav bar —
                 // otherwise PlayerListPills renders behind it and the chapters/bookmarks entry point
@@ -273,7 +273,7 @@ fun AudiobookPlayerScreen(
                 onClick = onNavigateBack,
                 modifier = Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(4.dp),
             ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
             }
             // Corner bookmark ribbon — same shape/placement as the ebook reader. Filled when the
             // playhead is within ±3 s of an existing bookmark, or while the add-bookmark dialog is open.
@@ -330,7 +330,7 @@ fun AudiobookPlayerScreen(
             initialTitle = bookmark.title,
             positionLabel = formatHms(bookmark.positionSec),
             suggestions = emptyList(),
-            title = "Rename bookmark",
+            title = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename_bookmark),
             onConfirm = { title ->
                 viewModel.renameBookmark(bookmark.id, title)
                 renaming = null

@@ -76,6 +76,7 @@ fun HighlightSwatchRow(
     onPickNone: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val noHighlightColorContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_highlight_color)
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // ADR 0056 §4: the `∅` swatch removes the highlight color while keeping any emphasis
         // rows intact — the coupled "Annotate" sheet's escape hatch when the user only wanted
@@ -95,7 +96,7 @@ fun HighlightSwatchRow(
                 .clip(CircleShape)
                 .border(1.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), CircleShape)
                 .semantics {
-                    contentDescription = "No highlight color" + if (noneSelected) ", selected" else ""
+                    contentDescription = noHighlightColorContentDescription + if (noneSelected) ", selected" else ""
                 },
         ) {
             Text(
@@ -150,6 +151,7 @@ fun EmphasisChipRow(
     onToggle: (EmphasisStyle) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val emphasisContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_emphasis)
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         EmphasisStyle.entries.forEach { style ->
             val isActive = style in selected
@@ -185,7 +187,7 @@ fun EmphasisChipRow(
                     .background(bg)
                     .clickable { onToggle(style) }
                     .semantics {
-                        contentDescription = "Emphasis " + style.token +
+                        contentDescription = emphasisContentDescription + style.token +
                             if (isActive) ", active" else ""
                     },
             ) {
@@ -276,7 +278,7 @@ fun HighlightActionsPopup(
                         IconButton(onClick = onDelete) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete annotation",
+                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete_annotation),
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }
@@ -293,7 +295,7 @@ fun HighlightActionsPopup(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                     ) {
                         Text(
-                            text = "Note",
+                            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_note),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         if (note != null) {
@@ -307,7 +309,7 @@ fun HighlightActionsPopup(
                                 onClick = { onOpenNoteEditor() },
                                 modifier = Modifier.align(Alignment.End),
                             ) {
-                                Text("Edit")
+                                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit))
                             }
                         }
                     }
@@ -352,7 +354,7 @@ fun HighlightActionsPopup(
                                     onClick = { onOpenNoteEditor() },
                                     modifier = Modifier.align(Alignment.End),
                                 ) {
-                                    Text("Edit")
+                                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit))
                                 }
                             }
                         }
@@ -391,7 +393,7 @@ fun HighlightActionsPopup(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text = "Open in book",
+                            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_open_in_book),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
@@ -412,27 +414,27 @@ internal fun NoteEditorDialog(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Note") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_note)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                placeholder = { Text("Add a note…") },
+                placeholder = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_a_note)) },
                 minLines = 3,
                 maxLines = 6,
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) { Text("Save") }
+            TextButton(onClick = { onConfirm(text) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save)) }
         },
         dismissButton = {
             if (initialNote.isNotBlank()) {
                 TextButton(onClick = { onConfirm("") }) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove), color = MaterialTheme.colorScheme.error)
                 }
             } else {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
             }
         },
     )

@@ -45,11 +45,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.ReaderFontFamily
@@ -178,7 +180,8 @@ internal fun FontChipRow(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         fonts.forEach { family ->
-            val label = family.label()
+            val label = family.localizedLabel()
+            val fontContentDescription = stringResource(R.string.ui_font_named, label)
             FilterChip(
                 selected = selected == family,
                 onClick = { onSelect(family) },
@@ -188,7 +191,7 @@ internal fun FontChipRow(
                         fontFamily = family.previewFontFamily(),
                     )
                 },
-                modifier = Modifier.semantics { contentDescription = "$label font" },
+                modifier = Modifier.semantics { contentDescription = fontContentDescription },
             )
         }
     }
@@ -237,9 +240,16 @@ internal fun AutoThemeSummaryCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
-            Text(autoThemeSummary(schedule, autoMode, appThemeReaderThemes), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                localizedAutoThemeSummary(schedule, autoMode, appThemeReaderThemes),
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Spacer(Modifier.height(2.dp))
-            Text("Edit Auto in Settings → Display", style = MaterialTheme.typography.bodySmall)
+            Text(
+                stringResource(R.string.ui_edit_auto_in_settings_display),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -254,7 +264,7 @@ internal fun AutoThemeControls(
     onScheduleChange: (ThemeSchedule) -> Unit,
 ) {
     Column {
-        Text("Auto follows", style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(R.string.ui_auto_follows), style = MaterialTheme.typography.labelMedium)
         AutoModeDropdown(
             selected = autoMode,
             onSelect = onAutoModeChange,
@@ -262,41 +272,41 @@ internal fun AutoThemeControls(
         if (autoMode == AutoReaderThemeMode.Schedule) {
             Spacer(Modifier.height(12.dp))
             ScheduleThemeRow(
-                timeLabel = "Day starts at",
+                timeLabel = stringResource(R.string.ui_day_starts_at),
                 time = schedule.dayStart,
-                timeContentDescription = "Day start time",
+                timeContentDescription = stringResource(R.string.ui_day_start_time),
                 onTimeChange = { onScheduleChange(schedule.copy(dayStart = it)) },
-                themeLabel = "Day theme",
+                themeLabel = stringResource(R.string.ui_day_theme),
                 theme = schedule.dayTheme,
-                themeContentDescription = "Day theme",
+                themeContentDescription = stringResource(R.string.ui_day_theme),
                 onThemeChange = { onScheduleChange(schedule.copy(dayTheme = it)) },
             )
             Spacer(Modifier.height(8.dp))
             ScheduleThemeRow(
-                timeLabel = "Night starts at",
+                timeLabel = stringResource(R.string.ui_night_starts_at),
                 time = schedule.nightStart,
-                timeContentDescription = "Night start time",
+                timeContentDescription = stringResource(R.string.ui_night_start_time),
                 onTimeChange = { onScheduleChange(schedule.copy(nightStart = it)) },
-                themeLabel = "Night theme",
+                themeLabel = stringResource(R.string.ui_night_theme),
                 theme = schedule.nightTheme,
-                themeContentDescription = "Night theme",
+                themeContentDescription = stringResource(R.string.ui_night_theme),
                 onThemeChange = { onScheduleChange(schedule.copy(nightTheme = it)) },
             )
         } else {
             Spacer(Modifier.height(12.dp))
-            Text("Light app theme", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_light_app_theme), style = MaterialTheme.typography.labelMedium)
             ConcreteThemeDropdown(
                 selected = appThemeReaderThemes.lightTheme,
-                fieldContentDescription = "Light app reader theme",
+                fieldContentDescription = stringResource(R.string.ui_light_app_reader_theme),
                 onSelect = {
                     onAppThemeReaderThemesChange(appThemeReaderThemes.copy(lightTheme = it))
                 },
             )
             Spacer(Modifier.height(8.dp))
-            Text("Dark app theme", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_dark_app_theme), style = MaterialTheme.typography.labelMedium)
             ConcreteThemeDropdown(
                 selected = appThemeReaderThemes.darkTheme,
-                fieldContentDescription = "Dark app reader theme",
+                fieldContentDescription = stringResource(R.string.ui_dark_app_reader_theme),
                 onSelect = {
                     onAppThemeReaderThemesChange(appThemeReaderThemes.copy(darkTheme = it))
                 },
@@ -349,8 +359,10 @@ private fun AutoModeDropdown(
         expanded = expanded,
         onExpandedChange = { expanded = it },
     ) {
+        val selectedLabel = selected.localizedLabel()
+        val autoThemeModeContentDescription = stringResource(R.string.ui_auto_theme_mode)
         OutlinedTextField(
-            value = selected.label(),
+            value = selectedLabel,
             onValueChange = {},
             readOnly = true,
             leadingIcon = { AutoModeIcon(selected) },
@@ -358,14 +370,15 @@ private fun AutoModeDropdown(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor()
-                .semantics { contentDescription = "Auto theme mode" },
+                .semantics { contentDescription = autoThemeModeContentDescription },
         )
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
             AutoReaderThemeMode.entries.forEach { mode ->
-                val label = mode.label()
+                val label = mode.localizedLabel()
+                val modeContentDescription = stringResource(R.string.ui_auto_follows_named, label)
                 DropdownMenuItem(
                     text = { Text(label) },
                     leadingIcon = { AutoModeIcon(mode) },
@@ -373,7 +386,7 @@ private fun AutoModeDropdown(
                         onSelect(mode)
                         expanded = false
                     },
-                    modifier = Modifier.semantics { contentDescription = "Auto follows $label" },
+                    modifier = Modifier.semantics { contentDescription = modeContentDescription },
                 )
             }
         }
@@ -409,7 +422,7 @@ private fun ConcreteThemeDropdown(
         onExpandedChange = { expanded = it },
     ) {
         OutlinedTextField(
-            value = selected.label(),
+            value = selected.localizedLabel(),
             onValueChange = {},
             readOnly = true,
             leadingIcon = { ThemeSwatch(selected, ThemeSchedule()) },
@@ -424,7 +437,8 @@ private fun ConcreteThemeDropdown(
             onDismissRequest = { expanded = false },
         ) {
             concretes.forEach { theme ->
-                val label = theme.label()
+                val label = theme.localizedLabel()
+                val themeContentDescription = stringResource(R.string.ui_theme_named, label)
                 DropdownMenuItem(
                     text = { Text(label) },
                     leadingIcon = { ThemeSwatch(theme, ThemeSchedule()) },
@@ -432,7 +446,7 @@ private fun ConcreteThemeDropdown(
                         onSelect(theme)
                         expanded = false
                     },
-                    modifier = Modifier.semantics { contentDescription = "$label theme" },
+                    modifier = Modifier.semantics { contentDescription = themeContentDescription },
                 )
             }
         }
@@ -476,10 +490,10 @@ private fun TimeField(
                 TextButton(onClick = {
                     onTimeChange(LocalTime.of(state.hour, state.minute))
                     showPicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ui_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.ui_cancel)) }
             },
             text = { TimePicker(state = state) },
         )

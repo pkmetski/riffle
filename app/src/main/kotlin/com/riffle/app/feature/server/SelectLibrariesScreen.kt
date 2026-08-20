@@ -53,10 +53,10 @@ fun SelectLibrariesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Select libraries") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_select_libraries)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -73,18 +73,17 @@ fun SelectLibrariesScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(
-                        "This source doesn't expose any book libraries.",
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_this_source_doesn_t_expose_any_book_libraries),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Button(onClick = onNavigateBack) { Text("Go back") }
+                    Button(onClick = onNavigateBack) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_go_back)) }
                 }
             } else {
                 Column(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     Text(
-                        text = "Choose which libraries to show in Riffle. You can change this later in Settings.",
+                        text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                     )
@@ -109,8 +108,7 @@ fun SelectLibrariesScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         if (viewModel.selectedIds.isEmpty()) {
-                            Text(
-                                "Select at least one library",
+                            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_select_at_least_one_library),
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -119,7 +117,7 @@ fun SelectLibrariesScreen(
                             onClick = viewModel::onContinue,
                             enabled = viewModel.canContinue,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Continue") }
+                        ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_continue)) }
                     }
                 }
             }

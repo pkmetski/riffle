@@ -172,6 +172,8 @@ internal fun ReadingProgressLabels(
                     .testTag("reading_progress_chapter"),
             ) {
                 if (showCountAndPercent) {
+                    val readingProgressContentDescription =
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_reading_progress_value, chapterCountText)
                     Text(
                         text = chapterCountText,
                         style = MaterialTheme.typography.labelSmall,
@@ -179,7 +181,7 @@ internal fun ReadingProgressLabels(
                         textAlign = TextAlign.Start,
                         maxLines = 1,
                         modifier = Modifier.semantics {
-                            contentDescription = "Reading progress: $chapterCountText"
+                            contentDescription = readingProgressContentDescription
                         },
                     )
                 }
@@ -196,6 +198,8 @@ internal fun ReadingProgressLabels(
             }
         }
         if (showChapterName) {
+            val currentChapterContentDescription =
+                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_current_chapter_value, activeChapterTitle)
             Text(
                 text = activeChapterTitle,
                 style = MaterialTheme.typography.labelSmall,
@@ -207,7 +211,7 @@ internal fun ReadingProgressLabels(
                 modifier = Modifier
                     .weight(2f)
                     .testTag("reading_progress_chapter_name")
-                    .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
+                    .semantics { contentDescription = currentChapterContentDescription },
             )
         }
         if (showRightColumn) {
@@ -218,6 +222,8 @@ internal fun ReadingProgressLabels(
                     .testTag("reading_progress_percent"),
             ) {
                 if (showCountAndPercent) {
+                    val totalProgressContentDescription =
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_total_progress_value, pctText)
                     Text(
                         text = pctText,
                         style = MaterialTheme.typography.labelSmall,
@@ -225,7 +231,7 @@ internal fun ReadingProgressLabels(
                         textAlign = TextAlign.End,
                         maxLines = 1,
                         modifier = Modifier.semantics {
-                            contentDescription = "Total progress: $pctText"
+                            contentDescription = totalProgressContentDescription
                         },
                     )
                 }

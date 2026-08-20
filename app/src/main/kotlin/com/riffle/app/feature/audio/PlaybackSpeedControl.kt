@@ -103,7 +103,7 @@ private fun SpeedSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Playback Speed", style = MaterialTheme.typography.titleMedium)
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_playback_speed), style = MaterialTheme.typography.titleMedium)
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,

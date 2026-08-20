@@ -1,15 +1,18 @@
 package com.riffle.app.feature.server
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.R
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -17,6 +20,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SelectLibrariesViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: SourceRepository,
 ) : ViewModel() {
 
@@ -56,7 +60,7 @@ class SelectLibrariesViewModel @Inject constructor(
             val hidden = p.libraries.map { it.id }.toSet() - selectedIds
             when (val r = repository.commit(p, hidden)) {
                 is CommitSourceResult.Success -> _navigateHome.send(Unit)
-                is CommitSourceResult.Failure -> errorMessage = "Couldn't save source: ${r.cause.message}"
+                is CommitSourceResult.Failure -> errorMessage = context.getString(R.string.error_couldnt_save_source, r.cause.message)
             }
             isSubmitting = false
         }

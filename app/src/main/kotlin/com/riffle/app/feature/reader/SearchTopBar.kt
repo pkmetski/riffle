@@ -53,8 +53,8 @@ fun SearchTopBar(
 
     val countText = when {
         query.length < 2 -> ""
-        resultCount == 0 -> "No results"
-        else -> "${currentIndex + 1} of $resultCount"
+        resultCount == 0 -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_results)
+        else -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_result_position, currentIndex + 1, resultCount)
     }
 
     TopAppBar(
@@ -62,14 +62,14 @@ fun SearchTopBar(
         colors = readerTopAppBarColors(),
         navigationIcon = {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
             }
         },
         title = {
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Search in book…", color = Color.White.copy(alpha = 0.6f)) },
+                placeholder = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search_in_book), color = Color.White.copy(alpha = 0.6f)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {}),
@@ -102,17 +102,17 @@ fun SearchTopBar(
                 enabled = currentIndex > 0,
                 modifier = Modifier.testTag(SearchTopBarTags.PREV),
             ) {
-                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous result")
+                Icon(Icons.Default.KeyboardArrowUp, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_previous_result))
             }
             IconButton(
                 onClick = onNext,
                 enabled = currentIndex < resultCount - 1,
                 modifier = Modifier.testTag(SearchTopBarTags.NEXT),
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next result")
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_next_result))
             }
             IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close search")
+                Icon(Icons.Default.Close, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_close_search))
             }
         },
     )

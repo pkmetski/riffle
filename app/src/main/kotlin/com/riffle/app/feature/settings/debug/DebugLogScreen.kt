@@ -38,10 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.R
 import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.logging.LogChannel
 import java.text.SimpleDateFormat
@@ -62,6 +64,7 @@ fun DebugLogScreen(
 ) {
     val entries by viewModel.entries.collectAsState()
     val context = LocalContext.current
+    val shareDebugLogTitle = stringResource(R.string.ui_share_debug_log)
     val activeChannels = remember { mutableStateOf<Set<LogChannel>>(emptySet()) }
 
     val filtered = remember(entries, activeChannels.value) {
@@ -71,23 +74,23 @@ fun DebugLogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Debug logs") },
+                title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_debug_logs)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
                 actions = {
                     TextButton(onClick = {
                         val intent = viewModel.buildShareIntent(activeChannels.value.takeIf { it.isNotEmpty() })
                         if (intent != null) {
-                            context.startActivity(Intent.createChooser(intent, "Share debug log"))
+                            context.startActivity(Intent.createChooser(intent, shareDebugLogTitle))
                         }
                     }) {
-                        Text("Share")
+                        Text(stringResource(R.string.ui_share))
                     }
                     TextButton(onClick = { viewModel.clear() }) {
-                        Text("Clear")
+                        Text(stringResource(R.string.ui_clear))
                     }
                 },
             )
@@ -114,7 +117,12 @@ fun DebugLogScreen(
                 }
             }
             Text(
-                text = "${filtered.size}/${entries.size} entries (buffer holds ${InMemoryLogBuffer.CAPACITY})",
+                text = androidx.compose.ui.res.stringResource(
+                    com.riffle.app.R.string.ui_debug_entries_count,
+                    filtered.size,
+                    entries.size,
+                    InMemoryLogBuffer.CAPACITY,
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
@@ -123,7 +131,11 @@ fun DebugLogScreen(
             if (filtered.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (entries.isEmpty()) "No log entries yet" else "No entries match the current filter",
+                        text = if (entries.isEmpty()) {
+                            stringResource(R.string.ui_no_log_entries_yet)
+                        } else {
+                            stringResource(R.string.ui_no_entries_match_current_filter)
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

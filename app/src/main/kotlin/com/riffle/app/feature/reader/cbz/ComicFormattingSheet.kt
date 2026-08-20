@@ -47,7 +47,7 @@ internal fun ComicFormattingSheet(
                     .align(Alignment.CenterHorizontally)
                     .padding(vertical = 4.dp),
             ) {
-                Text("Restore global defaults")
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_restore_global_defaults))
             }
         }
     }

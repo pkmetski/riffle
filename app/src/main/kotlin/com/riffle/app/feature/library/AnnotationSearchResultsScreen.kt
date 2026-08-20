@@ -38,10 +38,12 @@ fun AnnotationSearchResultsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Annotations · '${viewModel.query}'") },
+                title = {
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations_query_title, viewModel.query))
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -53,7 +55,7 @@ fun AnnotationSearchResultsScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "No annotations for '${viewModel.query}'",
+                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_annotations_for_query, viewModel.query),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

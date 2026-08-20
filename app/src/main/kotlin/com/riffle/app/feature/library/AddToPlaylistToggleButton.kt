@@ -43,7 +43,7 @@ fun AddToPlaylistToggleButton(
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-            contentDescription = "Add to playlist",
+            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_to_playlist),
             tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )

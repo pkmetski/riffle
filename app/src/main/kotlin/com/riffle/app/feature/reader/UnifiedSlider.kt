@@ -132,14 +132,16 @@ internal fun UnifiedSliderRow(
                 .fillMaxWidth()
                 .height(56.dp),
         ) {
+            val decreaseContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_decrease_value, contentDescription)
+            val increaseContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_increase_value, contentDescription)
             Box(
                 modifier = Modifier
                     .size(28.dp)
                     .then(
                         if (enabled && onDecrement != null) {
                             Modifier
-                                .clickable(onClickLabel = "Decrease $contentDescription") { onDecrement() }
-                                .semantics { this.contentDescription = "Decrease $contentDescription" }
+                                .clickable(onClickLabel = decreaseContentDescription) { onDecrement() }
+                                .semantics { this.contentDescription = decreaseContentDescription }
                         } else Modifier,
                     ),
                 contentAlignment = Alignment.Center,
@@ -163,8 +165,8 @@ internal fun UnifiedSliderRow(
                     .then(
                         if (enabled && onIncrement != null) {
                             Modifier
-                                .clickable(onClickLabel = "Increase $contentDescription") { onIncrement() }
-                                .semantics { this.contentDescription = "Increase $contentDescription" }
+                                .clickable(onClickLabel = increaseContentDescription) { onIncrement() }
+                                .semantics { this.contentDescription = increaseContentDescription }
                         } else Modifier,
                     ),
                 contentAlignment = Alignment.Center,

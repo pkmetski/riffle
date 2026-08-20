@@ -121,7 +121,7 @@ fun AddSourceScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -155,7 +155,7 @@ fun AddSourceScreen(
                     Box {
                         OutlinedButton(onClick = { schemeExpanded = true }) {
                             Text(viewModel.scheme)
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose scheme")
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_choose_scheme))
                         }
                         DropdownMenu(
                             expanded = schemeExpanded,
@@ -186,14 +186,14 @@ fun AddSourceScreen(
                 OutlinedTextField(
                     value = viewModel.username,
                     onValueChange = { viewModel.username = it },
-                    label = { Text("Username") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_username)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = viewModel.password,
                     onValueChange = { viewModel.password = it },
-                    label = { Text("Password") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_password)) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -220,7 +220,10 @@ fun AddSourceScreen(
                                 contentColor = MaterialTheme.colorScheme.error,
                             ),
                         ) {
-                            Text(descriptorCopy?.removeLabel ?: "Disable sync")
+                            Text(
+                                descriptorCopy?.removeLabel
+                                    ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_disable_sync),
+                            )
                         }
                     }
                 }
@@ -235,19 +238,19 @@ private fun WebdavStatusCard(banner: WebdavBanner) {
         WebdavBannerKind.Synced -> Quadruple(
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
-            "Synced via WebDAV",
+            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_synced_via_webdav),
             Icons.Default.CheckCircle,
         )
         WebdavBannerKind.Pending -> Quadruple(
             MaterialTheme.colorScheme.tertiaryContainer,
             MaterialTheme.colorScheme.onTertiaryContainer,
-            "Pending — will retry automatically",
+            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_pending_will_retry_automatically),
             Icons.Default.Schedule,
         )
         WebdavBannerKind.Error -> Quadruple(
             MaterialTheme.colorScheme.errorContainer,
             MaterialTheme.colorScheme.onErrorContainer,
-            "Sync error",
+            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sync_error),
             Icons.Default.Warning,
         )
     }
@@ -307,7 +310,7 @@ private fun InsecureConnectionDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Connect anyway") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_anyway)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) } },
     )
 }

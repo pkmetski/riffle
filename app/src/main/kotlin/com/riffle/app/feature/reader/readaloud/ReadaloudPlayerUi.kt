@@ -160,7 +160,10 @@ fun ReadaloudMiniPlayer(
                 )
             } else if (downloadProgress != null) {
                 Text(
-                    text = "Downloading… ${(downloadProgress * 100).toInt()}%",
+                    text = androidx.compose.ui.res.stringResource(
+                        com.riffle.app.R.string.ui_downloading_percent,
+                        (downloadProgress * 100).toInt(),
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .weight(1f)
@@ -178,7 +181,7 @@ fun ReadaloudMiniPlayer(
                     enabled = canPreviousChapter,
                     modifier = Modifier.testTag("readaloud_prev_chapter"),
                 ) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous chapter")
+                    Icon(Icons.Filled.SkipPrevious, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_previous_chapter))
                 }
                 IconButton(onClick = onPlayPause, modifier = Modifier.testTag("readaloud_play_pause")) {
                     Icon(
@@ -191,7 +194,7 @@ fun ReadaloudMiniPlayer(
                     enabled = canNextChapter,
                     modifier = Modifier.testTag("readaloud_next_chapter"),
                 ) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter")
+                    Icon(Icons.Filled.SkipNext, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_next_chapter))
                 }
                 IconButton(onClick = onForward, modifier = Modifier.testTag("readaloud_forward")) {
                     SkipIcon(seconds = skipIntervalSeconds, forward = true, tint = contentColor)
@@ -199,7 +202,7 @@ fun ReadaloudMiniPlayer(
                 Spacer(modifier = Modifier.weight(1f))
             }
             IconButton(onClick = onClose, modifier = Modifier.testTag("readaloud_close")) {
-                Icon(Icons.Default.Close, contentDescription = "Close readaloud")
+                Icon(Icons.Default.Close, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_close_readaloud))
             }
         }
     }
@@ -217,10 +220,12 @@ fun ReadaloudDownloadDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("readaloud_download_dialog"),
-        title = { Text("Download readaloud audio ($sizeLabel)") },
+        title = {
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download_readaloud_audio_size, sizeLabel))
+        },
         text = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Wi-Fi only", modifier = Modifier.weight(1f))
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_wi_fi_only), modifier = Modifier.weight(1f))
                 Switch(
                     checked = wifiOnly,
                     onCheckedChange = { wifiOnly = it },
@@ -229,10 +234,10 @@ fun ReadaloudDownloadDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(wifiOnly) }) { Text("Download") }
+            TextButton(onClick = { onConfirm(wifiOnly) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
         },
     )
 }

@@ -62,7 +62,7 @@ fun PlaylistDetailScreen(
                 title = { Text(state.name) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
             )
@@ -71,13 +71,13 @@ fun PlaylistDetailScreen(
     ) { padding ->
         if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Loading…")
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_loading))
             }
             return@Scaffold
         }
         if (state.items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("This playlist is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_this_playlist_is_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             return@Scaffold
         }
@@ -96,7 +96,7 @@ fun PlaylistDetailScreen(
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Play")
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_play))
                 }
                 Spacer(Modifier.height(4.dp))
             }
@@ -115,7 +115,7 @@ fun PlaylistDetailScreen(
                     IconButton(onClick = { viewModel.removeItem(item.id) }) {
                         Icon(
                             Icons.Filled.RemoveCircleOutline,
-                            contentDescription = "Remove from playlist",
+                            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove_from_playlist),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }

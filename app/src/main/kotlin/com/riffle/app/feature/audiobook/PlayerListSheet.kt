@@ -105,7 +105,7 @@ private fun ChaptersList(content: PlayerListContent.Chapters, onDismiss: () -> U
                     if (isCurrent) {
                         Icon(
                             Icons.Filled.GraphicEq,
-                            contentDescription = "Now playing",
+                            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_now_playing),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     } else {
@@ -139,7 +139,7 @@ private fun ChaptersList(content: PlayerListContent.Chapters, onDismiss: () -> U
 private fun BookmarksList(content: PlayerListContent.Bookmarks, onDismiss: () -> Unit) {
     if (content.offlineNote) {
         Text(
-            text = "Offline — bookmarks will sync",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_offline_bookmarks_will_sync),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
@@ -147,7 +147,7 @@ private fun BookmarksList(content: PlayerListContent.Bookmarks, onDismiss: () ->
     }
     if (content.items.isEmpty()) {
         Text(
-            text = "No bookmarks yet.",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_bookmarks_yet),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -182,11 +182,11 @@ private fun BookmarkOverflow(bookmark: AudiobookBookmark, content: PlayerListCon
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Bookmark options")
+            Icon(Icons.Filled.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_bookmark_options))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Rename") },
+                text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename)) },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 onClick = {
                     expanded = false
@@ -194,7 +194,7 @@ private fun BookmarkOverflow(bookmark: AudiobookBookmark, content: PlayerListCon
                 },
             )
             DropdownMenuItem(
-                text = { Text("Delete") },
+                text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete)) },
                 leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
                 onClick = {
                     expanded = false

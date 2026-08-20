@@ -32,7 +32,7 @@ fun ItemChaptersSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Text(
-            text = "Chapters",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_chapters),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier
                 .fillMaxWidth()

@@ -40,7 +40,7 @@ internal fun UpdateAvailableDialog(
             dismissOnBackPress = !isDownloading,
             dismissOnClickOutside = !isDownloading,
         ),
-        title = { Text("Update available") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_update_available)) },
         text = {
             LazyColumn {
                 items(state.releases) { release ->
@@ -52,7 +52,11 @@ internal fun UpdateAvailableDialog(
                         ReleaseDateText(release.publishedAt)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = release.changelog.ifBlank { "No release notes." },
+                            text = if (release.changelog.isBlank()) {
+                                androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_release_notes)
+                            } else {
+                                release.changelog
+                            },
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -79,24 +83,23 @@ internal fun UpdateAvailableDialog(
                         Text("${downloadState.percent}%", style = MaterialTheme.typography.bodySmall)
                     }
                 is UpdateDownloadState.Installing ->
-                    Text(
-                        "Starting installer…",
+                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_starting_installer),
                         modifier = Modifier.padding(horizontal = 16.dp),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 is UpdateDownloadState.Failed ->
-                    Button(onClick = { onUpdate(state.update) }) { Text("Retry") }
+                    Button(onClick = { onUpdate(state.update) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_retry)) }
                 null ->
-                    Button(onClick = { onUpdate(state.update) }) { Text("Update") }
+                    Button(onClick = { onUpdate(state.update) }) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_update)) }
             }
         },
         dismissButton = {
             if (!isDownloading) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { onIgnore(state.update.versionCode) }) {
-                        Text("Ignore this version")
+                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_ignore_this_version))
                     }
-                    TextButton(onClick = onDismiss) { Text("Later") }
+                    TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_later)) }
                 }
             }
         },

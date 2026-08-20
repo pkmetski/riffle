@@ -13,8 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 
 /**
  * Device-behavior toggles that apply to all books. Global in both hosts (reader sheet Behavior tab
@@ -36,10 +38,10 @@ fun BehaviorSection(
     onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
     Column {
-        ToggleRow("Keep screen on while reading", keepScreenOn, onKeepScreenOnChange)
-        ToggleRow("Volume key navigation", volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange)
+        ToggleRow(stringResource(R.string.ui_keep_screen_on_while_reading), keepScreenOn, onKeepScreenOnChange)
+        ToggleRow(stringResource(R.string.ui_volume_key_navigation), volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange)
         ToggleRow(
-            label = "Invert volume keys",
+            label = stringResource(R.string.ui_invert_volume_keys),
             checked = invertVolumeKeys,
             onChange = onInvertVolumeKeysChange,
             enabled = volumeKeyNavigationEnabled,

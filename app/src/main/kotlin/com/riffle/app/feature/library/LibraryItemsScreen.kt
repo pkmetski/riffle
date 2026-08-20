@@ -414,7 +414,7 @@ private fun SearchResultsContent(
         filteredItems.isEmpty() && annotationResults.isEmpty() && audiobookBookmarkResults.isEmpty()
     if (allEmpty) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No results for '$query'")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_results_for, query))
         }
         return
     }
@@ -706,7 +706,7 @@ fun BookCoverTile(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_readaloud),
-                        contentDescription = "Has readaloud (synced narration)",
+                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_has_readaloud_synced_narration),
                         tint = Color.White,
                         modifier = Modifier.size(17.dp),
                     )
@@ -919,7 +919,7 @@ private fun SearchSeriesRow(series: Series, token: String, coverUrl: String? = n
             Column {
                 Text(text = series.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = "${series.bookCount} book${if (series.bookCount != 1) "s" else ""}",
+                    text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_book_count, series.bookCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -944,7 +944,7 @@ private fun SearchCollectionRow(collection: Collection, onClick: () -> Unit) {
         ) {
             Text(text = collection.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(
-                text = "${collection.bookCount} book${if (collection.bookCount != 1) "s" else ""}",
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_book_count, collection.bookCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1092,7 +1092,7 @@ private fun ShowAllAnnotationsRow(count: Int, onClick: () -> Unit) {
         shape = RoundedCornerShape(8.dp),
     ) {
         Text(
-            text = "Show all $count annotations",
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_show_all_annotations, count),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
@@ -1157,7 +1157,7 @@ internal fun LibrarySearchHeader(
                     }
                 },
             ) {
-                Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                Icon(Icons.Default.Menu, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_open_menu))
             }
             Text(
                 text = libraryName.uppercase(),
@@ -1203,8 +1203,7 @@ internal fun LibrarySearchHeader(
                 decorationBox = { inner ->
                     Box {
                         if (searchQuery.isEmpty()) {
-                            Text(
-                                "Search",
+                            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -1220,7 +1219,7 @@ internal fun LibrarySearchHeader(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Clear search",
+                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_clear_search),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
@@ -1300,26 +1299,26 @@ internal fun LibraryItemCard(
                             // Storyteller readaloud, or a Readaloud book is paired with an ABS item.
                             Icon(
                                 painter = painterResource(R.drawable.ic_readaloud),
-                                contentDescription = "Has readaloud (synced narration)",
+                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_has_readaloud_synced_narration),
                                 tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(16.dp),
                             )
                         }
                         if (!item.isPlayable) {
                             Text(
-                                text = "Not supported",
+                                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_not_supported),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
                             if (item.isCached) {
                                 Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                                    Text("Cached", style = MaterialTheme.typography.labelSmall)
+                                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cached), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                             if (item.isDownloaded) {
                                 Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                                    Text("Downloaded", style = MaterialTheme.typography.labelSmall)
+                                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_downloaded), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -1407,34 +1406,34 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+            icon = { Icon(Icons.Filled.Home, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_home)) },
         )
         if (visibility.toRead) {
             NavigationBarItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_to_read)) },
             )
         }
         if (visibility.annotations) {
             NavigationBarItem(
                 selected = selectedTab == tabIndexForAnnotations(),
                 onClick = { onTabSelected(tabIndexForAnnotations()) },
-                icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                icon = { Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations)) },
             )
         }
         if (visibility.series) {
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
+                icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_series)) },
             )
         }
         if (visibility.collections) {
             NavigationBarItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
-                icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+                icon = { Icon(Icons.Filled.Folder, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_collections)) },
             )
         }
         if (visibility.playlists) {
@@ -1442,14 +1441,14 @@ private fun LibraryTabBar(
                 selected = selectedTab == tabIndexForPlaylists(),
                 onClick = { onTabSelected(tabIndexForPlaylists()) },
                 icon = {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlists")
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_playlists))
                 },
             )
         }
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
-            icon = { Icon(Icons.Filled.GridView, contentDescription = "All Books") },
+            icon = { Icon(Icons.Filled.GridView, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_all_books)) },
         )
     }
 }
@@ -1485,7 +1484,7 @@ internal fun HomeTabContent(
     if (isLoading) return
     if (inProgress.isEmpty() && continueSeries.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing to show here")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_nothing_to_show_here))
         }
         return
     }
@@ -1582,7 +1581,7 @@ private fun SeriesTabContent(
     if (isLoading) return
     if (items.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No series in this library")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_series_in_this_library))
         }
         return
     }
@@ -1626,7 +1625,7 @@ private fun CollectionsTabContent(
     if (isLoading) return
     if (items.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No collections in this library")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_collections_in_this_library))
         }
         return
     }
@@ -1670,7 +1669,7 @@ internal fun ToReadTabContent(
     if (isLoading) return
     if (items.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing in To Read")
+            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_nothing_in_to_read))
         }
         return
     }
@@ -1727,7 +1726,7 @@ private fun AllBooksTabContent(
                 FilterChip(
                     selected = notStartedFilterActive,
                     onClick = onToggleNotStartedFilter,
-                    label = { Text("Not Started") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_not_started)) },
                     leadingIcon = if (notStartedFilterActive) {
                         {
                             Icon(
@@ -1749,7 +1748,11 @@ private fun AllBooksTabContent(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = if (notStartedFilterActive) "No unstarted books" else "No items in this library",
+                    text = if (notStartedFilterActive) {
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_unstarted_books)
+                    } else {
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_items_in_this_library)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1791,7 +1794,7 @@ private fun SortModeChip(
         FilterChip(
             selected = current != LibrarySortMode.ADDED_DESC,
             onClick = { expanded = true },
-            label = { Text("Sort: ${current.displayName}") },
+            label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sort, current.displayName)) },
             trailingIcon = {
                 Icon(
                     Icons.Filled.ArrowDropDown,

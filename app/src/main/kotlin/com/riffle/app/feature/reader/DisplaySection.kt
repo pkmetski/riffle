@@ -16,10 +16,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -45,14 +47,16 @@ fun DisplaySection(
     Column {
         // Theme
         if (capabilities.supportsTheme) {
-            Text("Theme", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_theme), style = MaterialTheme.typography.labelMedium)
             val concreteThemes = listOf(ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 concreteThemes.forEach { theme ->
+                    val label = theme.localizedLabel()
+                    val themeContentDescription = stringResource(R.string.ui_theme_named, label)
                     FilterChip(
                         selected = prefs.theme == theme,
                         onClick = { onPrefsChange(prefs.copy(theme = theme)) },
-                        label = { Text(theme.label()) },
+                        label = { Text(label) },
                         leadingIcon = {
                             ThemeSwatch(
                                 theme = theme,
@@ -61,16 +65,18 @@ fun DisplaySection(
                                 appThemeReaderThemes = prefs.appThemeReaderThemes,
                             )
                         },
-                        modifier = Modifier.semantics { contentDescription = "${theme.label()} theme" },
+                        modifier = Modifier.semantics { contentDescription = themeContentDescription },
                     )
                 }
             }
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val autoLabel = ReaderTheme.Auto.localizedLabel()
+                val autoThemeContentDescription = stringResource(R.string.ui_theme_named, autoLabel)
                 FilterChip(
                     selected = prefs.theme == ReaderTheme.Auto,
                     onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
-                    label = { Text(ReaderTheme.Auto.label()) },
+                    label = { Text(autoLabel) },
                     leadingIcon = {
                         ThemeSwatch(
                             theme = ReaderTheme.Auto,
@@ -79,7 +85,7 @@ fun DisplaySection(
                             appThemeReaderThemes = prefs.appThemeReaderThemes,
                         )
                     },
-                    modifier = Modifier.semantics { contentDescription = "${ReaderTheme.Auto.label()} theme" },
+                    modifier = Modifier.semantics { contentDescription = autoThemeContentDescription },
                 )
             }
             if (prefs.theme == ReaderTheme.Auto) {
@@ -108,24 +114,21 @@ fun DisplaySection(
 
         // View — only render the header if any of its sub-controls are visible.
         if (capabilities.supportsReadingModeSwitch || capabilities.supportsDoublePage) {
-            Text("View", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_view), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
         }
         if (capabilities.supportsReadingModeSwitch) {
-            Text("Reading mode", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.ui_reading_mode), style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReaderOrientation.entries.forEach { orientation ->
-                    val label = when (orientation) {
-                        ReaderOrientation.Horizontal -> "Paginated"
-                        ReaderOrientation.Vertical -> "Scroll"
-                        ReaderOrientation.Continuous -> "Continuous"
-                    }
+                    val label = orientation.localizedLabel()
+                    val orientationContentDescription = stringResource(R.string.ui_reading_orientation_named, label)
                     FilterChip(
                         selected = prefs.orientation == orientation,
                         onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },
                         label = { Text(label) },
                         leadingIcon = { OrientationIcon(orientation) },
-                        modifier = Modifier.semantics { contentDescription = "$label reading orientation" },
+                        modifier = Modifier.semantics { contentDescription = orientationContentDescription },
                     )
                 }
             }
@@ -137,7 +140,7 @@ fun DisplaySection(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().alpha(if (doublePageEnabled) 1f else 0.38f),
             ) {
-                Text("Double page in landscape", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.ui_double_page_in_landscape), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(
                     checked = prefs.doublePageSpread,
                     onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
@@ -148,11 +151,11 @@ fun DisplaySection(
         }
 
         // On-screen info
-        Text("On-screen info", style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(R.string.ui_on_screen_info), style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
-        ToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
+        ToggleRow(stringResource(R.string.ui_chapter_map), prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
         ToggleRow(
-            label = "Colored chapter map",
+            label = stringResource(R.string.ui_colored_chapter_map),
             checked = prefs.coloredChapterMap,
             enabled = prefs.showChapterMap,
             modifier = Modifier.padding(start = 16.dp),
@@ -160,9 +163,9 @@ fun DisplaySection(
             onChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
         )
         if (capabilities.supportsPositionOverlays) {
-            ToggleRow("Current chapter label", prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
-            ToggleRow("Reading progress labels", prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
-            ToggleRow("Time remaining", prefs.showReadingTimeEstimate) { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) }
+            ToggleRow(stringResource(R.string.ui_current_chapter_label), prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
+            ToggleRow(stringResource(R.string.ui_reading_progress_labels), prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
+            ToggleRow(stringResource(R.string.ui_time_remaining), prefs.showReadingTimeEstimate) { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) }
         }
     }
 }
