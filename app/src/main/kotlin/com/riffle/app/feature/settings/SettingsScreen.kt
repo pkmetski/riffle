@@ -240,15 +240,6 @@ fun SettingsScreen(
                     HorizontalDivider()
                 }
 
-                DiagnosticsSection(
-                    crashReports = crashReports,
-                    expandedCrashes = expandedCrashes,
-                    crashReportFiles = { viewModel.crashReportFiles() },
-                    onClearCrashReports = viewModel::clearCrashReports,
-                    onNavigateToDebugLogs = onNavigateToDebugLogs,
-                )
-                HorizontalDivider()
-
                 AppVersionSection(
                     installedVersionName = viewModel.installedVersionName,
                     state = appUpdateState,
