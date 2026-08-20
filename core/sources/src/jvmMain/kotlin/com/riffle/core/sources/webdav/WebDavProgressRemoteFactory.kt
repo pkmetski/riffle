@@ -69,6 +69,9 @@ class WebDavProgressRemoteFactory(
         private const val WEBDAV_CONNECT_TIMEOUT_MS = 10_000L
         private const val WEBDAV_READ_TIMEOUT_MS = 20_000L
 
+        // Username is included so two users sharing the same WebDAV root don't overwrite each
+        // other's progress for the same book. Mirrors the komga_{userId} convention in annotation
+        // sync. Without it, Alice and Bob reading the same Chitanka book would collide on one file.
         fun webDavNamespace(sourceTypeSlug: String, username: String): String {
             val safeUser = username.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             return "${sourceTypeSlug}_$safeUser"
