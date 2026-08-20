@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import android.database.sqlite.SQLiteConstraintException
+import androidx.sqlite.SQLiteException as SQLiteDriverException
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadaloudCandidateDao
@@ -126,6 +127,19 @@ open class ReadaloudMatchingService(
                                 "reconcileLinks upsert skipped — constraint violation for " +
                                     "storytellerSourceId=${book.sourceId} absSourceId=${match.absServerUuid}"
                             }
+                            // Keep any pre-existing auto link in freshAutoSlots so the sweep
+                            // doesn't delete it — a transient source-removal race prevents the
+                            // upsert, but the link itself is still valid. FK CASCADE handles the
+                            // row when the source is truly gone.
+                            if (existing != null) freshAutoSlots += slot
+                        } catch (e: SQLiteDriverException) {
+                            // BundledSQLiteDriver (Room 2.8.4+) throws androidx.sqlite.SQLiteException
+                            // for constraint violations, not the Android framework type above.
+                            logger.w(LogChannel.Readaloud, e) {
+                                "reconcileLinks upsert skipped — constraint violation (driver path) for " +
+                                    "storytellerSourceId=${book.sourceId} absSourceId=${match.absServerUuid}"
+                            }
+                            if (existing != null) freshAutoSlots += slot
                         }
                     }
 

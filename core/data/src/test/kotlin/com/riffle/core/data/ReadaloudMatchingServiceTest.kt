@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import android.database.sqlite.SQLiteConstraintException
+import androidx.sqlite.SQLiteException as SQLiteDriverException
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -328,6 +329,82 @@ class ReadaloudMatchingServiceTest {
     }
 
     @Test
+    fun `FK constraint preserves pre-existing auto link — does not sweep it`() = runTest {
+        // Regression (v2.40.1): when upsert throws a FK constraint, the slot is not added to
+        // freshAutoSlots, so sweepStaleAutoLinks deletes the pre-existing link even though it is
+        // still valid. The fix adds the slot when existing != null to shield the row from the sweep.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780261103573")),
+        )
+        val links = FKFailingReadaloudLinkDao().apply {
+            seed(
+                ReadaloudLinkEntity(
+                    absSourceId = "abs-1",
+                    absLibraryItemId = "ebook",
+                    storytellerSourceId = "st-1",
+                    storytellerBookId = "42",
+                    state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                    userConfirmed = false,
+                    createdAt = 1L, updatedAt = 1L,
+                ),
+            )
+        }
+
+        service(items, links).reconcileLinks()
+
+        assertTrue("no new upsert attempted", links.upserts.isEmpty())
+        assertTrue("pre-existing link must survive the sweep", links.deletions.isEmpty())
+    }
+
+    @Test
+    fun `androidx SQLite exception on upsert is also swallowed — BundledSQLiteDriver path`() = runTest {
+        // Regression (v2.41.0): BundledSQLiteDriver throws androidx.sqlite.SQLiteException for
+        // constraint violations, not android.database.sqlite.SQLiteConstraintException. The old
+        // catch block does not intercept it, so the exception propagates and aborts reconcileLinks()
+        // entirely (sweep never runs, no new links written). The fix adds a second catch.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780261103573")),
+        )
+        val links = AndroidXFKFailingReadaloudLinkDao()
+
+        service(items, links).reconcileLinks()
+
+        assertTrue("no row written when AndroidX FK throws", links.upserts.isEmpty())
+    }
+
+    @Test
+    fun `androidx FK constraint preserves pre-existing auto link — BundledSQLiteDriver path`() = runTest {
+        // Combined regression from both v2.40.1 (slot not preserved) and v2.41.0 (exception
+        // not caught): with BundledSQLiteDriver a FK violation aborts reconcile entirely, leaving
+        // the pre-existing link alive by accident. After the fix the exception is caught and the
+        // slot is explicitly kept fresh, so the link survives the sweep deterministically.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780261103573")),
+        )
+        val links = AndroidXFKFailingReadaloudLinkDao().apply {
+            seed(
+                ReadaloudLinkEntity(
+                    absSourceId = "abs-1",
+                    absLibraryItemId = "ebook",
+                    storytellerSourceId = "st-1",
+                    storytellerBookId = "42",
+                    state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                    userConfirmed = false,
+                    createdAt = 1L, updatedAt = 1L,
+                ),
+            )
+        }
+
+        service(items, links).reconcileLinks()
+
+        assertTrue("no new upsert attempted", links.upserts.isEmpty())
+        assertTrue("pre-existing link must survive the sweep", links.deletions.isEmpty())
+    }
+
+    @Test
     fun `stale candidates are cleared every pass`() = runTest {
         val items = StubLibraryItemDao(
             storyteller = listOf(row("st-1", "42", title = "Dune", author = "Frank Herbert")),
@@ -432,6 +509,13 @@ class ReadaloudMatchingServiceTest {
     private class FKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
         override suspend fun upsert(entity: ReadaloudLinkEntity) {
             throw SQLiteConstraintException("FOREIGN KEY constraint failed (code 787)")
+        }
+    }
+
+    /** Same race but via the BundledSQLiteDriver path (Room 2.8.4+). */
+    private class AndroidXFKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
+        override suspend fun upsert(entity: ReadaloudLinkEntity) {
+            throw SQLiteDriverException("Error code: 787, message: FOREIGN KEY constraint failed")
         }
     }
 
