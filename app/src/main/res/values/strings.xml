@@ -542,4 +542,10 @@
     <string name="ui_download_dictionary_pack">Download the %1$s dictionary pack to look up words offline.</string>
     <string name="ui_downloading_dictionary">Downloading dictionary…</string>
     <string name="ui_download_failed_retry">Download failed. Check your connection and try again.</string>
+    <string name="ui_by">By</string>
+    <string name="ui_reading_time_estimated">%1$s estimated</string>
+    <string name="ui_reading_time_estimated_total">%1$s estimated total</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s estimated total · %2$s remaining</string>
+    <string name="ui_pages">%1$d pages</string>
+    <string name="ui_pages_of_read">%1$d of %2$d pages read</string>
 </resources>

@@ -538,4 +538,10 @@
     <string name="ui_download_dictionary_pack">Descarga el paquete de diccionario de %1$s para buscar palabras sin conexión.</string>
     <string name="ui_downloading_dictionary">Descargando diccionario…</string>
     <string name="ui_download_failed_retry">Error en la descarga. Comprueba tu conexión e inténtalo de nuevo.</string>
+    <string name="ui_by">De</string>
+    <string name="ui_reading_time_estimated">%1$s estimado</string>
+    <string name="ui_reading_time_estimated_total">%1$s estimado total</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s estimado total · %2$s restante</string>
+    <string name="ui_pages">%1$d páginas</string>
+    <string name="ui_pages_of_read">%1$d de %2$d páginas leídas</string>
 </resources>

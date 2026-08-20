@@ -538,4 +538,10 @@
     <string name="ui_download_dictionary_pack">Изтеглете речниковия пакет за %1$s, за да търсите думи офлайн.</string>
     <string name="ui_downloading_dictionary">Изтегляне на речник…</string>
     <string name="ui_download_failed_retry">Неуспешно изтегляне. Проверете връзката си и опитайте отново.</string>
+    <string name="ui_by">От</string>
+    <string name="ui_reading_time_estimated">прибл. %1$s</string>
+    <string name="ui_reading_time_estimated_total">прибл. %1$s общо</string>
+    <string name="ui_reading_time_estimated_total_remaining">прибл. %1$s общо · остава %2$s</string>
+    <string name="ui_pages">%1$d стр.</string>
+    <string name="ui_pages_of_read">%1$d от %2$d стр. прочетени</string>
 </resources>
