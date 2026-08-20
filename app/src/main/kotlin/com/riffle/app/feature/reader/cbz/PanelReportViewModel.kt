@@ -22,6 +22,7 @@ data class PanelReportUiState(
     val tappedPanelIndex: Int? = null,
     val drawnPanels: List<PanelRegion> = emptyList(),
     val drawnBoundaries: List<PanelBoundaryLine> = emptyList(),
+    val orderedPanelIndices: List<Int> = emptyList(),
     val submitting: Boolean = false,
     val submittedIssueUrl: String? = null,
     val error: String? = null,
@@ -41,7 +42,15 @@ class PanelReportViewModel(
     val state: StateFlow<PanelReportUiState> = _state.asStateFlow()
 
     fun setFailureType(type: PanelDetectionFailureType) {
-        _state.update { it.copy(failureType = type, error = null, drawnPanels = emptyList(), drawnBoundaries = emptyList()) }
+        _state.update { it.copy(failureType = type, error = null, drawnPanels = emptyList(), drawnBoundaries = emptyList(), orderedPanelIndices = emptyList()) }
+    }
+
+    fun addOrRemoveOrderedPanel(panelIndex: Int) {
+        _state.update { s ->
+            val existing = s.orderedPanelIndices.indexOf(panelIndex)
+            val updated = if (existing >= 0) s.orderedPanelIndices.take(existing) else s.orderedPanelIndices + panelIndex
+            s.copy(orderedPanelIndices = updated)
+        }
     }
 
     fun setNotes(notes: String) {
@@ -106,6 +115,7 @@ class PanelReportViewModel(
                 tappedPanelIndex = s.tappedPanelIndex,
                 drawnPanels = s.drawnPanels,
                 drawnBoundaries = s.drawnBoundaries,
+                expectedPanelOrder = s.orderedPanelIndices.takeIf { it.isNotEmpty() },
             )
             repository.submit(report, maskPng).fold(
                 onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url) } },
