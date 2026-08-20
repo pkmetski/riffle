@@ -21,31 +21,39 @@ No new configuration screen. If the annotation sync WebDAV target is configured,
 One file per book, at:
 
 ```
-{basePath}{namespace}__{itemId}__progress.json
+{basePath}{sourceTypeSlug}_{webDavUsername}__{itemId}__progress.json
 ```
 
-Same flat layout and `__` separator as annotation files. `namespace` is the source row's `syncNamespace` (the same value annotation sync already uses for this source). `itemId` is the stable public identifier for the book (Chitanka slug, Gutenberg number).
+Same flat layout and `__` separator as annotation files. The **namespace** is `{sourceTypeSlug}_{webDavUsername}` (e.g. `chitanka_pkmetski`, `gutenberg_alice`), built by `WebDavProgressRemoteFactory.webDavNamespace()`. Including the WebDAV username prevents collisions when two users share the same WebDAV root — otherwise both would read and write the same file for the same Chitanka book. This mirrors the `komga_{userId}` convention in annotation sync.
 
-A single file per book — not one per device — because progress is a scalar that replaces itself. There is no merge step: last-write-wins via the file's `Last-Modified` header, which serves as the authoritative server timestamp for the reconcile algorithm.
+`itemId` is the stable public identifier for the book (Chitanka slug, Gutenberg number). Chitanka IDs contain a `/` (e.g. `book/12073-xxx`); this is replaced with `.` in the filename because Synology WebDAV (and others) decode `%2F` in URL paths as a path separator, routing PUT to a nonexistent subdirectory and returning 404.
+
+A single file per (user, book) — not one per device — because progress is a scalar that replaces itself. There is no merge step: last-write-wins via the file's `Last-Modified` header, which serves as the authoritative server timestamp for the reconcile algorithm.
 
 ### File content
 
 ```json
 {
-  "position": "<Readium Locator JSON>",
+  "position": "<Readium Locator JSON or audiobook seconds as decimal string>",
   "readingProgress": 0.42,
   "finishedAt": null,
   "lastUpdate": 1723987200000
 }
 ```
 
-`position` is always Readium Locator JSON — Web Sources use `CfiDialect.READIUM_NATIVE`, so no CFI translation is needed. `lastUpdate` is the epoch-ms timestamp the local device recorded when it last wrote the position; `Last-Modified` on the WebDAV file is the reconcile timestamp used by the sweep.
+For **ebook** progress, `position` is Readium Locator JSON — Web Sources use `CfiDialect.READIUM_NATIVE`, so no CFI translation is needed.
+
+For **audiobook** progress (Gramofonche via Chitanka source type), `position` is the playback position in seconds serialised as a decimal string (e.g. `"942.5"`). `WebDavProgressRemote.asAudioRemote()` adapts the `ProgressRemote<String>` to `ProgressRemote<Double>` by parsing/formatting this string at the boundary.
+
+`lastUpdate` is the epoch-ms timestamp the local device recorded when it last wrote the position; `Last-Modified` on the WebDAV file is the reconcile timestamp used by the sweep.
 
 ### Reconcile integration
 
-`CatalogProgressRemoteFactory` grows a second branch: if the source has no `ProgressPeerCapability` **and** `sourceType.isWebSource` **and** the WebDAV target is configured, return a `WebDavProgressRemote<String>` backed by a GET + PUT against the progress file. The `ProgressReconciler` and dirty-row sweep are unmodified.
+`CatalogProgressRemoteFactory` grows fallback branches in both `ebook()` and `audio()`: if the source has no `ProgressPeerCapability` / `AudiobookProgressPeerCapability` **and** `sourceType.isWebSource` **and** the WebDAV target is configured, return a `WebDavProgressRemote` (string path) or its `asAudioRemote()` adapter (Double path). The `ProgressReconciler` and dirty-row sweep are unmodified.
 
-`WebDavProgressRemote.get()` issues an HTTP GET; the `Last-Modified` response header becomes `RemoteProgress.lastUpdate`. `WebDavProgressRemote.patch()` issues an HTTP PUT and reads back `Last-Modified` as the server stamp to adopt.
+`CatalogSyncSourceResolver.supportsAudiobookProgress` returns `true` for web sources so `ProgressSweep` includes their `audiobook_positions` dirty rows in the reconcile loop.
+
+`WebDavProgressRemote.get()` issues an HTTP GET; the `Last-Modified` response header becomes `RemoteProgress.lastUpdate`. HTTP 404 returns `lastUpdate=0` (not null) so a dirty local row fires `LocalWins` and creates the file on first sync. `WebDavProgressRemote.patch()` issues an HTTP PUT and reads back `Last-Modified` as the server stamp to adopt.
 
 ### UI
 
