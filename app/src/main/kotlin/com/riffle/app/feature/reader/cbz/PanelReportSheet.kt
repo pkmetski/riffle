@@ -39,6 +39,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
@@ -63,6 +65,7 @@ internal fun PanelReportSheet(
         state.failureType == PanelDetectionFailureType.SplitPanel
     val drawsRectangle = state.failureType == PanelDetectionFailureType.MissedPanel ||
         state.failureType == PanelDetectionFailureType.SplitPanel
+    val orderMode = state.failureType == PanelDetectionFailureType.WrongPanelOrder
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -102,6 +105,19 @@ internal fun PanelReportSheet(
                 }
             }
 
+            val labelPaint = remember {
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.WHITE
+                    textSize = 36f
+                    isFakeBoldText = true
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    setShadowLayer(3f, 1f, 1f, android.graphics.Color.BLACK)
+                }
+            }
+            val orderedIndexMap = remember(state.orderedPanelIndices) {
+                state.orderedPanelIndices.withIndex().associate { (pos, idx) -> idx to pos }
+            }
+
             var canvasSize by remember { mutableStateOf(IntSize.Zero) }
             // Panel coordinates are in the original image space (pagePanels.imageWidth × imageHeight).
             // Use imageWidth/imageHeight (not mask.width/height) as the reference so rectangles
@@ -124,6 +140,12 @@ internal fun PanelReportSheet(
                 }
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
+            if (orderMode) {
+                Text(
+                    "Tap panels in the correct reading order. Tap a numbered panel to reset from that point.",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -131,7 +153,7 @@ internal fun PanelReportSheet(
                     .aspectRatio(mask.width.toFloat() / mask.height.toFloat())
                     .border(1.dp, Color.Gray)
                     .onSizeChanged { canvasSize = it }
-                    .pointerInput(drawMode, state.failureType, canvasSize) {
+                    .pointerInput(drawMode, orderMode, state.failureType, canvasSize) {
                         if (drawMode) {
                             detectDragGestures(
                                 onDragStart = { offset -> dragStart = offset; dragCurrent = offset },
@@ -156,10 +178,13 @@ internal fun PanelReportSheet(
                         } else {
                             detectTapGestures { offset ->
                                 if (scaleX > 0f && scaleY > 0f) {
-                                    viewModel.onTap(
-                                        tappedImageX = (offset.x / scaleX).toInt().coerceIn(0, mask.width - 1),
-                                        tappedImageY = (offset.y / scaleY).toInt().coerceIn(0, mask.height - 1),
-                                    )
+                                    val ix = (offset.x / scaleX).toInt().coerceIn(0, mask.width - 1)
+                                    val iy = (offset.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                    if (orderMode) {
+                                        viewModel.tapForOrder(ix, iy)
+                                    } else {
+                                        viewModel.onTap(tappedImageX = ix, tappedImageY = iy)
+                                    }
                                 }
                             }
                         }
@@ -173,13 +198,29 @@ internal fun PanelReportSheet(
 
                     // Detected panels
                     viewModel.detectedPanels.forEachIndexed { i, p ->
+                        val orderPos = orderedIndexMap[i]
+                        val isOrdered = orderPos != null
                         val selected = state.tappedPanelIndex == i
                         drawRect(
-                            color = if (selected) Color.Red else Color.Blue,
+                            color = when {
+                                isOrdered -> Color(0xFFFF9800)
+                                selected -> Color.Red
+                                else -> Color.Blue
+                            },
                             topLeft = Offset(p.x * scaleX, p.y * scaleY),
                             size = Size(p.width * scaleX, p.height * scaleY),
-                            style = Stroke(width = if (selected) 3f else 1.5f),
+                            style = Stroke(width = if (selected || isOrdered) 3f else 1.5f),
                         )
+                        if (orderPos != null) {
+                            drawIntoCanvas { canvas ->
+                                canvas.nativeCanvas.drawText(
+                                    "${orderPos + 1}",
+                                    (p.x + p.width / 2f) * scaleX,
+                                    (p.y + p.height / 2f) * scaleY + labelPaint.textSize / 2f - labelPaint.descent(),
+                                    labelPaint,
+                                )
+                            }
+                        }
                     }
 
                     // Tap marker (non-draw mode)

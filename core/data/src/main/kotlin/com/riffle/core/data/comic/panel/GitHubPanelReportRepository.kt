@@ -180,6 +180,11 @@ class GitHubPanelReportRepository(
             appendLine("**Notes:** ${report.notes}")
             appendLine()
         }
+        val order = report.expectedPanelOrder
+        if (order != null) {
+            appendLine("**Expected panel order:** $order")
+            appendLine()
+        }
         appendLine("**Detected panels:**")
         report.detectedPanels.forEachIndexed { i, p ->
             appendLine("- [$i] x=${p.x} y=${p.y} w=${p.width} h=${p.height}")

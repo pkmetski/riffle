@@ -94,6 +94,29 @@ class GitHubPanelReportRepositoryTest {
     }
 
     @Test
+    fun `issue body contains expected panel order when WrongPanelOrder report submitted`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"sha":"blob-sha-123"}""").setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"object":{"sha":"commit-abc"}}""").setResponseCode(200))
+        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"tree-xyz"}}""").setResponseCode(200))
+        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-sha"}""").setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-sha"}""").setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"ref":"refs/heads/panel-reports"}""").setResponseCode(200))
+        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
+
+        val reportWithOrder = fakeReport.copy(
+            failureType = PanelDetectionFailureType.WrongPanelOrder,
+            expectedPanelOrder = listOf(1, 0),
+        )
+        repo().submit(reportWithOrder, ByteArray(0))
+
+        val requests = (1..7).map { server.takeRequest() }
+        val issueBody = requests[6].body.readUtf8()
+        val parsedBody = Json { ignoreUnknownKeys = true }
+            .parseToJsonElement(issueBody).jsonObject["body"]?.jsonPrimitive?.content ?: ""
+        assertTrue("body contains expected order", parsedBody.contains("[1, 0]"))
+    }
+
+    @Test
     fun `submit returns failure when API call fails`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"message":"Bad credentials"}"""))
 

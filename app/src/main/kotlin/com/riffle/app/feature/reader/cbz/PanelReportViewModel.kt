@@ -22,6 +22,7 @@ data class PanelReportUiState(
     val tappedPanelIndex: Int? = null,
     val drawnPanels: List<PanelRegion> = emptyList(),
     val drawnBoundaries: List<PanelBoundaryLine> = emptyList(),
+    val orderedPanelIndices: List<Int> = emptyList(),
     val submitting: Boolean = false,
     val submittedIssueUrl: String? = null,
     val error: String? = null,
@@ -41,7 +42,15 @@ class PanelReportViewModel(
     val state: StateFlow<PanelReportUiState> = _state.asStateFlow()
 
     fun setFailureType(type: PanelDetectionFailureType) {
-        _state.update { it.copy(failureType = type, error = null, drawnPanels = emptyList(), drawnBoundaries = emptyList()) }
+        _state.update { it.copy(failureType = type, error = null, drawnPanels = emptyList(), drawnBoundaries = emptyList(), orderedPanelIndices = emptyList()) }
+    }
+
+    fun addOrRemoveOrderedPanel(panelIndex: Int) {
+        _state.update { s ->
+            val existing = s.orderedPanelIndices.indexOf(panelIndex)
+            val updated = if (existing >= 0) s.orderedPanelIndices.take(existing) else s.orderedPanelIndices + panelIndex
+            s.copy(orderedPanelIndices = updated)
+        }
     }
 
     fun setNotes(notes: String) {
@@ -49,11 +58,17 @@ class PanelReportViewModel(
     }
 
     fun onTap(tappedImageX: Int, tappedImageY: Int) {
-        val panelIndex = detectedPanels.indexOfFirst { p ->
-            tappedImageX in p.x until p.right && tappedImageY in p.y until p.bottom
-        }.takeIf { it >= 0 }
+        val panelIndex = panelIndexAt(tappedImageX, tappedImageY).takeIf { it >= 0 }
         _state.update { it.copy(tappedX = tappedImageX, tappedY = tappedImageY, tappedPanelIndex = panelIndex) }
     }
+
+    fun tapForOrder(ix: Int, iy: Int) {
+        val panelIndex = panelIndexAt(ix, iy)
+        if (panelIndex >= 0) addOrRemoveOrderedPanel(panelIndex)
+    }
+
+    private fun panelIndexAt(x: Int, y: Int): Int =
+        detectedPanels.indexOfFirst { p -> x in p.x until p.right && y in p.y until p.bottom }
 
     fun addDrawnPanel(x1: Int, y1: Int, x2: Int, y2: Int) {
         val left = minOf(x1, x2).coerceIn(0, imageWidth - 1)
@@ -106,6 +121,7 @@ class PanelReportViewModel(
                 tappedPanelIndex = s.tappedPanelIndex,
                 drawnPanels = s.drawnPanels,
                 drawnBoundaries = s.drawnBoundaries,
+                expectedPanelOrder = s.orderedPanelIndices.takeIf { it.isNotEmpty() },
             )
             repository.submit(report, maskPng).fold(
                 onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url) } },
