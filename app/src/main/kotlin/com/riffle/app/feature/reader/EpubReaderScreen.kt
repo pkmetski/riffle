@@ -1280,6 +1280,7 @@ private fun EpubNavigatorView(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val appName = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.app_name)
     val fragmentActivity = context as? FragmentActivity ?: return
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isFixedLayout = state.publication.metadata.layout == Layout.FIXED
@@ -1634,7 +1635,7 @@ private fun EpubNavigatorView(
                 when (item.itemId) {
                     copyMenuId -> withSelectionText { text ->
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(context.getString(com.riffle.app.R.string.app_name), text))
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(appName, text))
                     }
                     searchMenuId -> withSelectionText { text ->
                         val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
