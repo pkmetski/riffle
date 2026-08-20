@@ -46,7 +46,7 @@ class PanelDetector(
          * inside a bleed-splash background). Rejecting them prevents Panel View from forcing
          * the user through blurry meaningless zooms.
          */
-        val minPanelDimensionFraction: Double = 0.15,
+        val minPanelDimensionFraction: Double = 0.14,
 
         /**
          * Total detected panel area must be at least this fraction of the page. Real
@@ -126,7 +126,7 @@ class PanelDetector(
          * pixels — filters noise (a single content row inside a gutter, or a stray gutter row
          * inside a panel band that would spuriously split a panel).
          */
-        val projectionMinBandThickness: Int = 15,
+        val projectionMinBandThickness: Int = 24,
 
         /**
          * Maximum recursion depth for [splitSinglePanelRecursively]. Bounds the number of times
@@ -473,6 +473,17 @@ class PanelDetector(
         val (axis, start, thickness) = bestGutter
         val end = start + thickness - 1
 
+        // A short full-width band is usually a banner/splash row. White speech balloons and
+        // lighting gaps inside it can look like vertical gutters, but splitting them produces
+        // narrow side fragments instead of real panels.
+        if (
+            axis == "v" &&
+            width.toDouble() / downscaledWidth.toDouble() >= 0.9 &&
+            height.toDouble() / downscaledHeight.toDouble() <= 0.25
+        ) {
+            return listOf(bbox)
+        }
+
         // Skip the split if either resulting sub-panel would be too narrow to survive
         // applyGlobalSanityChecks (which filters panels < minPanelDimensionFraction of the page).
         // Catches the case where a caption box whose left/right edge touches the page border is
@@ -481,7 +492,7 @@ class PanelDetector(
         // gets filtered — visually cutting off the top of the real panel.
         //
         // Exception: applyGlobalSanityChecks keeps wide banner panels (≥ 50% page width, ≥ 5%
-        // page height) even below the 15% floor. When the bbox spans ≥ 50% of the downscaled
+        // page height) even below the min-dimension floor. When the bbox spans ≥ 50% of the downscaled
         // width and the short piece reaches the 5% banner-height threshold, allow the split so
         // the banner can reach the sanity check instead of being silently merged with its
         // neighbour. This is the symmetric counterpart to the banner exception in sanity checks.
@@ -595,14 +606,14 @@ class PanelDetector(
         originalHeight: Int,
     ): List<PanelRegion>? {
         val pageArea = originalWidth.toLong() * originalHeight.toLong()
-        // Drop panels that are smaller than 15% of the page in BOTH dimensions — a region tiny
+        // Drop panels that are smaller than the minimum page fraction in BOTH dimensions — a region tiny
         // in both width and height is a noise island. A panel that fails only the height check
         // but spans ≥ 50% of the page width is a real wide banner (e.g. 100%×13% title strip)
         // and is kept; everything else requires both axes to pass.
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         // A wide panel (≥ 50% of page width) that is taller than 5% of the page is a real
-        // banner even if its height doesn't reach the 15% full-panel threshold.
+        // banner even if its height doesn't reach the full-panel threshold.
         val bannerWidthThreshold = originalWidth * 0.5
         val bannerMinHeight = (originalHeight * 0.05).toInt().coerceAtLeast(1)
         val filtered = regions.filter {

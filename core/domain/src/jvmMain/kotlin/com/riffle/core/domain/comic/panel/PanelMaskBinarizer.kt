@@ -29,6 +29,9 @@ package com.riffle.core.domain.comic.panel
  * Because the reporter uses this same class to generate JVM test fixtures, the binary image
  * the detector processes on device is identical to the fixture — any test that passes in JVM
  * is guaranteed to pass on device with real JPEG input.
+ *
+ * Exact black/white reporter masks are returned directly so the texture bridge is not applied a
+ * second time to gutter pixels that were already classified.
  */
 object PanelMaskBinarizer {
 
@@ -39,6 +42,8 @@ object PanelMaskBinarizer {
     private val TEXTURE_VARIANCE_CUTOFF = TEXTURE_STDDEV_CUTOFF * TEXTURE_STDDEV_CUTOFF
 
     fun binarize(grid: PixelGrid): PanelBinaryMask? {
+        detectPreBinarizedLightMask(grid)?.let { return it }
+
         val w = grid.width; val h = grid.height
         val bg = detectPageBackground(grid)
         val lightPage = bg >= 128
@@ -80,6 +85,43 @@ object PanelMaskBinarizer {
         }
 
         val contentCount = data.count { it == 1.toByte() }
+        if (contentCount == 0 || contentCount == data.size) return null
+        return PanelBinaryMask(w, h, data)
+    }
+
+    private fun detectPreBinarizedLightMask(grid: PixelGrid): PanelBinaryMask? {
+        val w = grid.width; val h = grid.height
+        var dark = -1
+        var light = -1
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val v = grid.get(x, y)
+                when {
+                    dark < 0 -> dark = v
+                    v == dark || v == light -> Unit
+                    light < 0 -> {
+                        if (v < dark) {
+                            light = dark
+                            dark = v
+                        } else {
+                            light = v
+                        }
+                    }
+                    else -> return null
+                }
+            }
+        }
+        if (dark != 0 || light != 255) return null
+        if (detectPageBackground(grid) != light) return null
+
+        val data = ByteArray(w * h)
+        var contentCount = 0
+        for (i in data.indices) {
+            if ((grid.luma[i].toInt() and 0xFF) == dark) {
+                data[i] = 1
+                contentCount++
+            }
+        }
         if (contentCount == 0 || contentCount == data.size) return null
         return PanelBinaryMask(w, h, data)
     }
