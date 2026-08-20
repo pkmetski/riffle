@@ -82,7 +82,7 @@ lint: wrapper ## Run lint checks
 	./gradlew lint
 
 .PHONY: translation
-translation: wrapper ## Create/update a locale resource file, e.g. make translation LOCALE=es
+translation: wrapper ## Create/update a locale resource file, e.g. make translation LOCALE=es-rES
 	@test -n "$(LOCALE)" || { echo "Usage: make translation LOCALE=<tag> (example: LOCALE=fr or LOCALE=pt-rBR)"; exit 2; }
 	./gradlew createTranslation -Plocale=$(LOCALE)
 

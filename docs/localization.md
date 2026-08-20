@@ -14,7 +14,7 @@ Create or update a locale resource file:
 make translation LOCALE=fr
 ```
 
-Use Android resource locale tags, such as `bg`, `es`, or `pt-rBR`. The task creates blank entries for any required keys that are missing from the locale file.
+Use Android resource locale tags, such as `bg`, `es-rES`, or `pt-rBR`. The task creates blank entries for any required keys that are missing from the locale file.
 
 Fill every generated value, then verify the translation set:
 

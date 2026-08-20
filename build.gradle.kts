@@ -401,7 +401,7 @@ tasks.register("checkNoDatabaseImplLeak") {
 }
 
 // Keeps localized string files complete when new user-facing resources are added.
-// Add a locale with `./gradlew createTranslation -Plocale=es` (or `make translation LOCALE=es`),
+// Add a locale with `./gradlew createTranslation -Plocale=es-rES` (or `make translation LOCALE=es-rES`),
 // fill the generated strings, then run this check.
 tasks.register<CheckTranslationsTask>("checkTranslations") {
     group = "verification"
