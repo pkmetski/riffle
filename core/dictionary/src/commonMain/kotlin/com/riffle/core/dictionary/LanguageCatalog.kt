@@ -12,7 +12,7 @@ private fun entry(
 ) = LanguageCatalogEntry(
     languageTag = tag,
     displayName = name,
-    jsonlUrl = "$BASE_URL/$name/kaikki.org-dictionary-$name.json",
+    jsonlUrl = "$BASE_URL/$name/kaikki.org-dictionary-$name.jsonl",
     approximateSizeBytes = sizeBytes,
     attributionHtml = ATTRIBUTION,
     licenseUrl = LICENSE_URL,
@@ -20,6 +20,7 @@ private fun entry(
 
 object LanguageCatalog {
     val all: List<LanguageCatalogEntry> = listOf(
+        entry("en", "English",    600_000_000L),
         entry("fr", "French",     150_000_000L),
         entry("de", "German",     180_000_000L),
         entry("es", "Spanish",    150_000_000L),

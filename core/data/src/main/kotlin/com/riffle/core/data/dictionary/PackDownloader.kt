@@ -23,7 +23,10 @@ class PackDownloader @Inject constructor(
     private val clock: Clock,
     private val converter: JsonlToSqliteConverter,
 ) {
-    suspend fun download(entry: LanguageCatalogEntry): Boolean {
+    suspend fun download(
+        entry: LanguageCatalogEntry,
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
+    ): Boolean {
         val dictsDir = File(filesDir, "dicts").also { it.mkdirs() }
         val tmpJsonFile = File(dictsDir, "${entry.languageTag}.tmp.json")
         val tmpDbFile = File(dictsDir, "${entry.languageTag}.tmp.db")
@@ -44,7 +47,12 @@ class PackDownloader @Inject constructor(
         return try {
             // 1. Download JSONL
             val downloaded = httpClient.prepareGet(entry.jsonlUrl).execute { response ->
-                if (!response.status.isSuccess()) return@execute false
+                if (!response.status.isSuccess()) {
+                    return@execute false
+                }
+                val totalBytes = response.headers["Content-Length"]?.toLong()
+                    ?: entry.approximateSizeBytes
+                var bytesRead = 0L
                 val channel = response.bodyAsChannel()
                 tmpJsonFile.outputStream().use { out ->
                     val buffer = ByteArray(65_536)
@@ -52,6 +60,8 @@ class PackDownloader @Inject constructor(
                         val read = channel.readAvailable(buffer)
                         if (read <= 0) break
                         out.write(buffer, 0, read)
+                        bytesRead += read
+                        onProgress(bytesRead, totalBytes)
                     }
                 }
                 true
@@ -94,7 +104,7 @@ class PackDownloader @Inject constructor(
                 )
             )
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             tmpJsonFile.delete()
             tmpDbFile.delete()
             finalFile.delete()

@@ -1,14 +1,17 @@
 package com.riffle.app.feature.settings.dictionary
 
-import android.content.Context
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.riffle.app.dictionary.DictionaryPackScheduler
+import com.riffle.app.feature.library.DownloadManager
+import com.riffle.app.feature.library.DownloadState
+import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.core.dictionary.PackStore
+import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -23,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
 
 class DictionaryPacksViewModelTest {
 
@@ -61,49 +65,88 @@ class DictionaryPacksViewModelTest {
     }
 
     @Test
-    fun `enqueueDownload delegates to scheduler`() {
-        val scheduled = mutableListOf<LanguageCatalogEntry>()
-        val vm = viewModel(onSchedule = { scheduled.add(it) })
+    fun `enqueueDownload starts download via DownloadManager`() = runTest {
+        val downloader = mockDownloader(returns = true)
+        val vm = viewModel(downloader = downloader)
         val frEntry = LanguageCatalog.entryFor("fr")!!
-        vm.enqueueDownload(mockContext(), frEntry)
-        assertEquals(listOf(frEntry), scheduled)
+        vm.enqueueDownload(frEntry)
+        advanceUntilIdle()
+        assertEquals(DownloadState.Downloaded, vm.downloadStates.value[DictionaryPacksViewModel.downloadKey("fr")])
     }
 
     @Test
-    fun `enqueueUpdate delegates to scheduler for known language`() {
-        val scheduled = mutableListOf<LanguageCatalogEntry>()
-        val vm = viewModel(onSchedule = { scheduled.add(it) })
-        vm.enqueueUpdate(mockContext(), "fr")
-        assertEquals(1, scheduled.size)
-        assertEquals("fr", scheduled[0].languageTag)
+    fun `enqueueDownload sets InProgress state while downloading`() = runTest {
+        val downloader = mockDownloader(returns = true)
+        val vm = viewModel(downloader = downloader)
+        val frEntry = LanguageCatalog.entryFor("fr")!!
+        vm.enqueueDownload(frEntry)
+        // State is InProgress immediately after start() before the coroutine runs
+        assertTrue(vm.downloadStates.value[DictionaryPacksViewModel.downloadKey("fr")] is DownloadState.InProgress)
     }
 
     @Test
-    fun `enqueueUpdate is no-op for unknown language`() {
-        val scheduled = mutableListOf<LanguageCatalogEntry>()
-        val vm = viewModel(onSchedule = { scheduled.add(it) })
-        vm.enqueueUpdate(mockContext(), "xx")
-        assertTrue(scheduled.isEmpty())
+    fun `enqueueUpdate delegates for known language`() = runTest {
+        val callCount = AtomicInteger(0)
+        val downloader = mockk<PackDownloader>()
+        coEvery { downloader.download(any(), any()) } coAnswers { callCount.incrementAndGet(); true }
+        val vm = viewModel(downloader = downloader)
+        vm.enqueueUpdate("fr")
+        advanceUntilIdle()
+        assertEquals(1, callCount.get())
+    }
+
+    @Test
+    fun `enqueueUpdate is no-op for unknown language`() = runTest {
+        val callCount = AtomicInteger(0)
+        val downloader = mockk<PackDownloader>()
+        coEvery { downloader.download(any(), any()) } coAnswers { callCount.incrementAndGet(); true }
+        val vm = viewModel(downloader = downloader)
+        vm.enqueueUpdate("xx")
+        advanceUntilIdle()
+        assertEquals(0, callCount.get())
+    }
+
+    @Test
+    fun `download failure sets NotDownloaded state`() = runTest {
+        val downloader = mockDownloader(returns = false)
+        val vm = viewModel(downloader = downloader)
+        val frEntry = LanguageCatalog.entryFor("fr")!!
+        vm.enqueueDownload(frEntry)
+        advanceUntilIdle()
+        assertEquals(DownloadState.NotDownloaded, vm.downloadStates.value[DictionaryPacksViewModel.downloadKey("fr")])
+    }
+
+    @Test
+    fun `duplicate enqueueDownload while in progress is a no-op`() = runTest {
+        val callCount = AtomicInteger(0)
+        val downloader = mockk<PackDownloader>()
+        coEvery { downloader.download(any(), any()) } coAnswers { callCount.incrementAndGet(); true }
+        val vm = viewModel(downloader = downloader)
+        val frEntry = LanguageCatalog.entryFor("fr")!!
+        vm.enqueueDownload(frEntry)
+        vm.enqueueDownload(frEntry) // second tap while in progress
+        advanceUntilIdle()
+        assertEquals(1, callCount.get())
     }
 
     // --- Helpers ---
 
+    private fun mockDownloader(returns: Boolean): PackDownloader {
+        val downloader = mockk<PackDownloader>()
+        coEvery { downloader.download(any(), any()) } returns returns
+        return downloader
+    }
+
     private fun viewModel(
         installed: List<InstalledPack> = emptyList(),
-        onSchedule: (LanguageCatalogEntry) -> Unit = {},
+        downloader: PackDownloader = mockDownloader(returns = true),
     ): DictionaryPacksViewModel {
         val packStore = object : PackStore {
             override fun observeInstalledPacks(): Flow<List<InstalledPack>> = flowOf(installed)
             override fun observePackState(languageTag: String) = flowOf(DictionaryPackState.NOT_INSTALLED)
             override suspend fun deleteInstalledPack(languageTag: String) {}
         }
-        val scheduler = object : DictionaryPackScheduler() {
-            override fun enqueueDownload(context: Context, entry: LanguageCatalogEntry) {
-                onSchedule(entry)
-            }
-        }
-        return DictionaryPacksViewModel(packStore, scheduler)
+        val downloadManager = DownloadManager(CoroutineScope(testDispatcher))
+        return DictionaryPacksViewModel(packStore, downloader, downloadManager)
     }
-
-    private fun mockContext(): Context = mockk(relaxed = true)
 }

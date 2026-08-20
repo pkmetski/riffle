@@ -329,7 +329,8 @@ class EpubReaderViewModel @Inject constructor(
     private val pdfExporter: HighlightsPdfExporter,
     private val dictionaryRepository: com.riffle.core.dictionary.DictionaryRepository,
     private val packStore: com.riffle.core.dictionary.PackStore,
-    private val dictionaryPackScheduler: com.riffle.app.dictionary.DictionaryPackScheduler,
+    private val packDownloader: com.riffle.core.data.dictionary.PackDownloader,
+    private val downloadManager: com.riffle.app.feature.library.DownloadManager,
 ) : AndroidViewModel(application) {
 
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
@@ -3943,8 +3944,11 @@ class EpubReaderViewModel @Inject constructor(
                 }
             }
 
-    fun enqueuePackDownload(context: android.content.Context, entry: com.riffle.core.dictionary.LanguageCatalogEntry) {
-        dictionaryPackScheduler.enqueueDownload(context, entry)
+    fun enqueuePackDownload(entry: com.riffle.core.dictionary.LanguageCatalogEntry) {
+        downloadManager.start(com.riffle.app.feature.settings.dictionary.DictionaryPacksViewModel.downloadKey(entry.languageTag)) { onProgress ->
+            if (packDownloader.download(entry, onProgress)) com.riffle.app.feature.library.DownloadState.Downloaded
+            else com.riffle.app.feature.library.DownloadState.NotDownloaded
+        }
     }
 }
 

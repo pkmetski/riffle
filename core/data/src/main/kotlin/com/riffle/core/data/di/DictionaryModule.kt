@@ -9,13 +9,13 @@ import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.dictionary.DictionaryRepository
 import com.riffle.core.dictionary.PackStore
+import com.riffle.core.network.JvmHttpClientPool
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import io.ktor.client.HttpClient
 import javax.inject.Singleton
 
 @Module
@@ -37,12 +37,12 @@ abstract class DictionaryModule {
         @Provides @Singleton
         fun providePackDownloader(
             @ApplicationContext context: Context,
-            httpClient: HttpClient,
+            pool: JvmHttpClientPool,
             dictionaryPackDao: DictionaryPackDao,
             clock: Clock,
         ): PackDownloader = PackDownloader(
             context.filesDir,
-            httpClient,
+            pool.fileTransferClient(),
             dictionaryPackDao,
             clock,
             KaikkiJsonlToSqliteConverter(),

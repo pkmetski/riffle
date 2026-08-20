@@ -1,9 +1,10 @@
 package com.riffle.app.feature.settings.dictionary
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.dictionary.DictionaryPackScheduler
+import com.riffle.app.feature.library.DownloadManager
+import com.riffle.app.feature.library.DownloadState
+import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
@@ -18,7 +19,8 @@ import javax.inject.Inject
 @HiltViewModel
 class DictionaryPacksViewModel @Inject constructor(
     private val packStore: PackStore,
-    private val scheduler: DictionaryPackScheduler,
+    private val downloader: PackDownloader,
+    private val downloadManager: DownloadManager,
 ) : ViewModel() {
 
     val catalog: List<LanguageCatalogEntry> = LanguageCatalog.all
@@ -31,15 +33,25 @@ class DictionaryPacksViewModel @Inject constructor(
         flow.asStateFlow()
     }
 
-    fun enqueueDownload(context: Context, entry: LanguageCatalogEntry) {
-        scheduler.enqueueDownload(context, entry)
+    val downloadStates: StateFlow<Map<String, DownloadState>> = downloadManager.states
+
+    fun enqueueDownload(entry: LanguageCatalogEntry) {
+        downloadManager.start(downloadKey(entry.languageTag)) { onProgress ->
+            if (downloader.download(entry, onProgress)) DownloadState.Downloaded
+            else DownloadState.NotDownloaded
+        }
     }
 
-    fun enqueueUpdate(context: Context, languageTag: String) {
-        LanguageCatalog.entryFor(languageTag)?.let { scheduler.enqueueDownload(context, it) }
+    fun enqueueUpdate(languageTag: String) {
+        LanguageCatalog.entryFor(languageTag)?.let { enqueueDownload(it) }
     }
 
     fun deleteInstalledPack(languageTag: String) {
         viewModelScope.launch { packStore.deleteInstalledPack(languageTag) }
+        downloadManager.clear(downloadKey(languageTag))
+    }
+
+    companion object {
+        fun downloadKey(languageTag: String) = "dict_$languageTag"
     }
 }

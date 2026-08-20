@@ -11,4 +11,17 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!--
+      kaikki.org serves Let's Encrypt certificates signed by the YE2 intermediate, which chains to
+      ISRG Root X2 (ECDSA). Android 7.1.1 (API 25) only ships ISRG Root X1 in its system trust
+      store, so we bundle Root X2 here to allow dictionary pack downloads on older devices.
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">kaikki.org</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/isrg_root_x2" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

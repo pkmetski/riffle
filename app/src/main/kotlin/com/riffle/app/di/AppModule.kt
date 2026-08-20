@@ -43,6 +43,10 @@ import javax.inject.Singleton
 @Retention(AnnotationRetention.BINARY)
 annotation class DownloadScope
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class IsDevBuild
+
 /**
  * Backing [CoroutineScope] for [ApplicationScope] — survives the entire process; cancels only on
  * process death. Tests rebind this qualifier with a `TestScope`-backed scope.
@@ -54,6 +58,12 @@ annotation class ApplicationCoroutineScope
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    @Provides
+    @Singleton
+    @IsDevBuild
+    fun provideIsDevBuild(): Boolean =
+        com.riffle.app.feature.update.isDevVersionName(com.riffle.app.BuildConfig.VERSION_NAME)
 
     @Provides
     @Singleton

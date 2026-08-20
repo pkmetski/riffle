@@ -675,7 +675,7 @@ fun EpubReaderScreen(
                             target = target,
                             resultFlow = remember(target) { viewModel.observeLookupResult(target) },
                             onDismiss = viewModel::dismissLookup,
-                            onEnqueueDownload = { entry -> viewModel.enqueuePackDownload(context, entry) },
+                            onEnqueueDownload = { entry -> viewModel.enqueuePackDownload(entry) },
                         )
                     }
                     // Corner bookmark ribbon: must live inside this inner Box (sibling of

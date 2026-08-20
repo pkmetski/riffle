@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 69,
-    "identityHash": "10ecad228f3c9e0733dd6657093f37b2",
+    "identityHash": "4109c7e83546b4f1dc2a09df53b7da0c",
     "entities": [
       {
         "tableName": "sources",
@@ -2060,7 +2060,7 @@
       },
       {
         "tableName": "book_comic_formatting_preferences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_id` TEXT NOT NULL, `item_id` TEXT NOT NULL, `panel_view_on` INTEGER, `panel_overflow` TEXT, `panel_animation_speed_ms` INTEGER, PRIMARY KEY(`source_id`, `item_id`), FOREIGN KEY(`source_id`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_id` TEXT NOT NULL, `item_id` TEXT NOT NULL, `background_theme` TEXT, `panel_view_on` INTEGER, `panel_overflow` TEXT, `panel_animation_speed_ms` INTEGER, PRIMARY KEY(`source_id`, `item_id`), FOREIGN KEY(`source_id`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "sourceId",
@@ -2073,6 +2073,11 @@
             "columnName": "item_id",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "backgroundTheme",
+            "columnName": "background_theme",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "panelViewOn",
@@ -2215,7 +2220,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '10ecad228f3c9e0733dd6657093f37b2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4109c7e83546b4f1dc2a09df53b7da0c')"
     ]
   }
 }
