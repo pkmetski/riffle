@@ -611,7 +611,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 menu.add(0, MENU_SEARCH, 3, context.getString(com.riffle.app.R.string.ui_search))
-                menu.add(0, MENU_SHARE, 4, "Share")
+                menu.add(0, MENU_SHARE, 4, context.getString(com.riffle.app.R.string.ui_share))
                 return true
             }
 

@@ -539,6 +539,7 @@
     <string name="ui_download_dictionary_pack_with_size">Descarga el paquete de diccionario de %1$s (%2$s) para buscar palabras sin conexión.</string>
     <string name="ui_download_dictionary_pack">Descarga el paquete de diccionario de %1$s para buscar palabras sin conexión.</string>
     <string name="ui_downloading_dictionary">Descargando diccionario…</string>
+    <string name="ui_downloading_dictionary_name">Descargando diccionario %1$s</string>
     <string name="ui_download_failed_retry">Error en la descarga. Comprueba tu conexión e inténtalo de nuevo.</string>
     <string name="ui_by">De</string>
     <string name="ui_reading_time_estimated">%1$s estimado</string>

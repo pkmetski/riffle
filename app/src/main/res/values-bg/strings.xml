@@ -539,6 +539,7 @@
     <string name="ui_download_dictionary_pack_with_size">Изтеглете речниковия пакет за %1$s (%2$s), за да търсите думи офлайн.</string>
     <string name="ui_download_dictionary_pack">Изтеглете речниковия пакет за %1$s, за да търсите думи офлайн.</string>
     <string name="ui_downloading_dictionary">Изтегляне на речник…</string>
+    <string name="ui_downloading_dictionary_name">Изтегляне на речник %1$s</string>
     <string name="ui_download_failed_retry">Неуспешно изтегляне. Проверете връзката си и опитайте отново.</string>
     <string name="ui_by">От</string>
     <string name="ui_reading_time_estimated">прибл. %1$s</string>

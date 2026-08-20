@@ -169,7 +169,7 @@ private fun AvailablePackRow(
                     DownloadProgressIndicator(
                         percent = downloadState.percent,
                         size = 36.dp,
-                        label = "Downloading ${entry.displayName}",
+                        label = stringResource(R.string.ui_downloading_dictionary_name, entry.displayName),
                         modifier = Modifier.padding(end = 4.dp),
                     )
                     IconButton(onClick = onCancel) {

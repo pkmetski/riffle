@@ -1535,10 +1535,12 @@ private fun EpubNavigatorView(
     val labelAnnotate = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotate)
     val labelSearch = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search)
     val labelPlay = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_play)
+    val labelShare = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_share)
     val labelLookUp = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_look_up)
     val currentLabelAnnotate by rememberUpdatedState(labelAnnotate)
     val currentLabelSearch by rememberUpdatedState(labelSearch)
     val currentLabelPlay by rememberUpdatedState(labelPlay)
+    val currentLabelShare by rememberUpdatedState(labelShare)
     val currentLabelLookUp by rememberUpdatedState(labelLookUp)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
     // freshly loaded page re-applies the current value.
@@ -1636,9 +1638,9 @@ private fun EpubNavigatorView(
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 menu.add(0, searchMenuId, 3, currentLabelSearch)
-                menu.add(0, shareMenuId, 4, "Share")
+                menu.add(0, shareMenuId, 4, currentLabelShare)
                 if (publicationLanguageTag != null && currentOnLookupWord != null) {
-                    menu.add(0, lookupMenuId, 0, currentLabelLookUp)
+                    menu.add(0, lookupMenuId, 5, currentLabelLookUp)
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 return true
