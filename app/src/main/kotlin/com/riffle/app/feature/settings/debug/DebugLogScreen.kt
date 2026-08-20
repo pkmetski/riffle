@@ -64,6 +64,7 @@ fun DebugLogScreen(
 ) {
     val entries by viewModel.entries.collectAsState()
     val context = LocalContext.current
+    val shareDebugLogTitle = stringResource(R.string.ui_share_debug_log)
     val activeChannels = remember { mutableStateOf<Set<LogChannel>>(emptySet()) }
 
     val filtered = remember(entries, activeChannels.value) {
@@ -83,7 +84,7 @@ fun DebugLogScreen(
                     TextButton(onClick = {
                         val intent = viewModel.buildShareIntent(activeChannels.value.takeIf { it.isNotEmpty() })
                         if (intent != null) {
-                            context.startActivity(Intent.createChooser(intent, context.getString(R.string.ui_share_debug_log)))
+                            context.startActivity(Intent.createChooser(intent, shareDebugLogTitle))
                         }
                     }) {
                         Text(stringResource(R.string.ui_share))
