@@ -134,7 +134,15 @@ open class ReadaloudMatchingService(
                             if (existing != null) freshAutoSlots += slot
                         } catch (e: SQLiteDriverException) {
                             // BundledSQLiteDriver (Room 2.8.4+) throws androidx.sqlite.SQLiteException
-                            // for constraint violations, not the Android framework type above.
+                            // for ALL SQLite errors, not the Android framework's typed subclasses.
+                            // Only handle constraint violations (primary code 19); re-throw anything
+                            // else (SQLITE_FULL, SQLITE_CORRUPT, …) so it doesn't get silently
+                            // swallowed. BundledSQLiteDriver constraint messages always contain
+                            // "constraint". A null message (Android stubs in unit tests) cannot be
+                            // classified, so treat it as constraint to avoid re-throwing a catch that
+                            // was already handling a real constraint violation.
+                            val msg = e.message
+                            if (msg != null && !msg.contains("constraint", ignoreCase = true)) throw e
                             logger.w(LogChannel.Readaloud, e) {
                                 "reconcileLinks upsert skipped — constraint violation (driver path) for " +
                                     "storytellerSourceId=${book.sourceId} absSourceId=${match.absServerUuid}"
