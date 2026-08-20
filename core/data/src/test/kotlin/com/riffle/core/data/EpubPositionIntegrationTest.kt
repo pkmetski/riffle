@@ -183,5 +183,7 @@ class EpubPositionIntegrationTest {
             entities.values.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
         override suspend fun sourcesWithDirtyRows() =
             entities.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
+        override suspend fun allForSource(sourceId: String) =
+            entities.values.filter { it.sourceId == sourceId }
     }
 }

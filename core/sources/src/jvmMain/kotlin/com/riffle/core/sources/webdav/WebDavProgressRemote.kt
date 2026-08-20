@@ -125,8 +125,11 @@ class WebDavProgressRemote(
     companion object {
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
         private const val JSON_CONTENT_TYPE = "application/json; charset=utf-8"
-        private const val NAMESPACE_SEPARATOR = "__"
-        private const val PROGRESS_SUFFIX = "${NAMESPACE_SEPARATOR}progress.json"
+        const val NAMESPACE_SEPARATOR = "__"
+        const val EBOOK_PROGRESS_SUFFIX = "${NAMESPACE_SEPARATOR}progress.json"
+        // Distinct suffix so WebDavProgressEnumerator can categorise files from PROPFIND without
+        // ambiguity — both types would otherwise end with "__progress.json".
+        const val AUDIO_PROGRESS_SUFFIX = "${NAMESPACE_SEPARATOR}audio_progress.json"
 
         internal val json = Json { ignoreUnknownKeys = true }
 
@@ -134,14 +137,19 @@ class WebDavProgressRemote(
             SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).parse(value)?.time
         }.getOrNull()
 
-        fun progressFileUrl(basePath: String, namespace: String, itemId: String): String {
+        fun progressFileUrl(
+            basePath: String,
+            namespace: String,
+            itemId: String,
+            suffix: String = EBOOK_PROGRESS_SUFFIX,
+        ): String {
             val base = if (basePath.endsWith("/")) basePath else "$basePath/"
             // Replace '/' with '.' so Synology and other WebDAV servers that decode %2F as a path
             // separator don't split the filename into a nonexistent subdirectory. Chitanka itemIds
             // look like "book/12073-xxx"; Gutenberg IDs contain no '/' or '.', so no collision risk.
             val safeNamespace = namespace.replace('/', '.')
             val safeItemId = itemId.replace('/', '.')
-            return "$base$safeNamespace$NAMESPACE_SEPARATOR$safeItemId$PROGRESS_SUFFIX"
+            return "$base$safeNamespace$NAMESPACE_SEPARATOR$safeItemId$suffix"
         }
     }
 }

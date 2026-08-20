@@ -21,10 +21,7 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.Url
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
-import org.xml.sax.Attributes
-import org.xml.sax.helpers.DefaultHandler
 import java.util.Base64
-import javax.xml.parsers.SAXParserFactory
 
 /**
  * WebDAV-backed [AnnotationSyncTarget].
@@ -319,46 +316,6 @@ class WebDavAnnotationSyncTarget(
     private fun ensureTrailingSlash(url: String): String =
         if (url.endsWith("/")) url else "$url/"
 
-    private fun parsePropfindFilenames(xml: String): List<String> {
-        if (xml.isBlank()) return emptyList()
-        val handler = HrefCollector()
-        try {
-            val parser = SAXParserFactory.newInstance().apply {
-                isNamespaceAware = true
-            }.newSAXParser()
-            parser.parse(xml.byteInputStream(Charsets.UTF_8), handler)
-        } catch (_: Exception) {
-            return emptyList()
-        }
-        return handler.hrefs
-            .map { it.substringAfterLast('/') }
-            .filter { it.isNotEmpty() }
-            .filter { !it.startsWith("._") }
-    }
-
-    private class HrefCollector : DefaultHandler() {
-        val hrefs = mutableListOf<String>()
-        private val current = StringBuilder()
-        private var inHref = false
-
-        override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
-            if (localName == "href") {
-                inHref = true
-                current.setLength(0)
-            }
-        }
-
-        override fun characters(ch: CharArray?, start: Int, length: Int) {
-            if (inHref && ch != null) current.appendRange(ch, start, start + length)
-        }
-
-        override fun endElement(uri: String?, localName: String?, qName: String?) {
-            if (localName == "href") {
-                hrefs.add(current.toString().trim())
-                inHref = false
-            }
-        }
-    }
 
     companion object {
         private const val NAMESPACE_SEPARATOR = "__"

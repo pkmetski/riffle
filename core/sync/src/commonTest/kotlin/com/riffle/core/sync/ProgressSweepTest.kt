@@ -232,4 +232,114 @@ class ProgressSweepTest {
         assertEquals("source-newer", row.first)
         assertFalse(store.dirty("s1", "i1"))
     }
+
+    // ── RemoteProgressIndex ─────────────────────────────────────────────────
+
+    private fun fakeIndex(
+        sources: List<String> = emptyList(),
+        ebook: Map<String, List<String>> = emptyMap(),
+        audio: Map<String, List<String>> = emptyMap(),
+    ): RemoteProgressIndex = object : RemoteProgressIndex {
+        override suspend fun sourcesWithRemote() = sources
+        override suspend fun remoteEbookItems(sourceId: String) = ebook[sourceId].orEmpty()
+        override suspend fun remoteAudioItems(sourceId: String) = audio[sourceId].orEmpty()
+    }
+
+    private fun sweepWithIndex(
+        ledger: DirtyProgressLedger,
+        resolver: SyncSourceResolver,
+        ebookStore: SyncPositionStore<String>,
+        audioStore: SyncPositionStore<Double>,
+        factory: ProgressRemoteFactory,
+        index: RemoteProgressIndex,
+    ) = ProgressSweep(
+        ledger, resolver,
+        ProgressReconciler(ebookStore), ProgressReconciler(audioStore),
+        factory, ReconcileLocks(), OpenReconcileTargets(),
+        object : DirtyBookmarkLedger {
+            override suspend fun serversWithDirty() = emptyList<String>()
+            override suspend fun dirtyItems(sourceId: String) = emptyList<String>()
+        },
+        BookmarkReconcile { _, _ -> },
+        index,
+    )
+
+    @Test
+    fun `remoteIndex items are reconciled even when row is clean`() = runTest {
+        // Clean row: localUpdatedAt == lastSyncedAt — not in the dirty ledger, but server advanced.
+        val store = FakeStore<String>().apply {
+            rows["ws" to "item1"] = Triple("old-pos", 100L, 100L)
+        }
+        val factory = RecordingFactory(
+            ebookRemotes = mapOf(("ws" to "item1") to FakeRemote(RemoteProgress("server-newer", 500L), stamp = null)),
+        )
+
+        sweepWithIndex(
+            ledger(emptyList()),            // ledger has no dirty rows
+            FakeResolver(setOf("ws")),
+            store, FakeStore(), factory,
+            fakeIndex(sources = listOf("ws"), ebook = mapOf("ws" to listOf("item1"))),
+        ).run()
+
+        val row = store.rows["ws" to "item1"]!!
+        assertEquals("server-newer", row.first)
+        assertFalse(store.dirty("ws", "item1"))
+    }
+
+    @Test
+    fun `remoteIndex sources are included even when ledger has no dirty rows for them`() = runTest {
+        val store = FakeStore<String>()
+        val factory = RecordingFactory()
+        val index = fakeIndex(sources = listOf("ws"), ebook = mapOf("ws" to listOf("i1")))
+
+        sweepWithIndex(
+            ledger(emptyList()),
+            FakeResolver(setOf("ws")),
+            store, FakeStore(), factory, index,
+        ).run()
+
+        assertTrue(factory.ebookBuilt.contains("ws" to "i1"))
+    }
+
+    @Test
+    fun `dirty and remote items are deduped — item reconciled exactly once`() = runTest {
+        val store = FakeStore<String>().apply {
+            rows["ws" to "item1"] = Triple("old", 200L, 100L)  // dirty
+        }
+        val factory = RecordingFactory(
+            ebookRemotes = mapOf(("ws" to "item1") to FakeRemote(RemoteProgress("srv", 50L), stamp = 200L)),
+        )
+
+        sweepWithIndex(
+            ledger(listOf("ws"), ebook = mapOf("ws" to listOf("item1"))),
+            FakeResolver(setOf("ws")),
+            store, FakeStore(), factory,
+            fakeIndex(sources = listOf("ws"), ebook = mapOf("ws" to listOf("item1"))),
+        ).run()
+
+        // Remote built exactly once despite item appearing in both dirty ledger and index.
+        assertEquals(1, factory.ebookBuilt.count { it == "ws" to "item1" })
+    }
+
+    @Test
+    fun `server sources are not affected by remoteIndex — only items from factory null`() = runTest {
+        // ABS source returns null from remoteIndex (not a web source), so the sweep only
+        // processes the ledger's dirty rows for it. This test verifies no cross-contamination.
+        val store = FakeStore<String>().apply {
+            rows["abs" to "book1"] = Triple("local", 200L, 100L)
+        }
+        val factory = RecordingFactory(
+            ebookRemotes = mapOf(("abs" to "book1") to FakeRemote(RemoteProgress("srv", 500L), stamp = 200L)),
+        )
+        val index = fakeIndex(sources = emptyList())  // ABS not in index
+
+        sweepWithIndex(
+            ledger(listOf("abs"), ebook = mapOf("abs" to listOf("book1"))),
+            FakeResolver(setOf("abs")),
+            store, FakeStore(), factory, index,
+        ).run()
+
+        // Dirty row processed normally from the ledger.
+        assertEquals(1, factory.ebookBuilt.count { it == "abs" to "book1" })
+    }
 }

@@ -223,6 +223,18 @@ class WebDavProgressRemoteTest {
         assertFalse(url.contains("%2F"))
     }
 
+    @Test fun `progressFileUrl with audio suffix uses AUDIO_PROGRESS_SUFFIX constant`() {
+        val url = WebDavProgressRemote.progressFileUrl(
+            "https://dav.test/", "ns", "item",
+            WebDavProgressRemote.AUDIO_PROGRESS_SUFFIX,
+        )
+        assertTrue(url.endsWith(WebDavProgressRemote.AUDIO_PROGRESS_SUFFIX))
+    }
+
+    @Test fun `AUDIO_PROGRESS_SUFFIX and EBOOK_PROGRESS_SUFFIX are distinct`() {
+        assertTrue(WebDavProgressRemote.AUDIO_PROGRESS_SUFFIX != WebDavProgressRemote.EBOOK_PROGRESS_SUFFIX)
+    }
+
     // ── asAudioRemote() ───────────────────────────────────────────────────
 
     @Test fun `asAudioRemote get - parses decimal string position as Double`() = runTest {

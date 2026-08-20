@@ -38,6 +38,7 @@ class WebDavProgressRemoteFactory(
         readingProgress: suspend () -> Float,
         finishedAt: suspend () -> Long?,
         clock: Clock,
+        suffix: String = WebDavProgressRemote.EBOOK_PROGRESS_SUFFIX,
     ): WebDavProgressRemote? {
         val baseUrl = parseWebDavBaseUrl(config.baseUrl) ?: return null
         val authHeader = "Basic " + Base64.getEncoder()
@@ -45,7 +46,7 @@ class WebDavProgressRemoteFactory(
         return WebDavProgressRemote(
             client = httpClient,
             authHeader = authHeader,
-            progressFileUrl = WebDavProgressRemote.progressFileUrl(baseUrl.toString(), namespace, itemId),
+            progressFileUrl = WebDavProgressRemote.progressFileUrl(baseUrl.toString(), namespace, itemId, suffix),
             readingProgress = readingProgress,
             finishedAt = finishedAt,
             dispatchers = dispatchers,
@@ -53,7 +54,7 @@ class WebDavProgressRemoteFactory(
         )
     }
 
-    /** [ProgressRemote]<Double> for audiobook seconds, backed by the same WebDAV file. */
+    /** [ProgressRemote]<Double> for audiobook seconds, stored in a dedicated audio progress file. */
     fun createForAudio(
         config: AnnotationSyncConfig,
         namespace: String,
@@ -62,7 +63,7 @@ class WebDavProgressRemoteFactory(
         finishedAt: suspend () -> Long?,
         clock: Clock,
     ): ProgressRemote<Double>? =
-        create(config, namespace, itemId, readingProgress, finishedAt, clock)?.asAudioRemote()
+        create(config, namespace, itemId, readingProgress, finishedAt, clock, WebDavProgressRemote.AUDIO_PROGRESS_SUFFIX)?.asAudioRemote()
 
     companion object {
         private const val WEBDAV_CALL_TIMEOUT_MS = 30_000L
