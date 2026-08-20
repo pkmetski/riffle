@@ -32,7 +32,6 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
-import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
@@ -112,7 +111,6 @@ class AddSourceViewModel @Inject constructor(
     private val webdavTargetFactory: WebDavAnnotationSyncTargetFactory,
     private val webdavStatusStore: AnnotationSyncStatusStore,
     private val sweepEnqueuer: AnnotationSweepEnqueuer,
-    @ApplicationContext private val context: Context,
     private val storytellerSyncer: StorytellerReadaloudSyncer,
     private val readaloudMatcher: ReadaloudMatchingService,
     private val tokenStorage: TokenStorage,

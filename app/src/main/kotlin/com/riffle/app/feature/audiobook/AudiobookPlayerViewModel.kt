@@ -205,6 +205,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val logger: Logger,
     private val playlistsRepository: com.riffle.core.data.PlaylistsRepository,
     private val contentCacheAccessStore: ContentCacheAccessStore,
+    private val progressSweep: com.riffle.core.sync.ProgressSweep,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -924,6 +925,8 @@ class AudiobookPlayerViewModel @Inject constructor(
         // Leaving the player stops playback (no mini-bar), so this session is no longer playing —
         // except on auto-advance where the next item IS now the playing session; don't clear.
         if (!handingOffToPlaylistAdvance) clearAudiobookNowPlaying()
+        // Flush dirty progress rows to WebDAV in-process (ADR 0063), mirroring ReconnectSyncKicker.
+        progressFlushScope.flush { runCatching { progressSweep.run() } }
         super.onCleared()
     }
 

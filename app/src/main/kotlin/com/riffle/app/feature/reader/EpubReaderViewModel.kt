@@ -331,6 +331,7 @@ class EpubReaderViewModel @Inject constructor(
     private val packStore: com.riffle.core.dictionary.PackStore,
     private val packDownloader: com.riffle.core.data.dictionary.PackDownloader,
     private val downloadManager: com.riffle.app.feature.library.DownloadManager,
+    private val progressSweep: com.riffle.core.sync.ProgressSweep,
 ) : AndroidViewModel(application) {
 
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
@@ -3503,6 +3504,9 @@ class EpubReaderViewModel @Inject constructor(
         readaloud.onBookClosed()
         // Release openReconcile claims, close the zip and publication.
         lifecycle.onCleared()
+        // Flush dirty progress rows to WebDAV in-process (ADR 0063), same as ReconnectSyncKicker —
+        // WorkManager sweeps are gated on OS network constraints and can stall up to one hour.
+        progressFlushScope.flush { runCatching { progressSweep.run() } }
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
