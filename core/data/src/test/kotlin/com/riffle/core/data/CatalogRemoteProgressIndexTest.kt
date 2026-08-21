@@ -116,6 +116,10 @@ class CatalogRemoteProgressIndexTest {
         localEbookIds: List<String> = emptyList(),
         localAudioIds: List<String> = emptyList(),
         libraryItemIds: List<String> = emptyList(),
+        clock: com.riffle.core.common.Clock = object : com.riffle.core.common.Clock {
+            override fun nowMs() = 1_000L
+            override fun nowNs() = 1_000_000L
+        },
     ) = CatalogRemoteProgressIndex(
         sourceRepository = sourceRepo(*sources.toTypedArray()),
         annotationSyncConfigStore = configStore(config),
@@ -123,6 +127,7 @@ class CatalogRemoteProgressIndexTest {
         readingPositionDao = readingDao(*localEbookIds.toTypedArray()),
         audiobookPositionDao = audioDao(*localAudioIds.toTypedArray()),
         libraryItemDao = libraryItemDao(*libraryItemIds.toTypedArray()),
+        clock = clock,
     )
 
     // ── sourcesWithRemote ────────────────────────────────────────────────────

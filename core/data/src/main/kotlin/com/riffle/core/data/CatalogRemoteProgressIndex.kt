@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadingPositionDao
@@ -38,6 +39,7 @@ class CatalogRemoteProgressIndex @Inject constructor(
     private val readingPositionDao: ReadingPositionDao,
     private val audiobookPositionDao: AudiobookPositionDao,
     private val libraryItemDao: LibraryItemDao,
+    private val clock: Clock,
 ) : RemoteProgressIndex {
 
     // Cache the PROPFIND result for the current sweep so remoteEbookItems and remoteAudioItems
@@ -91,7 +93,7 @@ class CatalogRemoteProgressIndex @Inject constructor(
 
     private suspend fun enumerateCached(config: AnnotationSyncConfig, namespace: String): EnumeratedProgress {
         val key = "${config.baseUrl}::${config.username}::$namespace"
-        val nowMs = System.currentTimeMillis()
+        val nowMs = clock.nowMs()
         val cached = enumerationCache[key]
         if (cached != null && nowMs - cached.first < cacheTtlMs) return cached.second
         val result = enumerator.enumerate(config, namespace)
