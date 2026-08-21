@@ -267,9 +267,9 @@ class PanelDetectorImageTest {
 
     @Test
     fun `second-row left slanted panel contains tap near right edge`() {
-        // Regression for issue #766: page 22. The second row and third row are full-width
-        // panels. The reported output split the second row and left the tap at (432, 422)
-        // outside any panel bbox.
+        // Regression for issue #766: page 22. The second row has two slanted panels, the third
+        // row is one full-width panel, and the reported tap at (432, 422) must remain inside the
+        // left second-row bbox.
         val grid = loadMaskFixture("panel-detection-fixtures/issue-766-panel-cut-off-p22.png")
         val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
         assertEquals(PanelSource.Auto, result.source)
