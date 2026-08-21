@@ -662,6 +662,42 @@ class PanelDetectorTest {
         }
     }
 
+    @Test
+    fun `mergeDiagonalSpanningPanels merges adjacent left panels with different right edges`() {
+        // Regression for issue #784 (CC path): two left-column panels with the same left edge
+        // but different right edges (≥ 15% of page width apart) are merged into one tall panel.
+        // These appear when a page has a diagonal-slash panel boundary: the tall character on the
+        // left is detected as two separate CCs because the horizontal gutter separates them, but
+        // the two CCs have the same left edge and their right edges differ by the diagonal shift.
+        val pageW = 1042
+        val pageH = 1484
+        val bboxes = listOf(
+            // row1-left: wide (matching the actual detected CC for the real #784 page)
+            PanelDetector.Bbox(minX = 30, minY = 24, maxX = 592, maxY = 375),   // right edge 592
+            // row2-left: narrower (diagonal moves left edge of gutter to the right)
+            PanelDetector.Bbox(minX = 30, minY = 383, maxX = 365, maxY = 727),  // right edge 365, diff=227
+            // row1-right
+            PanelDetector.Bbox(minX = 483, minY = 24, maxX = 1014, maxY = 375),
+            // row2-right
+            PanelDetector.Bbox(minX = 365, minY = 383, maxX = 1014, maxY = 727),
+        )
+
+        val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
+
+        assertEquals(
+            "row1-left and row2-left (same left edge, right edges differ by 227px = 22% of page) must merge into one tall left panel; " +
+                "got $merged",
+            3, merged.size,
+        )
+        val tallLeft = merged.firstOrNull { b ->
+            b.minX <= 35 && b.minY <= 30 && b.maxX >= 550 && b.maxY >= 700
+        }
+        assertTrue(
+            "merged panel must span from row1-top to row2-bottom (y≈24-727, x≈30-592); got $merged",
+            tallLeft != null,
+        )
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

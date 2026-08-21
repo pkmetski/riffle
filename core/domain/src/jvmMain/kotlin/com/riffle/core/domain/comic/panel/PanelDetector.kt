@@ -225,11 +225,12 @@ class PanelDetector(
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
         val split = repairDiagonalTwoColumnRows(
-            repairOneSidedRowJunctions(
-                splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight),
-                cropped,
-                downscaledWidth,
-                downscaledHeight,
+            mergeDiagonalSpanningPanels(
+                repairOneSidedRowJunctions(
+                    splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight),
+                    cropped, downscaledWidth, downscaledHeight,
+                ),
+                downscaledWidth, downscaledHeight,
             ),
             cropped,
             gutter,
@@ -238,7 +239,7 @@ class PanelDetector(
         )
 
         val result = sanityCheck(
-            candidates = split,
+            candidates = expandDiagonalBboxOverlaps(split),
             cropped = cropped,
             originalWidth = originalWidth,
             originalHeight = originalHeight,
@@ -499,6 +500,129 @@ class PanelDetector(
             while (start < gutterByX.size && gutterByX[start]) start++
             if (start > edgeInset) edgeInset to (start - edgeInset) else null
         }
+    }
+
+    /**
+     * Detects the "diagonal spanning panel" layout: a tall left (or right) panel whose right (or
+     * left) boundary is a large diagonal slash creates two separate CCs after flood-fill — the top
+     * portion is wider, the bottom is narrower — because the horizontal gutter between rows cleanly
+     * cuts both the content and the diagonal zone.
+     *
+     * Signature: two vertically adjacent bboxes with the same left edge (within 5% of page width)
+     * where the top bbox is significantly wider on the right (≥ 15% of page width). Neither
+     * [repairOneSidedRowJunctions] (requires ≥ 60% shared width) nor [repairDiagonalTwoColumnRows]
+     * (requires a full-width single bbox) handles this. Here we merge the pair into one tall bbox
+     * spanning minY of the top to maxY of the bottom, with maxX = max(top.maxX, bottom.maxX).
+     *
+     * The symmetric case (bottom wider than top) and right-edge variant (same right edge, left
+     * edges differ) are handled by rotating the roles.
+     */
+    internal fun mergeDiagonalSpanningPanels(
+        bboxes: List<Bbox>,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox> {
+        if (bboxes.size < 2) return bboxes
+        // Allow a horizontal gutter row band between the two CC chunks (≤ 2% of page height, min 15px).
+        val maxGap = (downscaledHeight * 0.02).toInt().coerceAtLeast(15)
+        // Both panels must be at least 10% of page height (rules out thin caption strips).
+        val minPanelH = (downscaledHeight * 0.10).toInt()
+        // Minimum right-edge difference (15% of page width) to distinguish a diagonal split from
+        // scanner jitter between two regular-grid panels with the same left edge.
+        val minEdgeDiff = (downscaledWidth * 0.15).toInt()
+        // Allow the left edges to differ by up to 5% of page width (scanner jitter).
+        val edgeTolerance = (downscaledWidth * 0.05).toInt().coerceAtLeast(5)
+
+        val result = mutableListOf<Bbox>()
+        val consumed = BooleanArray(bboxes.size)
+
+        for (i in bboxes.indices) {
+            if (consumed[i]) continue
+            val top = bboxes[i]
+            if (top.maxY - top.minY + 1 < minPanelH) { result.add(top); continue }
+
+            var bestJ = -1
+            for (j in bboxes.indices) {
+                if (i == j || consumed[j]) continue
+                val bot = bboxes[j]
+                val gap = bot.minY - top.maxY - 1
+                if (gap !in 0..maxGap) continue
+                if (bot.maxY - bot.minY + 1 < minPanelH) continue
+                // Same left edge, one extends significantly further right than the other.
+                // Guard: the WIDER panel's right edge must cross the page centre — proves it's a
+                // genuine diagonal split, not just two narrow left panels with minor jitter.
+                val sameLeft = kotlin.math.abs(top.minX - bot.minX) <= edgeTolerance
+                val edgeDiff = kotlin.math.abs(top.maxX - bot.maxX)
+                val widerMaxX = maxOf(top.maxX, bot.maxX)
+                // The wider panel must reach past page centre (real diagonal span) but must NOT
+                // extend to the right page edge — that would be a full-width banner, not a
+                // diagonal-slash panel, and merging it with the narrow column panel above/below
+                // would produce a false wide bbox.
+                val widthCap = downscaledWidth * 9 / 10
+                if (sameLeft && edgeDiff >= minEdgeDiff && widerMaxX > downscaledWidth / 2 && widerMaxX <= widthCap) {
+                    bestJ = j
+                    break
+                }
+            }
+            if (bestJ < 0) {
+                result.add(top)
+                continue
+            }
+            val bot = bboxes[bestJ]
+            consumed[bestJ] = true
+            result.add(
+                Bbox(
+                    minOf(top.minX, bot.minX),
+                    top.minY,
+                    maxOf(top.maxX, bot.maxX),
+                    bot.maxY,
+                ),
+            )
+        }
+        return result
+    }
+
+    /**
+     * When two horizontally-adjacent bboxes have overlapping x-extents (left.maxX > right.minX),
+     * their shared overlap zone belongs to a DIAGONAL panel boundary. The CC tighten pass stopped
+     * each panel at the extent of its own ink content, leaving both panels short of the visual
+     * boundary. Expand each panel by half the overlap width so both panels include the full
+     * diagonal transition zone, preventing the left panel from appearing visually cut off.
+     *
+     * Only fires when: (1) bboxes overlap by 1-60px horizontally, (2) their y-ranges share ≥50%
+     * of the shorter panel's height (same row band), and (3) neither expanded panel would become
+     * empty. Non-overlapping panels (vertical gutters between them) are unchanged.
+     */
+    private fun expandDiagonalBboxOverlaps(bboxes: List<Bbox>): List<Bbox> {
+        if (bboxes.size < 2) return bboxes
+        val result = bboxes.toMutableList()
+        for (i in result.indices) {
+            for (j in result.indices) {
+                if (i >= j) continue
+                val a = result[i]
+                val b = result[j]
+                // Identify which is left and which is right (by minX)
+                val (leftIdx, rightIdx) = if (a.minX <= b.minX) i to j else j to i
+                val left = result[leftIdx]
+                val right = result[rightIdx]
+                // Check for horizontal overlap (diagonal boundary signature)
+                val overlapX = left.maxX - right.minX + 1
+                if (overlapX !in 1..60) continue
+                // Check same row band (y-ranges share ≥50% of shorter panel's height)
+                val yOverlapTop = maxOf(left.minY, right.minY)
+                val yOverlapBottom = minOf(left.maxY, right.maxY)
+                if (yOverlapBottom <= yOverlapTop) continue
+                val yOverlap = yOverlapBottom - yOverlapTop
+                val shorterH = minOf(left.maxY - left.minY + 1, right.maxY - right.minY + 1)
+                if (yOverlap.toDouble() / shorterH < 0.5) continue
+                // Expand each panel by half the horizontal overlap into the other's zone
+                val pad = overlapX / 2
+                if (pad <= 0) continue
+                result[leftIdx] = Bbox(left.minX, left.minY, left.maxX + pad, left.maxY)
+                result[rightIdx] = Bbox(right.minX - pad, right.minY, right.maxX, right.maxY)
+            }
+        }
+        return result
     }
 
     private fun repairDiagonalTwoColumnRows(
@@ -1298,7 +1422,7 @@ class PanelDetector(
         }
     }
 
-    private data class Bbox(val minX: Int, val minY: Int, val maxX: Int, val maxY: Int) {
+    internal data class Bbox(val minX: Int, val minY: Int, val maxX: Int, val maxY: Int) {
         fun area(): Long = (maxX - minX + 1).toLong() * (maxY - minY + 1).toLong()
     }
 }

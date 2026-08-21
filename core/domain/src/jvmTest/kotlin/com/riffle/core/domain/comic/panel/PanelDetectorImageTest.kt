@@ -1,6 +1,7 @@
 package com.riffle.core.domain.comic.panel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -296,6 +297,97 @@ class PanelDetectorImageTest {
         assertEquals(
             "expected third row to be one full-width panel; panels=${result.panels}",
             1, thirdRowPanels.size,
+        )
+    }
+
+    @Test
+    fun `tall left panel spanning two row bands is ordered before the stacked right panels`() {
+        // Regression for issue #780: page 25. The page has a tall left panel that spans row-bands
+        // 2 and 3 (rows 2+3), with an upper-right panel and a lower-right panel stacked on the
+        // right. PanelOrderer grouped all three into one row band (because the tall panel's y-extent
+        // overlaps both right panels) and then sorted by x, putting lower-right (x=446) before
+        // upper-right (x=520). The correct reading order is tall-left → upper-right → lower-right.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-780-wrong-panel-order.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        val ordered = PanelOrderer().order(result.panels)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2+tall-left-with-2-right-stacked+2 layout, got ${ordered.size} (source=${result.source})",
+            7, ordered.size,
+        )
+        // Identify the tall-left panel: left of centre, height > 40% of page height.
+        val tallLeft = ordered.firstOrNull { p ->
+            p.x + p.width / 2 < grid.width / 2 &&
+                p.height.toDouble() / grid.height >= 0.40
+        }
+        assertNotNull("expected one tall left panel spanning ≥40% of page height; ordered=$ordered", tallLeft)
+        // The upper-right panel is right of centre and its vertical centre sits in the upper-middle
+        // section (not in the top row — that's covered by the top-right panel).
+        val upperRight = ordered.firstOrNull { p ->
+            p.x + p.width / 2 >= grid.width / 2 &&
+                p.y + p.height / 2 in (grid.height * 0.30).toInt()..(grid.height * 0.55).toInt()
+        }
+        assertNotNull("expected one upper-right panel; ordered=$ordered", upperRight)
+        // The lower-right panel is right of centre and starts in the lower half.
+        val lowerRight = ordered.firstOrNull { p ->
+            p.x + p.width / 2 >= grid.width / 2 &&
+                p.y >= grid.height * 0.40 &&
+                p.y > (upperRight?.bottom ?: 0)
+        }
+        assertNotNull("expected one lower-right panel below upperRight; ordered=$ordered", lowerRight)
+        val tallLeftIdx = ordered.indexOf(tallLeft)
+        val upperRightIdx = ordered.indexOf(upperRight)
+        val lowerRightIdx = ordered.indexOf(lowerRight)
+        assertTrue(
+            "reading order must be tall-left($tallLeftIdx) → upper-right($upperRightIdx) → lower-right($lowerRightIdx); ordered=$ordered",
+            tallLeftIdx < upperRightIdx && upperRightIdx < lowerRightIdx,
+        )
+    }
+
+    @Test
+    fun `row three left panel is not cut off at its right edge`() {
+        // Regression for issue #783: page 26. An 8-panel (4×2) page where the third-row left
+        // panel has a slanted right boundary. The detector found the panel 78px too narrow:
+        // width=358 instead of the expected ≥430. The right edge was being over-trimmed because
+        // the diagonal panel border left sparse content columns near the right boundary.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-783-panel-cut-off.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 8 panels for 4×2 layout, got ${result.panels.size} (source=${result.source})",
+            8, result.panels.size,
+        )
+        // The third-row left panel is in the lower half of the page (y roughly 50-75%), left of centre.
+        val thirdRowLeft = result.panels.filter { p ->
+            p.y + p.height / 2 in (grid.height * 0.48).toInt()..(grid.height * 0.75).toInt() &&
+                p.x + p.width / 2 < grid.width / 2
+        }
+        assertEquals(
+            "expected exactly one third-row left panel; panels=${result.panels}",
+            1, thirdRowLeft.size,
+        )
+        val panel = thirdRowLeft[0]
+        val minExpectedWidth = (grid.width * 0.40).toInt()
+        assertTrue(
+            "third-row left panel must be ≥ 40% of page width (≥$minExpectedWidth); got w=${panel.width} at x=${panel.x}; panels=${result.panels}",
+            panel.width >= minExpectedWidth,
+        )
+    }
+
+    @Test
+    fun `tall left panel spanning rows one and two is not split at the horizontal row boundary`() {
+        // Regression for issue #784: page 28. The page has a tall character on the left spanning
+        // rows 1-2 with a diagonal right boundary. The binarized fixture routes through the projection
+        // path; mergeDiagonalSpanningPanels (which fixes this for the real JPEG via the CC path when
+        // the detector sees two separate left-column CCs) is separately covered by a synthetic test in
+        // PanelDetectorTest. This test pins the fixture's projection-path output so a Fallback
+        // regression or panel-count collapse would be caught immediately.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-784-split-panel.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertTrue(
+            "fixture should produce ≥ 6 panels from the projection path; got ${result.panels.size}: ${result.panels}",
+            result.panels.size >= 6,
         )
     }
 
