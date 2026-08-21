@@ -1,10 +1,11 @@
 package com.riffle.app.feature.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.R
 import com.riffle.app.BuildConfig
 import com.riffle.app.feature.annotationsync.AnnotationSyncKind
-import com.riffle.app.feature.annotationsync.WebdavUiCopy
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
@@ -42,6 +43,7 @@ import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.SourceRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -75,6 +77,7 @@ data class AnnotationSyncRowState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val crashReportRepository: CrashReportRepository,
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val sourceRepository: SourceRepository,
@@ -138,17 +141,18 @@ class SettingsViewModel @Inject constructor(
         // behavior. The kind is still Pending either way, so the badge stays in sync with the
         // banner via [deriveAnnotationSyncKind].
         val sub = when {
-            config == null -> WebdavUiCopy.NOT_CONFIGURED_STATUS
-            outcome is CycleOutcome.NeverRun -> "Waiting for first sync…"
-            outcome is CycleOutcome.Failed.Auth -> "Authentication failed · tap to re-enter credentials"
-            outcome is CycleOutcome.Failed.Tls -> "TLS error · tap to check server URL"
-            outcome is CycleOutcome.Failed.Server -> "Source error (HTTP ${outcome.code}) · will retry automatically"
-            outcome is CycleOutcome.Failed.Unknown -> "Sync failed · will retry automatically"
+            config == null -> context.getString(R.string.ui_webdav_not_configured_status)
+            outcome is CycleOutcome.NeverRun -> context.getString(R.string.ui_waiting_for_first_sync)
+            outcome is CycleOutcome.Failed.Auth -> context.getString(R.string.ui_webdav_auth_failed_reenter)
+            outcome is CycleOutcome.Failed.Tls -> context.getString(R.string.ui_webdav_tls_check_url)
+            outcome is CycleOutcome.Failed.Server ->
+                context.getString(R.string.ui_source_http_retry_short, outcome.code)
+            outcome is CycleOutcome.Failed.Unknown -> context.getString(R.string.ui_sync_failed_retry_short)
             outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
-                "$pendingCount book(s) pending · will sync when online"
-            outcome is CycleOutcome.Failed.Network -> "Offline · will sync when connected"
-            pendingCount > 0 -> "$pendingCount book(s) pending · will sync when online"
-            else -> "Synced · $identity"
+                context.getString(R.string.ui_books_pending_sync_online, pendingCount)
+            outcome is CycleOutcome.Failed.Network -> context.getString(R.string.ui_offline_sync_when_connected)
+            pendingCount > 0 -> context.getString(R.string.ui_books_pending_sync_online, pendingCount)
+            else -> context.getString(R.string.ui_synced_identity, identity)
         }
         return AnnotationSyncRowState(badge, "WebDAV", sub, subTone)
     }

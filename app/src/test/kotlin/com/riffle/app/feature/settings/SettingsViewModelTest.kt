@@ -1,5 +1,7 @@
 package com.riffle.app.feature.settings
 
+import android.content.Context
+import com.riffle.app.R
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.database.AnnotationDao
@@ -251,11 +253,38 @@ class SettingsViewModelTest {
         override suspend fun searchAbsItems(absSourceId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
 
+    private fun fakeContext(): Context {
+        val context = io.mockk.mockk<Context>()
+        io.mockk.every { context.getString(R.string.ui_webdav_not_configured_status) } returns
+            "Not configured · available for Komga sources"
+        io.mockk.every { context.getString(R.string.ui_waiting_for_first_sync) } returns
+            "Waiting for first sync…"
+        io.mockk.every { context.getString(R.string.ui_webdav_auth_failed_reenter) } returns
+            "Authentication failed · tap to re-enter credentials"
+        io.mockk.every { context.getString(R.string.ui_webdav_tls_check_url) } returns
+            "TLS error · tap to check server URL"
+        io.mockk.every { context.getString(R.string.ui_source_http_retry_short, any()) } answers
+            { "Source error (HTTP ${firstFormatArg(invocation.args[1])}) · will retry automatically" }
+        io.mockk.every { context.getString(R.string.ui_sync_failed_retry_short) } returns
+            "Sync failed · will retry automatically"
+        io.mockk.every { context.getString(R.string.ui_books_pending_sync_online, any()) } answers
+            { "${firstFormatArg(invocation.args[1])} book(s) pending · will sync when online" }
+        io.mockk.every { context.getString(R.string.ui_offline_sync_when_connected) } returns
+            "Offline · will sync when connected"
+        io.mockk.every { context.getString(R.string.ui_synced_identity, any()) } answers
+            { "Synced · ${firstFormatArg(invocation.args[1])}" }
+        return context
+    }
+
+    private fun firstFormatArg(arg: Any?): Any? =
+        (arg as? Array<*>)?.firstOrNull() ?: arg
+
     private fun makeViewModel(
         reports: List<CrashReport> = emptyList(),
         annotationSyncStatusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
         annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
     ) = SettingsViewModel(
+        context = fakeContext(),
         crashReportRepository = object : CrashReportRepository {
             private val current = reports.toMutableList()
             override fun listCrashReports(): List<CrashReport> = current.toList()
@@ -351,6 +380,7 @@ class SettingsViewModelTest {
         statusStore: AnnotationSyncStatusStore,
         annotationDao: AnnotationDao,
     ) = SettingsViewModel(
+        context = fakeContext(),
         crashReportRepository = object : CrashReportRepository {
             override fun listCrashReports(): List<CrashReport> = emptyList()
             override fun resolveReportFiles(ids: List<String>) = emptyList<java.io.File>()

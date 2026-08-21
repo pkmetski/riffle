@@ -45,13 +45,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.riffle.app.feature.annotationsync.WebdavUiCopy
+import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.app.ui.source.localizedAddSourceCopy
 import com.riffle.core.domain.AddSourceCopy
 import com.riffle.core.models.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
@@ -85,15 +87,15 @@ fun AddSourceScreen(
         WebSourceDescriptors.forType(it.sourceType)
     }
     val descriptorCopy: AddSourceCopy? = credentialed?.let {
-        descriptor?.addSourceCopyFor(it.serverType)
+        descriptor?.let { d -> localizedAddSourceCopy(d, it.serverType) }
     }
     val title = descriptorCopy?.let { if (isEditing) it.editTitle else it.addTitle }
-        ?: if (isEditing) WebdavUiCopy.EDIT_TITLE else WebdavUiCopy.ADD_TITLE
-    val urlLabel = descriptorCopy?.urlLabel ?: "WebDAV URL"
+        ?: stringResource(if (isEditing) R.string.ui_edit_webdav else R.string.ui_add_webdav)
+    val urlLabel = descriptorCopy?.urlLabel ?: stringResource(R.string.ui_webdav_url)
     val urlPlaceholder = descriptorCopy?.urlPlaceholder ?: "server.example.com/dav/annotations"
     val submitLabel = descriptorCopy
         ?.let { if (isEditing) it.submitLabelEdit else it.submitLabelAdd }
-        ?: if (isEditing) "Save" else "Connect"
+        ?: stringResource(if (isEditing) R.string.ui_save else R.string.ui_connect)
 
     viewModel.insecureWarning?.let { type ->
         InsecureConnectionDialog(
@@ -121,7 +123,7 @@ fun AddSourceScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.ui_back))
                     }
                 },
             )
@@ -138,7 +140,7 @@ fun AddSourceScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 val helpText = descriptorCopy?.helpText
-                    ?: WebdavUiCopy.HELP_TEXT
+                    ?: stringResource(R.string.ui_webdav_add_source_help_text)
                 if (helpText.isNotEmpty()) {
                     Text(
                         text = helpText,
@@ -155,7 +157,7 @@ fun AddSourceScreen(
                     Box {
                         OutlinedButton(onClick = { schemeExpanded = true }) {
                             Text(viewModel.scheme)
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_choose_scheme))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.ui_choose_scheme))
                         }
                         DropdownMenu(
                             expanded = schemeExpanded,
@@ -186,14 +188,14 @@ fun AddSourceScreen(
                 OutlinedTextField(
                     value = viewModel.username,
                     onValueChange = { viewModel.username = it },
-                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_username)) },
+                    label = { Text(stringResource(R.string.ui_username)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = viewModel.password,
                     onValueChange = { viewModel.password = it },
-                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_password)) },
+                    label = { Text(stringResource(R.string.ui_password)) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -222,7 +224,7 @@ fun AddSourceScreen(
                         ) {
                             Text(
                                 descriptorCopy?.removeLabel
-                                    ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_disable_sync),
+                                    ?: stringResource(R.string.ui_disable_sync),
                             )
                         }
                     }
@@ -238,19 +240,19 @@ private fun WebdavStatusCard(banner: WebdavBanner) {
         WebdavBannerKind.Synced -> Quadruple(
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
-            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_synced_via_webdav),
+            stringResource(R.string.ui_synced_via_webdav),
             Icons.Default.CheckCircle,
         )
         WebdavBannerKind.Pending -> Quadruple(
             MaterialTheme.colorScheme.tertiaryContainer,
             MaterialTheme.colorScheme.onTertiaryContainer,
-            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_pending_will_retry_automatically),
+            stringResource(R.string.ui_pending_will_retry_automatically),
             Icons.Default.Schedule,
         )
         WebdavBannerKind.Error -> Quadruple(
             MaterialTheme.colorScheme.errorContainer,
             MaterialTheme.colorScheme.onErrorContainer,
-            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sync_error),
+            stringResource(R.string.ui_sync_error),
             Icons.Default.Warning,
         )
     }
@@ -276,7 +278,7 @@ private fun WebdavStatusCard(banner: WebdavBanner) {
                 fontFamily = FontFamily.Monospace,
             )
             Text(
-                "Last sync: ${banner.lastSyncRelative}",
+                stringResource(R.string.ui_last_sync_value, banner.lastSyncRelative),
                 style = MaterialTheme.typography.bodySmall,
                 color = content,
             )
@@ -297,20 +299,18 @@ private fun InsecureConnectionDialog(
     onDismiss: () -> Unit,
 ) {
     val title = when (type) {
-        InsecureConnectionType.HTTP -> "Insecure connection"
-        InsecureConnectionType.SELF_SIGNED -> "Untrusted certificate"
+        InsecureConnectionType.HTTP -> stringResource(R.string.ui_insecure_connection)
+        InsecureConnectionType.SELF_SIGNED -> stringResource(R.string.ui_untrusted_certificate)
     }
     val body = when (type) {
-        InsecureConnectionType.HTTP ->
-            "This server uses HTTP. Your credentials will be sent without encryption. Proceed only if you trust this network."
-        InsecureConnectionType.SELF_SIGNED ->
-            "The server's TLS certificate cannot be verified. Connecting may expose your credentials. Proceed only if you trust this server."
+        InsecureConnectionType.HTTP -> stringResource(R.string.ui_insecure_http_description)
+        InsecureConnectionType.SELF_SIGNED -> stringResource(R.string.ui_untrusted_certificate_description)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_anyway)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ui_connect_anyway)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_cancel)) } },
     )
 }

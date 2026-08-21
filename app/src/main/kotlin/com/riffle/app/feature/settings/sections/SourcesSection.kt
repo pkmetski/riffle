@@ -41,6 +41,8 @@ import com.riffle.app.feature.settings.ReorderableLibraryList
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.idsWithSwap
 import com.riffle.app.ui.source.SourceIcon
+import com.riffle.app.ui.source.localizedSourceDisplayName
+import com.riffle.app.ui.source.localizedSourceSubtitle
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
@@ -199,7 +201,7 @@ internal fun ServerRow(
     // other credentialed source (Komga, Calibre-Web, …) uses its descriptor's displayName directly.
     // Once #441 splits Storyteller into its own SourceType this branch collapses.
     val headline = if (server.type == SourceType.ABS) server.serverType.label
-    else descriptor.displayName
+    else localizedSourceDisplayName(descriptor)
     ExpandableSourceRow(
         isExpanded = isExpanded,
         onToggleExpanded = onToggleExpanded,
@@ -501,14 +503,14 @@ internal fun SingletonWebSourceRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onRemove: () -> Unit,
 ) {
-    val supportText = descriptor.supportingHosts ?: descriptor.subtitle
+    val supportText = descriptor.supportingHosts ?: localizedSourceSubtitle(descriptor)
     ExpandableSourceRow(
         isExpanded = isExpanded,
         onToggleExpanded = onToggleExpanded,
         onRemove = onRemove,
         headerTestTag = "${descriptor.type.name}SourceRow",
         leadingIcon = { SourceIcon(source = source, size = 32.dp) },
-        headlineContent = { Text(descriptor.displayName) },
+        headlineContent = { Text(localizedSourceDisplayName(descriptor)) },
         supportingContent = supportText?.let { { Text(it) } },
     ) {
         if (libraryItems.isNotEmpty()) {

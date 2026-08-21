@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.app.BuildConfig
 import com.riffle.app.ui.source.SourceIcon
+import com.riffle.app.ui.source.localizedSourceDisplayName as localizedDescriptorDisplayName
+import com.riffle.app.ui.source.localizedSourceSubtitle as localizedDescriptorSubtitle
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
@@ -215,7 +217,7 @@ private fun DrawerHeader(
                 { SourceRowIcon(server = server) }
             },
             headlineContent = {
-                val name = activeServer?.let(::sourceDisplayName)
+                val name = activeServer?.let { localizedSourceDisplayName(it) }
                     ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
                 val username = activeServer
                     ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
@@ -238,7 +240,7 @@ private fun DrawerHeader(
             },
             supportingContent = {
                 val support = activeServer?.let {
-                    sourceSwitcherSubtitle(source = it, version = activeVersion)
+                    localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
                 }
                 if (support != null) {
                     AutoShrinkingSingleLineText(
@@ -264,7 +266,7 @@ private fun DrawerHeader(
                 DropdownMenuItem(
                     text = {
                         Column {
-                            val displayName = sourceDisplayName(server)
+                            val displayName = localizedSourceDisplayName(server)
                             val username = server
                                 .takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                                 ?.username?.takeIf { it.isNotEmpty() }
@@ -283,7 +285,7 @@ private fun DrawerHeader(
                                     text = displayName,
                                 )
                             }
-                            val support = sourceSwitcherSubtitle(
+                            val support = localizedSourceSwitcherSubtitle(
                                 source = server,
                                 version = serverVersions[server.id],
                             )
@@ -408,6 +410,11 @@ internal fun sourceDisplayName(source: Source): String =
     if (source.type == SourceType.ABS) source.serverType.label
     else WebSourceDescriptors.forTypeOrError(source.type).displayName
 
+@Composable
+private fun localizedSourceDisplayName(source: Source): String =
+    if (source.type == SourceType.ABS) source.serverType.label
+    else localizedDescriptorDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
+
 /**
  * Subtitle for the source-switcher row. Sources with a network host render their configured
  * address on every row; everything else falls back to the descriptor's static subtitle. Gated on
@@ -419,5 +426,15 @@ internal fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
         buildSupportingLine(source.url.authority(), version)
     } else {
         descriptor.subtitle
+    }
+}
+
+@Composable
+private fun localizedSourceSwitcherSubtitle(source: Source, version: String?): String? {
+    val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
+    return if (descriptor.hasNetworkHost) {
+        buildSupportingLine(source.url.authority(), version)
+    } else {
+        localizedDescriptorSubtitle(descriptor)
     }
 }
