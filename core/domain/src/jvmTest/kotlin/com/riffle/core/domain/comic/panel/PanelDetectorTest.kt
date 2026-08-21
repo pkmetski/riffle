@@ -663,87 +663,101 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `mergeDiagonalSpanningPanels merges adjacent left panels with different right edges`() {
-        // Regression for issue #784 (CC path): two left-column panels with the same left edge
-        // but different right edges (≥ 15% of page width apart) are merged into one tall panel.
-        // These appear when a page has a diagonal-slash panel boundary: the tall character on the
-        // left is detected as two separate CCs because the horizontal gutter separates them, but
-        // the two CCs have the same left edge and their right edges differ by the diagonal shift.
+    fun `mergeDiagonalSpanningPanels joins a column panel with the full-width band below it`() {
+        // Regression for issue #784 (device-verified geometry of the real page, pageIndex 28):
+        // the tall left character arrives as a row-1 COLUMN panel over an UNSPLIT full-width
+        // row-2 band (projection could not find row 2's vertical gutter). The merge must produce
+        // the tall panel (keeping the column's right edge) plus the band's right portion as the
+        // row2-right panel.
+        val pageW = 1042
+        val pageH = 1482
+        val bboxes = listOf(
+            PanelDetector.Bbox(minX = 33, minY = 24, maxX = 591, maxY = 372),    // row1-left column (54%)
+            PanelDetector.Bbox(minX = 483, minY = 24, maxX = 1013, maxY = 372),  // row1-right
+            PanelDetector.Bbox(minX = 33, minY = 383, maxX = 1013, maxY = 726),  // row2 unsplit band (94%)
+        )
+
+        val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
+
+        assertEquals("expected tall-left + row1-right + row2-right; got $merged", 3, merged.size)
+        assertTrue(
+            "tall-left must span rows 1-2 keeping the column's right edge (33,24)-(591,726); got $merged",
+            merged.any { it.minX == 33 && it.minY == 24 && it.maxX == 591 && it.maxY == 726 },
+        )
+        assertTrue(
+            "row2-right remainder (592,383)-(1013,726) must be emitted; got $merged",
+            merged.any { it.minX == 592 && it.minY == 383 && it.maxX == 1013 && it.maxY == 726 },
+        )
+    }
+
+    @Test
+    fun `mergeDiagonalSpanningPanels never joins two stacked column panels`() {
+        // Regression for issue #786 (device-verified geometry of the real page, pageIndex 26):
+        // row3-left and row4-left are two clean stacked COLUMN panels whose right edges happen to
+        // differ by 158px (> the 15% edge-diff threshold). The previous gate merged them and
+        // emitted a 158px sliver as the row4 remainder — the exact panel the user reported.
+        // A column panel below is a real standalone panel; only an UNSPLIT full-width band may
+        // be merged upward.
         val pageW = 1042
         val pageH = 1484
         val bboxes = listOf(
-            // row1-left: wide (matching the actual detected CC for the real #784 page)
-            PanelDetector.Bbox(minX = 30, minY = 24, maxX = 592, maxY = 375),   // right edge 592
-            // row2-left: narrower (diagonal moves left edge of gutter to the right)
-            PanelDetector.Bbox(minX = 30, minY = 383, maxX = 365, maxY = 727),  // right edge 365, diff=227
-            // row1-right
-            PanelDetector.Bbox(minX = 483, minY = 24, maxX = 1014, maxY = 375),
-            // row2-right
-            PanelDetector.Bbox(minX = 365, minY = 383, maxX = 1014, maxY = 727),
+            PanelDetector.Bbox(minX = 35, minY = 735, maxX = 392, maxY = 1066),  // row3-left (34%)
+            PanelDetector.Bbox(minX = 26, minY = 1071, maxX = 550, maxY = 1439), // row4-left (50%)
+            PanelDetector.Bbox(minX = 411, minY = 735, maxX = 1015, maxY = 1066), // row3-right
+            PanelDetector.Bbox(minX = 558, minY = 1071, maxX = 1012, maxY = 1439), // row4-right
         )
 
         val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
 
         assertEquals(
-            "row1-left and row2-left (same left edge, right edges differ by 227px = 22% of page) must merge into one tall left panel; " +
-                "got $merged",
-            3, merged.size,
-        )
-        // The merged panel uses min(maxX) so it doesn't extend into the adjacent right column's
-        // territory (right edge = min(592, 365) = 365).
-        val tallLeft = merged.firstOrNull { b ->
-            b.minX <= 35 && b.minY <= 30 && b.maxX in 350..400 && b.maxY >= 700
-        }
-        assertTrue(
-            "merged panel must span from row1-top to row2-bottom (y≈24-727), right edge at min(592,365)=365; got $merged",
-            tallLeft != null,
+            "two stacked column panels must never merge (bot is not a full-width band); got $merged",
+            bboxes.toSet(), merged.toSet(),
         )
     }
 
     @Test
-    fun `projection path merges diagonal-spanning left panels with different right edges`() {
-        // Regression for issue #784 (projection path): the real page goes through gridByProjection
-        // (not the CC path). Both expandDiagonalBboxOverlaps and mergeDiagonalSpanningPanels must
-        // be wired into gridByProjection's repair chain to take effect on device.
-        //
-        // This fixture is synthetic and designed so that gridByProjection SUCCEEDS (clean binary
-        // gutters → clear row and column bands → not all-suspicious), exercising the projection
-        // path's repair chain instead of the CC path. The fixture-based tests for #783/#784 happen
-        // to use the CC path (binarized masks make all rows suspicious) and cannot catch this gap.
-        //
-        // Layout (1000×1000):
-        //  Row1 (y=10–370): wide left (x=0–580) | right (x=600–999)   — right edge 580
-        //  Gutter (y=371–389)
-        //  Row2 (y=390–730): narrow left (x=0–340) | right (x=360–999) — right edge 340
-        //  Gutter (y=731–749)
-        //  Row3 (y=750–990): normal 2-column split                      — for row count ≥ 2
-        val W = 1000
-        val H = 1000
-        val grid = fixture(W, H) { canvas ->
-            canvas.fill(LIGHT)
-            canvas.rect(x = 0,   y = 10,  w = 581, h = 361, color = DARK)  // row1-left, wide
-            canvas.rect(x = 600, y = 10,  w = 400, h = 361, color = DARK)  // row1-right
-            canvas.rect(x = 0,   y = 390, w = 341, h = 341, color = DARK)  // row2-left, narrow
-            canvas.rect(x = 360, y = 390, w = 640, h = 341, color = DARK)  // row2-right
-            canvas.rect(x = 0,   y = 750, w = 481, h = 241, color = DARK)  // row3-left
-            canvas.rect(x = 500, y = 750, w = 500, h = 241, color = DARK)  // row3-right
-        }
-
-        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
-
-        assertEquals(PanelSource.Auto, result.source)
-        assertEquals(
-            "row1-left (right edge 580) + row2-left (right edge 340) must merge via projection path repair; " +
-                "expected 5 panels (1 merged tall-left + 2 row-rights + 2 row3), got ${result.panels.size}: " +
-                result.panels.map { "(${it.x},${it.y})${it.width}×${it.height}" },
-            5, result.panels.size,
+    fun `mergeDiagonalSpanningPanels never joins a full-width banner with the column below it`() {
+        // A full-width banner over a column panel matches the same-left/edge-diff shape but must
+        // never merge: the TOP must be a column panel (≤ 65% width). This pins the guard that
+        // replaced the previous widthCap/topIsBanner checks.
+        val pageW = 1000
+        val pageH = 1400
+        val bboxes = listOf(
+            PanelDetector.Bbox(minX = 20, minY = 20, maxX = 910, maxY = 220),   // banner top (89%)
+            PanelDetector.Bbox(minX = 20, minY = 240, maxX = 450, maxY = 700),  // column below
         )
-        val tallLeft = result.panels.firstOrNull { p ->
-            p.x + p.width / 2 < W / 2 && p.height >= H * 0.65
-        }
+
+        val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
+
+        assertEquals(
+            "banner + column must stay separate; got $merged",
+            bboxes.toSet(), merged.toSet(),
+        )
+    }
+
+    @Test
+    fun `mergeDiagonalSpanningPanels full-width band threshold boundary`() {
+        // The bot must span ≥ 85% of the page width to count as an unsplit band. Pin both sides
+        // of the boundary so a future threshold tweak is a conscious decision: at 84% no merge,
+        // at 86% merge + remainder.
+        val pageW = 1000
+        val pageH = 1400
+        val top = PanelDetector.Bbox(minX = 10, minY = 20, maxX = 460, maxY = 350)
+        val botBelow = PanelDetector.Bbox(minX = 10, minY = 370, maxX = 849, maxY = 700)   // 84.0%
+        val botAbove = PanelDetector.Bbox(minX = 10, minY = 370, maxX = 869, maxY = 700)   // 86.0%
+
+        val refused = detector.mergeDiagonalSpanningPanels(listOf(top, botBelow), pageW, pageH)
+        assertEquals("84%-wide bot must not merge; got $refused", setOf(top, botBelow), refused.toSet())
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, botAbove), pageW, pageH)
+        assertEquals("86%-wide bot must merge into tall + remainder; got $merged", 2, merged.size)
         assertTrue(
-            "merged left panel must span ≥ 65% of page height; panels=${result.panels}",
-            tallLeft != null,
+            "tall panel (10,20)-(460,700) expected; got $merged",
+            merged.any { it.minX == 10 && it.minY == 20 && it.maxX == 460 && it.maxY == 700 },
+        )
+        assertTrue(
+            "remainder (461,370)-(869,700) expected; got $merged",
+            merged.any { it.minX == 461 && it.minY == 370 && it.maxX == 869 && it.maxY == 700 },
         )
     }
 

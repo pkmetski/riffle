@@ -236,8 +236,17 @@ class JsonPanelStore @Inject constructor(
          *      bbox into ~50%-wide halves whose sub-banner pieces then failed the ≥ 50% width
          *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
          *      may still hold a merged bbox if detection ran on a downscaled image.
+         * v27: Diagonal-boundary repair chain reworked (issues #783, #784, #786). Both detection
+         *      paths now run repairDiagonalTwoColumnRows and the new
+         *      repairDiagonalAdjacentColumnPairs (widens same-row pairs cut at a diagonal
+         *      boundary) BEFORE mergeDiagonalSpanningPanels, and the merge gate now requires a
+         *      column-panel top (≤ 65% width) over an UNSPLIT full-width band (≥ 85% width),
+         *      always emitting the band's right portion as its own panel. v26 caches can hold:
+         *      a false tall merge of two stacked column panels plus a sliver remainder (#786),
+         *      a diagonal-boundary panel cut at the gutter waist (#783), or a tall character
+         *      split at a row boundary with the row-2 band unsplit (#784).
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 26
+        internal const val CURRENT_SCHEMA_VERSION: Int = 27
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
