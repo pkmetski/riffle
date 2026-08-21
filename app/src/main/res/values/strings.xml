@@ -264,7 +264,7 @@
     <string name="ui_show_auto_scroll">Show Auto-Scroll</string>
     <string name="ui_show_cadence">Show Cadence</string>
     <string name="ui_shown_on_every_device_in_the_household">Shown on every device in the household.</string>
-    <string name="ui_sign_in_to_an_audiobookshelf_server_to_see_device_files_the_sync_namespace_is_yo">Sign in to an Audiobookshelf server to see device files (the sync namespace is your ABS user id).</string>
+    <string name="ui_sign_in_to_an_audiobookshelf_server_to_see_device_files_the_sync_namespace_is_yo">Sign in to a Komga server to see device annotation files.</string>
     <string name="ui_skip_guided_panels_on_this_page">Skip guided panels on this page</string>
     <string name="ui_sleep_timer">Sleep timer</string>
     <string name="ui_sleep_timer_3">Sleep Timer</string>
@@ -361,7 +361,7 @@
     <string name="ui_auto_scroll_description">Auto-Scroll creeps the page upward at a set pace so you can read hands-free. Available in scrolling reading modes. Start and stop from the reader top bar; nudge speed with the volume keys while running.</string>
     <string name="ui_cadence_description">Cadence highlights one sentence at a time and advances on its own at a set pace, so you can read hands-free. Start and stop from the reader top bar; nudge speed with the volume keys while running.</string>
     <string name="ui_cadence_webview_unavailable">Cadence isn\'t available on this device\'s WebView. Update the Android System WebView from the Play Store to enable it.</string>
-    <string name="ui_annotations_webdav_maintenance_description">Each device using this account writes its own annotation file per book to WebDAV. The list below shows every device whose files are currently on the server.</string>
+    <string name="ui_annotations_webdav_maintenance_description">Each device writes its own annotation file per book to WebDAV. The list below shows every device whose files are currently on the server.</string>
     <string name="ui_forget_device_title">Forget &quot;%1$s&quot;?</string>
     <string name="ui_forget_device_explanation">Removes this device\'s files from the WebDAV server. Other devices still have copies of these annotations in their own files, so the records are preserved.</string>
     <string name="ui_forget_device_warning">Edge case: if this device went offline before any other device synced its last edits, those edits exist only on its files and will be lost.</string>
@@ -534,8 +534,8 @@
     <string name="ui_webdav_auth_failed_prescription">Authentication failed — your credentials may have expired. Re-enter them below; sync will retry once saved.</string>
     <string name="ui_webdav_tls_failed_prescription">TLS error — the server\'s certificate could not be verified. Update the URL below; sync will retry once saved.</string>
     <string name="ui_webdav_add_source_help_text">Sync highlights, notes, and bookmarks between your devices via a WebDAV server. Available for Komga sources.</string>
-    <string name="ui_webdav_annotation_sync_for_komga">WebDAV annotation sync for Komga</string>
-    <string name="ui_webdav_not_configured_status">Not configured · available for Komga sources</string>
+    <string name="ui_webdav_annotation_sync_for_komga">WebDAV sync</string>
+    <string name="ui_webdav_not_configured_status">Not configured · Komga annotations, web-source reading progress</string>
     <string name="ui_webdav_url">WebDAV URL</string>
     <string name="ui_configure_webdav">Configure WebDAV</string>
     <string name="ui_insecure_connection">Insecure connection</string>

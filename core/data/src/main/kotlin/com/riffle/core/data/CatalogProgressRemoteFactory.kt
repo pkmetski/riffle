@@ -5,8 +5,11 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.common.Clock
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.ProgressRemote
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.ProgressRemoteFactory
 import javax.inject.Inject
 
@@ -23,31 +26,72 @@ import javax.inject.Inject
  * returns null and the remote defers (leaves the row dirty) rather than writing a raw CFI. Peers
  * with [com.riffle.core.catalog.CfiDialect.PAGE_NUMBER] or
  * [com.riffle.core.catalog.CfiDialect.READIUM_NATIVE] bypass the translator entirely.
+ *
+ * ADR 0063: when a source has no [ProgressPeerCapability] but its [SourceType.isWebSource] is
+ * true and WebDAV is configured, a [com.riffle.core.sources.webdav.WebDavProgressRemote] is
+ * returned instead. The namespace is just the source type slug (e.g. `chitanka`) — one file per
+ * book, last-update-wins. Gramofonche audiobooks are served under the CHITANKA source type — the
+ * audio branch also checks isWebSource and uses a Double adapter
+ * ([WebDavProgressRemoteFactory.createForAudio]) backed by the same file.
  */
 class CatalogProgressRemoteFactory @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemDao: LibraryItemDao,
     private val translatorFactory: EbookCfiTranslatorFactory,
     private val clock: Clock,
+    private val annotationSyncConfigStore: AnnotationSyncConfigStore,
+    private val webDavProgressRemoteFactory: WebDavProgressRemoteFactory,
+    private val sourceRepository: SourceRepository,
 ) : ProgressRemoteFactory {
 
     override suspend fun ebook(sourceId: String, itemId: String): ProgressRemote<String>? {
-        val peer = catalogRegistry.forSourceId(sourceId) as? ProgressPeerCapability ?: return null
-        return CatalogEbookProgressRemote(
-            peer = peer,
+        val peer = catalogRegistry.forSourceId(sourceId) as? ProgressPeerCapability
+        if (peer != null) {
+            return CatalogEbookProgressRemote(
+                peer = peer,
+                itemId = itemId,
+                translator = translatorFactory.forItem(sourceId, itemId),
+                readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
+                clock = clock,
+            )
+        }
+        // ADR 0063: Web Sources have no ProgressPeerCapability; fall back to WebDAV file sync.
+        val source = sourceRepository.getById(sourceId) ?: return null
+        if (!source.type.isWebSource) return null
+        val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
+        val ns = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase())
+        return webDavProgressRemoteFactory.create(
+            config = webDavConfig,
+            namespace = ns,
             itemId = itemId,
-            translator = translatorFactory.forItem(sourceId, itemId),
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
+            finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
             clock = clock,
         )
     }
 
     override suspend fun audio(sourceId: String, itemId: String): ProgressRemote<Double>? {
-        val peer = catalogRegistry.forSourceId(sourceId) as? AudiobookProgressPeerCapability ?: return null
-        return CatalogAudioProgressRemote(
-            peer = peer,
+        val peer = catalogRegistry.forSourceId(sourceId) as? AudiobookProgressPeerCapability
+        if (peer != null) {
+            return CatalogAudioProgressRemote(
+                peer = peer,
+                itemId = itemId,
+                duration = { libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0 },
+                clock = clock,
+            )
+        }
+        // ADR 0063: Chitanka serves audiobooks via gramofonche.chitanka.info under the same source
+        // type. These have no AudiobookProgressPeerCapability; sync via WebDAV file, same namespace
+        // as ebook, position stored as a decimal string (seconds).
+        val source = sourceRepository.getById(sourceId) ?: return null
+        if (!source.type.isWebSource) return null
+        val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
+        return webDavProgressRemoteFactory.createForAudio(
+            config = webDavConfig,
+            namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase()),
             itemId = itemId,
-            duration = { libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0 },
+            readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
+            finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
             clock = clock,
         )
     }

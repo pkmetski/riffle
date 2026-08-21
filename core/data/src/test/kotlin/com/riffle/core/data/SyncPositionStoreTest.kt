@@ -53,6 +53,8 @@ class SyncPositionStoreTest {
             rows.values.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
         override suspend fun sourcesWithDirtyRows() =
             rows.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
+        override suspend fun allForSource(sourceId: String) =
+            rows.values.filter { it.sourceId == sourceId }
     }
 
     // --- snapshot ---
@@ -207,6 +209,8 @@ class SyncPositionStoreTest {
             rows.values.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
         override suspend fun sourcesWithDirtyRows() =
             rows.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
+        override suspend fun allForSource(sourceId: String) =
+            rows.values.filter { it.sourceId == sourceId }
     }
 
     @Test

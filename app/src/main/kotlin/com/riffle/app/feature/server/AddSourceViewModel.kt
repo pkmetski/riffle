@@ -266,6 +266,7 @@ class AddSourceViewModel @Inject constructor(
                 TestConnectionResult.Success -> {
                     webdavConfigStore.save(config)
                     sweepEnqueuer.enqueue()
+                    com.riffle.app.sync.ProgressSyncScheduler.sweepNow(context)
                     _navigateHome.send(Unit)
                 }
                 TestConnectionResult.AuthFailed ->

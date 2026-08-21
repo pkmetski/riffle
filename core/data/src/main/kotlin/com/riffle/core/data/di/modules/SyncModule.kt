@@ -27,6 +27,7 @@ import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
+import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.core.sync.SyncSourceResolver
 import dagger.Binds
 import dagger.Module
@@ -101,6 +102,8 @@ abstract class SyncModule {
             bookmarkDao: com.riffle.core.database.AudiobookBookmarkDao,
             bookmarkReconciler: com.riffle.core.sync.AudiobookBookmarkReconciler,
             uiProgressSink: com.riffle.core.data.LibraryItemUiProgressSink,
+            remoteIndex: RemoteProgressIndex,
+            postSweepMaterializer: com.riffle.core.data.WebSourceLibraryItemMaterializer,
         ): ProgressSweep =
             ProgressSweep(
                 ledger,
@@ -118,6 +121,8 @@ abstract class SyncModule {
                 BookmarkReconcile { sourceId, itemId ->
                     bookmarkReconciler.reconcile(sourceId, itemId)
                 },
+                remoteIndex,
+                postSweepMaterializer,
             )
 
         @Provides
@@ -170,6 +175,28 @@ abstract class SyncModule {
             dispatchers: DispatcherProvider,
         ): com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory =
             com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory(httpClient, dispatchers)
+
+        @Provides
+        @Singleton
+        fun provideWebDavProgressRemoteFactory(
+            httpClient: io.ktor.client.HttpClient,
+            dispatchers: DispatcherProvider,
+        ): com.riffle.core.sources.webdav.WebDavProgressRemoteFactory =
+            com.riffle.core.sources.webdav.WebDavProgressRemoteFactory(httpClient, dispatchers)
+
+        @Provides
+        @Singleton
+        fun provideWebDavProgressEnumerator(
+            httpClient: io.ktor.client.HttpClient,
+            dispatchers: DispatcherProvider,
+        ): com.riffle.core.sources.webdav.WebDavProgressEnumerator =
+            com.riffle.core.sources.webdav.WebDavProgressEnumerator(httpClient, dispatchers)
+
+        @Provides
+        @Singleton
+        fun provideRemoteProgressIndex(
+            impl: com.riffle.core.data.CatalogRemoteProgressIndex,
+        ): RemoteProgressIndex = impl
 
         @Provides
         @Singleton

@@ -92,11 +92,27 @@ class ProgressReconciler<P>(
                 if (applied) ReconcileOutcome.LocalPushed(stamp) else ReconcileOutcome.Superseded
             }
 
+            // Re-sync: a CLEAN row (no pending local edit) whose server file is MISSING (404 →
+            // lastUpdate=0). Happens when a previously-pushed file is deleted from WebDAV, or
+            // when the first successful push stamp was later clobbered by a stale confirmInSync
+            // call. The guard `lastSyncedAt > 0` excludes truly never-opened books (both stamps
+            // are 0) so we don't create ghost files for books that were never read on this device.
+            !localDirty && read.lastUpdate == 0L && snap.lastSyncedAt > 0L && snap.position != null -> {
+                val stamp = remote.patch(snap.position) ?: return ReconcileOutcome.PushFailed
+                val applied = store.confirmPushed(
+                    sourceId, itemId, serverStamp = stamp, ifLocalUpdatedAt = snap.localUpdatedAt,
+                )
+                if (applied) ReconcileOutcome.LocalPushed(stamp) else ReconcileOutcome.Superseded
+            }
+
             // Nothing to do: clean row and server hasn't moved (in sync), or dirty row with
-            // stamps equal to the server's (an idempotent re-sync). Clear the dirty marker so
-            // the sweep doesn't re-pick it.
+            // stamps equal to the server's (an idempotent re-sync). Only call confirmInSync when
+            // the row IS dirty — for clean rows (!localDirty) the call would SET
+            // lastSyncedAt = localUpdatedAt, which can REDUCE a higher post-push stamp S to T1
+            // (the local-save time), corrupting the clean state and preventing re-sync after
+            // server-file deletion.
             else -> {
-                store.confirmInSync(sourceId, itemId, ifLocalUpdatedAt = snap.localUpdatedAt)
+                if (localDirty) store.confirmInSync(sourceId, itemId, ifLocalUpdatedAt = snap.localUpdatedAt)
                 ReconcileOutcome.InSync
             }
         }

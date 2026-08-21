@@ -214,6 +214,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             logger = logger,
             playlistsRepository = playlistsRepository,
             contentCacheAccessStore = NoopContentCacheAccessStore,
+            progressSweep = io.mockk.mockk(relaxed = true),
         )
     }
 

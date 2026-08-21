@@ -48,4 +48,8 @@ interface AudiobookPositionDao {
     /** All distinct sourceIds that have at least one dirty row. */
     @Query("SELECT DISTINCT sourceId FROM audiobook_positions WHERE localUpdatedAt > lastSyncedAt")
     suspend fun sourcesWithDirtyRows(): List<String>
+
+    /** All rows for a source — used by RemoteProgressIndex to reconcile clean rows against WebDAV. */
+    @Query("SELECT * FROM audiobook_positions WHERE sourceId = :sourceId")
+    suspend fun allForSource(sourceId: String): List<AudiobookPositionEntity>
 }
