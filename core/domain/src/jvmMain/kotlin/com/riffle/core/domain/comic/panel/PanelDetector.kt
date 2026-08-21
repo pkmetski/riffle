@@ -321,17 +321,19 @@ class PanelDetector(
         // genuine inter-panel gutter is connected to the page border (~100% accessible), while a
         // closed panel interior scores 0% — so the 30% threshold distinguishes them reliably.
         val gutter = floodFillGutter(cropped)
-        val bboxesInCropped = repairDiagonalTwoColumnRows(
-            repairOneSidedRowJunctions(
-                rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) },
+        val bboxesInCropped = expandDiagonalBboxOverlaps(
+            repairDiagonalTwoColumnRows(
+                repairOneSidedRowJunctions(
+                    rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) },
+                    cropped,
+                    downscaledWidth,
+                    downscaledHeight,
+                ),
                 cropped,
+                gutter,
                 downscaledWidth,
                 downscaledHeight,
             ),
-            cropped,
-            gutter,
-            downscaledWidth,
-            downscaledHeight,
         )
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
