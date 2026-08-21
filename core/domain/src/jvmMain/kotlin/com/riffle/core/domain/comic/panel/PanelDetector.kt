@@ -323,9 +323,13 @@ class PanelDetector(
         val gutter = floodFillGutter(cropped)
         val bboxesInCropped = expandDiagonalBboxOverlaps(
             repairDiagonalTwoColumnRows(
-                repairOneSidedRowJunctions(
-                    rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) },
-                    cropped,
+                mergeDiagonalSpanningPanels(
+                    repairOneSidedRowJunctions(
+                        rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) },
+                        cropped,
+                        downscaledWidth,
+                        downscaledHeight,
+                    ),
                     downscaledWidth,
                     downscaledHeight,
                 ),
