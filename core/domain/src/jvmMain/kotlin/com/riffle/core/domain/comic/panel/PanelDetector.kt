@@ -224,22 +224,14 @@ class PanelDetector(
         val gutter = floodFillGutter(cropped)
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
-        val split = repairDiagonalTwoColumnRows(
-            mergeDiagonalSpanningPanels(
-                repairOneSidedRowJunctions(
-                    splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight),
-                    cropped, downscaledWidth, downscaledHeight,
-                ),
-                downscaledWidth, downscaledHeight,
-            ),
-            cropped,
-            gutter,
-            downscaledWidth,
-            downscaledHeight,
-        )
+        val afterSplit = splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight)
+        val afterJunc = repairOneSidedRowJunctions(afterSplit, cropped, downscaledWidth, downscaledHeight)
+        val afterMerge = mergeDiagonalSpanningPanels(afterJunc, downscaledWidth, downscaledHeight)
+        val split = repairDiagonalTwoColumnRows(afterMerge, cropped, gutter, downscaledWidth, downscaledHeight)
+        val afterExpand = expandDiagonalBboxOverlaps(split)
 
         val result = sanityCheck(
-            candidates = expandDiagonalBboxOverlaps(split),
+            candidates = afterExpand,
             cropped = cropped,
             originalWidth = originalWidth,
             originalHeight = originalHeight,
@@ -321,24 +313,11 @@ class PanelDetector(
         // genuine inter-panel gutter is connected to the page border (~100% accessible), while a
         // closed panel interior scores 0% — so the 30% threshold distinguishes them reliably.
         val gutter = floodFillGutter(cropped)
-        val bboxesInCropped = expandDiagonalBboxOverlaps(
-            repairDiagonalTwoColumnRows(
-                mergeDiagonalSpanningPanels(
-                    repairOneSidedRowJunctions(
-                        rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) },
-                        cropped,
-                        downscaledWidth,
-                        downscaledHeight,
-                    ),
-                    downscaledWidth,
-                    downscaledHeight,
-                ),
-                cropped,
-                gutter,
-                downscaledWidth,
-                downscaledHeight,
-            ),
-        )
+        val projAfterSplit = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
+        val projAfterJunc = repairOneSidedRowJunctions(projAfterSplit, cropped, downscaledWidth, downscaledHeight)
+        val projAfterMerge = mergeDiagonalSpanningPanels(projAfterJunc, downscaledWidth, downscaledHeight)
+        val projAfterRepair = repairDiagonalTwoColumnRows(projAfterMerge, cropped, gutter, downscaledWidth, downscaledHeight)
+        val bboxesInCropped = expandDiagonalBboxOverlaps(projAfterRepair)
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
@@ -565,7 +544,14 @@ class PanelDetector(
                 // diagonal-slash panel, and merging it with the narrow column panel above/below
                 // would produce a false wide bbox.
                 val widthCap = downscaledWidth * 9 / 10
-                if (sameLeft && edgeDiff >= minEdgeDiff && widerMaxX > downscaledWidth / 2 && widerMaxX <= widthCap) {
+                // Guard: if the TOP panel is the wider one and its right edge extends past 80 % of
+                // page width, it is almost certainly a horizontal splash or title banner — NOT the
+                // top half of a diagonal left panel.  A real row1-left diagonal panel only reaches
+                // 40–60 % of page width; a banner reaches 89–90 %.  Merging a banner with the
+                // narrower left panel below swallows the banner's full right extent.
+                val topIsWider = top.maxX > bot.maxX
+                val topIsBanner = topIsWider && top.maxX > downscaledWidth * 4 / 5
+                if (sameLeft && edgeDiff >= minEdgeDiff && widerMaxX > downscaledWidth / 2 && widerMaxX <= widthCap && !topIsBanner) {
                     bestJ = j
                     break
                 }
@@ -580,14 +566,22 @@ class PanelDetector(
             // into the adjacent right-column panel's territory — the wider panel's diagonal
             // boundary means its extra width in that row overlaps the right column, which would
             // trigger the overlap sanity check and cause a Fallback result.
+            val mergedMaxX = minOf(top.maxX, bot.maxX)
             result.add(
                 Bbox(
                     minOf(top.minX, bot.minX),
                     top.minY,
-                    minOf(top.maxX, bot.maxX),
+                    mergedMaxX,
                     bot.maxY,
                 ),
             )
+            // When projection lumps two side-by-side panels in the bot row into a single
+            // full-width bbox (because their gutter was below the detection threshold), the merge
+            // above only keeps the left portion up to mergedMaxX.  Recover the right portion so it
+            // is not silently lost.
+            if (bot.maxX > top.maxX && bot.maxX - mergedMaxX > minEdgeDiff) {
+                result.add(Bbox(mergedMaxX + 1, bot.minY, bot.maxX, bot.maxY))
+            }
         }
         return result
     }
