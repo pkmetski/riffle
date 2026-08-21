@@ -103,6 +103,7 @@ abstract class SyncModule {
             bookmarkReconciler: com.riffle.core.sync.AudiobookBookmarkReconciler,
             uiProgressSink: com.riffle.core.data.LibraryItemUiProgressSink,
             remoteIndex: RemoteProgressIndex,
+            postSweepMaterializer: com.riffle.core.data.WebSourceLibraryItemMaterializer,
         ): ProgressSweep =
             ProgressSweep(
                 ledger,
@@ -121,6 +122,7 @@ abstract class SyncModule {
                     bookmarkReconciler.reconcile(sourceId, itemId)
                 },
                 remoteIndex,
+                postSweepMaterializer,
             )
 
         @Provides
