@@ -168,9 +168,12 @@ class CatalogRemoteProgressIndexTest {
         assertEquals(listOf("book/12073-title"), idx.remoteEbookItems(chitankaSourceId))
     }
 
-    @Test fun `remoteEbookItems skips safe IDs with no local row and no library item`() = runTest {
+    @Test fun `remoteEbookItems reverses encoding for safe IDs with no local row or library item`() = runTest {
+        // No position row, no library item — book never opened on this device.
+        // The reversal book.12073-title → book/12073-title must be returned so the reconciler
+        // can upsert a position row without requiring the library item to exist first.
         val idx = makeIndex(ebookSafeIds = listOf("book.12073-title"), localEbookIds = emptyList())
-        assertTrue(idx.remoteEbookItems(chitankaSourceId).isEmpty())
+        assertEquals(listOf("book/12073-title"), idx.remoteEbookItems(chitankaSourceId))
     }
 
     @Test fun `remoteEbookItems returns empty when WebDAV is not configured`() = runTest {
@@ -217,8 +220,8 @@ class CatalogRemoteProgressIndexTest {
         assertEquals(listOf("audio/1"), idx.remoteAudioItems(chitankaSourceId))
     }
 
-    @Test fun `remoteAudioItems skips safe IDs with no local audio row and no library item`() = runTest {
+    @Test fun `remoteAudioItems reverses encoding for safe IDs with no local row or library item`() = runTest {
         val idx = makeIndex(audioSafeIds = listOf("audio.1"), localAudioIds = emptyList())
-        assertTrue(idx.remoteAudioItems(chitankaSourceId).isEmpty())
+        assertEquals(listOf("audio/1"), idx.remoteAudioItems(chitankaSourceId))
     }
 }

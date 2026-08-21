@@ -48,8 +48,6 @@ class CatalogRemoteProgressIndex @Inject constructor(
         val (config, namespace) = configAndNamespace(sourceId) ?: return emptyList()
         val enumerated = enumerator.enumerate(config, namespace)
         val positionRows = readingPositionDao.allForSource(sourceId)
-        // Resolve against ALL known library items, not just position rows, so progress is pulled on
-        // a new device that has never opened the book (no position row yet).
         val libraryIds = libraryItemDao.observeBySource(sourceId).first().map { it.id }
         val allKnownIds = (positionRows.map { it.itemId } + libraryIds).distinct()
         val fromServer = resolveItemIds(enumerated.ebookSafeIds, allKnownIds)
@@ -81,11 +79,19 @@ class CatalogRemoteProgressIndex @Inject constructor(
     }
 
     /**
-     * For each safe itemId (slash→dot encoded) found on the server, find the matching local itemId
-     * by computing `localId.replace("/", ".")` and comparing. Returns only items that have a
-     * local row — items only on the server (never opened locally) are skipped because the encoding
-     * is not safely reversible for arbitrary source types.
+     * For each safe itemId (slash→dot encoded) found on the server, find the matching local itemId.
+     *
+     * Primary: join against [localItemIds] via `localId.replace("/", ".")`. This handles any
+     * source whose IDs contain dots — the join is unambiguous because the original ID is known.
+     *
+     * Fallback: if no local match exists (book never opened on this device), reverse the encoding
+     * directly with `safeId.replace(".", "/")`. Web-source item IDs are URL path segments and
+     * never contain literal dots, so the reversal is unambiguous for all current web sources. The
+     * resulting item ID is used to upsert a position-only row; the library item is created lazily
+     * when the user first taps the book.
      */
     private fun resolveItemIds(safeIds: List<String>, localItemIds: List<String>): List<String> =
-        safeIds.mapNotNull { safeId -> localItemIds.find { it.replace("/", ".") == safeId } }
+        safeIds.map { safeId ->
+            localItemIds.find { it.replace("/", ".") == safeId } ?: safeId.replace(".", "/")
+        }
 }

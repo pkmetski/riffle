@@ -251,6 +251,7 @@ class SleepTimerTest {
                 override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
             },
             contentCacheAccessStore = NoopContentCacheAccessStore,
+            progressSweep = io.mockk.mockk(relaxed = true),
         )
     }
 
