@@ -101,6 +101,8 @@ object ServerReferenceLint {
         "app/src/main/kotlin/com/riffle/app/feature/navigation/NavigationDrawerViewModel.kt",
         "app/src/main/kotlin/com/riffle/app/feature/navigation/NavigationDrawerComposable.kt",
         "app/src/main/kotlin/com/riffle/app/feature/server/AddSourceViewModel.kt",
+        // Resource-ID resolver for add-source copy maps ServerType → string resource per ABS variant.
+        "app/src/main/kotlin/com/riffle/app/ui/source/WebSourceUi.kt",
         "app/src/main/kotlin/com/riffle/app/feature/annotations/AnnotationsListViewModel.kt",
     )
 
