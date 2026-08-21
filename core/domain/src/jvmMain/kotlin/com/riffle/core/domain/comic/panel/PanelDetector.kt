@@ -576,11 +576,15 @@ class PanelDetector(
             }
             val bot = bboxes[bestJ]
             consumed[bestJ] = true
+            // Use the NARROWER right edge (min of the two) so the merged bbox does not extend
+            // into the adjacent right-column panel's territory — the wider panel's diagonal
+            // boundary means its extra width in that row overlaps the right column, which would
+            // trigger the overlap sanity check and cause a Fallback result.
             result.add(
                 Bbox(
                     minOf(top.minX, bot.minX),
                     top.minY,
-                    maxOf(top.maxX, bot.maxX),
+                    minOf(top.maxX, bot.maxX),
                     bot.maxY,
                 ),
             )

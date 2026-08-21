@@ -689,11 +689,60 @@ class PanelDetectorTest {
                 "got $merged",
             3, merged.size,
         )
+        // The merged panel uses min(maxX) so it doesn't extend into the adjacent right column's
+        // territory (right edge = min(592, 365) = 365).
         val tallLeft = merged.firstOrNull { b ->
-            b.minX <= 35 && b.minY <= 30 && b.maxX >= 550 && b.maxY >= 700
+            b.minX <= 35 && b.minY <= 30 && b.maxX in 350..400 && b.maxY >= 700
         }
         assertTrue(
-            "merged panel must span from row1-top to row2-bottom (y≈24-727, x≈30-592); got $merged",
+            "merged panel must span from row1-top to row2-bottom (y≈24-727), right edge at min(592,365)=365; got $merged",
+            tallLeft != null,
+        )
+    }
+
+    @Test
+    fun `projection path merges diagonal-spanning left panels with different right edges`() {
+        // Regression for issue #784 (projection path): the real page goes through gridByProjection
+        // (not the CC path). Both expandDiagonalBboxOverlaps and mergeDiagonalSpanningPanels must
+        // be wired into gridByProjection's repair chain to take effect on device.
+        //
+        // This fixture is synthetic and designed so that gridByProjection SUCCEEDS (clean binary
+        // gutters → clear row and column bands → not all-suspicious), exercising the projection
+        // path's repair chain instead of the CC path. The fixture-based tests for #783/#784 happen
+        // to use the CC path (binarized masks make all rows suspicious) and cannot catch this gap.
+        //
+        // Layout (1000×1000):
+        //  Row1 (y=10–370): wide left (x=0–580) | right (x=600–999)   — right edge 580
+        //  Gutter (y=371–389)
+        //  Row2 (y=390–730): narrow left (x=0–340) | right (x=360–999) — right edge 340
+        //  Gutter (y=731–749)
+        //  Row3 (y=750–990): normal 2-column split                      — for row count ≥ 2
+        val W = 1000
+        val H = 1000
+        val grid = fixture(W, H) { canvas ->
+            canvas.fill(LIGHT)
+            canvas.rect(x = 0,   y = 10,  w = 581, h = 361, color = DARK)  // row1-left, wide
+            canvas.rect(x = 600, y = 10,  w = 400, h = 361, color = DARK)  // row1-right
+            canvas.rect(x = 0,   y = 390, w = 341, h = 341, color = DARK)  // row2-left, narrow
+            canvas.rect(x = 360, y = 390, w = 640, h = 341, color = DARK)  // row2-right
+            canvas.rect(x = 0,   y = 750, w = 481, h = 241, color = DARK)  // row3-left
+            canvas.rect(x = 500, y = 750, w = 500, h = 241, color = DARK)  // row3-right
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "row1-left (right edge 580) + row2-left (right edge 340) must merge via projection path repair; " +
+                "expected 5 panels (1 merged tall-left + 2 row-rights + 2 row3), got ${result.panels.size}: " +
+                result.panels.map { "(${it.x},${it.y})${it.width}×${it.height}" },
+            5, result.panels.size,
+        )
+        val tallLeft = result.panels.firstOrNull { p ->
+            p.x + p.width / 2 < W / 2 && p.height >= H * 0.65
+        }
+        assertTrue(
+            "merged left panel must span ≥ 65% of page height; panels=${result.panels}",
             tallLeft != null,
         )
     }
