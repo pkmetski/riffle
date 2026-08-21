@@ -5,6 +5,8 @@ import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadingPositionDao
@@ -30,6 +32,7 @@ class WebSourceLibraryItemMaterializerTest {
     private val chitankaSourceId = "chitanka-1"
     private val absSourceId = "abs-1"
     private val itemId = "book/12094-batman"
+    private val audioItemId = "prikazki/bez-dom"
 
     private val chitankaSource = Source(
         id = chitankaSourceId,
@@ -77,6 +80,13 @@ class WebSourceLibraryItemMaterializerTest {
         }
     }
 
+    private fun audioPositionDao(vararg ids: String): AudiobookPositionDao {
+        val rows = ids.map { AudiobookPositionEntity(chitankaSourceId, it, 894.0, 100L, 100L) }
+        return object : AudiobookPositionDao by ThrowingAudiobookPositionDao {
+            override suspend fun allForSource(s: String) = rows
+        }
+    }
+
     private fun libraryItemDao(vararg existingIds: String): LibraryItemDao {
         val existing = existingIds.map {
             LibraryItemEntity(chitankaSourceId, it, "books", it, "", null, 0f, addedAt = 0L)
@@ -86,26 +96,33 @@ class WebSourceLibraryItemMaterializerTest {
         return dao
     }
 
-    private fun fakeRemoteFactory(progress: Float?): ProgressRemoteFactory {
-        val remote = if (progress != null) {
+    private fun fakeRemoteFactory(ebookProgress: Float? = 0.3f, audioProgress: Float? = 0.3f): ProgressRemoteFactory {
+        val ebookRemote = if (ebookProgress != null) {
             mockk<ProgressRemote<String>>(relaxed = true).also {
-                coEvery { it.get() } returns RemoteProgress("cfi", 100L, progress, null)
+                coEvery { it.get() } returns RemoteProgress("cfi", 100L, ebookProgress, null)
+            }
+        } else null
+        val audioRemote = if (audioProgress != null) {
+            mockk<ProgressRemote<Double>>(relaxed = true).also {
+                coEvery { it.get() } returns RemoteProgress(894.0, 100L, audioProgress, null)
             }
         } else null
         return mockk<ProgressRemoteFactory>(relaxed = true).also {
-            coEvery { it.ebook(any(), any()) } returns remote
+            coEvery { it.ebook(any(), any()) } returns ebookRemote
+            coEvery { it.audio(any(), any()) } returns audioRemote
         }
     }
 
     private fun makeMaterializer(
         readingPositionDao: ReadingPositionDao = positionDao(itemId),
+        audiobookPositionDao: AudiobookPositionDao = audioPositionDao(),
         libraryItemDao: LibraryItemDao = libraryItemDao(),
         sourceRepository: SourceRepository = sourceRepo(chitankaSource),
         catalogRegistry: CatalogRegistry = mockk(relaxed = true),
-        remoteFactory: ProgressRemoteFactory = fakeRemoteFactory(0.3f),
+        remoteFactory: ProgressRemoteFactory = fakeRemoteFactory(),
         upserter: WebSourceLibraryItemUpserter = mockk(relaxed = true),
     ) = WebSourceLibraryItemMaterializer(
-        readingPositionDao, libraryItemDao, sourceRepository, catalogRegistry, remoteFactory, upserter,
+        readingPositionDao, audiobookPositionDao, libraryItemDao, sourceRepository, catalogRegistry, remoteFactory, upserter,
     )
 
     @Test
@@ -185,13 +202,45 @@ class WebSourceLibraryItemMaterializerTest {
         makeMaterializer(
             libraryItemDao = dao,
             catalogRegistry = registry,
-            remoteFactory = fakeRemoteFactory(null),
+            remoteFactory = fakeRemoteFactory(ebookProgress = null, audioProgress = null),
             upserter = upserter,
         ).run(chitankaSourceId)
 
         // upsert still happened; readingProgress update was skipped
         coVerify { upserter.upsert(chitankaSourceId, fakeCatalogItem) }
         coVerify(exactly = 0) { dao.updateReadingProgress(any(), any(), any()) }
+    }
+
+    @Test
+    fun `run creates library item for missing Gramofonche audio item`() = runTest {
+        val audioCatalogItem = CatalogItem(
+            id = audioItemId,
+            rootId = "audiobooks",
+            title = "Без дом",
+            author = "Author",
+            coverUrl = null,
+            ebookFormat = BookFormat.Audiobook,
+            hasAudio = true,
+            language = "bg",
+        )
+        val dao = libraryItemDao()  // empty
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.getItem(audioItemId) } returns audioCatalogItem
+        val registry = mockk<CatalogRegistry>(relaxed = true)
+        coEvery { registry.forSourceId(chitankaSourceId) } returns catalog
+        val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
+
+        makeMaterializer(
+            readingPositionDao = positionDao(),         // no ebook positions
+            audiobookPositionDao = audioPositionDao(audioItemId),
+            libraryItemDao = dao,
+            catalogRegistry = registry,
+            upserter = upserter,
+        ).run(chitankaSourceId)
+
+        coVerify { catalog.getItem(audioItemId) }
+        coVerify { upserter.upsert(chitankaSourceId, audioCatalogItem) }
+        coVerify { dao.updateReadingProgress(chitankaSourceId, audioItemId, 0.3f) }
     }
 }
 
@@ -205,4 +254,15 @@ private object ThrowingReadingPositionDao : ReadingPositionDao {
     override suspend fun dirtyForSource(s: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
     override suspend fun sourcesWithDirtyRows() = emptyList<String>()
     override suspend fun allForSource(s: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
+}
+
+private object ThrowingAudiobookPositionDao : AudiobookPositionDao {
+    override suspend fun upsert(e: AudiobookPositionEntity) = Unit
+    override suspend fun getByItemId(s: String, i: String) = null
+    override suspend fun acceptServerIfUnchanged(s: String, i: String, p: Double, ss: Long, ila: Long) = 0
+    override suspend fun confirmPushedIfUnchanged(s: String, i: String, ss: Long, ila: Long) = 0
+    override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
+    override suspend fun dirtyForSource(s: String) = emptyList<AudiobookPositionEntity>()
+    override suspend fun sourcesWithDirtyRows() = emptyList<String>()
+    override suspend fun allForSource(s: String) = emptyList<AudiobookPositionEntity>()
 }
