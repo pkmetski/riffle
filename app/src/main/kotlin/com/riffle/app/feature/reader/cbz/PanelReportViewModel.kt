@@ -43,7 +43,16 @@ class PanelReportViewModel(
     val state: StateFlow<PanelReportUiState> = _state.asStateFlow()
 
     fun setFailureType(type: PanelDetectionFailureType) {
-        _state.update { it.copy(failureType = type, error = null, drawnPanels = emptyList(), drawnBoundaries = emptyList(), orderedPanelIndices = emptyList()) }
+        _state.update { it.copy(
+            failureType = type,
+            error = null,
+            tappedX = null,
+            tappedY = null,
+            tappedPanelIndex = null,
+            drawnPanels = emptyList(),
+            drawnBoundaries = emptyList(),
+            orderedPanelIndices = emptyList(),
+        ) }
     }
 
     fun addOrRemoveOrderedPanel(panelIndex: Int) {

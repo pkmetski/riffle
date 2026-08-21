@@ -209,6 +209,33 @@ class PanelReportViewModelTest {
     }
 
     @Test
+    fun `CutPanelCutOff supports both tap-selection and drawn boundary rectangle`() = runTest {
+        val region = PanelRegion(x = 0, y = 0, width = 200, height = 200)
+        val vm = makeVm(panels = listOf(region))
+        vm.setFailureType(PanelDetectionFailureType.CutPanelCutOff)
+        // Tap within an existing panel — should select it.
+        vm.onTap(tappedImageX = 50, tappedImageY = 50)
+        assertEquals(0, vm.state.value.tappedPanelIndex)
+        // Draw the correct boundary rectangle alongside the selection.
+        vm.addDrawnPanel(0, 0, 250, 200)
+        assertEquals(1, vm.state.value.drawnPanels.size)
+        assertTrue(vm.state.value.drawnBoundaries.isEmpty())
+    }
+
+    @Test
+    fun `setFailureType clears tap state`() = runTest {
+        val region = PanelRegion(x = 0, y = 0, width = 200, height = 200)
+        val vm = makeVm(panels = listOf(region))
+        vm.onTap(tappedImageX = 50, tappedImageY = 50)
+        assertNull(vm.state.value.failureType)
+        assertEquals(0, vm.state.value.tappedPanelIndex)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        assertNull(vm.state.value.tappedX)
+        assertNull(vm.state.value.tappedY)
+        assertNull(vm.state.value.tappedPanelIndex)
+    }
+
+    @Test
     fun `submit requires failure type`() = runTest {
         val vm = makeVm()
         vm.submit(maskPng = ByteArray(0))
