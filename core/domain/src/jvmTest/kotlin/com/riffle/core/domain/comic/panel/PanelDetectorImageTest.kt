@@ -243,6 +243,62 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `lower-left tall slanted panel is not split at horizontal row boundary`() {
+        // Regression for issue #767: page 24. The lower-left panel spans the lower two row bands,
+        // but projection returned a 4-row x 2-column grid and split it into two separate panels.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-767-split-left-lower-panel-p24.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels with the lower-left tall panel merged, got ${result.panels.size}; panels=${result.panels}",
+            7, result.panels.size,
+        )
+        val lowerLeftTallPanels = result.panels.filter { p ->
+            p.x + p.width / 2 < grid.width / 2 &&
+                p.y > grid.height * 0.45 &&
+                p.height.toDouble() / grid.height >= 0.40
+        }
+        assertEquals(
+            "expected one tall lower-left panel spanning the lower two row bands; panels=${result.panels}",
+            1, lowerLeftTallPanels.size,
+        )
+    }
+
+    @Test
+    fun `second-row left slanted panel contains tap near right edge`() {
+        // Regression for issue #766: page 22. The second row has two slanted panels, the third
+        // row is one full-width panel, and the reported tap at (432, 422) must remain inside the
+        // left second-row bbox.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-766-panel-cut-off-p22.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2 + 2 + 1 + 2 layout, got ${result.panels.size}; panels=${result.panels}",
+            7, result.panels.size,
+        )
+        val secondRowPanels = result.panels.filter { p ->
+            p.y + p.height / 2 in (grid.height * 0.25).toInt()..(grid.height * 0.50).toInt()
+        }
+        assertEquals("expected second row to split into two panels; panels=${result.panels}", 2, secondRowPanels.size)
+        assertTrue(
+            "expected the left second-row panel to contain tap (432, 422); secondRowPanels=$secondRowPanels",
+            secondRowPanels.any { p ->
+                p.x + p.width / 2 < grid.width / 2 &&
+                    432 in p.x until p.x + p.width &&
+                    422 in p.y until p.y + p.height
+            },
+        )
+        val thirdRowPanels = result.panels.filter { p ->
+            p.width.toDouble() / grid.width >= 0.85 &&
+                p.y + p.height / 2 in (grid.height * 0.50).toInt()..(grid.height * 0.75).toInt()
+        }
+        assertEquals(
+            "expected third row to be one full-width panel; panels=${result.panels}",
+            1, thirdRowPanels.size,
+        )
+    }
+
     // --- Helpers ---
 
     private val LIGHT: Byte = 240.toByte()
