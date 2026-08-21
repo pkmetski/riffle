@@ -27,7 +27,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.R
-import com.riffle.app.feature.annotationsync.WebdavUiCopy
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.AnnotationSyncRowState
@@ -60,10 +59,10 @@ fun AnnotationsSyncSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(WebdavUiCopy.SCREEN_TITLE) },
+                title = { Text(stringResource(R.string.ui_webdav_annotation_sync_for_komga)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.ui_back))
                     }
                 },
             )
@@ -82,7 +81,7 @@ fun AnnotationsSyncSettingsScreen(
                     onNavigateToAddSource(AddSourceBackend.Webdav, null)
                 },
                 leadingContent = { AnnotationSyncBadge(row.badge) },
-                headlineContent = { Text(WebdavUiCopy.CONFIGURE_TITLE) },
+                headlineContent = { Text(stringResource(R.string.ui_configure_webdav)) },
                 supportingContent = {
                     Text(
                         text = row.sub,

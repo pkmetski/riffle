@@ -1,5 +1,6 @@
 package com.riffle.app.feature.server
 
+import com.riffle.app.R
 import com.riffle.core.models.SourceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,7 +31,7 @@ class SourceTypePickerTest {
         val gb = sourceTypeCards().first { it.type == SourceType.GUTENBERG }
         assertTrue(gb.enabled)
         assertFalse(gb.comingSoon)
-        assertEquals("Project Gutenberg", gb.title)
+        assertEquals(R.string.source_project_gutenberg_name, gb.titleRes)
     }
 
     // Same singleton rationale as Chitanka — a credential-less public catalogue has nothing to
@@ -47,7 +48,7 @@ class SourceTypePickerTest {
         val ch = sourceTypeCards().first { it.type == SourceType.CHITANKA }
         assertTrue(ch.enabled)
         assertFalse(ch.comingSoon)
-        assertEquals("Chitanka", ch.title)
+        assertEquals(R.string.source_chitanka_name, ch.titleRes)
     }
 
     @Test
@@ -55,7 +56,7 @@ class SourceTypePickerTest {
         val abs = sourceTypeCards().first { it.type == SourceType.ABS }
         assertTrue(abs.enabled)
         assertFalse(abs.comingSoon)
-        assertEquals("Audiobookshelf", abs.title)
+        assertEquals(R.string.source_audiobookshelf_name, abs.titleRes)
     }
 
     @Test
@@ -63,7 +64,7 @@ class SourceTypePickerTest {
         val lf = sourceTypeCards().first { it.type == SourceType.LOCAL_FILES }
         assertTrue(lf.enabled)
         assertFalse(lf.comingSoon)
-        assertEquals("Local files", lf.title)
+        assertEquals(R.string.ui_local_files, lf.titleRes)
     }
 
     // LocalFiles is a device singleton — once installed, the Add-Source picker must not offer

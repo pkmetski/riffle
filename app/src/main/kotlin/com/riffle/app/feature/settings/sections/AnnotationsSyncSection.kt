@@ -6,7 +6,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.riffle.app.feature.annotationsync.WebdavUiCopy
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.AnnotationSyncRowState
 import com.riffle.app.feature.settings.DrillInChevron
@@ -23,14 +24,14 @@ internal fun AnnotationsSyncSection(
     row: AnnotationSyncRowState,
     onOpen: () -> Unit,
 ) {
-    SettingsSectionHeader(WebdavUiCopy.SECTION_TITLE)
+    SettingsSectionHeader(stringResource(R.string.ui_webdav_annotation_sync_for_komga))
     ListItem(
         modifier = Modifier.clickable(onClick = onOpen),
         leadingContent = { AnnotationSyncBadge(row.badge) },
         headlineContent = {
             Text(
                 if (row.badge == AnnotationSyncRowState.Badge.Local) {
-                    WebdavUiCopy.CONFIGURE_TITLE
+                    stringResource(R.string.ui_configure_webdav)
                 } else {
                     row.headline
                 },

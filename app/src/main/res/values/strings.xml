@@ -2,7 +2,9 @@
 <resources>
     <string name="app_name" translatable="false">Riffle</string>
     <string name="export_pdf_error">Couldn\'t generate PDF</string>
+    <string name="source_audiobookshelf_name" translatable="false">Audiobookshelf</string>
     <string name="source_chitanka_name" translatable="false">Chitanka</string>
+    <string name="source_komga_name" translatable="false">Komga</string>
     <string name="source_project_gutenberg_name" translatable="false">Project Gutenberg</string>
     <string name="source_storyteller_name" translatable="false">Storyteller</string>
     <string name="ui_active">Active</string>
@@ -11,9 +13,13 @@
     <string name="ui_add_chitanka">Add Chitanka</string>
     <string name="ui_add_folder">Add folder</string>
     <string name="ui_add_local_folder">Add local folder</string>
+    <string name="ui_add_audiobookshelf">Add Audiobookshelf</string>
+    <string name="ui_add_komga">Add Komga</string>
     <string name="ui_add_project_gutenberg">Add Project Gutenberg</string>
     <string name="ui_add_source">Add source</string>
+    <string name="ui_add_storyteller">Add Storyteller</string>
     <string name="ui_add_to_playlist">Add to playlist</string>
+    <string name="ui_add_webdav">Add WebDAV</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_all_orientations">Adds the toggle to the reader top bar (all orientations)</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_vertical_and_continuous_only">Adds the toggle to the reader top bar (Vertical &amp; Continuous only)</string>
     <string name="ui_all">All</string>
@@ -58,6 +64,7 @@
     <string name="ui_configure_storyteller_first_to_review_matches">Configure Storyteller first to review matches</string>
     <string name="ui_confirm">Confirm</string>
     <string name="ui_connect_anyway">Connect anyway</string>
+    <string name="ui_connect">Connect</string>
     <string name="ui_connect_to_download_audiobook">Connect to download audiobook</string>
     <string name="ui_connect_to_download_book">Connect to download book</string>
     <string name="ui_connect_to_download_readaloud_audio">Connect to download readaloud audio</string>
@@ -92,8 +99,12 @@
     <string name="ui_ebook_ebook">📖 Ebook</string>
     <string name="ui_edge_case_if_this_device_went_offline_before_any_other_device_synced_its_last_ed">Edge case: if this device went offline before any other device synced its last edits, </string>
     <string name="ui_edit">Edit</string>
+    <string name="ui_edit_audiobookshelf">Edit Audiobookshelf</string>
+    <string name="ui_edit_komga">Edit Komga</string>
     <string name="ui_edit_metadata">Edit metadata</string>
+    <string name="ui_edit_storyteller">Edit Storyteller</string>
     <string name="ui_edit_the_schedule_in_settings_display">Edit the schedule in Settings → Display</string>
+    <string name="ui_edit_webdav">Edit WebDAV</string>
     <string name="ui_emphasis">Emphasis </string>
     <string name="ui_end_of_chapter">End of chapter</string>
     <string name="ui_faster">Faster</string>
@@ -130,6 +141,7 @@
     <string name="ui_loading_3">Loading</string>
     <string name="ui_loading_devices">Loading devices…</string>
     <string name="ui_local_files">Local files</string>
+    <string name="ui_last_sync_value">Last sync: %1$s</string>
     <string name="ui_long_press_text_while_reading_to_highlight_it">Long-press text while reading to highlight it.</string>
     <string name="ui_maintenance">Maintenance</string>
     <string name="ui_margins">Margins</string>
@@ -217,6 +229,8 @@
     <string name="ui_remove_folder_3">Remove folder</string>
     <string name="ui_remove_from_playlist">Remove from playlist</string>
     <string name="ui_remove_readaloud_download">Remove readaloud download</string>
+    <string name="ui_remove_source">Remove source</string>
+    <string name="ui_remove_storyteller">Remove Storyteller</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Removes this device\'s files from the WebDAV server. Other devices still have copies of </string>
     <string name="ui_rename">Rename</string>
     <string name="ui_rename_bookmark">Rename bookmark</string>
@@ -519,11 +533,40 @@
     <string name="ui_listening_settings">Listening settings</string>
     <string name="ui_webdav_auth_failed_prescription">Authentication failed — your credentials may have expired. Re-enter them below; sync will retry once saved.</string>
     <string name="ui_webdav_tls_failed_prescription">TLS error — the server\'s certificate could not be verified. Update the URL below; sync will retry once saved.</string>
+    <string name="ui_webdav_add_source_help_text">Sync highlights, notes, and bookmarks between your devices via a WebDAV server. Available for Komga sources.</string>
+    <string name="ui_webdav_annotation_sync_for_komga">WebDAV annotation sync for Komga</string>
+    <string name="ui_webdav_not_configured_status">Not configured · available for Komga sources</string>
+    <string name="ui_webdav_url">WebDAV URL</string>
+    <string name="ui_configure_webdav">Configure WebDAV</string>
+    <string name="ui_insecure_connection">Insecure connection</string>
+    <string name="ui_insecure_http_description">This server uses HTTP. Your credentials will be sent without encryption. Proceed only if you trust this network.</string>
+    <string name="ui_untrusted_certificate">Untrusted certificate</string>
+    <string name="ui_untrusted_certificate_description">The server\'s TLS certificate cannot be verified. Connecting may expose your credentials. Proceed only if you trust this server.</string>
+    <string name="ui_source_url">Source URL</string>
+    <string name="ui_source_abs_picker_blurb">Stream ebooks and audiobooks from your Audiobookshelf server.</string>
+    <string name="ui_source_abs_help_text">Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices.</string>
+    <string name="ui_source_chitanka_picker_blurb">Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).</string>
+    <string name="ui_source_chitanka_subtitle">Bulgarian public library</string>
+    <string name="ui_source_gutenberg_picker_blurb">Browse tens of thousands of free public-domain ebooks.</string>
+    <string name="ui_source_gutenberg_subtitle">Public-domain ebooks</string>
+    <string name="ui_source_komga_picker_blurb">Stream comics, manga and ebooks from your Komga server.</string>
+    <string name="ui_source_komga_help_text">Browse and read your Komga library (comics, manga and ebooks) from any Komga server.</string>
+    <string name="ui_source_local_files_picker_blurb">Read EPUBs and PDFs from a folder on this device.</string>
+    <string name="ui_source_local_files_subtitle">on this device</string>
+    <string name="ui_source_storyteller_help_text">Storyteller hosts aligned ebook + audiobook &quot;readalouds.&quot; Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader.</string>
     <string name="ui_source_http_retry">Source returned HTTP %1$d. Will retry automatically.</string>
+    <string name="ui_source_http_retry_short">Source error (HTTP %1$d) · will retry automatically</string>
     <string name="ui_sync_failed_retry">Sync failed. Will retry automatically.</string>
+    <string name="ui_sync_failed_retry_short">Sync failed · will retry automatically</string>
     <string name="ui_couldnt_reach_server_retry">Couldn\'t reach the server. Will retry automatically when connectivity returns.</string>
     <string name="ui_books_pending_sync_shortly">%1$d book(s) pending · will sync shortly.</string>
     <string name="ui_books_pending_waiting_first_sync">%1$d book(s) pending · waiting for first sync.</string>
+    <string name="ui_books_pending_sync_online">%1$d book(s) pending · will sync when online</string>
+    <string name="ui_waiting_for_first_sync">Waiting for first sync…</string>
+    <string name="ui_webdav_auth_failed_reenter">Authentication failed · tap to re-enter credentials</string>
+    <string name="ui_webdav_tls_check_url">TLS error · tap to check server URL</string>
+    <string name="ui_offline_sync_when_connected">Offline · will sync when connected</string>
+    <string name="ui_synced_identity">Synced · %1$s</string>
     <string name="ui_never">Never</string>
     <string name="ui_just_now">just now</string>
     <string name="ui_minutes_ago">%1$d min ago</string>

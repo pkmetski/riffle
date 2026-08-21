@@ -1,5 +1,6 @@
 package com.riffle.app.feature.server
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,14 +36,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.app.ui.source.sourceDisplayNameRes
+import com.riffle.app.ui.source.sourcePickerBlurbRes
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 
 data class SourceTypeCard(
     val type: SourceType,
-    val title: String,
-    val subtitle: String,
+    @StringRes val titleRes: Int,
+    @StringRes val subtitleRes: Int,
     val enabled: Boolean,
     val comingSoon: Boolean,
 )
@@ -62,8 +65,8 @@ internal fun sourceTypeCards(
             if (descriptor.isSingleton && descriptor.type in installedTypes) return@mapNotNull null
             SourceTypeCard(
                 type = descriptor.type,
-                title = descriptor.displayName,
-                subtitle = descriptor.pickerBlurb,
+                titleRes = sourceDisplayNameRes(descriptor.type),
+                subtitleRes = sourcePickerBlurbRes(descriptor.type),
                 enabled = true,
                 comingSoon = false,
             )
@@ -156,10 +159,10 @@ private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
             Column(
                 modifier = Modifier.weight(1f).alpha(contentAlpha),
             ) {
-                Text(card.title, style = MaterialTheme.typography.titleMedium)
+                Text(androidx.compose.ui.res.stringResource(card.titleRes), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.size(2.dp))
                 Text(
-                    card.subtitle,
+                    androidx.compose.ui.res.stringResource(card.subtitleRes),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
