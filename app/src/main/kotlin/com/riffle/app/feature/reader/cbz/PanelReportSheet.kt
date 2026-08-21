@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader.cbz
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -60,9 +62,11 @@ internal fun PanelReportSheet(
     val state by viewModel.state.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val cutOffMode = state.failureType == PanelDetectionFailureType.CutPanelCutOff
     val drawMode = state.failureType == PanelDetectionFailureType.MissedPanel ||
         state.failureType == PanelDetectionFailureType.MergedPanels ||
-        state.failureType == PanelDetectionFailureType.SplitPanel
+        state.failureType == PanelDetectionFailureType.SplitPanel ||
+        cutOffMode
     val drawsRectangle = state.failureType == PanelDetectionFailureType.MissedPanel ||
         state.failureType == PanelDetectionFailureType.SplitPanel
     val orderMode = state.failureType == PanelDetectionFailureType.WrongPanelOrder
@@ -135,6 +139,8 @@ internal fun PanelReportSheet(
                 val hint = when (state.failureType) {
                     PanelDetectionFailureType.MissedPanel,
                     PanelDetectionFailureType.SplitPanel -> "Draw the correct panel boundary"
+                    PanelDetectionFailureType.CutPanelCutOff ->
+                        "Tap the cut-off panel to identify it; drag to draw its correct boundary"
                     else -> "Draw panel boundary lines"
                 }
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
@@ -151,9 +157,48 @@ internal fun PanelReportSheet(
                     .aspectRatio(mask.width.toFloat() / mask.height.toFloat())
                     .border(1.dp, Color.Gray)
                     .onSizeChanged { canvasSize = it }
-                    .pointerInput(drawMode, orderMode, state.failureType, canvasSize) {
-                        if (drawMode) {
-                            detectDragGestures(
+                    .pointerInput(cutOffMode, drawMode, orderMode, state.failureType, canvasSize) {
+                        when {
+                            cutOffMode -> awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                down.consume()
+                                val startPos = down.position
+                                var currentPos = startPos
+                                var crossedSlop = false
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    change.consume()
+                                    if (!change.pressed) break
+                                    currentPos = change.position
+                                    if (!crossedSlop) {
+                                        val dist = kotlin.math.hypot(
+                                            (currentPos.x - startPos.x).toDouble(),
+                                            (currentPos.y - startPos.y).toDouble(),
+                                        )
+                                        if (dist > viewConfiguration.touchSlop) {
+                                            crossedSlop = true
+                                            dragStart = startPos
+                                        }
+                                    }
+                                    if (crossedSlop) dragCurrent = currentPos
+                                }
+                                if (scaleX > 0f && scaleY > 0f) {
+                                    if (!crossedSlop) {
+                                        val ix = (startPos.x / scaleX).toInt().coerceIn(0, mask.width - 1)
+                                        val iy = (startPos.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                        viewModel.onTap(tappedImageX = ix, tappedImageY = iy)
+                                    } else {
+                                        val ix1 = (startPos.x / scaleX).toInt().coerceIn(0, mask.width - 1)
+                                        val iy1 = (startPos.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                        val ix2 = (currentPos.x / scaleX).toInt().coerceIn(0, mask.width - 1)
+                                        val iy2 = (currentPos.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                        viewModel.addDrawnPanel(ix1, iy1, ix2, iy2)
+                                    }
+                                }
+                                dragStart = null; dragCurrent = null
+                            }
+                            drawMode -> detectDragGestures(
                                 onDragStart = { offset -> dragStart = offset; dragCurrent = offset },
                                 onDrag = { _, drag -> dragCurrent = dragCurrent?.plus(drag) },
                                 onDragEnd = {
@@ -173,8 +218,7 @@ internal fun PanelReportSheet(
                                 },
                                 onDragCancel = { dragStart = null; dragCurrent = null },
                             )
-                        } else {
-                            detectTapGestures { offset ->
+                            else -> detectTapGestures { offset ->
                                 if (scaleX > 0f && scaleY > 0f) {
                                     val ix = (offset.x / scaleX).toInt().coerceIn(0, mask.width - 1)
                                     val iy = (offset.y / scaleY).toInt().coerceIn(0, mask.height - 1)
@@ -250,7 +294,7 @@ internal fun PanelReportSheet(
                     // In-progress draw preview (yellow)
                     val s = dragStart; val e = dragCurrent
                     if (s != null && e != null) {
-                        if (drawsRectangle) {
+                        if (drawsRectangle || cutOffMode) {
                             drawRect(
                                 color = Color.Yellow,
                                 topLeft = Offset(minOf(s.x, e.x), minOf(s.y, e.y)),
@@ -270,7 +314,7 @@ internal fun PanelReportSheet(
                 if (hasDrawn) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         OutlinedButton(onClick = {
-                            if (drawsRectangle)
+                            if (drawsRectangle || cutOffMode)
                                 viewModel.clearLastDrawnPanel()
                             else
                                 viewModel.clearLastDrawnBoundary()
