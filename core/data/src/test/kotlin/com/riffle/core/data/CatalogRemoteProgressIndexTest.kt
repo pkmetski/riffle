@@ -84,7 +84,7 @@ class CatalogRemoteProgressIndexTest {
         override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
         override suspend fun dirtyForSource(s: String) = emptyList<ReadingPositionEntity>()
         override suspend fun sourcesWithDirtyRows() = emptyList<String>()
-        override suspend fun allForSource(s: String) = rows
+        override suspend fun allForSource(s: String) = rows.filter { it.sourceId == s }
     }
 
     private fun audioDao(vararg ids: String) = object : AudiobookPositionDao {
@@ -96,7 +96,7 @@ class CatalogRemoteProgressIndexTest {
         override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
         override suspend fun dirtyForSource(s: String) = emptyList<AudiobookPositionEntity>()
         override suspend fun sourcesWithDirtyRows() = emptyList<String>()
-        override suspend fun allForSource(s: String) = rows
+        override suspend fun allForSource(s: String) = rows.filter { it.sourceId == s }
     }
 
     private fun libraryItemDao(vararg ids: String): LibraryItemDao {
