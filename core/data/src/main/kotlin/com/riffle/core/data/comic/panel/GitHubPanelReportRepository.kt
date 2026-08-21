@@ -22,6 +22,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.IOException
 import java.util.UUID
 
+private const val MAX_REF_RETRIES = 3
+
 class GitHubPanelReportRepository(
     private val pat: String,
     private val owner: String = "pkmetski",
@@ -44,67 +46,81 @@ class GitHubPanelReportRepository(
                 jsonObject("content" to pngBase64, "encoding" to "base64"),
             ).field("sha")
 
-            // 2. Get current commit sha from panel-reports branch (create from main if absent)
-            val currentCommitSha = try {
-                get("$apiBase/repos/$owner/$repoName/git/ref/heads/panel-reports")
-                    .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
-            } catch (e: IOException) {
-                if ("404" !in (e.message ?: "")) throw e
-                val mainSha = get("$apiBase/repos/$owner/$repoName/git/ref/heads/main")
-                    .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
-                post(
-                    "$apiBase/repos/$owner/$repoName/git/refs",
-                    jsonObject("ref" to "refs/heads/panel-reports", "sha" to mainSha),
-                )
-                mainSha
-            }
-
-            // 3. Get current tree sha
-            val commitJson = get("$apiBase/repos/$owner/$repoName/git/commits/$currentCommitSha")
-            val currentTreeSha = commitJson["tree"]!!.jsonObject["sha"]!!.jsonPrimitive.content
-
-            // 4. Create tree
-            val newTreeSha = post(
-                "$apiBase/repos/$owner/$repoName/git/trees",
-                JsonObject(mapOf(
-                    "base_tree" to JsonPrimitive(currentTreeSha),
-                    "tree" to JsonArray(listOf(JsonObject(mapOf(
-                        "path" to JsonPrimitive("fixtures/$filename"),
-                        "mode" to JsonPrimitive("100644"),
-                        "type" to JsonPrimitive("blob"),
-                        "sha" to JsonPrimitive(blobSha),
-                    )))),
-                )).toString(),
-            ).field("sha")
-
-            // 5. Create commit
-            val newCommitSha = post(
-                "$apiBase/repos/$owner/$repoName/git/commits",
-                JsonObject(mapOf(
-                    "message" to JsonPrimitive("panel report: ${report.failureType.label} p${report.pageIndex}"),
-                    "tree" to JsonPrimitive(newTreeSha),
-                    "parents" to JsonArray(listOf(JsonPrimitive(currentCommitSha))),
-                )).toString(),
-            ).field("sha")
-
-            // 6. Advance ref
-            patch(
-                "$apiBase/repos/$owner/$repoName/git/refs/heads/panel-reports",
-                jsonObject("sha" to newCommitSha),
-            )
-
             val rawUrl = "$rawBase/$owner/$repoName/panel-reports/fixtures/$filename"
 
-            // 7. Create issue
-            post(
-                "$apiBase/repos/$owner/$repoName/issues",
-                JsonObject(mapOf(
-                    "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
-                    "body" to JsonPrimitive(buildIssueBody(report, rawUrl)),
-                    "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
-                )).toString(),
-            ).field("html_url")
+            // Steps 2–6 may race with concurrent submissions; retry on 422 (not a fast-forward).
+            repeat(MAX_REF_RETRIES) { attempt ->
+                // 2. Get current commit sha from panel-reports branch (create from main if absent)
+                val currentCommitSha = try {
+                    get("$apiBase/repos/$owner/$repoName/git/ref/heads/panel-reports")
+                        .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
+                } catch (e: IOException) {
+                    if ("404" !in (e.message ?: "")) throw e
+                    val mainSha = get("$apiBase/repos/$owner/$repoName/git/ref/heads/main")
+                        .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
+                    post(
+                        "$apiBase/repos/$owner/$repoName/git/refs",
+                        jsonObject("ref" to "refs/heads/panel-reports", "sha" to mainSha),
+                    )
+                    mainSha
+                }
+
+                // 3. Get current tree sha
+                val commitJson = get("$apiBase/repos/$owner/$repoName/git/commits/$currentCommitSha")
+                val currentTreeSha = commitJson["tree"]!!.jsonObject["sha"]!!.jsonPrimitive.content
+
+                // 4. Create tree
+                val newTreeSha = post(
+                    "$apiBase/repos/$owner/$repoName/git/trees",
+                    JsonObject(mapOf(
+                        "base_tree" to JsonPrimitive(currentTreeSha),
+                        "tree" to JsonArray(listOf(JsonObject(mapOf(
+                            "path" to JsonPrimitive("fixtures/$filename"),
+                            "mode" to JsonPrimitive("100644"),
+                            "type" to JsonPrimitive("blob"),
+                            "sha" to JsonPrimitive(blobSha),
+                        )))),
+                    )).toString(),
+                ).field("sha")
+
+                // 5. Create commit
+                val newCommitSha = post(
+                    "$apiBase/repos/$owner/$repoName/git/commits",
+                    JsonObject(mapOf(
+                        "message" to JsonPrimitive("panel report: ${report.failureType.label} p${report.pageIndex}"),
+                        "tree" to JsonPrimitive(newTreeSha),
+                        "parents" to JsonArray(listOf(JsonPrimitive(currentCommitSha))),
+                    )).toString(),
+                ).field("sha")
+
+                // 6. Advance ref — may 422 if another report landed since step 2; retry if so
+                try {
+                    patch(
+                        "$apiBase/repos/$owner/$repoName/git/refs/heads/panel-reports",
+                        jsonObject("sha" to newCommitSha),
+                    )
+                    // Ref advanced — break out of retry loop
+                    return@runCatching submitIssue(report, rawUrl)
+                } catch (e: IOException) {
+                    if ("422" !in (e.message ?: "") || attempt == MAX_REF_RETRIES - 1) throw e
+                    // else loop and retry with fresh branch HEAD
+                }
+            }
+
+            // Unreachable (loop always returns or throws), but required for exhaustive return
+            throw IOException("Failed to advance panel-reports ref after $MAX_REF_RETRIES attempts")
         }
+
+    private suspend fun submitIssue(report: PanelDetectionReport, rawUrl: String): String =
+        // 7. Create issue
+        post(
+            "$apiBase/repos/$owner/$repoName/issues",
+            JsonObject(mapOf(
+                "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
+                "body" to JsonPrimitive(buildIssueBody(report, rawUrl)),
+                "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
+            )).toString(),
+        ).field("html_url")
 
     private fun jsonObject(vararg pairs: Pair<String, String>): String =
         JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) }).toString()

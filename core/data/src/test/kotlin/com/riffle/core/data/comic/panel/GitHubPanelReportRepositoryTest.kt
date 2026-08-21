@@ -124,4 +124,39 @@ class GitHubPanelReportRepositoryTest {
 
         assertTrue(result.isFailure)
     }
+
+    @Test
+    fun `submit retries on 422 not-a-fast-forward and succeeds on second attempt`() = runTest {
+        // 1. create blob
+        server.enqueue(MockResponse().setBody("""{"sha":"blob-sha-123"}""").setResponseCode(201))
+        // --- attempt 1 ---
+        // 2. get ref
+        server.enqueue(MockResponse().setBody("""{"object":{"sha":"stale-commit"}}""").setResponseCode(200))
+        // 3. get commit
+        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"stale-tree"}}""").setResponseCode(200))
+        // 4. create tree
+        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-1"}""").setResponseCode(201))
+        // 5. create commit
+        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-1"}""").setResponseCode(201))
+        // 6. patch ref → 422
+        server.enqueue(MockResponse().setBody("""{"message":"Update is not a fast forward"}""").setResponseCode(422))
+        // --- attempt 2 ---
+        // 2. get ref (now returns fresh sha)
+        server.enqueue(MockResponse().setBody("""{"object":{"sha":"fresh-commit"}}""").setResponseCode(200))
+        // 3. get commit
+        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"fresh-tree"}}""").setResponseCode(200))
+        // 4. create tree
+        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-2"}""").setResponseCode(201))
+        // 5. create commit
+        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-2"}""").setResponseCode(201))
+        // 6. patch ref → success
+        server.enqueue(MockResponse().setBody("""{"ref":"refs/heads/panel-reports"}""").setResponseCode(200))
+        // 7. create issue
+        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/42"}""").setResponseCode(201))
+
+        val result = repo().submit(fakeReport, ByteArray(0))
+
+        assertTrue(result.isSuccess)
+        assertEquals("https://github.com/pkmetski/riffle/issues/42", result.getOrNull())
+    }
 }
