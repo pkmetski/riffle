@@ -237,7 +237,7 @@ class JsonPanelStore @Inject constructor(
          *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
          *      may still hold a merged bbox if detection ran on a downscaled image.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 22
+        internal const val CURRENT_SCHEMA_VERSION: Int = 23
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

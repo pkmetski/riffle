@@ -224,7 +224,18 @@ class PanelDetector(
         val gutter = floodFillGutter(cropped)
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
-        val split = splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight)
+        val split = repairDiagonalTwoColumnRows(
+            repairOneSidedRowJunctions(
+                splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight),
+                cropped,
+                downscaledWidth,
+                downscaledHeight,
+            ),
+            cropped,
+            gutter,
+            downscaledWidth,
+            downscaledHeight,
+        )
 
         val result = sanityCheck(
             candidates = split,
@@ -309,7 +320,18 @@ class PanelDetector(
         // genuine inter-panel gutter is connected to the page border (~100% accessible), while a
         // closed panel interior scores 0% — so the 30% threshold distinguishes them reliably.
         val gutter = floodFillGutter(cropped)
-        val bboxesInCropped = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
+        val bboxesInCropped = repairDiagonalTwoColumnRows(
+            repairOneSidedRowJunctions(
+                rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) },
+                cropped,
+                downscaledWidth,
+                downscaledHeight,
+            ),
+            cropped,
+            gutter,
+            downscaledWidth,
+            downscaledHeight,
+        )
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
@@ -349,6 +371,302 @@ class PanelDetector(
      */
     private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask, gutter: BooleanArray, downscaledWidth: Int, downscaledHeight: Int): List<Bbox> =
         bboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
+
+    private fun repairOneSidedRowJunctions(
+        bboxes: List<Bbox>,
+        cropped: CroppedMask,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox> {
+        if (bboxes.size < 2) return bboxes
+        val consumed = BooleanArray(bboxes.size)
+        val repaired = mutableListOf<Bbox>()
+        val sortedIndices = bboxes.indices.sortedWith(compareBy({ bboxes[it].minY }, { bboxes[it].minX }))
+        for (i in sortedIndices) {
+            if (consumed[i]) continue
+            val top = bboxes[i]
+            val bottomIndex = sortedIndices.firstOrNull { j ->
+                if (i == j || consumed[j]) return@firstOrNull false
+                val bottom = bboxes[j]
+                val verticalGap = bottom.minY - top.maxY - 1
+                verticalGap in 0..12 &&
+                    similarFullWidthRows(top, bottom, downscaledWidth, downscaledHeight)
+            }
+            if (bottomIndex == null) {
+                repaired.add(top)
+                consumed[i] = true
+                continue
+            }
+
+            val replacement = repairOneSidedRowJunction(top, bboxes[bottomIndex], cropped, downscaledWidth, downscaledHeight)
+            if (replacement == null) {
+                repaired.add(top)
+                consumed[i] = true
+            } else {
+                repaired.addAll(replacement)
+                consumed[i] = true
+                consumed[bottomIndex] = true
+            }
+        }
+        for (i in bboxes.indices) {
+            if (!consumed[i]) repaired.add(bboxes[i])
+        }
+        return repaired
+    }
+
+    private fun similarFullWidthRows(top: Bbox, bottom: Bbox, downscaledWidth: Int, downscaledHeight: Int): Boolean {
+        val topWidth = top.maxX - top.minX + 1
+        val bottomWidth = bottom.maxX - bottom.minX + 1
+        val minWide = downscaledWidth * 0.75
+        val minHeight = (downscaledHeight * 0.12).toInt().coerceAtLeast(1)
+        return topWidth >= minWide &&
+            bottomWidth >= minWide &&
+            top.maxX >= bottom.minX &&
+            bottom.maxX >= top.minX &&
+            top.maxY - top.minY + 1 >= minHeight &&
+            bottom.maxY - bottom.minY + 1 >= minHeight &&
+            kotlin.math.abs(top.minX - bottom.minX) <= downscaledWidth * 0.05 &&
+            kotlin.math.abs(top.maxX - bottom.maxX) <= downscaledWidth * 0.05
+    }
+
+    private fun repairOneSidedRowJunction(
+        top: Bbox,
+        bottom: Bbox,
+        cropped: CroppedMask,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox>? {
+        val gapStart = top.maxY + 1
+        val gapEnd = bottom.minY - 1
+        if (gapStart > gapEnd) return null
+        val minX = maxOf(top.minX, bottom.minX)
+        val maxX = minOf(top.maxX, bottom.maxX)
+        val width = maxX - minX + 1
+        if (width < downscaledWidth * 0.6) return null
+
+        val stripHeight = gapEnd - gapStart + 1
+        val gutterByX = BooleanArray(width) { offset ->
+            val x = minX + offset
+            var content = 0
+            for (y in gapStart..gapEnd) {
+                if (cropped.data[y * cropped.width + x] == 1.toByte()) content++
+            }
+            content.toLong() * 1000 <= stripHeight.toLong() * 150
+        }
+        val edgeInset = (width * 0.08).toInt().coerceAtLeast(1)
+        val minSideRun = (width * 0.30).toInt().coerceAtLeast(1)
+        val rightRun = edgeGutterRun(gutterByX, fromRight = true, edgeInset)?.takeIf { (_, thickness) -> thickness >= minSideRun }
+        val leftRun = edgeGutterRun(gutterByX, fromRight = false, edgeInset)?.takeIf { (_, thickness) -> thickness >= minSideRun }
+        if ((rightRun == null) == (leftRun == null)) return null
+
+        val minPanelWidth = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        val minPanelHeight = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        val minSpanningWidth = (downscaledWidth * 0.25).toInt().coerceAtLeast(minPanelWidth)
+        return if (rightRun != null) {
+            val splitX = (minX + rightRun.first - (width * 0.05).toInt()).coerceIn(minX + minPanelWidth, maxX - minPanelWidth)
+            val spanning = Bbox(top.minX, top.minY, splitX - 1, bottom.maxY)
+            val topSplit = Bbox(splitX, top.minY, top.maxX, top.maxY)
+            val bottomSplit = Bbox(splitX, bottom.minY, bottom.maxX, bottom.maxY)
+            listOf(spanning, topSplit, bottomSplit).takeIf { parts ->
+                parts.all { it.maxX >= it.minX && it.maxY >= it.minY } &&
+                    spanning.maxX - spanning.minX + 1 >= minSpanningWidth &&
+                    spanning.maxY - spanning.minY + 1 >= minPanelHeight
+            }
+        } else {
+            val leftEnd = minX + leftRun!!.first + leftRun.second - 1
+            val splitX = (leftEnd + 1 + (width * 0.05).toInt()).coerceIn(minX + minPanelWidth, maxX - minPanelWidth)
+            val topSplit = Bbox(top.minX, top.minY, splitX - 1, top.maxY)
+            val bottomSplit = Bbox(bottom.minX, bottom.minY, splitX - 1, bottom.maxY)
+            val spanning = Bbox(splitX, top.minY, top.maxX, bottom.maxY)
+            listOf(topSplit, bottomSplit, spanning).takeIf { parts ->
+                parts.all { it.maxX >= it.minX && it.maxY >= it.minY } &&
+                    spanning.maxX - spanning.minX + 1 >= minSpanningWidth &&
+                    spanning.maxY - spanning.minY + 1 >= minPanelHeight
+            }
+        }
+    }
+
+    private fun edgeGutterRun(gutterByX: BooleanArray, fromRight: Boolean, edgeInset: Int): Pair<Int, Int>? {
+        if (gutterByX.isEmpty()) return null
+        return if (fromRight) {
+            var end = gutterByX.lastIndex - edgeInset
+            while (end >= 0 && gutterByX[end]) end--
+            val runStart = end + 1
+            val runEnd = gutterByX.lastIndex - edgeInset
+            if (runStart <= runEnd) runStart to (runEnd - runStart + 1) else null
+        } else {
+            var start = edgeInset
+            while (start < gutterByX.size && gutterByX[start]) start++
+            if (start > edgeInset) edgeInset to (start - edgeInset) else null
+        }
+    }
+
+    private fun repairDiagonalTwoColumnRows(
+        bboxes: List<Bbox>,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox> {
+        val repaired = mutableListOf<Bbox>()
+        for (bbox in bboxes) {
+            val hasFullWidthRowBelow = bboxes.any { other ->
+                other != bbox &&
+                    other.minY - bbox.maxY - 1 in 0..12 &&
+                    similarFullWidthRows(bbox, other, downscaledWidth, downscaledHeight)
+            }
+            repaired.addAll(
+                if (hasFullWidthRowBelow) {
+                    repairDiagonalTwoColumnRow(bbox, cropped, gutter, downscaledWidth, downscaledHeight) ?: listOf(bbox)
+                } else {
+                    listOf(bbox)
+                },
+            )
+        }
+        return repaired
+    }
+
+    private fun repairDiagonalTwoColumnRow(
+        bbox: Bbox,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox>? {
+        val width = bbox.maxX - bbox.minX + 1
+        val height = bbox.maxY - bbox.minY + 1
+        if (width.toDouble() / downscaledWidth < 0.85) return null
+        if (height.toDouble() / downscaledHeight !in 0.16..0.32) return null
+
+        val stripHeight = (height * 0.20).toInt().coerceAtLeast(12)
+        val topRun = interiorFloodGutterRun(
+            bbox = bbox,
+            yStart = bbox.minY,
+            yEnd = (bbox.minY + stripHeight - 1).coerceAtMost(bbox.maxY),
+            cropped = cropped,
+            gutter = gutter,
+        ) ?: interiorProjectionGutterRun(
+            bbox = bbox,
+            yStart = bbox.minY,
+            yEnd = (bbox.minY + stripHeight - 1).coerceAtMost(bbox.maxY),
+            cropped = cropped,
+        )
+        val bottomRun = interiorFloodGutterRun(
+            bbox = bbox,
+            yStart = (bbox.maxY - stripHeight + 1).coerceAtLeast(bbox.minY),
+            yEnd = bbox.maxY,
+            cropped = cropped,
+            gutter = gutter,
+        ) ?: interiorProjectionGutterRun(
+            bbox = bbox,
+            yStart = (bbox.maxY - stripHeight + 1).coerceAtLeast(bbox.minY),
+            yEnd = bbox.maxY,
+            cropped = cropped,
+        )
+        topRun ?: return null
+        bottomRun ?: return null
+
+        val topCenter = (topRun.first + topRun.second) / 2
+        val bottomCenter = (bottomRun.first + bottomRun.second) / 2
+        val diagonalShift = kotlin.math.abs(topCenter - bottomCenter)
+        if (diagonalShift < downscaledWidth * 0.025) return null
+        if (diagonalShift > downscaledWidth * 0.12) return null
+
+        val minPanelWidth = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        val overlapPad = (width * 0.02).toInt().coerceAtLeast(12)
+        val leftMax = (maxOf(topRun.second, bottomRun.second) + overlapPad)
+            .coerceIn(bbox.minX + minPanelWidth, bbox.maxX - minPanelWidth)
+        val rightMin = (minOf(topRun.first, bottomRun.first) - overlapPad)
+            .coerceIn(bbox.minX + minPanelWidth, bbox.maxX - minPanelWidth)
+        if (rightMin >= leftMax) return null
+
+        val left = Bbox(bbox.minX, bbox.minY, leftMax, bbox.maxY)
+        val right = Bbox(rightMin, bbox.minY, bbox.maxX, bbox.maxY)
+        return listOf(left, right)
+    }
+
+    private fun interiorFloodGutterRun(
+        bbox: Bbox,
+        yStart: Int,
+        yEnd: Int,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+    ): Pair<Int, Int>? {
+        val xInset = ((bbox.maxX - bbox.minX + 1) * 0.18).toInt().coerceAtLeast(1)
+        val xStart = bbox.minX + xInset
+        val xEnd = bbox.maxX - xInset
+        if (xStart >= xEnd) return null
+
+        val stripHeight = yEnd - yStart + 1
+        var bestStart = -1
+        var bestEnd = -1
+        var currentStart = -1
+        for (x in xStart..xEnd) {
+            var gutterCount = 0
+            for (y in yStart..yEnd) {
+                if (gutter[y * cropped.width + x]) gutterCount++
+            }
+            if (gutterCount.toLong() * 1000 >= stripHeight.toLong() * 450) {
+                if (currentStart < 0) currentStart = x
+            } else if (currentStart >= 0) {
+                if (isNarrowDiagonalGutterRun(currentStart, x - 1, bestStart, bestEnd)) {
+                    bestStart = currentStart
+                    bestEnd = x - 1
+                }
+                currentStart = -1
+            }
+        }
+        if (currentStart >= 0 && isNarrowDiagonalGutterRun(currentStart, xEnd, bestStart, bestEnd)) {
+            bestStart = currentStart
+            bestEnd = xEnd
+        }
+        return if (bestStart >= 0) bestStart to bestEnd else null
+    }
+
+    private fun interiorProjectionGutterRun(
+        bbox: Bbox,
+        yStart: Int,
+        yEnd: Int,
+        cropped: CroppedMask,
+    ): Pair<Int, Int>? {
+        val xInset = ((bbox.maxX - bbox.minX + 1) * 0.18).toInt().coerceAtLeast(1)
+        val xStart = bbox.minX + xInset
+        val xEnd = bbox.maxX - xInset
+        if (xStart >= xEnd) return null
+
+        val projection = IntArray(xEnd - xStart + 1) { offset ->
+            cropped.colContentCount(xStart + offset, yStart, yEnd)
+        }
+        val maxContent = projection.maxOrNull() ?: return null
+        if (maxContent <= 0) return null
+        val cutoff = maxContent * 0.20
+        var bestStart = -1
+        var bestEnd = -1
+        var currentStart = -1
+        for (i in projection.indices) {
+            if (projection[i] < cutoff) {
+                if (currentStart < 0) currentStart = i
+            } else if (currentStart >= 0) {
+                if (isNarrowDiagonalGutterRun(currentStart, i - 1, bestStart, bestEnd)) {
+                    bestStart = currentStart
+                    bestEnd = i - 1
+                }
+                currentStart = -1
+            }
+        }
+        if (currentStart >= 0 && isNarrowDiagonalGutterRun(currentStart, projection.lastIndex, bestStart, bestEnd)) {
+            bestStart = currentStart
+            bestEnd = projection.lastIndex
+        }
+        return if (bestStart >= 0) (xStart + bestStart) to (xStart + bestEnd) else null
+    }
+
+    private fun isNarrowDiagonalGutterRun(start: Int, end: Int, bestStart: Int, bestEnd: Int): Boolean {
+        val thickness = end - start + 1
+        if (thickness !in 5..40) return false
+        if (bestStart < 0) return true
+        return thickness > bestEnd - bestStart + 1
+    }
 
     private fun splitSinglePanelRecursively(bbox: Bbox, cropped: CroppedMask, gutter: BooleanArray, depth: Int, downscaledWidth: Int, downscaledHeight: Int): List<Bbox> {
         if (depth >= config.maxInternalGutterSplitDepth) return listOf(bbox)
