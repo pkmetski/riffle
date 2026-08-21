@@ -47,7 +47,7 @@
     <string name="ui_cancel_timer">Cancel timer</string>
     <string name="ui_chapters">Chapters</string>
     <string name="ui_check_for_updates">Check for updates</string>
-    <string name="ui_check_for_updates_on_startup">Check for updates on startup</string>
+    <string name="ui_check_for_updates_automatically">Check for updates automatically</string>
     <string name="ui_choose_scheme">Choose scheme</string>
     <string name="ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings">Choose which libraries to show in Riffle. You can change this later in Settings.</string>
     <string name="ui_clear">Clear</string>

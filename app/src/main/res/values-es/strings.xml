@@ -41,7 +41,7 @@
     <string name="ui_cancel_timer">Cancelar temporizador</string>
     <string name="ui_chapters">Capítulos</string>
     <string name="ui_check_for_updates">Buscar actualizaciones</string>
-    <string name="ui_check_for_updates_on_startup">Buscar actualizaciones al iniciar</string>
+    <string name="ui_check_for_updates_automatically">Buscar actualizaciones automáticamente</string>
     <string name="ui_choose_scheme">Elige el esquema</string>
     <string name="ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings">Elige qué bibliotecas se muestran en Riffle. Puedes cambiarlo más adelante en Ajustes.</string>
     <string name="ui_clear">Borrar</string>

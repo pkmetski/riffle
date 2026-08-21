@@ -41,7 +41,7 @@
     <string name="ui_cancel_timer">Отмяна на таймера</string>
     <string name="ui_chapters">глави</string>
     <string name="ui_check_for_updates">Проверете за актуализации</string>
-    <string name="ui_check_for_updates_on_startup">Проверете за актуализации при стартиране</string>
+    <string name="ui_check_for_updates_automatically">Проверявай автоматично за актуализации</string>
     <string name="ui_choose_scheme">Изберете схема</string>
     <string name="ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings">Изберете кои библиотеки да се показват в Riffle. Можете да промените това по-късно в Настройки.</string>
     <string name="ui_clear">Изчистване</string>

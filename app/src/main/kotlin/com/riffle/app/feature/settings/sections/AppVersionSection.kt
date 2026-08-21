@@ -71,7 +71,7 @@ internal fun AppVersionSection(
         },
     )
     ListItem(
-        headlineContent = { Text(stringResource(R.string.ui_check_for_updates_on_startup)) },
+        headlineContent = { Text(stringResource(R.string.ui_check_for_updates_automatically)) },
         trailingContent = {
             Switch(
                 checked = autoUpdateEnabled,
