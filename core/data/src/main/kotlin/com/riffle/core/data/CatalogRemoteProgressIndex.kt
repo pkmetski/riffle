@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
@@ -20,10 +21,9 @@ import javax.inject.Inject
  * pulled back by the reconciler's `!localDirty && serverAdvanced` branch, even though the local
  * row was clean and not in the dirty-row ledger.
  *
- * Items found on WebDAV that have no local row at all cannot be safely created here — the
- * slash-to-dot encoding is not reversible for arbitrary source types — so they are silently
- * skipped. Those books will sync on first open on this device (the open-book path triggers its
- * own reconcile).
+ * Resolution joins WebDAV filenames against all known library item IDs (not just position rows),
+ * so progress is pulled on a fresh device that has never opened the book. The slash→dot encoding
+ * is not reversible in isolation, so items with no matching library row are still skipped.
  *
  * Server sources (ABS, Komga, Storyteller) are never returned by [sourcesWithRemote] — the check
  * `source.type.isWebSource` gates every path.
@@ -34,6 +34,7 @@ class CatalogRemoteProgressIndex @Inject constructor(
     private val enumerator: WebDavProgressEnumerator,
     private val readingPositionDao: ReadingPositionDao,
     private val audiobookPositionDao: AudiobookPositionDao,
+    private val libraryItemDao: LibraryItemDao,
 ) : RemoteProgressIndex {
 
     override suspend fun sourcesWithRemote(): List<String> {
@@ -46,14 +47,13 @@ class CatalogRemoteProgressIndex @Inject constructor(
     override suspend fun remoteEbookItems(sourceId: String): List<String> {
         val (config, namespace) = configAndNamespace(sourceId) ?: return emptyList()
         val enumerated = enumerator.enumerate(config, namespace)
-        val localRows = readingPositionDao.allForSource(sourceId)
-        val localIds = localRows.map { it.itemId }
-        // Items found on the server via PROPFIND — covers the inbound clean-row gap.
-        val fromServer = resolveItemIds(enumerated.ebookSafeIds, localIds)
-        // Items previously synced (lastSyncedAt > 0) whose server file is now missing.
-        // The reconciler's re-sync branch will push them back without a full GET round-trip
-        // for items that are correctly on the server (they appear in fromServer above).
-        val missingFromServer = localRows
+        val positionRows = readingPositionDao.allForSource(sourceId)
+        // Resolve against ALL known library items, not just position rows, so progress is pulled on
+        // a new device that has never opened the book (no position row yet).
+        val libraryIds = libraryItemDao.observeBySource(sourceId).first().map { it.id }
+        val allKnownIds = (positionRows.map { it.itemId } + libraryIds).distinct()
+        val fromServer = resolveItemIds(enumerated.ebookSafeIds, allKnownIds)
+        val missingFromServer = positionRows
             .filter { it.lastSyncedAt > 0L && !enumerated.ebookSafeIds.contains(it.itemId.replace("/", ".")) }
             .map { it.itemId }
         return (fromServer + missingFromServer).distinct()
@@ -62,10 +62,11 @@ class CatalogRemoteProgressIndex @Inject constructor(
     override suspend fun remoteAudioItems(sourceId: String): List<String> {
         val (config, namespace) = configAndNamespace(sourceId) ?: return emptyList()
         val enumerated = enumerator.enumerate(config, namespace)
-        val localRows = audiobookPositionDao.allForSource(sourceId)
-        val localIds = localRows.map { it.itemId }
-        val fromServer = resolveItemIds(enumerated.audioSafeIds, localIds)
-        val missingFromServer = localRows
+        val positionRows = audiobookPositionDao.allForSource(sourceId)
+        val libraryIds = libraryItemDao.observeBySource(sourceId).first().map { it.id }
+        val allKnownIds = (positionRows.map { it.itemId } + libraryIds).distinct()
+        val fromServer = resolveItemIds(enumerated.audioSafeIds, allKnownIds)
+        val missingFromServer = positionRows
             .filter { it.lastSyncedAt > 0L && !enumerated.audioSafeIds.contains(it.itemId.replace("/", ".")) }
             .map { it.itemId }
         return (fromServer + missingFromServer).distinct()

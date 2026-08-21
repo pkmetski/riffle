@@ -2,6 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
 import com.riffle.core.domain.AnnotationSyncConfig
@@ -97,6 +99,15 @@ class CatalogRemoteProgressIndexTest {
         override suspend fun allForSource(s: String) = rows
     }
 
+    private fun libraryItemDao(vararg ids: String): LibraryItemDao {
+        val items = ids.map {
+            LibraryItemEntity(chitankaSourceId, it, "lib1", it, "", null, 0f, addedAt = 0L)
+        }
+        val dao = mockk<LibraryItemDao>(relaxed = true)
+        io.mockk.every { dao.observeBySource(any()) } returns MutableStateFlow(items)
+        return dao
+    }
+
     private fun makeIndex(
         config: AnnotationSyncConfig? = webDavConfig,
         sources: List<Source> = listOf(chitankaSource),
@@ -104,12 +115,14 @@ class CatalogRemoteProgressIndexTest {
         audioSafeIds: List<String> = emptyList(),
         localEbookIds: List<String> = emptyList(),
         localAudioIds: List<String> = emptyList(),
+        libraryItemIds: List<String> = emptyList(),
     ) = CatalogRemoteProgressIndex(
         sourceRepository = sourceRepo(*sources.toTypedArray()),
         annotationSyncConfigStore = configStore(config),
         enumerator = fakeEnumerator(ebookSafeIds, audioSafeIds),
         readingPositionDao = readingDao(*localEbookIds.toTypedArray()),
         audiobookPositionDao = audioDao(*localAudioIds.toTypedArray()),
+        libraryItemDao = libraryItemDao(*libraryItemIds.toTypedArray()),
     )
 
     // ── sourcesWithRemote ────────────────────────────────────────────────────
@@ -144,7 +157,18 @@ class CatalogRemoteProgressIndexTest {
         assertEquals(listOf("84"), idx.remoteEbookItems(chitankaSourceId))
     }
 
-    @Test fun `remoteEbookItems skips safe IDs with no local row`() = runTest {
+    @Test fun `remoteEbookItems resolves safe IDs via library items when no position row exists`() = runTest {
+        // Regression: on a new device there is no position row yet, but the library item exists.
+        // Progress must be pulled without requiring the book to be opened first.
+        val idx = makeIndex(
+            ebookSafeIds = listOf("book.12073-title"),
+            localEbookIds = emptyList(),
+            libraryItemIds = listOf("book/12073-title"),
+        )
+        assertEquals(listOf("book/12073-title"), idx.remoteEbookItems(chitankaSourceId))
+    }
+
+    @Test fun `remoteEbookItems skips safe IDs with no local row and no library item`() = runTest {
         val idx = makeIndex(ebookSafeIds = listOf("book.12073-title"), localEbookIds = emptyList())
         assertTrue(idx.remoteEbookItems(chitankaSourceId).isEmpty())
     }
@@ -184,7 +208,16 @@ class CatalogRemoteProgressIndexTest {
         assertEquals(listOf("audio/42"), idx.remoteAudioItems(chitankaSourceId))
     }
 
-    @Test fun `remoteAudioItems skips safe IDs with no local audio row`() = runTest {
+    @Test fun `remoteAudioItems resolves safe IDs via library items when no position row exists`() = runTest {
+        val idx = makeIndex(
+            audioSafeIds = listOf("audio.1"),
+            localAudioIds = emptyList(),
+            libraryItemIds = listOf("audio/1"),
+        )
+        assertEquals(listOf("audio/1"), idx.remoteAudioItems(chitankaSourceId))
+    }
+
+    @Test fun `remoteAudioItems skips safe IDs with no local audio row and no library item`() = runTest {
         val idx = makeIndex(audioSafeIds = listOf("audio.1"), localAudioIds = emptyList())
         assertTrue(idx.remoteAudioItems(chitankaSourceId).isEmpty())
     }
