@@ -3173,7 +3173,7 @@ class MigrationTest {
             ).use { cursor ->
                 assertEquals(1, cursor.count)
                 assertTrue(cursor.moveToFirst())
-                assertEquals("Expanded_Medium", cursor.getString(cursor.getColumnIndexOrThrow("screenDimensionBucket")))
+                assertEquals("Compact_Medium", cursor.getString(cursor.getColumnIndexOrThrow("screenDimensionBucket")))
                 assertEquals(1.5f, cursor.getFloat(cursor.getColumnIndexOrThrow("fontSize")), 0.001f)
                 assertEquals("Dark", cursor.getString(cursor.getColumnIndexOrThrow("theme")))
             }

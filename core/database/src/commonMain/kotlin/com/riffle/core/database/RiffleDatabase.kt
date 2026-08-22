@@ -1805,9 +1805,37 @@ abstract class RiffleDatabase : RoomDatabase() {
 
         val MIGRATION_69_70 = object : Migration(69, 70) {
             override fun migrate(db: SQLiteConnection) {
+                // ALTER TABLE cannot change the PRIMARY KEY in SQLite, so a full table rebuild is
+                // required to add `screenDimensionBucket` to the composite PK.
                 db.execSQL(
-                    "ALTER TABLE book_formatting_preferences " +
-                        "ADD COLUMN screenDimensionBucket TEXT NOT NULL DEFAULT 'Expanded_Medium'"
+                    "CREATE TABLE IF NOT EXISTS `book_formatting_preferences_new` " +
+                        "(`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `scope` TEXT NOT NULL, " +
+                        "`screenDimensionBucket` TEXT NOT NULL DEFAULT 'Compact_Medium', " +
+                        "`fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, " +
+                        "`margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, " +
+                        "`coloredChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, " +
+                        "`showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, " +
+                        "`justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, " +
+                        "PRIMARY KEY(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "INSERT INTO `book_formatting_preferences_new` " +
+                        "(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`, `fontSize`, `theme`, " +
+                        "`fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, " +
+                        "`coloredChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, " +
+                        "`doublePageSpread`, `justifyText`, `showReadingTimeEstimate`) " +
+                        "SELECT `sourceId`, `itemId`, `scope`, 'Compact_Medium', `fontSize`, `theme`, " +
+                        "`fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, " +
+                        "`coloredChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, " +
+                        "`doublePageSpread`, `justifyText`, `showReadingTimeEstimate` " +
+                        "FROM `book_formatting_preferences`"
+                )
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +
+                        "ON `book_formatting_preferences` (`sourceId`)"
                 )
             }
         }
