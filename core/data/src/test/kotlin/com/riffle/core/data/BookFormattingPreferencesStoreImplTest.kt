@@ -9,6 +9,7 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.FormattingScope
 import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
@@ -67,7 +68,7 @@ class BookFormattingPreferencesStoreImplTest {
     fun load_passesEncodedDimensionToDao() = runTest {
         val dao = FakeDao()
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
-        val bucket = ScreenDimensionBucket(ScreenDimensionBucket.Width.Compact, ScreenDimensionBucket.Height.Compact)
+        val bucket = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
 
         store.load("book1", FormattingScope.FullBook, bucket)
 
@@ -80,7 +81,7 @@ class BookFormattingPreferencesStoreImplTest {
         val dao = FakeDao().also { it.entityToReturn = null }
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
 
-        val result = store.load("book1", FormattingScope.FullBook, ScreenDimensionBucket.NonCompact)
+        val result = store.load("book1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)
 
         assertNull(result)
     }
@@ -89,7 +90,7 @@ class BookFormattingPreferencesStoreImplTest {
     fun save_includesEncodedDimensionInEntity() = runTest {
         val dao = FakeDao()
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
-        val bucket = ScreenDimensionBucket(ScreenDimensionBucket.Width.Medium, ScreenDimensionBucket.Height.Expanded)
+        val bucket = ScreenDimensionBucket.of(SizeClass.Medium, SizeClass.Expanded)
         val overrides = BookFormattingOverrides(theme = ReaderTheme.Dark)
 
         store.save("book1", FormattingScope.FullBook, bucket, overrides)
@@ -103,7 +104,7 @@ class BookFormattingPreferencesStoreImplTest {
     fun clear_passesEncodedDimensionToDao() = runTest {
         val dao = FakeDao()
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
-        val bucket = ScreenDimensionBucket(ScreenDimensionBucket.Width.Expanded, ScreenDimensionBucket.Height.Compact)
+        val bucket = ScreenDimensionBucket.of(SizeClass.Expanded, SizeClass.Compact)
 
         store.clear("book1", FormattingScope.FullBook, bucket)
 
@@ -116,7 +117,7 @@ class BookFormattingPreferencesStoreImplTest {
         val dao = FakeDao()
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(null))
 
-        val result = store.load("book1", FormattingScope.FullBook, ScreenDimensionBucket.NonCompact)
+        val result = store.load("book1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)
 
         assertNull(result)
     }

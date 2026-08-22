@@ -8,6 +8,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
 import com.riffle.core.models.FormattingScope
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
@@ -47,15 +48,17 @@ class PdfReaderViewModelFormattingTest {
     }
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
-        private val saved = mutableMapOf<Pair<String, FormattingScope>, BookFormattingOverrides>()
-        override suspend fun load(itemId: String, scope: FormattingScope): BookFormattingOverrides =
-            saved[itemId to scope] ?: BookFormattingOverrides()
-        override suspend fun save(itemId: String, scope: FormattingScope, overrides: BookFormattingOverrides) {
-            saved[itemId to scope] = overrides
+        private val saved = mutableMapOf<Triple<String, FormattingScope, ScreenDimensionBucket>, BookFormattingOverrides>()
+        override suspend fun load(itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket): BookFormattingOverrides? =
+            saved[Triple(itemId, scope, dimension)]
+        override suspend fun save(itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides) {
+            saved[Triple(itemId, scope, dimension)] = overrides
         }
-        override suspend fun clear(itemId: String, scope: FormattingScope) { saved.remove(itemId to scope) }
-        fun captured(itemId: String, scope: FormattingScope = FormattingScope.FullBook): BookFormattingOverrides? =
-            saved[itemId to scope]
+        override suspend fun clear(itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket) {
+            saved.remove(Triple(itemId, scope, dimension))
+        }
+        fun captured(itemId: String, scope: FormattingScope = FormattingScope.FullBook, dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait): BookFormattingOverrides? =
+            saved[Triple(itemId, scope, dimension)]
     }
 
     private class FakeWakeLockPreferencesStore : WakeLockPreferencesStore {

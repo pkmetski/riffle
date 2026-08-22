@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import com.riffle.core.domain.autoscroll.PauseCause
+import com.riffle.core.models.ScreenDimensionBucket
 
 /**
  * Owns all formatting/typography/auto-scroll state for a single open book. Lifted from
@@ -111,6 +112,7 @@ class FormattingSession @AssistedInject constructor(
     val autoScrollScrollDeltas: Flow<Int> = autoScrollController.scrollDeltas
 
     private var bookId: String? = null
+    private var activeDimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait
 
     // Device pixel density for accurate layout context. Default = 1f (CSS-px fallback).
     // The VM sets this via [setDeviceDensity] in its init block, after constructing the session,
@@ -205,15 +207,47 @@ class FormattingSession @AssistedInject constructor(
     }
 
     /**
-     * Load book-specific overrides and mark prefs as ready. Must be called once per book open,
-     * before [effectiveFormattingPreferences] is consumed by the navigator.
+     * Load book-specific overrides for the given screen-dimension bucket and mark prefs as ready.
+     * Must be called before [effectiveFormattingPreferences] is consumed by the navigator. May be
+     * re-called when the device dimension changes (fold/rotate) to switch to the new bucket's row.
+     * If no row exists for this (itemId, scope, dimension), global defaults are seeded as a dense
+     * override row so the dimension's settings are independent going forward.
      */
-    fun bindToBook(itemId: String, scope: FormattingScope = FormattingScope.FullBook) {
+    fun bindToBook(
+        itemId: String,
+        scope: FormattingScope = FormattingScope.FullBook,
+        dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait,
+    ) {
         bookId = itemId
+        activeDimension = dimension
         _scope.value = scope
+        _formattingPreferencesReady.value = false
         this.scope.launch {
-            val overrides = bookFormattingPreferencesStore.load(itemId, scope)
+            val existing = bookFormattingPreferencesStore.load(itemId, scope, dimension)
             val global = formattingPreferencesStoreProvider.store(scope).preferences.first()
+            val overrides = if (existing != null) {
+                existing
+            } else {
+                // Seed: dense copy of all fields BookFormattingOverrides can store so each
+                // dimension starts from current globals and is independent going forward.
+                BookFormattingOverrides(
+                    fontSize = global.fontSize,
+                    theme = global.theme,
+                    fontFamily = global.fontFamily,
+                    lineSpacing = global.lineSpacing,
+                    margins = global.margins,
+                    orientation = global.orientation,
+                    showChapterMap = global.showChapterMap,
+                    coloredChapterMap = global.coloredChapterMap,
+                    showReadingProgressLabels = global.showReadingProgressLabels,
+                    showCurrentChapterLabel = global.showCurrentChapterLabel,
+                    showReadingTimeEstimate = global.showReadingTimeEstimate,
+                    doublePageSpread = global.doublePageSpread,
+                    justifyText = global.justifyText,
+                ).also { seed ->
+                    bookFormattingPreferencesStore.save(itemId, scope, dimension, seed)
+                }
+            }
             _bookOverrides.value = overrides
             val effective = overrides.applyTo(global)
             _formattingPreferences.value = effective
@@ -240,7 +274,8 @@ class FormattingSession @AssistedInject constructor(
         _formattingPreferences.value = prefs
         _hasBookOverrides.value = !updated.isEmpty
         val boundScope = activeScope
-        scope.launch { bookFormattingPreferencesStore.save(itemId, boundScope, updated) }
+        val boundDimension = activeDimension
+        scope.launch { bookFormattingPreferencesStore.save(itemId, boundScope, boundDimension, updated) }
     }
 
     /**
@@ -253,11 +288,12 @@ class FormattingSession @AssistedInject constructor(
         scope.launch { formattingPreferencesStoreProvider.store(activeScope).setCadencePlatformSupported(supported) }
     }
 
-    /** Clear all book-level overrides, reverting to the global formatting preferences. */
+    /** Clear book-level overrides for the current dimension, reverting to global formatting preferences. */
     fun resetToGlobalDefaults(itemId: String) {
         val boundScope = activeScope
+        val boundDimension = activeDimension
         scope.launch {
-            bookFormattingPreferencesStore.clear(itemId, boundScope)
+            bookFormattingPreferencesStore.clear(itemId, boundScope, boundDimension)
             _bookOverrides.value = BookFormattingOverrides()
             _formattingPreferences.value =
                 formattingPreferencesStoreProvider.store(boundScope).preferences.first()

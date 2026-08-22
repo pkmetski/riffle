@@ -28,7 +28,7 @@ import org.junit.Test
  */
 class BookFormattingPreferencesStoreScopeIsolationTest {
 
-    private val dim = ScreenDimensionBucket.NonCompact
+    private val dim = ScreenDimensionBucket.PhonePortrait
 
     private class InMemoryDao : BookFormattingPreferencesDao {
         val rows = mutableMapOf<Triple<String, String, String>, BookFormattingPreferencesEntity>()
