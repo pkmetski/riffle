@@ -1990,6 +1990,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_66_67,
             RiffleDatabase.MIGRATION_67_68,
             RiffleDatabase.MIGRATION_68_69,
+            RiffleDatabase.MIGRATION_69_70,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2003,7 +2004,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(69, cursor.getInt(0))
+            assertEquals(70, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
@@ -3147,6 +3148,43 @@ class MigrationTest {
             db.query("SELECT state FROM dictionary_packs WHERE languageTag = 'fr'").use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals("INSTALLED", c.getString(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration69To70_addsScreenDimensionBucketColumn() {
+        helper.createDatabase(TEST_DB, 69).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, fontSize, theme) " +
+                    "VALUES ('src', 'book1', 'FullBook', 1.5, 'Dark')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 70, true, RiffleDatabase.MIGRATION_69_70
+        ).use { db ->
+            db.query(
+                "SELECT screenDimensionBucket, fontSize, theme FROM book_formatting_preferences WHERE itemId = 'book1'"
+            ).use { cursor ->
+                assertEquals(1, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Expanded_Medium", cursor.getString(cursor.getColumnIndexOrThrow("screenDimensionBucket")))
+                assertEquals(1.5f, cursor.getFloat(cursor.getColumnIndexOrThrow("fontSize")), 0.001f)
+                assertEquals("Dark", cursor.getString(cursor.getColumnIndexOrThrow("theme")))
+            }
+
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize) " +
+                    "VALUES ('src', 'book1', 'FullBook', 'Compact_Compact', 1.0)"
+            )
+            db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'book1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(2, cursor.getInt(0))
             }
         }
     }

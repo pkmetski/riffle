@@ -44,7 +44,7 @@ import androidx.sqlite.execSQL
         DictionaryPackEntity::class,
         LookupHistoryEntity::class,
     ],
-    version = 69,
+    version = 70,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1799,6 +1799,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "`languageTag` TEXT NOT NULL, " +
                         "`form` TEXT NOT NULL, " +
                         "`lookedUpAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        val MIGRATION_69_70 = object : Migration(69, 70) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "ALTER TABLE book_formatting_preferences " +
+                        "ADD COLUMN screenDimensionBucket TEXT NOT NULL DEFAULT 'Expanded_Medium'"
                 )
             }
         }
