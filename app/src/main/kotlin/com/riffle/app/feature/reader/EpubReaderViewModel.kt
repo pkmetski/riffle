@@ -57,6 +57,7 @@ import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.common.TimeProvider
 import com.riffle.core.common.TimeRemaining
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.resolveEpubHref
@@ -668,6 +669,22 @@ class EpubReaderViewModel @Inject constructor(
 
     fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
 
+    private val _screenDimensionBucket = MutableStateFlow<ScreenDimensionBucket?>(null)
+
+    /**
+     * Called from the screen whenever [WindowSizeClass] changes (first composition + fold/rotate).
+     * The initial call unblocks the init coroutine that awaits the first non-null value before
+     * binding formatting prefs. Subsequent calls with a different bucket re-bind the formatting
+     * session so each screen dimension gets its own independent row of preferences.
+     */
+    fun setScreenDimensionBucket(bucket: ScreenDimensionBucket) {
+        val previous = _screenDimensionBucket.value
+        _screenDimensionBucket.value = bucket
+        if (previous != null && previous != bucket) {
+            formatting.bindToBook(itemId, source.toFormattingScope(), bucket)
+        }
+    }
+
     // ---- Cadence (issue #403 / ADR 0047) --------------------------------------------------------
 
     val cadenceState: StateFlow<com.riffle.core.domain.cadence.CadenceState> = cadenceController.state
@@ -1132,7 +1149,10 @@ class EpubReaderViewModel @Inject constructor(
             // Sequential: formatting prefs must be available before openBook() so the
             // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
             // waits for effectiveFormattingPreferences to reflect the loaded value).
-            formatting.bindToBook(itemId, source.toFormattingScope())
+            // Await the screen's first WindowSizeClass push so prefs are keyed by the actual
+            // on-screen dimension from the first frame rather than a guess.
+            val dimension = _screenDimensionBucket.filterNotNull().first()
+            formatting.bindToBook(itemId, source.toFormattingScope(), dimension)
             openBook()
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0044). Stop (not Pause):
