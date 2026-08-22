@@ -1151,8 +1151,12 @@ class EpubReaderViewModel @Inject constructor(
             // waits for effectiveFormattingPreferences to reflect the loaded value).
             // Await the screen's first WindowSizeClass push so prefs are keyed by the actual
             // on-screen dimension from the first frame rather than a guess.
-            val dimension = _screenDimensionBucket.filterNotNull().first()
-            formatting.bindToBook(itemId, source.toFormattingScope(), dimension)
+            _screenDimensionBucket.filterNotNull().first()
+            // Re-read the current value: a rotation may have pushed a newer bucket between the
+            // time first() returned and now. setScreenDimensionBucket only calls bindToBook when
+            // previous!=null, so the init coroutine must pick up the latest value here rather
+            // than the stale one captured by first().
+            formatting.bindToBook(itemId, source.toFormattingScope(), checkNotNull(_screenDimensionBucket.value))
             openBook()
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0044). Stop (not Pause):

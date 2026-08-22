@@ -219,10 +219,13 @@ class FormattingSession @AssistedInject constructor(
         scope: FormattingScope = FormattingScope.FullBook,
         dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait,
     ) {
+        val alreadyReady = _formattingPreferencesReady.value
         bookId = itemId
         activeDimension = dimension
         _scope.value = scope
-        _formattingPreferencesReady.value = false
+        // Only reset the ready flag on the first bind. Re-binding for a dimension change leaves the
+        // prior prefs visible while the new dimension's row loads — avoids a spinner flash on fold/rotate.
+        if (!alreadyReady) _formattingPreferencesReady.value = false
         bindJob?.cancel()
         bindJob = this.scope.launch {
             val existing = bookFormattingPreferencesStore.load(itemId, scope, dimension)

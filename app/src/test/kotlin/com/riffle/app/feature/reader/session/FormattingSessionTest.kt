@@ -53,7 +53,7 @@ class FormattingSessionTest {
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
         // Keyed by (itemId, scope, dimension) so scope and dimension combinations stay independent.
         val saved = mutableMapOf<Triple<String, FormattingScope, ScreenDimensionBucket>, BookFormattingOverrides>()
-        private var toReturn: BookFormattingOverrides? = BookFormattingOverrides()
+        private var toReturn: BookFormattingOverrides? = null
         fun willReturn(o: BookFormattingOverrides?) { toReturn = o }
         override suspend fun load(
             itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket,

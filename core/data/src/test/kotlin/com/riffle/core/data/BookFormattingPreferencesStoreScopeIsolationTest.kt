@@ -33,21 +33,21 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
     private class InMemoryDao : BookFormattingPreferencesDao {
         val rows = mutableMapOf<Triple<String, String, String>, BookFormattingPreferencesEntity>()
         override suspend fun upsert(entity: BookFormattingPreferencesEntity) {
-            rows[Triple(entity.sourceId + entity.scope, entity.itemId, entity.screenDimensionBucket)] = entity
+            rows[Triple("${entity.sourceId}|${entity.scope}", entity.itemId, entity.screenDimensionBucket)] = entity
         }
         override suspend fun getByItemId(
             sourceId: String,
             itemId: String,
             scope: String,
             screenDimensionBucket: String,
-        ): BookFormattingPreferencesEntity? = rows[Triple(sourceId + scope, itemId, screenDimensionBucket)]
+        ): BookFormattingPreferencesEntity? = rows[Triple("$sourceId|$scope", itemId, screenDimensionBucket)]
         override suspend fun deleteByItemId(
             sourceId: String,
             itemId: String,
             scope: String,
             screenDimensionBucket: String,
         ) {
-            rows.remove(Triple(sourceId + scope, itemId, screenDimensionBucket))
+            rows.remove(Triple("$sourceId|$scope", itemId, screenDimensionBucket))
         }
     }
 
