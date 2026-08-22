@@ -43,7 +43,6 @@ class GitHubPanelReportRepositoryTest {
             repoName = "riffle",
             client = httpClient,
             apiBase = baseUrl,
-            rawBase = baseUrl,
         )
     }
 
@@ -61,46 +60,75 @@ class GitHubPanelReportRepositoryTest {
         tappedPanelIndex = 0,
     )
 
+    private fun gistResponse(gistUrl: String, maskRawUrl: String): String =
+        """{"html_url":"$gistUrl","files":{"mask.b64":{"raw_url":"$maskRawUrl"}}}"""
+
     @Test
-    fun `submit makes 7 API calls and returns issue URL`() = runTest {
-        // 1. create blob
-        server.enqueue(MockResponse().setBody("""{"sha":"blob-sha-123"}""").setResponseCode(201))
-        // 2. get ref (current commit sha)
-        server.enqueue(MockResponse().setBody("""{"object":{"sha":"commit-abc"}}""").setResponseCode(200))
-        // 3. get commit (tree sha)
-        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"tree-xyz"}}""").setResponseCode(200))
-        // 4. create tree
-        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-sha"}""").setResponseCode(201))
-        // 5. create commit
-        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-sha"}""").setResponseCode(201))
-        // 6. patch ref
-        server.enqueue(MockResponse().setBody("""{"ref":"refs/heads/panel-reports"}""").setResponseCode(200))
-        // 7. create issue
+    fun `submit makes 2 API calls and returns issue URL`() = runTest {
+        // 1. create gist
+        server.enqueue(MockResponse().setBody(
+            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+        ).setResponseCode(201))
+        // 2. create issue
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val result = repo().submit(fakeReport, ByteArray(5) { it.toByte() })
 
         assertTrue(result.isSuccess)
         assertEquals("https://github.com/pkmetski/riffle/issues/99", result.getOrNull())
-        assertEquals(7, server.requestCount)
+        assertEquals(2, server.requestCount)
+    }
 
-        // Verify issue body contains failure type and notes (7th request = create issue)
-        val requests = (1..7).map { server.takeRequest() }
-        val issueBody = requests[6].body.readUtf8()
+    @Test
+    fun `gist body contains base64-encoded mask and metadata`() = runTest {
+        server.enqueue(MockResponse().setBody(
+            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+        ).setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
+
+        val maskBytes = ByteArray(5) { it.toByte() }
+        repo().submit(fakeReport, maskBytes)
+
+        val gistRequest = server.takeRequest()
+        val gistBody = Json { ignoreUnknownKeys = true }
+            .parseToJsonElement(gistRequest.body.readUtf8()).jsonObject
+        val expectedBase64 = java.util.Base64.getEncoder().encodeToString(maskBytes)
+        val maskContent = gistBody["files"]!!.jsonObject["mask.b64"]!!
+            .jsonObject["content"]!!.jsonPrimitive.content
+        assertEquals(expectedBase64, maskContent)
+        // metadata file present
+        val metadata = gistBody["files"]!!.jsonObject["metadata.json"]!!
+            .jsonObject["content"]!!.jsonPrimitive.content
+        assertTrue("metadata contains pageIndex", metadata.contains("3"))
+        assertTrue("metadata contains failureType", metadata.contains("Merged panels"))
+    }
+
+    @Test
+    fun `issue body contains gist URL and mask raw URL`() = runTest {
+        val gistHtmlUrl = "https://gist.github.com/pkmetski/abc123"
+        val maskRawUrl = "https://gist.githubusercontent.com/raw/mask.b64"
+        server.enqueue(MockResponse().setBody(
+            gistResponse(gistHtmlUrl, maskRawUrl)
+        ).setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
+
+        repo().submit(fakeReport, ByteArray(0))
+
+        server.takeRequest() // consume gist
+        val issueRequest = server.takeRequest()
         val parsedBody = Json { ignoreUnknownKeys = true }
-            .parseToJsonElement(issueBody).jsonObject["body"]?.jsonPrimitive?.content ?: ""
+            .parseToJsonElement(issueRequest.body.readUtf8()).jsonObject["body"]?.jsonPrimitive?.content ?: ""
+        assertTrue("body contains gist URL", parsedBody.contains(gistHtmlUrl))
+        assertTrue("body contains mask raw URL", parsedBody.contains(maskRawUrl))
         assertTrue("body contains failure type", parsedBody.contains("Merged panels"))
         assertTrue("body contains notes", parsedBody.contains("Top two panels merged"))
     }
 
     @Test
     fun `issue body contains expected panel order when WrongPanelOrder report submitted`() = runTest {
-        server.enqueue(MockResponse().setBody("""{"sha":"blob-sha-123"}""").setResponseCode(201))
-        server.enqueue(MockResponse().setBody("""{"object":{"sha":"commit-abc"}}""").setResponseCode(200))
-        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"tree-xyz"}}""").setResponseCode(200))
-        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-sha"}""").setResponseCode(201))
-        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-sha"}""").setResponseCode(201))
-        server.enqueue(MockResponse().setBody("""{"ref":"refs/heads/panel-reports"}""").setResponseCode(200))
+        server.enqueue(MockResponse().setBody(
+            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+        ).setResponseCode(201))
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val reportWithOrder = fakeReport.copy(
@@ -109,10 +137,10 @@ class GitHubPanelReportRepositoryTest {
         )
         repo().submit(reportWithOrder, ByteArray(0))
 
-        val requests = (1..7).map { server.takeRequest() }
-        val issueBody = requests[6].body.readUtf8()
+        server.takeRequest() // consume gist
+        val issueRequest = server.takeRequest()
         val parsedBody = Json { ignoreUnknownKeys = true }
-            .parseToJsonElement(issueBody).jsonObject["body"]?.jsonPrimitive?.content ?: ""
+            .parseToJsonElement(issueRequest.body.readUtf8()).jsonObject["body"]?.jsonPrimitive?.content ?: ""
         assertTrue("body contains expected order", parsedBody.contains("[1, 0]"))
     }
 
@@ -123,40 +151,5 @@ class GitHubPanelReportRepositoryTest {
         val result = repo().submit(fakeReport, ByteArray(0))
 
         assertTrue(result.isFailure)
-    }
-
-    @Test
-    fun `submit retries on 422 not-a-fast-forward and succeeds on second attempt`() = runTest {
-        // 1. create blob
-        server.enqueue(MockResponse().setBody("""{"sha":"blob-sha-123"}""").setResponseCode(201))
-        // --- attempt 1 ---
-        // 2. get ref
-        server.enqueue(MockResponse().setBody("""{"object":{"sha":"stale-commit"}}""").setResponseCode(200))
-        // 3. get commit
-        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"stale-tree"}}""").setResponseCode(200))
-        // 4. create tree
-        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-1"}""").setResponseCode(201))
-        // 5. create commit
-        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-1"}""").setResponseCode(201))
-        // 6. patch ref → 422
-        server.enqueue(MockResponse().setBody("""{"message":"Update is not a fast forward"}""").setResponseCode(422))
-        // --- attempt 2 ---
-        // 2. get ref (now returns fresh sha)
-        server.enqueue(MockResponse().setBody("""{"object":{"sha":"fresh-commit"}}""").setResponseCode(200))
-        // 3. get commit
-        server.enqueue(MockResponse().setBody("""{"tree":{"sha":"fresh-tree"}}""").setResponseCode(200))
-        // 4. create tree
-        server.enqueue(MockResponse().setBody("""{"sha":"new-tree-2"}""").setResponseCode(201))
-        // 5. create commit
-        server.enqueue(MockResponse().setBody("""{"sha":"new-commit-2"}""").setResponseCode(201))
-        // 6. patch ref → success
-        server.enqueue(MockResponse().setBody("""{"ref":"refs/heads/panel-reports"}""").setResponseCode(200))
-        // 7. create issue
-        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/42"}""").setResponseCode(201))
-
-        val result = repo().submit(fakeReport, ByteArray(0))
-
-        assertTrue(result.isSuccess)
-        assertEquals("https://github.com/pkmetski/riffle/issues/42", result.getOrNull())
     }
 }
