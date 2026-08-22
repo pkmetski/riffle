@@ -761,6 +761,105 @@ class PanelDetectorTest {
         )
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Issue #787 — the merged remainder's LEFT edge must follow the diagonal boundary in the
+    // band, not sit flatly at top.maxX + 1. These tests exercise diagonalRemainderStart through
+    // mergeDiagonalSpanningPanels with a real mask + gutter (the run analysis needs pixels).
+    // Geometry: column (30,20)-(560,350) over band (30,360)-(980,700) on a 1000×1400 page.
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * Builds the column-over-band mask for the #787 remainder tests. The band's interior gutter
+     * occupies columns [upperGutter] in the band's upper half and [lowerGutter] in the lower
+     * half; character content fills left of the gutter, right-panel content right of it. The
+     * character also runs through the row-boundary gap (rows 351-359) inside the column's
+     * x-range so boundaryContinuesThroughColumn passes, matching the real #784/#787 page.
+     */
+    private fun remainderMask(upperGutter: IntRange, lowerGutter: IntRange): Pair<PanelDetector.CroppedMask, BooleanArray> {
+        val w = 1000
+        val h = 1400
+        val data = ByteArray(w * h)
+        fun fillContent(x0: Int, y0: Int, x1: Int, y1: Int) {
+            for (y in y0..y1) for (x in x0..x1) data[y * w + x] = 1
+        }
+        fillContent(30, 20, 560, 350) // top column panel
+        fillContent(30, 351, 544, 359) // character continues through the row boundary
+        val bandSplitY = 530
+        fillContent(30, 360, upperGutter.first - 1, bandSplitY) // character, band upper half
+        fillContent(upperGutter.last + 1, 360, 980, bandSplitY) // right panel, band upper half
+        fillContent(30, bandSplitY + 1, lowerGutter.first - 1, 700) // character, band lower half
+        fillContent(lowerGutter.last + 1, bandSplitY + 1, 980, 700) // right panel, band lower half
+        val gutter = BooleanArray(w * h) { data[it] == 0.toByte() }
+        return PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0) to gutter
+    }
+
+    @Test
+    fun `merged remainder follows the diagonal gutter into the band`() {
+        // Regression for issue #787: the band's gutter sits at 545..560 in the upper half and
+        // 430..445 in the lower half (shift 115 = 11.5% of page width — a clear diagonal). The
+        // remainder must start at the leftmost gutter run's right edge + 1 = 446, not at
+        // top.maxX + 1 = 561 which chops off the remainder's lower-left corner.
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 430..445)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals("expected tall + remainder; got $merged", 2, merged.size)
+        assertTrue(
+            "tall panel (30,20)-(560,700) expected; got $merged",
+            merged.any { it.minX == 30 && it.minY == 20 && it.maxX == 560 && it.maxY == 700 },
+        )
+        assertTrue(
+            "remainder must start at the diagonal gutter's right edge (446,360)-(980,700); got $merged",
+            merged.any { it.minX == 446 && it.minY == 360 && it.maxX == 980 && it.maxY == 700 },
+        )
+    }
+
+    @Test
+    fun `merged remainder stays at the column edge when the band gutter is straight`() {
+        // Both-sides boundary for the diagonal-shift floor: the gutter sits at 545..560 through
+        // the whole band (shift 0 < 1.5% floor). No diagonal — the remainder must keep the
+        // original top.maxX + 1 = 561 left edge.
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 545..560)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals("expected tall + remainder; got $merged", 2, merged.size)
+        assertTrue(
+            "remainder must keep the straight-gutter left edge (561,360)-(980,700); got $merged",
+            merged.any { it.minX == 561 && it.minY == 360 && it.maxX == 980 && it.maxY == 700 },
+        )
+    }
+
+    @Test
+    fun `merged remainder left edge is walked back to keep overlap under the sanity cap`() {
+        // The remainder intentionally overlaps the tall panel in the diagonal transition zone,
+        // but must never overlap so much that applyGlobalSanityChecks rejects the whole page
+        // (that failure mode falls back to the CC path — the exact regression seen when this
+        // fix was first attempted without the cap). Lower gutter at 395..410 puts the raw
+        // remainder start at 411; the cap walks it back to 431 where overlap = 23.7% of the
+        // remainder (just under overlapRejectFraction × 0.95).
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 395..410)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals("expected tall + remainder; got $merged", 2, merged.size)
+        val remainder = merged.single { it.minX != 30 }
+        assertEquals("remainder left edge must be capped at 431; got $remainder", 431, remainder.minX)
+        // Sanity: the capped overlap must be under the reject threshold.
+        val overlap = (560 - remainder.minX + 1).toLong() * (700 - 360 + 1)
+        val remainderArea = (980 - remainder.minX + 1).toLong() * (700 - 360 + 1)
+        assertTrue(
+            "overlap ${overlap * 100 / remainderArea}% must stay under 25% of the remainder",
+            overlap * 100 < remainderArea * 25,
+        )
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

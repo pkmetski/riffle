@@ -424,9 +424,12 @@ class PanelDetectorImageTest {
             "tall panel must start at the top-left and span rows 1-2; got $tallLeft",
             tallLeft.x < grid.width / 4 && tallLeft.y < (grid.height * 0.05).toInt(),
         )
-        // The row2-right remainder: right half, y within row 2.
+        // The row2-right remainder: y within row 2. Its LEFT edge was originally pinned at
+        // > width/2 (the #784 fix emitted it at top.maxX + 1 = 592); issue #787 established that
+        // the diagonal boundary requires it to start near x=460, so the matcher now keys on the
+        // y-band only and the left edge is pinned by the dedicated #787 test.
         val row2Right = result.panels.single { p ->
-            p.x > grid.width / 2 &&
+            p.x > grid.width / 4 &&
                 p.y in (grid.height * 0.22).toInt()..(grid.height * 0.32).toInt()
         }
         assertTrue(
@@ -461,6 +464,44 @@ class PanelDetectorImageTest {
         assertEquals(
             "clean-grid page must keep its exact geometry (±2px of device-cache ground truth)",
             expected, actual,
+        )
+    }
+
+    @Test
+    fun `row-two right remainder covers the diagonal transition down to the user-drawn edge`() {
+        // Regression for issue #787 (pageIndex 28, same page as #784, filed AFTER the #784 fix
+        // was installed — the fix's own output was the defect): mergeDiagonalSpanningPanels
+        // emitted the row2-right remainder at top.maxX + 1 = 592, but the tall character's right
+        // boundary is DIAGONAL — at row-2 depth the character's edge has receded to ≈450, so the
+        // remainder must start near the user-drawn x=460 to cover the transition zone, mirroring
+        // the expandDiagonalBboxOverlaps semantics used everywhere else for slanted boundaries.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-787-row2-right-cut-off-p28.png")
+        val result = detector.detect(grid, pageIndex = 28, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels (tall-left, row1-right, row2-right, rows 3-4), got ${result.panels.size}: ${result.panels}",
+            7, result.panels.size,
+        )
+        // The tall character panel must still span rows 1-2 (the #784 fix must not regress).
+        val tallLeft = result.panels.single { p -> p.height >= (grid.height * 0.40).toInt() }
+        assertTrue(
+            "tall panel must start at the top-left and span rows 1-2; got $tallLeft",
+            tallLeft.x < grid.width / 4 && tallLeft.y < (grid.height * 0.05).toInt(),
+        )
+        // The row2-right remainder must extend left to the diagonal boundary. The user drew
+        // x=460; the old bug put it at x=592. Allow the overlap pad some slack but require the
+        // left edge west of 500 and east of 400 (not overreaching into the character's column).
+        val row2Right = result.panels.single { p ->
+            p.x > grid.width / 4 && p !== tallLeft &&
+                p.y in (grid.height * 0.22).toInt()..(grid.height * 0.32).toInt()
+        }
+        assertTrue(
+            "row2-right must start near the user-drawn x=460 (old bug: x=592); got $row2Right",
+            row2Right.x in 400..500,
+        )
+        assertTrue(
+            "row2-right must still reach the page's right edge; got $row2Right",
+            row2Right.x + row2Right.width >= (grid.width * 0.93).toInt(),
         )
     }
 

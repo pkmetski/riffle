@@ -245,8 +245,14 @@ class JsonPanelStore @Inject constructor(
          *      a false tall merge of two stacked column panels plus a sliver remainder (#786),
          *      a diagonal-boundary panel cut at the gutter waist (#783), or a tall character
          *      split at a row boundary with the row-2 band unsplit (#784).
+         * v28: mergeDiagonalSpanningPanels remainder follows the diagonal boundary (issue #787).
+         *      The band remainder's left edge is now located from the band's own top/bottom
+         *      strip gutter runs (capped so tall∩remainder stays under the overlap sanity
+         *      threshold) instead of sitting flatly at the tall column's right edge + 1.
+         *      v27 caches can hold a row-2 right panel whose left portion (the diagonal
+         *      transition zone, ~130px on the reported page) is chopped off.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 27
+        internal const val CURRENT_SCHEMA_VERSION: Int = 28
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
