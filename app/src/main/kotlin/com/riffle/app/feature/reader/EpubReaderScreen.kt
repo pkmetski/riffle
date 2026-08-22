@@ -101,6 +101,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
+import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
@@ -220,6 +221,12 @@ fun EpubReaderScreen(
     val displayDensity = context.resources.displayMetrics.density
     LaunchedEffect(configuration.screenWidthDp, displayDensity) {
         viewModel.setReaderViewportWidthPx((configuration.screenWidthDp * displayDensity).toInt())
+    }
+
+    // Push the screen-dimension bucket so formatting prefs are keyed by the actual on-screen
+    // window size class. Fires on first composition and whenever the device folds or rotates.
+    LaunchedEffect(windowSizeClass) {
+        viewModel.setScreenDimensionBucket(windowSizeClass.toScreenDimensionBucket())
     }
 
     // Push the resolved onSurfaceVariant colour to the VM so the elided-view emphasis bar and

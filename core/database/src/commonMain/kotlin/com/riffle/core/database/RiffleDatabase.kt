@@ -44,7 +44,7 @@ import androidx.sqlite.execSQL
         DictionaryPackEntity::class,
         LookupHistoryEntity::class,
     ],
-    version = 69,
+    version = 70,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1799,6 +1799,32 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "`languageTag` TEXT NOT NULL, " +
                         "`form` TEXT NOT NULL, " +
                         "`lookedUpAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        val MIGRATION_69_70 = object : Migration(69, 70) {
+            override fun migrate(db: SQLiteConnection) {
+                // ALTER TABLE cannot change the PRIMARY KEY in SQLite, so a full table rebuild is
+                // required to add `screenDimensionBucket` to the composite PK. Existing per-book
+                // overrides are intentionally dropped; each book will be re-seeded from global
+                // defaults on first open on any dimension.
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL(
+                    "CREATE TABLE `book_formatting_preferences` " +
+                        "(`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `scope` TEXT NOT NULL, " +
+                        "`screenDimensionBucket` TEXT NOT NULL, " +
+                        "`fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, " +
+                        "`margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, " +
+                        "`coloredChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, " +
+                        "`showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, " +
+                        "`justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, " +
+                        "PRIMARY KEY(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +
+                        "ON `book_formatting_preferences` (`sourceId`)"
                 )
             }
         }

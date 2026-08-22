@@ -55,7 +55,7 @@ class SourceDaoDeleteGraphTest {
         sql("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('lib-1', 'Books', 'book', '$ABS_SOURCE_ID', 0)")
         sql("INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, hasAudio, audioDurationSec, genres, addedAt) VALUES ('$ABS_SOURCE_ID', 'item-1', 'lib-1', 'Title', 'Author', NULL, 0.25, 'epub', 1, 123.0, '', 10)")
         sql("INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt, lastSyncedAt) VALUES ('$ABS_SOURCE_ID', 'item-1', 'epubcfi(/6/4!/4/1:0)', 20, 10)")
-        sql("INSERT INTO book_formatting_preferences (sourceId, itemId, scope, fontSize) VALUES ('$ABS_SOURCE_ID', 'item-1', 'FullBook', 1.0)")
+        sql("INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize) VALUES ('$ABS_SOURCE_ID', 'item-1', 'FullBook', 'Compact_Medium', 1.0)")
         db.annotationDao().upsertAll(
             listOf(
                 AnnotationEntity(
