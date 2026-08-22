@@ -775,7 +775,11 @@ class PanelDetectorTest {
      * character also runs through the row-boundary gap (rows 351-359) inside the column's
      * x-range so boundaryContinuesThroughColumn passes, matching the real #784/#787 page.
      */
-    private fun remainderMask(upperGutter: IntRange, lowerGutter: IntRange): Pair<PanelDetector.CroppedMask, BooleanArray> {
+    private fun remainderMask(
+        upperGutter: IntRange,
+        lowerGutter: IntRange,
+        boundaryContinues: Boolean = true,
+    ): Pair<PanelDetector.CroppedMask, BooleanArray> {
         val w = 1000
         val h = 1400
         val data = ByteArray(w * h)
@@ -783,7 +787,9 @@ class PanelDetectorTest {
             for (y in y0..y1) for (x in x0..x1) data[y * w + x] = 1
         }
         fillContent(30, 20, 560, 350) // top column panel
-        fillContent(30, 351, 544, 359) // character continues through the row boundary
+        if (boundaryContinues) {
+            fillContent(30, 351, 544, 359) // character continues through the row boundary
+        }
         val bandSplitY = 530
         fillContent(30, 360, upperGutter.first - 1, bandSplitY) // character, band upper half
         fillContent(upperGutter.last + 1, 360, 980, bandSplitY) // right panel, band upper half
@@ -857,6 +863,72 @@ class PanelDetectorTest {
         assertTrue(
             "overlap ${overlap * 100 / remainderArea}% must stay under 25% of the remainder",
             overlap * 100 < remainderArea * 25,
+        )
+    }
+
+    @Test
+    fun `column over band with a clean white gap never merges regardless of gap thickness`() {
+        // boundaryContinuesThroughColumn must sample ONLY the gap rows: the bboxes' own edge
+        // rows are content by construction, so including them made a thin genuine white gutter
+        // (≤4 rows) read as "artwork continues" and merge two real panels. Here the 9-row gap
+        // is pure white — no merge, whatever the geometry gate says.
+        val (cropped, gutter) = remainderMask(
+            upperGutter = 545..560,
+            lowerGutter = 430..445,
+            boundaryContinues = false,
+        )
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals(
+            "white-gap column-over-band must stay two panels; got $merged",
+            setOf(top, bot), merged.toSet(),
+        )
+    }
+
+    @Test
+    fun `merge result is independent of input bbox order`() {
+        // mergeDiagonalSpanningPanels sorts by minY internally; passing the band before the
+        // column must produce the same tall+remainder pair, not a double-emitted band.
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 430..445)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val forward = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+        val reversed = detector.mergeDiagonalSpanningPanels(listOf(bot, top), 1000, 1400, cropped, gutter)
+
+        assertEquals("reversed input must merge identically; got $reversed vs $forward", forward.toSet(), reversed.toSet())
+        assertEquals(2, reversed.size)
+    }
+
+    @Test
+    fun `expandDiagonalBboxOverlaps caps the pad so overlap stays under the sanity threshold`() {
+        // Both-sides boundary for the expand cap (the F1/F2 Fallback interaction): padding
+        // doubles the pair's overlap, and on a narrow right panel the full overlapX/2 pad would
+        // push overlap past overlapRejectFraction — applyGlobalSanityChecks would then reject
+        // the whole page into Fallback. The pad must shrink until the pair stays legal.
+        val left = PanelDetector.Bbox(minX = 0, minY = 0, maxX = 499, maxY = 299)
+        val narrowRight = PanelDetector.Bbox(minX = 442, minY = 0, maxX = 861, maxY = 299)
+
+        val capped = detector.expandDiagonalBboxOverlaps(listOf(left, narrowRight))
+        val cLeft = capped.single { it.minX == 0 }
+        val cRight = capped.single { it.minX != 0 }
+        val overlap = (cLeft.maxX - cRight.minX + 1).toLong() * 300
+        val smaller = minOf(cLeft.area(), cRight.area())
+        assertTrue(
+            "post-expand overlap must stay ≤ 25% of the smaller panel; got overlap=$overlap smaller=$smaller ($capped)",
+            overlap * 100 <= smaller * 25,
+        )
+        assertTrue("pad must still expand the pair (cap ≠ no-op); got $capped", cLeft.maxX > 499 && cRight.minX < 442)
+
+        // Wide right panel: the full pad (overlapX/2 = 29) stays under the cap and applies whole.
+        val wideRight = PanelDetector.Bbox(minX = 442, minY = 0, maxX = 1441, maxY = 299)
+        val uncapped = detector.expandDiagonalBboxOverlaps(listOf(left, wideRight))
+        assertTrue(
+            "wide pair must get the full ±29 pad; got $uncapped",
+            uncapped.any { it.minX == 0 && it.maxX == 528 } && uncapped.any { it.minX == 413 && it.maxX == 1441 },
         )
     }
 

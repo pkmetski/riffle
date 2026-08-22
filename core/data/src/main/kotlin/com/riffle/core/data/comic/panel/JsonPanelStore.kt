@@ -236,6 +236,9 @@ class JsonPanelStore @Inject constructor(
          *      bbox into ~50%-wide halves whose sub-banner pieces then failed the ≥ 50% width
          *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
          *      may still hold a merged bbox if detection ran on a downscaled image.
+         * v24-v26: intermediate iterations of the #783/#784 diagonal-boundary fixes, never
+         *      released — bumped commit-by-commit on the same branch. The shipped predecessor
+         *      of v27 is v23.
          * v27: Diagonal-boundary repair chain reworked (issues #783, #784, #786). Both detection
          *      paths now run repairDiagonalTwoColumnRows and the new
          *      repairDiagonalAdjacentColumnPairs (widens same-row pairs cut at a diagonal

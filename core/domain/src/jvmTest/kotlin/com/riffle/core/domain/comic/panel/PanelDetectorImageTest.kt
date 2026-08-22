@@ -507,6 +507,12 @@ class PanelDetectorImageTest {
 
     // --- Helpers ---
 
+    // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
+    // fixtures re-run the full binarizer (texture pass erodes gutters ~2px vs the device mask —
+    // the documented ±2px tolerance in the fidelity gate). Switching to 0/255 would make new
+    // fixtures byte-exact BUT changes the effective input of every legacy fixture (#751-#780),
+    // whose pins were validated under this loader and have no device ground truth to re-pin
+    // against. Migrate only together with regenerated legacy fixtures.
     private val LIGHT: Byte = 240.toByte()
     private val DARK: Byte = 20.toByte()
 

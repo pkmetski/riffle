@@ -499,21 +499,6 @@ class PanelDetector(
     }
 
     /**
-     * Detects the "diagonal spanning panel" layout: a tall left (or right) panel whose right (or
-     * left) boundary is a large diagonal slash creates two separate CCs after flood-fill — the top
-     * portion is wider, the bottom is narrower — because the horizontal gutter between rows cleanly
-     * cuts both the content and the diagonal zone.
-     *
-     * Signature: two vertically adjacent bboxes with the same left edge (within 5% of page width)
-     * where the top bbox is significantly wider on the right (≥ 15% of page width). Neither
-     * [repairOneSidedRowJunctions] (requires ≥ 60% shared width) nor [repairDiagonalTwoColumnRows]
-     * (requires a full-width single bbox) handles this. Here we merge the pair into one tall bbox
-     * spanning minY of the top to maxY of the bottom, with maxX = max(top.maxX, bottom.maxX).
-     *
-     * The symmetric case (bottom wider than top) and right-edge variant (same right edge, left
-     * edges differ) are handled by rotating the roles.
-     */
-    /**
      * Rejoins a tall left panel that a horizontal row split cut in two, in the specific shape
      * observed on real pages (issue #784, device-verified geometry): the TOP piece is a proper
      * left-column panel and the BOTTOM piece is an UNSPLIT full-width row band — projection could
@@ -547,6 +532,11 @@ class PanelDetector(
         gutter: BooleanArray? = null,
     ): List<Bbox> {
         if (bboxes.size < 2) return bboxes
+        // Process top-to-bottom so a bbox emitted as its own panel can never later be picked as
+        // a merge bot (a bot always starts below its top, so sorting guarantees the top's
+        // iteration runs first). Callers happen to pass raster/band order today, but nothing
+        // enforced it.
+        val ordered = bboxes.sortedWith(compareBy({ it.minY }, { it.minX }))
         // Allow a horizontal gutter row band between the two pieces (≤ 2% of page height, min 15px).
         val maxGap = (downscaledHeight * 0.02).toInt().coerceAtLeast(15)
         // Both pieces must be at least 10% of page height (rules out thin caption strips).
@@ -565,17 +555,21 @@ class PanelDetector(
         val maxTopWidth = (downscaledWidth * 0.65).toInt()
 
         val result = mutableListOf<Bbox>()
-        val consumed = BooleanArray(bboxes.size)
+        val consumed = BooleanArray(ordered.size)
 
-        for (i in bboxes.indices) {
+        for (i in ordered.indices) {
             if (consumed[i]) continue
-            val top = bboxes[i]
-            if (top.maxY - top.minY + 1 < minPanelH) { result.add(top); continue }
+            val top = ordered[i]
+            if (top.maxY - top.minY + 1 < minPanelH) {
+                result.add(top)
+                consumed[i] = true
+                continue
+            }
 
             var bestJ = -1
-            for (j in bboxes.indices) {
+            for (j in ordered.indices) {
                 if (i == j || consumed[j]) continue
-                val bot = bboxes[j]
+                val bot = ordered[j]
                 val gap = bot.minY - top.maxY - 1
                 if (gap !in 0..maxGap) continue
                 if (bot.maxY - bot.minY + 1 < minPanelH) continue
@@ -592,9 +586,11 @@ class PanelDetector(
             }
             if (bestJ < 0) {
                 result.add(top)
+                consumed[i] = true
                 continue
             }
-            val bot = bboxes[bestJ]
+            val bot = ordered[bestJ]
+            consumed[i] = true
             consumed[bestJ] = true
             // Keep the COLUMN's right edge for the merged tall panel so it does not extend into
             // the bottom row's right-hand panel territory (which would trip the overlap sanity
@@ -642,8 +638,13 @@ class PanelDetector(
      */
     private fun boundaryContinuesThroughColumn(top: Bbox, bot: Bbox, cropped: CroppedMask?): Boolean {
         cropped ?: return true
-        val yStart = top.maxY.coerceAtLeast(0)
-        val yEnd = bot.minY.coerceAtMost(cropped.height - 1)
+        // Sample ONLY the gap rows between the two bboxes. The bboxes' own edge rows (top.maxY,
+        // bot.minY) are content by construction — tighten() guarantees it — so including them
+        // made the 30% threshold trivially satisfiable for gaps ≤ 4 rows (2 full-content rows
+        // out of ≤ 6 sampled), letting a genuine thin white gutter "pass" as continuous artwork.
+        // No gap rows at all = no evidence of continuity = do not merge.
+        val yStart = (top.maxY + 1).coerceAtLeast(0)
+        val yEnd = (bot.minY - 1).coerceAtMost(cropped.height - 1)
         if (yEnd < yStart) return false
         val xStart = top.minX.coerceIn(0, cropped.width - 1)
         val xEnd = top.maxX.coerceIn(0, cropped.width - 1)
@@ -698,6 +699,9 @@ class PanelDetector(
         if (shift > (downscaledWidth * 0.15).toInt()) return null
         val leftRun = if (topRun.first <= bottomRun.first) topRun else bottomRun
         // Start at the gutter's right edge — the first column of the right panel's content.
+        // coerceIn throws on an empty range; a degenerate top (maxX ≤ bot.minX) means the
+        // geometry makes no sense for a remainder adjustment — fall back to top.maxX + 1.
+        if (bot.minX + 1 > top.maxX) return null
         return (leftRun.second + 1).coerceIn(bot.minX + 1, top.maxX)
     }
 
@@ -712,7 +716,7 @@ class PanelDetector(
      * of the shorter panel's height (same row band), and (3) neither expanded panel would become
      * empty. Non-overlapping panels (vertical gutters between them) are unchanged.
      */
-    private fun expandDiagonalBboxOverlaps(bboxes: List<Bbox>): List<Bbox> {
+    internal fun expandDiagonalBboxOverlaps(bboxes: List<Bbox>): List<Bbox> {
         if (bboxes.size < 2) return bboxes
         val result = bboxes.toMutableList()
         for (i in result.indices) {
@@ -731,14 +735,30 @@ class PanelDetector(
                 val yOverlapTop = maxOf(left.minY, right.minY)
                 val yOverlapBottom = minOf(left.maxY, right.maxY)
                 if (yOverlapBottom <= yOverlapTop) continue
-                val yOverlap = yOverlapBottom - yOverlapTop
+                val yOverlap = yOverlapBottom - yOverlapTop + 1
                 val shorterH = minOf(left.maxY - left.minY + 1, right.maxY - right.minY + 1)
                 if (yOverlap.toDouble() / shorterH < 0.5) continue
-                // Expand each panel by half the horizontal overlap into the other's zone
-                val pad = overlapX / 2
+                // Expand each panel by half the horizontal overlap into the other's zone.
+                var pad = overlapX / 2
+                if (pad <= 0) continue
+                // Padding doubles the pair's overlap. Upstream stages (the merge remainder
+                // walk-back, repairDiagonalAdjacentColumnPairs) may have already produced
+                // overlap close to overlapRejectFraction — expanding past the cap would make
+                // applyGlobalSanityChecks reject the WHOLE page into Fallback. Shrink the pad
+                // until the post-expand overlap stays under the cap (same 5% margin as the
+                // merge walk-back for original-scale rounding drift).
+                val overlapCap = config.overlapRejectFraction * 0.95
+                while (pad > 0) {
+                    val newLeft = Bbox(left.minX, left.minY, left.maxX + pad, left.maxY)
+                    val newRight = Bbox((right.minX - pad).coerceAtLeast(0), right.minY, right.maxX, right.maxY)
+                    val ovW = (newLeft.maxX - newRight.minX + 1).toLong()
+                    val ovH = (yOverlapBottom - yOverlapTop + 1).toLong()
+                    if (ovW * ovH <= overlapCap * minOf(newLeft.area(), newRight.area())) break
+                    pad--
+                }
                 if (pad <= 0) continue
                 result[leftIdx] = Bbox(left.minX, left.minY, left.maxX + pad, left.maxY)
-                result[rightIdx] = Bbox(right.minX - pad, right.minY, right.maxX, right.maxY)
+                result[rightIdx] = Bbox((right.minX - pad).coerceAtLeast(0), right.minY, right.maxX, right.maxY)
             }
         }
         return result
@@ -886,7 +906,7 @@ class PanelDetector(
                 val yOverlapBottom = minOf(left.maxY, right.maxY)
                 if (yOverlapBottom <= yOverlapTop) continue
                 val shorterH = minOf(left.maxY - left.minY + 1, right.maxY - right.minY + 1)
-                if ((yOverlapBottom - yOverlapTop).toDouble() / shorterH < 0.5) continue
+                if ((yOverlapBottom - yOverlapTop + 1).toDouble() / shorterH < 0.5) continue
                 // Horizontally adjacent with a small gap (already-overlapping pairs are handled
                 // by expandDiagonalBboxOverlaps).
                 val gap = right.minX - left.maxX - 1

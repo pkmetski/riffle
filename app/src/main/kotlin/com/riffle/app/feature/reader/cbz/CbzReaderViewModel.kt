@@ -34,7 +34,6 @@ import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
-import com.riffle.core.domain.comic.panel.PanelDetector
 import com.riffle.core.domain.comic.panel.PanelMaskBinarizer
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelOverflowTransform
@@ -92,7 +91,6 @@ class CbzReaderViewModel @Inject constructor(
     private val developerOptionsRepository: DeveloperOptionsRepository,
     private val appearanceCoordinator: AppearanceCoordinator,
     val panelReportRepository: PanelReportRepository,
-    private val panelDetector: PanelDetector,
     private val pageImageDecoder: PageImageDecoder,
 ) : AndroidViewModel(application) {
 
@@ -236,8 +234,6 @@ class CbzReaderViewModel @Inject constructor(
      */
     suspend fun generateMaskPng(pageIndex: Int): Pair<PanelBinaryMask, ByteArray>? =
         withContext(Dispatchers.IO) {
-            val book = panelBook ?: return@withContext null
-            val pagePanels = runCatching { book.resolvePage(pageIndex) }.getOrNull() ?: return@withContext null
             val imageSource = (_state.value as? CbzReaderState.Ready)?.imageSource ?: return@withContext null
             val rawBytes = runCatching { imageSource.imageBytes(pageIndex) }.getOrNull() ?: return@withContext null
             val decoded = pageImageDecoder.decode(rawBytes) ?: return@withContext null
