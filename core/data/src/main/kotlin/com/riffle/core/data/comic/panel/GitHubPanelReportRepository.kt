@@ -3,9 +3,7 @@ package com.riffle.core.data.comic.panel
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import io.ktor.client.HttpClient
-import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -20,9 +18,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.IOException
-import java.util.UUID
-
-private const val MAX_REF_RETRIES = 3
 
 class GitHubPanelReportRepository(
     private val pat: String,
@@ -30,7 +25,6 @@ class GitHubPanelReportRepository(
     private val repoName: String = "riffle",
     private val client: HttpClient,
     private val apiBase: String = "https://api.github.com",
-    private val rawBase: String = "https://raw.githubusercontent.com",
 ) : PanelReportRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -38,107 +32,54 @@ class GitHubPanelReportRepository(
     override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
         runCatching {
             val pngBase64 = java.util.Base64.getEncoder().encodeToString(maskPng)
-            val filename = "panel-report-${UUID.randomUUID()}.png"
 
-            // 1. Create blob
-            val blobSha = post(
-                "$apiBase/repos/$owner/$repoName/git/blobs",
-                jsonObject("content" to pngBase64, "encoding" to "base64"),
-            ).field("sha")
+            // 1. Create gist with mask (base64) and metadata
+            val gistResponse = post("$apiBase/gists", buildGistBody(report, pngBase64))
+            val gistHtmlUrl = gistResponse.field("html_url")
+            val maskRawUrl = gistResponse["files"]!!.jsonObject["mask.b64"]!!
+                .jsonObject["raw_url"]!!.jsonPrimitive.content
 
-            val rawUrl = "$rawBase/$owner/$repoName/panel-reports/fixtures/$filename"
+            // 2. Create issue linking the gist
+            post(
+                "$apiBase/repos/$owner/$repoName/issues",
+                JsonObject(mapOf(
+                    "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
+                    "body" to JsonPrimitive(buildIssueBody(report, gistHtmlUrl, maskRawUrl)),
+                    "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
+                )).toString(),
+            ).field("html_url")
+        }
 
-            // Steps 2–6 may race with concurrent submissions; retry on 422 (not a fast-forward).
-            repeat(MAX_REF_RETRIES) { attempt ->
-                // 2. Get current commit sha from panel-reports branch (create from main if absent)
-                val currentCommitSha = try {
-                    get("$apiBase/repos/$owner/$repoName/git/ref/heads/panel-reports")
-                        .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
-                } catch (e: IOException) {
-                    if ("404" !in (e.message ?: "")) throw e
-                    val mainSha = get("$apiBase/repos/$owner/$repoName/git/ref/heads/main")
-                        .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
-                    post(
-                        "$apiBase/repos/$owner/$repoName/git/refs",
-                        jsonObject("ref" to "refs/heads/panel-reports", "sha" to mainSha),
-                    )
-                    mainSha
-                }
+    private fun buildGistBody(report: PanelDetectionReport, pngBase64: String): String =
+        JsonObject(mapOf(
+            "description" to JsonPrimitive(
+                "Panel detection report: ${report.failureType.label} — page ${report.pageIndex}"
+            ),
+            "public" to JsonPrimitive(false),
+            "files" to JsonObject(mapOf(
+                "mask.b64" to JsonObject(mapOf("content" to JsonPrimitive(pngBase64))),
+                "metadata.json" to JsonObject(mapOf("content" to JsonPrimitive(buildMetadata(report)))),
+            )),
+        )).toString()
 
-                // 3. Get current tree sha
-                val commitJson = get("$apiBase/repos/$owner/$repoName/git/commits/$currentCommitSha")
-                val currentTreeSha = commitJson["tree"]!!.jsonObject["sha"]!!.jsonPrimitive.content
-
-                // 4. Create tree
-                val newTreeSha = post(
-                    "$apiBase/repos/$owner/$repoName/git/trees",
+    private fun buildMetadata(report: PanelDetectionReport): String =
+        JsonObject(
+            buildMap {
+                put("pageIndex", JsonPrimitive(report.pageIndex))
+                put("failureType", JsonPrimitive(report.failureType.label))
+                put("detectedPanels", JsonArray(report.detectedPanels.map { p ->
                     JsonObject(mapOf(
-                        "base_tree" to JsonPrimitive(currentTreeSha),
-                        "tree" to JsonArray(listOf(JsonObject(mapOf(
-                            "path" to JsonPrimitive("fixtures/$filename"),
-                            "mode" to JsonPrimitive("100644"),
-                            "type" to JsonPrimitive("blob"),
-                            "sha" to JsonPrimitive(blobSha),
-                        )))),
-                    )).toString(),
-                ).field("sha")
-
-                // 5. Create commit
-                val newCommitSha = post(
-                    "$apiBase/repos/$owner/$repoName/git/commits",
-                    JsonObject(mapOf(
-                        "message" to JsonPrimitive("panel report: ${report.failureType.label} p${report.pageIndex}"),
-                        "tree" to JsonPrimitive(newTreeSha),
-                        "parents" to JsonArray(listOf(JsonPrimitive(currentCommitSha))),
-                    )).toString(),
-                ).field("sha")
-
-                // 6. Advance ref — may 422 if another report landed since step 2; retry if so
-                try {
-                    patch(
-                        "$apiBase/repos/$owner/$repoName/git/refs/heads/panel-reports",
-                        jsonObject("sha" to newCommitSha),
-                    )
-                    // Ref advanced — break out of retry loop
-                    return@runCatching submitIssue(report, rawUrl)
-                } catch (e: IOException) {
-                    if ("422" !in (e.message ?: "") || attempt == MAX_REF_RETRIES - 1) throw e
-                    // else loop and retry with fresh branch HEAD
+                        "x" to JsonPrimitive(p.x),
+                        "y" to JsonPrimitive(p.y),
+                        "w" to JsonPrimitive(p.width),
+                        "h" to JsonPrimitive(p.height),
+                    ))
+                }))
+                report.expectedPanelOrder?.let { order ->
+                    put("expectedPanelOrder", JsonArray(order.map { JsonPrimitive(it) }))
                 }
             }
-
-            // Unreachable (loop always returns or throws), but required for exhaustive return
-            throw IOException("Failed to advance panel-reports ref after $MAX_REF_RETRIES attempts")
-        }
-
-    private suspend fun submitIssue(report: PanelDetectionReport, rawUrl: String): String =
-        // 7. Create issue
-        post(
-            "$apiBase/repos/$owner/$repoName/issues",
-            JsonObject(mapOf(
-                "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
-                "body" to JsonPrimitive(buildIssueBody(report, rawUrl)),
-                "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
-            )).toString(),
-        ).field("html_url")
-
-    private fun jsonObject(vararg pairs: Pair<String, String>): String =
-        JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) }).toString()
-
-    private suspend fun get(url: String): JsonObject {
-        val response = client.get(url) {
-            header(HttpHeaders.Authorization, "token $pat")
-            header(HttpHeaders.Accept, "application/vnd.github+json")
-            header("X-GitHub-Api-Version", "2022-11-28")
-        }
-        val bodyStr = response.bodyAsText()
-        val obj = json.parseToJsonElement(bodyStr).jsonObject
-        if (!response.status.isSuccess()) {
-            val msg = obj["message"]?.jsonPrimitive?.content ?: response.status.description
-            throw IOException("GitHub ${response.status.value}: $msg")
-        }
-        return obj
-    }
+        ).toString()
 
     private suspend fun post(url: String, body: String): JsonObject {
         val response = client.post(url) {
@@ -157,26 +98,9 @@ class GitHubPanelReportRepository(
         return obj
     }
 
-    private suspend fun patch(url: String, body: String) {
-        val response = client.patch(url) {
-            header(HttpHeaders.Authorization, "token $pat")
-            header(HttpHeaders.Accept, "application/vnd.github+json")
-            header("X-GitHub-Api-Version", "2022-11-28")
-            contentType(ContentType.Application.Json)
-            setBody(body)
-        }
-        if (!response.status.isSuccess()) {
-            val bodyStr = response.bodyAsText()
-            val msg = runCatching {
-                json.parseToJsonElement(bodyStr).jsonObject["message"]?.jsonPrimitive?.content
-            }.getOrNull() ?: response.status.description
-            throw IOException("GitHub ${response.status.value}: $msg")
-        }
-    }
-
     private fun JsonObject.field(key: String): String = this[key]!!.jsonPrimitive.content
 
-    private fun buildIssueBody(report: PanelDetectionReport, imageUrl: String): String = buildString {
+    private fun buildIssueBody(report: PanelDetectionReport, gistHtmlUrl: String, maskRawUrl: String): String = buildString {
         appendLine("## Panel Detection Report")
         appendLine()
         appendLine("**Failure type:** ${report.failureType.label}")
@@ -220,8 +144,8 @@ class GitHubPanelReportRepository(
             }
             appendLine()
         }
-        appendLine("**Page image:**")
-        appendLine("![page]($imageUrl)")
+        appendLine("**Mask fixture (gist):** $gistHtmlUrl")
+        appendLine("**Mask raw URL:** `$maskRawUrl`")
         appendLine()
         appendLine("---")
         appendLine("*panel-detection-issue · Filed automatically by Riffle panel detection reporter (ADR 0062)*")

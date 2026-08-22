@@ -48,11 +48,13 @@ The failure type becomes a GitHub issue label. The tapped coordinates appear in 
 
 Reports are filed programmatically without opening a browser:
 
-1. The Sanitized Page Mask PNG is committed to the `panel-reports` branch via the GitHub git data API (blob → tree → commit → ref update). The branch is a dedicated dumping ground and is never merged into `main`.
-2. A `raw.githubusercontent.com` URL for the committed PNG is embedded as a Markdown inline image in the issue body.
+1. The Sanitized Page Mask PNG (base64-encoded) and a metadata JSON file are uploaded as a secret gist via `POST /gists`. The gist description names the failure type and page index for self-containment.
+2. The issue body links the gist HTML URL and embeds the `raw_url` of the `mask.b64` file so the `address-panel-detection-issues` skill can download and decode the fixture in one `curl` call.
 3. `POST /repos/pkmetski/riffle/issues` creates the issue with title, body, and the failure-type label.
 
-The PAT is stored in `EncryptedSharedPreferences` and entered once via the Developer Options section in Settings. It requires `public_repo` scope only.
+The PAT is stored in `EncryptedSharedPreferences` and entered once via the Developer Options section in Settings. It requires `public_repo` and `gist` scopes.
+
+Masks are ~100–220 KB base64, well under the 1 MB gist file truncation threshold; the `raw_url` fallback covers any larger masks.
 
 ### Developer Options
 
@@ -62,7 +64,9 @@ Tapping the app version number in Settings 7 times sets `developerModeEnabled = 
 
 **Luma-only greyscale PNG as the fixture format:** preserves more signal for texture-based detection paths but still renders the original artwork (desaturated). Rejected — copyright risk remains, and the binarized mask captures exactly the signal `PanelDetector` acts on after its first step.
 
-**Imgur for image hosting:** anonymous upload API requires only a client ID; simpler than the git data API. Rejected — third-party permanence is uncertain and the git data API keeps everything within GitHub at the cost of five API calls.
+**Imgur for image hosting:** anonymous upload API requires only a client ID; simpler. Rejected — third-party permanence is uncertain; gists keep everything within GitHub with one API call.
+
+**`panel-reports` branch in this repo (original implementation):** git blob → tree → commit → ref update, with a 422-retry loop for concurrent submissions. Replaced — the branch polluted the product repo, required five API calls, and could not be deleted permanently (auto-recreated from main). Gists are individually deletable, require one call, and carry the `gist` PAT scope rather than `public_repo`.
 
 **Browser-based issue filing (`issues/new?body=...`):** requires no PAT configuration. Rejected — cannot attach the image automatically; the user would need to drag the PNG into the browser manually, breaking the single-tap submit flow.
 
