@@ -98,42 +98,6 @@ jobs:
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --verbose "${{ steps.apk.outputs.path }}"
 
-      - name: Write F-Droid changelog
-        if: steps.ver.outputs.prerelease == 'false'
-        env:
-          NAME: ${{ steps.ver.outputs.name }}
-          CODE: ${{ steps.ver.outputs.code }}
-        run: |
-          DIR=fastlane/metadata/android/en-US/changelogs
-          mkdir -p "$DIR"
-          echo "Release v$NAME — see https://github.com/${{ github.repository }}/releases/tag/v$NAME" > "$DIR/$CODE.txt"
-
-      - name: Open changelog PR against main
-        if: steps.ver.outputs.prerelease == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NAME: ${{ steps.ver.outputs.name }}
-          CODE: ${{ steps.ver.outputs.code }}
-        run: |
-          BRANCH="chore/fdroid-changelog-v$NAME"
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git fetch origin main
-          git checkout -B "$BRANCH" origin/main
-          git add "fastlane/metadata/android/en-US/changelogs/$CODE.txt"
-          if git diff --cached --quiet; then
-            echo "No changelog change to commit."
-            exit 0
-          fi
-          git commit -m "chore(fdroid): changelog for v$NAME"
-          git push -f origin "$BRANCH"
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "chore(fdroid): changelog for v$NAME" \
-            --body "Auto-generated F-Droid changelog for release v$NAME." \
-            || echo "PR already exists for $BRANCH"
-
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
