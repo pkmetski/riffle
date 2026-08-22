@@ -1,25 +1,32 @@
 package com.riffle.core.models
 
+/**
+ * Rotation-invariant screen-dimension key. Always stored as (narrower, wider) so portrait and
+ * landscape on the same device produce the same bucket — a phone at Compact×Medium in portrait
+ * and Medium×Compact in landscape both yield "Compact_Medium".
+ */
 data class ScreenDimensionBucket(
-    val widthSizeClass: Width,
-    val heightSizeClass: Height,
+    val narrower: SizeClass,
+    val wider: SizeClass,
 ) {
-    enum class Width { Compact, Medium, Expanded }
-    enum class Height { Compact, Medium, Expanded }
+    enum class SizeClass { Compact, Medium, Expanded }
 
-    fun encode(): String = "${widthSizeClass.name}_${heightSizeClass.name}"
+    fun encode(): String = "${narrower.name}_${wider.name}"
 
     companion object {
         fun decode(value: String): ScreenDimensionBucket {
             val parts = value.split("_")
             return ScreenDimensionBucket(
-                widthSizeClass = Width.valueOf(parts[0]),
-                heightSizeClass = Height.valueOf(parts[1]),
+                narrower = SizeClass.valueOf(parts[0]),
+                wider = SizeClass.valueOf(parts[1]),
             )
         }
 
-        // Migration default: existing rows are attributed to a large-screen context.
-        // encode() of this must equal exactly 'Expanded_Medium' — the SQL DEFAULT.
-        val NonCompact = ScreenDimensionBucket(Width.Expanded, Height.Medium)
+        fun of(a: SizeClass, b: SizeClass): ScreenDimensionBucket =
+            if (a.ordinal <= b.ordinal) ScreenDimensionBucket(a, b) else ScreenDimensionBucket(b, a)
+
+        // Migration default: typical phone portrait (Compact width × Medium height).
+        // encode() of this must equal exactly 'Compact_Medium' — the SQL DEFAULT.
+        val PhonePortrait = ScreenDimensionBucket(SizeClass.Compact, SizeClass.Medium)
     }
 }

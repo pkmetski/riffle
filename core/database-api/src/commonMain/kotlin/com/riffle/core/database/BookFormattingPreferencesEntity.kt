@@ -10,7 +10,7 @@ import androidx.room.Index
 // view got its own preferences chain, sourceId+itemId alone would let the annotations view and
 // full-book view collide on the same book. `sourceId` FK-cascades so a removed Source's
 // formatting is cleared. `scope` is the `FormattingScope` enum name ("FullBook" / "Highlights").
-// `screenDimensionBucket` is `ScreenDimensionBucket.encode()` — e.g. "Expanded_Medium" — so each
+// `screenDimensionBucket` is `ScreenDimensionBucket.encode()` — e.g. "Compact_Medium" — so each
 // screen-size class gets independent settings for the same book.
 @Entity(
     tableName = "book_formatting_preferences",
