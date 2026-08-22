@@ -505,6 +505,40 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `middle-row wide panel is split at its vertical gutter into two separate panels`() {
+        // Regression for issue #794: page 24. The middle row has two panels separated by a
+        // vertical gutter, but the detector merged them into one full-width panel
+        // (x=26 y=377 w=988 h=350). The user tapped at (723, 614) and expected the right panel
+        // (user-drawn: x=389 y=373 w=630 h=349). Expected layout: 2 top + 2 middle + 3 bottom = 7.
+        //
+        // Uses loadBinaryFixture (0/255 fast path) rather than loadMaskFixture (20/240 re-binarizer)
+        // because the 20/240 full-binarizer runs a texture pass that expands content into the
+        // vertical gutter and changes the detection outcome. The fast path matches the exact
+        // PanelBinaryMask the device produced, verified to reproduce the reported 6 panels ±0px.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-794-panel-cut-off-page24.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2+2+3 layout, got ${result.panels.size} (source=${result.source}); panels=${result.panels}",
+            7, result.panels.size,
+        )
+        // Middle row must contain two separate panels (y-centre in roughly the middle third).
+        val middleRow = result.panels.filter { p ->
+            p.y + p.height / 2 in (mask.height * 0.30).toInt()..(mask.height * 0.60).toInt()
+        }
+        assertEquals(
+            "expected middle row to have 2 panels; all panels=${result.panels}",
+            2, middleRow.size,
+        )
+        // The right middle panel must start near the user-drawn x=389.
+        val rightMiddle = middleRow.maxByOrNull { it.x }
+        assertTrue(
+            "right middle panel must start near x=389 (user-drawn); got rightMiddle=$rightMiddle",
+            rightMiddle != null && rightMiddle.x in 300..480,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
@@ -537,6 +571,31 @@ class PanelDetectorImageTest {
             }
         }
         return PixelGrid(w, h, luma)
+    }
+
+    /**
+     * Load a binarized-mask fixture (black=content, white=gutter) and return a [PanelBinaryMask]
+     * directly, bypassing the full binarizer. Uses the same 0/255 fast-path mapping the device
+     * uses for PanelMaskBinarizer: black pixels (0x000000) → 1 (content), any non-black pixel →
+     * 0 (gutter). This gives byte-exact parity with the device's detection input and is required
+     * when the 20/240 re-binarization path (used by [loadMaskFixture]) would run the texture pass
+     * and produce a different detection outcome (see the loadMaskFixture note for why 20/240 is
+     * kept as the default — migration to 0/255 requires regenerating all legacy fixtures).
+     */
+    private fun loadBinaryFixture(resourcePath: String): PanelBinaryMask {
+        val stream = javaClass.classLoader.getResourceAsStream(resourcePath)
+            ?: error("Fixture not found on classpath: $resourcePath — ensure the file exists under core/domain/src/jvmTest/resources/")
+        val img = stream.use { javax.imageio.ImageIO.read(it) }
+            ?: error("Could not decode image at $resourcePath")
+        val w = img.width
+        val h = img.height
+        val data = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                data[y * w + x] = if ((img.getRGB(x, y) and 0xFFFFFF) == 0) 1 else 0
+            }
+        }
+        return PanelBinaryMask(w, h, data)
     }
 
     /**

@@ -929,6 +929,14 @@ class PanelDetector(
                 val diagonalShift = kotlin.math.abs(topCenter - bottomCenter)
                 if (diagonalShift < minShift || diagonalShift > maxShift) continue
 
+                // If the bottom-strip run is entirely within the current gap between the two
+                // panels, the split already captured the straight vertical gutter correctly.
+                // Diagonal widening would create artificial overlap driven by an unrelated
+                // top-strip run (e.g. a thin speech-bubble gap in the art). A real diagonal
+                // boundary always has its bottom-strip run extending PAST the gap into at least
+                // one panel — the widening is needed to cover that transition zone.
+                if (bottomRun.first >= left.maxX + 1 && bottomRun.second <= right.minX - 1) continue
+
                 val overlapPad = (unionWidth * 0.02).toInt().coerceAtLeast(12)
                 val newLeftMax = (maxOf(topRun.second, bottomRun.second) + overlapPad)
                     .coerceAtMost(right.maxX - 1)
@@ -1142,6 +1150,59 @@ class PanelDetector(
             ) { x ->
                 cropped.colContentCount(x, innerMinY, innerMaxY) < contentCutoff
             }?.takeIf { (_, thickness) -> thickness >= 7 }
+        } ?: run {
+            // Bottom-strip flood-fill fallback: handles vertical gutters that are accessible from
+            // the BOTTOM border only. When speech bubbles or artwork fill the upper portion of a
+            // wide panel row, the flood-fill path from the top border to the vertical boundary is
+            // blocked, so the full-column fraction stays well below 30% and projection finds
+            // nothing. But the gutter connects to the horizontal row-separator below the bbox, so
+            // the bottom 25% of the strip reveals the boundary clearly.
+            //
+            // Width guard (≥ 70% of page width): restricts to the "suspicious full-width row" case.
+            // Narrow sub-panel bboxes are excluded — their border-accessible edge pixels would
+            // score above the threshold for unrelated columns.
+            //
+            // Height guard (≤ 35% of page height): excludes tall bboxes spanning multiple row bands.
+            // For a 3-row comic layout each row occupies ≈ 25-30% of the page, so ≤ 35% admits
+            // single-row bboxes only. A tall bbox (> 35%) is likely a multi-row section; its bottom
+            // strip captures a row boundary rather than an interior panel gutter.
+            if (width.toDouble() / downscaledWidth.toDouble() < 0.70) return@run null
+            if (height.toDouble() / downscaledHeight.toDouble() > 0.35) return@run null
+            val stripH = (height * 0.25).toInt().coerceAtLeast(1)
+            val bottomStripStart = bbox.maxY - stripH + 1
+            val stripRows = bbox.maxY - bottomStripStart + 1
+            val thresholdTimesK = (config.internalGutterFloodFillFraction * 1000).toLong()
+            widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                var g = 0
+                for (y in bottomStripStart..bbox.maxY) if (gutter[y * cropped.width + x]) g++
+                g.toLong() * 1000 >= stripRows.toLong() * thresholdTimesK
+            }?.takeIf { (_, thickness) -> thickness in config.internalGutterMinThickness..40 }
+                ?.takeIf {
+                    // If the top strip ALSO has a flood-fill gutter run (≥ 45% threshold,
+                    // ≥ 7 pixels thick), this is likely a diagonal boundary that
+                    // repairDiagonalTwoColumnRows will handle. Skip this fallback to avoid
+                    // interfering. Thickness floor = 7: a ≤ 6-pixel run in the top strip is a
+                    // thin gap between speech bubbles or artwork (issue #794 fixture shows a
+                    // spurious 6-pixel run at x=480 that does NOT represent the vertical boundary
+                    // at x=388). Real diagonal boundaries from repairDiagonalTwoColumnRows produce
+                    // top-strip runs of ≥ 8 pixels (validated by issue-784 fixtures, topRun=8,10).
+                    // Boundary coverage: issue-794 (topRun=6 → fires) and issue-784 (topRun=8,10
+                    // → blocked) form the two sides of the thickness-7 gate.
+                    val topStripH = (height * 0.20).toInt().coerceAtLeast(1)
+                    val topStripEnd = bbox.minY + topStripH - 1
+                    val topHasRun = widestGutterRun(
+                        axisStart = bbox.minX + edgeMarginX,
+                        axisEnd = bbox.maxX - edgeMarginX,
+                    ) { x ->
+                        var g = 0
+                        for (y in bbox.minY..topStripEnd) if (gutter[y * cropped.width + x]) g++
+                        g.toLong() * 1000 >= topStripH.toLong() * 450L
+                    }?.let { (_, thickness) -> thickness in 7..40 } == true
+                    !topHasRun
+                }
         }
 
         val hGutter = effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) }

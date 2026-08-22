@@ -254,8 +254,17 @@ class JsonPanelStore @Inject constructor(
          *      threshold) instead of sitting flatly at the tall column's right edge + 1.
          *      v27 caches can hold a row-2 right panel whose left portion (the diagonal
          *      transition zone, ~130px on the reported page) is chopped off.
+         * v29: Bottom-strip flood-fill fallback for vertical gutters blocked at the top by
+         *      speech bubbles or artwork (issue #794). When the full-column flood-fill fraction
+         *      and projection both miss a vertical boundary, the bottom 25% of the row now
+         *      re-checks gutter accessibility. A top-strip guard (≥ 7-pixel run → skip) prevents
+         *      firing on diagonal boundaries handled by repairDiagonalTwoColumnRows; a companion
+         *      fix in repairDiagonalAdjacentColumnPairs skips diagonal widening when the
+         *      bottom-strip run already sits within the actual gap (straight gutter correctly
+         *      identified). v28 caches can hold a 2-panel middle row merged into one full-width
+         *      panel when speech bubbles block the gutter's top-border flood-fill path.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 28
+        internal const val CURRENT_SCHEMA_VERSION: Int = 29
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
