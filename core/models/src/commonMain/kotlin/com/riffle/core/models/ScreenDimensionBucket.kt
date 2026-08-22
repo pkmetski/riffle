@@ -16,6 +16,7 @@ data class ScreenDimensionBucket(
     companion object {
         fun decode(value: String): ScreenDimensionBucket {
             val parts = value.split("_")
+            require(parts.size == 2) { "Invalid ScreenDimensionBucket encoded value: '$value'" }
             return ScreenDimensionBucket(
                 narrower = SizeClass.valueOf(parts[0]),
                 wider = SizeClass.valueOf(parts[1]),

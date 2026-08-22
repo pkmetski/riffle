@@ -113,6 +113,7 @@ class FormattingSession @AssistedInject constructor(
 
     private var bookId: String? = null
     private var activeDimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait
+    private var bindJob: kotlinx.coroutines.Job? = null
 
     // Device pixel density for accurate layout context. Default = 1f (CSS-px fallback).
     // The VM sets this via [setDeviceDensity] in its init block, after constructing the session,
@@ -222,7 +223,8 @@ class FormattingSession @AssistedInject constructor(
         activeDimension = dimension
         _scope.value = scope
         _formattingPreferencesReady.value = false
-        this.scope.launch {
+        bindJob?.cancel()
+        bindJob = this.scope.launch {
             val existing = bookFormattingPreferencesStore.load(itemId, scope, dimension)
             val global = formattingPreferencesStoreProvider.store(scope).preferences.first()
             val overrides = if (existing != null) {

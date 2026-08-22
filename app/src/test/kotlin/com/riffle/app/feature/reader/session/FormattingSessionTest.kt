@@ -672,4 +672,25 @@ class FormattingSessionTest {
             b.sessionScope.cancel()
         }
     }
+
+    @Test
+    fun `second bindToBook call cancels the first so the later dimension wins`() = runTest {
+        val dimA = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
+        val dimB = ScreenDimensionBucket.PhonePortrait
+        val fakeBook = FakeBookFormattingPreferencesStore().also { it.willReturn(null) }
+
+        val b = makeEager(fakeBook = fakeBook)
+        try {
+            // Call bindToBook twice in quick succession — dimB must win.
+            b.session.bindToBook("book1", FormattingScope.FullBook, dimA)
+            b.session.bindToBook("book1", FormattingScope.FullBook, dimB)
+
+            // activeDimension must reflect the last call's dimension so any subsequent
+            // updateFormatting / resetToGlobalDefaults targets dimB, not dimA.
+            val seededB = fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimB)]
+            assertNotNull("dimB row must be seeded by the winning bindToBook call", seededB)
+        } finally {
+            b.sessionScope.cancel()
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.riffle.core.models
 
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ScreenDimensionBucketTest {
@@ -39,5 +40,12 @@ class ScreenDimensionBucketTest {
         val portrait = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Medium)
         val landscape = ScreenDimensionBucket.of(SizeClass.Medium, SizeClass.Compact)
         assertEquals(portrait, landscape)
+    }
+
+    @Test
+    fun decode_throws_on_value_without_underscore() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ScreenDimensionBucket.decode("CompactMedium")
+        }
     }
 }
