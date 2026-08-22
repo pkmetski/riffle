@@ -31,9 +31,9 @@ import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.resolveComicBackgroundTheme
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
+import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
-import com.riffle.core.domain.comic.panel.PanelDetector
 import com.riffle.core.domain.comic.panel.PanelMaskBinarizer
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelOverflowTransform
@@ -91,7 +91,7 @@ class CbzReaderViewModel @Inject constructor(
     private val developerOptionsRepository: DeveloperOptionsRepository,
     private val appearanceCoordinator: AppearanceCoordinator,
     val panelReportRepository: PanelReportRepository,
-    private val panelDetector: PanelDetector,
+    private val pageImageDecoder: PageImageDecoder,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -219,29 +219,25 @@ class CbzReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /**
-     * Decodes the page image, runs the binarizer, and encodes the result as PNG for the report
-     * sheet. Returns null if the page is a uniform solid (binarizer returns null) or on I/O error.
+     * Produces the binarized mask for the report sheet using EXACTLY the detection input
+     * pipeline: the shared [PageImageDecoder] (same downscaling decision, same float BT.601
+     * luma) followed by [PanelMaskBinarizer]. The uploaded mask is therefore byte-identical to
+     * the mask the detector binarized for this page, so a JVM test that loads the reported
+     * fixture reproduces the on-device detection exactly.
+     *
+     * Do NOT decode/convert the page here with any other code path — an earlier version used
+     * BitmapFactory directly with integer luma weights, and the resulting masks diverged enough
+     * from the detection input to flip threshold decisions: fixture tests passed while the
+     * device kept failing (issues #783/#784/#786).
+     *
+     * Returns null if the page is a uniform solid (binarizer returns null) or on I/O error.
      */
     suspend fun generateMaskPng(pageIndex: Int): Pair<PanelBinaryMask, ByteArray>? =
         withContext(Dispatchers.IO) {
-            val book = panelBook ?: return@withContext null
-            val pagePanels = runCatching { book.resolvePage(pageIndex) }.getOrNull() ?: return@withContext null
             val imageSource = (_state.value as? CbzReaderState.Ready)?.imageSource ?: return@withContext null
             val rawBytes = runCatching { imageSource.imageBytes(pageIndex) }.getOrNull() ?: return@withContext null
-            val opts = android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }
-            val bitmap = android.graphics.BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, opts) ?: return@withContext null
-            val w = bitmap.width; val h = bitmap.height
-            val luma = ByteArray(w * h)
-            val pixels = IntArray(w * h)
-            bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-            bitmap.recycle()
-            for (i in pixels.indices) {
-                val c = pixels[i]
-                val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
-                luma[i] = ((77 * r + 150 * g + 29 * b) shr 8).toByte()
-            }
-            val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
-            val mask = PanelMaskBinarizer.binarize(grid) ?: return@withContext null
+            val decoded = pageImageDecoder.decode(rawBytes) ?: return@withContext null
+            val mask = PanelMaskBinarizer.binarize(decoded.grid) ?: return@withContext null
             mask to PanelMaskEncoder.encode(mask)
         }
 

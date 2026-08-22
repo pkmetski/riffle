@@ -35,15 +35,17 @@ class PanelOrderer(
     }
 
     private fun sharesRowWith(row: List<PanelRegion>, candidate: PanelRegion): Boolean {
-        // A candidate belongs to a row if it y-overlaps the row's y-extent by at least
-        // [rowOverlapFraction] of the SHORTER of (candidate, row-extent).
-        val rowTop = row.minOf { it.y }
-        val rowBottom = row.maxOf { it.bottom }
-        val overlapTop = maxOf(rowTop, candidate.y)
-        val overlapBottom = minOf(rowBottom, candidate.bottom)
+        // A candidate belongs to a row if it y-overlaps the SHORTEST panel in the row by at least
+        // [rowOverlapFraction] of the shorter of (candidate, shortest-panel). Using the shortest
+        // panel (not the cumulative row extent) prevents tall spanning panels — e.g. a left-column
+        // panel that spans two reading rows — from pulling lower-row panels into the same row band
+        // and then having them sorted by x rather than by y (which produces the wrong reading order).
+        val shortest = row.minByOrNull { it.height } ?: return false
+        val overlapTop = maxOf(shortest.y, candidate.y)
+        val overlapBottom = minOf(shortest.bottom, candidate.bottom)
         if (overlapBottom <= overlapTop) return false
         val overlap = overlapBottom - overlapTop
-        val shorter = minOf(rowBottom - rowTop, candidate.height)
+        val shorter = minOf(shortest.height, candidate.height)
         return overlap.toDouble() / shorter.toDouble() >= rowOverlapFraction
     }
 }

@@ -1,6 +1,7 @@
 package com.riffle.core.domain.comic.panel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -299,8 +300,219 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `tall left panel spanning two row bands is ordered before the stacked right panels`() {
+        // Regression for issue #780: page 25. The page has a tall left panel that spans row-bands
+        // 2 and 3 (rows 2+3), with an upper-right panel and a lower-right panel stacked on the
+        // right. PanelOrderer grouped all three into one row band (because the tall panel's y-extent
+        // overlaps both right panels) and then sorted by x, putting lower-right (x=446) before
+        // upper-right (x=520). The correct reading order is tall-left → upper-right → lower-right.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-780-wrong-panel-order.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        val ordered = PanelOrderer().order(result.panels)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2+tall-left-with-2-right-stacked+2 layout, got ${ordered.size} (source=${result.source})",
+            7, ordered.size,
+        )
+        // Identify the tall-left panel: left of centre, height > 40% of page height.
+        val tallLeft = ordered.firstOrNull { p ->
+            p.x + p.width / 2 < grid.width / 2 &&
+                p.height.toDouble() / grid.height >= 0.40
+        }
+        assertNotNull("expected one tall left panel spanning ≥40% of page height; ordered=$ordered", tallLeft)
+        // The upper-right panel is right of centre and its vertical centre sits in the upper-middle
+        // section (not in the top row — that's covered by the top-right panel).
+        val upperRight = ordered.firstOrNull { p ->
+            p.x + p.width / 2 >= grid.width / 2 &&
+                p.y + p.height / 2 in (grid.height * 0.30).toInt()..(grid.height * 0.55).toInt()
+        }
+        assertNotNull("expected one upper-right panel; ordered=$ordered", upperRight)
+        // The lower-right panel is right of centre and starts in the lower half.
+        val lowerRight = ordered.firstOrNull { p ->
+            p.x + p.width / 2 >= grid.width / 2 &&
+                p.y >= grid.height * 0.40 &&
+                p.y > (upperRight?.bottom ?: 0)
+        }
+        assertNotNull("expected one lower-right panel below upperRight; ordered=$ordered", lowerRight)
+        val tallLeftIdx = ordered.indexOf(tallLeft)
+        val upperRightIdx = ordered.indexOf(upperRight)
+        val lowerRightIdx = ordered.indexOf(lowerRight)
+        assertTrue(
+            "reading order must be tall-left($tallLeftIdx) → upper-right($upperRightIdx) → lower-right($lowerRightIdx); ordered=$ordered",
+            tallLeftIdx < upperRightIdx && upperRightIdx < lowerRightIdx,
+        )
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Issues #783 / #784 / #786 — device-faithful fixtures.
+    //
+    // These three fixtures are the EXACT binarized masks the on-device detector consumed
+    // (original page JPEG → full-resolution decode → float BT.601 luma → PanelMaskBinarizer),
+    // regenerated after the reporter's earlier integer-luma re-binarization was found to produce
+    // masks that diverged from the detection input (JVM tests passed on them while the device
+    // failed). Before the algorithm fix, running these masks reproduced the device's cached
+    // JsonPanelStore output coordinate-for-coordinate — that fidelity check is what makes the
+    // assertions below trustworthy as device regression coverage.
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun `diagonal row boundary page keeps four distinct rows with full-width left panels`() {
+        // Regression for issues #783 and #786 (same page, pageIndex 26): a 4×2 grid whose ROW-3
+        // vertical boundary is diagonal.
+        //  - #783: the split stage cut row-3 at the diagonal's waist, chopping the left panel's
+        //    widest corner (detected w=367, ink extends to x≈446; user drew ≥430).
+        //  - #786: mergeDiagonalSpanningPanels then merged row3-left with row4-left (two clean
+        //    stacked column panels, right edges 158px apart) and emitted a 158px-wide sliver as
+        //    the row4-left remainder — the panel the user tapped.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-786-diagonal-row3-false-merge-p26.png")
+        val result = detector.detect(grid, pageIndex = 26, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 8 panels for the 4×2 layout, got ${result.panels.size}: ${result.panels}",
+            8, result.panels.size,
+        )
+        // No panel may span rows 3 AND 4 (the #786 false merge produced a 705px-tall bbox).
+        val maxRowHeight = (grid.height * 0.30).toInt()
+        assertTrue(
+            "no panel may span two rows (max plausible row height $maxRowHeight); panels=${result.panels}",
+            result.panels.all { it.height <= maxRowHeight },
+        )
+        // No sliver panels (the #786 remainder was 158px = 15% of page width).
+        val minPanelWidth = (grid.width * 0.20).toInt()
+        assertTrue(
+            "no panel may be narrower than 20% of page width; panels=${result.panels}",
+            result.panels.all { it.width >= minPanelWidth },
+        )
+        // Row-3 left panel (y-centre in row 3, x-centre left of page centre) covers the full
+        // diagonal corner: ink extends to x≈446, so the panel must be ≥ 420 wide (#783).
+        val row3Left = result.panels.single { p ->
+            p.y + p.height / 2 in (grid.height * 0.48).toInt()..(grid.height * 0.73).toInt() &&
+                p.x + p.width / 2 < grid.width / 2
+        }
+        assertTrue(
+            "row3-left must cover the diagonal corner (w ≥ 420); got w=${row3Left.width} at x=${row3Left.x}",
+            row3Left.width >= 420,
+        )
+        // Row-4 left panel is whole again (user-drawn expectation in #786: w=518).
+        val row4Left = result.panels.single { p ->
+            p.y + p.height / 2 > (grid.height * 0.73).toInt() && p.x + p.width / 2 < grid.width / 2
+        }
+        assertTrue(
+            "row4-left must be the full left panel (w ≥ 500, user drew 518); got w=${row4Left.width} at x=${row4Left.x}",
+            row4Left.width >= 500,
+        )
+    }
+
+    @Test
+    fun `tall left character spanning rows one and two is one panel plus row-two right remainder`() {
+        // Regression for issue #784 (pageIndex 28): a tall character occupies the left of rows
+        // 1-2 with a diagonal right boundary. Projection could not find row 2's vertical gutter,
+        // so row 2 arrived as an unsplit full-width band; the tall character was split at the
+        // row-1/row-2 boundary. mergeDiagonalSpanningPanels must rejoin row1-left with the band
+        // and emit the band's right portion as the row2-right panel.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-784-tall-character-p28.png")
+        val result = detector.detect(grid, pageIndex = 28, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels (tall-left, row1-right, row2-right, rows 3-4), got ${result.panels.size}: ${result.panels}",
+            7, result.panels.size,
+        )
+        // The tall character panel: left half, spanning rows 1+2 (~47% of page height).
+        val tallLeft = result.panels.single { p -> p.height >= (grid.height * 0.40).toInt() }
+        assertTrue(
+            "tall panel must start at the top-left and span rows 1-2; got $tallLeft",
+            tallLeft.x < grid.width / 4 && tallLeft.y < (grid.height * 0.05).toInt(),
+        )
+        // The row2-right remainder: y within row 2. Its LEFT edge was originally pinned at
+        // > width/2 (the #784 fix emitted it at top.maxX + 1 = 592); issue #787 established that
+        // the diagonal boundary requires it to start near x=460, so the matcher now keys on the
+        // y-band only and the left edge is pinned by the dedicated #787 test.
+        val row2Right = result.panels.single { p ->
+            p.x > grid.width / 4 &&
+                p.y in (grid.height * 0.22).toInt()..(grid.height * 0.32).toInt()
+        }
+        assertTrue(
+            "row2-right remainder must be a real panel (w ≥ 350); got $row2Right",
+            row2Right.width >= 350,
+        )
+    }
+
+    @Test
+    fun `clean four-row grid adjacent to the diagonal pages is unchanged`() {
+        // Guard for the #783/#784/#786 fixes: pageIndex 27 sits between the two repaired pages
+        // and has a clean 2-full-width + 2×2 layout that was detected correctly before the fix.
+        // Its geometry must stay byte-stable — any drift means the new repair stages fired on a
+        // straight-gutter layout they must not touch.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-786-adjacent-clean-grid-p27.png")
+        val result = detector.detect(grid, pageIndex = 27, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        val actual = result.panels.map { listOf(it.x, it.y, it.width, it.height) }.sortedWith(compareBy({ it[1] }, { it[0] }))
+        // Pinned from this fixture's own output at the time of the #783/#784/#786 fix. The values
+        // sit within ±2px of the device JsonPanelStore cache for the same page ((27,23,986,350),
+        // (27,384,986,345), ... ) — the small constant offset comes from the binarizer's border
+        // handling of a pre-binarized two-value mask vs the original grayscale luma. Geometry
+        // (6 panels, 2 full-width rows over 2×2 columns) is identical.
+        val expected = listOf(
+            listOf(25, 21, 990, 354),
+            listOf(25, 382, 990, 349),
+            listOf(31, 733, 538, 351),
+            listOf(575, 733, 443, 351),
+            listOf(33, 1087, 487, 354),
+            listOf(526, 1087, 496, 354),
+        )
+        assertEquals(
+            "clean-grid page must keep its exact geometry (±2px of device-cache ground truth)",
+            expected, actual,
+        )
+    }
+
+    @Test
+    fun `row-two right remainder covers the diagonal transition down to the user-drawn edge`() {
+        // Regression for issue #787 (pageIndex 28, same page as #784, filed AFTER the #784 fix
+        // was installed — the fix's own output was the defect): mergeDiagonalSpanningPanels
+        // emitted the row2-right remainder at top.maxX + 1 = 592, but the tall character's right
+        // boundary is DIAGONAL — at row-2 depth the character's edge has receded to ≈450, so the
+        // remainder must start near the user-drawn x=460 to cover the transition zone, mirroring
+        // the expandDiagonalBboxOverlaps semantics used everywhere else for slanted boundaries.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-787-row2-right-cut-off-p28.png")
+        val result = detector.detect(grid, pageIndex = 28, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels (tall-left, row1-right, row2-right, rows 3-4), got ${result.panels.size}: ${result.panels}",
+            7, result.panels.size,
+        )
+        // The tall character panel must still span rows 1-2 (the #784 fix must not regress).
+        val tallLeft = result.panels.single { p -> p.height >= (grid.height * 0.40).toInt() }
+        assertTrue(
+            "tall panel must start at the top-left and span rows 1-2; got $tallLeft",
+            tallLeft.x < grid.width / 4 && tallLeft.y < (grid.height * 0.05).toInt(),
+        )
+        // The row2-right remainder must extend left to the diagonal boundary. The user drew
+        // x=460; the old bug put it at x=592. Allow the overlap pad some slack but require the
+        // left edge west of 500 and east of 400 (not overreaching into the character's column).
+        val row2Right = result.panels.single { p ->
+            p.x > grid.width / 4 && p !== tallLeft &&
+                p.y in (grid.height * 0.22).toInt()..(grid.height * 0.32).toInt()
+        }
+        assertTrue(
+            "row2-right must start near the user-drawn x=460 (old bug: x=592); got $row2Right",
+            row2Right.x in 400..500,
+        )
+        assertTrue(
+            "row2-right must still reach the page's right edge; got $row2Right",
+            row2Right.x + row2Right.width >= (grid.width * 0.93).toInt(),
+        )
+    }
+
     // --- Helpers ---
 
+    // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
+    // fixtures re-run the full binarizer (texture pass erodes gutters ~2px vs the device mask —
+    // the documented ±2px tolerance in the fidelity gate). Switching to 0/255 would make new
+    // fixtures byte-exact BUT changes the effective input of every legacy fixture (#751-#780),
+    // whose pins were validated under this loader and have no device ground truth to re-pin
+    // against. Migrate only together with regenerated legacy fixtures.
     private val LIGHT: Byte = 240.toByte()
     private val DARK: Byte = 20.toByte()
 

@@ -662,6 +662,276 @@ class PanelDetectorTest {
         }
     }
 
+    @Test
+    fun `mergeDiagonalSpanningPanels joins a column panel with the full-width band below it`() {
+        // Regression for issue #784 (device-verified geometry of the real page, pageIndex 28):
+        // the tall left character arrives as a row-1 COLUMN panel over an UNSPLIT full-width
+        // row-2 band (projection could not find row 2's vertical gutter). The merge must produce
+        // the tall panel (keeping the column's right edge) plus the band's right portion as the
+        // row2-right panel.
+        val pageW = 1042
+        val pageH = 1482
+        val bboxes = listOf(
+            PanelDetector.Bbox(minX = 33, minY = 24, maxX = 591, maxY = 372),    // row1-left column (54%)
+            PanelDetector.Bbox(minX = 483, minY = 24, maxX = 1013, maxY = 372),  // row1-right
+            PanelDetector.Bbox(minX = 33, minY = 383, maxX = 1013, maxY = 726),  // row2 unsplit band (94%)
+        )
+
+        val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
+
+        assertEquals("expected tall-left + row1-right + row2-right; got $merged", 3, merged.size)
+        assertTrue(
+            "tall-left must span rows 1-2 keeping the column's right edge (33,24)-(591,726); got $merged",
+            merged.any { it.minX == 33 && it.minY == 24 && it.maxX == 591 && it.maxY == 726 },
+        )
+        assertTrue(
+            "row2-right remainder (592,383)-(1013,726) must be emitted; got $merged",
+            merged.any { it.minX == 592 && it.minY == 383 && it.maxX == 1013 && it.maxY == 726 },
+        )
+    }
+
+    @Test
+    fun `mergeDiagonalSpanningPanels never joins two stacked column panels`() {
+        // Regression for issue #786 (device-verified geometry of the real page, pageIndex 26):
+        // row3-left and row4-left are two clean stacked COLUMN panels whose right edges happen to
+        // differ by 158px (> the 15% edge-diff threshold). The previous gate merged them and
+        // emitted a 158px sliver as the row4 remainder — the exact panel the user reported.
+        // A column panel below is a real standalone panel; only an UNSPLIT full-width band may
+        // be merged upward.
+        val pageW = 1042
+        val pageH = 1484
+        val bboxes = listOf(
+            PanelDetector.Bbox(minX = 35, minY = 735, maxX = 392, maxY = 1066),  // row3-left (34%)
+            PanelDetector.Bbox(minX = 26, minY = 1071, maxX = 550, maxY = 1439), // row4-left (50%)
+            PanelDetector.Bbox(minX = 411, minY = 735, maxX = 1015, maxY = 1066), // row3-right
+            PanelDetector.Bbox(minX = 558, minY = 1071, maxX = 1012, maxY = 1439), // row4-right
+        )
+
+        val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
+
+        assertEquals(
+            "two stacked column panels must never merge (bot is not a full-width band); got $merged",
+            bboxes.toSet(), merged.toSet(),
+        )
+    }
+
+    @Test
+    fun `mergeDiagonalSpanningPanels never joins a full-width banner with the column below it`() {
+        // A full-width banner over a column panel matches the same-left/edge-diff shape but must
+        // never merge: the TOP must be a column panel (≤ 65% width). This pins the guard that
+        // replaced the previous widthCap/topIsBanner checks.
+        val pageW = 1000
+        val pageH = 1400
+        val bboxes = listOf(
+            PanelDetector.Bbox(minX = 20, minY = 20, maxX = 910, maxY = 220),   // banner top (89%)
+            PanelDetector.Bbox(minX = 20, minY = 240, maxX = 450, maxY = 700),  // column below
+        )
+
+        val merged = detector.mergeDiagonalSpanningPanels(bboxes, pageW, pageH)
+
+        assertEquals(
+            "banner + column must stay separate; got $merged",
+            bboxes.toSet(), merged.toSet(),
+        )
+    }
+
+    @Test
+    fun `mergeDiagonalSpanningPanels full-width band threshold boundary`() {
+        // The bot must span ≥ 85% of the page width to count as an unsplit band. Pin both sides
+        // of the boundary so a future threshold tweak is a conscious decision: at 84% no merge,
+        // at 86% merge + remainder.
+        val pageW = 1000
+        val pageH = 1400
+        val top = PanelDetector.Bbox(minX = 10, minY = 20, maxX = 460, maxY = 350)
+        val botBelow = PanelDetector.Bbox(minX = 10, minY = 370, maxX = 849, maxY = 700)   // 84.0%
+        val botAbove = PanelDetector.Bbox(minX = 10, minY = 370, maxX = 869, maxY = 700)   // 86.0%
+
+        val refused = detector.mergeDiagonalSpanningPanels(listOf(top, botBelow), pageW, pageH)
+        assertEquals("84%-wide bot must not merge; got $refused", setOf(top, botBelow), refused.toSet())
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, botAbove), pageW, pageH)
+        assertEquals("86%-wide bot must merge into tall + remainder; got $merged", 2, merged.size)
+        assertTrue(
+            "tall panel (10,20)-(460,700) expected; got $merged",
+            merged.any { it.minX == 10 && it.minY == 20 && it.maxX == 460 && it.maxY == 700 },
+        )
+        assertTrue(
+            "remainder (461,370)-(869,700) expected; got $merged",
+            merged.any { it.minX == 461 && it.minY == 370 && it.maxX == 869 && it.maxY == 700 },
+        )
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Issue #787 — the merged remainder's LEFT edge must follow the diagonal boundary in the
+    // band, not sit flatly at top.maxX + 1. These tests exercise diagonalRemainderStart through
+    // mergeDiagonalSpanningPanels with a real mask + gutter (the run analysis needs pixels).
+    // Geometry: column (30,20)-(560,350) over band (30,360)-(980,700) on a 1000×1400 page.
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * Builds the column-over-band mask for the #787 remainder tests. The band's interior gutter
+     * occupies columns [upperGutter] in the band's upper half and [lowerGutter] in the lower
+     * half; character content fills left of the gutter, right-panel content right of it. The
+     * character also runs through the row-boundary gap (rows 351-359) inside the column's
+     * x-range so boundaryContinuesThroughColumn passes, matching the real #784/#787 page.
+     */
+    private fun remainderMask(
+        upperGutter: IntRange,
+        lowerGutter: IntRange,
+        boundaryContinues: Boolean = true,
+    ): Pair<PanelDetector.CroppedMask, BooleanArray> {
+        val w = 1000
+        val h = 1400
+        val data = ByteArray(w * h)
+        fun fillContent(x0: Int, y0: Int, x1: Int, y1: Int) {
+            for (y in y0..y1) for (x in x0..x1) data[y * w + x] = 1
+        }
+        fillContent(30, 20, 560, 350) // top column panel
+        if (boundaryContinues) {
+            fillContent(30, 351, 544, 359) // character continues through the row boundary
+        }
+        val bandSplitY = 530
+        fillContent(30, 360, upperGutter.first - 1, bandSplitY) // character, band upper half
+        fillContent(upperGutter.last + 1, 360, 980, bandSplitY) // right panel, band upper half
+        fillContent(30, bandSplitY + 1, lowerGutter.first - 1, 700) // character, band lower half
+        fillContent(lowerGutter.last + 1, bandSplitY + 1, 980, 700) // right panel, band lower half
+        val gutter = BooleanArray(w * h) { data[it] == 0.toByte() }
+        return PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0) to gutter
+    }
+
+    @Test
+    fun `merged remainder follows the diagonal gutter into the band`() {
+        // Regression for issue #787: the band's gutter sits at 545..560 in the upper half and
+        // 430..445 in the lower half (shift 115 = 11.5% of page width — a clear diagonal). The
+        // remainder must start at the leftmost gutter run's right edge + 1 = 446, not at
+        // top.maxX + 1 = 561 which chops off the remainder's lower-left corner.
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 430..445)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals("expected tall + remainder; got $merged", 2, merged.size)
+        assertTrue(
+            "tall panel (30,20)-(560,700) expected; got $merged",
+            merged.any { it.minX == 30 && it.minY == 20 && it.maxX == 560 && it.maxY == 700 },
+        )
+        assertTrue(
+            "remainder must start at the diagonal gutter's right edge (446,360)-(980,700); got $merged",
+            merged.any { it.minX == 446 && it.minY == 360 && it.maxX == 980 && it.maxY == 700 },
+        )
+    }
+
+    @Test
+    fun `merged remainder stays at the column edge when the band gutter is straight`() {
+        // Both-sides boundary for the diagonal-shift floor: the gutter sits at 545..560 through
+        // the whole band (shift 0 < 1.5% floor). No diagonal — the remainder must keep the
+        // original top.maxX + 1 = 561 left edge.
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 545..560)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals("expected tall + remainder; got $merged", 2, merged.size)
+        assertTrue(
+            "remainder must keep the straight-gutter left edge (561,360)-(980,700); got $merged",
+            merged.any { it.minX == 561 && it.minY == 360 && it.maxX == 980 && it.maxY == 700 },
+        )
+    }
+
+    @Test
+    fun `merged remainder left edge is walked back to keep overlap under the sanity cap`() {
+        // The remainder intentionally overlaps the tall panel in the diagonal transition zone,
+        // but must never overlap so much that applyGlobalSanityChecks rejects the whole page
+        // (that failure mode falls back to the CC path — the exact regression seen when this
+        // fix was first attempted without the cap). Lower gutter at 395..410 puts the raw
+        // remainder start at 411; the cap walks it back to 431 where overlap = 23.7% of the
+        // remainder (just under overlapRejectFraction × 0.95).
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 395..410)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals("expected tall + remainder; got $merged", 2, merged.size)
+        val remainder = merged.single { it.minX != 30 }
+        assertEquals("remainder left edge must be capped at 431; got $remainder", 431, remainder.minX)
+        // Sanity: the capped overlap must be under the reject threshold.
+        val overlap = (560 - remainder.minX + 1).toLong() * (700 - 360 + 1)
+        val remainderArea = (980 - remainder.minX + 1).toLong() * (700 - 360 + 1)
+        assertTrue(
+            "overlap ${overlap * 100 / remainderArea}% must stay under 25% of the remainder",
+            overlap * 100 < remainderArea * 25,
+        )
+    }
+
+    @Test
+    fun `column over band with a clean white gap never merges regardless of gap thickness`() {
+        // boundaryContinuesThroughColumn must sample ONLY the gap rows: the bboxes' own edge
+        // rows are content by construction, so including them made a thin genuine white gutter
+        // (≤4 rows) read as "artwork continues" and merge two real panels. Here the 9-row gap
+        // is pure white — no merge, whatever the geometry gate says.
+        val (cropped, gutter) = remainderMask(
+            upperGutter = 545..560,
+            lowerGutter = 430..445,
+            boundaryContinues = false,
+        )
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val merged = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+
+        assertEquals(
+            "white-gap column-over-band must stay two panels; got $merged",
+            setOf(top, bot), merged.toSet(),
+        )
+    }
+
+    @Test
+    fun `merge result is independent of input bbox order`() {
+        // mergeDiagonalSpanningPanels sorts by minY internally; passing the band before the
+        // column must produce the same tall+remainder pair, not a double-emitted band.
+        val (cropped, gutter) = remainderMask(upperGutter = 545..560, lowerGutter = 430..445)
+        val top = PanelDetector.Bbox(minX = 30, minY = 20, maxX = 560, maxY = 350)
+        val bot = PanelDetector.Bbox(minX = 30, minY = 360, maxX = 980, maxY = 700)
+
+        val forward = detector.mergeDiagonalSpanningPanels(listOf(top, bot), 1000, 1400, cropped, gutter)
+        val reversed = detector.mergeDiagonalSpanningPanels(listOf(bot, top), 1000, 1400, cropped, gutter)
+
+        assertEquals("reversed input must merge identically; got $reversed vs $forward", forward.toSet(), reversed.toSet())
+        assertEquals(2, reversed.size)
+    }
+
+    @Test
+    fun `expandDiagonalBboxOverlaps caps the pad so overlap stays under the sanity threshold`() {
+        // Both-sides boundary for the expand cap (the F1/F2 Fallback interaction): padding
+        // doubles the pair's overlap, and on a narrow right panel the full overlapX/2 pad would
+        // push overlap past overlapRejectFraction — applyGlobalSanityChecks would then reject
+        // the whole page into Fallback. The pad must shrink until the pair stays legal.
+        val left = PanelDetector.Bbox(minX = 0, minY = 0, maxX = 499, maxY = 299)
+        val narrowRight = PanelDetector.Bbox(minX = 442, minY = 0, maxX = 861, maxY = 299)
+
+        val capped = detector.expandDiagonalBboxOverlaps(listOf(left, narrowRight))
+        val cLeft = capped.single { it.minX == 0 }
+        val cRight = capped.single { it.minX != 0 }
+        val overlap = (cLeft.maxX - cRight.minX + 1).toLong() * 300
+        val smaller = minOf(cLeft.area(), cRight.area())
+        assertTrue(
+            "post-expand overlap must stay ≤ 25% of the smaller panel; got overlap=$overlap smaller=$smaller ($capped)",
+            overlap * 100 <= smaller * 25,
+        )
+        assertTrue("pad must still expand the pair (cap ≠ no-op); got $capped", cLeft.maxX > 499 && cRight.minX < 442)
+
+        // Wide right panel: the full pad (overlapX/2 = 29) stays under the cap and applies whole.
+        val wideRight = PanelDetector.Bbox(minX = 442, minY = 0, maxX = 1441, maxY = 299)
+        val uncapped = detector.expandDiagonalBboxOverlaps(listOf(left, wideRight))
+        assertTrue(
+            "wide pair must get the full ±29 pad; got $uncapped",
+            uncapped.any { it.minX == 0 && it.maxX == 528 } && uncapped.any { it.minX == 413 && it.maxX == 1441 },
+        )
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

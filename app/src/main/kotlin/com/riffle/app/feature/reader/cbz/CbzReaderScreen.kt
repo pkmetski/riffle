@@ -352,16 +352,21 @@ fun CbzReaderScreen(
             android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
                 .asImageBitmap()
         }
+        // Report the DETECTOR's raw output (currentPagePanels), never effectivePanels: the
+        // latter is post-PanelOverflowTransform, so with Panel Overflow = SPLIT/SMART_SPLIT the
+        // report would list viewport-dependent split halves the detector never produced, and a
+        // regression test written from that issue would chase a nonexistent detection bug.
+        val rawPanels = viewModel.currentPagePanels.collectAsState().value
         val panelReportVm = remember(currentPage, selectFailureTypeMessage) {
             PanelReportViewModel(
                 bookId = viewModel.bookId,
                 pageIndex = currentPage,
                 // Use original image dimensions from the detected panels, not the mask bitmap
                 // dimensions — the mask may be decoded at a different DPI-scaled size.
-                imageWidth = effectivePanels?.imageWidth ?: mask.width,
-                imageHeight = effectivePanels?.imageHeight ?: mask.height,
-                detectedPanels = effectivePanels?.panels ?: emptyList(),
-                detectedSource = effectivePanels?.source ?: PanelSource.Fallback,
+                imageWidth = rawPanels?.imageWidth ?: mask.width,
+                imageHeight = rawPanels?.imageHeight ?: mask.height,
+                detectedPanels = rawPanels?.panels ?: emptyList(),
+                detectedSource = rawPanels?.source ?: PanelSource.Fallback,
                 repository = viewModel.panelReportRepository,
                 selectFailureTypeMessage = selectFailureTypeMessage,
             )
