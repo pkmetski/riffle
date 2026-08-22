@@ -1810,7 +1810,7 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `book_formatting_preferences_new` " +
                         "(`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `scope` TEXT NOT NULL, " +
-                        "`screenDimensionBucket` TEXT NOT NULL DEFAULT 'Compact_Medium', " +
+                        "`screenDimensionBucket` TEXT NOT NULL, " +
                         "`fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, " +
                         "`margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, " +
                         "`coloredChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, " +
@@ -1819,18 +1819,29 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "PRIMARY KEY(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`), " +
                         "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
                 )
-                db.execSQL(
-                    "INSERT INTO `book_formatting_preferences_new` " +
-                        "(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`, `fontSize`, `theme`, " +
-                        "`fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, " +
-                        "`coloredChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, " +
-                        "`doublePageSpread`, `justifyText`, `showReadingTimeEstimate`) " +
-                        "SELECT `sourceId`, `itemId`, `scope`, 'Compact_Medium', `fontSize`, `theme`, " +
-                        "`fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, " +
-                        "`coloredChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, " +
-                        "`doublePageSpread`, `justifyText`, `showReadingTimeEstimate` " +
-                        "FROM `book_formatting_preferences`"
+                // Fan out each existing row to all 6 valid sorted dimension buckets so every
+                // device finds its settings regardless of screen size. The buckets are all
+                // combinations of (narrower, wider) with narrower ≤ wider from the SizeClass
+                // ordinal order: Compact < Medium < Expanded.
+                val buckets = listOf(
+                    "Compact_Compact", "Compact_Medium", "Compact_Expanded",
+                    "Medium_Medium", "Medium_Expanded", "Expanded_Expanded",
                 )
+                val cols = "`sourceId`, `itemId`, `scope`, `screenDimensionBucket`, `fontSize`, " +
+                    "`theme`, `fontFamily`, `lineSpacing`, `margins`, `orientation`, " +
+                    "`showChapterMap`, `coloredChapterMap`, `showReadingProgressLabels`, " +
+                    "`showCurrentChapterLabel`, `doublePageSpread`, `justifyText`, `showReadingTimeEstimate`"
+                val selectCols = "`sourceId`, `itemId`, `scope`, `fontSize`, `theme`, " +
+                    "`fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, " +
+                    "`coloredChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, " +
+                    "`doublePageSpread`, `justifyText`, `showReadingTimeEstimate`"
+                for (bucket in buckets) {
+                    db.execSQL(
+                        "INSERT INTO `book_formatting_preferences_new` ($cols) " +
+                            "SELECT `sourceId`, `itemId`, `scope`, '$bucket', $selectCols " +
+                            "FROM `book_formatting_preferences`"
+                    )
+                }
                 db.execSQL("DROP TABLE `book_formatting_preferences`")
                 db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
                 db.execSQL(
