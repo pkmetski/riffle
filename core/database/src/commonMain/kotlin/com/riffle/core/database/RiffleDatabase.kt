@@ -1806,9 +1806,12 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_69_70 = object : Migration(69, 70) {
             override fun migrate(db: SQLiteConnection) {
                 // ALTER TABLE cannot change the PRIMARY KEY in SQLite, so a full table rebuild is
-                // required to add `screenDimensionBucket` to the composite PK.
+                // required to add `screenDimensionBucket` to the composite PK. Existing per-book
+                // overrides are intentionally dropped; each book will be re-seeded from global
+                // defaults on first open on any dimension.
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `book_formatting_preferences_new` " +
+                    "CREATE TABLE `book_formatting_preferences` " +
                         "(`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `scope` TEXT NOT NULL, " +
                         "`screenDimensionBucket` TEXT NOT NULL, " +
                         "`fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, " +
@@ -1819,31 +1822,6 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "PRIMARY KEY(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`), " +
                         "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
                 )
-                // Fan out each existing row to all 6 valid sorted dimension buckets so every
-                // device finds its settings regardless of screen size. The buckets are all
-                // combinations of (narrower, wider) with narrower ≤ wider from the SizeClass
-                // ordinal order: Compact < Medium < Expanded.
-                val buckets = listOf(
-                    "Compact_Compact", "Compact_Medium", "Compact_Expanded",
-                    "Medium_Medium", "Medium_Expanded", "Expanded_Expanded",
-                )
-                val cols = "`sourceId`, `itemId`, `scope`, `screenDimensionBucket`, `fontSize`, " +
-                    "`theme`, `fontFamily`, `lineSpacing`, `margins`, `orientation`, " +
-                    "`showChapterMap`, `coloredChapterMap`, `showReadingProgressLabels`, " +
-                    "`showCurrentChapterLabel`, `doublePageSpread`, `justifyText`, `showReadingTimeEstimate`"
-                val selectCols = "`sourceId`, `itemId`, `scope`, `fontSize`, `theme`, " +
-                    "`fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, " +
-                    "`coloredChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, " +
-                    "`doublePageSpread`, `justifyText`, `showReadingTimeEstimate`"
-                for (bucket in buckets) {
-                    db.execSQL(
-                        "INSERT INTO `book_formatting_preferences_new` ($cols) " +
-                            "SELECT `sourceId`, `itemId`, `scope`, '$bucket', $selectCols " +
-                            "FROM `book_formatting_preferences`"
-                    )
-                }
-                db.execSQL("DROP TABLE `book_formatting_preferences`")
-                db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +
                         "ON `book_formatting_preferences` (`sourceId`)"

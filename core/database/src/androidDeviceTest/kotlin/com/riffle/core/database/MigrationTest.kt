@@ -3168,32 +3168,24 @@ class MigrationTest {
         helper.runMigrationsAndValidate(
             TEST_DB, 70, true, RiffleDatabase.MIGRATION_69_70
         ).use { db ->
-            // One old row must fan out to all 6 sorted dimension buckets.
-            db.query(
-                "SELECT screenDimensionBucket, fontSize, theme FROM book_formatting_preferences " +
-                    "WHERE itemId = 'book1' ORDER BY screenDimensionBucket"
-            ).use { cursor ->
-                assertEquals(6, cursor.count)
-                val expectedBuckets = listOf(
-                    "Compact_Compact", "Compact_Expanded", "Compact_Medium",
-                    "Expanded_Expanded", "Medium_Expanded", "Medium_Medium",
-                )
-                expectedBuckets.forEachIndexed { i, bucket ->
-                    assertTrue(cursor.moveToPosition(i))
-                    assertEquals(bucket, cursor.getString(cursor.getColumnIndexOrThrow("screenDimensionBucket")))
-                    assertEquals(1.5f, cursor.getFloat(cursor.getColumnIndexOrThrow("fontSize")), 0.001f)
-                    assertEquals("Dark", cursor.getString(cursor.getColumnIndexOrThrow("theme")))
-                }
+            // Pre-existing rows are dropped; table must be empty after migration.
+            db.query("SELECT COUNT(*) FROM book_formatting_preferences").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
             }
 
-            // The 4-column PK must be enforced: inserting a row with a new bucket is allowed.
+            // The 4-column PK must be enforced: new rows with screenDimensionBucket are accepted.
             db.execSQL(
                 "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize) " +
-                    "VALUES ('src', 'book2', 'FullBook', 'Compact_Medium', 1.0)"
+                    "VALUES ('src', 'book1', 'FullBook', 'Compact_Medium', 1.5)"
             )
-            db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'book2'").use { cursor ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize) " +
+                    "VALUES ('src', 'book1', 'FullBook', 'Compact_Compact', 1.0)"
+            )
+            db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'book1'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
-                assertEquals(1, cursor.getInt(0))
+                assertEquals(2, cursor.getInt(0))
             }
         }
     }
