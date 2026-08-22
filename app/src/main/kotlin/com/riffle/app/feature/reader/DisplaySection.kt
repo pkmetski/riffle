@@ -1,8 +1,10 @@
 package com.riffle.app.feature.reader
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -89,7 +91,10 @@ fun DisplaySection(
         }
         if (capabilities.supportsReadingModeSwitch) {
             Text(stringResource(R.string.ui_reading_mode), style = MaterialTheme.typography.labelMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            ) {
                 ReaderOrientation.entries.forEach { orientation ->
                     val label = orientation.localizedLabel()
                     val orientationContentDescription = stringResource(R.string.ui_reading_orientation_named, label)
