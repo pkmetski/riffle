@@ -596,6 +596,56 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `top section split into 3 panels without spurious sliver when diagonal gutter is present`() {
+        // Regression for issues #797 and #802: page 29 (same fixture). The #801 fix (diagonal-gutter
+        // fallback in splitSinglePanelRecursively) produces a spurious sliver panel
+        // (x=33 y=408 w=557 h=86, ~5.8% of page height) between the banner area and the full-width
+        // strip below it. The sliver passes the old 5% banner height exception in
+        // applyGlobalSanityChecks (86px ≥ 74px) but is not a real panel.
+        // Fix: raise the banner-exception minimum height from 5% to 7%, filtering the 5.8% sliver.
+        // #797 originally reported 5 merged panels (pre-#801 state); #802 reported these exact 7
+        // panels (post-#801 overcorrection). Both are resolved by the same filter tightening.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-797-merged-panels-page29.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 6 panels for this layout, got ${result.panels.size}; panels=${result.panels}",
+            6, result.panels.size,
+        )
+        // No spurious sliver: no panel in the top half with height < 10% of the page.
+        val sliverPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.50 &&
+                p.height.toDouble() / mask.height < 0.10
+        }
+        assertEquals(
+            "no spurious sliver panel should exist in the top half; panels=${result.panels}",
+            0, sliverPanels.size,
+        )
+    }
+
+    @Test
+    fun `top section split into 3 panels without spurious sliver - issue 802 fixture`() {
+        // Same regression as above but using the #802 fixture (same underlying image, different
+        // binarization point). The #802 report was filed against the 7-panel overcorrection
+        // introduced by the #801 fix; both #797 and #802 share the fix.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-802-split-panel-page29.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 6 panels for this layout, got ${result.panels.size}; panels=${result.panels}",
+            6, result.panels.size,
+        )
+        val sliverPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.50 &&
+                p.height.toDouble() / mask.height < 0.10
+        }
+        assertEquals(
+            "no spurious sliver panel should exist in the top half; panels=${result.panels}",
+            0, sliverPanels.size,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so

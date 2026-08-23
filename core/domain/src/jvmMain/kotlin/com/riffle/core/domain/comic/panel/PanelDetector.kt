@@ -1546,10 +1546,12 @@ class PanelDetector(
         // and is kept; everything else requires both axes to pass.
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-        // A wide panel (≥ 50% of page width) that is taller than 5% of the page is a real
-        // banner even if its height doesn't reach the full-panel threshold.
+        // A wide panel (≥ 50% of page width) that is taller than 7% of the page is a real
+        // banner even if its height doesn't reach the full-panel threshold. 7% (not 5%) prevents
+        // diagonal-transition slivers (~5–6% tall) produced by splitSinglePanelRecursively's
+        // diagonal-gutter fallback from surviving as spurious panels (#797/#802).
         val bannerWidthThreshold = originalWidth * 0.5
-        val bannerMinHeight = (originalHeight * 0.05).toInt().coerceAtLeast(1)
+        val bannerMinHeight = (originalHeight * 0.07).toInt().coerceAtLeast(1)
         val filtered = regions.filter {
             (it.width >= minWidth && it.height >= minHeight) ||
                 (it.width >= bannerWidthThreshold && it.height >= bannerMinHeight)

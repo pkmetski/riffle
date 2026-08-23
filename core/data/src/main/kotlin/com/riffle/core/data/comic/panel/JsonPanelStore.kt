@@ -280,8 +280,15 @@ class JsonPanelStore @Inject constructor(
          *      bannerBboxMinHeightPx checks are bypassed for this fallback path. v30 caches can
          *      hold a merged panel spanning the banner area and the panel below it when a diagonal
          *      gutter separates them from a column panel that makes the CC flood-fill-inaccessible.
+         * v32: Banner-exception minimum height raised from 5% to 7% in applyGlobalSanityChecks
+         *      (issues #797 and #802). The v31 diagonal-gutter fallback produces a ~5.8% stub
+         *      below the banner; the old 5% floor kept it as a spurious sliver panel. Raising the
+         *      floor to 7% filters the stub while the 98-row gap between the banner and the
+         *      full-width strip (created by the v31 split) still prevents the pre-v31 merge.
+         *      v31 caches can hold a spurious sliver panel (~5.8% tall, ≥50% wide) between the
+         *      banner area and the full-width strip on pages with diagonal-separated top sections.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 31
+        internal const val CURRENT_SCHEMA_VERSION: Int = 32
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

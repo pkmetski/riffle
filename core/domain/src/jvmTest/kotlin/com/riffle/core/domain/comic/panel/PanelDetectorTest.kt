@@ -1119,6 +1119,50 @@ class PanelDetectorTest {
         )
     }
 
+    @Test
+    fun `wide thin banner at 8pct of page height survives global sanity filter`() {
+        // Boundary test for the bannerMinHeight threshold in applyGlobalSanityChecks.
+        // A wide panel (≥ 50% of page width) at 8% of page height is just ABOVE the 7% floor and
+        // must survive the filter as a real banner (#797/#802 fix raised the floor from 5% to 7%).
+        // Page: 200w × 1000h. Banner: w=120 (60%), h=80 (8%). One large lower panel.
+        val luma = ByteArray(200 * 1000) { LIGHT }
+        for (y in 10..89) for (x in 10..129) luma[y * 200 + x] = DARK  // Banner: 120w × 80h
+        // Gutter row 90..99
+        for (y in 100..989) for (x in 10..189) luma[y * 200 + x] = DARK  // Lower panel
+        val grid = PixelGrid(200, 1000, luma)
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "8%-height wide banner must survive the 7% filter; panels=${result.panels}",
+            2, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `wide thin sliver at 5pct of page height is filtered by global sanity check`() {
+        // Boundary test for the bannerMinHeight threshold in applyGlobalSanityChecks.
+        // A wide panel (≥ 50%) at 5% of page height is BELOW the 7% floor and must be filtered.
+        // Before the #797/#802 fix this sliver would survive (old floor was 5%); after, it is dropped.
+        // Page: 200w × 1000h. Sliver: w=120 (60%), h=50 (5%). One large panel above, one below.
+        val luma = ByteArray(200 * 1000) { LIGHT }
+        for (y in 10..289) for (x in 10..129) luma[y * 200 + x] = DARK  // Upper panel (28% tall)
+        // Gutter row 290..299
+        for (y in 300..349) for (x in 10..129) luma[y * 200 + x] = DARK  // Sliver: 120w × 50h (5%)
+        // Gutter row 350..359
+        for (y in 360..989) for (x in 10..189) luma[y * 200 + x] = DARK  // Lower panel (63% tall)
+        val grid = PixelGrid(200, 1000, luma)
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The sliver (5%) is filtered; only the upper and lower panels survive.
+        val sliver = result.panels.filter { p ->
+            p.y + p.height / 2 in 300..360 && p.height < 70
+        }
+        assertEquals(
+            "5%-height wide sliver must be filtered by the 7% banner floor; panels=${result.panels}",
+            0, sliver.size,
+        )
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()
