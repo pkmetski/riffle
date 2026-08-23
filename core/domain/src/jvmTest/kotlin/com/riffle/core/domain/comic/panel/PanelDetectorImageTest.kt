@@ -544,9 +544,9 @@ class PanelDetectorImageTest {
         // Regression for issue #795: page 24. Same page as #794. The bottom-left panel spans
         // x=27..593 per the user's drawing, but the detector returned x=27 w=461 (right edge at
         // x=487 — the CC boundary, not the actual diagonal transition zone). The diagonal gutter
-        // rises only ~0.15 rows per column, producing 1-2 gutter pixels per column — far below
-        // the 45 % strip-density threshold used for gap > 0 pairs. Fix: diagonalProfileScan detects
-        // the gradual monotone rise for gap=0 pairs; height ceiling raised from 32 % to 55 %.
+        // rises only ~0.15 rows per column; diagonalProfileScan detects the gradual monotone rise
+        // for gap=0 pairs, widening the bbox to cover the transition zone.
+        // Correct layout is 2+2+3 = 7 panels (the #794 fix also correctly splits the middle row).
         val mask = loadBinaryFixture("panel-detection-fixtures/issue-795-panel-cut-off-page24.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
