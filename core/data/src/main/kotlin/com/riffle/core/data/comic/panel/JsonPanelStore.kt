@@ -254,8 +254,41 @@ class JsonPanelStore @Inject constructor(
          *      threshold) instead of sitting flatly at the tall column's right edge + 1.
          *      v27 caches can hold a row-2 right panel whose left portion (the diagonal
          *      transition zone, ~130px on the reported page) is chopped off.
+         * v29: Bottom-strip flood-fill fallback for vertical gutters blocked at the top by
+         *      speech bubbles or artwork (issue #794). When the full-column flood-fill fraction
+         *      and projection both miss a vertical boundary, the bottom 25% of the row now
+         *      re-checks gutter accessibility. A top-strip guard (≥ 7-pixel run → skip) prevents
+         *      firing on diagonal boundaries handled by repairDiagonalTwoColumnRows; a companion
+         *      fix in repairDiagonalAdjacentColumnPairs skips diagonal widening when the
+         *      bottom-strip run already sits within the actual gap (straight gutter correctly
+         *      identified). v28 caches can hold a 2-panel middle row merged into one full-width
+         *      panel when speech bubbles block the gutter's top-border flood-fill path.
+         * v30: Diagonal profile scan for gap=0 touching panels (issue #795). When two panels
+         *      physically touch (no explicit pixel gap), repairDiagonalAdjacentColumnPairs now
+         *      scans the topmost flood-fill gutter pixel per column to detect gradual diagonals
+         *      (< 1 row/column slope) invisible to the 45 % strip-density threshold. Height
+         *      ceiling raised from 32 % to 55 % to cover half-page-tall section diagonals. An
+         *      overlap cap mirrors the one in mergeDiagonalSpanningPanels to keep the resulting
+         *      geometry under the global sanity-check threshold. v29 caches can hold a bottom-left
+         *      panel whose right boundary follows the visible border rather than the diagonal
+         *      transition zone, producing a panel ~100px narrower than the user drew.
+         * v31: Diagonal-gutter fallback for split-then-merged banner CCs (issue #801). When
+         *      standard projection (20% content cutoff) misses the horizontal gutter between a
+         *      wide banner and a lower panel (because a diagonal boundary raises gutter-row content
+         *      above the 20% threshold), a 22%-relaxed pass now fires for CCs ≥ 50% page width
+         *      with bottomH < topH (banner pattern). The bannerEligible and split-guard
+         *      bannerBboxMinHeightPx checks are bypassed for this fallback path. v30 caches can
+         *      hold a merged panel spanning the banner area and the panel below it when a diagonal
+         *      gutter separates them from a column panel that makes the CC flood-fill-inaccessible.
+         * v32: Banner-exception minimum height raised from 5% to 7% in applyGlobalSanityChecks
+         *      (issues #797 and #802). The v31 diagonal-gutter fallback produces a ~5.8% stub
+         *      below the banner; the old 5% floor kept it as a spurious sliver panel. Raising the
+         *      floor to 7% filters the stub while the 98-row gap between the banner and the
+         *      full-width strip (created by the v31 split) still prevents the pre-v31 merge.
+         *      v31 caches can hold a spurious sliver panel (~5.8% tall, ≥50% wide) between the
+         *      banner area and the full-width strip on pages with diagonal-separated top sections.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 28
+        internal const val CURRENT_SCHEMA_VERSION: Int = 32
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

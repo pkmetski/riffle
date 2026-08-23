@@ -505,6 +505,147 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `middle-row wide panel is split at its vertical gutter into two separate panels`() {
+        // Regression for issue #794: page 24. The middle row has two panels separated by a
+        // vertical gutter, but the detector merged them into one full-width panel
+        // (x=26 y=377 w=988 h=350). The user tapped at (723, 614) and expected the right panel
+        // (user-drawn: x=389 y=373 w=630 h=349). Expected layout: 2 top + 2 middle + 3 bottom = 7.
+        //
+        // Uses loadBinaryFixture (0/255 fast path) rather than loadMaskFixture (20/240 re-binarizer)
+        // because the 20/240 full-binarizer runs a texture pass that expands content into the
+        // vertical gutter and changes the detection outcome. The fast path matches the exact
+        // PanelBinaryMask the device produced, verified to reproduce the reported 6 panels ±0px.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-794-panel-cut-off-page24.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2+2+3 layout, got ${result.panels.size} (source=${result.source}); panels=${result.panels}",
+            7, result.panels.size,
+        )
+        // Middle row must contain two separate panels (y-centre in roughly the middle third).
+        val middleRow = result.panels.filter { p ->
+            p.y + p.height / 2 in (mask.height * 0.30).toInt()..(mask.height * 0.60).toInt()
+        }
+        assertEquals(
+            "expected middle row to have 2 panels; all panels=${result.panels}",
+            2, middleRow.size,
+        )
+        // The right middle panel must start near the user-drawn x=389.
+        val rightMiddle = middleRow.maxByOrNull { it.x }
+        assertTrue(
+            "right middle panel must start near x=389 (user-drawn); got rightMiddle=$rightMiddle",
+            rightMiddle != null && rightMiddle.x in 300..480,
+        )
+    }
+
+    @Test
+    fun `bottom-left panel is not cut off at the gradual diagonal boundary`() {
+        // Regression for issue #795: page 24. Same page as #794. The bottom-left panel spans
+        // x=27..593 per the user's drawing, but the detector returned x=27 w=461 (right edge at
+        // x=487 — the CC boundary, not the actual diagonal transition zone). The diagonal gutter
+        // rises only ~0.15 rows per column; diagonalProfileScan detects the gradual monotone rise
+        // for gap=0 pairs, widening the bbox to cover the transition zone.
+        // Correct layout is 2+2+3 = 7 panels (the #794 fix also correctly splits the middle row).
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-795-panel-cut-off-page24.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2+2+3 layout, got ${result.panels.size} (source=${result.source}); panels=${result.panels}",
+            7, result.panels.size,
+        )
+        // Bottom-left panel must be widened to cover the diagonal transition zone.
+        // User drew x=27 w=565 (right edge at x=592); require right edge ≥ 540 (old bug: x=487).
+        val bottomSection = result.panels.filter { p ->
+            p.y + p.height / 2 > mask.height * 0.60
+        }
+        val bottomLeft = bottomSection.minByOrNull { it.x }
+        assertTrue(
+            "bottom-left panel must reach past the diagonal (right edge ≥ 540, old bug right edge ≈ 487); got bottomLeft=$bottomLeft",
+            bottomLeft != null && bottomLeft.x + bottomLeft.width >= 540,
+        )
+    }
+
+    @Test
+    fun `wide top banner panel is not missed when diagonal gutters separate it from lower panels`() {
+        // Regression for issue #801: page 29. The banner and the lower-left panel sit in the same
+        // left column; the diagonal gutter between them is flood-fill-inaccessible, so they merge
+        // into one tall CC spanning ~47% of page height. The fix splits the merged CC at the
+        // diagonal gutter, separating the banner area from the lower-left panel.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-801-missed-panel-page29.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // No panel starting near the top (y < 10%) should span > 44% of the page height.
+        // The pre-fix merged panel was y=24, height=704 on a 1482px page (47.5%).
+        val mergedPanels = result.panels.filter { p ->
+            p.y.toDouble() / mask.height < 0.10 &&
+                p.height.toDouble() / mask.height > 0.44
+        }
+        assertEquals(
+            "merged banner+lower-left panel should not exist; panels=${result.panels}",
+            0, mergedPanels.size,
+        )
+        // At least two panels must exist in the top 35% of the page: the banner-area panel
+        // (left column) and the right-column panel that also starts near the top.
+        val topAreaPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.35
+        }
+        assertTrue(
+            "at least 2 panels should be in the top area (banner + right-column); panels=${result.panels}",
+            topAreaPanels.size >= 2,
+        )
+    }
+
+    @Test
+    fun `top section split into 3 panels without spurious sliver when diagonal gutter is present`() {
+        // Regression for issues #797 and #802: page 29 (same fixture). The #801 fix (diagonal-gutter
+        // fallback in splitSinglePanelRecursively) produces a spurious sliver panel
+        // (x=33 y=408 w=557 h=86, ~5.8% of page height) between the banner area and the full-width
+        // strip below it. The sliver passes the old 5% banner height exception in
+        // applyGlobalSanityChecks (86px ≥ 74px) but is not a real panel.
+        // Fix: raise the banner-exception minimum height from 5% to 7%, filtering the 5.8% sliver.
+        // #797 originally reported 5 merged panels (pre-#801 state); #802 reported these exact 7
+        // panels (post-#801 overcorrection). Both are resolved by the same filter tightening.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-797-merged-panels-page29.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 6 panels for this layout, got ${result.panels.size}; panels=${result.panels}",
+            6, result.panels.size,
+        )
+        // No spurious sliver: no panel in the top half with height < 10% of the page.
+        val sliverPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.50 &&
+                p.height.toDouble() / mask.height < 0.10
+        }
+        assertEquals(
+            "no spurious sliver panel should exist in the top half; panels=${result.panels}",
+            0, sliverPanels.size,
+        )
+    }
+
+    @Test
+    fun `top section split into 3 panels without spurious sliver - issue 802 fixture`() {
+        // Same regression as above but using the #802 fixture (same underlying image, different
+        // binarization point). The #802 report was filed against the 7-panel overcorrection
+        // introduced by the #801 fix; both #797 and #802 share the fix.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-802-split-panel-page29.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 6 panels for this layout, got ${result.panels.size}; panels=${result.panels}",
+            6, result.panels.size,
+        )
+        val sliverPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.50 &&
+                p.height.toDouble() / mask.height < 0.10
+        }
+        assertEquals(
+            "no spurious sliver panel should exist in the top half; panels=${result.panels}",
+            0, sliverPanels.size,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
@@ -537,6 +678,31 @@ class PanelDetectorImageTest {
             }
         }
         return PixelGrid(w, h, luma)
+    }
+
+    /**
+     * Load a binarized-mask fixture (black=content, white=gutter) and return a [PanelBinaryMask]
+     * directly, bypassing the full binarizer. Uses the same 0/255 fast-path mapping the device
+     * uses for PanelMaskBinarizer: black pixels (0x000000) → 1 (content), any non-black pixel →
+     * 0 (gutter). This gives byte-exact parity with the device's detection input and is required
+     * when the 20/240 re-binarization path (used by [loadMaskFixture]) would run the texture pass
+     * and produce a different detection outcome (see the loadMaskFixture note for why 20/240 is
+     * kept as the default — migration to 0/255 requires regenerating all legacy fixtures).
+     */
+    private fun loadBinaryFixture(resourcePath: String): PanelBinaryMask {
+        val stream = javaClass.classLoader.getResourceAsStream(resourcePath)
+            ?: error("Fixture not found on classpath: $resourcePath — ensure the file exists under core/domain/src/jvmTest/resources/")
+        val img = stream.use { javax.imageio.ImageIO.read(it) }
+            ?: error("Could not decode image at $resourcePath")
+        val w = img.width
+        val h = img.height
+        val data = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                data[y * w + x] = if ((img.getRGB(x, y) and 0xFFFFFF) == 0) 1 else 0
+            }
+        }
+        return PanelBinaryMask(w, h, data)
     }
 
     /**

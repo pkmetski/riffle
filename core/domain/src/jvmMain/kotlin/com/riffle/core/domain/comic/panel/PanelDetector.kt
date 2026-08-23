@@ -829,6 +829,103 @@ class PanelDetector(
      * Comparing the two runs' positions reveals whether the internal boundary is diagonal
      * (runs shifted apart) or straight (runs coincide).
      */
+    /**
+     * Alternative to [diagonalStripGutterRuns] for panel pairs where the diagonal gutter is only
+     * partially flood-fill accessible (e.g. gap=0 or touching panels where the gutter is enclosed
+     * by content beyond a certain column).
+     *
+     * Scans the topmost flood-fill gutter pixel per column across the shared boundary zone and
+     * identifies the rising segment at the start of the profile (before any big forward jump that
+     * signals a transition to a different gutter region). The slope of the accessible segment is
+     * then extrapolated to estimate where the boundary reaches union.maxY, producing a bottomRun
+     * that covers the full diagonal extent even when only a partial prefix is flood-fill visible.
+     *
+     * Returns synthetic single-column topRun / bottomRun compatible with
+     * [repairDiagonalAdjacentColumnPairs], or null if no valid rising diagonal segment is found.
+     */
+    private fun diagonalProfileScan(
+        union: Bbox,
+        leftMaxX: Int,
+        rightMinX: Int,
+        yOverlapTop: Int,
+        yOverlapBottom: Int,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+        downscaledWidth: Int,
+        minShift: Int,
+        maxShift: Int,
+    ): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
+        val slack = (downscaledWidth * 0.02).toInt().coerceAtLeast(5)
+        val scanStart = (leftMaxX - slack).coerceAtLeast(union.minX)
+        val scanEnd = (rightMinX + maxShift).coerceAtMost(union.maxX)
+        val unionHeight = union.maxY - union.minY + 1
+        val overlapHeight = yOverlapBottom - yOverlapTop + 1
+
+        // Scan topmost flood-fill gutter per column within the pair's y-overlap zone. Restricting
+        // to the y-overlap zone naturally excludes pairs whose y-overlap doesn't contain the
+        // diagonal (e.g. a left/right-bottom pair when the diagonal belongs to left/right-top).
+        val profile = mutableListOf<Pair<Int, Int>>()
+        for (x in scanStart..scanEnd) {
+            for (y in yOverlapTop..yOverlapBottom) {
+                if (gutter[y * cropped.width + x]) {
+                    profile.add(x to y)
+                    break
+                }
+            }
+        }
+
+        if (profile.size < 5) return null
+
+        // firstY should sit in the upper half of the y-overlap zone. Use 30% of union height
+        // (not overlap height) so the threshold is stable regardless of how tall the overlap is.
+        val firstY = profile.first().second
+        if (firstY > yOverlapTop + (unionHeight * 0.30).toInt()) return null
+
+        // Find the rising segment from the start, stopping at a big forward jump.
+        // A jump > 25% of union height in one step means the flood-fill has left the diagonal
+        // and entered a different gutter region (e.g. bottom-border gutter accessible from
+        // outside the section). The segment before that jump is the detectable diagonal portion.
+        val bigJumpThreshold = (unionHeight * 0.25).toInt().coerceAtLeast(10)
+        var segEndIdx = 0
+        var risingCount = 0
+        for (i in 1 until profile.size) {
+            val dy = profile[i].second - profile[i - 1].second
+            when {
+                dy > bigJumpThreshold -> break
+                dy < -(unionHeight * 0.05).toInt() -> break
+                dy > 0 -> { risingCount++; segEndIdx = i }
+            }
+        }
+
+        if (segEndIdx < 4) return null
+        val segFirstX = profile[0].first
+        val segLastX = profile[segEndIdx].first
+        val segFirstY = profile[0].second
+        val segLastY = profile[segEndIdx].second
+        val dxSeg = segLastX - segFirstX
+        val dySeg = segLastY - segFirstY
+
+        // Segment must span at least 10% of the y-overlap height.
+        if (dySeg < overlapHeight * 0.10) return null
+        if (risingCount < segEndIdx * 0.75) return null
+
+        // Extrapolate the diagonal slope from the accessible segment to estimate where the
+        // boundary reaches union.maxY. The accessible segment may only cover the flood-fill-
+        // reachable portion; beyond it the gutter is enclosed by content and invisible to BFS.
+        val dyToBottom = union.maxY - segFirstY
+        val extrapolatedEndX = if (dySeg > 0) {
+            (segFirstX + dyToBottom.toDouble() * dxSeg / dySeg).toInt()
+                .coerceIn(segLastX, union.maxX)
+        } else {
+            segLastX
+        }
+
+        val shift = extrapolatedEndX - segFirstX
+        if (shift < minShift || shift > maxShift) return null
+
+        return (segFirstX to segFirstX) to (extrapolatedEndX to extrapolatedEndX)
+    }
+
     private fun diagonalStripGutterRuns(
         bbox: Bbox,
         cropped: CroppedMask,
@@ -880,7 +977,7 @@ class PanelDetector(
      * because a real gutter has already been independently confirmed by the split stage here —
      * the only question is whether it is slanted enough that the hard cut truncated the panels.
      */
-    private fun repairDiagonalAdjacentColumnPairs(
+    internal fun repairDiagonalAdjacentColumnPairs(
         bboxes: List<Bbox>,
         cropped: CroppedMask,
         gutter: BooleanArray,
@@ -891,6 +988,10 @@ class PanelDetector(
         val maxPairGap = (downscaledWidth * 0.05).toInt().coerceAtLeast(5)
         val minShift = (downscaledWidth * 0.015).toInt().coerceAtLeast(8)
         val maxShift = (downscaledWidth * 0.12).toInt()
+        // The profile scan extrapolates the diagonal slope from the flood-fill-accessible segment,
+        // so it can handle larger shifts than the strip scan without false-positives (the y-overlap
+        // restriction already gates which pairs it fires on). Allow up to 15% for the profile path.
+        val maxShiftProfile = (downscaledWidth * 0.15).toInt()
         val result = bboxes.toMutableList()
 
         for (i in result.indices) {
@@ -908,32 +1009,66 @@ class PanelDetector(
                 val shorterH = minOf(left.maxY - left.minY + 1, right.maxY - right.minY + 1)
                 if ((yOverlapBottom - yOverlapTop + 1).toDouble() / shorterH < 0.5) continue
                 // Horizontally adjacent with a small gap (already-overlapping pairs are handled
-                // by expandDiagonalBboxOverlaps).
+                // by expandDiagonalBboxOverlaps). Gap=0 means the panels physically touch; those
+                // are handled via diagonalProfileScan instead of the strip-density run scan.
                 val gap = right.minX - left.maxX - 1
-                if (gap !in 1..maxPairGap) continue
+                if (gap !in 0..maxPairGap) continue
                 // Same full-width/height envelope as repairDiagonalTwoColumnRow, applied to the union.
+                // Height raised to 0.55 to cover tall-section diagonals (e.g. bottom half of page).
                 val union = Bbox(left.minX, minOf(left.minY, right.minY), right.maxX, maxOf(left.maxY, right.maxY))
                 val unionWidth = union.maxX - union.minX + 1
                 val unionHeight = union.maxY - union.minY + 1
                 if (unionWidth.toDouble() / downscaledWidth < 0.85) continue
-                if (unionHeight.toDouble() / downscaledHeight !in 0.16..0.32) continue
+                if (unionHeight.toDouble() / downscaledHeight !in 0.16..0.55) continue
 
-                val (topRun, bottomRun) = diagonalStripGutterRuns(union, cropped, gutter) ?: continue
+                // Try the profile scan first: it detects gradual diagonals (< 1 row/column) that
+                // are invisible to the 45 %-strip-density threshold. The scan is restricted to the
+                // pair's y-overlap zone so pairs whose y-overlap doesn't contain the diagonal are
+                // naturally rejected (e.g. a left/right-bottom pair when the diagonal is only
+                // visible within the left/right-top overlap zone). Fall back to the strip scan for
+                // wide gaps or steep diagonals where the profile approach is insufficient.
+                val profileResult = diagonalProfileScan(union, left.maxX, right.minX, yOverlapTop, yOverlapBottom, cropped, gutter, downscaledWidth, minShift, maxShiftProfile)
+                val stripResult = if (profileResult == null) diagonalStripGutterRuns(union, cropped, gutter) else null
+                val (topRun, bottomRun) = profileResult ?: stripResult ?: continue
+                val effectiveMaxShift = if (profileResult != null) maxShiftProfile else maxShift
                 // Both runs must sit at the pair's shared boundary, not some unrelated interior dip.
-                val neighborhoodMin = left.maxX - maxShift
-                val neighborhoodMax = right.minX + maxShift
+                val neighborhoodMin = left.maxX - effectiveMaxShift
+                val neighborhoodMax = right.minX + effectiveMaxShift
                 val topCenter = (topRun.first + topRun.second) / 2
                 val bottomCenter = (bottomRun.first + bottomRun.second) / 2
                 if (topCenter !in neighborhoodMin..neighborhoodMax) continue
                 if (bottomCenter !in neighborhoodMin..neighborhoodMax) continue
                 val diagonalShift = kotlin.math.abs(topCenter - bottomCenter)
-                if (diagonalShift < minShift || diagonalShift > maxShift) continue
+                if (diagonalShift < minShift || diagonalShift > effectiveMaxShift) continue
+
+                // If the bottom-strip run is entirely within the current gap between the two
+                // panels, the split already captured the straight vertical gutter correctly.
+                // Diagonal widening would create artificial overlap driven by an unrelated
+                // top-strip run (e.g. a thin speech-bubble gap in the art). A real diagonal
+                // boundary always has its bottom-strip run extending PAST the gap into at least
+                // one panel — the widening is needed to cover that transition zone.
+                if (bottomRun.first >= left.maxX + 1 && bottomRun.second <= right.minX - 1) continue
 
                 val overlapPad = (unionWidth * 0.02).toInt().coerceAtLeast(12)
-                val newLeftMax = (maxOf(topRun.second, bottomRun.second) + overlapPad)
+                var newLeftMax = (maxOf(topRun.second, bottomRun.second) + overlapPad)
                     .coerceAtMost(right.maxX - 1)
-                val newRightMin = (minOf(topRun.first, bottomRun.first) - overlapPad)
+                var newRightMin = (minOf(topRun.first, bottomRun.first) - overlapPad)
                     .coerceAtLeast(left.minX + 1)
+                if (newLeftMax <= left.maxX && newRightMin >= right.minX) continue
+                // Walk newLeftMax back until the resulting overlap stays under the global sanity
+                // threshold (same cap pattern used in mergeDiagonalSpanningPanels).
+                val overlapCap = config.overlapRejectFraction * 0.95
+                val yOvTop = maxOf(left.minY, right.minY)
+                val yOvBottom = minOf(left.maxY, right.maxY)
+                val overlapH = (yOvBottom - yOvTop + 1L).coerceAtLeast(0L)
+                while (newLeftMax > left.maxX) {
+                    val overlapW = (newLeftMax - newRightMin + 1L).coerceAtLeast(0L)
+                    val leftArea = (newLeftMax - left.minX + 1L) * (left.maxY - left.minY + 1L)
+                    val rightArea = (right.maxX - newRightMin + 1L) * (right.maxY - right.minY + 1L)
+                    if (overlapW * overlapH <= overlapCap * minOf(leftArea, rightArea)) break
+                    newLeftMax--
+                    newRightMin++
+                }
                 if (newLeftMax <= left.maxX && newRightMin >= right.minX) continue
                 result[leftIdx] = Bbox(left.minX, left.minY, maxOf(newLeftMax, left.maxX), left.maxY)
                 result[rightIdx] = Bbox(minOf(newRightMin, right.minX), right.minY, right.maxX, right.maxY)
@@ -1076,6 +1211,10 @@ class PanelDetector(
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             (start - bbox.minY) >= minDimPx && (bbox.maxY - end) >= minDimPx
         } == true
+        // Set to true when the chosen horizontal gutter came from the diagonal-gutter fallback
+        // (22%-relaxed projection path). Used below to skip the bannerBboxMinHeightPx guard,
+        // which is too strict for sub-bboxes produced by a prior vertical split.
+        var horizontalFromDiagonalFallback = false
         val effectiveHorizontalGutter: Pair<Int, Int>? = if (floodFillWouldSplit) horizontalGutter else run {
             val maxRowContent = (bbox.minY..bbox.maxY).maxOf { y ->
                 cropped.rowContentCount(y, innerMinX, innerMaxX)
@@ -1110,6 +1249,37 @@ class PanelDetector(
                             minOf(topH, bottomH) >= bannerBboxMinH
                     }
                 }
+                // Diagonal-gutter banner fallback: when the gutter between a banner and a lower
+                // section is slanted, the boundary crosses each row at a different x-position. No
+                // single row has near-zero content (only the row closest to the diagonal midpoint
+                // drops below 20%), so the 4-row threshold fails. Accept ≥4 rows at a 22% cutoff
+                // for wide banner-eligible bboxes — the extra 2% captures the rows just above the
+                // diagonal midpoint without opening the door for 1–3-row artwork dips.
+                ?: run diagonalGutterFallback@{
+                    val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                    if (bboxWidthFraction < 0.5) return@diagonalGutterFallback null
+                    val relaxedCutoff = maxRowContent * 0.22
+                    val relaxedGutter = widestGutterRun(
+                        axisStart = bbox.minY + edgeMarginY,
+                        axisEnd = bbox.maxY - edgeMarginY,
+                    ) { y ->
+                        cropped.rowContentCount(y, innerMinX, innerMaxX) < relaxedCutoff
+                    }
+                    // Use only the absolute bannerMinH guard (not the bbox-fraction one) — this bbox
+                    // may already be a sub-section after a prior vertical split, making height <
+                    // the full-page banner height; the bottom stub will be merged by repair steps.
+                    relaxedGutter?.takeIf { (start, thickness) ->
+                        thickness >= 4 && run {
+                            val end = start + thickness - 1
+                            val topH = start - bbox.minY
+                            val bottomH = bbox.maxY - end
+                            val bannerMinH = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                            // Banner pattern: tall piece at top, short stub at bottom (topH > bottomH).
+                            // Compositional art gaps produce the opposite (gap near top, majority below).
+                            topH >= bannerMinH && bottomH >= bannerMinH && bottomH < topH
+                        }
+                    }?.also { horizontalFromDiagonalFallback = true }
+                }
                 // If projection found nothing, fall back to a thin flood-fill gutter when
                 // banner-eligible. Flood-fill accessibility confirms the gutter connects to the
                 // page border; the banner conditions guard against caption-box false splits.
@@ -1142,6 +1312,59 @@ class PanelDetector(
             ) { x ->
                 cropped.colContentCount(x, innerMinY, innerMaxY) < contentCutoff
             }?.takeIf { (_, thickness) -> thickness >= 7 }
+        } ?: run {
+            // Bottom-strip flood-fill fallback: handles vertical gutters that are accessible from
+            // the BOTTOM border only. When speech bubbles or artwork fill the upper portion of a
+            // wide panel row, the flood-fill path from the top border to the vertical boundary is
+            // blocked, so the full-column fraction stays well below 30% and projection finds
+            // nothing. But the gutter connects to the horizontal row-separator below the bbox, so
+            // the bottom 25% of the strip reveals the boundary clearly.
+            //
+            // Width guard (≥ 70% of page width): restricts to the "suspicious full-width row" case.
+            // Narrow sub-panel bboxes are excluded — their border-accessible edge pixels would
+            // score above the threshold for unrelated columns.
+            //
+            // Height guard (≤ 35% of page height): excludes tall bboxes spanning multiple row bands.
+            // For a 3-row comic layout each row occupies ≈ 25-30% of the page, so ≤ 35% admits
+            // single-row bboxes only. A tall bbox (> 35%) is likely a multi-row section; its bottom
+            // strip captures a row boundary rather than an interior panel gutter.
+            if (width.toDouble() / downscaledWidth.toDouble() < 0.70) return@run null
+            if (height.toDouble() / downscaledHeight.toDouble() > 0.35) return@run null
+            val stripH = (height * 0.25).toInt().coerceAtLeast(1)
+            val bottomStripStart = bbox.maxY - stripH + 1
+            val stripRows = bbox.maxY - bottomStripStart + 1
+            val thresholdTimesK = (config.internalGutterFloodFillFraction * 1000).toLong()
+            widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                var g = 0
+                for (y in bottomStripStart..bbox.maxY) if (gutter[y * cropped.width + x]) g++
+                g.toLong() * 1000 >= stripRows.toLong() * thresholdTimesK
+            }?.takeIf { (_, thickness) -> thickness in config.internalGutterMinThickness..40 }
+                ?.takeIf {
+                    // If the top strip ALSO has a flood-fill gutter run (≥ 45% threshold,
+                    // ≥ 7 pixels thick), this is likely a diagonal boundary that
+                    // repairDiagonalTwoColumnRows will handle. Skip this fallback to avoid
+                    // interfering. Thickness floor = 7: a ≤ 6-pixel run in the top strip is a
+                    // thin gap between speech bubbles or artwork (issue #794 fixture shows a
+                    // spurious 6-pixel run at x=480 that does NOT represent the vertical boundary
+                    // at x=388). Real diagonal boundaries from repairDiagonalTwoColumnRows produce
+                    // top-strip runs of ≥ 8 pixels (validated by issue-784 fixtures, topRun=8,10).
+                    // Boundary coverage: issue-794 (topRun=6 → fires) and issue-784 (topRun=8,10
+                    // → blocked) form the two sides of the thickness-7 gate.
+                    val topStripH = (height * 0.20).toInt().coerceAtLeast(1)
+                    val topStripEnd = bbox.minY + topStripH - 1
+                    val topHasRun = widestGutterRun(
+                        axisStart = bbox.minX + edgeMarginX,
+                        axisEnd = bbox.maxX - edgeMarginX,
+                    ) { x ->
+                        var g = 0
+                        for (y in bbox.minY..topStripEnd) if (gutter[y * cropped.width + x]) g++
+                        g.toLong() * 1000 >= topStripH.toLong() * 450L
+                    }?.let { (_, thickness) -> thickness in 7..40 } == true
+                    !topHasRun
+                }
         }
 
         val hGutter = effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) }
@@ -1159,10 +1382,14 @@ class PanelDetector(
                 val topH = hStart - bbox.minY
                 val bottomH = bbox.maxY - hEnd
                 val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                // When the horizontal gutter came from the diagonal-gutter fallback (22%-relaxed
+                // projection), the bottom stub is intentionally small (the diagonal runs across
+                // the column, not straight across the page). Skip the bbox-fraction height guard
+                // so hGutter beats the vertical column gutter at this level too.
                 val bannerEligible = (topH < minDimPx || bottomH < minDimPx) &&
                     width.toDouble() / downscaledWidth >= 0.5 &&
                     minOf(topH, bottomH) >= (downscaledHeight * 0.05).toInt().coerceAtLeast(1) &&
-                    minOf(topH, bottomH) >= (height * 0.25).toInt().coerceAtLeast(1)
+                    (horizontalFromDiagonalFallback || minOf(topH, bottomH) >= (height * 0.25).toInt().coerceAtLeast(1))
                 if (bannerEligible) hGutter
                 else listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }!!
             } else {
@@ -1220,7 +1447,7 @@ class PanelDetector(
                 val bannerBboxMinHeightPx = (height * 0.25).toInt().coerceAtLeast(1)
                 val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
                 val shortPieceHeight = minOf(topHeight, bottomHeight)
-                if (bboxWidthFraction < 0.5 || shortPieceHeight < bannerMinHeightPx || shortPieceHeight < bannerBboxMinHeightPx) return listOf(bbox)
+                if (bboxWidthFraction < 0.5 || shortPieceHeight < bannerMinHeightPx || (!horizontalFromDiagonalFallback && shortPieceHeight < bannerBboxMinHeightPx)) return listOf(bbox)
             }
         } else {
             val leftWidth = start - bbox.minX
@@ -1319,10 +1546,12 @@ class PanelDetector(
         // and is kept; everything else requires both axes to pass.
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-        // A wide panel (≥ 50% of page width) that is taller than 5% of the page is a real
-        // banner even if its height doesn't reach the full-panel threshold.
+        // A wide panel (≥ 50% of page width) that is taller than 7% of the page is a real
+        // banner even if its height doesn't reach the full-panel threshold. 7% (not 5%) prevents
+        // diagonal-transition slivers (~5–6% tall) produced by splitSinglePanelRecursively's
+        // diagonal-gutter fallback from surviving as spurious panels (#797/#802).
         val bannerWidthThreshold = originalWidth * 0.5
-        val bannerMinHeight = (originalHeight * 0.05).toInt().coerceAtLeast(1)
+        val bannerMinHeight = (originalHeight * 0.07).toInt().coerceAtLeast(1)
         val filtered = regions.filter {
             (it.width >= minWidth && it.height >= minHeight) ||
                 (it.width >= bannerWidthThreshold && it.height >= bannerMinHeight)
@@ -1348,19 +1577,26 @@ class PanelDetector(
                 val b = meaningful[j]
                 val smaller = if (a.area() <= b.area()) a else b
                 val larger = if (a.area() <= b.area()) b else a
-                if (larger.overlapFraction(smaller) > config.overlapRejectFraction) return null
+                val of = larger.overlapFraction(smaller)
+                if (of > config.overlapRejectFraction) {
+                    return null
+                }
             }
         }
 
         val totalPanelArea = meaningful.sumOf { it.area() }
         val summedCoverage = totalPanelArea.toDouble() / pageArea.toDouble()
-        if (summedCoverage < config.minTotalCoverageFraction) return null
+        if (summedCoverage < config.minTotalCoverageFraction) {
+            return null
+        }
         // Summed panel area exceeding the page area means panels are overlapping meaningfully
         // (even if pairwise overlaps are under the reject threshold). Real panels tile with
         // small gutters; overlap sums this large indicate CC merged content across panel
         // boundaries and gave us big-blob bboxes stacked on each other. Fall back rather than
         // present the user with overlapping zoom windows.
-        if (summedCoverage > config.maxSummedCoverageFraction) return null
+        if (summedCoverage > config.maxSummedCoverageFraction) {
+            return null
+        }
 
         return meaningful
     }
@@ -1659,3 +1895,4 @@ class PanelDetector(
         fun area(): Long = (maxX - minX + 1).toLong() * (maxY - minY + 1).toLong()
     }
 }
+

@@ -14,6 +14,8 @@ When debugging with `[DEBUG-<tag>]` logs the user is reproducing for you, **fetc
 
 Assume the user is testing on the correct/latest version of the app. Don't diagnose a reported bug as "wrong APK installed" based on the emulator's build SHA, the drawer version string, or a missing symbol in the installed commit — the user is typically reproducing on their physical device (or a fresh install), not on the emulator you're driving. Treat the bug as real and dig into the code.
 
+**Never, under any circumstances, suggest "old APK" or "stale cache" as the explanation for a reported bug.** The user builds and installs their own APK and knows what version they're running. If a JVM test passes but the user reports the bug is still present, that means the test is wrong or insufficient — not that the user is running old code. Investigate the code; never push the problem back onto the user's installation.
+
 ## Reader mode changes
 
 The reader has three modes: **paginated**, **vertical**, and **continuous**.
