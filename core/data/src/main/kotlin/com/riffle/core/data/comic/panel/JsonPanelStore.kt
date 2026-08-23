@@ -263,8 +263,25 @@ class JsonPanelStore @Inject constructor(
          *      bottom-strip run already sits within the actual gap (straight gutter correctly
          *      identified). v28 caches can hold a 2-panel middle row merged into one full-width
          *      panel when speech bubbles block the gutter's top-border flood-fill path.
+         * v30: Diagonal profile scan for gap=0 touching panels (issue #795). When two panels
+         *      physically touch (no explicit pixel gap), repairDiagonalAdjacentColumnPairs now
+         *      scans the topmost flood-fill gutter pixel per column to detect gradual diagonals
+         *      (< 1 row/column slope) invisible to the 45 % strip-density threshold. Height
+         *      ceiling raised from 32 % to 55 % to cover half-page-tall section diagonals. An
+         *      overlap cap mirrors the one in mergeDiagonalSpanningPanels to keep the resulting
+         *      geometry under the global sanity-check threshold. v29 caches can hold a bottom-left
+         *      panel whose right boundary follows the visible border rather than the diagonal
+         *      transition zone, producing a panel ~100px narrower than the user drew.
+         * v31: Diagonal-gutter fallback for split-then-merged banner CCs (issue #801). When
+         *      standard projection (20% content cutoff) misses the horizontal gutter between a
+         *      wide banner and a lower panel (because a diagonal boundary raises gutter-row content
+         *      above the 20% threshold), a 22%-relaxed pass now fires for CCs ≥ 50% page width
+         *      with bottomH < topH (banner pattern). The bannerEligible and split-guard
+         *      bannerBboxMinHeightPx checks are bypassed for this fallback path. v30 caches can
+         *      hold a merged panel spanning the banner area and the panel below it when a diagonal
+         *      gutter separates them from a column panel that makes the CC flood-fill-inaccessible.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 29
+        internal const val CURRENT_SCHEMA_VERSION: Int = 31
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

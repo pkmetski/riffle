@@ -932,6 +932,193 @@ class PanelDetectorTest {
         )
     }
 
+    // ------------------------------------------------------------------------------------------
+    // repairDiagonalAdjacentColumnPairs — gap=0 diagonal profile scan (issue #795)
+    // Geometry derived from the real page: left(27..487) + right(488..1013) on a 1042×1482 page.
+    // The diagonal rises at ~6.6 rows/column from x=488 (y=739) to x=594 (y=1441).
+    // ------------------------------------------------------------------------------------------
+
+    /** CroppedMask + gutter for two touching (gap=0) panels on a 1042×1482 page. */
+    private fun adjacentPairMask(
+        leftMaxX: Int,
+        rightMinX: Int,
+        yMin: Int,
+        yMax: Int,
+        diagonalFromX: Int,
+        diagonalToX: Int,
+    ): Pair<PanelDetector.CroppedMask, BooleanArray> {
+        val w = 1042
+        val h = 1482
+        val data = ByteArray(w * h) { 1 }  // all content; gutter array drives detection
+        val gutter = BooleanArray(w * h)
+        val diagFirstY = yMin
+        val diagLastY = yMax
+        val diagSpan = diagonalToX - diagonalFromX
+        for (x in diagonalFromX..diagonalToX) {
+            val y = diagFirstY + (diagLastY - diagFirstY) * (x - diagonalFromX) / diagSpan
+            if (y in 0 until h) gutter[y * w + x] = true
+        }
+        return PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0) to gutter
+    }
+
+    @Test
+    fun `repairDiagonalAdjacentColumnPairs widens touching panels with a gradual diagonal`() {
+        // Regression for issue #795: gap=0 pair with a very gradual diagonal (0.15 rows/col)
+        // was previously blocked because gap=0 was excluded from the repair loop. Now repaired
+        // via diagonalProfileScan which detects the monotone-rising topmost-gutter profile.
+        val w = 1042
+        val h = 1482
+        val left = PanelDetector.Bbox(minX = 27, minY = 739, maxX = 487, maxY = 1441)
+        val right = PanelDetector.Bbox(minX = 488, minY = 739, maxX = 1013, maxY = 1441)
+        val (cropped, gutter) = adjacentPairMask(
+            leftMaxX = 487,
+            rightMinX = 488,
+            yMin = 739,
+            yMax = 1441,
+            diagonalFromX = 488,
+            diagonalToX = 594,
+        )
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        val repLeft = result.single { it.minX == left.minX }
+        assertTrue(
+            "left panel must be widened past x=${left.maxX} to cover the diagonal zone (old bug: unchanged); got $repLeft",
+            repLeft.maxX > left.maxX,
+        )
+    }
+
+    @Test
+    fun `repairDiagonalAdjacentColumnPairs leaves touching panels unchanged when boundary is straight`() {
+        // Safety boundary: gap=0 pair where the topmost-gutter profile is flat (no rise) must
+        // NOT be widened — the profile scan's 65%-rising check rejects the straight boundary.
+        val w = 1042
+        val h = 1482
+        val left = PanelDetector.Bbox(minX = 27, minY = 739, maxX = 487, maxY = 1441)
+        val right = PanelDetector.Bbox(minX = 488, minY = 739, maxX = 1013, maxY = 1441)
+        val data = ByteArray(w * h) { 1 }
+        val gutter = BooleanArray(w * h)
+        // Straight vertical boundary: a 3-column gutter at x=487..489 for the full union height.
+        // The profile is flat (all y=739) → risingCount=0 → no repair.
+        for (y in 739..1441) {
+            for (x in 487..489) gutter[y * w + x] = true
+        }
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        assertEquals(
+            "straight-boundary gap=0 panels must be unchanged; got $result",
+            listOf(left, right), result,
+        )
+    }
+
+    @Test
+    fun `repairDiagonalAdjacentColumnPairs gap=0 diagonal height boundary — just above old 32 pct fires`() {
+        // Boundary test for the height ceiling increase (0.32 → 0.55). A gap=0 pair with union
+        // height 34 % (between old 0.32 and new 0.55) was blocked before and must now fire.
+        val w = 1042
+        val h = 1482
+        val left = PanelDetector.Bbox(minX = 27, minY = 0, maxX = 487, maxY = 503)   // h=504, 34.0%
+        val right = PanelDetector.Bbox(minX = 488, minY = 0, maxX = 1013, maxY = 503)
+        val (cropped, gutter) = adjacentPairMask(
+            leftMaxX = 487, rightMinX = 488, yMin = 0, yMax = 503,
+            diagonalFromX = 488, diagonalToX = 560,
+        )
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        val repLeft = result.single { it.minX == left.minX }
+        assertTrue(
+            "34%-height gap=0 pair must now fire (old bug: height > 0.32 blocked it); got $repLeft",
+            repLeft.maxX > left.maxX,
+        )
+    }
+
+    @Test
+    fun `repairDiagonalAdjacentColumnPairs gap=0 diagonal height boundary — above new 55 pct blocked`() {
+        // Boundary test: union height 56 % (above new 0.55 ceiling) must still not fire.
+        val w = 1042
+        val h = 1482
+        val left = PanelDetector.Bbox(minX = 27, minY = 0, maxX = 487, maxY = 830)   // h=831, 56.1%
+        val right = PanelDetector.Bbox(minX = 488, minY = 0, maxX = 1013, maxY = 830)
+        val (cropped, gutter) = adjacentPairMask(
+            leftMaxX = 487, rightMinX = 488, yMin = 0, yMax = 830,
+            diagonalFromX = 488, diagonalToX = 590,
+        )
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        assertEquals(
+            "56%-height gap=0 pair must be blocked by height ceiling; got $result",
+            listOf(left, right), result,
+        )
+    }
+
+    @Test
+    fun `diagonalGutterFallback fires when gutter rows qualify at 22pct but not 20pct — banner stub below`() {
+        // Boundary test for the diagonalGutterFallback 22% threshold + bottomH < topH discriminator.
+        // Uses 0/255 values to bypass the binarizer texture pass so gutter row content is preserved
+        // exactly. Content = 0, background = 255.
+        //
+        // Page: 300×1000. Content column x=10..290 (281px, 93.7% of page width > 50% threshold).
+        // Banner: y=10..609. Gutter: y=610..619 (10 rows). Stub: y=620..729.
+        //
+        // Gutter geometry:
+        //   edgeMarginX = max(2, (281 * 0.1).toInt()) = 28 → innerMinX=28, innerMaxX=252
+        //   maxRowContent (banner row inner range x=28..252) = 225 px
+        //   20% threshold = 225 * 0.20 = 45 px
+        //   22% threshold = 225 * 0.22 = 49.5 px
+        //
+        //   Left seal: x=10..83 DARK (74 px) → CROPPED x=0..73 → inner count x=28..73 = 46 px
+        //   Right seal: x=290 DARK (CROPPED x=280, outside innerMaxX=252, contributes 0)
+        //   Total inner count = 46 px: fails 20% check (46 ≥ 45), passes 22% check (46 < 49.5) ✓
+        //
+        // So regular banner projection fails; diagonalGutterFallback fires and sets
+        // horizontalFromDiagonalFallback = true, which allows the bannerEligible bypass for
+        // the (height*0.25) guard (bottomH=110 < 180).
+        val binaryDark: Byte = 0
+        val binaryLight: Byte = (-1).toByte()  // 255 as Byte
+        val luma = ByteArray(300 * 1000) { binaryLight }
+        for (y in 10..609) for (x in 10..290) luma[y * 300 + x] = binaryDark   // Banner
+        for (y in 610..619) {
+            for (x in 10..83) luma[y * 300 + x] = binaryDark  // left seal (46 inner-range px)
+            luma[y * 300 + 290] = binaryDark                   // right seal (outside inner range)
+        }
+        for (y in 620..729) for (x in 10..290) luma[y * 300 + x] = binaryDark   // Stub
+        val grid = PixelGrid(300, 1000, luma)
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "diagonal fallback must split banner from stub; got ${result.panels}",
+            2, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `diagonalGutterFallback is blocked when stub is above and large content is below — bottomH greater than topH`() {
+        // Boundary test: same gutter geometry (46 px inner content, fails 20% passes 22%) but the
+        // short piece is at the TOP (topH≈100) and the large piece is at the BOTTOM (bottomH≈870).
+        // The bottomH < topH guard must block the split — this is the compositional-gap case
+        // (issue #756 pattern), not a banner.
+        val binaryDark: Byte = 0
+        val binaryLight: Byte = (-1).toByte()
+        val luma = ByteArray(300 * 1000) { binaryLight }
+        for (y in 10..109) for (x in 10..290) luma[y * 300 + x] = binaryDark   // Stub at top
+        for (y in 110..119) {
+            for (x in 10..83) luma[y * 300 + x] = binaryDark   // same 46-px inner-range left seal
+            luma[y * 300 + 290] = binaryDark
+        }
+        for (y in 120..989) for (x in 10..290) luma[y * 300 + x] = binaryDark   // Large content below
+        val grid = PixelGrid(300, 1000, luma)
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "bottomH>topH guard must block the split; got ${result.panels}",
+            1, result.panels.size,
+        )
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

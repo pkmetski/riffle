@@ -539,6 +539,63 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `bottom-left panel is not cut off at the gradual diagonal boundary`() {
+        // Regression for issue #795: page 24. Same page as #794. The bottom-left panel spans
+        // x=27..593 per the user's drawing, but the detector returned x=27 w=461 (right edge at
+        // x=487 — the CC boundary, not the actual diagonal transition zone). The diagonal gutter
+        // rises only ~0.15 rows per column, producing 1-2 gutter pixels per column — far below
+        // the 45 % strip-density threshold used for gap > 0 pairs. Fix: diagonalProfileScan detects
+        // the gradual monotone rise for gap=0 pairs; height ceiling raised from 32 % to 55 %.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-795-panel-cut-off-page24.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels for 2+2+3 layout, got ${result.panels.size} (source=${result.source}); panels=${result.panels}",
+            7, result.panels.size,
+        )
+        // Bottom-left panel must be widened to cover the diagonal transition zone.
+        // User drew x=27 w=565 (right edge at x=592); require right edge ≥ 540 (old bug: x=487).
+        val bottomSection = result.panels.filter { p ->
+            p.y + p.height / 2 > mask.height * 0.60
+        }
+        val bottomLeft = bottomSection.minByOrNull { it.x }
+        assertTrue(
+            "bottom-left panel must reach past the diagonal (right edge ≥ 540, old bug right edge ≈ 487); got bottomLeft=$bottomLeft",
+            bottomLeft != null && bottomLeft.x + bottomLeft.width >= 540,
+        )
+    }
+
+    @Test
+    fun `wide top banner panel is not missed when diagonal gutters separate it from lower panels`() {
+        // Regression for issue #801: page 29. The banner and the lower-left panel sit in the same
+        // left column; the diagonal gutter between them is flood-fill-inaccessible, so they merge
+        // into one tall CC spanning ~47% of page height. The fix splits the merged CC at the
+        // diagonal gutter, separating the banner area from the lower-left panel.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-801-missed-panel-page29.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // No panel starting near the top (y < 10%) should span > 44% of the page height.
+        // The pre-fix merged panel was y=24, height=704 on a 1482px page (47.5%).
+        val mergedPanels = result.panels.filter { p ->
+            p.y.toDouble() / mask.height < 0.10 &&
+                p.height.toDouble() / mask.height > 0.44
+        }
+        assertEquals(
+            "merged banner+lower-left panel should not exist; panels=${result.panels}",
+            0, mergedPanels.size,
+        )
+        // At least two panels must exist in the top 35% of the page: the banner-area panel
+        // (left column) and the right-column panel that also starts near the top.
+        val topAreaPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.35
+        }
+        assertTrue(
+            "at least 2 panels should be in the top area (banner + right-column); panels=${result.panels}",
+            topAreaPanels.size >= 2,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
