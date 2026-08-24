@@ -328,7 +328,10 @@ class PanelDetector(
         val projAfterRowRepair = repairDiagonalTwoColumnRows(projAfterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterPairRepair = repairDiagonalAdjacentColumnPairs(projAfterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterMerge = mergeDiagonalSpanningPanels(projAfterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
-        val bboxesInCropped = expandDiagonalBboxOverlaps(projAfterMerge)
+        val bboxesInCropped = expandTopsToNearbyContentFragments(
+            expandDiagonalBboxOverlaps(projAfterMerge),
+            cropped,
+        )
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
@@ -1599,6 +1602,73 @@ class PanelDetector(
         }
 
         return meaningful
+    }
+
+    /**
+     * Projection detects rows from heavy content runs. Real panel tops often include a short
+     * border/caption/balloon fragment above that run; if the fragment is thinner than
+     * projectionMinBandThickness, it is not a standalone row and the panel top is cut off. Expand
+     * each bbox upward into nearby same-column fragments, but never past an overlapping panel
+     * above it.
+     */
+    private fun expandTopsToNearbyContentFragments(
+        bboxes: List<Bbox>,
+        cropped: CroppedMask,
+    ): List<Bbox> {
+        if (bboxes.isEmpty()) return bboxes
+        val maxBridgeGap = 12
+        val maxScanDistance = maxOf(96, (cropped.height * 0.06).toInt())
+        val minBlockingPanelHeight = (cropped.height * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        return bboxes.map { bbox ->
+            val width = bbox.maxX - bbox.minX + 1
+            val minRowContent = maxOf(config.marginContentThreshold, (width * 0.05).toInt())
+            val nearestBlockingPanelBottom = bboxes
+                .filter { other ->
+                    other != bbox &&
+                        other.maxY - other.minY + 1 >= minBlockingPanelHeight &&
+                        other.maxY < bbox.minY &&
+                        horizontalOverlapFraction(bbox, other) >= 0.25
+                }
+                .maxOfOrNull { it.maxY }
+                ?: -1
+            val minScanY = maxOf(0, nearestBlockingPanelBottom + 1, bbox.minY - maxScanDistance)
+
+            var y = bbox.minY - 1
+            var emptyGap = 0
+            var expandedMinY = bbox.minY
+            while (y >= minScanY) {
+                val content = cropped.rowContentCount(y, bbox.minX, bbox.maxX)
+                if (content >= minRowContent) {
+                    expandedMinY = y
+                    emptyGap = 0
+                } else {
+                    emptyGap++
+                    if (emptyGap > maxBridgeGap) break
+                }
+                y--
+            }
+            if (bbox.minY - expandedMinY >= 4) {
+                if (nearestBlockingPanelBottom >= 0) {
+                    var blankRowsAfterBlocker = 0
+                    for (blankY in nearestBlockingPanelBottom + 1 until expandedMinY) {
+                        if (cropped.rowContentCount(blankY, bbox.minX, bbox.maxX) < minRowContent) {
+                            blankRowsAfterBlocker++
+                        }
+                    }
+                    if (blankRowsAfterBlocker < 4) return@map bbox
+                }
+                Bbox(bbox.minX, expandedMinY, bbox.maxX, bbox.maxY)
+            } else {
+                bbox
+            }
+        }
+    }
+
+    private fun horizontalOverlapFraction(a: Bbox, b: Bbox): Double {
+        val overlap = minOf(a.maxX, b.maxX) - maxOf(a.minX, b.minX) + 1
+        if (overlap <= 0) return 0.0
+        val smallerWidth = minOf(a.maxX - a.minX + 1, b.maxX - b.minX + 1)
+        return overlap.toDouble() / smallerWidth.toDouble()
     }
 
     private data class Band(val start: Int, val end: Int)

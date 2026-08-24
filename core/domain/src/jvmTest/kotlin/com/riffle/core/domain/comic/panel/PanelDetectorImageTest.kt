@@ -646,6 +646,69 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `bottom strip panel includes the reported upper cut-off area`() {
+        // Regression for issue #803: page 202. The detector found the bottom strip but tightened
+        // its top edge to y=1072, excluding the user's tap at y=1045 and the expected panel top
+        // around y=983. The strip must expand upward enough to include the reported cut-off area.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-803-panel-cut-off-page202.png")
+        val result = detector.detect(mask, pageIndex = 202, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 5 panels for 2+2+1 layout, got ${result.panels.size}; panels=${result.panels}",
+            5, result.panels.size,
+        )
+        val bottomStrip = result.panels.single { p ->
+            p.width.toDouble() / mask.width >= 0.75 &&
+                p.y + p.height / 2 > mask.height * 0.55
+        }
+        assertTrue(
+            "bottom strip must include reported tap (829,1045); got $bottomStrip",
+            829 in bottomStrip.x until bottomStrip.x + bottomStrip.width &&
+                1045 in bottomStrip.y until bottomStrip.y + bottomStrip.height,
+        )
+        assertTrue(
+            "bottom strip must start near expected y=983 (old bug: y=1072); got $bottomStrip",
+            bottomStrip.y <= 1000,
+        )
+    }
+
+    @Test
+    fun `page fifty-nine panels include reported top and bottom cut-off areas`() {
+        // Regressions for issues #804, #805, and #806: all three reports share the same page-59
+        // mask. Top-left was detected at y=142 but expected y≈100; both bottom panels were
+        // detected at y=1153 but expected y≈1071-1077.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-804-panel-cut-off-page59.png")
+        val result = detector.detect(mask, pageIndex = 59, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 6 panels for 3×2 layout, got ${result.panels.size}; panels=${result.panels}",
+            6, result.panels.size,
+        )
+
+        val topLeft = result.panels.single { p ->
+            p.x + p.width / 2 < mask.width / 2 &&
+                p.y + p.height / 2 < mask.height / 3
+        }
+        assertTrue(
+            "top-left panel must start near expected y=100 (old bug: y=142); got $topLeft",
+            topLeft.y <= 110,
+        )
+
+        val bottomPanels = result.panels.filter { p -> p.y + p.height / 2 > mask.height * 0.65 }
+        assertEquals("expected two bottom panels; panels=${result.panels}", 2, bottomPanels.size)
+        val bottomLeft = bottomPanels.minByOrNull { it.x }
+        val bottomRight = bottomPanels.maxByOrNull { it.x }
+        assertTrue(
+            "bottom-left panel must start near expected y=1071 (old bug: y=1153); got $bottomLeft",
+            bottomLeft != null && bottomLeft.y <= 1085,
+        )
+        assertTrue(
+            "bottom-right panel must start near expected y=1077 (old bug: y=1153); got $bottomRight",
+            bottomRight != null && bottomRight.y <= 1090,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
