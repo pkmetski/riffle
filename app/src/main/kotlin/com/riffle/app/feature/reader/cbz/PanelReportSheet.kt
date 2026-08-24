@@ -40,6 +40,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -243,15 +244,10 @@ internal fun PanelReportSheet(
                         val orderPos = orderedIndexMap[i]
                         val isOrdered = orderPos != null
                         val selected = state.tappedPanelIndex == i
-                        drawRect(
-                            color = when {
-                                isOrdered -> Color(0xFFFF9800)
-                                selected -> Color.Red
-                                else -> Color.Blue
-                            },
+                        drawPanelReportOutline(
                             topLeft = Offset(p.x * scaleX, p.y * scaleY),
                             size = Size(p.width * scaleX, p.height * scaleY),
-                            style = Stroke(width = if (selected || isOrdered) 3f else 1.5f),
+                            style = panelReportOutlineStyle(selected = selected, ordered = isOrdered),
                         )
                         if (orderPos != null) {
                             drawIntoCanvas { canvas ->
@@ -357,4 +353,58 @@ internal fun PanelReportSheet(
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+internal data class PanelReportOutlineStyle(
+    val haloColor: Color,
+    val haloWidth: Float,
+    val contrastColor: Color,
+    val contrastWidth: Float,
+    val foregroundColor: Color,
+    val foregroundWidth: Float,
+)
+
+internal fun panelReportOutlineStyle(
+    selected: Boolean,
+    ordered: Boolean,
+): PanelReportOutlineStyle {
+    val foreground = when {
+        ordered -> Color(0xFFFF9800)
+        selected -> Color.Red
+        else -> Color(0xFF00B8FF)
+    }
+    val foregroundWidth = if (selected || ordered) 3.5f else 2.75f
+    return PanelReportOutlineStyle(
+        haloColor = Color(0xE6000000),
+        haloWidth = foregroundWidth + 4f,
+        contrastColor = Color.White,
+        contrastWidth = foregroundWidth + 2f,
+        foregroundColor = foreground,
+        foregroundWidth = foregroundWidth,
+    )
+}
+
+private fun DrawScope.drawPanelReportOutline(
+    topLeft: Offset,
+    size: Size,
+    style: PanelReportOutlineStyle,
+) {
+    drawRect(
+        color = style.haloColor,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(width = style.haloWidth),
+    )
+    drawRect(
+        color = style.contrastColor,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(width = style.contrastWidth),
+    )
+    drawRect(
+        color = style.foregroundColor,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(width = style.foregroundWidth),
+    )
 }
