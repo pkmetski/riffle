@@ -15,7 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.navigation.NavBackStackEntry
@@ -328,7 +328,7 @@ fun MainScreen(
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
                 val pickerViewModel: com.riffle.app.feature.server.SourceTypePickerViewModel =
-                    androidx.hilt.navigation.compose.hiltViewModel()
+                    androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
                 val installedTypes by pickerViewModel.installedTypes.collectAsState()
                 com.riffle.app.feature.server.SourceTypePickerScreen(
                     windowSizeClass = windowSizeClass,

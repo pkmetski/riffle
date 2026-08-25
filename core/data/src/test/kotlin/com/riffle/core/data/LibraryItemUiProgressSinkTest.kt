@@ -69,7 +69,7 @@ class LibraryItemUiProgressSinkTest {
         override fun observeAll() = MutableStateFlow(sources.toList())
         override suspend fun getActive() = sources.firstOrNull()
         override suspend fun getById(sourceId: String) = sources.find { it.id == sourceId }
-        override suspend fun commit(p: PendingSource, h: Set<String>): CommitSourceResult =
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(RuntimeException())
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}

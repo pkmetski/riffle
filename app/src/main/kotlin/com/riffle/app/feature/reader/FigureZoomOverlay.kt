@@ -137,7 +137,7 @@ private fun FigureZoomContent(
             var tx by remember { mutableStateOf(0f) }
             var ty by remember { mutableStateOf(0f) }
 
-            val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+            val transformState = rememberTransformableState { panChange, zoomChange, _, _ ->
                 val clamped = clampPanZoom(
                     scale = scale * zoomChange,
                     translationX = tx + panChange.x,

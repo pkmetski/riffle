@@ -270,20 +270,22 @@ class HighlightsPublicationFactory @Inject constructor() {
         // search icon that does nothing" bug. The default extractor factory handles the XHTML
         // resources we synthesise (see [DefaultResourceContentExtractorFactory]).
         @OptIn(ExperimentalReadiumApi::class)
-        val searchFactory = StringSearchService.createDefaultFactory()
-        val publication = Publication(
-            manifest = manifest,
-            container = InMemoryContainer(entries),
-            servicesBuilder = Publication.ServicesBuilder(
-                positions = { ctx ->
-                    PerResourcePositionsService(
-                        readingOrder = ctx.manifest.readingOrder,
-                        fallbackMediaType = MediaType.XHTML,
-                    )
-                },
-                search = searchFactory,
-            ),
-        )
+        val publication = run {
+            val searchFactory = StringSearchService.createDefaultFactory()
+            Publication(
+                manifest = manifest,
+                container = InMemoryContainer(entries),
+                servicesBuilder = Publication.ServicesBuilder(
+                    positions = { ctx ->
+                        PerResourcePositionsService(
+                            readingOrder = ctx.manifest.readingOrder,
+                            fallbackMediaType = MediaType.XHTML,
+                        )
+                    },
+                    search = searchFactory,
+                ),
+            )
+        }
         return HighlightsPublicationHandle(
             publication, chapterUrls, entries, dataUriByHref, publisherFontFaceCss,
         )
@@ -470,7 +472,7 @@ private fun appendInterleavedHighlight(
                 (singleFigure.caption.isBlank() && CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippetOuter))
             )
         if (isCaptionHighlight) {
-            appendFigureBlock(sb, singleFigure!!.copy(caption = ""), highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
+            appendFigureBlock(sb, singleFigure.copy(caption = ""), highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
             appendTextHighlight(sb, highlight, bookBodyFontFamily, emphasisBarCss)
             return
         }

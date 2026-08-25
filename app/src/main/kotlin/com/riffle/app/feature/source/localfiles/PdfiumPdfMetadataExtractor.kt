@@ -31,10 +31,10 @@ class PdfiumPdfMetadataExtractor @Inject constructor(
             try {
                 val meta = core.getDocumentMeta(doc)
                 PdfMetadata(
-                    title = (meta.title as String?)?.takeIf { it.isNotBlank() },
-                    author = (meta.author as String?)?.takeIf { it.isNotBlank() },
-                    subject = (meta.subject as String?)?.takeIf { it.isNotBlank() },
-                    keywords = (meta.keywords as String?)
+                    title = meta.title?.takeIf { it.isNotBlank() },
+                    author = meta.author?.takeIf { it.isNotBlank() },
+                    subject = meta.subject?.takeIf { it.isNotBlank() },
+                    keywords = meta.keywords
                         ?.split(',', ';')
                         ?.map { it.trim() }
                         ?.filter { it.isNotEmpty() }

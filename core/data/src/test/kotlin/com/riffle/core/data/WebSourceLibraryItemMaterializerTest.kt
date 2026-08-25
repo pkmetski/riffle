@@ -66,7 +66,7 @@ class WebSourceLibraryItemMaterializerTest {
         override fun observeAll() = MutableStateFlow(listOf(source))
         override suspend fun getActive() = source
         override suspend fun getById(sourceId: String) = source.takeIf { it.id == sourceId }
-        override suspend fun commit(p: PendingSource, h: Set<String>): CommitSourceResult =
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(RuntimeException())
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
@@ -76,14 +76,14 @@ class WebSourceLibraryItemMaterializerTest {
     private fun positionDao(vararg ids: String): ReadingPositionDao {
         val rows = ids.map { ReadingPositionEntity(chitankaSourceId, it, "", 100L, 100L) }
         return object : ReadingPositionDao by ThrowingReadingPositionDao {
-            override suspend fun allForSource(s: String) = rows
+            override suspend fun allForSource(sourceId: String) = rows
         }
     }
 
     private fun audioPositionDao(vararg ids: String): AudiobookPositionDao {
         val rows = ids.map { AudiobookPositionEntity(chitankaSourceId, it, 894.0, 100L, 100L) }
         return object : AudiobookPositionDao by ThrowingAudiobookPositionDao {
-            override suspend fun allForSource(s: String) = rows
+            override suspend fun allForSource(sourceId: String) = rows
         }
     }
 
@@ -245,24 +245,24 @@ class WebSourceLibraryItemMaterializerTest {
 }
 
 private object ThrowingReadingPositionDao : ReadingPositionDao {
-    override suspend fun upsert(e: com.riffle.core.database.ReadingPositionEntity) = Unit
-    override suspend fun getByItemId(s: String, i: String) = null
-    override suspend fun updateLocalTimestamp(s: String, i: String, m: Long) = Unit
-    override suspend fun acceptServerIfUnchanged(s: String, i: String, p: String, ss: Long, ila: Long) = 0
-    override suspend fun confirmPushedIfUnchanged(s: String, i: String, ss: Long, ila: Long) = 0
-    override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
-    override suspend fun dirtyForSource(s: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
+    override suspend fun upsert(entity: com.riffle.core.database.ReadingPositionEntity) = Unit
+    override suspend fun getByItemId(sourceId: String, itemId: String) = null
+    override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+    override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+    override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
+    override suspend fun dirtyForSource(sourceId: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
     override suspend fun sourcesWithDirtyRows() = emptyList<String>()
-    override suspend fun allForSource(s: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
+    override suspend fun allForSource(sourceId: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
 }
 
 private object ThrowingAudiobookPositionDao : AudiobookPositionDao {
-    override suspend fun upsert(e: AudiobookPositionEntity) = Unit
-    override suspend fun getByItemId(s: String, i: String) = null
-    override suspend fun acceptServerIfUnchanged(s: String, i: String, p: Double, ss: Long, ila: Long) = 0
-    override suspend fun confirmPushedIfUnchanged(s: String, i: String, ss: Long, ila: Long) = 0
-    override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
-    override suspend fun dirtyForSource(s: String) = emptyList<AudiobookPositionEntity>()
+    override suspend fun upsert(entity: AudiobookPositionEntity) = Unit
+    override suspend fun getByItemId(sourceId: String, itemId: String) = null
+    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+    override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+    override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
+    override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
     override suspend fun sourcesWithDirtyRows() = emptyList<String>()
-    override suspend fun allForSource(s: String) = emptyList<AudiobookPositionEntity>()
+    override suspend fun allForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
 }

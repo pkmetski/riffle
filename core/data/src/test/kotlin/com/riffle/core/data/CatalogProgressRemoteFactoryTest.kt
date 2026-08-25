@@ -363,7 +363,7 @@ class CatalogProgressRemoteFactoryTest {
         val fakeCatalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
             override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSourceId(id: String): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         }
         val fakeSource = com.riffle.core.models.Source(
             id = sourceId,

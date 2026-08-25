@@ -91,7 +91,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -580,8 +580,7 @@ fun EpubReaderScreen(
                         // hook itself also short-circuits on unsupported returns.
                         onCadenceInstallChapterHook = if (formattingPrefs.showCadence) {
                             { wv ->
-                                val locale = s.publication.metadata.languages
-                                    .firstOrNull()?.toString()
+                                val locale = s.publication.metadata.languages.firstOrNull()
                                 wv.evaluateJavascript(
                                     com.riffle.app.feature.reader.cadence.CadenceDomScript
                                         .FEATURE_DETECT_JS,
@@ -620,7 +619,7 @@ fun EpubReaderScreen(
                             }
                         } else null,
                         cadenceEndOfChapterEvents = viewModel.cadenceEndOfChapterEvents,
-                        publicationLanguageTag = s.publication.metadata.languages.firstOrNull()?.toString(),
+                        publicationLanguageTag = s.publication.metadata.languages.firstOrNull(),
                         onLookupWord = { word, lang -> viewModel.onLookupWord(word, lang) },
                         onCadenceChapterTokenised = if (formattingPrefs.showCadence) {
                             { quotes, hrefs -> viewModel.onCadenceChapterTokenised(quotes, hrefs) }
@@ -1935,7 +1934,7 @@ private fun EpubNavigatorView(
                             ) {
                                 is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
                                     android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "READY quotes=${parsed.quotes.size} hrefs=${parsed.chapterHrefs.size}")
-                                    onCadenceChapterTokenised?.invoke(parsed.quotes, parsed.chapterHrefs)
+                                    onCadenceChapterTokenised.invoke(parsed.quotes, parsed.chapterHrefs)
                                 }
                                 com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
                                     // Per-chapter tokenisation failure — NOT a platform-support issue.
@@ -3289,6 +3288,7 @@ internal fun consumePopupDismissedTap(
 // JVM test can pin the tap-navigation config: tapEdges MUST stay empty so screen taps toggle
 // immersive mode instead of turning the page (Readium's default enables horizontal edge taps).
 // Keyboard nav and the animated ViewPager transition remain intact.
+@OptIn(ExperimentalReadiumApi::class)
 internal fun createPagedDirectionalNavigationAdapter(
     navigator: org.readium.r2.navigator.OverflowableNavigator,
 ): DirectionalNavigationAdapter =

@@ -74,7 +74,7 @@ fun EditLocalFileMetadataDialog(
         val orig = originalItem ?: return
         val origSeriesName = orig.seriesName
         title = orig.title
-        author = orig.author ?: ""
+        author = orig.author
         seriesName = origSeriesName?.seriesBaseName() ?: ""
         seriesIndexText = origSeriesName?.seriesNumber() ?: ""
         pickedCoverUri = null

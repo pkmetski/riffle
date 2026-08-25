@@ -19,7 +19,7 @@ class AnnotationSyncStatusStoreTest {
         store.report(CycleOutcome.Success(1_234L))
         val v = store.lastCycleOutcome.value
         assertTrue(v is CycleOutcome.Success)
-        assertEquals(1_234L, (v as CycleOutcome.Success).atMs)
+        assertEquals(1_234L, v.atMs)
     }
 
     @Test
@@ -28,7 +28,7 @@ class AnnotationSyncStatusStoreTest {
         store.report(CycleOutcome.Failed.Network(5L, "timeout"))
         val v = store.lastCycleOutcome.value
         assertTrue(v is CycleOutcome.Failed.Network)
-        assertEquals(5L, (v as CycleOutcome.Failed.Network).atMs)
+        assertEquals(5L, v.atMs)
         assertEquals("timeout", v.message)
     }
 

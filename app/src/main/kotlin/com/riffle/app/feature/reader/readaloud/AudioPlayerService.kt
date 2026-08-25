@@ -150,7 +150,7 @@ class AudioPlayerService : MediaSessionService() {
                 .add(CMD_REWIND)
                 .add(CMD_FORWARD)
                 .build()
-            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(commands)
                 .build()
         }

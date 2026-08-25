@@ -28,10 +28,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.panels.AutoScrollSettingsPanel
 import com.riffle.app.feature.settings.panels.BehaviorSettingsPanel

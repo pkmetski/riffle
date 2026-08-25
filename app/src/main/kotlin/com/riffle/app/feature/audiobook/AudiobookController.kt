@@ -18,6 +18,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -308,10 +309,12 @@ open class AudiobookController @Inject constructor(
      * every remaining playlist item in a few ms. This is the piece of [stop] that MUST run on
      * auto-advance — the connector.release() etc. must NOT.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun clearEndOfBookCache() {
         _playbackEnded.resetReplayCache()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     open fun stop() {
         cancelSleepTimer()
         pollJob?.cancel()

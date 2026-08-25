@@ -13,6 +13,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,16 +30,15 @@ internal fun SwipeToDeleteRow(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
-            } else {
-                false
-            }
-        },
-    )
+    // `enableDismissFromStartToEnd = false` (below) restricts the anchor set to EndToStart — the
+    // deprecated `confirmValueChange` callback is no longer needed to veto other directions. The
+    // caller owns the row lifecycle and removes it from the list after `onDelete`.
+    val dismissState = rememberSwipeToDismissBoxState()
+    LaunchedEffect(dismissState.currentValue) {
+        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+            onDelete()
+        }
+    }
     SwipeToDismissBox(
         state = dismissState,
         modifier = modifier,

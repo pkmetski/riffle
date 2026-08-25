@@ -250,6 +250,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private val trimCallback = object : android.content.ComponentCallbacks2 {
         override fun onTrimMemory(level: Int) = controller.onTrimMemory(level)
         override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
+        // `onLowMemory` is deprecated at the interface level (Android 15+ never invokes it — it
+        // routes through `onTrimMemory` instead). We keep the override so older platforms still
+        // get the memory-pressure signal into our controller, mapped to the strongest level the
+        // interface exposes. Both the override and the constant reference are legacy-only.
+        @Deprecated("ComponentCallbacks.onLowMemory is deprecated; kept for pre-Android-15 delivery.")
+        @Suppress("DEPRECATION")
         override fun onLowMemory() =
             controller.onTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
     }

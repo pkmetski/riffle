@@ -47,7 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.LocalCoversAreSquare
@@ -87,7 +87,7 @@ fun ChitankaBrowseScreen(
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     viewModel: ChitankaBrowseViewModel = hiltViewModel(),
 ) {
-    var selectedTab by rememberSaveable(key = "chitanka_selected_tab_v2") { mutableIntStateOf(TAB_HOME) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 
     // Chitanka items don't live in `library_items` until this point (ADR 0051: unbounded
     // catalogue), so the VM upserts a row first and only then emits — guaranteeing the
