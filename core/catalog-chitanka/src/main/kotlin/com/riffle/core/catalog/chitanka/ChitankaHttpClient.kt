@@ -6,7 +6,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.head
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.statement.readBytes
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentLength
@@ -122,7 +122,7 @@ class ChitankaHttpClient(
             val total = response.headers[HttpHeaders.ContentRange]?.substringAfter("/", "")?.toLongOrNull()
                 ?: response.contentLength()
                 ?: return null
-            RangeReply(response.readBytes(), total)
+            RangeReply(response.readRawBytes(), total)
         } catch (_: IOException) { null }
     }
 

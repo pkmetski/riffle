@@ -21,10 +21,8 @@ object EpubTextChars {
     }
 
     /** Parse [html] and count the readable characters of its `<body>`. */
-    fun countReadableChars(html: String): Long {
-        val body = Jsoup.parse(html).body() ?: return 0L
-        return countReadableChars(body)
-    }
+    fun countReadableChars(html: String): Long =
+        countReadableChars(Jsoup.parse(html).body())
 
     /**
      * The within-chapter progression (0..1) of the start of the element with [elementId]
@@ -33,7 +31,7 @@ object EpubTextChars {
      */
     fun progressionOfElementId(html: String, elementId: String): Double? {
         val doc = Jsoup.parse(html)
-        val body = doc.body() ?: return null
+        val body = doc.body()
         val target = doc.getElementById(elementId) ?: return null
         val total = countReadableChars(body)
         if (total == 0L) return null
@@ -51,7 +49,7 @@ object EpubTextChars {
      */
     fun progressionsOfElementIds(html: String, elementIds: Set<String>): Map<String, Double> {
         if (elementIds.isEmpty()) return emptyMap()
-        val body = Jsoup.parse(html).body() ?: return emptyMap()
+        val body = Jsoup.parse(html).body()
         val total = countReadableChars(body)
         if (total == 0L) return emptyMap()
         val result = HashMap<String, Double>(elementIds.size)

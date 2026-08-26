@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.search.SearchService
@@ -135,6 +136,7 @@ class SearchController @AssistedInject constructor(
 
     // ---- Private -------------------------------------------------------------------------------
 
+    @OptIn(ExperimentalReadiumApi::class)
     private suspend fun performSearch(query: String) {
         // Drain any pending navigation events buffered from the previous search.
         while (_searchNavigationChannel.tryReceive().isSuccess) { /* drain */ }

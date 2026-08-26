@@ -77,7 +77,7 @@ class InsecureTlsTest {
         val client = OkHttpClient().withInsecureTls()
         client.newCall(Request.Builder().url(server.url("/")).build()).execute().use { response ->
             assertEquals(200, response.code)
-            assertEquals("ok", response.body?.string())
+            assertEquals("ok", response.body.string())
         }
     }
 

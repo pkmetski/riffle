@@ -2261,7 +2261,9 @@ class EpubReaderViewModel @Inject constructor(
         // If we merged, rebuild the persisted range fields from the union so the stored highlight
         // covers the full `[mergedStart, mergedEnd)` span. Fall back to draft fields when no
         // overlap was detected (the common path) or the DOM rebuild fails (safety net).
-        val overlapFields: MergedDraftFields = if (overlapMerge != null && html != null) {
+        // overlapMerge is derived via `html?.let { ... }`, so a non-null overlapMerge implies a
+        // non-null html — Kotlin smart-casts html accordingly inside this branch.
+        val overlapFields: MergedDraftFields = if (overlapMerge != null) {
             buildMergedDraftFields(html, draft.spineIndex, draft.embeddedFigures, overlapMerge, candidates)
                 ?: draft.toDraftFields()
         } else {
@@ -3000,7 +3002,7 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         val sourceId = annotationServerId ?: return
-        val itemId = this.itemId ?: return
+        val itemId = this.itemId
         viewModelScope.launch {
             emphasisToggleMutex.lock()
             try {
@@ -3946,6 +3948,7 @@ class EpubReaderViewModel @Inject constructor(
         _lookupTarget.value = null
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun observeLookupResult(target: LookupTarget): kotlinx.coroutines.flow.Flow<LookupUiState> =
         packStore.observePackState(target.languageTag)
             .flatMapLatest { packState ->

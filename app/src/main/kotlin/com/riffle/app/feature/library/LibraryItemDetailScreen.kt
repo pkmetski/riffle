@@ -5,7 +5,9 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.withLink
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +56,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
@@ -67,8 +70,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,7 +87,7 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.reader.TocPanel
@@ -299,7 +302,7 @@ fun LibraryItemDetailScreen(
                                 expanded = showMetadataOverflowMenu,
                                 onDismissRequest = { showMetadataOverflowMenu = false },
                             ) {
-                                if (readyState?.capabilities?.canEditMetadata == true) {
+                                if (readyState.capabilities.canEditMetadata) {
                                     DropdownMenuItem(
                                         text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit_metadata)) },
                                         onClick = {
@@ -308,7 +311,7 @@ fun LibraryItemDetailScreen(
                                         },
                                     )
                                 }
-                                if (readyState?.capabilities?.canUploadToConfiguredSource == true) {
+                                if (readyState.capabilities.canUploadToConfiguredSource) {
                                     DropdownMenuItem(
                                         text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_upload_to)) },
                                         onClick = {
@@ -1334,8 +1337,8 @@ private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
 
 /**
  * A "<prefix> a, b, c" line where each comma-separated token is an independently tappable facet,
- * rendered as a single wrapping [ClickableText] (no FlowRow — that API's 1.7 overload is the wrong
- * one to depend on across foundation versions).
+ * rendered as a single wrapping [Text] with per-token [LinkAnnotation.Clickable] spans (no FlowRow
+ * — that API's 1.7 overload is the wrong one to depend on across foundation versions).
  */
 @Composable
 private fun ClickableTokenLine(
@@ -1346,23 +1349,21 @@ private fun ClickableTokenLine(
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
     val baseColor = LocalContentColor.current
+    val linkStyles = TextLinkStyles(style = SpanStyle(color = linkColor))
     val annotated = buildAnnotatedString {
         append(prefix)
         tokens.forEachIndexed { index, token ->
-            pushStringAnnotation(tag = "token", annotation = token)
-            withStyle(SpanStyle(color = linkColor)) { append(token) }
-            pop()
+            withLink(
+                LinkAnnotation.Clickable(
+                    tag = "token",
+                    styles = linkStyles,
+                    linkInteractionListener = { onTokenClick(token) },
+                ),
+            ) { append(token) }
             if (index < tokens.lastIndex) append(", ")
         }
     }
-    ClickableText(
-        text = annotated,
-        style = style.copy(color = baseColor),
-        onClick = { offset ->
-            annotated.getStringAnnotations(tag = "token", start = offset, end = offset)
-                .firstOrNull()?.let { onTokenClick(it.item) }
-        },
-    )
+    Text(text = annotated, style = style.copy(color = baseColor))
 }
 
 /**
@@ -1448,7 +1449,7 @@ private fun ActionRow(
             val readDisabledByOffline = isOffline && !isCachedOrDownloaded
             if (readDisabledByOffline) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_book)) } },
                     state = rememberTooltipState(),
                     modifier = Modifier.weight(1f),
@@ -1478,7 +1479,7 @@ private fun ActionRow(
                 readaloudDownloadState != DownloadState.Downloaded
             if (listenBlockedOffline) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_stream_audio)) } },
                     state = rememberTooltipState(),
                     modifier = Modifier.weight(1f),
@@ -1537,7 +1538,7 @@ private fun ActionRow(
             }
             if (audioOfflineBlocked) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_audiobook)) } },
                     state = rememberTooltipState(),
                 ) { audioButton() }
@@ -1557,7 +1558,7 @@ private fun ActionRow(
             }
             if (readaloudOfflineBlocked) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_readaloud_audio)) } },
                     state = rememberTooltipState(),
                 ) { readaloudButton() }

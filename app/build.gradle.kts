@@ -143,6 +143,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
     val composeBom = platform(libs.androidx.compose.bom)
@@ -159,6 +160,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.coil.compose)

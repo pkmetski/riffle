@@ -51,6 +51,14 @@ class HighlightsPdfExporter @Inject constructor(
     }
 
     // WebView + PrintDocumentAdapter rendering — implemented in Task 3.
+    //
+    // `PrintDocumentAdapter.LayoutResultCallback` and `WriteResultCallback` are hosted inside a
+    // sealed-off Android SDK class hierarchy with package-private no-arg constructors. Subclassing
+    // them from any package other than `android.print` requires both `INVISIBLE_MEMBER` (to reach
+    // the constructor) and `INVISIBLE_REFERENCE` (to reach the callback types). The Kotlin
+    // compiler emits an "unspecified behavior" note about `INVISIBLE_REFERENCE` — the only
+    // non-suppressive alternative is to move this method into a Java helper in the correct
+    // package, tracked as future work.
     @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
     private suspend fun renderToPdf(html: String, title: String?, outFile: File) {
         withContext(Dispatchers.Main) {

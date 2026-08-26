@@ -25,7 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.riffle.app.R
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge

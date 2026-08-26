@@ -52,7 +52,7 @@ class CbzRepositoryImplStreamingTest {
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
         override suspend fun <T> withFileStream(
-            itemId: String, format: BookFormat, fileIno: String?,
+            itemId: String, format: BookFormat, handleHint: String?,
             block: suspend (CatalogFileStream) -> T,
         ): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
@@ -74,16 +74,16 @@ class CbzRepositoryImplStreamingTest {
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
         override suspend fun <T> withFileStream(
-            itemId: String, format: BookFormat, fileIno: String?,
+            itemId: String, format: BookFormat, handleHint: String?,
             block: suspend (CatalogFileStream) -> T,
         ): T = throw UnsupportedOperationException("no streaming support")
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
     }
 
-    private fun registryFor(sourceId: String, catalog: Catalog?) = object : CatalogRegistry {
+    private fun registryFor(matchingSourceId: String, catalog: Catalog?) = object : CatalogRegistry {
         override suspend fun forActive(): Catalog? = catalog
-        override suspend fun forSource(source: Source): Catalog? = if (source.id == sourceId) catalog else null
-        override suspend fun forSourceId(id: String): Catalog? = if (id == sourceId) catalog else null
+        override suspend fun forSource(source: Source): Catalog? = if (source.id == matchingSourceId) catalog else null
+        override suspend fun forSourceId(sourceId: String): Catalog? = if (sourceId == matchingSourceId) catalog else null
     }
 
     private val emptyStore = object : LocalStore {

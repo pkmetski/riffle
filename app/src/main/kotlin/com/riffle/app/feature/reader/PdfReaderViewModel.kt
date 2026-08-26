@@ -441,7 +441,7 @@ class PdfReaderViewModel @Inject constructor(
                 annotationStore.delete(existing.id)
             } else {
                 val pageHref = locator.href.toString()
-                val totalProg = locator.locations.totalProgression?.toDouble()
+                val totalProg = locator.locations.totalProgression
                     ?: if (totalPages > 0) (position - 1).toDouble() / totalPages.toDouble() else 0.0
                 val locatorJson = buildPdfLocatorJson(pageHref, position, totalProg)
                 annotationStore.createBookmark(

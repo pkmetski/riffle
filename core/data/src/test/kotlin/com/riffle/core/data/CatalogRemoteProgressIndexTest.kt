@@ -50,7 +50,7 @@ class CatalogRemoteProgressIndexTest {
     private fun configStore(config: AnnotationSyncConfig?) = object : AnnotationSyncConfigStore {
         private val flow = MutableStateFlow(config)
         override fun observe(): StateFlow<AnnotationSyncConfig?> = flow
-        override suspend fun save(c: AnnotationSyncConfig) {}
+        override suspend fun save(config: AnnotationSyncConfig) {}
         override suspend fun clear() {}
     }
 
@@ -58,7 +58,7 @@ class CatalogRemoteProgressIndexTest {
         override fun observeAll() = MutableStateFlow(sources.toList())
         override suspend fun getActive() = sources.firstOrNull()
         override suspend fun getById(sourceId: String) = sources.find { it.id == sourceId }
-        override suspend fun commit(p: PendingSource, h: Set<String>): CommitSourceResult =
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(RuntimeException())
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
@@ -76,27 +76,27 @@ class CatalogRemoteProgressIndexTest {
 
     private fun readingDao(vararg ids: String) = object : ReadingPositionDao {
         private val rows = ids.map { ReadingPositionEntity(chitankaSourceId, it, "", 100L, 100L) }
-        override suspend fun upsert(e: ReadingPositionEntity) {}
-        override suspend fun getByItemId(s: String, i: String) = rows.find { it.itemId == i }
-        override suspend fun updateLocalTimestamp(s: String, i: String, m: Long) {}
-        override suspend fun acceptServerIfUnchanged(s: String, i: String, p: String, ss: Long, ila: Long) = 0
-        override suspend fun confirmPushedIfUnchanged(s: String, i: String, ss: Long, ila: Long) = 0
-        override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
-        override suspend fun dirtyForSource(s: String) = emptyList<ReadingPositionEntity>()
+        override suspend fun upsert(entity: ReadingPositionEntity) {}
+        override suspend fun getByItemId(sourceId: String, itemId: String) = rows.find { it.itemId == itemId }
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
+        override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+        override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+        override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
+        override suspend fun dirtyForSource(sourceId: String) = emptyList<ReadingPositionEntity>()
         override suspend fun sourcesWithDirtyRows() = emptyList<String>()
-        override suspend fun allForSource(s: String) = rows.filter { it.sourceId == s }
+        override suspend fun allForSource(sourceId: String) = rows.filter { it.sourceId == sourceId }
     }
 
     private fun audioDao(vararg ids: String) = object : AudiobookPositionDao {
         private val rows = ids.map { AudiobookPositionEntity(chitankaSourceId, it, 0.0, 100L, 100L) }
-        override suspend fun upsert(e: AudiobookPositionEntity) {}
-        override suspend fun getByItemId(s: String, i: String) = rows.find { it.itemId == i }
-        override suspend fun acceptServerIfUnchanged(s: String, i: String, p: Double, ss: Long, ila: Long) = 0
-        override suspend fun confirmPushedIfUnchanged(s: String, i: String, ss: Long, ila: Long) = 0
-        override suspend fun confirmInSyncIfUnchanged(s: String, i: String, ila: Long) = 0
-        override suspend fun dirtyForSource(s: String) = emptyList<AudiobookPositionEntity>()
+        override suspend fun upsert(entity: AudiobookPositionEntity) {}
+        override suspend fun getByItemId(sourceId: String, itemId: String) = rows.find { it.itemId == itemId }
+        override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+        override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+        override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
+        override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
         override suspend fun sourcesWithDirtyRows() = emptyList<String>()
-        override suspend fun allForSource(s: String) = rows.filter { it.sourceId == s }
+        override suspend fun allForSource(sourceId: String) = rows.filter { it.sourceId == sourceId }
     }
 
     private fun libraryItemDao(vararg ids: String): LibraryItemDao {

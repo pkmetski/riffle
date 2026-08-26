@@ -49,7 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.LibrarySectionType
@@ -79,7 +79,7 @@ fun GutenbergBrowseScreen(
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     viewModel: GutenbergBrowseViewModel = hiltViewModel(),
 ) {
-    var selectedTab by rememberSaveable(key = "gutenberg_selected_tab_v1") { mutableIntStateOf(TAB_HOME) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
     var searchOpen by remember { mutableStateOf(false) }
     val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 

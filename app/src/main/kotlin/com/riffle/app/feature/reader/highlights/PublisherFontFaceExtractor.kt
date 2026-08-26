@@ -132,10 +132,11 @@ internal object PublisherFontFaceExtractor {
             // (review finding).
             val resolved = fontResolver(resolveAgainst(cssDir, rawPath))
                 ?: fontResolver(rawPath)
-                ?: if (rawPath.startsWith('/')) {
-                    val bare = rawPath.trimStart('/')
-                    EPUB_ROOT_PREFIXES.firstNotNullOfOrNull { fontResolver("$it$bare") }
-                } else null
+                ?: rawPath.takeIf { it.startsWith('/') }
+                    ?.let { path ->
+                        val bare = path.trimStart('/')
+                        EPUB_ROOT_PREFIXES.firstNotNullOfOrNull { prefix -> fontResolver("$prefix$bare") }
+                    }
                 ?: return@replace match.value
             anyResolved = true
             val mime = mimeForFontPath(rawPath)

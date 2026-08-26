@@ -79,10 +79,10 @@ class AnnotationSyncMaintenanceTest {
         assertEquals(2, rows.size)
         val a = rows.first { it.deviceId == "A" }
         val b = rows.first { it.deviceId == "B" }
-        assertNotNull(a.metadata)
-        assertEquals("Phone A", a.metadata!!.label)
-        assertEquals("2026-01-01T00:00:00Z", a.metadata!!.lastSyncedAt)
-        assertEquals("alice", a.metadata!!.username)
+        val meta = requireNotNull(a.metadata)
+        assertEquals("Phone A", meta.label)
+        assertEquals("2026-01-01T00:00:00Z", meta.lastSyncedAt)
+        assertEquals("alice", meta.username)
         // No sentinel for B → no metadata. The Maintenance UI shows just the deviceId-derived
         // label, which is the honest signal that we have no recent evidence of this peer.
         assertNull(b.metadata)

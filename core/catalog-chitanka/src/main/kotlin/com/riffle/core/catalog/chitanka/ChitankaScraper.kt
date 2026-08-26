@@ -239,7 +239,7 @@ internal object ChitankaScraper {
             seen += path
             entries += ChitankaCategoryEntry(label = label, path = path)
         }
-        val collator = java.text.Collator.getInstance(java.util.Locale("bg"))
+        val collator = java.text.Collator.getInstance(java.util.Locale.of("bg"))
         return entries.sortedWith(compareBy(collator) { it.label })
     }
 

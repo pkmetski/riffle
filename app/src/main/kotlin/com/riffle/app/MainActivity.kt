@@ -94,17 +94,16 @@ class MainActivity : FragmentActivity() {
         // scrim under the nav-bar inset area (BottomNavBarScrim, applied globally in
         // setContent below) so the look is identical across gesture-nav devices (where
         // Android forces navigationBarColor transparent regardless of what we pass) and
-        // 3-button-nav devices. The OS contrast scrim is disabled so it can't double up
-        // with the app-drawn scrim.
+        // 3-button-nav devices. enableEdgeToEdge already sets both bars'
+        // contrast-enforced flag to false on API 29+, so nothing needs to be set here on
+        // top of it (the previous explicit `window.isStatusBarContrastEnforced = false`
+        // and its nav-bar counterpart are deprecated with no replacement — the OS now
+        // handles this automatically once we opt into edge-to-edge).
         val transparent = android.graphics.Color.TRANSPARENT
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(transparent, transparent),
             navigationBarStyle = SystemBarStyle.auto(transparent, transparent),
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-            window.isStatusBarContrastEnforced = false
-        }
         handleIntent(intent)
         setContent {
             // Feed reactive OS dark-mode toggles into the coordinator so its `resolved`
@@ -152,7 +151,7 @@ class MainActivity : FragmentActivity() {
             isPanelOpen = readerStateHolder.isPanelOpen,
             isAudioPlaying = readerStateHolder.isAudioPlaying,
             isAutoScrolling = autoScrollController.state.value.isAutoScrollActive,
-            volumeUpPointsRight = when (windowManager.defaultDisplay.rotation) {
+            volumeUpPointsRight = when (currentDisplayRotation()) {
                 Surface.ROTATION_270 -> true
                 Surface.ROTATION_90 -> false
                 else -> null
@@ -198,6 +197,20 @@ class MainActivity : FragmentActivity() {
         setIntent(intent)
         handleIntent(intent)
     }
+
+    /**
+     * `Context.display` is the modern API but only exists on API 30+; below that we fall back to
+     * `windowManager.defaultDisplay`, the only source of the current rotation on API 24-29. The
+     * suppression is scoped to that legacy branch — the deprecation warning is genuine but there
+     * is no non-deprecated API on those platforms.
+     */
+    private fun currentDisplayRotation(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.rotation ?: Surface.ROTATION_0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.rotation
+        }
 
     /** Routes a media-notification tap to the active player; [MainScreen] reads NowPlayingStore. */
     private fun handleIntent(intent: Intent?) {

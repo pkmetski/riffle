@@ -76,7 +76,7 @@ class CbzRepositoryImplCorruptionTest {
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, fileIno: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
+        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
         override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray = byteArrayOf()
         override suspend fun fetchCbzPageCount(itemId: String): Int = 10
@@ -85,7 +85,7 @@ class CbzRepositoryImplCorruptionTest {
     private fun registryFor(catalog: Catalog) = object : CatalogRegistry {
         override suspend fun forActive(): Catalog? = catalog
         override suspend fun forSource(source: Source): Catalog? = catalog
-        override suspend fun forSourceId(id: String): Catalog? = catalog
+        override suspend fun forSourceId(sourceId: String): Catalog? = catalog
     }
 
     private val noPosition = object : ReadingPositionStore {
@@ -171,7 +171,7 @@ class CbzRepositoryImplCorruptionTest {
             override suspend fun getItem(itemId: String): CatalogItem? = null
             override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
             override suspend fun <T> withFileStream(
-                itemId: String, format: BookFormat, fileIno: String?,
+                itemId: String, format: BookFormat, handleHint: String?,
                 block: suspend (CatalogFileStream) -> T,
             ): T = block(object : CatalogFileStream {
                 override val contentLength: Long get() = 10L

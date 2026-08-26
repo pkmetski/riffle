@@ -107,7 +107,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -190,11 +190,11 @@ fun LibraryItemsScreen(
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
-    // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
-    // upgrading from a build where "Series" was index 2 would land on the new Annotations tab
-    // (also index 2) after the shuffle. Bumping the key discards the old saved int and resets
-    // everyone to Home on first launch after upgrade.
-    var selectedTab by rememberSaveable(key = "library_selected_tab_v2") { mutableIntStateOf(0) }
+    // Positional scoping (no custom `key`) — this composable's saved state is keyed by its call
+    // site, so the previous "library_selected_tab_v2" keyed value from older builds cannot be
+    // resurrected here (different key namespace), resetting everyone to Home on first launch
+    // after upgrade. `key` was deprecated because it bypassed positional scoping.
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     // Reset to Home when the previously-selected tab has no data for the active library (e.g.
     // user was on Series, then the last series was deleted, or switched to a source whose library

@@ -13,9 +13,13 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 
 /**
  * Row wrapper that reveals a red delete affordance when swiped end-to-start and invokes
@@ -29,16 +33,22 @@ internal fun SwipeToDeleteRow(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
-            } else {
-                false
-            }
-        },
-    )
+    // `enableDismissFromStartToEnd = false` (below) restricts the anchor set to EndToStart — the
+    // deprecated `confirmValueChange` callback is no longer needed to veto other directions. The
+    // caller owns the row lifecycle and removes it from the list after `onDelete`.
+    //
+    // `rememberSwipeToDismissBoxState` is Saveable, so the state can be restored to
+    // `EndToStart` after process death mid-delete (before the caller had a chance to remove the
+    // row). The old `confirmValueChange` callback was gesture-scoped and never fired on restore;
+    // `drop(1)` on the current-value flow drops that first-composition emission so we match
+    // the old behaviour and only fire `onDelete` on genuine user-driven transitions.
+    val dismissState = rememberSwipeToDismissBoxState()
+    LaunchedEffect(dismissState) {
+        snapshotFlow { dismissState.currentValue }
+            .drop(1)
+            .filter { it == SwipeToDismissBoxValue.EndToStart }
+            .collect { onDelete() }
+    }
     SwipeToDismissBox(
         state = dismissState,
         modifier = modifier,

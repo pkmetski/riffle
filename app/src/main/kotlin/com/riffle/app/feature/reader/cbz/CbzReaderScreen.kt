@@ -62,7 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -592,7 +592,7 @@ private fun CbzPanelViewer(
     ) {
         val panels = pagePanels?.panels
         val fitWhole = pagePanels == null || pagePanels.isFallback || panels.isNullOrEmpty() || peeking
-        val panel = if (!fitWhole) panels?.getOrNull(panelIndex.coerceIn(0, panels.size - 1)) else null
+        val panel = if (!fitWhole) panels.getOrNull(panelIndex.coerceIn(0, panels.size - 1)) else null
 
         val transform = if (panel != null && pagePanels != null) {
             PanelFitTransform.compute(
