@@ -6,15 +6,17 @@ import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.BookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.PanelViewPreferencesStoreImpl
 import com.riffle.core.data.comic.panel.AndroidPageImageDecoder
+import com.riffle.core.data.comic.panel.AndroidPanelMaskServiceImpl
+import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
 import com.riffle.core.data.comic.panel.JsonPanelStore
 import com.riffle.core.data.di.PanelViewPreferencesDataStore
 import com.riffle.core.data.di.panelViewPreferencesDataStore
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.PageImageDecoder
-import com.riffle.core.domain.comic.panel.PanelDetector
+import com.riffle.core.domain.comic.panel.PanelDetectionConfig
+import com.riffle.core.domain.comic.panel.PanelEngine
+import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
-import com.riffle.core.domain.comic.panel.PanelOrderer
-import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelStore
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
@@ -44,6 +46,14 @@ abstract class PanelModule {
 
     @Binds
     @Singleton
+    abstract fun bindPanelEngine(impl: PanelOrchestrator): PanelEngine
+
+    @Binds
+    @Singleton
+    abstract fun bindPanelMaskService(impl: AndroidPanelMaskServiceImpl): PanelMaskService
+
+    @Binds
+    @Singleton
     abstract fun bindPanelViewPreferencesStore(
         impl: PanelViewPreferencesStoreImpl,
     ): PanelViewPreferencesStore
@@ -70,11 +80,7 @@ abstract class PanelModule {
 
         @Provides
         @Singleton
-        fun providePanelDetector(): PanelDetector = PanelDetector()
-
-        @Provides
-        @Singleton
-        fun providePanelOrderer(): PanelOrderer = PanelOrderer()
+        fun providePanelDetectionConfig(): PanelDetectionConfig = PanelDetectionConfig()
 
         @Provides
         @Singleton
@@ -95,15 +101,13 @@ abstract class PanelModule {
         @Provides
         @Singleton
         fun providePanelOrchestrator(
+            config: PanelDetectionConfig,
             store: PanelStore,
             decoder: PageImageDecoder,
-            detector: PanelDetector,
-            orderer: PanelOrderer,
         ): PanelOrchestrator = PanelOrchestrator(
+            config = config,
             store = store,
             decoder = decoder,
-            detector = detector,
-            orderer = orderer,
         )
     }
 }

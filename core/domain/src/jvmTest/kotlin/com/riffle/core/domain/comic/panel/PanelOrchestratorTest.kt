@@ -21,7 +21,7 @@ class PanelOrchestratorTest {
         store.save("book-1", cached)
 
         val decoder = ThrowingDecoder()
-        val orchestrator = PanelOrchestrator(store, decoder)
+        val orchestrator = PanelOrchestrator(store = store, decoder = decoder)
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { error("should not be called on cache hit") },
@@ -41,7 +41,7 @@ class PanelOrchestratorTest {
                 originalHeight = 560,
             ),
         )
-        val orchestrator = PanelOrchestrator(store, decoder)
+        val orchestrator = PanelOrchestrator(store = store, decoder = decoder)
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { ByteArray(1) },
@@ -64,7 +64,7 @@ class PanelOrchestratorTest {
     fun `decoder returning null produces a fallback whole-page result`() {
         val store = InMemoryPanelStore()
         val decoder = FakeDecoder(null)
-        val orchestrator = PanelOrchestrator(store, decoder)
+        val orchestrator = PanelOrchestrator(store = store, decoder = decoder)
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { ByteArray(1) },
@@ -78,7 +78,7 @@ class PanelOrchestratorTest {
     @Test
     fun `imageBytes throwing produces a fallback whole-page result`() {
         val store = InMemoryPanelStore()
-        val orchestrator = PanelOrchestrator(store, ThrowingDecoder())
+        val orchestrator = PanelOrchestrator(store = store, decoder = ThrowingDecoder())
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { error("archive read failed") },
@@ -95,7 +95,7 @@ class PanelOrchestratorTest {
         val decoder = CountingDecoder(
             PageImageDecoder.Result(grid, 400, 560),
         )
-        val orchestrator = PanelOrchestrator(store, decoder)
+        val orchestrator = PanelOrchestrator(store = store, decoder = decoder)
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { ByteArray(1) },
