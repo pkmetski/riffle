@@ -40,9 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.riffle.app.R
 import com.riffle.app.feature.audio.PlayerSurface
 import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.audio.PlayerSurfaceState
@@ -153,6 +155,17 @@ fun AudiobookPlayerScreen(
     // Any short (Compact-height) window — i.e. a phone in landscape — is too short for the vertical
     // layout (the square cover pushes the controls off-screen), so split into cover+details / controls.
     val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
+    val compactDurationLabels = CompactDurationLabelTemplates(
+        minutes = stringResource(R.string.ui_duration_minutes_short),
+        hours = stringResource(R.string.ui_duration_hours_short),
+        hoursMinutes = stringResource(R.string.ui_duration_hours_minutes_short),
+    )
+    val localizedFacts = buildAudiobookFacts(
+        durationSec = state.durationSec,
+        genres = state.genres,
+        audiobookLabel = stringResource(R.string.ui_audiobook),
+        durationLabels = compactDurationLabels,
+    )
     // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
     val latestState = rememberUpdatedState(state)
 
@@ -236,7 +249,7 @@ fun AudiobookPlayerScreen(
                             bookmarkPositionsSec = state.bookmarks.map { it.positionSec },
                             canPreviousChapter = state.canPreviousChapter,
                             canNextChapter = state.canNextChapter,
-                            facts = state.facts,
+                            facts = localizedFacts,
                             description = state.description,
                             sleepTimer = state.sleepTimer,
                             skipIntervalSeconds = state.skipIntervalSeconds,

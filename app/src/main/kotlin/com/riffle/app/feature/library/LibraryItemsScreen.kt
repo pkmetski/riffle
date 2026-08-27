@@ -107,6 +107,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -1518,7 +1519,7 @@ internal fun HomeTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader(LibrarySectionType.IN_PROGRESS.displayName) }
+            item(key = "header_in_progress") { SectionHeader(stringResource(LibrarySectionType.IN_PROGRESS.titleResId)) }
             item(key = "grid_in_progress") {
                 BookSectionGrid(
                     items = inProgress,
@@ -1530,7 +1531,7 @@ internal fun HomeTabContent(
             }
         }
         if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader(LibrarySectionType.CONTINUE_SERIES.displayName) }
+            item(key = "header_continue_series") { SectionHeader(stringResource(LibrarySectionType.CONTINUE_SERIES.titleResId)) }
             item(key = "grid_continue_series") {
                 BookSectionGrid(
                     items = continueSeries,
@@ -1543,7 +1544,7 @@ internal fun HomeTabContent(
             }
         }
         if (recentlyAdded.isNotEmpty()) {
-            item(key = "header_recently_added") { SectionHeader(LibrarySectionType.RECENTLY_ADDED.displayName) }
+            item(key = "header_recently_added") { SectionHeader(stringResource(LibrarySectionType.RECENTLY_ADDED.titleResId)) }
             item(key = "grid_recently_added") {
                 BookSectionGrid(
                     items = recentlyAdded,
@@ -1555,7 +1556,7 @@ internal fun HomeTabContent(
             }
         }
         if (finished.isNotEmpty()) {
-            item(key = "header_completed") { SectionHeader(LibrarySectionType.FINISHED.displayName) }
+            item(key = "header_completed") { SectionHeader(stringResource(LibrarySectionType.FINISHED.titleResId)) }
             item(key = "grid_completed") {
                 BookSectionGrid(
                     items = finished,
@@ -1794,7 +1795,7 @@ private fun SortModeChip(
         FilterChip(
             selected = current != LibrarySortMode.ADDED_DESC,
             onClick = { expanded = true },
-            label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sort, current.displayName)) },
+            label = { Text(stringResource(R.string.ui_sort, stringResource(current.labelResId))) },
             trailingIcon = {
                 Icon(
                     Icons.Filled.ArrowDropDown,
@@ -1806,7 +1807,7 @@ private fun SortModeChip(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             LibrarySortMode.entries.forEach { mode ->
                 DropdownMenuItem(
-                    text = { Text(mode.displayName) },
+                    text = { Text(stringResource(mode.labelResId)) },
                     onClick = {
                         onSelect(mode)
                         expanded = false

@@ -13,10 +13,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.core.domain.ReaderTheme
 import kotlin.math.roundToInt
 
@@ -96,6 +98,12 @@ fun ChapterNavigationRail(
     val clampedCursor = cursorPosition.coerceIn(0f, 1f)
     val useColorProgress = chapterRailUsesColorProgress(segments, coloredChapterMap)
     val effectiveRailHeight = chapterRailHeight(railHeight)
+    val progressPercent = chapterRailProgressPercent(clampedCursor)
+    val railContentDescription = stringResource(
+        R.string.ui_active_rail_segment_progress,
+        activeTitle,
+        progressPercent,
+    )
 
     Box(
         modifier = modifier
@@ -103,8 +111,7 @@ fun ChapterNavigationRail(
             .height(effectiveRailHeight)
             .testTag("chapter_navigation_rail")
             .semantics {
-                contentDescription =
-                    "Active rail segment: $activeTitle. Progress ${chapterRailProgressPercent(clampedCursor)}%"
+                contentDescription = railContentDescription
             }
             .pointerInput(segments) {
                 detectTapGestures { offset ->

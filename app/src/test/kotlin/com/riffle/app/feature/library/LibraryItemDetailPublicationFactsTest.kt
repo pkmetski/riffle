@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
 import com.riffle.core.models.EbookFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,6 +37,44 @@ class LibraryItemDetailPublicationFactsTest {
     @Test
     fun `finished epub omits remaining time`() {
         assertEquals("2h 6m estimated total", ebookReadingTimeText(7_560L, 1f))
+    }
+
+    @Test
+    fun `fresh audiobook duration line uses localized compact duration labels`() {
+        val labels = CompactDurationLabelTemplates(
+            minutes = "%1\$d мин",
+            hours = "%1\$d ч",
+            hoursMinutes = "%1\$d ч %2\$d мин",
+        )
+
+        assertEquals(
+            "Аудиокнига · 10 ч 53 мин",
+            audiobookDurationLineText(
+                durationSec = 10 * 3600.0 + 53 * 60,
+                readingProgress = 0f,
+                durationLabels = labels,
+                audiobookDuration = { duration -> "Аудиокнига · $duration" },
+            ),
+        )
+    }
+
+    @Test
+    fun `in-progress audiobook duration line localizes total and remaining labels`() {
+        val labels = CompactDurationLabelTemplates(
+            minutes = "%1\$d мин",
+            hours = "%1\$d ч",
+            hoursMinutes = "%1\$d ч %2\$d мин",
+        )
+
+        assertEquals(
+            "10 ч 53 мин общо · остава 5 ч 26 мин",
+            audiobookDurationLineText(
+                durationSec = 10 * 3600.0 + 53 * 60,
+                readingProgress = 0.5f,
+                durationLabels = labels,
+                durationTotalRemaining = { total, remaining -> "$total общо · остава $remaining" },
+            ),
+        )
     }
 
     @Test

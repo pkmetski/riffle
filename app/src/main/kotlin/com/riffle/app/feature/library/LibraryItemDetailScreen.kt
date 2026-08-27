@@ -90,6 +90,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
+import com.riffle.app.feature.audiobook.formatCompactDuration
 import com.riffle.app.feature.reader.TocPanel
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
@@ -845,14 +847,22 @@ internal fun publicationPageCountText(
 /** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0035). */
 @Composable
 private fun AudiobookDurationLine(durationSec: Double, readingProgress: Float = 0f) {
-    val text = when {
-        readingProgress >= READ_PROGRESS_THRESHOLD -> "${formatAudiobookDuration(durationSec)} total"
-        readingProgress > 0f -> {
-            val remainingSec = ((1f - readingProgress) * durationSec).coerceAtLeast(0.0)
-            "${formatAudiobookDuration(durationSec)} total · ${formatAudiobookDuration(remainingSec)} remaining"
-        }
-        else -> "Audiobook · ${formatAudiobookDuration(durationSec)}"
-    }
+    val durationLabels = CompactDurationLabelTemplates(
+        minutes = stringResource(R.string.ui_duration_minutes_short),
+        hours = stringResource(R.string.ui_duration_hours_short),
+        hoursMinutes = stringResource(R.string.ui_duration_hours_minutes_short),
+    )
+    val audiobookDuration = stringResource(R.string.ui_audiobook_duration_line)
+    val durationTotal = stringResource(R.string.ui_duration_total)
+    val durationTotalRemaining = stringResource(R.string.ui_duration_total_remaining)
+    val text = audiobookDurationLineText(
+        durationSec = durationSec,
+        readingProgress = readingProgress,
+        durationLabels = durationLabels,
+        audiobookDuration = { duration -> audiobookDuration.format(duration) },
+        durationTotal = { duration -> durationTotal.format(duration) },
+        durationTotalRemaining = { total, remaining -> durationTotalRemaining.format(total, remaining) },
+    )
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
@@ -860,8 +870,25 @@ private fun AudiobookDurationLine(durationSec: Double, readingProgress: Float = 
     )
 }
 
-private fun formatAudiobookDuration(durationSec: Double): String {
-    return formatDuration(durationSec.toLong())
+internal fun audiobookDurationLineText(
+    durationSec: Double,
+    readingProgress: Float,
+    durationLabels: CompactDurationLabelTemplates = CompactDurationLabelTemplates(),
+    audiobookDuration: (String) -> String = { "Audiobook · $it" },
+    durationTotal: (String) -> String = { "$it total" },
+    durationTotalRemaining: (String, String) -> String = { total, remaining ->
+        "$total total · $remaining remaining"
+    },
+): String {
+    val total = formatCompactDuration(durationSec, durationLabels)
+    return when {
+        readingProgress >= READ_PROGRESS_THRESHOLD -> durationTotal(total)
+        readingProgress > 0f -> {
+            val remainingSec = ((1f - readingProgress) * durationSec).coerceAtLeast(0.0)
+            durationTotalRemaining(total, formatCompactDuration(remainingSec, durationLabels))
+        }
+        else -> audiobookDuration(total)
+    }
 }
 
 private fun formatDuration(durationSec: Long): String {

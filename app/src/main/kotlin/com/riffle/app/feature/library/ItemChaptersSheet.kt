@@ -16,7 +16,11 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
+import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
+import com.riffle.app.feature.audiobook.formatCompactDuration
 import com.riffle.core.domain.AudiobookChapter
 import kotlin.math.roundToInt
 
@@ -27,6 +31,11 @@ fun ItemChaptersSheet(
     onChapterClick: (AudiobookChapter) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val durationLabels = CompactDurationLabelTemplates(
+        minutes = stringResource(R.string.ui_duration_minutes_short),
+        hours = stringResource(R.string.ui_duration_hours_short),
+        hoursMinutes = stringResource(R.string.ui_duration_hours_minutes_short),
+    )
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -66,7 +75,7 @@ fun ItemChaptersSheet(
                         )
                     }
                     Text(
-                        text = (chapter.endSec - chapter.startSec).toDuration(),
+                        text = (chapter.endSec - chapter.startSec).toDuration(durationLabels),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -83,8 +92,5 @@ private fun Double.toTimestamp(): String {
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
-private fun Double.toDuration(): String {
-    val totalMin = (this / 60).roundToInt()
-    return if (totalMin < 60) "${totalMin}m"
-    else "${totalMin / 60}h ${totalMin % 60}m"
-}
+private fun Double.toDuration(durationLabels: CompactDurationLabelTemplates): String =
+    formatCompactDuration(this, durationLabels, roundToNearestMinute = true)
