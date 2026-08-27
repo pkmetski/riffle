@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
+import kotlin.math.roundToInt
 import javax.inject.Inject
 
 /**
@@ -93,28 +94,48 @@ internal fun audiobookStartSec(resumeSec: Double, durationSec: Double): Double =
     if (durationSec > 0.0 && resumeSec >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC) 0.0 else resumeSec
 
 /**
- * The one-line facts shown beneath the cover on the landscape player, e.g.
- * "Audiobook · 10h 53m · Science Fiction & Fantasy". Duration is omitted when unknown; at most two
- * genres are listed to keep it tidy. Null when there's nothing to show.
+ * The one-line facts shown beneath the cover on the landscape player. Duration is omitted when
+ * unknown; at most two genres are listed to keep it tidy. Null when there's nothing to show.
  */
-internal fun buildAudiobookFacts(durationSec: Double, genres: List<String>): String? {
+internal data class CompactDurationLabelTemplates(
+    val minutes: String = "%1\$dm",
+    val hours: String = "%1\$dh",
+    val hoursMinutes: String = "%1\$dh %2\$dm",
+)
+
+internal fun formatCompactDuration(
+    durationSec: Double,
+    templates: CompactDurationLabelTemplates = CompactDurationLabelTemplates(),
+    roundToNearestMinute: Boolean = false,
+): String {
+    val totalMinutes = if (roundToNearestMinute) {
+        (durationSec / 60.0).roundToInt().coerceAtLeast(0)
+    } else {
+        (durationSec.toLong().coerceAtLeast(0) / 60).toInt()
+    }
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 && minutes > 0 -> templates.hoursMinutes.format(hours, minutes)
+        hours > 0 -> templates.hours.format(hours)
+        else -> templates.minutes.format(minutes)
+    }
+}
+
+internal fun buildAudiobookFacts(
+    durationSec: Double,
+    genres: List<String>,
+    audiobookLabel: String = "Audiobook",
+    durationLabels: CompactDurationLabelTemplates = CompactDurationLabelTemplates(),
+): String? {
     val parts = buildList {
-        add("Audiobook")
+        add(audiobookLabel)
         if (durationSec > 0.0) {
-            val total = durationSec.toLong()
-            val h = total / 3600
-            val m = (total % 3600) / 60
-            add(
-                when {
-                    h > 0 && m > 0 -> "${h}h ${m}m"
-                    h > 0 -> "${h}h"
-                    else -> "${m}m"
-                },
-            )
+            add(formatCompactDuration(durationSec, durationLabels))
         }
         genres.take(2).forEach { add(it) }
     }
-    // "Audiobook" alone is just the medium label with no real facts — not worth a line.
+    // The medium label alone has no real facts, so it is not worth a line.
     return if (parts.size > 1) parts.joinToString(" · ") else null
 }
 
@@ -154,7 +175,8 @@ data class AudiobookPlayerUiState(
     val currentChapterIndex: Int = -1,
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
-    // Book details for the landscape two-column player: a facts line and the blurb (ADR 0035).
+    // Book details for the landscape two-column player: raw facts plus the blurb (ADR 0035).
+    val genres: List<String> = emptyList(),
     val facts: String? = null,
     val description: String? = null,
     // The linked readaloud EBOOK item id, when this title has one (split-library ebook, or this same
@@ -480,6 +502,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 authToken = token,
                 durationSec = session.timeline.durationSec,
                 readaloudEbookItemId = readaloudEbookItemId,
+                genres = item.genres,
                 facts = buildAudiobookFacts(session.timeline.durationSec, item.genres),
                 description = item.description,
             )

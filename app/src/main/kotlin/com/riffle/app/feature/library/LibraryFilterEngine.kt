@@ -1,5 +1,7 @@
 package com.riffle.app.feature.library
 
+import androidx.annotation.StringRes
+import com.riffle.app.R
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.models.Collection
@@ -20,13 +22,13 @@ import kotlinx.coroutines.flow.map
  * whose keying field is null or the sentinel 0 (browse-cached rows, per `LibraryItemEntity`) sort
  * to the tail with a title tie-break so sources that can't supply a value never pollute the top.
  */
-enum class LibrarySortMode(val displayName: String) {
-    ADDED_DESC("Recently added"),
-    ADDED_ASC("Oldest first"),
-    TITLE_ASC("Title (A–Z)"),
-    TITLE_DESC("Title (Z–A)"),
-    AUTHOR_ASC("Author (A–Z)"),
-    RECENTLY_OPENED("Recently opened"),
+enum class LibrarySortMode(@StringRes val labelResId: Int) {
+    ADDED_DESC(R.string.ui_sort_recently_added),
+    ADDED_ASC(R.string.ui_sort_oldest_first),
+    TITLE_ASC(R.string.ui_sort_title_az),
+    TITLE_DESC(R.string.ui_sort_title_za),
+    AUTHOR_ASC(R.string.ui_sort_author_az),
+    RECENTLY_OPENED(R.string.ui_sort_recently_opened),
 }
 
 private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<LibraryItem> {
