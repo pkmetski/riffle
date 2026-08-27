@@ -22,6 +22,7 @@ import com.riffle.app.R
 import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
 import com.riffle.app.feature.audiobook.formatCompactDuration
 import com.riffle.core.domain.AudiobookChapter
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
