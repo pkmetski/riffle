@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.reader.cadence.drawCadenceGlyph

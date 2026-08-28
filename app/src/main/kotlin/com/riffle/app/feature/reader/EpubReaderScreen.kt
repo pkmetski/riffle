@@ -111,6 +111,7 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.app.feature.readersettings.palette
 import com.riffle.core.common.TimeRemaining
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewModelScope

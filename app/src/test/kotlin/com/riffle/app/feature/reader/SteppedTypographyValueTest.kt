@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.app.feature.readersettings.steppedTypographyValue
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import org.junit.Assert.assertEquals
 import org.junit.Test

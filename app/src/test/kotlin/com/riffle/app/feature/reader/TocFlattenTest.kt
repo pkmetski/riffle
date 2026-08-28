@@ -1,5 +1,8 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.app.feature.readersettings.TocRow
+import com.riffle.app.feature.readersettings.findActiveFlatIndex
+import com.riffle.app.feature.readersettings.flattenToc
 import com.riffle.core.models.TocEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.formatting
 
+import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

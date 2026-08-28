@@ -1,5 +1,10 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.app.feature.readersettings.fontSizeBubble
+import com.riffle.app.feature.readersettings.isMajorTick
+import com.riffle.app.feature.readersettings.lineSpacingBubble
+import com.riffle.app.feature.readersettings.marginsBubble
+import com.riffle.app.feature.readersettings.wpmBubble
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
