@@ -1,115 +1,81 @@
 package com.riffle.app.navigation
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
-import androidx.compose.runtime.DisposableEffect
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.riffle.core.models.SourceType
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.riffle.app.feature.downloads.DownloadsScreen
-import com.riffle.app.feature.library.CollectionDetailScreen
-import com.riffle.app.feature.library.FacetType
-import com.riffle.app.feature.library.FilteredBooksScreen
-import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
-import com.riffle.app.feature.library.LibraryItemDetailScreen
-import com.riffle.app.feature.library.AnnotationSearchResultsScreen
-import com.riffle.app.feature.library.AudiobookBookmarkSearchResult
-import com.riffle.app.feature.library.LibraryItemsScreen
-import com.riffle.app.feature.library.LibraryItemsViewModel
-import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.app.feature.library.LibrarySectionType
-import com.riffle.app.feature.library.SeriesDetailScreen
-import com.riffle.app.feature.navigation.HomeScreen
 import com.riffle.app.feature.navigation.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
-import com.riffle.app.feature.reader.EpubReaderScreen
-import com.riffle.app.feature.reader.PdfReaderScreen
-import com.riffle.app.feature.reader.cbz.CbzReaderScreen
-import com.riffle.app.feature.server.AddSourceScreen
-import com.riffle.app.feature.server.SelectLibrariesScreen
-import com.riffle.app.feature.server.SourceSetupViewModel
-import com.riffle.app.feature.settings.SettingsScreen
-import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
-import com.riffle.app.feature.settings.annotationsync.AnnotationsSyncSettingsScreen
-import com.riffle.app.feature.settings.debug.DebugLogScreen
-import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
-import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.SourceType
+import java.net.URLEncoder
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import java.net.URLDecoder
-import java.net.URLEncoder
-import android.annotation.SuppressLint
-import android.content.Intent
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 
-private const val HOME = "home"
-private const val SOURCE_SETUP_GRAPH = "source_setup"
-private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
-private const val ADD_LOCAL_FILES = "add_local_files"
-private const val ADD_CHITANKA = "add_chitanka"
-private const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
-private const val ADD_GUTENBERG = "add_gutenberg"
-private const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
-private const val ADD_SOURCE = "add_source"
-private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
+internal const val HOME = "home"
+internal const val SOURCE_SETUP_GRAPH = "source_setup"
+internal const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
+internal const val ADD_LOCAL_FILES = "add_local_files"
+internal const val ADD_CHITANKA = "add_chitanka"
+internal const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
+internal const val ADD_GUTENBERG = "add_gutenberg"
+internal const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
+internal const val ADD_SOURCE = "add_source"
+internal const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 
 /**
  * Where the "Add source" picker routes each [SourceType] to — delegated to the descriptor
  * (ADR 0053). Adding a new source needs no edit here.
  */
-private fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
+internal fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
     com.riffle.core.domain.WebSourceDescriptors.forTypeOrError(type).addRoute
-private const val SELECT_LIBRARIES = "select_libraries"
-private const val SETTINGS = "settings"
-private const val READALOUD_SETTINGS = "settings/readaloud"
-private const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
-private const val DICTIONARY_PACKS_SETTINGS = "settings/dictionary_packs"
-private const val CHANGELOG = "settings/changelog"
-private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
-private const val DEBUG_LOGS = "settings/debug_logs"
-private const val DEVELOPER_OPTIONS = "settings/developer_options"
-private const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
-private const val DOWNLOADS = "downloads"
-private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
-private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
-private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
-private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
-private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
+internal const val SELECT_LIBRARIES = "select_libraries"
+internal const val SETTINGS = "settings"
+internal const val READALOUD_SETTINGS = "settings/readaloud"
+internal const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
+internal const val DICTIONARY_PACKS_SETTINGS = "settings/dictionary_packs"
+internal const val CHANGELOG = "settings/changelog"
+internal const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
+internal const val DEBUG_LOGS = "settings/debug_logs"
+internal const val DEVELOPER_OPTIONS = "settings/developer_options"
+internal const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
+internal const val DOWNLOADS = "downloads"
+internal const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
+internal const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
+internal const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
+internal const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
+internal const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}?sourceId={sourceId}"
-private const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
-private const val EPUB_READER =
+internal const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
+internal const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
-private const val PDF_READER = "pdf_reader/{itemId}"
-private const val CBZ_READER = "cbz_reader/{itemId}"
-private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
-private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
+internal const val PDF_READER = "pdf_reader/{itemId}"
+internal const val CBZ_READER = "cbz_reader/{itemId}"
+internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
+internal const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
 
 /**
  * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
