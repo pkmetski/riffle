@@ -16,6 +16,7 @@ navigation = "2.9.8"
 hiltNavigation = "1.4.0"
 security = "1.1.0"
 hilt = "2.60.1"
+koin = "4.0.2"
 acra = "5.13.1"
 # Pinned to latest (3.3.0). The readaloud highlight is now text-anchored so it's engine-independent
 # (Readium strips media-overlay spans regardless of version). Reflowable column defaults and decoration
@@ -78,6 +79,10 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
+koin-bom = { group = "io.insert-koin", name = "koin-bom", version.ref = "koin" }
+koin-android = { group = "io.insert-koin", name = "koin-android" }
+koin-compose = { group = "io.insert-koin", name = "koin-compose" }
+koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compose" }
 acra-core = { group = "ch.acra", name = "acra-core", version.ref = "acra" }
 acra-toast = { group = "ch.acra", name = "acra-toast", version.ref = "acra" }
 acra-dialog = { group = "ch.acra", name = "acra-dialog", version.ref = "acra" }
