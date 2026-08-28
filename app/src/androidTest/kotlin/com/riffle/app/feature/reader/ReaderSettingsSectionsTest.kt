@@ -18,7 +18,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.reader.cbz.ComicDisplaySection
-import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.app.feature.readersettings.DisplaySection
+import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
