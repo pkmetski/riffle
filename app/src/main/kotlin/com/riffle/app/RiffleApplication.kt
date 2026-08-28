@@ -17,6 +17,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
 import org.acra.ACRA
 import org.acra.ReportField
 import org.acra.config.dialog
@@ -79,6 +81,10 @@ class RiffleApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         if (shouldSkipMainProcessStartup(ACRA.isACRASenderServiceProcess())) return
+        startKoin {
+            androidContext(this@RiffleApplication)
+            modules()
+        }
         val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
         val applicationScope = entryPoint.applicationScope()
         logger = entryPoint.logger()
