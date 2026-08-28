@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.app.feature.readersettings
 
 import androidx.compose.ui.graphics.Color
 import com.riffle.core.domain.FormattingPreferences

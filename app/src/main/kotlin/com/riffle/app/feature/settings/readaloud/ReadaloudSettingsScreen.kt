@@ -41,7 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.riffle.app.R
-import com.riffle.app.feature.reader.swatchBackdropColor
+import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.core.domain.withResolvedTheme
 import java.time.LocalTime

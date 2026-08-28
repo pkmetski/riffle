@@ -3,7 +3,7 @@ package com.riffle.app.feature.settings.panels
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
-import com.riffle.app.feature.reader.FormattingSection
+import com.riffle.app.feature.readersettings.FormattingSection
 import com.riffle.core.domain.FormattingPreferences
 
 @Composable

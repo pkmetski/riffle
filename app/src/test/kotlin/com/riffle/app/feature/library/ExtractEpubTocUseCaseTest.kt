@@ -1,6 +1,8 @@
 package com.riffle.app.feature.library
 
 import android.net.Uri
+import com.riffle.app.feature.reader.ExtractEpubTocUseCase
+import com.riffle.app.feature.reader.countEpubPositionsFromArchive
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.PublicationMetrics

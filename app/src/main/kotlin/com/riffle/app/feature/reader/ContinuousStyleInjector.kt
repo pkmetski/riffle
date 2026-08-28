@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.toArgb
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.app.feature.readersettings.DARK_DIM_TEXT
 
 /**
  * Produces the CSS injection for Continuous-mode chapters.

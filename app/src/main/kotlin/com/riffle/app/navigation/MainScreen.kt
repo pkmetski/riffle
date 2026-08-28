@@ -1,115 +1,81 @@
 package com.riffle.app.navigation
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
-import androidx.compose.runtime.DisposableEffect
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.riffle.core.models.SourceType
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.riffle.app.feature.downloads.DownloadsScreen
-import com.riffle.app.feature.library.CollectionDetailScreen
-import com.riffle.app.feature.library.FacetType
-import com.riffle.app.feature.library.FilteredBooksScreen
-import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
-import com.riffle.app.feature.library.LibraryItemDetailScreen
-import com.riffle.app.feature.library.AnnotationSearchResultsScreen
-import com.riffle.app.feature.library.AudiobookBookmarkSearchResult
-import com.riffle.app.feature.library.LibraryItemsScreen
-import com.riffle.app.feature.library.LibraryItemsViewModel
-import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.app.feature.library.LibrarySectionType
-import com.riffle.app.feature.library.SeriesDetailScreen
-import com.riffle.app.feature.navigation.HomeScreen
 import com.riffle.app.feature.navigation.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
-import com.riffle.app.feature.reader.EpubReaderScreen
-import com.riffle.app.feature.reader.PdfReaderScreen
-import com.riffle.app.feature.reader.cbz.CbzReaderScreen
-import com.riffle.app.feature.server.AddSourceScreen
-import com.riffle.app.feature.server.SelectLibrariesScreen
-import com.riffle.app.feature.server.SourceSetupViewModel
-import com.riffle.app.feature.settings.SettingsScreen
-import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
-import com.riffle.app.feature.settings.annotationsync.AnnotationsSyncSettingsScreen
-import com.riffle.app.feature.settings.debug.DebugLogScreen
-import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
-import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.SourceType
+import java.net.URLEncoder
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import java.net.URLDecoder
-import java.net.URLEncoder
-import android.annotation.SuppressLint
-import android.content.Intent
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 
-private const val HOME = "home"
-private const val SOURCE_SETUP_GRAPH = "source_setup"
-private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
-private const val ADD_LOCAL_FILES = "add_local_files"
-private const val ADD_CHITANKA = "add_chitanka"
-private const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
-private const val ADD_GUTENBERG = "add_gutenberg"
-private const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
-private const val ADD_SOURCE = "add_source"
-private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
+internal const val HOME = "home"
+internal const val SOURCE_SETUP_GRAPH = "source_setup"
+internal const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
+internal const val ADD_LOCAL_FILES = "add_local_files"
+internal const val ADD_CHITANKA = "add_chitanka"
+internal const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
+internal const val ADD_GUTENBERG = "add_gutenberg"
+internal const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
+internal const val ADD_SOURCE = "add_source"
+internal const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 
 /**
  * Where the "Add source" picker routes each [SourceType] to — delegated to the descriptor
  * (ADR 0053). Adding a new source needs no edit here.
  */
-private fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
+internal fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
     com.riffle.core.domain.WebSourceDescriptors.forTypeOrError(type).addRoute
-private const val SELECT_LIBRARIES = "select_libraries"
-private const val SETTINGS = "settings"
-private const val READALOUD_SETTINGS = "settings/readaloud"
-private const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
-private const val DICTIONARY_PACKS_SETTINGS = "settings/dictionary_packs"
-private const val CHANGELOG = "settings/changelog"
-private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
-private const val DEBUG_LOGS = "settings/debug_logs"
-private const val DEVELOPER_OPTIONS = "settings/developer_options"
-private const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
-private const val DOWNLOADS = "downloads"
-private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
-private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
-private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
-private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
-private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
+internal const val SELECT_LIBRARIES = "select_libraries"
+internal const val SETTINGS = "settings"
+internal const val READALOUD_SETTINGS = "settings/readaloud"
+internal const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
+internal const val DICTIONARY_PACKS_SETTINGS = "settings/dictionary_packs"
+internal const val CHANGELOG = "settings/changelog"
+internal const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
+internal const val DEBUG_LOGS = "settings/debug_logs"
+internal const val DEVELOPER_OPTIONS = "settings/developer_options"
+internal const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
+internal const val DOWNLOADS = "downloads"
+internal const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
+internal const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
+internal const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
+internal const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
+internal const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}?sourceId={sourceId}"
-private const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
-private const val EPUB_READER =
+internal const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
+internal const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
-private const val PDF_READER = "pdf_reader/{itemId}"
-private const val CBZ_READER = "cbz_reader/{itemId}"
-private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
-private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
+internal const val PDF_READER = "pdf_reader/{itemId}"
+internal const val CBZ_READER = "cbz_reader/{itemId}"
+internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
+internal const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
 
 /**
  * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
@@ -303,733 +269,28 @@ fun MainScreen(
             popEnterTransition = { EnterTransition.None },
             popExitTransition = { ExitTransition.None },
         ) {
-            composable(HOME) {
-                HomeScreen(
-                    onNavigateToAddSource = {
-                        navController.navigateAsRoot(ADD_SOURCE_TYPE_PICKER)
-                    },
-                    onNavigateToLibrary = { sourceType, libraryId, libraryName ->
-                        viewModel.setActiveLibrary(libraryId)
-                        navController.navigateAsRoot(
-                            libraryEntryRoute(
-                                HomeViewModel.StartDestination.Library(sourceType, libraryId, libraryName),
-                            ),
-                        )
-                    },
-                )
-            }
-            // The Source Type picker lives at NavHost level (not inside SOURCE_SETUP_GRAPH) so
-            // that entering the setup graph directly for Storyteller/WebDAV/edit paths does NOT
-            // implicitly push the picker as the graph's start destination onto the back stack.
-            // With this shape the back stack for those flows stays [caller, ADD_SOURCE], and
-            // `previousBackStackEntry.route == SETTINGS` remains the right predicate for
-            // "should top-app-bar back pop to Settings?".
-            composable(ADD_SOURCE_TYPE_PICKER) { backStackEntry ->
-                val cameFromSettings = navController.previousBackStackEntry
-                    ?.destination?.route == SETTINGS
-                val pickerViewModel: com.riffle.app.feature.server.SourceTypePickerViewModel =
-                    androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
-                val installedTypes by pickerViewModel.installedTypes.collectAsState()
-                com.riffle.app.feature.server.SourceTypePickerScreen(
-                    windowSizeClass = windowSizeClass,
-                    onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                    onPick = { type ->
-                        val route = addSourceRouteFor(type)
-                        navController.navigate(route) {
-                            // Drop the picker so back from the form returns to the caller.
-                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
-                        }
-                    },
-                    installedTypes = installedTypes,
-                )
-            }
-            composable(
-                route = CHITANKA_BROWSE,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("libraryName") { type = NavType.StringType },
-                ),
-            ) { backStackEntry ->
-                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
-                val libraryName = backStackEntry.arguments?.getString("libraryName")
-                    ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
-                com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen(
-                    libraryName = libraryName,
-                    windowSizeClass = windowSizeClass,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onSectionSeeMore = { sectionType ->
-                        navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-                    },
-                    onOpenDetail = { itemId ->
-                        val encodedId = URLEncoder.encode(itemId, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
-                    },
-                    onAnnotatedBookClick = { sourceId, itemId ->
-                        navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-                    },
-                )
-            }
-            composable(ADD_CHITANKA) { backStackEntry ->
-                val cameFromSettings = navController.previousBackStackEntry
-                    ?.destination?.route == SETTINGS
-                com.riffle.app.feature.source.chitanka.AddChitankaScreen(
-                    windowSizeClass = windowSizeClass,
-                    onDone = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                    onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                )
-            }
-            composable(
-                route = GUTENBERG_BROWSE,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("libraryName") { type = NavType.StringType },
-                ),
-            ) { backStackEntry ->
-                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
-                val libraryName = backStackEntry.arguments?.getString("libraryName")
-                    ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
-                com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen(
-                    libraryName = libraryName,
-                    windowSizeClass = windowSizeClass,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onSectionSeeMore = { sectionType ->
-                        navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-                    },
-                    onOpenDetail = { itemId ->
-                        val encodedId = URLEncoder.encode(itemId, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
-                    },
-                    onAnnotatedBookClick = { sourceId, itemId ->
-                        navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-                    },
-                )
-            }
-            composable(ADD_GUTENBERG) { backStackEntry ->
-                val cameFromSettings = navController.previousBackStackEntry
-                    ?.destination?.route == SETTINGS
-                com.riffle.app.feature.source.gutenberg.AddGutenbergScreen(
-                    windowSizeClass = windowSizeClass,
-                    onDone = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                    onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                )
-            }
-            composable(ADD_LOCAL_FILES) { backStackEntry ->
-                val cameFromSettings = navController.previousBackStackEntry
-                    ?.destination?.route == SETTINGS
-                com.riffle.app.feature.source.localfiles.AddLocalFilesScreen(
-                    windowSizeClass = windowSizeClass,
-                    onDone = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                    onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                    },
-                )
-            }
-            navigation(startDestination = ADD_SOURCE_ROUTE, route = SOURCE_SETUP_GRAPH) {
-                composable(
-                    route = ADD_SOURCE_ROUTE,
-                    arguments = listOf(
-                        navArgument("type") {
-                            type = NavType.StringType
-                            defaultValue = ""
-                        },
-                        navArgument("editId") {
-                            type = NavType.StringType
-                            defaultValue = ""
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
-                    }
-                    val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
-                    // Add-Source can be reached from the main Settings screen or from either of
-                    // the settings drill-ins (Readaloud → Configure Storyteller; Annotations
-                    // Sync → Configure WebDAV). All three should pop back to the caller when
-                    // done; only cold entry (e.g. deep link) falls through to Home.
-                    val cameFromSettings = navController.previousBackStackEntry
-                        ?.destination?.route in setOf(SETTINGS, READALOUD_SETTINGS, ANNOTATIONS_SYNC_SETTINGS, CHANGELOG)
-                    AddSourceScreen(
-                        windowSizeClass = windowSizeClass,
-                        onNavigateBack = {
-                            if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                            else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                        },
-                        onAuthenticated = { pending ->
-                            setupVm.pendingServer = pending
-                            navController.navigate(SELECT_LIBRARIES)
-                        },
-                        onAutoCompleted = {
-                            if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
-                            else navController.navigateAsRootIfTop(backStackEntry, HOME)
-                        },
-                    )
-                }
-                composable(SELECT_LIBRARIES) { backStackEntry ->
-                    val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
-                    }
-                    val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
-                    val pending = setupVm.pendingServer
-                    if (pending == null) {
-                        LaunchedEffect(Unit) { navController.popBackStackIfTop(backStackEntry) }
-                    } else {
-                        SelectLibrariesScreen(
-                            pending = pending,
-                            windowSizeClass = windowSizeClass,
-                            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                            onContinueComplete = {
-                                navController.navigateAsRootIfTop(backStackEntry, HOME)
-                            },
-                        )
-                    }
-                }
-            }
-            composable(SETTINGS) { backStackEntry ->
-                SettingsScreen(
-                    windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
-                    // form from their respective Settings drill-ins; editing an existing ABS
-                    // Source also skips the picker (the Source Type is already known). All three
-                    // paths still flow through `onNavigateToAddSource(backend, editId)`.
-                    onNavigateToAddSource = { backend, editId ->
-                        val params = buildList {
-                            add("type=${backend.routeType}")
-                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
-                        }.joinToString("&")
-                        navController.navigate("$ADD_SOURCE?$params")
-                    },
-                    // The "Add source" button in the Sources section always launches the picker;
-                    // once a SourceType is picked the picker itself routes to the type's addRoute
-                    // (see [addSourceRouteFor]).
-                    onNavigateToAddSourcePicker = { navController.navigate(ADD_SOURCE_TYPE_PICKER) },
-                    onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
-                    onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
-                    onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
-                    onNavigateToDeveloperOptions = { navController.navigate(DEVELOPER_OPTIONS) },
-                    onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
-                    onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
-                    onNavigateToChangelog = { navController.navigate(CHANGELOG) },
-                )
-            }
-            composable(READALOUD_SETTINGS) { backStackEntry ->
-                // Reuse the parent Settings entry's SettingsViewModel so the drill-in shares the
-                // main screen's already-warm caches (versionsCache, StateFlow subscriptions) —
-                // otherwise every navigation instantiates a second ~20-dep VM and re-runs the
-                // per-source version probes.
-                val settingsEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(SETTINGS)
-                }
-                val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
-                    hiltViewModel(settingsEntry)
-                ReadaloudSettingsScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onNavigateToAddSource = { backend, editId ->
-                        val params = buildList {
-                            add("type=${backend.routeType}")
-                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
-                        }.joinToString("&")
-                        navController.navigate("$ADD_SOURCE?$params")
-                    },
-                    onNavigateToReadaloudMatches = { sourceId ->
-                        val encoded = URLEncoder.encode(sourceId, "UTF-8")
-                        navController.navigate("readaloud_matches/$encoded")
-                    },
-                    viewModel = settingsVm,
-                )
-            }
-            composable(CHANGELOG) { backStackEntry ->
-                com.riffle.app.feature.update.ChangelogScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(ANNOTATIONS_SYNC_SETTINGS) { backStackEntry ->
-                val settingsEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(SETTINGS)
-                }
-                val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
-                    hiltViewModel(settingsEntry)
-                AnnotationsSyncSettingsScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onNavigateToAddSource = { backend, editId ->
-                        val params = buildList {
-                            add("type=${backend.routeType}")
-                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
-                        }.joinToString("&")
-                        navController.navigate("$ADD_SOURCE?$params")
-                    },
-                    onNavigateToMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
-                    viewModel = settingsVm,
-                )
-            }
-            composable(DICTIONARY_PACKS_SETTINGS) { backStackEntry ->
-                com.riffle.app.feature.settings.dictionary.DictionaryPacksScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(ANNOTATION_SYNC_MAINTENANCE) { backStackEntry ->
-                AnnotationSyncMaintenanceScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(DEVELOPER_OPTIONS) { backStackEntry ->
-                val settingsEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(SETTINGS)
-                }
-                val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
-                    hiltViewModel(settingsEntry)
-                com.riffle.app.feature.settings.developer.DeveloperOptionsScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
-                    viewModel = settingsVm,
-                )
-            }
-            composable(DEBUG_LOGS) { backStackEntry ->
-                DebugLogScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
-            }
-            composable(
-                route = READALOUD_MATCHES,
-                arguments = listOf(
-                    navArgument("sourceId") { type = NavType.StringType },
-                    navArgument("pairBookId") {
-                        type = NavType.StringType
-                        defaultValue = ""
-                    },
-                ),
-            ) { backStackEntry ->
-                ReadaloudMatchesScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(DOWNLOADS) { backStackEntry ->
-                DownloadsScreen(
-                    windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                )
-            }
-            composable(
-                route = LIBRARY_ITEMS,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("libraryName") { type = NavType.StringType },
-                )
-            ) { backStackEntry ->
-                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
-                val libraryName = URLDecoder.decode(
-                    backStackEntry.arguments?.getString("libraryName") ?: "",
-                    "UTF-8"
-                )
-                // Close the drawer when the library destination first enters composition if it
-                // is open or animating open — e.g. the user tapped a library in the drawer and
-                // the composable re-enters before the close animation finishes. Skip the call
-                // when the drawer is already Closed: even a settled Closed state still triggers
-                // a spring animation that takes 14–125 ms, unnecessarily holding backEnabled=true
-                // during that window and creating a timing hazard on Back.
-                LaunchedEffect(Unit) {
-                    if (drawerState.currentValue == DrawerValue.Open || drawerState.targetValue == DrawerValue.Open) {
-                        drawerState.close()
-                    }
-                }
-                LibraryItemsScreen(
-                    libraryName = libraryName,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    backEnabled = libBackEnabled,
-                    // Read the committed back stack synchronously at handler-fire time (not via
-                    // Compose state) so we correctly distinguish: library_items is the committed
-                    // top (run library back action) vs. a sub-screen is the committed top but
-                    // library_items shows as the predictive-back preview or the recomposition
-                    // window hasn't caught up yet (pop the sub-screen instead).
-                    isCommittedOnLibraryItems = {
-                        committedTopRoute(navController.currentBackStackSnapshot().map { it.destination.route })
-                            ?.startsWith("library_items/") == true
-                    },
-                    onNavigateBack = { navController.popCommittedTopFromLibraryPreview() },
-                    onSeriesSelected = { series ->
-                        navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
-                    },
-                    onCollectionSelected = { collection ->
-                        navController.navigate(collectionDetailRoute(libraryId, collection.id, collection.name))
-                    },
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                    onAnnotationSelected = { result ->
-                        val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
-                        val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
-                        val encodedAnnotationId = URLEncoder.encode(result.annotation.id, "UTF-8")
-                        navController.navigate(
-                            "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
-                        )
-                    },
-                    onAudiobookBookmarkSelected = { result ->
-                        val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                        navController.navigate("audiobook_player/$encodedId?startAtSec=${result.bookmark.positionSec}")
-                    },
-                    onShowAllAnnotations = { query ->
-                        val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                        navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
-                    },
-                    onSectionSeeMore = { sectionType ->
-                        navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-                    },
-                    onAnnotatedBookClick = { sourceId, itemId ->
-                        navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-                    },
-                    onPlaylistSelected = { playlist ->
-                        val encodedName = URLEncoder.encode(playlist.name, "UTF-8")
-                        val encodedId = URLEncoder.encode(playlist.id, "UTF-8")
-                        navController.navigate("playlist_detail/$libraryId/$encodedId/$encodedName")
-                    },
-                )
-            }
-            composable(
-                route = PLAYLIST_DETAIL,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("playlistId") { type = NavType.StringType },
-                    navArgument("playlistName") { type = NavType.StringType },
-                ),
-            ) { backStackEntry ->
-                val playlistLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
-                val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
-                com.riffle.app.feature.library.playlists.PlaylistDetailScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                    // Play launches the first item into the audiobook player carrying the playlist
-                    // context (`playlistId` + `libraryId`) — the player VM uses those to look up
-                    // the next item on end-of-book and hop straight into it (auto-advance).
-                    onPlayItem = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        val plQ = URLEncoder.encode(playlistIdArg, "UTF-8")
-                        val libQ = URLEncoder.encode(playlistLibraryId, "UTF-8")
-                        navController.navigate(
-                            "audiobook_player/$encodedId?playlistId=$plQ&libraryId=$libQ"
-                        )
-                    },
-                )
-            }
-            composable(
-                route = LIBRARY_SECTION,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("libraryName") { type = NavType.StringType },
-                    navArgument("sectionType") { type = NavType.StringType },
-                ),
-            ) { backStackEntry ->
-                val sectionType = LibrarySectionType.valueOf(
-                    backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.IN_PROGRESS.name
-                )
-                LibrarySectionScreen(
-                    sectionType = sectionType,
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(
-                route = SERIES_DETAIL,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("seriesId") { type = NavType.StringType },
-                    navArgument("seriesName") { type = NavType.StringType },
-                )
-            ) { backStackEntry ->
-                val seriesName = URLDecoder.decode(
-                    backStackEntry.arguments?.getString("seriesName") ?: "",
-                    "UTF-8"
-                )
-                SeriesDetailScreen(
-                    seriesName = seriesName,
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(
-                route = COLLECTION_DETAIL,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("collectionId") { type = NavType.StringType },
-                    navArgument("collectionName") { type = NavType.StringType },
-                )
-            ) { backStackEntry ->
-                val collectionName = URLDecoder.decode(
-                    backStackEntry.arguments?.getString("collectionName") ?: "",
-                    "UTF-8"
-                )
-                CollectionDetailScreen(
-                    collectionName = collectionName,
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(
-                route = LIBRARY_ITEM_DETAIL,
-                arguments = listOf(
-                    navArgument("itemId") { type = NavType.StringType },
-                    navArgument("sourceId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                )
-            ) { backStackEntry ->
-                LibraryItemDetailScreen(
-                    windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onReadItem = { item ->
-                        readerRouteFor(item)?.let { navController.navigate(it) }
-                    },
-                    onListenItem = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("audiobook_player/$encodedId")
-                    },
-                    onReadItemAtHref = { item, href ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        val encodedHref = URLEncoder.encode(href, "UTF-8")
-                        navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref")
-                    },
-                    onListenItemAtSec = { item, startSec ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("audiobook_player/$encodedId?startAtSec=$startSec")
-                    },
-                    onNavigateToFacet = { libraryId, facet, value ->
-                        val encoded = URLEncoder.encode(value, "UTF-8")
-                        navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
-                    },
-                    onNavigateToSeries = { libraryId, seriesId, seriesName ->
-                        navController.navigate(seriesDetailRoute(libraryId, seriesId, seriesName))
-                    },
-                )
-            }
-            composable(
-                route = FILTERED_BOOKS,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("facetType") { type = NavType.StringType },
-                    navArgument("facetValue") { type = NavType.StringType },
-                ),
-            ) { backStackEntry ->
-                FilteredBooksScreen(
-                    onItemSelected = { item ->
-                        navController.navigate(libraryItemDetailRoute(item))
-                    },
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                )
-            }
-            composable(
-                route = EPUB_READER,
-                arguments = listOf(
-                    navArgument("itemId") { type = NavType.StringType },
-                    navArgument("startReadaloudAtSec") {
-                        type = NavType.FloatType
-                        defaultValue = -1f // -1 = opened normally, not an audiobook→readaloud handoff
-                    },
-                    navArgument("openAtCfi") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("openAnnotationId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("startTocHref") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("source") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("sourceId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                )
-            ) { backStackEntry ->
-                val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
-                val context = LocalContext.current
-                val exportErrorMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.export_pdf_error)
-                // Highlights mode's "Open in book" (Task 9, ADR 0048): leaves the elided reader and
-                // opens the full-book reader at the tapped highlight's CFI. Handled at the nav-host
-                // level (not inside EpubReaderScreen) since it pops this route off the back stack.
-                LaunchedEffect(viewModel) {
-                    viewModel.readerNavEvents.collect { event ->
-                        when (event) {
-                            is com.riffle.app.feature.reader.ReaderNavEvent.OpenInSourceBook -> {
-                                val encodedId = URLEncoder.encode(event.itemId, "UTF-8")
-                                val encodedCfi = URLEncoder.encode(event.cfi, "UTF-8")
-                                val encodedAnnotationId = URLEncoder.encode(event.annotationId, "UTF-8")
-                                if (navController.popBackStackIfTop(backStackEntry)) {
-                                    navController.navigate(
-                                        "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
-                                    )
-                                }
-                            }
-                            com.riffle.app.feature.reader.ReaderNavEvent.CloseEmptyHighlights -> {
-                                navController.popBackStackIfTop(backStackEntry)
-                            }
-                            is com.riffle.app.feature.reader.ReaderNavEvent.ShareHighlights -> {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "application/pdf"
-                                    putExtra(Intent.EXTRA_STREAM, event.uri)
-                                    putExtra(Intent.EXTRA_TITLE, event.fileName)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(intent, null))
-                            }
-                            com.riffle.app.feature.reader.ReaderNavEvent.ExportError -> {
-                                Toast.makeText(
-                                    context,
-                                    exportErrorMessage,
-                                    Toast.LENGTH_LONG,
-                                ).show()
-                            }
-                        }
-                    }
-                }
-                EpubReaderScreen(
-                    windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    viewModel = viewModel,
-                )
-            }
-            composable(
-                route = ANNOTATION_SEARCH,
-                arguments = listOf(
-                    navArgument("libraryId") { type = NavType.StringType },
-                    navArgument("query") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                ),
-            ) { backStackEntry ->
-                AnnotationSearchResultsScreen(
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    onAnnotationSelected = { result ->
-                        val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
-                        val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
-                        val encodedAnnotationId = URLEncoder.encode(result.annotation.id, "UTF-8")
-                        navController.navigate(
-                            "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
-                        )
-                    },
-                    onAudiobookBookmarkSelected = { result ->
-                        val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                        navController.navigate("audiobook_player/$encodedId?startAtSec=${result.bookmark.positionSec}")
-                    },
-                )
-            }
-            composable(
-                route = PDF_READER,
-                arguments = listOf(
-                    navArgument("itemId") { type = NavType.StringType },
-                )
-            ) { backStackEntry ->
-                PdfReaderScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
-            }
-            composable(
-                route = CBZ_READER,
-                arguments = listOf(
-                    navArgument("itemId") { type = NavType.StringType },
-                )
-            ) { backStackEntry ->
-                CbzReaderScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
-            }
-            composable(
-                route = AUDIOBOOK_PLAYER,
-                arguments = listOf(
-                    navArgument("itemId") { type = NavType.StringType },
-                    navArgument("startAtSec") {
-                        type = NavType.FloatType
-                        defaultValue = -1f // -1 = opened normally; >=0 = readaloud→audiobook handoff
-                    },
-                    // Optional playlist context — set when the player was opened from the Playlists
-                    // tab (via [PlaylistDetailScreen]'s Play button). On end-of-book the VM uses
-                    // these to look up the next item and emit PlaylistAdvance; without them Finished
-                    // pops the player as before.
-                    navArgument("playlistId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("libraryId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                )
-            ) { backStackEntry ->
-                val currentPlaylistId = backStackEntry.arguments?.getString("playlistId")
-                val currentLibraryId = backStackEntry.arguments?.getString("libraryId")
-                AudiobookPlayerScreen(
-                    windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                    // End-of-book with a playlist context: hop straight to the next item's player,
-                    // popping the current player entry so Back returns to the playlist detail
-                    // (rather than an ever-growing stack of dead player entries).
-                    onPlaylistAdvance = { nextItemId ->
-                        val encoded = URLEncoder.encode(nextItemId, "UTF-8")
-                        val pl = URLEncoder.encode(currentPlaylistId.orEmpty(), "UTF-8")
-                        val lib = URLEncoder.encode(currentLibraryId.orEmpty(), "UTF-8")
-                        // No startAtSec override — default -1 = "resume from saved position", so a
-                        // partially-listened next item picks up where the user left off. (The
-                        // earlier chain-runs-away failure mode when the next item was already at
-                        // 100% is now handled by [AudiobookController.clearEndOfBookCache] wiping
-                        // the STATE_ENDED replay before the incoming VM subscribes.)
-                        navController.navigate(
-                            "audiobook_player/$encoded?playlistId=$pl&libraryId=$lib"
-                        ) {
-                            popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
-                        }
-                    },
-                    // Swipe down → switch to the readaloud reader for the linked ebook, continuing from
-                    // the audiobook position. Pop the player off the stack so leaving readaloud doesn't
-                    // land back on a dead player, and its onCleared stops audio + flushes progress.
-                    onSwitchToReadaloud = { ebookItemId, atSec ->
-                        // Audiobook opened from the library (not from the reader overlay). Navigate
-                        // to the reader, replacing the player so Back doesn't return to a dead session.
-                        val encoded = URLEncoder.encode(ebookItemId, "UTF-8")
-                        navController.navigate("epub_reader/$encoded?startReadaloudAtSec=$atSec") {
-                            popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
-                        }
-                    },
-                )
-            }
+            libraryNavGraph(
+                navController = navController,
+                windowSizeClass = windowSizeClass,
+                drawerState = drawerState,
+                scope = scope,
+                libBackEnabled = libBackEnabled,
+                onSetActiveLibrary = { viewModel.setActiveLibrary(it) },
+            )
+            sourceNavGraph(
+                navController = navController,
+                windowSizeClass = windowSizeClass,
+                drawerState = drawerState,
+                scope = scope,
+            )
+            settingsNavGraph(
+                navController = navController,
+                windowSizeClass = windowSizeClass,
+            )
+            readerNavGraph(
+                navController = navController,
+                windowSizeClass = windowSizeClass,
+            )
         }
     }
 

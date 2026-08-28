@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader.cbz
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.riffle.app.feature.reader.UnifiedSliderRow
+import com.riffle.app.feature.readersettings.UnifiedSliderRow
 
 private val ANIM_SPEED_RANGE = 0f..600f
 // 13 discrete stops: 0, 50, 100, …, 600. Material3 steps = stops - 2 endpoints = 11.

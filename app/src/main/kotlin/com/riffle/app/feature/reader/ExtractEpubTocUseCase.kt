@@ -1,6 +1,5 @@
-package com.riffle.app.feature.library
+package com.riffle.app.feature.reader
 
-import com.riffle.app.feature.reader.toTocEntries
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository

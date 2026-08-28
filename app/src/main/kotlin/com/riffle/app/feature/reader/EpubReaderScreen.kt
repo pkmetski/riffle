@@ -48,8 +48,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
-import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
+import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.app.feature.reader.highlights.shouldShowReadaloudUi
 import com.riffle.app.feature.reader.highlights.shouldShowShareHighlights
@@ -109,6 +111,7 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.app.feature.readersettings.palette
 import com.riffle.core.common.TimeRemaining
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewModelScope
@@ -865,7 +868,7 @@ fun EpubReaderScreen(
                             if (formattingPrefs.showAutoScroll &&
                                 (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous)
                             ) {
-                                com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon(
+                                com.riffle.app.feature.readersettings.AutoScrollToggleIcon(
                                     isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
                                     onClick = {
                                         if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {

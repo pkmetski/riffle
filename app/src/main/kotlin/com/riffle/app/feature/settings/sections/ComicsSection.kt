@@ -6,7 +6,7 @@ import com.riffle.app.R
 import com.riffle.app.feature.settings.SettingsDrillInRow
 import com.riffle.app.feature.settings.SettingsPanel
 import com.riffle.app.feature.settings.SettingsSectionHeader
-import com.riffle.app.feature.reader.label
+import com.riffle.app.feature.readersettings.label
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior

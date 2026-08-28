@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.ui.graphics.Color
+import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals

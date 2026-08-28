@@ -1,5 +1,6 @@
 package com.riffle.app.feature.audio
 
+import com.riffle.app.feature.readersettings.PlaybackSpeed
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

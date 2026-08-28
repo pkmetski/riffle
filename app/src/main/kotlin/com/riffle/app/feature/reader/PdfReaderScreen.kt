@@ -55,8 +55,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.formatting.toPdfiumPreferences
+import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme

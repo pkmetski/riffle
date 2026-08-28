@@ -72,7 +72,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
-import com.riffle.app.feature.reader.palette
+import com.riffle.app.feature.readersettings.palette
 import com.riffle.app.feature.reader.readerThemeLabelColor
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.data.comic.panel.PanelMaskEncoder

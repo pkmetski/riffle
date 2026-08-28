@@ -11,8 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.riffle.app.feature.reader.ThemeChipRows
-import com.riffle.app.feature.reader.ThemeSwatchStyle
+import com.riffle.app.feature.readersettings.ThemeChipRows
+import com.riffle.app.feature.readersettings.ThemeSwatchStyle
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicBackgroundThemeChoices
 import com.riffle.core.domain.comic.ComicFormattingPreferences

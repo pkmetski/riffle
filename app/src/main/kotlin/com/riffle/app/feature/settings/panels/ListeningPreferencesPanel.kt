@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.audio.PlaybackSpeed
+import com.riffle.app.feature.readersettings.PlaybackSpeed
 
 @Composable
 fun ListeningPreferencesPanel(

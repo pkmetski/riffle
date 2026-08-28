@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.formatting
+package com.riffle.app.feature.readersettings.formatting
 
 data class RenderCapabilities(
     val supportsFontFamily: Boolean,

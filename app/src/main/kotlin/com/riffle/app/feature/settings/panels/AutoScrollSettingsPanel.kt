@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon
+import com.riffle.app.feature.readersettings.AutoScrollToggleIcon
 import com.riffle.core.domain.FormattingPreferences
 
 /**
