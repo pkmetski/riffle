@@ -43,6 +43,7 @@ import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.doesDestinationItemExist
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.app.feature.audiobook.audiobookProgressFraction
+import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter

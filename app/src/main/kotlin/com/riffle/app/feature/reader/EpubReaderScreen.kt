@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook

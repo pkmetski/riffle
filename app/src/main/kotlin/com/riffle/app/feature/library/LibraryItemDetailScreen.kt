@@ -92,7 +92,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
 import com.riffle.app.feature.audiobook.formatCompactDuration
-import com.riffle.app.feature.reader.TocPanel
+import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
