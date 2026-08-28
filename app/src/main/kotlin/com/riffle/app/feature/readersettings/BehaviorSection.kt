@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.app.feature.readersettings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

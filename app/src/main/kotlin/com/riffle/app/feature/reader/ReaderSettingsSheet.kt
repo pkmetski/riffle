@@ -29,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.app.feature.readersettings.DisplaySection
+import com.riffle.app.feature.readersettings.FormattingSection
+import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 
 /**

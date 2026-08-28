@@ -28,8 +28,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.riffle.app.feature.reader.UnifiedSliderRow
-import com.riffle.app.feature.reader.wpmBubble
+import com.riffle.app.feature.readersettings.UnifiedSliderRow
+import com.riffle.app.feature.readersettings.wpmBubble
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 

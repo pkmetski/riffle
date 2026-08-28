@@ -15,8 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.reader.cadence.CadenceHeroIcon
-import com.riffle.app.feature.reader.swatchBackdropColor
+import com.riffle.app.feature.readersettings.CadenceHeroIcon
+import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.withResolvedTheme

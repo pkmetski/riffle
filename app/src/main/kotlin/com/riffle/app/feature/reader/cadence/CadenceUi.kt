@@ -34,7 +34,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
@@ -71,21 +70,6 @@ fun CadenceToggleIcon(
                 drawCadenceGlyph(color)
             }
         }
-    }
-}
-
-/**
- * Hero-size rendition of the same glyph, for the Settings drill-in About blurb. Same shape as
- * [CadenceToggleIcon]; larger. Caller places it above the About text.
- */
-@Composable
-fun CadenceHeroIcon(
-    modifier: Modifier = Modifier,
-    size: Dp = 40.dp,
-) {
-    val color = LocalContentColor.current
-    Canvas(modifier = modifier.size(size)) {
-        drawCadenceGlyph(color)
     }
 }
 

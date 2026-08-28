@@ -3,6 +3,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.ui.graphics.toArgb
+import com.riffle.app.feature.readersettings.DARK_DIM_TEXT
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation

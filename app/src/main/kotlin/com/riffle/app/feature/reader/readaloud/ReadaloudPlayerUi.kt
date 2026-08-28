@@ -41,7 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.riffle.app.feature.audio.PlaybackSpeed
+import com.riffle.app.feature.readersettings.PlaybackSpeed
 import com.riffle.app.feature.audio.PlaybackSpeedControl
 import com.riffle.app.feature.audio.SKIP_NUMBER_DOWN_FRACTION
 

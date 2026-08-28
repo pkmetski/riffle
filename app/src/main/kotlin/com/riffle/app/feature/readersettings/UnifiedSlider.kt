@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.riffle.app.feature.reader
+package com.riffle.app.feature.readersettings
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
