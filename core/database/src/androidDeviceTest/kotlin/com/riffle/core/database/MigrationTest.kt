@@ -3154,6 +3154,32 @@ class MigrationTest {
     }
 
     @Test
+    fun migration70To71_createsCoverGridScaleTable() {
+        helper.createDatabase(TEST_DB, 70).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 71, true, RiffleDatabase.MIGRATION_70_71
+        ).use { db ->
+            // Table must exist and accept a row.
+            db.execSQL(
+                "INSERT INTO cover_grid_scale (sourceId, libraryId, screenDimensionBucket, scale) " +
+                    "VALUES ('src1', 'lib1', 'Compact_Medium', 1.3)"
+            )
+            db.query(
+                "SELECT scale FROM cover_grid_scale WHERE sourceId = 'src1' AND libraryId = 'lib1' AND screenDimensionBucket = 'Compact_Medium'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1.3f, cursor.getFloat(0), 0.001f)
+            }
+        }
+    }
+
+    @Test
     fun migration69To70_addsScreenDimensionBucketColumn() {
         helper.createDatabase(TEST_DB, 69).use { db ->
             db.execSQL(
