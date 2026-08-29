@@ -83,6 +83,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
         }
         LibraryItemsScreen(
             libraryName = libraryName,
+            windowSizeClass = windowSizeClass,
             onOpenDrawer = { scope.launch { drawerState.open() } },
             backEnabled = libBackEnabled,
             // Read the committed back stack synchronously at handler-fire time (not via
