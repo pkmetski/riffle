@@ -6,6 +6,7 @@ import android.util.LruCache
 import android.view.WindowManager
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -50,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -442,6 +444,8 @@ private fun CbzPage(
     var scale by remember(pageIndex) { mutableStateOf(1f) }
     var offsetX by remember(pageIndex) { mutableStateOf(0f) }
     var offsetY by remember(pageIndex) { mutableStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    var zoomAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val bitmap by produceState<Bitmap?>(initialValue = null, key1 = pageIndex, key2 = source) {
         value = withContext(Dispatchers.IO) {
             runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
@@ -454,10 +458,35 @@ private fun CbzPage(
             .fillMaxSize()
             .pointerInput(pageIndex) {
                 detectTapGestures(
-                    onDoubleTap = {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
+                    onDoubleTap = { tapOffset ->
+                        zoomAnimJob?.cancel()
+                        if (scale > 1f) {
+                            val fromScale = scale
+                            val fromX = offsetX
+                            val fromY = offsetY
+                            zoomAnimJob = scope.launch {
+                                launch { animate(fromScale, 1f) { v, _ -> scale = v } }
+                                launch { animate(fromX, 0f) { v, _ -> offsetX = v } }
+                                animate(fromY, 0f) { v, _ -> offsetY = v }
+                            }
+                        } else {
+                            val targetScale = 2.5f
+                            val (tx, ty) = doubleTapZoomTranslation(
+                                tapX = tapOffset.x,
+                                tapY = tapOffset.y,
+                                containerWidth = size.width.toFloat(),
+                                containerHeight = size.height.toFloat(),
+                                targetScale = targetScale,
+                            )
+                            val fromScale = scale
+                            val fromX = offsetX
+                            val fromY = offsetY
+                            zoomAnimJob = scope.launch {
+                                launch { animate(fromScale, targetScale) { v, _ -> scale = v } }
+                                launch { animate(fromX, tx) { v, _ -> offsetX = v } }
+                                animate(fromY, ty) { v, _ -> offsetY = v }
+                            }
+                        }
                     },
                     onTap = { pos ->
                         val third = size.width / 3f
@@ -478,6 +507,7 @@ private fun CbzPage(
                         val pointerCount = event.changes.count { it.pressed }
                         when (cbzPageGestureAction(pointerCount, scale)) {
                             CbzPageGestureAction.Zoom -> {
+                                zoomAnimJob?.cancel()
                                 val zoom = event.calculateZoom()
                                 val pan = event.calculatePan()
                                 scale = (scale * zoom).coerceIn(1f, 5f)
@@ -491,6 +521,7 @@ private fun CbzPage(
                                 event.changes.forEach { it.consume() }
                             }
                             CbzPageGestureAction.PanZoomed -> {
+                                zoomAnimJob?.cancel()
                                 val pan = event.calculatePan()
                                 offsetX += pan.x
                                 offsetY += pan.y
@@ -749,6 +780,24 @@ internal fun decodeSampledBitmap(source: CbzImageSource, pageIndex: Int, maxDime
     }
     return null
 }
+
+/**
+ * Returns the graphicsLayer (translationX, translationY) that keeps the tapped pixel
+ * stationary after scaling by [targetScale] around the composable center.
+ *
+ * graphicsLayer scales around center, so a point (tapX, tapY) moves to
+ *   center + (tapX - center) * targetScale + translation
+ * Setting that equal to tapX gives: translation = (tapX - center) * (1 - targetScale).
+ */
+internal fun doubleTapZoomTranslation(
+    tapX: Float,
+    tapY: Float,
+    containerWidth: Float,
+    containerHeight: Float,
+    targetScale: Float,
+): Pair<Float, Float> =
+    (tapX - containerWidth / 2f) * (1f - targetScale) to
+    (tapY - containerHeight / 2f) * (1f - targetScale)
 
 /**
  * Decides how the per-page pointer handler should react to an event.
