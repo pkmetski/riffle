@@ -1921,7 +1921,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 70, true,
+            TEST_DB, 72, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1992,6 +1992,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_68_69,
             RiffleDatabase.MIGRATION_69_70,
             RiffleDatabase.MIGRATION_70_71,
+            RiffleDatabase.MIGRATION_71_72,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3154,8 +3155,8 @@ class MigrationTest {
     }
 
     @Test
-    fun migration70To71_createsCoverGridScaleTable() {
-        helper.createDatabase(TEST_DB, 70).use { db ->
+    fun migration71To72_createsCoverGridScaleTable() {
+        helper.createDatabase(TEST_DB, 71).use { db ->
             db.execSQL(
                 "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
                     "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
@@ -3163,7 +3164,7 @@ class MigrationTest {
         }
 
         helper.runMigrationsAndValidate(
-            TEST_DB, 71, true, RiffleDatabase.MIGRATION_70_71
+            TEST_DB, 72, true, RiffleDatabase.MIGRATION_71_72
         ).use { db ->
             // Table must exist and accept a row.
             db.execSQL(
