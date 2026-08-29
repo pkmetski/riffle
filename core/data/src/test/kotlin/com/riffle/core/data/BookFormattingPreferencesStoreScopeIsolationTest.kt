@@ -5,12 +5,12 @@ import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.models.FormattingScope
-import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.flow.Flow
@@ -21,33 +21,40 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Regression pins for the annotations-view separate-preferences change: a save under one
- * [FormattingScope] must not leak into a read under the other scope for the same book, and clear
- * must be scope-scoped. Revert the DAO's `scope` PK column or the [BookFormattingPreferencesStoreImpl]
- * threading of `scope.name` into DAO calls and these assertions flip red.
+ * Regression pins for the book-formatting-preferences key shape. Both the full-book reader and
+ * the elided (annotations) reader share one row per (sourceId, itemId, screenDimensionBucket),
+ * and each screenDimensionBucket gets an independent row.
+ *
+ * Removed-test: save under FullBook does not affect read under Highlights
+ * Removed-test: save under Highlights does not affect read under FullBook
+ * Removed-test: both scopes hold independent values for the same book
+ * Removed-test: clear only removes the targeted scope
+ *
+ * Behaviour retired: per-scope isolation in the book-preferences store no longer exists; the
+ * full-book reader and elided reader share one row so per-book customisations propagate to both.
+ * The separate FormattingScope-keyed store was added in migration 44→45 and removed in 70→71.
  */
 class BookFormattingPreferencesStoreScopeIsolationTest {
 
     private val dim = ScreenDimensionBucket.PhonePortrait
+    private val dimLandscape = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
 
     private class InMemoryDao : BookFormattingPreferencesDao {
         val rows = mutableMapOf<Triple<String, String, String>, BookFormattingPreferencesEntity>()
         override suspend fun upsert(entity: BookFormattingPreferencesEntity) {
-            rows[Triple("${entity.sourceId}|${entity.scope}", entity.itemId, entity.screenDimensionBucket)] = entity
+            rows[Triple(entity.sourceId, entity.itemId, entity.screenDimensionBucket)] = entity
         }
         override suspend fun getByItemId(
             sourceId: String,
             itemId: String,
-            scope: String,
             screenDimensionBucket: String,
-        ): BookFormattingPreferencesEntity? = rows[Triple("$sourceId|$scope", itemId, screenDimensionBucket)]
+        ): BookFormattingPreferencesEntity? = rows[Triple(sourceId, itemId, screenDimensionBucket)]
         override suspend fun deleteByItemId(
             sourceId: String,
             itemId: String,
-            scope: String,
             screenDimensionBucket: String,
         ) {
-            rows.remove(Triple("$sourceId|$scope", itemId, screenDimensionBucket))
+            rows.remove(Triple(sourceId, itemId, screenDimensionBucket))
         }
     }
 
@@ -80,79 +87,53 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
     )
 
     @Test
-    fun `save under FullBook does not affect read under Highlights`() = runTest {
+    fun `override round-trips for a book`() = runTest {
         val store = newStore()
-        store.save("item-1", FormattingScope.FullBook, dim, BookFormattingOverrides(fontSize = 2.0f))
-
-        assertEquals(
-            "FullBook read must return what FullBook wrote",
-            2.0f,
-            store.load("item-1", FormattingScope.FullBook, dim)?.fontSize,
-        )
-        assertNull(
-            "Highlights read must not see FullBook's write",
-            store.load("item-1", FormattingScope.Highlights, dim)?.fontSize,
-        )
-    }
-
-    @Test
-    fun `save under Highlights does not affect read under FullBook`() = runTest {
-        val store = newStore()
-        store.save("item-1", FormattingScope.Highlights, dim, BookFormattingOverrides(theme = ReaderTheme.Dark))
+        store.save("item-1", dim, BookFormattingOverrides(theme = ReaderTheme.Dark))
 
         assertEquals(
             ReaderTheme.Dark,
-            store.load("item-1", FormattingScope.Highlights, dim)?.theme,
+            store.load("item-1", dim)?.theme,
         )
+    }
+
+    @Test
+    fun `portrait and landscape dimensions hold independent values for the same book`() = runTest {
+        val store = newStore()
+        store.save("item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
+        store.save("item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
+
+        assertEquals(1.4f, store.load("item-1", dim)?.fontSize)
+        assertEquals(1.8f, store.load("item-1", dimLandscape)?.fontSize)
+    }
+
+    @Test
+    fun `clear removes the row for the targeted dimension only`() = runTest {
+        val store = newStore()
+        store.save("item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
+        store.save("item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
+
+        store.clear("item-1", dim)
+
         assertNull(
-            "FullBook read must not see Highlights' write",
-            store.load("item-1", FormattingScope.FullBook, dim)?.theme,
+            "Portrait value must be gone after a portrait-scoped clear",
+            store.load("item-1", dim)?.fontSize,
         )
-    }
-
-    @Test
-    fun `both scopes hold independent values for the same book`() = runTest {
-        val store = newStore()
-        store.save("item-1", FormattingScope.FullBook, dim, BookFormattingOverrides(fontSize = 1.4f))
-        store.save("item-1", FormattingScope.Highlights, dim, BookFormattingOverrides(fontSize = 1.8f))
-
-        assertEquals(1.4f, store.load("item-1", FormattingScope.FullBook, dim)?.fontSize)
-        assertEquals(1.8f, store.load("item-1", FormattingScope.Highlights, dim)?.fontSize)
-    }
-
-    @Test
-    fun `clear only removes the targeted scope`() = runTest {
-        val store = newStore()
-        store.save("item-1", FormattingScope.FullBook, dim, BookFormattingOverrides(fontSize = 1.4f))
-        store.save("item-1", FormattingScope.Highlights, dim, BookFormattingOverrides(fontSize = 1.8f))
-
-        store.clear("item-1", FormattingScope.Highlights, dim)
-
         assertEquals(
-            "FullBook value must survive a Highlights-scoped clear",
-            1.4f,
-            store.load("item-1", FormattingScope.FullBook, dim)?.fontSize,
-        )
-        assertNull(
-            "Highlights value must be gone after a Highlights-scoped clear",
-            store.load("item-1", FormattingScope.Highlights, dim)?.fontSize,
+            "Landscape value must survive a portrait-scoped clear",
+            1.8f,
+            store.load("item-1", dimLandscape)?.fontSize,
         )
     }
 
     @Test
     fun `colored chapter map override round-trips for a book`() = runTest {
         val store = newStore()
-
-        store.save(
-            "item-1",
-            FormattingScope.FullBook,
-            dim,
-            BookFormattingOverrides(coloredChapterMap = false),
-        )
+        store.save("item-1", dim, BookFormattingOverrides(coloredChapterMap = false))
 
         assertEquals(
             false,
-            store.load("item-1", FormattingScope.FullBook, dim)?.coloredChapterMap,
+            store.load("item-1", dim)?.coloredChapterMap,
         )
     }
 }

@@ -5,7 +5,6 @@ import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
-import com.riffle.core.models.FormattingScope
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -27,7 +26,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,16 +50,6 @@ class FormattingSession @AssistedInject constructor(
     private val autoScrollController: AutoScrollController,
     private val appearanceCoordinator: AppearanceCoordinator,
 ) {
-
-    // The reading context this session is bound to. Flips only at bindToBook() time — highlights
-    // mode uses the Highlights scope's independent global store + per-book override chain, while
-    // the full-book reader uses the default FullBook chain. Emitted as a StateFlow so the init
-    // combine below can flatMapLatest into the correct global preferences source when the scope
-    // changes (e.g., process reuse across sessions).
-    private val _scope = MutableStateFlow(FormattingScope.FullBook)
-    // Snapshot for suspend paths (bindToBook, resetToGlobalDefaults) so they read the same scope
-    // the flow-driven state is using.
-    private val activeScope: FormattingScope get() = _scope.value
 
     @AssistedFactory
     interface Factory {
@@ -148,18 +136,12 @@ class FormattingSession @AssistedInject constructor(
         // book open so a session that wasn't cleanly torn down (process kill mid-scroll, then
         // restart into a different book) does not auto-start the new book mid-air.
         autoScrollController.dispatch(AutoScrollEvent.Stop)
-        // Keep effective prefs in sync with both global changes and override updates. flatMapLatest
-        // over `_scope` so the global source switches when the scope flips (e.g. entering the
-        // annotations reading view mid-process). The scope defaults to FullBook so the very first
-        // emission — before bindToBook() runs — mirrors the previous single-store behaviour.
+        // Keep effective prefs in sync with both global changes and override updates.
         scope.launch {
-            _scope
-                .flatMapLatest { scope ->
-                    combine(
-                        formattingPreferencesStoreProvider.store(scope).preferences,
-                        _bookOverrides,
-                    ) { global, overrides -> overrides.applyTo(global) to !overrides.isEmpty }
-                }
+            combine(
+                formattingPreferencesStoreProvider.store().preferences,
+                _bookOverrides,
+            ) { global, overrides -> overrides.applyTo(global) to !overrides.isEmpty }
                 .collect { (effective, hasOverrides) ->
                     _formattingPreferences.value = effective
                     _hasBookOverrides.value = hasOverrides
@@ -211,25 +193,23 @@ class FormattingSession @AssistedInject constructor(
      * Load book-specific overrides for the given screen-dimension bucket and mark prefs as ready.
      * Must be called before [effectiveFormattingPreferences] is consumed by the navigator. May be
      * re-called when the device dimension changes (fold/rotate) to switch to the new bucket's row.
-     * If no row exists for this (itemId, scope, dimension), global defaults are seeded as a dense
+     * If no row exists for this (itemId, dimension), global defaults are seeded as a dense
      * override row so the dimension's settings are independent going forward.
      */
     fun bindToBook(
         itemId: String,
-        scope: FormattingScope = FormattingScope.FullBook,
         dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait,
     ) {
         val alreadyReady = _formattingPreferencesReady.value
         bookId = itemId
         activeDimension = dimension
-        _scope.value = scope
         // Only reset the ready flag on the first bind. Re-binding for a dimension change leaves the
         // prior prefs visible while the new dimension's row loads — avoids a spinner flash on fold/rotate.
         if (!alreadyReady) _formattingPreferencesReady.value = false
         bindJob?.cancel()
         bindJob = this.scope.launch {
-            val existing = bookFormattingPreferencesStore.load(itemId, scope, dimension)
-            val global = formattingPreferencesStoreProvider.store(scope).preferences.first()
+            val existing = bookFormattingPreferencesStore.load(itemId, dimension)
+            val global = formattingPreferencesStoreProvider.store().preferences.first()
             val overrides = if (existing != null) {
                 existing
             } else {
@@ -250,7 +230,7 @@ class FormattingSession @AssistedInject constructor(
                     doublePageSpread = global.doublePageSpread,
                     justifyText = global.justifyText,
                 ).also { seed ->
-                    bookFormattingPreferencesStore.save(itemId, scope, dimension, seed)
+                    bookFormattingPreferencesStore.save(itemId, dimension, seed)
                 }
             }
             _bookOverrides.value = overrides
@@ -278,9 +258,8 @@ class FormattingSession @AssistedInject constructor(
         _bookOverrides.value = updated
         _formattingPreferences.value = prefs
         _hasBookOverrides.value = !updated.isEmpty
-        val boundScope = activeScope
         val boundDimension = activeDimension
-        scope.launch { bookFormattingPreferencesStore.save(itemId, boundScope, boundDimension, updated) }
+        scope.launch { bookFormattingPreferencesStore.save(itemId, boundDimension, updated) }
     }
 
     /**
@@ -290,18 +269,17 @@ class FormattingSession @AssistedInject constructor(
      * The VM calls this once per open book when the JS probe reports its Intl.Segmenter answer.
      */
     fun persistCadencePlatformSupported(supported: Boolean) {
-        scope.launch { formattingPreferencesStoreProvider.store(activeScope).setCadencePlatformSupported(supported) }
+        scope.launch { formattingPreferencesStoreProvider.store().setCadencePlatformSupported(supported) }
     }
 
     /** Clear book-level overrides for the current dimension, reverting to global formatting preferences. */
     fun resetToGlobalDefaults(itemId: String) {
-        val boundScope = activeScope
         val boundDimension = activeDimension
         scope.launch {
-            bookFormattingPreferencesStore.clear(itemId, boundScope, boundDimension)
+            bookFormattingPreferencesStore.clear(itemId, boundDimension)
             _bookOverrides.value = BookFormattingOverrides()
             _formattingPreferences.value =
-                formattingPreferencesStoreProvider.store(boundScope).preferences.first()
+                formattingPreferencesStoreProvider.store().preferences.first()
             _hasBookOverrides.value = false
         }
     }

@@ -4,17 +4,16 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
-// Formatting stays per-device (never synced, never per-user). The row must point at the *right*
-// book and the *right* reading context: once item ids collide across Sources, itemId alone would
-// let two different books share one formatting row (ADR 0029), and once the annotations reading
-// view got its own preferences chain, sourceId+itemId alone would let the annotations view and
-// full-book view collide on the same book. `sourceId` FK-cascades so a removed Source's
-// formatting is cleared. `scope` is the `FormattingScope` enum name ("FullBook" / "Highlights").
-// `screenDimensionBucket` is `ScreenDimensionBucket.encode()` — e.g. "Compact_Medium" — so each
-// screen-size class gets independent settings for the same book.
+// Formatting stays per-device (never synced, never per-user). Once item ids collide across
+// Sources, itemId alone would let two different books share one formatting row (ADR 0029), so
+// `sourceId` is part of the PK. `sourceId` FK-cascades so a removed Source's formatting is
+// cleared. `screenDimensionBucket` is `ScreenDimensionBucket.encode()` — e.g. "Compact_Medium"
+// — so each screen-size class gets independent settings for the same book. The full-book reader
+// and the elided (annotations) reader share the same row so per-book customisations propagate
+// to both views without duplication.
 @Entity(
     tableName = "book_formatting_preferences",
-    primaryKeys = ["sourceId", "itemId", "scope", "screenDimensionBucket"],
+    primaryKeys = ["sourceId", "itemId", "screenDimensionBucket"],
     foreignKeys = [
         ForeignKey(
             entity = SourceEntity::class,
@@ -28,7 +27,6 @@ import androidx.room.Index
 data class BookFormattingPreferencesEntity(
     val sourceId: String,
     val itemId: String,
-    val scope: String,
     val screenDimensionBucket: String,
     val fontSize: Float? = null,
     val theme: String? = null,

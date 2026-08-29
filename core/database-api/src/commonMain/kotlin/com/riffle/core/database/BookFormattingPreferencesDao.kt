@@ -13,25 +13,23 @@ interface BookFormattingPreferencesDao {
 
     @Query(
         "SELECT * FROM book_formatting_preferences " +
-            "WHERE sourceId = :sourceId AND itemId = :itemId AND scope = :scope " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId " +
             "AND screenDimensionBucket = :screenDimensionBucket LIMIT 1"
     )
     suspend fun getByItemId(
         sourceId: String,
         itemId: String,
-        scope: String,
         screenDimensionBucket: String,
     ): BookFormattingPreferencesEntity?
 
     @Query(
         "DELETE FROM book_formatting_preferences " +
-            "WHERE sourceId = :sourceId AND itemId = :itemId AND scope = :scope " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId " +
             "AND screenDimensionBucket = :screenDimensionBucket"
     )
     suspend fun deleteByItemId(
         sourceId: String,
         itemId: String,
-        scope: String,
         screenDimensionBucket: String,
     )
 }

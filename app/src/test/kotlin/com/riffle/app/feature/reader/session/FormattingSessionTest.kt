@@ -6,8 +6,8 @@ import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
-import com.riffle.core.models.FormattingScope
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
@@ -51,29 +51,26 @@ class FormattingSessionTest {
     }
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
-        // Keyed by (itemId, scope, dimension) so scope and dimension combinations stay independent.
-        val saved = mutableMapOf<Triple<String, FormattingScope, ScreenDimensionBucket>, BookFormattingOverrides>()
+        // Keyed by (itemId, dimension) — mirrors the real store's (sourceId, itemId, bucket) PK,
+        // minus the fixed sourceId which is an active-source concern outside the session layer.
+        val saved = mutableMapOf<Pair<String, ScreenDimensionBucket>, BookFormattingOverrides>()
         private var toReturn: BookFormattingOverrides? = null
         fun willReturn(o: BookFormattingOverrides?) { toReturn = o }
         override suspend fun load(
-            itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket,
-        ): BookFormattingOverrides? = saved[Triple(itemId, scope, dimension)] ?: toReturn
+            itemId: String, dimension: ScreenDimensionBucket,
+        ): BookFormattingOverrides? = saved[itemId to dimension] ?: toReturn
         override suspend fun save(
-            itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides,
-        ) { saved[Triple(itemId, scope, dimension)] = overrides }
+            itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides,
+        ) { saved[itemId to dimension] = overrides }
         override suspend fun clear(
-            itemId: String, scope: FormattingScope, dimension: ScreenDimensionBucket,
-        ) { saved.remove(Triple(itemId, scope, dimension)) }
+            itemId: String, dimension: ScreenDimensionBucket,
+        ) { saved.remove(itemId to dimension) }
     }
 
     private class FakeFormattingPreferencesStoreProvider(
-        private val fullBook: FormattingPreferencesStore,
-        private val highlights: FormattingPreferencesStore = fullBook,
+        private val store: FormattingPreferencesStore,
     ) : FormattingPreferencesStoreProvider {
-        override fun store(scope: FormattingScope): FormattingPreferencesStore = when (scope) {
-            FormattingScope.FullBook -> fullBook
-            FormattingScope.Highlights -> highlights
-        }
+        override fun store(): FormattingPreferencesStore = store
     }
 
     private class FakeWakeLockPreferencesStore : WakeLockPreferencesStore {
@@ -185,7 +182,7 @@ class FormattingSessionTest {
             session.bindToBook("item1")
             val newPrefs = FormattingPreferences(fontSize = 1.8f)
             session.updateFormatting("item1", newPrefs)
-            assertTrue(bookStore.saved.containsKey(Triple("item1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)))
+            assertTrue(bookStore.saved.containsKey("item1" to ScreenDimensionBucket.PhonePortrait))
         } finally {
             scope.cancel()
         }
@@ -201,7 +198,7 @@ class FormattingSessionTest {
             assertTrue(session.hasBookOverrides.value)
             session.resetToGlobalDefaults("item1")
             assertFalse(session.hasBookOverrides.value)
-            assertFalse(bookStore.saved.containsKey(Triple("item1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)))
+            assertFalse(bookStore.saved.containsKey("item1" to ScreenDimensionBucket.PhonePortrait))
         } finally {
             scope.cancel()
         }
@@ -343,8 +340,8 @@ class FormattingSessionTest {
     fun `bindToBook applies overrides for each book`() = runTest {
         val fakeGlobal = FakeFormattingPreferencesStore(FormattingPreferences(fontSize = 1.0f))
         val fakeBook = FakeBookFormattingPreferencesStore()
-        fakeBook.saved[Triple("book-a", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)] = BookFormattingOverrides(fontSize = 1.5f)
-        fakeBook.saved[Triple("book-b", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)] = BookFormattingOverrides(fontSize = 2.0f)
+        fakeBook.saved["book-a" to ScreenDimensionBucket.PhonePortrait] = BookFormattingOverrides(fontSize = 1.5f)
+        fakeBook.saved["book-b" to ScreenDimensionBucket.PhonePortrait] = BookFormattingOverrides(fontSize = 2.0f)
         val (session, _, _, _, _, scope) = makeEager(fakeGlobal = fakeGlobal, fakeBook = fakeBook)
         try {
             session.bindToBook("book-a")
@@ -509,15 +506,16 @@ class FormattingSessionTest {
         }
     }
 
-    // Scope isolation: binding with FormattingScope.Highlights routes both reads and writes to the
-    // highlights global store and to the (itemId, Highlights) per-book slot. Revert either half of
-    // the split (the DAO scope column, the FormattingSession's flatMapLatest over _scope, or the
-    // provider selection in bindToBook) and this pins that regression.
+    // Global inheritance: binding in the elided (annotations) view exposes the same global
+    // preferences store as the full-book reader because FormattingPreferencesStoreProviderImpl
+    // returns the shared store. A global continuous-mode setting is therefore visible in the
+    // elided view. The store-routing pin lives in FormattingPreferencesStoreProviderImplTest.
     @Test
-    fun `bindToBook Highlights reads global from Highlights store not FullBook`() = runTest {
-        val fullBook = FakeFormattingPreferencesStore(FormattingPreferences(fontSize = 1.0f))
-        val highlights = FakeFormattingPreferencesStore(FormattingPreferences(fontSize = 2.0f))
-        val provider = FakeFormattingPreferencesStoreProvider(fullBook, highlights)
+    fun `bindToBook Highlights exposes global prefs from the shared store`() = runTest {
+        val global = FakeFormattingPreferencesStore(
+            FormattingPreferences(orientation = ReaderOrientation.Continuous),
+        )
+        val provider = FakeFormattingPreferencesStoreProvider(global)
         val dispatcher = UnconfinedTestDispatcher()
         val autoScrollController = AutoScrollController.forTest(dispatcher)
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
@@ -531,11 +529,11 @@ class FormattingSessionTest {
             appearanceCoordinator = FakeAppearanceCoordinator(),
         )
         try {
-            session.bindToBook("item1", FormattingScope.Highlights)
+            session.bindToBook("item1")
             assertEquals(
-                "Highlights bind must expose the highlights global's fontSize, not FullBook's",
-                2.0f,
-                session.effectiveFormattingPreferences.value.fontSize,
+                "Highlights bind must expose the global store's orientation",
+                ReaderOrientation.Continuous,
+                session.effectiveFormattingPreferences.value.orientation,
             )
         } finally {
             autoScrollController.release()
@@ -544,17 +542,14 @@ class FormattingSessionTest {
     }
 
     @Test
-    fun `updateFormatting under Highlights writes to Highlights per-book slot`() = runTest {
-        val fullBook = FakeFormattingPreferencesStore()
-        val highlights = FakeFormattingPreferencesStore()
-        val provider = FakeFormattingPreferencesStoreProvider(fullBook, highlights)
+    fun `updateFormatting writes to the shared per-book slot`() = runTest {
         val bookStore = FakeBookFormattingPreferencesStore()
         val dispatcher = UnconfinedTestDispatcher()
         val autoScrollController = AutoScrollController.forTest(dispatcher)
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
         val session = FormattingSession(
             scope = sessionScope,
-            formattingPreferencesStoreProvider = provider,
+            formattingPreferencesStoreProvider = FakeFormattingPreferencesStoreProvider(FakeFormattingPreferencesStore()),
             bookFormattingPreferencesStore = bookStore,
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),
@@ -562,16 +557,12 @@ class FormattingSessionTest {
             appearanceCoordinator = FakeAppearanceCoordinator(),
         )
         try {
-            session.bindToBook("book-x", FormattingScope.Highlights)
+            session.bindToBook("book-x")
             session.updateFormatting("book-x", FormattingPreferences(fontSize = 1.75f))
 
             assertTrue(
-                "Highlights write must land in the Highlights per-book slot",
-                bookStore.saved.containsKey(Triple("book-x", FormattingScope.Highlights, ScreenDimensionBucket.PhonePortrait)),
-            )
-            assertFalse(
-                "Highlights write must NOT leak into the FullBook per-book slot",
-                bookStore.saved.containsKey(Triple("book-x", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)),
+                "updateFormatting must persist to the shared per-book slot",
+                bookStore.saved.containsKey("book-x" to ScreenDimensionBucket.PhonePortrait),
             )
         } finally {
             autoScrollController.release()
@@ -620,9 +611,9 @@ class FormattingSessionTest {
         val fakeGlobal = FakeFormattingPreferencesStore(globalPrefs)
         val b = makeEager(fakeGlobal = fakeGlobal, fakeBook = fakeBook)
         try {
-            b.session.bindToBook("book1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)
+            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait)
 
-            val seeded = fakeBook.saved[Triple("book1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)]
+            val seeded = fakeBook.saved["book1" to ScreenDimensionBucket.PhonePortrait]
             assertNotNull(seeded)
             assertEquals(1.5f, seeded!!.fontSize)
             assertEquals(0.8f, seeded.margins)
@@ -638,12 +629,12 @@ class FormattingSessionTest {
         val dimA = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
         val dimB = ScreenDimensionBucket.PhonePortrait
         try {
-            b.session.bindToBook("book1", FormattingScope.FullBook, dimA)
+            b.session.bindToBook("book1", dimA)
             b.session.updateFormatting("book1", b.session.formattingPreferences.value.copy(fontSize = 2.0f))
-            b.session.bindToBook("book1", FormattingScope.FullBook, dimB)
+            b.session.bindToBook("book1", dimB)
 
-            val dimARow = fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimA)]
-            val dimBRow = fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimB)]
+            val dimARow = fakeBook.saved["book1" to dimA]
+            val dimBRow = fakeBook.saved["book1" to dimB]
             assertNotNull(dimARow)
             assertNotNull(dimBRow)
             assertEquals(2.0f, dimARow!!.fontSize)
@@ -658,16 +649,16 @@ class FormattingSessionTest {
         val dimA = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
         val dimB = ScreenDimensionBucket.PhonePortrait
         val fakeBook = FakeBookFormattingPreferencesStore().also { it.willReturn(null) }
-        fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimA)] = BookFormattingOverrides(fontSize = 1.2f)
-        fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimB)] = BookFormattingOverrides(fontSize = 1.8f)
+        fakeBook.saved["book1" to dimA] = BookFormattingOverrides(fontSize = 1.2f)
+        fakeBook.saved["book1" to dimB] = BookFormattingOverrides(fontSize = 1.8f)
 
         val b = makeEager(fakeBook = fakeBook)
         try {
-            b.session.bindToBook("book1", FormattingScope.FullBook, dimA)
+            b.session.bindToBook("book1", dimA)
             b.session.resetToGlobalDefaults("book1")
 
-            assertNull(fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimA)])
-            assertNotNull(fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimB)])
+            assertNull(fakeBook.saved["book1" to dimA])
+            assertNotNull(fakeBook.saved["book1" to dimB])
         } finally {
             b.sessionScope.cancel()
         }
@@ -682,12 +673,12 @@ class FormattingSessionTest {
         val b = makeEager(fakeBook = fakeBook)
         try {
             // Call bindToBook twice in quick succession — dimB must win.
-            b.session.bindToBook("book1", FormattingScope.FullBook, dimA)
-            b.session.bindToBook("book1", FormattingScope.FullBook, dimB)
+            b.session.bindToBook("book1", dimA)
+            b.session.bindToBook("book1", dimB)
 
             // activeDimension must reflect the last call's dimension so any subsequent
             // updateFormatting / resetToGlobalDefaults targets dimB, not dimA.
-            val seededB = fakeBook.saved[Triple("book1", FormattingScope.FullBook, dimB)]
+            val seededB = fakeBook.saved["book1" to dimB]
             assertNotNull("dimB row must be seeded by the winning bindToBook call", seededB)
         } finally {
             b.sessionScope.cancel()

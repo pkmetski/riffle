@@ -44,7 +44,7 @@ import androidx.sqlite.execSQL
         DictionaryPackEntity::class,
         LookupHistoryEntity::class,
     ],
-    version = 70,
+    version = 71,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1821,6 +1821,50 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "`justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, " +
                         "PRIMARY KEY(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`), " +
                         "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +
+                        "ON `book_formatting_preferences` (`sourceId`)"
+                )
+            }
+        }
+
+        // Remove `scope` from the per-book formatting-preferences PK. The full-book reader and the
+        // elided (annotations) reader now share one row per (sourceId, itemId, screenDimensionBucket)
+        // so per-book customisations (font size, margins, etc.) propagate to both views. Existing
+        // FullBook rows are kept as the authoritative per-book settings; any Highlights rows (which
+        // were written by a separate, now-removed preferences chain that had no settings UI) are
+        // discarded. WHERE scope = 'FullBook' ensures only one row per natural key is inserted; the
+        // INSERT OR IGNORE guard is belt-and-suspenders in case a device somehow has both scopes.
+        val MIGRATION_70_71 = object : Migration(70, 71) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "CREATE TABLE `book_formatting_preferences_new` " +
+                        "(`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, " +
+                        "`screenDimensionBucket` TEXT NOT NULL, " +
+                        "`fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, " +
+                        "`margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, " +
+                        "`coloredChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, " +
+                        "`showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, " +
+                        "`justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, " +
+                        "PRIMARY KEY(`sourceId`, `itemId`, `screenDimensionBucket`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "INSERT OR IGNORE INTO `book_formatting_preferences_new` " +
+                        "(sourceId, itemId, screenDimensionBucket, fontSize, theme, fontFamily, " +
+                        "lineSpacing, margins, orientation, showChapterMap, coloredChapterMap, " +
+                        "showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, " +
+                        "justifyText, showReadingTimeEstimate) " +
+                        "SELECT sourceId, itemId, screenDimensionBucket, fontSize, theme, fontFamily, " +
+                        "lineSpacing, margins, orientation, showChapterMap, coloredChapterMap, " +
+                        "showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, " +
+                        "justifyText, showReadingTimeEstimate " +
+                        "FROM `book_formatting_preferences` WHERE scope = 'FullBook'"
+                )
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL(
+                    "ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`"
                 )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +

@@ -69,7 +69,6 @@ import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.highlights.realCapturedFontOrNull
-import com.riffle.app.feature.reader.highlights.toFormattingScope
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -681,7 +680,7 @@ class EpubReaderViewModel @Inject constructor(
         val previous = _screenDimensionBucket.value
         _screenDimensionBucket.value = bucket
         if (previous != null && previous != bucket) {
-            formatting.bindToBook(itemId, source.toFormattingScope(), bucket)
+            formatting.bindToBook(itemId, bucket)
         }
     }
 
@@ -1156,7 +1155,7 @@ class EpubReaderViewModel @Inject constructor(
             // time first() returned and now. setScreenDimensionBucket only calls bindToBook when
             // previous!=null, so the init coroutine must pick up the latest value here rather
             // than the stale one captured by first().
-            formatting.bindToBook(itemId, source.toFormattingScope(), checkNotNull(_screenDimensionBucket.value))
+            formatting.bindToBook(itemId, checkNotNull(_screenDimensionBucket.value))
             openBook()
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0044). Stop (not Pause):

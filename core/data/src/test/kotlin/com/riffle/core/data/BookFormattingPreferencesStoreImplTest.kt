@@ -7,7 +7,6 @@ import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.FormattingScope
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.ServerType
@@ -41,26 +40,26 @@ class BookFormattingPreferencesStoreImplTest {
         override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
-    private val capturedGetArgs = mutableListOf<Pair<String, String>>() // (scope, bucket)
+    private val capturedGetBuckets = mutableListOf<String>()
 
     private inner class FakeDao : BookFormattingPreferencesDao {
         var entityToReturn: BookFormattingPreferencesEntity? = null
         val upserted = mutableListOf<BookFormattingPreferencesEntity>()
-        val deleted = mutableListOf<Pair<String, String>>() // (scope, bucket)
+        val deletedBuckets = mutableListOf<String>()
 
         override suspend fun upsert(entity: BookFormattingPreferencesEntity) {
             upserted += entity
         }
         override suspend fun getByItemId(
-            sourceId: String, itemId: String, scope: String, screenDimensionBucket: String,
+            sourceId: String, itemId: String, screenDimensionBucket: String,
         ): BookFormattingPreferencesEntity? {
-            capturedGetArgs += scope to screenDimensionBucket
+            capturedGetBuckets += screenDimensionBucket
             return entityToReturn
         }
         override suspend fun deleteByItemId(
-            sourceId: String, itemId: String, scope: String, screenDimensionBucket: String,
+            sourceId: String, itemId: String, screenDimensionBucket: String,
         ) {
-            deleted += scope to screenDimensionBucket
+            deletedBuckets += screenDimensionBucket
         }
     }
 
@@ -70,10 +69,9 @@ class BookFormattingPreferencesStoreImplTest {
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
         val bucket = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
 
-        store.load("book1", FormattingScope.FullBook, bucket)
+        store.load("book1", bucket)
 
-        assertEquals("FullBook", capturedGetArgs.first().first)
-        assertEquals(bucket.encode(), capturedGetArgs.first().second)
+        assertEquals(bucket.encode(), capturedGetBuckets.first())
     }
 
     @Test
@@ -81,7 +79,7 @@ class BookFormattingPreferencesStoreImplTest {
         val dao = FakeDao().also { it.entityToReturn = null }
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
 
-        val result = store.load("book1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)
+        val result = store.load("book1", ScreenDimensionBucket.PhonePortrait)
 
         assertNull(result)
     }
@@ -93,7 +91,7 @@ class BookFormattingPreferencesStoreImplTest {
         val bucket = ScreenDimensionBucket.of(SizeClass.Medium, SizeClass.Expanded)
         val overrides = BookFormattingOverrides(theme = ReaderTheme.Dark)
 
-        store.save("book1", FormattingScope.FullBook, bucket, overrides)
+        store.save("book1", bucket, overrides)
 
         assertEquals(1, dao.upserted.size)
         assertEquals(bucket.encode(), dao.upserted.first().screenDimensionBucket)
@@ -106,10 +104,10 @@ class BookFormattingPreferencesStoreImplTest {
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
         val bucket = ScreenDimensionBucket.of(SizeClass.Expanded, SizeClass.Compact)
 
-        store.clear("book1", FormattingScope.FullBook, bucket)
+        store.clear("book1", bucket)
 
-        assertEquals(1, dao.deleted.size)
-        assertEquals(bucket.encode(), dao.deleted.first().second)
+        assertEquals(1, dao.deletedBuckets.size)
+        assertEquals(bucket.encode(), dao.deletedBuckets.first())
     }
 
     @Test
@@ -117,7 +115,7 @@ class BookFormattingPreferencesStoreImplTest {
         val dao = FakeDao()
         val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(null))
 
-        val result = store.load("book1", FormattingScope.FullBook, ScreenDimensionBucket.PhonePortrait)
+        val result = store.load("book1", ScreenDimensionBucket.PhonePortrait)
 
         assertNull(result)
     }
