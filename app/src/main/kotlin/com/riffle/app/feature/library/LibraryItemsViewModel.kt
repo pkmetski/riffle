@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -73,6 +74,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
+    private val dispatchers: com.riffle.core.domain.DispatcherProvider,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -233,6 +235,9 @@ class LibraryItemsViewModel @Inject constructor(
                 }
             }
         }
+        // representativeSeriesCoverUrl runs isAvailableOffline over series members when offline —
+        // filesystem stats that must not run on Main (see LibraryFilterEngine.projection).
+        .flowOn(dispatchers.default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _notStartedFilterActive = MutableStateFlow(false)
@@ -275,6 +280,7 @@ class LibraryItemsViewModel @Inject constructor(
         searchQuery = searchQuery,
         notStartedFilterActive = _notStartedFilterActive,
         librarySortMode = _librarySortMode,
+        computeDispatcher = dispatchers.default,
     )
 
     val projection: StateFlow<LibraryProjection> = filterEngine.projection

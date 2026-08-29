@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,6 +37,7 @@ class CollectionDetailViewModel @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val offlineAvailability: LibraryItemOfflineAvailability,
     private val connectivityObserver: ConnectivityObserver,
+    private val dispatchers: com.riffle.core.domain.DispatcherProvider,
 ) : ViewModel() {
 
     val collectionId: String = savedStateHandle.get<String>("collectionId") ?: ""
@@ -55,7 +57,11 @@ class CollectionDetailViewModel @Inject constructor(
 
     val items: StateFlow<List<LibraryItem>> = combine(allItems, isOffline) { items, offline ->
         if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }
+        // isAvailableOffline stats the filesystem per item — keep the sweep off Main
+        // (see LibraryFilterEngine.projection).
+        .flowOn(dispatchers.default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var authToken: String by mutableStateOf("")
         private set

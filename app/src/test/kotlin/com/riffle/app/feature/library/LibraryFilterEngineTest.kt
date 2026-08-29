@@ -201,6 +201,44 @@ class LibraryFilterEngineTest {
             title = title, createdAt = 0L,
         )
 
+    // --- threading (page-turn main-thread sweep regression) ---
+
+    @Test
+    fun `offline availability sweep runs on the compute dispatcher, never the collector thread`() = runTest {
+        val sweepThreads = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+        val recordingEpubRepo = object : EpubRepository {
+            override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
+            override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
+            override suspend fun removeDownload(sourceId: String, itemId: String) {}
+            override fun isDownloaded(sourceId: String, itemId: String): Boolean {
+                sweepThreads.add(Thread.currentThread().name)
+                return itemId == "id-A"
+            }
+            override fun isCached(sourceId: String, itemId: String): Boolean = false
+            override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+        }
+        val engine = makeEngine(epubRepository = recordingEpubRepo)
+        isOfflineFlow.value = true
+        allBooksFlow.value = listOf(item("A"), item("B"))
+
+        val collectorThread = Thread.currentThread().name
+        val p = engine.projection.first { it.allBooks.map { b -> b.id } == listOf("id-A") }
+        assertEquals(listOf("id-A"), p.allBooks.map { it.id })
+
+        // The whole point of the engine's flowOn: the per-item filesystem sweep must not run on
+        // the thread that collects the projection (in production that is Main — a page turn
+        // re-emits every source flow, and an on-Main sweep froze the reader for seconds).
+        org.junit.Assert.assertTrue("sweep never ran", sweepThreads.isNotEmpty())
+        org.junit.Assert.assertTrue(
+            "sweep ran on the collector thread: $sweepThreads",
+            sweepThreads.none { it == collectorThread },
+        )
+        org.junit.Assert.assertTrue(
+            "expected Dispatchers.Default workers, got $sweepThreads",
+            sweepThreads.all { it.contains("DefaultDispatcher") },
+        )
+    }
+
     // --- series ---
 
     @Test

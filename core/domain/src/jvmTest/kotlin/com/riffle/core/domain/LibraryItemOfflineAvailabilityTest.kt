@@ -1,5 +1,9 @@
 package com.riffle.core.domain
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -129,6 +133,72 @@ class LibraryItemOfflineAvailabilityTest {
         )
 
         assertFalse(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
+    }
+
+    // --- Memoization (page-turn filesystem-sweep regression, see class KDoc) ---
+
+    private class CountingCbzRepository : CbzRepository {
+        var isDownloadedCalls = 0
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean {
+            isDownloadedCalls++
+            return false
+        }
+        override fun isCached(sourceId: String, itemId: String) = false
+        override suspend fun openCbz(item: LibraryItem) = error("unused")
+        override suspend fun downloadCbz(
+            item: LibraryItem,
+            onProgress: (downloaded: Long, total: Long) -> Unit,
+        ) = error("unused")
+        override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
+        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
+        override suspend fun supportsStreaming(sourceId: String) = false
+        override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?) = error("unused")
+        override suspend fun awaitCachedFile(item: LibraryItem): java.io.File? = null
+    }
+
+    private fun cachingAvailability(
+        counting: CountingCbzRepository,
+        changes: MutableSharedFlow<StoredItemRef>? = null,
+    ) = LibraryItemOfflineAvailability(
+        epubRepository = FakeEpubRepository(),
+        pdfRepository = FakePdfRepository(),
+        cbzRepository = counting,
+        audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+        bundleAudiobookSource = FakeBundleAudiobookSource(),
+        availabilityChanges = changes,
+        invalidationScope = changes?.let { CoroutineScope(Dispatchers.Unconfined) },
+    )
+
+    @Test
+    fun `repeated sweeps hit the memo instead of re-statting the filesystem`() {
+        val counting = CountingCbzRepository()
+        val availability = cachingAvailability(counting)
+        repeat(3) { availability.isAvailableOffline(item(EbookFormat.Cbz)) }
+        assertEquals(1, counting.isDownloadedCalls)
+    }
+
+    @Test
+    fun `a local availability change re-computes that item`() {
+        val changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 8)
+        val counting = CountingCbzRepository()
+        val availability = cachingAvailability(counting, changes)
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        assertEquals(1, counting.isDownloadedCalls)
+        changes.tryEmit(StoredItemRef("s1", "i1"))
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        assertEquals(2, counting.isDownloadedCalls)
+    }
+
+    @Test
+    fun `a change for a different item does not invalidate the memo`() {
+        val changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 8)
+        val counting = CountingCbzRepository()
+        val availability = cachingAvailability(counting, changes)
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        changes.tryEmit(StoredItemRef("s1", "OTHER"))
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        assertEquals(1, counting.isDownloadedCalls)
     }
 
     private class FakeEpubRepository(

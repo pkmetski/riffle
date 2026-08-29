@@ -185,7 +185,16 @@ abstract class RepositoriesModule {
             cbzRepository: com.riffle.core.domain.CbzRepository,
             audiobookDownloadRepository: AudiobookDownloadRepository,
             bundleAudiobookSource: BundleAudiobookSource,
+            localAvailabilityEvents: LocalAvailabilityEvents,
         ): LibraryItemOfflineAvailability =
-            LibraryItemOfflineAvailability(epubRepository, pdfRepository, cbzRepository, audiobookDownloadRepository, bundleAudiobookSource)
+            LibraryItemOfflineAvailability(
+                epubRepository, pdfRepository, cbzRepository, audiobookDownloadRepository, bundleAudiobookSource,
+                availabilityChanges = localAvailabilityEvents.changes,
+                // Singleton-lifetime scope for the cache-invalidation collector; nothing to cancel
+                // before process death.
+                invalidationScope = kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+                ),
+            )
     }
 }
