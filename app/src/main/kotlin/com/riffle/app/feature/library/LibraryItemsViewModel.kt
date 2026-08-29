@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
@@ -80,14 +81,14 @@ class LibraryItemsViewModel @Inject constructor(
     private val _screenDimensionBucket = MutableStateFlow<ScreenDimensionBucket?>(null)
 
     /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
-    val coverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sid, bucket -> sid to bucket }
-        .flatMapLatest { (sourceId, bucket) ->
+    val coverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sourceId, bucket ->
             if (sourceId != null && bucket != null) {
                 coverGridDensityStore.scale(sourceId, libraryId, bucket)
             } else {
                 coverGridDensityStore.scale
             }
         }
+        .flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 
     private var coverScalePersistJob: Job? = null
@@ -100,9 +101,9 @@ class LibraryItemsViewModel @Inject constructor(
         coverScalePersistJob?.cancel()
         coverScalePersistJob = viewModelScope.launch {
             delay(200)
-            val sourceId = _activeSourceId.value
+            val sourceId = _activeSourceId.filterNotNull().first()
             val bucket = _screenDimensionBucket.value
-            if (sourceId != null && bucket != null) {
+            if (bucket != null) {
                 coverGridDensityStore.setScale(sourceId, libraryId, bucket, value)
             } else {
                 coverGridDensityStore.setScale(value)

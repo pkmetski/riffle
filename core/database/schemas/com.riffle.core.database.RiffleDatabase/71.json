@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 71,
-    "identityHash": "b0363107cc81f2ee9303de642f5aec2c",
+    "identityHash": "f054047ee1f2acbe60b1863c0c4379dd",
     "entities": [
       {
         "tableName": "sources",
@@ -514,7 +514,7 @@
       },
       {
         "tableName": "book_formatting_preferences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `scope` TEXT NOT NULL, `screenDimensionBucket` TEXT NOT NULL, `fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, `margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, `coloredChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, `showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, `justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, PRIMARY KEY(`sourceId`, `itemId`, `scope`, `screenDimensionBucket`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `screenDimensionBucket` TEXT NOT NULL, `fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, `margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, `coloredChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, `showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, `justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, PRIMARY KEY(`sourceId`, `itemId`, `screenDimensionBucket`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "sourceId",
@@ -525,12 +525,6 @@
           {
             "fieldPath": "itemId",
             "columnName": "itemId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "scope",
-            "columnName": "scope",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -611,7 +605,6 @@
           "columnNames": [
             "sourceId",
             "itemId",
-            "scope",
             "screenDimensionBucket"
           ]
         },
@@ -2223,73 +2216,11 @@
             "id"
           ]
         }
-      },
-      {
-        "tableName": "cover_grid_scale",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `screenDimensionBucket` TEXT NOT NULL, `scale` REAL NOT NULL, PRIMARY KEY(`sourceId`, `libraryId`, `screenDimensionBucket`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "sourceId",
-            "columnName": "sourceId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "libraryId",
-            "columnName": "libraryId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "screenDimensionBucket",
-            "columnName": "screenDimensionBucket",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "scale",
-            "columnName": "scale",
-            "affinity": "REAL",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "sourceId",
-            "libraryId",
-            "screenDimensionBucket"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_cover_grid_scale_sourceId",
-            "unique": false,
-            "columnNames": [
-              "sourceId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_cover_grid_scale_sourceId` ON `${TABLE_NAME}` (`sourceId`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "sources",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "sourceId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          }
-        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b0363107cc81f2ee9303de642f5aec2c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f054047ee1f2acbe60b1863c0c4379dd')"
     ]
   }
 }
