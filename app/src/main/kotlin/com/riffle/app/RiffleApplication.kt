@@ -83,7 +83,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         if (shouldSkipMainProcessStartup(ACRA.isACRASenderServiceProcess())) return
         startKoin {
             androidContext(this@RiffleApplication)
-            modules()
+            modules(riffleKoinModules())
         }
         val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
         val applicationScope = entryPoint.applicationScope()
@@ -183,6 +183,12 @@ class RiffleApplication : Application(), ImageLoaderFactory {
  * when we're the ACRA process.
  */
 internal fun shouldSkipMainProcessStartup(isAcraProcess: Boolean): Boolean = isAcraProcess
+
+/**
+ * The Koin module graph for the app. Empty while Hilt still owns every binding; the Hilt → Koin
+ * migration PRs move bindings here module by module until Hilt can be dropped entirely.
+ */
+internal fun riffleKoinModules(): List<org.koin.core.module.Module> = emptyList()
 
 /** 100 MB cap for the on-disk cover cache. */
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024

@@ -45,6 +45,7 @@ import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ResolvedAppearance
 import androidx.compose.runtime.LaunchedEffect
 import dagger.hilt.android.AndroidEntryPoint
+import org.koin.androidx.compose.KoinAndroidContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -106,31 +107,36 @@ class MainActivity : FragmentActivity() {
         )
         handleIntent(intent)
         setContent {
-            // Feed reactive OS dark-mode toggles into the coordinator so its `resolved`
-            // StateFlow stays in step with the system theme without polling.
-            val systemDark = isSystemInDarkTheme()
-            LaunchedEffect(systemDark) { appearanceCoordinator.setSystemDark(systemDark) }
-            val appearance: ResolvedAppearance by appearanceCoordinator.resolved.collectAsState()
-            val isDark = appearance.appChrome.isDark
-            // Keep the transparent status-bar icon contrast in step with the chosen chrome theme,
-            // overriding the system-driven default from enableEdgeToEdge above (otherwise a forced
-            // Dark theme under a Light OS would render dark icons on the dark top app bar).
-            // The navigation bar always sits over our dark BottomNavBarScrim, so its icons must
-            // stay light regardless of theme — otherwise light-mode renders dark-on-dark and the
-            // gesture pill / 3-button nav vanishes.
-            val view = LocalView.current
-            SideEffect {
-                WindowCompat.getInsetsController(window, view).run {
-                    isAppearanceLightStatusBars = !isDark
-                    isAppearanceLightNavigationBars = false
+            // Koin and Hilt run side by side during the migration: composables converted to
+            // koinViewModel()/koinInject() resolve through this context while the rest still
+            // resolve through Hilt.
+            KoinAndroidContext {
+                // Feed reactive OS dark-mode toggles into the coordinator so its `resolved`
+                // StateFlow stays in step with the system theme without polling.
+                val systemDark = isSystemInDarkTheme()
+                LaunchedEffect(systemDark) { appearanceCoordinator.setSystemDark(systemDark) }
+                val appearance: ResolvedAppearance by appearanceCoordinator.resolved.collectAsState()
+                val isDark = appearance.appChrome.isDark
+                // Keep the transparent status-bar icon contrast in step with the chosen chrome theme,
+                // overriding the system-driven default from enableEdgeToEdge above (otherwise a forced
+                // Dark theme under a Light OS would render dark icons on the dark top app bar).
+                // The navigation bar always sits over our dark BottomNavBarScrim, so its icons must
+                // stay light regardless of theme — otherwise light-mode renders dark-on-dark and the
+                // gesture pill / 3-button nav vanishes.
+                val view = LocalView.current
+                SideEffect {
+                    WindowCompat.getInsetsController(window, view).run {
+                        isAppearanceLightStatusBars = !isDark
+                        isAppearanceLightNavigationBars = false
+                    }
                 }
-            }
-            RiffleTheme(darkTheme = isDark) {
-                @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
-                val windowSizeClass = calculateWindowSizeClass(this)
-                Box(Modifier.fillMaxSize()) {
-                    MainScreen(windowSizeClass = windowSizeClass)
-                    BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
+                RiffleTheme(darkTheme = isDark) {
+                    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+                    val windowSizeClass = calculateWindowSizeClass(this)
+                    Box(Modifier.fillMaxSize()) {
+                        MainScreen(windowSizeClass = windowSizeClass)
+                        BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
+                    }
                 }
             }
         }
