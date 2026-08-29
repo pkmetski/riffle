@@ -69,7 +69,6 @@ import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
-import com.riffle.core.models.FormattingScope
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LastOpenedLibraryStore
@@ -156,18 +155,15 @@ abstract class PreferencesModule {
         @Provides @Singleton @HighlightsFormattingPreferencesDataStore
         fun provideHighlightsFormattingPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.formattingPreferencesHighlightsDataStore
 
-        // FormattingPreferencesStoreProvider gives [FormattingSession] the right global store per
-        // reading context. The unqualified [FormattingPreferencesStore] binding continues to point
-        // at the FullBook instance so consumers that don't care about scope (e.g. Settings) work
-        // unchanged; the Highlights instance is constructed here around its own DataStore file.
+        // FormattingPreferencesStoreProvider gives [FormattingSession] access to the global
+        // formatting-preferences store. Both the full-book reader and the elided (annotations)
+        // reader share the same store so display settings propagate to both views automatically.
         @Provides
         @Singleton
         fun provideFormattingPreferencesStoreProvider(
             fullBook: FormattingPreferencesStoreImpl,
-            @HighlightsFormattingPreferencesDataStore highlightsDs: DataStore<Preferences>,
         ): FormattingPreferencesStoreProvider = FormattingPreferencesStoreProviderImpl(
             fullBook = fullBook,
-            highlights = FormattingPreferencesStoreImpl(highlightsDs),
         )
 
         @Provides @Singleton @LibraryVisibilityPreferencesDataStore

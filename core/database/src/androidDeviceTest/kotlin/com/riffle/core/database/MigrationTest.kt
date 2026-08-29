@@ -1991,6 +1991,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_67_68,
             RiffleDatabase.MIGRATION_68_69,
             RiffleDatabase.MIGRATION_69_70,
+            RiffleDatabase.MIGRATION_70_71,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3186,6 +3187,59 @@ class MigrationTest {
             db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'book1'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(2, cursor.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration70To71_dropsScopeColumnAndPreservesFullBookRows() {
+        helper.createDatabase(TEST_DB, 70).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            // One FullBook row and one Highlights row for the same (sourceId, itemId, bucket).
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize, theme) " +
+                    "VALUES ('src', 'book1', 'FullBook', 'Compact_Medium', 1.5, 'Dark')"
+            )
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize, theme) " +
+                    "VALUES ('src', 'book1', 'Highlights', 'Compact_Medium', 1.2, 'Light')"
+            )
+            // A second FullBook row under a different dimension.
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, screenDimensionBucket, fontSize, theme) " +
+                    "VALUES ('src', 'book1', 'FullBook', 'Compact_Compact', 1.0, NULL)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 71, true, RiffleDatabase.MIGRATION_70_71
+        ).use { db ->
+            // Only the FullBook rows survive (via INSERT OR IGNORE); Highlights rows are dropped.
+            db.query("SELECT COUNT(*) FROM book_formatting_preferences").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(2, cursor.getInt(0))
+            }
+
+            // The FullBook row for Compact_Medium must carry its data through.
+            db.query(
+                "SELECT fontSize, theme FROM book_formatting_preferences WHERE itemId = 'book1' AND screenDimensionBucket = 'Compact_Medium'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1.5f, cursor.getFloat(0))
+                assertEquals("Dark", cursor.getString(1))
+            }
+
+            // The scope column must no longer exist: new inserts work without it.
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, screenDimensionBucket, fontSize) " +
+                    "VALUES ('src', 'book2', 'Compact_Medium', 2.0)"
+            )
+            db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'book2'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(0))
             }
         }
     }
