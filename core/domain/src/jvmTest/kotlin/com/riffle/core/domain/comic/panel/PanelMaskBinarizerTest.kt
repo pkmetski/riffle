@@ -17,7 +17,7 @@ class PanelMaskBinarizerTest {
             rect(luma, 400, x = 210, y = 20, w = 170, h = 250, color = DARK)
         }
 
-        val mask = PanelMaskBinarizer.binarize(grid)
+        val mask = PanelMaskBinarizer().binarize(grid)
 
         assertNotNull(mask)
         assertEquals(400, mask!!.width)
@@ -31,7 +31,7 @@ class PanelMaskBinarizerTest {
     fun `binarize returns null for a blank page`() {
         val luma = ByteArray(400 * 560) { LIGHT }
         val grid = PixelGrid(400, 560, luma)
-        assertNull(PanelMaskBinarizer.binarize(grid))
+        assertNull(PanelMaskBinarizer().binarize(grid))
     }
 
     @Test
@@ -42,7 +42,7 @@ class PanelMaskBinarizerTest {
         rect(luma, width, x = 10, y = 10, w = 25, h = 40, color = 0.toByte())
         rect(luma, width, x = 39, y = 10, w = 25, h = 40, color = 0.toByte())
 
-        val mask = PanelMaskBinarizer.binarize(PixelGrid(width, height, luma))
+        val mask = PanelMaskBinarizer().binarize(PixelGrid(width, height, luma))
 
         assertNotNull(mask)
         val result = mask!!
@@ -73,7 +73,7 @@ class PanelMaskBinarizerTest {
         val expected = detector.detect(original, 0, W, H)
         assertEquals("ground truth must be 4 panels", 4, expected.panels.size)
 
-        val mask = PanelMaskBinarizer.binarize(original)!!
+        val mask = PanelMaskBinarizer().binarize(original)!!
         // Re-encode mask as a PixelGrid matching PanelMaskEncoder.encode(): content=0, gutter=255.
         val maskGrid = PixelGrid(mask.width, mask.height, ByteArray(mask.data.size) { i ->
             if (mask.data[i] == 1.toByte()) 0 else 255.toByte().toInt().toByte()
