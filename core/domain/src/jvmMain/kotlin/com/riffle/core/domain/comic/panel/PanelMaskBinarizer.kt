@@ -36,6 +36,8 @@ package com.riffle.core.domain.comic.panel
  */
 class PanelMaskBinarizer(private val config: PanelDetectionConfig = PanelDetectionConfig()) {
 
+    private val textureVarianceCutoff = config.textureStdDevThreshold * config.textureStdDevThreshold
+
     fun binarize(grid: PixelGrid): PanelBinaryMask? {
         detectPreBinarizedLightMask(grid)?.let { return it }
 
@@ -132,7 +134,7 @@ class PanelMaskBinarizer(private val config: PanelDetectionConfig = PanelDetecti
         if (n == 0) return false
         val mean = sum.toDouble() / n
         val variance = sumSq.toDouble() / n - mean * mean
-        return variance > config.textureStdDevThreshold * config.textureStdDevThreshold
+        return variance > textureVarianceCutoff
     }
 }
 

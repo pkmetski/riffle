@@ -1,7 +1,7 @@
 package com.riffle.core.domain.comic.panel
 
 class PanelOrchestrator(
-    val config: PanelDetectionConfig = PanelDetectionConfig(),
+    private val config: PanelDetectionConfig = PanelDetectionConfig(),
     private val store: PanelStore,
     private val decoder: PageImageDecoder,
 ) : PanelEngine {
