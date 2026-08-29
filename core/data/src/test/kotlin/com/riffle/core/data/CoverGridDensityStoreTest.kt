@@ -4,11 +4,15 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.CoverGridScaleEntity
 import com.riffle.core.models.ScreenDimensionBucket
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -37,15 +41,38 @@ class CoverGridDensityStoreTest {
     )
 
     @Test
-    fun `global scale default is 1 when DataStore is empty`() = testScope.runTest {
+    fun `default scale is 1 when DataStore is empty`() = testScope.runTest {
         assertEquals(1f, buildStore().scale.first())
     }
 
     @Test
-    fun `global setScale round-trips on read`() = testScope.runTest {
+    fun `setScale round-trips on read`() = testScope.runTest {
         val store = buildStore()
         store.setScale(1.4f)
         assertEquals(1.4f, store.scale.first())
+    }
+
+    @Test
+    fun `scale persists across store instances`() {
+        val file = tmp.newFile("cover_grid_density_round_trip.preferences_pb")
+        val fakeDao = FakeCoverGridScaleDao()
+
+        val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
+        runBlocking {
+            CoverGridDensityStoreImpl(
+                PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file }),
+                fakeDao,
+            ).setScale(0.8f)
+        }
+        writeScope.cancel()
+
+        val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
+        val store2 = CoverGridDensityStoreImpl(
+            PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file }),
+            fakeDao,
+        )
+        assertEquals(0.8f, runBlocking { store2.scale.first() })
+        readScope.cancel()
     }
 
     @Test

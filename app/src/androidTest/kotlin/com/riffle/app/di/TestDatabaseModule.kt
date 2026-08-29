@@ -3,6 +3,7 @@ package com.riffle.app.di
 import android.content.Context
 import com.riffle.core.data.di.DatabaseModule
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookChapterCacheDao
@@ -170,4 +171,8 @@ object TestDatabaseModule {
     @Singleton
     fun provideLookupHistoryDao(db: RiffleDatabaseAccess): com.riffle.core.database.LookupHistoryDao =
         db.lookupHistoryDao()
+
+    @Provides
+    @Singleton
+    fun provideCoverGridScaleDao(db: RiffleDatabaseAccess): CoverGridScaleDao = db.coverGridScaleDao()
 }
