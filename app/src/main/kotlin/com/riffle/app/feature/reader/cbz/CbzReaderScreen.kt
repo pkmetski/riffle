@@ -447,8 +447,10 @@ private fun CbzPage(
     val scope = rememberCoroutineScope()
     var zoomAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val bitmap by produceState<Bitmap?>(initialValue = null, key1 = pageIndex, key2 = source) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
+        value = decodeWithRetry {
+            withContext(Dispatchers.IO) {
+                runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
+            }
         }
     }
     val context = LocalContext.current
@@ -534,22 +536,28 @@ private fun CbzPage(
             },
         contentAlignment = Alignment.Center,
     ) {
-        SubcomposeAsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(bitmap)
-                .crossfade(false)
-                .build(),
-            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_number, pageIndex + 1),
-            loading = { CircularProgressIndicator() },
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    translationX = offsetX,
-                    translationY = offsetY,
-                ),
-        )
+        // A null bitmap must render the Loading branch explicitly: feeding null data to Coil
+        // resolves to the (empty) error state immediately, so the streaming-phase fetch would
+        // otherwise show a fully blank page with no feedback until the download completes.
+        when (cbzPageContent(bitmap)) {
+            CbzPageContent.Loading -> CircularProgressIndicator()
+            CbzPageContent.Image -> SubcomposeAsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(bitmap)
+                    .crossfade(false)
+                    .build(),
+                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_number, pageIndex + 1),
+                loading = { CircularProgressIndicator() },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offsetX,
+                        translationY = offsetY,
+                    ),
+            )
+        }
     }
 }
 
@@ -581,8 +589,10 @@ private fun CbzPanelViewer(
     }
 
     val bitmap by produceState<Bitmap?>(initialValue = null, key1 = currentPage, key2 = state.imageSource) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { decodeSampledBitmap(state.imageSource, currentPage, MAX_PAGE_DIMENSION) }.getOrNull()
+        value = decodeWithRetry {
+            withContext(Dispatchers.IO) {
+                runCatching { decodeSampledBitmap(state.imageSource, currentPage, MAX_PAGE_DIMENSION) }.getOrNull()
+            }
         }
     }
 
@@ -663,26 +673,31 @@ private fun CbzPanelViewer(
             label = "cbz_panel_ty",
         )
 
-        SubcomposeAsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(bitmap)
-                .crossfade(false)
-                .build(),
-            contentDescription = androidx.compose.ui.res.stringResource(
-                com.riffle.app.R.string.ui_comic_page_panel,
-                currentPage + 1,
-                panelIndex + 1,
-            ),
-            loading = { CircularProgressIndicator() },
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    scaleX = animatedScale,
-                    scaleY = animatedScale,
-                    translationX = animatedTx,
-                    translationY = animatedTy,
+        // Same null-bitmap contract as CbzPage: render the spinner ourselves — Coil treats a
+        // null model as an instant (empty) error, not a loading state.
+        when (cbzPageContent(bitmap)) {
+            CbzPageContent.Loading -> CircularProgressIndicator()
+            CbzPageContent.Image -> SubcomposeAsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(bitmap)
+                    .crossfade(false)
+                    .build(),
+                contentDescription = androidx.compose.ui.res.stringResource(
+                    com.riffle.app.R.string.ui_comic_page_panel,
+                    currentPage + 1,
+                    panelIndex + 1,
                 ),
-        )
+                loading = { CircularProgressIndicator() },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = animatedScale,
+                        scaleY = animatedScale,
+                        translationX = animatedTx,
+                        translationY = animatedTy,
+                    ),
+            )
+        }
 
         if (peeking) {
             CbzPanelPeekOverlay(
@@ -742,6 +757,36 @@ private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
 }
 
 internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
+
+internal enum class CbzPageContent { Loading, Image }
+
+/**
+ * What a comic page slot should render for the given decoded bitmap. Null means the decode (or
+ * the streaming-phase network fetch feeding it) hasn't completed — the page must show a loading
+ * indicator, never a blank page.
+ */
+internal fun cbzPageContent(bitmap: Bitmap?): CbzPageContent =
+    if (bitmap == null) CbzPageContent.Loading else CbzPageContent.Image
+
+/**
+ * Runs [decode] until it yields a bitmap, retrying a failure (null) up to [attempts] total
+ * tries with [retryDelayMs] between them. A streaming-phase page decode is a network fetch
+ * under the hood; a single transient failure (timeout while the background full-file download
+ * hogs the link) previously left the page stuck on a permanently-null bitmap with no retry.
+ * Bounded rather than infinite so a genuinely undecodable page settles instead of spinning
+ * the network forever.
+ */
+internal suspend fun <T : Any> decodeWithRetry(
+    attempts: Int = 3,
+    retryDelayMs: Long = 2_000,
+    decode: suspend () -> T?,
+): T? {
+    repeat(attempts - 1) {
+        decode()?.let { return it }
+        delay(retryDelayMs)
+    }
+    return decode()
+}
 
 // Large BMPs can exceed 274MB decoded. Subsample to this max dimension to keep the Bitmap
 // allocation under the app heap limit.

@@ -350,7 +350,12 @@ class CbzReaderViewModel @Inject constructor(
         lastSavedPage = resumeIndex
         _currentPanelIndex.value = 0
 
-        val networkSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository)
+        // Read-ahead so a streaming-phase page turn is served from the byte cache instead of a
+        // cold synchronous download racing the background full-file download for bandwidth.
+        val networkSource = NetworkImageSource(
+            item.sourceId, item.id, result.pageCount, cbzRepository,
+            readAheadScope = viewModelScope, readAheadCount = 2,
+        )
         val thumbnailSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository, thumbnailWidth = 300)
         panelBook = panelEngine.forBook(
             bookId = bookId,
