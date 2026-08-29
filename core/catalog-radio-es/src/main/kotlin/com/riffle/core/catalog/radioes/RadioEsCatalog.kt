@@ -46,9 +46,11 @@ class RadioEsCatalog(
         val body = runCatching { http.getString("$apiBase/podcasts/tags") }.getOrNull()
             ?: return emptyList()
         val tags = RadioEsParser.parseTags(body)
-        val result = tags.categories.mapIndexed { idx, cat ->
-            CatalogFacet(key = "cat:${cat.systemName}", label = cat.name, sortOrder = idx)
-        }
+        val result = tags.categories
+            .filter { it.slug.isNotEmpty() }
+            .mapIndexed { idx, cat ->
+                CatalogFacet(key = "slug:${cat.slug}", label = cat.name, sortOrder = idx)
+            }
         cachedFacets = result
         return result
     }
@@ -72,15 +74,11 @@ class RadioEsCatalog(
 
     internal fun browseUrlFor(facet: FacetSelection?, page: Int, pageSize: Int): String {
         val offset = page * pageSize
-        val base = "$apiBase/podcasts/search?count=$pageSize&offset=$offset"
-        return when {
-            facet == null -> base
-            facet.key.startsWith("cat:") -> {
-                val systemName = facet.key.removePrefix("cat:")
-                "$base&categorySystemName=${URLEncoder.encode(systemName, "UTF-8")}"
-            }
-            else -> base
+        val categorySlug = when {
+            facet != null && facet.key.startsWith("slug:") -> facet.key.removePrefix("slug:")
+            else -> "podcasts"
         }
+        return "$apiBase/podcasts/category/$categorySlug/charts?count=$pageSize&offset=$offset"
     }
 
     // ---- Search -------------------------------------------------------------

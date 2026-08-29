@@ -473,4 +473,7 @@ object RadioEsWebSourceDescriptor : WebSourceDescriptor {
 
     override fun syncNamespaceFor(source: Source): SyncNamespace =
         SyncNamespace.LocalOnly("radio.es is a public catalog with no per-user account to sync against.")
+
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
+        "https://www.radio.es/assets/logos-with-safespace/radio-es-logo.svg"
 }

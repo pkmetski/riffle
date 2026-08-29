@@ -96,7 +96,8 @@ internal object RadioEsParser {
         val obj = element as? JsonObject ?: return null
         val systemName = obj["systemName"]?.jsonPrimitive?.contentOrNull.orEmpty().ifEmpty { return null }
         val name = obj["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
-        return RadioEsCategoryTag(systemName = systemName, name = name)
+        val slug = obj["slug"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        return RadioEsCategoryTag(systemName = systemName, name = name, slug = slug)
     }
 
     private fun parseLangTag(element: JsonElement): RadioEsLanguageTag? {

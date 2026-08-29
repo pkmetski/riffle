@@ -74,7 +74,7 @@ class RadioEsCatalogTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-tags.json")))
         val facets = catalog.listFacets(RadioEsCatalog.ROOT_PODCASTS)
         assertTrue("expected at least one category facet, got $facets", facets.isNotEmpty())
-        assertTrue(facets.any { it.key == "cat:CATEGORY_NEWS" })
+        assertTrue(facets.any { it.key == "slug:news" })
     }
 
     @Test fun `listFacets caches result after first fetch`() = runTest {
@@ -90,11 +90,14 @@ class RadioEsCatalogTest {
 
     // ---- Browse -------------------------------------------------------------
 
-    @Test fun `browse hits search endpoint with correct offset`() = runTest {
+    @Test fun `browse hits category charts endpoint with correct offset`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-podcasts-page1.json")))
         catalog.browse(rootId = RadioEsCatalog.ROOT_PODCASTS, page = 0, pageSize = 20)
         val request = server.takeRequest()
-        assertTrue("path should start with /podcasts/search, got: ${request.path}", request.path?.startsWith("/podcasts/search") == true)
+        assertTrue(
+            "path should start with /podcasts/category/podcasts/charts, got: ${request.path}",
+            request.path?.startsWith("/podcasts/category/podcasts/charts") == true,
+        )
         assertTrue("offset=0 expected, got: ${request.path}", request.path?.contains("offset=0") == true)
     }
 
@@ -105,18 +108,18 @@ class RadioEsCatalogTest {
         assertTrue("offset=20 expected, got: ${request.path}", request.path?.contains("offset=20") == true)
     }
 
-    @Test fun `browse with category facet sends categorySystemName param`() = runTest {
+    @Test fun `browse with category facet uses category slug in charts path`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-podcasts-page1.json")))
         catalog.browse(
             rootId = RadioEsCatalog.ROOT_PODCASTS,
             page = 0,
             pageSize = 20,
-            facet = FacetSelection(key = "cat:CATEGORY_NEWS"),
+            facet = FacetSelection(key = "slug:news"),
         )
         val request = server.takeRequest()
         assertTrue(
-            "categorySystemName=CATEGORY_NEWS expected, got: ${request.path}",
-            request.path?.contains("categorySystemName=CATEGORY_NEWS") == true,
+            "/podcasts/category/news/charts expected, got: ${request.path}",
+            request.path?.startsWith("/podcasts/category/news/charts") == true,
         )
     }
 

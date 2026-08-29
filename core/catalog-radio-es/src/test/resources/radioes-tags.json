@@ -1,8 +1,8 @@
 {
   "categories": [
-    { "systemName": "CATEGORY_NEWS", "name": "News" },
-    { "systemName": "CATEGORY_TRUE_CRIME", "name": "True Crime" },
-    { "systemName": "CATEGORY_COMEDY", "name": "Comedy" }
+    { "systemName": "CATEGORY_NEWS", "name": "News", "slug": "news" },
+    { "systemName": "CATEGORY_TRUE_CRIME", "name": "True Crime", "slug": "true-crime" },
+    { "systemName": "CATEGORY_COMEDY", "name": "Comedy", "slug": "comedy" }
   ],
   "languages": [
     { "systemName": "LANGUAGE_ENGLISH", "name": "English" },

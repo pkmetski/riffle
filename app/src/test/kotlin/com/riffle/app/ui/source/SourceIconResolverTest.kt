@@ -170,11 +170,11 @@ class SourceIconResolverTest {
     }
 
     @Test
-    fun `favicon URL for radio_es is null - no branded favicon to fetch`() {
+    fun `favicon URL for radio_es is the radio es logo SVG from the radio es CDN`() {
         val url = SourceIconResolver.faviconUrlFor(
             source(type = SourceType.RADIO_ES, url = "https://radio-es.invalid"),
         )
-        assertNull(url)
+        assertEquals("https://www.radio.es/assets/logos-with-safespace/radio-es-logo.svg", url)
     }
 
     @Test

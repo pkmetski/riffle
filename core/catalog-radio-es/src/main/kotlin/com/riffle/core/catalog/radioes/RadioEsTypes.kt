@@ -23,6 +23,7 @@ internal data class RadioEsEpisode(
 internal data class RadioEsCategoryTag(
     val systemName: String,
     val name: String,
+    val slug: String,
 )
 
 internal data class RadioEsLanguageTag(

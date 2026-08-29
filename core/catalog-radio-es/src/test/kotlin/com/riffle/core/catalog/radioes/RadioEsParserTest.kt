@@ -122,6 +122,7 @@ class RadioEsParserTest {
         assertEquals(2, result.languages.size)
         assertEquals("CATEGORY_NEWS", result.categories.first().systemName)
         assertEquals("News", result.categories.first().name)
+        assertEquals("news", result.categories.first().slug)
         assertEquals("LANGUAGE_ENGLISH", result.languages.first().systemName)
     }
 
