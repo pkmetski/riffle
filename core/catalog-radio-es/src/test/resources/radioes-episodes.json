@@ -1,0 +1,23 @@
+{
+  "totalCount": 2,
+  "episodes": [
+    {
+      "id": "the-daily_episode-one_abc123",
+      "title": "Episode One",
+      "url": "https://dts.podtrac.com/redirect.mp3/traffic.libsyn.com/test/ep1.mp3",
+      "duration": 1800,
+      "publishDate": 1700000000,
+      "contentFormat": "audio/mpeg",
+      "description": "<p>First episode description.</p>"
+    },
+    {
+      "id": "the-daily_episode-two_def456",
+      "title": "Episode Two",
+      "url": "https://dts.podtrac.com/redirect.mp3/traffic.libsyn.com/test/ep2.mp3",
+      "duration": 2400,
+      "publishDate": 1700086400,
+      "contentFormat": "audio/mpeg",
+      "description": "<p>Second episode description.</p>"
+    }
+  ]
+}

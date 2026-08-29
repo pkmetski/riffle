@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Circular background -->
+    <path
+        android:pathData="M12,0 A12,12 0 1 0 12,24 A12,12 0 1 0 12,0z"
+        android:fillColor="#E8462A" />
+    <!-- Podcast microphone shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,5 C10.35,5 9,6.35 9,8 L9,12 C9,13.65 10.35,15 12,15 C13.65,15 15,13.65 15,12 L15,8 C15,6.35 13.65,5 12,5Z" />
+    <!-- Stand arc -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,12 C7,14.76 9.24,17 12,17 C14.76,17 17,14.76 17,12 L15.5,12 C15.5,13.93 13.93,15.5 12,15.5 C10.07,15.5 8.5,13.93 8.5,12 Z" />
+    <!-- Vertical stand line -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M11.25,17 L11.25,19 L12.75,19 L12.75,17 Z" />
+    <!-- Base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9,19 L15,19 L15,19.75 L9,19.75 Z" />
+</vector>

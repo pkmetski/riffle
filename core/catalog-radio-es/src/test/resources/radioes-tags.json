@@ -1,0 +1,11 @@
+{
+  "categories": [
+    { "systemName": "CATEGORY_NEWS", "name": "News" },
+    { "systemName": "CATEGORY_TRUE_CRIME", "name": "True Crime" },
+    { "systemName": "CATEGORY_COMEDY", "name": "Comedy" }
+  ],
+  "languages": [
+    { "systemName": "LANGUAGE_ENGLISH", "name": "English" },
+    { "systemName": "LANGUAGE_SPANISH", "name": "Spanish" }
+  ]
+}

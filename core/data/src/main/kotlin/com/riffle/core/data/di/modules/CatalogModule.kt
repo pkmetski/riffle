@@ -8,6 +8,7 @@ import com.riffle.core.catalog.abs.AbsCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
+import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFileMetadataOverrideDao
@@ -109,6 +110,17 @@ object CatalogModule {
     ): CatalogFactory = GutenbergCatalogFactory(
         sharedHttpClient = httpClient,
         userAgent = "Riffle/dev (Android) gutenberg-source",
+    )
+
+    @Provides
+    @Singleton
+    @IntoMap
+    @SourceTypeKey(SourceType.RADIO_ES)
+    fun provideRadioEsCatalogFactory(
+        @WebSourceOkHttpClient httpClient: HttpClient,
+    ): CatalogFactory = RadioEsCatalogFactory(
+        httpClient = httpClient,
+        userAgent = "Riffle/dev (Android) radio-es-source",
     )
 
     @Provides

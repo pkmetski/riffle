@@ -168,4 +168,24 @@ class SourceIconResolverTest {
         val res = SourceIconResolver.fallbackDrawableFor(SourceType.LOCAL_FILES)
         assertEquals(R.drawable.ic_source_local_files, res)
     }
+
+    @Test
+    fun `favicon URL for radio_es is null - no branded favicon to fetch`() {
+        val url = SourceIconResolver.faviconUrlFor(
+            source(type = SourceType.RADIO_ES, url = "https://radio-es.invalid"),
+        )
+        assertNull(url)
+    }
+
+    @Test
+    fun `fallback drawable for radio_es source is the radio_es monogram`() {
+        val res = SourceIconResolver.fallbackDrawableFor(source(type = SourceType.RADIO_ES))
+        assertEquals(R.drawable.ic_source_radio_es, res)
+    }
+
+    @Test
+    fun `type-only lookup returns radio_es monogram for RADIO_ES regardless of serverType`() {
+        val res = SourceIconResolver.fallbackDrawableFor(SourceType.RADIO_ES)
+        assertEquals(R.drawable.ic_source_radio_es, res)
+    }
 }

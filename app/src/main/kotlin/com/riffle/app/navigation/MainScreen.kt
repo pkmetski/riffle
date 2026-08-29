@@ -43,6 +43,8 @@ internal const val ADD_CHITANKA = "add_chitanka"
 internal const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
 internal const val ADD_GUTENBERG = "add_gutenberg"
 internal const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
+internal const val ADD_RADIO_ES = "add_radio_es"
+internal const val RADIO_ES_BROWSE = "radio_es_browse/{libraryId}/{libraryName}"
 internal const val ADD_SOURCE = "add_source"
 internal const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 

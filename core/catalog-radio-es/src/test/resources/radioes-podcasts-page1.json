@@ -1,0 +1,23 @@
+{
+  "totalCount": 52224,
+  "count": 2,
+  "offset": 0,
+  "playables": [
+    {
+      "id": "the-daily",
+      "name": "The Daily",
+      "author": "The New York Times",
+      "categories": ["News"],
+      "logo300x300": "https://podcast-images-prod.radio-assets.com/300/the-daily.jpeg",
+      "playable": true
+    },
+    {
+      "id": "serial",
+      "name": "Serial",
+      "author": "Serial Productions",
+      "categories": ["True Crime"],
+      "logo300x300": "https://podcast-images-prod.radio-assets.com/300/serial.jpeg",
+      "playable": true
+    }
+  ]
+}
