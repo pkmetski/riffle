@@ -13,6 +13,7 @@ import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SortKey
@@ -25,6 +26,7 @@ class RadioEsCatalog(
     private val apiBase: String = RadioEsParser.BASE,
 ) : Catalog,
     AudiobookMediaCapability,
+    DownloadsCapability,
     ToReadListCapability,
     OfflineBrowseCapability {
 

@@ -1,6 +1,7 @@
 package com.riffle.core.catalog.radioes
 
 import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.ToReadListCapability
@@ -58,6 +59,10 @@ class RadioEsCatalogTest {
 
     @Test fun `catalog implements AudiobookMediaCapability`() {
         assertTrue(catalog is AudiobookMediaCapability)
+    }
+
+    @Test fun `catalog implements DownloadsCapability`() {
+        assertTrue(catalog is DownloadsCapability)
     }
 
     @Test fun `catalog implements ToReadListCapability`() {
