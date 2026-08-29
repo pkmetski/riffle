@@ -296,6 +296,15 @@ class LibraryItemsViewModelTest {
         coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore = object : com.riffle.core.domain.CoverGridDensityStore {
             override val scale = kotlinx.coroutines.flow.flowOf(1f)
             override suspend fun setScale(value: Float) {}
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {}
         },
         libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),

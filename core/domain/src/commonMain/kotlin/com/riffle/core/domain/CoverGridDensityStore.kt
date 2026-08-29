@@ -1,18 +1,16 @@
 package com.riffle.core.domain
 
+import com.riffle.core.models.ScreenDimensionBucket
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Persisted, per-device cover-grid zoom. [scale] is a multiplier applied to the
- * default cover-grid cell sizes: 1.0 keeps the shipped defaults, > 1.0 zooms in
- * (bigger covers, fewer per row), < 1.0 zooms out (smaller covers, more per row).
- *
- * Intentionally global — not scoped by server or library — like the reader
- * formatting / volume-key / wake-lock preferences (ADR 0029): it's an ergonomic
- * UI preference about how dense the browse grids feel, not a property of any
- * library's content.
- */
 interface CoverGridDensityStore {
+    // Global scale — used by non-library browse screens (Chitanka, Gutenberg, web-source).
     val scale: Flow<Float>
     suspend fun setScale(value: Float)
+
+    // Per-library scale keyed by source + library + screen size class.
+    // `bucket` is ScreenDimensionBucket.encode() — e.g. "Compact_Medium" — so a phone in
+    // portrait and in landscape share one row (rotation-invariant, per ADR 0029).
+    fun scale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket): Flow<Float>
+    suspend fun setScale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket, value: Float)
 }

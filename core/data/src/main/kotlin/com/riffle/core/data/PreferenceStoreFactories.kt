@@ -49,6 +49,15 @@ fun CoverGridDensityStore(dataStore: DataStore<Preferences>): CoverGridDensitySt
     return object : CoverGridDensityStore {
         override val scale: Flow<Float> = store.flow
         override suspend fun setScale(value: Float) = store.update(value)
+        override fun scale(
+            sourceId: String, libraryId: String,
+            bucket: com.riffle.core.models.ScreenDimensionBucket,
+        ): Flow<Float> = store.flow
+        override suspend fun setScale(
+            sourceId: String, libraryId: String,
+            bucket: com.riffle.core.models.ScreenDimensionBucket,
+            value: Float,
+        ) = store.update(value)
     }
 }
 

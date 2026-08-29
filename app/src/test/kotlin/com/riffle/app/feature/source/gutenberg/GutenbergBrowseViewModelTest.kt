@@ -202,6 +202,8 @@ class GutenbergBrowseViewModelTest {
         object : CoverGridDensityStore {
             override val scale = flowOf(1f)
             override suspend fun setScale(value: Float) = Unit
+            override fun scale(sourceId: String, libraryId: String, bucket: com.riffle.core.models.ScreenDimensionBucket) = flowOf(1f)
+            override suspend fun setScale(sourceId: String, libraryId: String, bucket: com.riffle.core.models.ScreenDimensionBucket, value: Float) = Unit
         }
 
     private fun emptyLibraryObserver() = FakeLibraryObserver()
