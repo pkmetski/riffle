@@ -1,13 +1,11 @@
-{
-  "playables": [
-    {
-      "id": "the-daily",
-      "name": "The Daily",
-      "author": "The New York Times",
-      "categories": ["News"],
-      "logo300x300": "https://podcast-images-prod.radio-assets.com/300/the-daily.jpeg",
-      "playable": true,
-      "description": "This is what the news should sound like."
-    }
-  ]
-}
+[
+  {
+    "id": "the-daily",
+    "name": "The Daily",
+    "author": "The New York Times",
+    "categories": ["News"],
+    "logo300x300": "https://podcast-images-prod.radio-assets.com/300/the-daily.jpeg",
+    "playable": true,
+    "description": "This is what the news should sound like."
+  }
+]

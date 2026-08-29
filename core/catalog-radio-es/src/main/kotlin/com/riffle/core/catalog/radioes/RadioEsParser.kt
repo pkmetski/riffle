@@ -28,9 +28,13 @@ internal object RadioEsParser {
     }
 
     fun parsePodcastDetail(body: String): RadioEsPodcast? {
-        val root = json.parseToJsonElement(body).jsonObject
-        val arr = root["playables"]?.jsonArray ?: root["podcasts"]?.jsonArray
-        val obj = arr?.firstOrNull()?.jsonObject ?: return null
+        val root = json.parseToJsonElement(body)
+        val obj = when {
+            root is JsonArray -> root.firstOrNull()?.jsonObject
+            root is JsonObject -> (root["playables"]?.jsonArray ?: root["podcasts"]?.jsonArray)
+                ?.firstOrNull()?.jsonObject
+            else -> null
+        } ?: return null
         return parsePodcast(obj)
     }
 

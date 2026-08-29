@@ -161,7 +161,7 @@ class RadioEsCatalogTest {
     }
 
     @Test fun `getItem returns null on empty detail response`() = runTest {
-        server.enqueue(MockResponse().setBody("""{"playables":[]}"""))
+        server.enqueue(MockResponse().setBody("[]"))
         val item = catalog.getItem("unknown-podcast")
         assertNull(item)
     }

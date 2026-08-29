@@ -73,8 +73,8 @@ class RadioEsParserTest {
     }
 
     @Test
-    fun `parsePodcastDetail returns null when playables is empty`() {
-        val podcast = RadioEsParser.parsePodcastDetail("""{"playables":[]}""")
+    fun `parsePodcastDetail returns null when array is empty`() {
+        val podcast = RadioEsParser.parsePodcastDetail("[]")
         assertNull(podcast)
     }
 
