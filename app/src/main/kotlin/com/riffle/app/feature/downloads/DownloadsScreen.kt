@@ -212,8 +212,7 @@ private fun CacheSettingsDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelected(option) }
-                            .padding(vertical = 4.dp),
+                            .clickable { onSelected(option) },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
