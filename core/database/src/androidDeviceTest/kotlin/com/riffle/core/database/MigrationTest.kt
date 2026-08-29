@@ -1921,7 +1921,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 70, true,
+            TEST_DB, 72, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1992,6 +1992,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_68_69,
             RiffleDatabase.MIGRATION_69_70,
             RiffleDatabase.MIGRATION_70_71,
+            RiffleDatabase.MIGRATION_71_72,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2005,7 +2006,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(70, cursor.getInt(0))
+            assertEquals(72, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
@@ -3149,6 +3150,32 @@ class MigrationTest {
             db.query("SELECT state FROM dictionary_packs WHERE languageTag = 'fr'").use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals("INSTALLED", c.getString(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration71To72_createsCoverGridScaleTable() {
+        helper.createDatabase(TEST_DB, 71).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 72, true, RiffleDatabase.MIGRATION_71_72
+        ).use { db ->
+            // Table must exist and accept a row.
+            db.execSQL(
+                "INSERT INTO cover_grid_scale (sourceId, libraryId, screenDimensionBucket, scale) " +
+                    "VALUES ('src1', 'lib1', 'Compact_Medium', 1.3)"
+            )
+            db.query(
+                "SELECT scale FROM cover_grid_scale WHERE sourceId = 'src1' AND libraryId = 'lib1' AND screenDimensionBucket = 'Compact_Medium'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1.3f, cursor.getFloat(0), 0.001f)
             }
         }
     }

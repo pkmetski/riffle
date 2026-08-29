@@ -131,6 +131,8 @@ import kotlin.math.floor
 import kotlin.math.max
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.source.asAuthHeader
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import com.riffle.app.ui.toScreenDimensionBucket
 
 
 /**
@@ -145,6 +147,7 @@ private fun coverAspectRatio(square: Boolean): Float = if (square) 1f else 2f / 
 @Composable
 fun LibraryItemsScreen(
     libraryName: String,
+    windowSizeClass: WindowSizeClass,
     onOpenDrawer: () -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
@@ -206,6 +209,10 @@ fun LibraryItemsScreen(
     // tab, and the clamp would survive clearing the query.
     LaunchedEffect(tabVisibility, searchQuery) {
         if (shouldClampSelectedTab(searchQuery, tabVisibility, selectedTab)) selectedTab = 0
+    }
+
+    LaunchedEffect(windowSizeClass) {
+        viewModel.setScreenDimensionBucket(windowSizeClass.toScreenDimensionBucket())
     }
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the

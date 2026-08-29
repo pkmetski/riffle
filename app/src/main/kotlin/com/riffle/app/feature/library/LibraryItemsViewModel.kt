@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.models.Collection
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.collectReconnects
 import com.riffle.core.models.LibraryItem
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
@@ -75,8 +77,18 @@ class LibraryItemsViewModel @Inject constructor(
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
+    private val _activeSourceId = MutableStateFlow<String?>(null)
+    private val _screenDimensionBucket = MutableStateFlow<ScreenDimensionBucket?>(null)
+
     /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
-    val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
+    val coverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sourceId, bucket ->
+            if (sourceId != null && bucket != null) {
+                coverGridDensityStore.scale(sourceId, libraryId, bucket)
+            } else {
+                coverGridDensityStore.scale
+            }
+        }
+        .flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 
     private var coverScalePersistJob: Job? = null
@@ -89,8 +101,18 @@ class LibraryItemsViewModel @Inject constructor(
         coverScalePersistJob?.cancel()
         coverScalePersistJob = viewModelScope.launch {
             delay(200)
-            coverGridDensityStore.setScale(value)
+            val sourceId = _activeSourceId.filterNotNull().first()
+            val bucket = _screenDimensionBucket.value
+            if (bucket != null) {
+                coverGridDensityStore.setScale(sourceId, libraryId, bucket, value)
+            } else {
+                coverGridDensityStore.setScale(value)
+            }
         }
+    }
+
+    fun setScreenDimensionBucket(bucket: ScreenDimensionBucket) {
+        _screenDimensionBucket.value = bucket
     }
 
     val series: StateFlow<List<Series>> = libraryObserver.observeSeries(libraryId)
@@ -347,6 +369,7 @@ class LibraryItemsViewModel @Inject constructor(
                 val prefsDeferred = async { libraryFilterPreferencesStore.preferences(source.id, libraryId).first() }
                 authToken = tokenDeferred.await()
                 libraryFilterSourceId = source.id
+                _activeSourceId.value = source.id
                 val prefs = prefsDeferred.await()
                 _notStartedFilterActive.value = prefs.notStartedFilterActive
                 _librarySortMode.value = prefs.sortModeName

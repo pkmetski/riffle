@@ -43,8 +43,9 @@ import androidx.sqlite.execSQL
         BookComicFormattingPreferencesEntity::class,
         DictionaryPackEntity::class,
         LookupHistoryEntity::class,
+        CoverGridScaleEntity::class,
     ],
-    version = 71,
+    version = 72,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -77,6 +78,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun bookComicFormattingPreferencesDao(): BookComicFormattingPreferencesDao
     abstract fun dictionaryPackDao(): DictionaryPackDao
     abstract fun lookupHistoryDao(): LookupHistoryDao
+    abstract fun coverGridScaleDao(): CoverGridScaleDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1869,6 +1871,22 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +
                         "ON `book_formatting_preferences` (`sourceId`)"
+                )
+            }
+        }
+
+        val MIGRATION_71_72 = object : Migration(71, 72) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "CREATE TABLE `cover_grid_scale` " +
+                        "(`sourceId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, " +
+                        "`screenDimensionBucket` TEXT NOT NULL, `scale` REAL NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `libraryId`, `screenDimensionBucket`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_cover_grid_scale_sourceId` " +
+                        "ON `cover_grid_scale` (`sourceId`)"
                 )
             }
         }

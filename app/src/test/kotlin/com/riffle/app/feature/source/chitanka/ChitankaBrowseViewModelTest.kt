@@ -411,6 +411,15 @@ class ChitankaBrowseViewModelTest {
         object : CoverGridDensityStore {
             override val scale = flowOf(1f)
             override suspend fun setScale(value: Float) = Unit
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) = Unit
         }
 
     private class RecordingCoverGridDensityStore : CoverGridDensityStore {
@@ -420,6 +429,17 @@ class ChitankaBrowseViewModelTest {
         override suspend fun setScale(value: Float) {
             persistedScale = value
         }
+
+        override fun scale(
+            sourceId: String, libraryId: String,
+            bucket: com.riffle.core.models.ScreenDimensionBucket,
+        ) = flowOf(1f)
+
+        override suspend fun setScale(
+            sourceId: String, libraryId: String,
+            bucket: com.riffle.core.models.ScreenDimensionBucket,
+            value: Float,
+        ) = Unit
     }
 
     // ─── Not-Started filter ───────────────────────────────────────────────────────────────────────

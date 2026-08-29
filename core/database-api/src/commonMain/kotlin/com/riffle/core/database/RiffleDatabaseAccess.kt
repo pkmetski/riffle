@@ -37,4 +37,5 @@ interface RiffleDatabaseAccess {
     fun bookComicFormattingPreferencesDao(): BookComicFormattingPreferencesDao
     fun dictionaryPackDao(): DictionaryPackDao
     fun lookupHistoryDao(): LookupHistoryDao
+    fun coverGridScaleDao(): CoverGridScaleDao
 }

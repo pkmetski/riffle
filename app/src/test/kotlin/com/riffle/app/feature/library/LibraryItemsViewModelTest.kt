@@ -296,6 +296,15 @@ class LibraryItemsViewModelTest {
         coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore = object : com.riffle.core.domain.CoverGridDensityStore {
             override val scale = kotlinx.coroutines.flow.flowOf(1f)
             override suspend fun setScale(value: Float) {}
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {}
         },
         libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
@@ -1640,5 +1649,77 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(refreshItems.calls > refreshBefore)
+    }
+
+    // --- per-library cover grid scale ---
+
+    @Test
+    fun `coverGridScale uses per-library store once sourceId and bucket are available`() = runTest {
+        val bucket = com.riffle.core.models.ScreenDimensionBucket.PhonePortrait
+        val perLibraryFlow = MutableStateFlow(1.5f)
+        val store = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) {}
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = perLibraryFlow
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {}
+        }
+        val vm = makeViewModel(
+            coverGridDensityStore = store,
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+        )
+        backgroundScope.launch { vm.coverGridScale.collect {} }
+        vm.setScreenDimensionBucket(bucket)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.5f, vm.coverGridScale.value)
+    }
+
+    @Test
+    fun `setCoverGridScale writes to per-library store when sourceId and bucket are set`() = runTest {
+        val bucket = com.riffle.core.models.ScreenDimensionBucket.PhonePortrait
+        var writtenSourceId: String? = null
+        var writtenLibraryId: String? = null
+        var writtenBucket: com.riffle.core.models.ScreenDimensionBucket? = null
+        var writtenValue: Float? = null
+        val store = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) {}
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {
+                writtenSourceId = sourceId
+                writtenLibraryId = libraryId
+                writtenBucket = bucket
+                writtenValue = value
+            }
+        }
+        val vm = makeViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("libraryId" to "lib-99")),
+            coverGridDensityStore = store,
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+        )
+        vm.setScreenDimensionBucket(bucket)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setCoverGridScale(1.2f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("src-1", writtenSourceId)
+        assertEquals("lib-99", writtenLibraryId)
+        assertEquals(bucket, writtenBucket)
+        assertEquals(1.2f, writtenValue)
     }
 }
