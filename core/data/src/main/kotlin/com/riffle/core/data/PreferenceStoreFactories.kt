@@ -9,7 +9,6 @@ import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.domain.ContentCacheSettingsStore
-import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
@@ -41,23 +40,6 @@ fun AppThemeStore(dataStore: DataStore<Preferences>): AppThemeStore {
     return object : AppThemeStore {
         override val appTheme: Flow<AppTheme> = store.flow
         override suspend fun setAppTheme(value: AppTheme) = store.update(value)
-    }
-}
-
-fun CoverGridDensityStore(dataStore: DataStore<Preferences>): CoverGridDensityStore {
-    val store = preferenceStore(dataStore, PrefCodecs.float("cover_grid_scale", default = 1f))
-    return object : CoverGridDensityStore {
-        override val scale: Flow<Float> = store.flow
-        override suspend fun setScale(value: Float) = store.update(value)
-        override fun scale(
-            sourceId: String, libraryId: String,
-            bucket: com.riffle.core.models.ScreenDimensionBucket,
-        ): Flow<Float> = store.flow
-        override suspend fun setScale(
-            sourceId: String, libraryId: String,
-            bucket: com.riffle.core.models.ScreenDimensionBucket,
-            value: Float,
-        ) = store.update(value)
     }
 }
 

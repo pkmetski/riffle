@@ -164,4 +164,9 @@ object DatabaseModule {
     @Singleton
     fun provideLookupHistoryDao(db: RiffleDatabaseAccess): com.riffle.core.database.LookupHistoryDao =
         db.lookupHistoryDao()
+
+    @Provides
+    @Singleton
+    fun provideCoverGridScaleDao(db: RiffleDatabaseAccess): com.riffle.core.database.CoverGridScaleDao =
+        db.coverGridScaleDao()
 }

@@ -83,7 +83,7 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AppThemeStore as createAppThemeStore
 import com.riffle.core.data.AppUpdatePreferencesStore as createAppUpdatePreferencesStore
 import com.riffle.core.data.ContentCacheSettingsStore as createContentCacheSettingsStore
-import com.riffle.core.data.CoverGridDensityStore as createCoverGridDensityStore
+import com.riffle.core.data.CoverGridDensityStoreImpl
 import com.riffle.core.data.EmphasisPreferencesStore as createEmphasisPreferencesStore
 import com.riffle.core.data.HighlightColorPreferencesStore as createHighlightColorPreferencesStore
 import com.riffle.core.data.HighlightsResumeStore as createHighlightsResumeStore
@@ -233,7 +233,8 @@ abstract class PreferencesModule {
         @Singleton
         fun provideCoverGridDensityStore(
             @CoverGridDensityDataStore dataStore: DataStore<Preferences>,
-        ): CoverGridDensityStore = createCoverGridDensityStore(dataStore)
+            dao: com.riffle.core.database.CoverGridScaleDao,
+        ): CoverGridDensityStore = CoverGridDensityStoreImpl(dataStore, dao)
 
         @Provides
         @Singleton
