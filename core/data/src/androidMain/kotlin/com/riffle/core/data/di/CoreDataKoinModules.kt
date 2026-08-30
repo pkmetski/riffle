@@ -1086,6 +1086,7 @@ private val coreDataSyncModule = module {
             upserter = get(),
         )
     }
+    single<UiProgressSink> { get<LibraryItemUiProgressSink>() }
     single {
         WebSourceLibraryItemMaterializer(
             readingPositionDao = get(),
