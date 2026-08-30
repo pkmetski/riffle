@@ -16,17 +16,20 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.LiveStreamCapability
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.common.Clock
+import com.riffle.core.common.SystemClock
 import com.riffle.core.models.SourceType
 import java.net.URLEncoder
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class RadioEsCatalog(
     private val http: RadioEsHttpClient,
     private val apiBase: String = RadioEsParser.BASE,
+    private val clock: Clock = SystemClock,
 ) : Catalog,
     AudiobookMediaCapability,
     DownloadsCapability,
@@ -182,12 +185,12 @@ class RadioEsCatalog(
     // ---- Connectivity -------------------------------------------------------
 
     override suspend fun connectivityCheck(): CatalogHealth {
-        val start = System.currentTimeMillis()
+        val start = clock.nowMs()
         val ok = http.ping("$apiBase/podcasts/search?count=1&offset=0")
         return CatalogHealth(
             isReachable = ok,
             serverVersion = null,
-            latencyMs = System.currentTimeMillis() - start,
+            latencyMs = clock.nowMs() - start,
             error = if (ok) null else "prod.radio-api.net is unreachable",
         )
     }
