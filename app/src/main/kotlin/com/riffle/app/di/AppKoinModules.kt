@@ -73,6 +73,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
+import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
+import com.riffle.app.feature.reader.ExtractEpubTocUseCase
+import com.riffle.core.data.localfiles.CopyCoverImageUseCase
+import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
+import com.riffle.core.domain.usecase.ReadaloudReviewActions
+import com.riffle.core.domain.usecase.RecordItemOpened
+import com.riffle.core.domain.usecase.RefreshCollections
+import com.riffle.core.domain.usecase.RefreshLibraries
+import com.riffle.core.domain.usecase.RefreshLibraryItems
+import com.riffle.core.domain.usecase.RefreshSeries
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import kotlinx.coroutines.flow.flow
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
@@ -392,4 +405,19 @@ val appKoinModule: Module = module {
             )
         }
     }
+
+    // Domain use cases
+    single { RefreshLibraries(refresher = get()) }
+    single { RefreshLibraryItems(refresher = get(), storytellerSyncer = get(), readaloudReconciler = get(), applicationScope = get()) }
+    single { RefreshSeries(refresher = get()) }
+    single { RefreshCollections(refresher = get()) }
+    single { RecordItemOpened(libraryMutator = get(), readingSessionRepository = get()) }
+    single { MarkReadAcrossDimensions(libraryMutator = get(), readingSessionRepository = get(), readaloudLinkRepository = get(), sourceRepository = get()) }
+    single { UpdateReadingProgress(libraryMutator = get()) }
+    single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
+    single { ExtractEpubTocUseCase(epubRepository = get(), publicationOpener = get(), assetRetriever = get(), tocRepository = get(), publicationMetricsRepository = get(), dispatchers = get()) }
+    single { ExtractPdfPageCountUseCase(pdfRepository = get(), publicationOpener = get(), assetRetriever = get(), publicationMetricsRepository = get()) }
+    single { FetchAudiobookChaptersUseCase(chapterCacheRepository = get()) }
+    single { SaveLocalFileMetadataOverrideUseCase(overrideDao = get()) }
+    single { CopyCoverImageUseCase(context = androidContext()) }
 }
