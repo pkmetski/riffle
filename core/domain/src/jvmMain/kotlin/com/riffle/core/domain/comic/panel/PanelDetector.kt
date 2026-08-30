@@ -193,7 +193,8 @@ class PanelDetector(
             )
         }
 
-        val meaningful = applyGlobalSanityChecks(regions, originalWidth, originalHeight) ?: return null
+        val meaningful = applyGlobalSanityChecks(regions, originalWidth, originalHeight)
+        meaningful ?: return null
         return PagePanels(
             pageIndex = pageIndex,
             imageWidth = originalWidth,

@@ -738,6 +738,30 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `issue 835 page 276 cross-gutter diagonal panel must not collapse rows into two full-height columns`() {
+        // Regression for issue #835: page 276. A tilted polaroid photo spans the column gutter
+        // and the bottom section has a dark-background scatter of photos. The device produced
+        // 3 panels (row1-left, row1-right, everything-below-as-one), but must NOT produce two
+        // full-height column strips — that is a worse failure mode introduced on this branch.
+        // Uses loadBinaryFixture (device-identical, no double-binarization) so the repro is
+        // faithful to what the device actually computed.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-835-panel-cut-off-p276.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // No full-height column panel should exist: a panel spanning >75% of page height in a
+        // multi-row layout is the failure mode we're fixing.
+        val fullHeightPanels = result.panels.filter { it.height > mask.height * 0.75 }
+        assertTrue(
+            "full-height column panels indicate failure to split rows; panels=${result.panels}",
+            fullHeightPanels.isEmpty(),
+        )
+        assertTrue(
+            "expected at least 3 panels (row1-left, row1-right, rest); got ${result.panels.size}: ${result.panels}",
+            result.panels.size >= 3,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
