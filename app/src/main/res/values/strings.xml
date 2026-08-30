@@ -361,6 +361,7 @@
     <string name="error_couldnt_save_source">Couldn\'t save source: %1$s</string>
     <string name="error_connection_failed">Connection failed: %1$s</string>
     <string name="error_connected_library_load_failed">Connected, but couldn\'t load libraries: %1$s</string>
+    <string name="error_comic_page_load_failed">Couldn\'t load this page</string>
     <string name="error_select_failure_type">Select a failure type before submitting</string>
     <string name="crash_report_title">Crash report</string>
     <string name="crash_report_text">Riffle crashed. Open Settings → Crash reports to view or share the details.</string>

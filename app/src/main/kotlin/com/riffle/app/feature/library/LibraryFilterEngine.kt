@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /**
@@ -117,6 +118,8 @@ class LibraryFilterEngine(
     searchQuery: Flow<String>,
     notStartedFilterActive: Flow<Boolean>,
     librarySortMode: Flow<LibrarySortMode>,
+    /** Off-Main dispatcher for the projection graph — production passes DispatcherProvider.default. */
+    private val computeDispatcher: kotlinx.coroutines.CoroutineDispatcher,
 ) {
 
     private val seriesProjection: Flow<List<Series>> =
@@ -237,7 +240,14 @@ class LibraryFilterEngine(
             annotations = values[9] as List<AnnotationSearchResult>,
             audiobookBookmarks = values[10] as List<AudiobookBookmarkSearchResult>,
         )
-    }
+    }.flowOn(computeDispatcher)
+    // flowOn moves EVERY upstream combine/filter in this graph off the collector's dispatcher.
+    // The ViewModel collects with stateIn(viewModelScope) — i.e. on Main — and the offline
+    // projections stat the filesystem for every library item (isAvailableOffline). Room re-emits
+    // the source flows on every reading-progress write, so without this hop each reader PAGE TURN
+    // ran a full-library filesystem sweep on the main thread: multi-second frozen frames and blank
+    // comic pages on large libraries whenever the library was in offline mode (device offline or
+    // last refresh failed).
 
     private fun filterCollectionsOffline(collections: List<Collection>, offline: Boolean): Flow<List<Collection>> {
         if (!offline || collections.isEmpty()) return flowOf(collections)

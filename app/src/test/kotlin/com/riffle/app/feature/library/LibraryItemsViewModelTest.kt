@@ -337,6 +337,14 @@ class LibraryItemsViewModelTest {
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
         annotationsLibraryRepository = annotationsLibraryRepository,
+        // Bind the VM's compute dispatcher to the test scheduler so the offline-filter flowOn hop
+        // stays under virtual time (advanceUntilIdle drains it deterministically).
+        dispatchers = object : com.riffle.core.domain.DispatcherProvider {
+            override val main = testDispatcher
+            override val mainImmediate = testDispatcher
+            override val io = testDispatcher
+            override val default = testDispatcher
+        },
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)

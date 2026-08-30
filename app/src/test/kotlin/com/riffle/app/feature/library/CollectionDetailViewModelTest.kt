@@ -150,6 +150,14 @@ class CollectionDetailViewModelTest {
             },
         ),
         connectivityObserver = connectivityObserver,
+        // Bind the VM's compute dispatcher to the test scheduler so the offline-filter flowOn hop
+        // stays under virtual time (advanceUntilIdle drains it deterministically).
+        dispatchers = object : com.riffle.core.domain.DispatcherProvider {
+            override val main = testDispatcher
+            override val mainImmediate = testDispatcher
+            override val io = testDispatcher
+            override val default = testDispatcher
+        },
     )
 
     private fun item(id: String) = LibraryItem(

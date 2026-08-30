@@ -185,7 +185,15 @@ abstract class RepositoriesModule {
             cbzRepository: com.riffle.core.domain.CbzRepository,
             audiobookDownloadRepository: AudiobookDownloadRepository,
             bundleAudiobookSource: BundleAudiobookSource,
+            localAvailabilityEvents: LocalAvailabilityEvents,
+            applicationScope: com.riffle.core.domain.ApplicationScope,
         ): LibraryItemOfflineAvailability =
-            LibraryItemOfflineAvailability(epubRepository, pdfRepository, cbzRepository, audiobookDownloadRepository, bundleAudiobookSource)
+            LibraryItemOfflineAvailability(
+                epubRepository, pdfRepository, cbzRepository, audiobookDownloadRepository, bundleAudiobookSource,
+                availabilityChanges = localAvailabilityEvents.changes,
+                // Cache-invalidation collector lives for the process — the app's survivable scope
+                // is the named owner for that lifetime (see ApplicationScope).
+                invalidationScope = applicationScope.coroutineScope,
+            )
     }
 }
