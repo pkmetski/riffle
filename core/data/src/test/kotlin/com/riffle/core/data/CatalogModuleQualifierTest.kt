@@ -24,9 +24,11 @@ class CatalogModuleQualifierTest {
     fun `every unbounded-catalog provider uses the WebSource OkHttp qualifier`() {
         val source = koinModulesSource()
 
-        // Find the catalog map block (single<Map<SourceType, CatalogFactory>> { mapOf(...) })
+        // Find the catalog map block — single<Map<SourceType, CatalogFactory>>(named(...)) { mapOf(...) }
+        // (the named() qualifier is required: Koin indexes by erased KClass, so unqualified
+        // Map<...> definitions silently override each other)
         val catalogMapRegex = Regex(
-            """single<Map<SourceType,\s*CatalogFactory>>\s*\{(.*?)^    \}""",
+            """single<Map<SourceType,\s*CatalogFactory>>(?:\(named\([^)]*\)\))?\s*\{(.*?)^    \}""",
             setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.MULTILINE),
         )
         val catalogBlock = catalogMapRegex.find(source)?.groupValues?.get(1)

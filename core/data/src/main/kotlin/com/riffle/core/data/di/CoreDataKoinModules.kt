@@ -113,6 +113,7 @@ import com.riffle.core.data.localfiles.FolderWalker
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
+import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.SafFolderWalker
@@ -265,6 +266,15 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+
+// Public qualifier names for generic Map bindings. Koin indexes definitions by ERASED
+// KClass, so unqualified Map<...> definitions silently override each other — the last
+// loaded one wins for EVERY Map injection point (this handed DefaultCatalogRegistry a
+// map of SourceAdapters and crashed with ClassCastException). Every generic binding
+// must carry a qualifier; consumers resolve with get(named(...)).
+const val CATALOG_FACTORIES_BY_SOURCE_TYPE = "catalogFactoriesBySourceType"
+const val REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE = "remoteUserIdResolversBySourceType"
+const val SOURCE_ADAPTERS_BY_SOURCE_TYPE = "sourceAdaptersBySourceType"
 
 // Named qualifier strings for File instances
 private const val EPUB_CACHE_DIR = "epubCacheDir"
@@ -630,7 +640,7 @@ private val coreDataRepositoriesModule = module {
             filesCleaner = get(),
             sidecarCache = { get<ReadaloudSidecarCache>() },
             installer = get(),
-            remoteUserIdResolvers = get(),
+            remoteUserIdResolvers = get(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)),
         )
     }
 
@@ -733,7 +743,7 @@ private val coreDataRepositoriesModule = module {
 }
 
 private val coreDataCatalogModule = module {
-    single<Map<SourceType, CatalogFactory>> {
+    single<Map<SourceType, CatalogFactory>>(named(CATALOG_FACTORIES_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.LOCAL_FILES to LocalFilesCatalogFactory(
                 folderDao = get(),
@@ -774,7 +784,7 @@ private val coreDataCatalogModule = module {
             ),
         )
     }
-    single<CatalogRegistry> { DefaultCatalogRegistry(get(), get()) }
+    single<CatalogRegistry> { DefaultCatalogRegistry(get(named(CATALOG_FACTORIES_BY_SOURCE_TYPE)), get()) }
 }
 
 private val coreDataStreamingAudioModule = module {
@@ -1091,7 +1101,7 @@ private val coreDataSyncModule = module {
     single { AbsBookmarkAnnotationSyncTargetFactory(get(), get()) }
     single<RemoteUserIdResolver>(named("abs")) { AbsRemoteUserIdResolver(get()) }
     single<RemoteUserIdResolver>(named("komga")) { KomgaRemoteUserIdResolver(get()) }
-    single<Map<SourceType, RemoteUserIdResolver>> {
+    single<Map<SourceType, RemoteUserIdResolver>>(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.ABS to get(named("abs")),
             SourceType.KOMGA to get(named("komga")),
@@ -1184,6 +1194,16 @@ private val coreDataMiscModule = module {
         )
     }
     single { LocalFilesFolderHealthChecker(context = androidContext()) }
+    single {
+        LocalFilesFolderWatcher(
+            context = androidContext(),
+            sourceRepository = get(),
+            folderDao = get(),
+            scanner = get(),
+            applicationScope = get(),
+            logger = get(),
+        )
+    }
 
     // WebSource install/browse plumbing (WebSourceLibraryItemUpserter is bound in
     // coreDataRepositoriesModule)
@@ -1206,7 +1226,7 @@ private val coreDataMiscModule = module {
     }
 
     // CredentialedAuthenticator (Map<SourceType, SourceAdapter>)
-    single<Map<SourceType, SourceAdapter>> {
+    single<Map<SourceType, SourceAdapter>>(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.ABS to get<AbsSourceAdapter>(),
             SourceType.KOMGA to get<KomgaSourceAdapter>(),

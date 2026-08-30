@@ -129,6 +129,7 @@ import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.Module
+import com.riffle.core.data.di.SOURCE_ADAPTERS_BY_SOURCE_TYPE
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -359,7 +360,7 @@ private val serverViewModelModule = module {
         AddSourceViewModel(
             context = androidContext(),
             repository = get(),
-            authenticators = get(),
+            authenticators = get(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)),
             webdavConfigStore = get(),
             webdavTargetFactory = get(),
             webdavStatusStore = get(),

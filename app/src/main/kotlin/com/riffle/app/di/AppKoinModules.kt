@@ -8,9 +8,9 @@ import com.riffle.app.feature.audio.BundleZipItemRestorer
 import com.riffle.app.feature.audio.DefaultMediaSessionConnector
 import com.riffle.app.feature.audio.FileAudioSourceFactory
 import com.riffle.app.feature.audio.HttpAudioSourceFactory
-import com.riffle.app.feature.audio.MediaItemRestorer
+import com.riffle.app.feature.audio.MediaItemRestorerRegistry
 import com.riffle.app.feature.audio.MediaSessionConnector
-import com.riffle.app.feature.audio.MediaSourceFactory
+import com.riffle.app.feature.audio.MediaSourceRegistry
 import com.riffle.app.feature.audio.StreamingReadaloudItemRestorer
 import com.riffle.app.feature.audiobook.AudiobookController
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
@@ -70,8 +70,6 @@ import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.appearance.AppearanceCoordinator
-import com.riffle.core.logging.AndroidLogger
-import com.riffle.core.logging.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -125,9 +123,7 @@ val appKoinModule: Module = module {
         isDevVersionName(com.riffle.app.BuildConfig.VERSION_NAME)
     }
 
-    // ---- Logging ------------------------------------------------------------------------------
-
-    single<Logger> { AndroidLogger(get()) }
+    // ---- Logging: Logger/InMemoryLogBuffer are bound by loggingKoinModule (core:logging) ------
 
     // ---- Readium ------------------------------------------------------------------------------
 
@@ -202,18 +198,26 @@ val appKoinModule: Module = module {
 
     // ---- Audio source factories / restorers -------------------------------------------------
 
-    single<List<MediaSourceFactory>> {
-        listOf(
-            HttpAudioSourceFactory(),
-            FileAudioSourceFactory(),
-            BundleAudioSourceFactory(get()),
+    // The factory/restorer lists are inlined into their registries rather than bound as
+    // single<List<...>>: Koin indexes definitions by ERASED KClass, so two unqualified
+    // List<...> definitions silently override each other (the same erasure collision that
+    // handed DefaultCatalogRegistry a Map of SourceAdapters).
+    single {
+        MediaSourceRegistry(
+            listOf(
+                HttpAudioSourceFactory(),
+                FileAudioSourceFactory(),
+                BundleAudioSourceFactory(get()),
+            ),
         )
     }
-    single<List<MediaItemRestorer>> {
-        listOf(
-            StreamingReadaloudItemRestorer(),
-            AudiobookHttpItemRestorer(),
-            BundleZipItemRestorer(),
+    single {
+        MediaItemRestorerRegistry(
+            listOf(
+                StreamingReadaloudItemRestorer(),
+                AudiobookHttpItemRestorer(),
+                BundleZipItemRestorer(),
+            ),
         )
     }
 
