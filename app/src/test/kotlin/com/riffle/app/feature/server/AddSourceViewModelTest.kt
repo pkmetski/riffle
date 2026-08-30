@@ -15,6 +15,8 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.ReadaloudLinkReconciler
+import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.models.InsecureConnectionType
 import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
@@ -183,6 +185,11 @@ class AddSourceViewModelTest {
         clock: com.riffle.core.common.Clock = MutableClock(),
         annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
         bannerTicker: Flow<Unit> = flowOf(Unit),
+        // Explicit interface types here pin the Koin binding contract: the graph registers
+        // StorytellerReadaloudCacheSyncer and ReadaloudLinkReconciler (not the concrete classes).
+        // If AddSourceViewModel is changed back to request the concrete types, this won't compile.
+        storytellerSyncer: StorytellerReadaloudCacheSyncer = io.mockk.mockk(relaxed = true),
+        readaloudMatcher: ReadaloudLinkReconciler = io.mockk.mockk(relaxed = true),
     ): AddSourceViewModel = AddSourceViewModel(
         context = fakeContext(),
         repository = repository,
@@ -196,8 +203,8 @@ class AddSourceViewModelTest {
         webdavTargetFactory = io.mockk.mockk(relaxed = true),
         webdavStatusStore = statusStore,
         sweepEnqueuer = AnnotationSweepEnqueuer { },
-        storytellerSyncer = io.mockk.mockk(relaxed = true),
-        readaloudMatcher = io.mockk.mockk(relaxed = true),
+        storytellerSyncer = storytellerSyncer,
+        readaloudMatcher = readaloudMatcher,
         tokenStorage = tokenStorage,
         clock = clock,
         annotationDao = annotationDao,

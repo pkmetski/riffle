@@ -8,9 +8,9 @@ import com.riffle.app.feature.audio.BundleZipItemRestorer
 import com.riffle.app.feature.audio.DefaultMediaSessionConnector
 import com.riffle.app.feature.audio.FileAudioSourceFactory
 import com.riffle.app.feature.audio.HttpAudioSourceFactory
-import com.riffle.app.feature.audio.MediaItemRestorer
+import com.riffle.app.feature.audio.MediaItemRestorerRegistry
 import com.riffle.app.feature.audio.MediaSessionConnector
-import com.riffle.app.feature.audio.MediaSourceFactory
+import com.riffle.app.feature.audio.MediaSourceRegistry
 import com.riffle.app.feature.audio.StreamingReadaloudItemRestorer
 import com.riffle.app.feature.audiobook.AudiobookController
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
@@ -19,9 +19,11 @@ import com.riffle.app.feature.audiobook.AudiobookResumeResolver
 import com.riffle.app.feature.audiobook.FollowLoopOrchestrator
 import com.riffle.app.feature.library.BookImportManager
 import com.riffle.app.feature.library.DownloadManager
+import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.ReaderStateHolder
+import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.feature.reader.autoscroll.AutoScrollController
 import com.riffle.app.feature.reader.cadence.CadenceController
@@ -29,6 +31,7 @@ import com.riffle.app.feature.reader.controllers.BookmarksController
 import com.riffle.app.feature.reader.controllers.SearchController
 import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.controllers.WakeLockController
+import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.FiguresInRangeResolver
 import com.riffle.app.feature.reader.NoopFiguresInRangeResolver
@@ -67,8 +70,6 @@ import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.appearance.AppearanceCoordinator
-import com.riffle.core.logging.AndroidLogger
-import com.riffle.core.logging.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -122,9 +123,7 @@ val appKoinModule: Module = module {
         isDevVersionName(com.riffle.app.BuildConfig.VERSION_NAME)
     }
 
-    // ---- Logging ------------------------------------------------------------------------------
-
-    single<Logger> { AndroidLogger(get()) }
+    // ---- Logging: Logger/InMemoryLogBuffer are bound by loggingKoinModule (core:logging) ------
 
     // ---- Readium ------------------------------------------------------------------------------
 
@@ -199,18 +198,26 @@ val appKoinModule: Module = module {
 
     // ---- Audio source factories / restorers -------------------------------------------------
 
-    single<List<MediaSourceFactory>> {
-        listOf(
-            HttpAudioSourceFactory(),
-            FileAudioSourceFactory(),
-            BundleAudioSourceFactory(get()),
+    // The factory/restorer lists are inlined into their registries rather than bound as
+    // single<List<...>>: Koin indexes definitions by ERASED KClass, so two unqualified
+    // List<...> definitions silently override each other (the same erasure collision that
+    // handed DefaultCatalogRegistry a Map of SourceAdapters).
+    single {
+        MediaSourceRegistry(
+            listOf(
+                HttpAudioSourceFactory(),
+                FileAudioSourceFactory(),
+                BundleAudioSourceFactory(get()),
+            ),
         )
     }
-    single<List<MediaItemRestorer>> {
-        listOf(
-            StreamingReadaloudItemRestorer(),
-            AudiobookHttpItemRestorer(),
-            BundleZipItemRestorer(),
+    single {
+        MediaItemRestorerRegistry(
+            listOf(
+                StreamingReadaloudItemRestorer(),
+                AudiobookHttpItemRestorer(),
+                BundleZipItemRestorer(),
+            ),
         )
     }
 
@@ -260,6 +267,31 @@ val appKoinModule: Module = module {
     single<PdfMetadataExtractor> { PdfiumPdfMetadataExtractor(context = androidContext()) }
 
     // ---- Audiobook state --------------------------------------------------------------------
+
+    factory {
+        ReaderSyncFactory(
+            linkRepository = get(),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            indexStore = get(),
+            libraryObserver = get(),
+            cacheStore = get(named("epubCacheStore")),
+            downloadsStore = get(named("epubDownloadsStore")),
+            crossEpubIndexBuildTrigger = get(),
+            sidecarCache = get(),
+            clock = get(),
+            logger = get(),
+        )
+    }
+    factory { HighlightsPdfExporter(context = androidContext(), factory = get()) }
+    single {
+        LibraryTabVisibilityObserver(
+            libraryObserver = get(),
+            toReadRepository = get(),
+            annotationsLibraryRepository = get(),
+            sourceRepository = get(),
+        )
+    }
 
     single { AudiobookHandoffState() }
     single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }

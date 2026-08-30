@@ -53,10 +53,8 @@ import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.PlaylistsRepository
-import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadaloudSidecarPrefetcher
 import com.riffle.core.data.ReadaloudSidecarStore
-import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
@@ -131,6 +129,7 @@ import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.Module
+import com.riffle.core.data.di.SOURCE_ADAPTERS_BY_SOURCE_TYPE
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -361,7 +360,7 @@ private val serverViewModelModule = module {
         AddSourceViewModel(
             context = androidContext(),
             repository = get(),
-            authenticators = get(),
+            authenticators = get(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)),
             webdavConfigStore = get(),
             webdavTargetFactory = get(),
             webdavStatusStore = get(),
