@@ -172,6 +172,7 @@ class LibraryFilterEngineTest {
             searchQuery = searchQueryFlow,
             notStartedFilterActive = notStartedFilterFlow,
             librarySortMode = librarySortModeFlow,
+            computeDispatcher = kotlinx.coroutines.Dispatchers.Default,
         )
     }
 

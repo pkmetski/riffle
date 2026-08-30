@@ -168,6 +168,7 @@ class NetworkImageSourceTest {
             "src", "item", 10, gatedRepo,
             readAheadScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO),
             readAheadCount = 2,
+            readAheadDispatcher = kotlinx.coroutines.Dispatchers.IO,
         )
         source.imageBytes(4) // schedules read-ahead of 5 and 6
         org.junit.Assert.assertTrue(

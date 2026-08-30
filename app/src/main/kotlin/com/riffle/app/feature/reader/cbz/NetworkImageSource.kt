@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 
@@ -44,7 +43,8 @@ internal class NetworkImageSource(
     private val thumbnailWidth: Int? = null,
     private val readAheadScope: CoroutineScope? = null,
     private val readAheadCount: Int = 0,
-    private val readAheadDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Required whenever [readAheadScope] is set — an IO-capable dispatcher for the prefetches. */
+    private val readAheadDispatcher: CoroutineDispatcher? = null,
 ) : CbzImageSource {
     override val pageCount: Int get() = count
 
@@ -96,12 +96,13 @@ internal class NetworkImageSource(
 
     private fun scheduleReadAhead(fromIndex: Int) {
         val scope = readAheadScope ?: return
+        val dispatcher = readAheadDispatcher ?: return
         for (offset in 1..readAheadCount) {
             val target = fromIndex + offset
             if (target >= count) break
             if (byteCache.containsKey(target)) continue
             inFlight.computeIfAbsent(target) {
-                scope.async(readAheadDispatcher) {
+                scope.async(dispatcher) {
                     try {
                         repository.fetchStreamingPageImage(sourceId, itemId, target, thumbnailWidth)
                             .also { byteCache[target] = it }

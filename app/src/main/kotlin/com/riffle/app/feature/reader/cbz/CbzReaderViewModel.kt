@@ -355,6 +355,7 @@ class CbzReaderViewModel @Inject constructor(
         val networkSource = NetworkImageSource(
             item.sourceId, item.id, result.pageCount, cbzRepository,
             readAheadScope = viewModelScope, readAheadCount = 2,
+            readAheadDispatcher = Dispatchers.IO,
         )
         val thumbnailSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository, thumbnailWidth = 300)
         panelBook = panelEngine.forBook(

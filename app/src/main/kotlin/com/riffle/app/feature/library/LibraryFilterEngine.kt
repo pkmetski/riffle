@@ -118,7 +118,8 @@ class LibraryFilterEngine(
     searchQuery: Flow<String>,
     notStartedFilterActive: Flow<Boolean>,
     librarySortMode: Flow<LibrarySortMode>,
-    private val computeDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
+    /** Off-Main dispatcher for the projection graph — production passes DispatcherProvider.default. */
+    private val computeDispatcher: kotlinx.coroutines.CoroutineDispatcher,
 ) {
 
     private val seriesProjection: Flow<List<Series>> =
