@@ -1,5 +1,9 @@
 # Riffle — Agent Instructions
 
+## GitHub issue/PR operations
+
+Use the `gh` CLI for all GitHub write operations (creating issues, PRs, comments). The GitHub MCP server (`mcp__github__issue_write`, `mcp__github__create_pull_request`, etc.) does not have write access to this repo and will return 403 — do not retry with it.
+
 ## Building and installing APKs
 
 Do not `assembleDebug` (or any APK build) unless the user explicitly asks. Do not `adb install` a build onto a device or emulator unless the user explicitly asks. Editing code and running JVM tests are fine without building or installing.
