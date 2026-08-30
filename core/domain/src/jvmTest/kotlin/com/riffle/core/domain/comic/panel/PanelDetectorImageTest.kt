@@ -821,4 +821,67 @@ class PanelDetectorImageTest {
         }
         return PixelGrid(w, h, luma)
     }
+
+
+    @Test
+    fun `issue 834 bottom-left panel right edge cut off by diagonal gutter`() {
+        // Regression for issue #834: diagonal boundary between bottom-left (small) and bottom-right
+        // (wide) panel leaves bottom-left panel with right edge at x=409 but user expects x=486.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-834-panel-cut-off-p273.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // Bottom section starts around y=1200; pick leftmost panel there.
+        val bottomLeft = result.panels.filter { it.y > 1000 }.minByOrNull { it.x }
+            ?: error("no panels in bottom section")
+        // Bottom-left panel right edge must reach at least x=460 (user drew x=486; allow ±30)
+        assertTrue(
+            "bottom-left panel right edge must reach x≥460, got ${bottomLeft.x + bottomLeft.width}",
+            bottomLeft.x + bottomLeft.width >= 460,
+        )
+    }
+
+    @Test
+    fun `issue 836 page 284 bottom-right panel right edge cut off`() {
+        // Regression for issue #836: bottom-right panel detected at x=830,w=391 but expected at x=665,w=568.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-836-panel-cut-off-p284.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // In the bottom row (y > 1300), the rightmost panel's left edge should start ≤ 750 (not 830+).
+        val bottomRow = result.panels.filter { it.y > 1300 }
+        val bottomRight = bottomRow.maxByOrNull { it.x }
+            ?: error("no panels in bottom row (y>1300), all panels: ${result.panels}")
+        assertTrue(
+            "bottom-right panel x must be ≤750 (expected ~665), got x=${bottomRight.x}",
+            bottomRight.x <= 750,
+        )
+    }
+
+    @Test
+    fun `issue 837 page 291 row-2 right panel too wide due to diagonal gutter`() {
+        // Regression for issue #837: row-2 right panel detected as x=539,w=689 but expected x=669,w=551.
+        // The diagonal gutter between row-2 left and right is not recognized, merging extra width into right.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-837-panel-cut-off-p291.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // In row 2 (y≈564..965), no panel should be wider than 620px.
+        val row2 = result.panels.filter { it.y in 450..800 }
+        val tooWide = row2.filter { it.width > 620 }
+        assertTrue(
+            "row-2 panels must each be ≤620px wide; found overwide: $tooWide",
+            tooWide.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `issue 838 page 297 full-width bottom panel missed entirely`() {
+        // Regression for issue #838: 6 panels detected but a full-width panel at y≈1558 is missed.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-838-missed-panel-p297.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        val bottomPanels = result.panels.filter { it.y > 1400 }
+        assertTrue(
+            "expected a panel below y=1400; got ${result.panels.size} total panels, none below 1400",
+            bottomPanels.isNotEmpty(),
+        )
+    }
 }

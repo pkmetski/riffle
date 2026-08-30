@@ -709,69 +709,124 @@ class PanelDetector(
         val unionHeight = union.maxY - union.minY + 1
         val overlapHeight = yOverlapBottom - yOverlapTop + 1
 
-        // Scan topmost flood-fill gutter per column within the pair's y-overlap zone. Restricting
-        // to the y-overlap zone naturally excludes pairs whose y-overlap doesn't contain the
-        // diagonal (e.g. a left/right-bottom pair when the diagonal belongs to left/right-top).
-        val profile = mutableListOf<Pair<Int, Int>>()
+        // Profile A: topmost gutter pixel per column within the y-overlap zone.
+        // Combines raw mask pixels (data==0) with flood-fill gutter so that both synthetic tests
+        // (where gutter is tracked via the flood-fill array, not the raw mask) and real-image
+        // cases (where the binarized mask encodes gutter as data==0) are handled.
+        // This detects rising-right diagonals (gap narrows at the top, widens at the bottom FROM
+        // the left panel's perspective): the gutter moves downward as x increases, so the
+        // topmost gutter per column rises from left to right.
+        val profileA = mutableListOf<Pair<Int, Int>>()
         for (x in scanStart..scanEnd) {
             for (y in yOverlapTop..yOverlapBottom) {
-                if (gutter[y * cropped.width + x]) {
-                    profile.add(x to y)
+                val idx = y * cropped.width + x
+                if (cropped.data[idx] == 0.toByte() || gutter[idx]) {
+                    profileA.add(x to y)
                     break
                 }
             }
         }
 
-        if (profile.size < 5) return null
-
-        // firstY should sit in the upper half of the y-overlap zone. Use 30% of union height
-        // (not overlap height) so the threshold is stable regardless of how tall the overlap is.
-        val firstY = profile.first().second
-        if (firstY > yOverlapTop + (unionHeight * 0.30).toInt()) return null
-
-        // Find the rising segment from the start, stopping at a big forward jump.
-        // A jump > 25% of union height in one step means the flood-fill has left the diagonal
-        // and entered a different gutter region (e.g. bottom-border gutter accessible from
-        // outside the section). The segment before that jump is the detectable diagonal portion.
-        val bigJumpThreshold = (unionHeight * 0.25).toInt().coerceAtLeast(10)
-        var segEndIdx = 0
-        var risingCount = 0
-        for (i in 1 until profile.size) {
-            val dy = profile[i].second - profile[i - 1].second
-            when {
-                dy > bigJumpThreshold -> break
-                dy < -(unionHeight * 0.05).toInt() -> break
-                dy > 0 -> { risingCount++; segEndIdx = i }
+        // Profile B: first content→gutter transition per column.
+        // This detects falling-right diagonals (gap widens at the bottom; the left panel is
+        // wider at the bottom than at the top). A horizontal panel border at y=yOverlapTop would
+        // make profileA flat (border row is gutter for every column), masking the diagonal.
+        // Profile B skips the border by scanning for the FIRST gutter that follows content,
+        // which only fires inside the diagonal transition zone — not in the flat border.
+        // Columns that are fully gutter (the gap itself) produce no entry; columns fully inside
+        // a panel produce no entry either (no gutter after content), so this profile is
+        // inherently focused on the diagonal boundary.
+        val profileB = mutableListOf<Pair<Int, Int>>()
+        for (x in scanStart..scanEnd) {
+            var sawContent = false
+            for (y in yOverlapTop..yOverlapBottom) {
+                val isContent = cropped.data[y * cropped.width + x] == 1.toByte()
+                if (isContent) sawContent = true
+                else if (sawContent) { profileB.add(x to y); break }
             }
         }
 
-        if (segEndIdx < 4) return null
-        val segFirstX = profile[0].first
-        val segLastX = profile[segEndIdx].first
-        val segFirstY = profile[0].second
-        val segLastY = profile[segEndIdx].second
-        val dxSeg = segLastX - segFirstX
-        val dySeg = segLastY - segFirstY
+        val bigJumpThreshold = (unionHeight * 0.25).toInt().coerceAtLeast(10)
+        val smallDropThreshold = (unionHeight * 0.05).toInt()
 
-        // Segment must span at least 10% of the y-overlap height.
-        if (dySeg < overlapHeight * 0.10) return null
-        if (risingCount < segEndIdx * 0.75) return null
+        // Try both profiles × both scan directions. Profile A + forward = rising-right diagonal.
+        // Profile A + reverse = falling-right via reversed topmost-gutter.
+        // Profile B + forward = falling-right via content-to-gutter boundary.
+        // Profile B + reverse = secondary attempt (usually redundant but harmless).
+        for (profile in listOf(profileA, profileB)) {
+            if (profile.size < 5) continue
+        for (forward in listOf(true, false)) {
+            val scanProfile = if (forward) profile else profile.reversed()
 
-        // Extrapolate the diagonal slope from the accessible segment to estimate where the
-        // boundary reaches union.maxY. The accessible segment may only cover the flood-fill-
-        // reachable portion; beyond it the gutter is enclosed by content and invisible to BFS.
-        val dyToBottom = union.maxY - segFirstY
-        val extrapolatedEndX = if (dySeg > 0) {
-            (segFirstX + dyToBottom.toDouble() * dxSeg / dySeg).toInt()
-                .coerceIn(segLastX, union.maxX)
-        } else {
-            segLastX
+            // firstY should sit in the upper quarter of the y-overlap zone so we have a
+            // meaningful region to extrapolate through.
+            val firstY = scanProfile.first().second
+            if (firstY > yOverlapTop + (unionHeight * 0.30).toInt()) continue
+
+            // Find the rising segment, stopping at a big forward jump or significant drop.
+            var segEndIdx = 0
+            var risingCount = 0
+            var firstRisingIdx = -1
+            var hasFlatPrefix = false
+            for (i in 1 until scanProfile.size) {
+                val dy = scanProfile[i].second - scanProfile[i - 1].second
+                when {
+                    dy > bigJumpThreshold -> break
+                    dy < -smallDropThreshold -> break
+                    dy == 0 -> hasFlatPrefix = true
+                    dy > 0 -> {
+                        risingCount++
+                        segEndIdx = i
+                        // If a flat prefix preceded this rise, require dy ≥ 2 to anchor
+                        // firstRisingIdx. A horizontal gutter row just above the diagonal zone
+                        // generates flat profileB entries followed by a 1-pixel bump; without
+                        // this guard the bump sets firstRisingIdx too early, inflating riseSpan
+                        // and diluting the monotonicity ratio below 75% (issue #834).
+                        val minDy = if (hasFlatPrefix) 2 else 1
+                        if (firstRisingIdx < 0 && dy >= minDy) firstRisingIdx = i
+                    }
+                }
+            }
+
+            if (segEndIdx < 4) continue
+            val segFirstX = scanProfile[0].first
+            val segLastX = scanProfile[segEndIdx].first
+            val segFirstY = scanProfile[0].second
+            val segLastY = scanProfile[segEndIdx].second
+            val dxSeg = segLastX - segFirstX
+            val dySeg = segLastY - segFirstY
+            // Segment must span at least 10% of the y-overlap height.
+            if (dySeg < overlapHeight * 0.10) continue
+            // Monotonicity: measure only over the rising portion (skip any flat prefix from the gap).
+            val riseSpan = if (firstRisingIdx in 1..segEndIdx) segEndIdx - firstRisingIdx + 1 else segEndIdx
+            if (risingCount < riseSpan * 0.75) continue
+
+            // Extrapolate the diagonal slope to where the boundary reaches the far end of the
+            // y-overlap zone. For forward scans the extrapolation target is union.maxY (the segment
+            // starts near the top and is extrapolated downward). For reverse scans the same holds
+            // because scanProfile[0] also sits near yOverlapTop (firstY check passed).
+            val dyToBottom = union.maxY - segFirstY
+            val extrapolatedEndX = if (dySeg > 0) {
+                (segFirstX + dyToBottom.toDouble() * dxSeg / dySeg).toInt()
+                    .let { raw ->
+                        // Forward (rising-right): end is to the right of the segment; cap at maxX.
+                        // Reverse (falling-right): end is to the left of the segment; floor at minX.
+                        if (dxSeg >= 0) raw.coerceIn(segLastX, union.maxX)
+                        else raw.coerceIn(union.minX, segLastX)
+                    }
+            } else {
+                segLastX
+            }
+
+            val shift = kotlin.math.abs(extrapolatedEndX - segFirstX)
+            if (shift < minShift || shift > maxShift) continue
+
+            // topRun = where the gutter sits at the TOP of the y-overlap zone (segFirstX, near
+            // yOverlapTop for both directions). bottomRun = estimated x at union.maxY.
+            return (segFirstX to segFirstX) to (extrapolatedEndX to extrapolatedEndX)
         }
-
-        val shift = extrapolatedEndX - segFirstX
-        if (shift < minShift || shift > maxShift) return null
-
-        return (segFirstX to segFirstX) to (extrapolatedEndX to extrapolatedEndX)
+        }
+        return null
     }
 
     private fun diagonalStripGutterRuns(
@@ -838,8 +893,9 @@ class PanelDetector(
         val maxShift = (downscaledWidth * 0.12).toInt()
         // The profile scan extrapolates the diagonal slope from the flood-fill-accessible segment,
         // so it can handle larger shifts than the strip scan without false-positives (the y-overlap
-        // restriction already gates which pairs it fires on). Allow up to 15% for the profile path.
-        val maxShiftProfile = (downscaledWidth * 0.15).toInt()
+        // restriction already gates which pairs it fires on). Allow up to 20% for the profile path
+        // (issue #834: falling-right diagonal spanning 16.5% of page width).
+        val maxShiftProfile = (downscaledWidth * 0.20).toInt()
         val result = bboxes.toMutableList()
 
         for (i in result.indices) {
@@ -867,7 +923,8 @@ class PanelDetector(
                 val unionWidth = union.maxX - union.minX + 1
                 val unionHeight = union.maxY - union.minY + 1
                 if (unionWidth.toDouble() / downscaledWidth < 0.85) continue
-                if (unionHeight.toDouble() / downscaledHeight !in 0.16..0.55) continue
+                val heightFrac = unionHeight.toDouble() / downscaledHeight
+                if (heightFrac !in 0.16..0.55) continue
 
                 // Try the profile scan first: it detects gradual diagonals (< 1 row/column) that
                 // are invisible to the 45 %-strip-density threshold. The scan is restricted to the
@@ -889,13 +946,15 @@ class PanelDetector(
                 val diagonalShift = kotlin.math.abs(topCenter - bottomCenter)
                 if (diagonalShift < minShift || diagonalShift > effectiveMaxShift) continue
 
-                // If the bottom-strip run is entirely within the current gap between the two
-                // panels, the split already captured the straight vertical gutter correctly.
-                // Diagonal widening would create artificial overlap driven by an unrelated
-                // top-strip run (e.g. a thin speech-bubble gap in the art). A real diagonal
-                // boundary always has its bottom-strip run extending PAST the gap into at least
-                // one panel — the widening is needed to cover that transition zone.
-                if (bottomRun.first >= left.maxX + 1 && bottomRun.second <= right.minX - 1) continue
+                // If BOTH runs are entirely within the current gap between the two panels, the
+                // split already captured the straight vertical gutter correctly — diagonal
+                // widening would create artificial overlap from an unrelated run. A real diagonal
+                // boundary has at least ONE run extending past the gap into a panel. Skip only
+                // when both are inside the gap; a falling-right diagonal has its bottom run at
+                // the gap and its top run far into one of the panels — that still needs widening.
+                val topRunInGap = topRun.first >= left.maxX + 1 && topRun.second <= right.minX - 1
+                val bottomRunInGap = bottomRun.first >= left.maxX + 1 && bottomRun.second <= right.minX - 1
+                if (topRunInGap && bottomRunInGap) continue
 
                 val overlapPad = (unionWidth * 0.02).toInt().coerceAtLeast(12)
                 var newLeftMax = (maxOf(topRun.second, bottomRun.second) + overlapPad)

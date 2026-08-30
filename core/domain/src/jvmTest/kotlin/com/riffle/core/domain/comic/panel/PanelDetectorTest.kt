@@ -1056,6 +1056,68 @@ class PanelDetectorTest {
     }
 
     @Test
+    fun `profileB scan -- flat 1px-bump prefix does not inflate riseSpan when steep diagonal follows (issue 834)`() {
+        // Boundary: falling-right diagonal detected via profileB when a horizontal gutter row
+        // (between row 2 and row 3) generates flat-prefix profileB entries (dy=0) with 1-pixel
+        // bumps (dy=1), followed by a steep diagonal rise (dy=8). The fix: when hasFlatPrefix is
+        // true (dy=0 entries seen), require dy≥2 to anchor firstRisingIdx so the riseSpan excludes
+        // the flat prefix's single-pixel bumps.
+        //
+        // Setup: profileB has flat entries (y=740, x=343..362, dy=0) with 4 bumps (dy=1 at
+        // x=347,352,357,362), then a steep diagonal (dy=8/col, x=369..393).
+        // Without the fix: firstRisingIdx=4 (first bump, dy=1), riseSpan large → ratio < 75% → FAIL.
+        // With the fix:    hasFlatPrefix=true → minDy=2; firstRisingIdx set at first dy=8 → PASS.
+        val w = 1042
+        val h = 1482
+        val data = ByteArray(w * h) { 1 }
+        // Flat prefix at y=740 for x=343..362 (no gaps, no bumps).
+        for (x in 343..362) data[740 * w + x] = 0
+        // Bumps: restore y=740 to content, put gutter at y=741 for bump columns.
+        for (bumpX in intArrayOf(347, 352, 357, 362)) {
+            data[740 * w + bumpX] = 1
+            data[741 * w + bumpX] = 0
+        }
+        // Diagonal x=369..393: first entry at y=740 (same level as flat), then rises at dy=8.
+        data[740 * w + 369] = 0
+        for (x in 370..393) data[(740 + (x - 369) * 8) * w + x] = 0
+        val gutter = BooleanArray(w * h)
+        val left = PanelDetector.Bbox(minX = 27, minY = 739, maxX = 363, maxY = 1441)
+        val right = PanelDetector.Bbox(minX = 369, minY = 739, maxX = 1013, maxY = 1441)
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        val repLeft = result.single { it.minX == left.minX }
+        assertTrue(
+            "falling-right diagonal with flat 1px-bump prefix must be detected and repaired; got $repLeft",
+            repLeft.maxX > left.maxX,
+        )
+    }
+
+    @Test
+    fun `profileB scan -- clean steep diagonal without flat prefix still detected after dy threshold change`() {
+        // Boundary safety: a clean falling-right diagonal (dy=8/col, no flat prefix) is detected
+        // after the firstRisingIdx ≥ 2 fix. firstRisingIdx anchors at i=1 (dy=8 ≥ 2); riseSpan=41;
+        // risingCount/riseSpan = 100% > 75%; extrapolated shift ≈ 96 < maxShiftProfile → PASS.
+        val w = 1042
+        val h = 1482
+        val data = ByteArray(w * h) { 1 }
+        for (x in 352..393) data[(740 + (x - 352) * 8) * w + x] = 0
+        val gutter = BooleanArray(w * h)
+        val left = PanelDetector.Bbox(minX = 27, minY = 739, maxX = 363, maxY = 1441)
+        val right = PanelDetector.Bbox(minX = 364, minY = 739, maxX = 1013, maxY = 1441)
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        val repLeft = result.single { it.minX == left.minX }
+        assertTrue(
+            "clean steep diagonal without flat prefix must be detected; got $repLeft",
+            repLeft.maxX > left.maxX,
+        )
+    }
+
+    @Test
     fun `diagonalGutterFallback fires when gutter rows qualify at 22pct but not 20pct — banner stub below`() {
         // Boundary test for the diagonalGutterFallback 22% threshold + bottomH < topH discriminator.
         // Uses 0/255 values to bypass the binarizer texture pass so gutter row content is preserved

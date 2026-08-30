@@ -291,8 +291,13 @@ class JsonPanelStore constructor(
          *      left with the top splash split into two half-height panels. v32 caches for such pages
          *      hold two full-width stacked panels where the correct result is a spanning left column
          *      plus two right-side pieces.
+         * v34: diagonalProfileScan firstRisingIdx threshold raised from dy>0 to dy≥2 (issue #834).
+         *      A horizontal gutter row just above the diagonal zone produced 1-pixel profileB bumps
+         *      that anchored firstRisingIdx too early, inflating riseSpan and causing the monotonicity
+         *      check to fail. Pages with a falling-right diagonal boundary where a horizontal gutter
+         *      row sits above the diagonal start now have the correct wider bottom-left panel.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 33
+        internal const val CURRENT_SCHEMA_VERSION: Int = 34
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
