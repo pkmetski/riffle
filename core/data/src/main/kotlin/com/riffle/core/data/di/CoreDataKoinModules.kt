@@ -194,6 +194,7 @@ import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.UiProgressSink
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.WebSourceDescriptors
@@ -1097,6 +1098,7 @@ private val coreDataSyncModule = module {
         )
     }
     single<PostSweepMaterializer> { get<WebSourceLibraryItemMaterializer>() }
+    single<UiProgressSink> { get<LibraryItemUiProgressSink>() }
 
     single { AbsBookmarkAnnotationSyncTargetFactory(get(), get()) }
     single<RemoteUserIdResolver>(named("abs")) { AbsRemoteUserIdResolver(get()) }
