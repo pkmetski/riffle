@@ -7,7 +7,7 @@ lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
 composeBom = "2026.08.00"
 room = "2.8.4"
-sqlite = "2.7.0"
+sqlite = "2.6.2"
 datastore = "1.2.1"
 workmanager = "2.11.2"
 okhttp = "5.5.0"
@@ -105,6 +105,7 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
 media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
 
