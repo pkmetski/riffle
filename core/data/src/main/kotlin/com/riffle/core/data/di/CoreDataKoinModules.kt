@@ -111,7 +111,14 @@ import com.riffle.core.data.localfiles.AndroidCopyInService
 import com.riffle.core.data.localfiles.CopyInService
 import com.riffle.core.data.localfiles.FolderWalker
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
+import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
+import com.riffle.core.data.localfiles.LocalFilesFolderRepository
+import com.riffle.core.data.localfiles.LocalFilesScanner
+import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.SafFolderWalker
+import com.riffle.core.data.websource.RemoteItemFreshness
+import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver
 import com.riffle.core.data.sync.KomgaRemoteUserIdResolver
@@ -212,6 +219,7 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.AudiobookBundleApi
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.JvmHttpClientPool
@@ -219,7 +227,9 @@ import com.riffle.core.network.KomgaServerInfoApi
 import com.riffle.core.network.KomgaServerInfoApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
+import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleApiImpl
+import com.riffle.core.network.StorytellerBundleProbeApi
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.StorytellerPositionApi
 import com.riffle.core.network.StorytellerPositionApiImpl
@@ -239,6 +249,7 @@ import com.riffle.core.sync.DirtyAnnotationLedger as SyncDirtyAnnotationLedger
 import com.riffle.core.sync.DirtyBookmarkLedger
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.core.sync.PostSweepMaterializer
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
@@ -596,7 +607,9 @@ private val coreDataNetworkModule = module {
     single<StorytellerLibraryApi> { get<StorytellerApiClient>() }
 
     single { StorytellerBundleApiImpl(get()) }
-    single { AudiobookBundleApiImpl(get(named(STREAMING_HTTP_CLIENT))) }
+    single<StorytellerBundleApi> { get<StorytellerBundleApiImpl>() }
+    single<StorytellerBundleProbeApi> { get<StorytellerBundleApiImpl>() }
+    single<AudiobookBundleApi> { AudiobookBundleApiImpl(get(named(STREAMING_HTTP_CLIENT))) }
     single<StorytellerPositionApi> { StorytellerPositionApiImpl(get()) }
 
     single<KomgaServerInfoApi> { KomgaServerInfoApiClient(get()) }
@@ -1073,6 +1086,7 @@ private val coreDataSyncModule = module {
             upserter = get(),
         )
     }
+    single<PostSweepMaterializer> { get<WebSourceLibraryItemMaterializer>() }
 
     single { AbsBookmarkAnnotationSyncTargetFactory(get(), get()) }
     single<RemoteUserIdResolver>(named("abs")) { AbsRemoteUserIdResolver(get()) }
@@ -1139,6 +1153,57 @@ private val coreDataMiscModule = module {
     // LocalFiles
     single<FolderWalker> { SafFolderWalker(androidContext()) }
     single<CopyInService> { AndroidCopyInService(androidContext()) }
+    single {
+        LocalFilesFolderRepository(
+            context = androidContext(),
+            folderDao = get(),
+            libraryDao = get(),
+            fileFolderDao = get(),
+            clock = get(),
+        )
+    }
+    factory {
+        LocalFilesScanner(
+            folderDao = get(),
+            fileDao = get(),
+            fileFolderDao = get(),
+            libraryItemDao = get(),
+            walker = get(),
+            copyIn = get(),
+            pdfMetadata = get(),
+            clock = get(),
+            logger = get(),
+        )
+    }
+    single {
+        LocalFilesSourceInstaller(
+            sourceDao = get(),
+            folderRepository = get(),
+            scanner = get(),
+            logger = get(),
+        )
+    }
+    single { LocalFilesFolderHealthChecker(context = androidContext()) }
+
+    // WebSource install/browse plumbing (WebSourceLibraryItemUpserter is bound in
+    // coreDataRepositoriesModule)
+    factory { RemoteItemFreshness(dao = get(), clock = get()) }
+    factory {
+        WebSourceItemGate(
+            libraryObserver = get(),
+            freshness = get(),
+            upserter = get(),
+            logger = get(),
+        )
+    }
+    single {
+        SingletonWebSourceInstaller(
+            sourceDao = get(),
+            libraryDao = get(),
+            registry = get(),
+            logger = get(),
+        )
+    }
 
     // CredentialedAuthenticator (Map<SourceType, SourceAdapter>)
     single<Map<SourceType, SourceAdapter>> {

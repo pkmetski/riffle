@@ -19,9 +19,11 @@ import com.riffle.app.feature.audiobook.AudiobookResumeResolver
 import com.riffle.app.feature.audiobook.FollowLoopOrchestrator
 import com.riffle.app.feature.library.BookImportManager
 import com.riffle.app.feature.library.DownloadManager
+import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.ReaderStateHolder
+import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.feature.reader.autoscroll.AutoScrollController
 import com.riffle.app.feature.reader.cadence.CadenceController
@@ -29,6 +31,7 @@ import com.riffle.app.feature.reader.controllers.BookmarksController
 import com.riffle.app.feature.reader.controllers.SearchController
 import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.controllers.WakeLockController
+import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.FiguresInRangeResolver
 import com.riffle.app.feature.reader.NoopFiguresInRangeResolver
@@ -260,6 +263,31 @@ val appKoinModule: Module = module {
     single<PdfMetadataExtractor> { PdfiumPdfMetadataExtractor(context = androidContext()) }
 
     // ---- Audiobook state --------------------------------------------------------------------
+
+    factory {
+        ReaderSyncFactory(
+            linkRepository = get(),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            indexStore = get(),
+            libraryObserver = get(),
+            cacheStore = get(named("epubCacheStore")),
+            downloadsStore = get(named("epubDownloadsStore")),
+            crossEpubIndexBuildTrigger = get(),
+            sidecarCache = get(),
+            clock = get(),
+            logger = get(),
+        )
+    }
+    factory { HighlightsPdfExporter(context = androidContext(), factory = get()) }
+    single {
+        LibraryTabVisibilityObserver(
+            libraryObserver = get(),
+            toReadRepository = get(),
+            annotationsLibraryRepository = get(),
+            sourceRepository = get(),
+        )
+    }
 
     single { AudiobookHandoffState() }
     single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
