@@ -111,7 +111,15 @@ import com.riffle.core.data.localfiles.AndroidCopyInService
 import com.riffle.core.data.localfiles.CopyInService
 import com.riffle.core.data.localfiles.FolderWalker
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
+import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
+import com.riffle.core.data.localfiles.LocalFilesFolderRepository
+import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
+import com.riffle.core.data.localfiles.LocalFilesScanner
+import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.SafFolderWalker
+import com.riffle.core.data.websource.RemoteItemFreshness
+import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver
 import com.riffle.core.data.sync.KomgaRemoteUserIdResolver
@@ -186,6 +194,7 @@ import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.UiProgressSink
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.WebSourceDescriptors
@@ -212,6 +221,7 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.AudiobookBundleApi
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.JvmHttpClientPool
@@ -219,7 +229,9 @@ import com.riffle.core.network.KomgaServerInfoApi
 import com.riffle.core.network.KomgaServerInfoApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
+import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleApiImpl
+import com.riffle.core.network.StorytellerBundleProbeApi
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.StorytellerPositionApi
 import com.riffle.core.network.StorytellerPositionApiImpl
@@ -239,6 +251,7 @@ import com.riffle.core.sync.DirtyAnnotationLedger as SyncDirtyAnnotationLedger
 import com.riffle.core.sync.DirtyBookmarkLedger
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.core.sync.PostSweepMaterializer
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
@@ -254,6 +267,15 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+
+// Public qualifier names for generic Map bindings. Koin indexes definitions by ERASED
+// KClass, so unqualified Map<...> definitions silently override each other — the last
+// loaded one wins for EVERY Map injection point (this handed DefaultCatalogRegistry a
+// map of SourceAdapters and crashed with ClassCastException). Every generic binding
+// must carry a qualifier; consumers resolve with get(named(...)).
+const val CATALOG_FACTORIES_BY_SOURCE_TYPE = "catalogFactoriesBySourceType"
+const val REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE = "remoteUserIdResolversBySourceType"
+const val SOURCE_ADAPTERS_BY_SOURCE_TYPE = "sourceAdaptersBySourceType"
 
 // Named qualifier strings for File instances
 private const val EPUB_CACHE_DIR = "epubCacheDir"
@@ -596,7 +618,9 @@ private val coreDataNetworkModule = module {
     single<StorytellerLibraryApi> { get<StorytellerApiClient>() }
 
     single { StorytellerBundleApiImpl(get()) }
-    single { AudiobookBundleApiImpl(get(named(STREAMING_HTTP_CLIENT))) }
+    single<StorytellerBundleApi> { get<StorytellerBundleApiImpl>() }
+    single<StorytellerBundleProbeApi> { get<StorytellerBundleApiImpl>() }
+    single<AudiobookBundleApi> { AudiobookBundleApiImpl(get(named(STREAMING_HTTP_CLIENT))) }
     single<StorytellerPositionApi> { StorytellerPositionApiImpl(get()) }
 
     single<KomgaServerInfoApi> { KomgaServerInfoApiClient(get()) }
@@ -617,7 +641,7 @@ private val coreDataRepositoriesModule = module {
             filesCleaner = get(),
             sidecarCache = { get<ReadaloudSidecarCache>() },
             installer = get(),
-            remoteUserIdResolvers = get(),
+            remoteUserIdResolvers = get(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)),
         )
     }
 
@@ -720,7 +744,7 @@ private val coreDataRepositoriesModule = module {
 }
 
 private val coreDataCatalogModule = module {
-    single<Map<SourceType, CatalogFactory>> {
+    single<Map<SourceType, CatalogFactory>>(named(CATALOG_FACTORIES_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.LOCAL_FILES to LocalFilesCatalogFactory(
                 folderDao = get(),
@@ -761,7 +785,7 @@ private val coreDataCatalogModule = module {
             ),
         )
     }
-    single<CatalogRegistry> { DefaultCatalogRegistry(get(), get()) }
+    single<CatalogRegistry> { DefaultCatalogRegistry(get(named(CATALOG_FACTORIES_BY_SOURCE_TYPE)), get()) }
 }
 
 private val coreDataStreamingAudioModule = module {
@@ -1073,11 +1097,13 @@ private val coreDataSyncModule = module {
             upserter = get(),
         )
     }
+    single<PostSweepMaterializer> { get<WebSourceLibraryItemMaterializer>() }
+    single<UiProgressSink> { get<LibraryItemUiProgressSink>() }
 
     single { AbsBookmarkAnnotationSyncTargetFactory(get(), get()) }
     single<RemoteUserIdResolver>(named("abs")) { AbsRemoteUserIdResolver(get()) }
     single<RemoteUserIdResolver>(named("komga")) { KomgaRemoteUserIdResolver(get()) }
-    single<Map<SourceType, RemoteUserIdResolver>> {
+    single<Map<SourceType, RemoteUserIdResolver>>(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.ABS to get(named("abs")),
             SourceType.KOMGA to get(named("komga")),
@@ -1139,9 +1165,70 @@ private val coreDataMiscModule = module {
     // LocalFiles
     single<FolderWalker> { SafFolderWalker(androidContext()) }
     single<CopyInService> { AndroidCopyInService(androidContext()) }
+    single {
+        LocalFilesFolderRepository(
+            context = androidContext(),
+            folderDao = get(),
+            libraryDao = get(),
+            fileFolderDao = get(),
+            clock = get(),
+        )
+    }
+    factory {
+        LocalFilesScanner(
+            folderDao = get(),
+            fileDao = get(),
+            fileFolderDao = get(),
+            libraryItemDao = get(),
+            walker = get(),
+            copyIn = get(),
+            pdfMetadata = get(),
+            clock = get(),
+            logger = get(),
+        )
+    }
+    single {
+        LocalFilesSourceInstaller(
+            sourceDao = get(),
+            folderRepository = get(),
+            scanner = get(),
+            logger = get(),
+        )
+    }
+    single { LocalFilesFolderHealthChecker(context = androidContext()) }
+    single {
+        LocalFilesFolderWatcher(
+            context = androidContext(),
+            sourceRepository = get(),
+            folderDao = get(),
+            scanner = get(),
+            applicationScope = get(),
+            logger = get(),
+        )
+    }
+
+    // WebSource install/browse plumbing (WebSourceLibraryItemUpserter is bound in
+    // coreDataRepositoriesModule)
+    factory { RemoteItemFreshness(dao = get(), clock = get()) }
+    factory {
+        WebSourceItemGate(
+            libraryObserver = get(),
+            freshness = get(),
+            upserter = get(),
+            logger = get(),
+        )
+    }
+    single {
+        SingletonWebSourceInstaller(
+            sourceDao = get(),
+            libraryDao = get(),
+            registry = get(),
+            logger = get(),
+        )
+    }
 
     // CredentialedAuthenticator (Map<SourceType, SourceAdapter>)
-    single<Map<SourceType, SourceAdapter>> {
+    single<Map<SourceType, SourceAdapter>>(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.ABS to get<AbsSourceAdapter>(),
             SourceType.KOMGA to get<KomgaSourceAdapter>(),
