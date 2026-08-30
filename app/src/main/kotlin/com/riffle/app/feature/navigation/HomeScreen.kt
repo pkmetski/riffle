@@ -21,7 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
 fun HomeScreen(
     onNavigateToAddSource: () -> Unit,
     onNavigateToLibrary: (sourceType: SourceType, libraryId: String, libraryName: String) -> Unit,
-    viewModel: HomeViewModel = hiltViewModel(),
+    viewModel: HomeViewModel = koinViewModel(),
 ) {
     var retryKey by remember { mutableIntStateOf(0) }
     var showRetry by remember { mutableStateOf(false) }

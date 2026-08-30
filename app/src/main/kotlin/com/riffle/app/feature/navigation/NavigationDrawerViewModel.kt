@@ -19,7 +19,6 @@ import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.playback.NowPlayingStore
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,11 +33,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class NavigationDrawerViewModel @Inject constructor(
+class NavigationDrawerViewModel constructor(
     private val sourceRepository: SourceRepository,
     private val libraryObserver: LibraryObserver,
     private val visibilityStore: LibraryVisibilityPreferencesStore,

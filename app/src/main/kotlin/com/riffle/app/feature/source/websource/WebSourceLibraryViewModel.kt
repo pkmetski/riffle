@@ -3,7 +3,7 @@ package com.riffle.app.feature.source.websource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,13 +13,11 @@ import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.LibraryItem
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import javax.inject.Inject
 
 /**
  * Room-backed acquired-item shelves shared by every Web Source.
@@ -28,8 +26,7 @@ import javax.inject.Inject
  * is represented by the same local `library_items` rows. This ViewModel keeps Home and To Read
  * shelf plumbing out of each concrete Source screen.
  */
-@HiltViewModel
-class WebSourceLibraryViewModel @Inject constructor(
+class WebSourceLibraryViewModel constructor(
     savedStateHandle: SavedStateHandle,
     libraryObserver: LibraryObserver,
     toReadRepository: ToReadRepository,
@@ -67,7 +64,7 @@ fun WebSourceHomeTab(
     onOpenDetail: (itemId: String) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onCoverScaleChange: (Float) -> Unit,
-    viewModel: WebSourceLibraryViewModel = hiltViewModel(),
+    viewModel: WebSourceLibraryViewModel = koinViewModel(),
 ) {
     val inProgress by viewModel.inProgress.collectAsState()
     val recentlyAdded by viewModel.recentlyAdded.collectAsState()
@@ -91,7 +88,7 @@ fun WebSourceHomeTab(
 fun WebSourceToReadTab(
     onOpenDetail: (itemId: String) -> Unit,
     onCoverScaleChange: (Float) -> Unit,
-    viewModel: WebSourceLibraryViewModel = hiltViewModel(),
+    viewModel: WebSourceLibraryViewModel = koinViewModel(),
 ) {
     val items by viewModel.toReadItems.collectAsState()
     ToReadTabContent(

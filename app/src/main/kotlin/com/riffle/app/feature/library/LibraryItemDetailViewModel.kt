@@ -57,7 +57,6 @@ import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -74,7 +73,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
 
 sealed interface LibraryItemDetailUiState {
     data object Loading : LibraryItemDetailUiState
@@ -232,8 +230,7 @@ internal fun estimatedReadingTimeSec(totalPositions: Int, secPerPosition: Double
     return (totalPositions * secPerPosition).toLong().coerceAtLeast(0L)
 }
 
-@HiltViewModel
-class LibraryItemDetailViewModel @Inject constructor(
+class LibraryItemDetailViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
     private val recordItemOpened: RecordItemOpened,

@@ -51,6 +51,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.app.feature.library.LibrarySectionType
@@ -84,7 +85,7 @@ fun RadioEsBrowseScreen(
     var searchOpen by remember { mutableStateOf(false) }
     val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
-    val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
+    val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
 
     LaunchedEffect(visibility.toRead) {

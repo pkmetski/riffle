@@ -11,10 +11,8 @@ import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
-import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.IOException
 import java.net.UnknownHostException
-import javax.inject.Inject
 
 /**
  * ViewModel for [GutenbergBrowseScreen]. Delegates to [UnboundedBrowseViewModel] for the shared
@@ -22,8 +20,7 @@ import javax.inject.Inject
  * carries Gutenberg-specific tuning — the [SourceType] guard, the default rootId, the page
  * size, and the host-specific error copy.
  */
-@HiltViewModel
-class GutenbergBrowseViewModel @Inject constructor(
+class GutenbergBrowseViewModel constructor(
     savedStateHandle: SavedStateHandle,
     sourceRepository: SourceRepository,
     catalogRegistry: CatalogRegistry,

@@ -39,7 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.app.feature.server.AddSourceBackend
@@ -69,7 +69,7 @@ fun ReadaloudSettingsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToAddSource: (AddSourceBackend, String?) -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel(),
+    viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val servers by viewModel.servers.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()

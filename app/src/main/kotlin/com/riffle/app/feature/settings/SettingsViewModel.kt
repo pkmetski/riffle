@@ -43,8 +43,6 @@ import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.SourceRepository
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -61,7 +59,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** UI state for the at-a-glance "WebDAV" row in Settings (ADR 0043). */
 data class AnnotationSyncRowState(
@@ -75,9 +72,8 @@ data class AnnotationSyncRowState(
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+class SettingsViewModel constructor(
+    private val context: Context,
     private val crashReportRepository: CrashReportRepository,
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val sourceRepository: SourceRepository,

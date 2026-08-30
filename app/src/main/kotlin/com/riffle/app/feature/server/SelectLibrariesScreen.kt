@@ -29,7 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.PendingSource
 
@@ -40,7 +40,7 @@ fun SelectLibrariesScreen(
     pending: PendingSource,
     onNavigateBack: () -> Unit,
     onContinueComplete: () -> Unit,
-    viewModel: SelectLibrariesViewModel = hiltViewModel(),
+    viewModel: SelectLibrariesViewModel = koinViewModel(),
 ) {
     LaunchedEffect(pending) { viewModel.bind(pending) }
     LaunchedEffect(Unit) { viewModel.navigateHome.collect { onContinueComplete() } }

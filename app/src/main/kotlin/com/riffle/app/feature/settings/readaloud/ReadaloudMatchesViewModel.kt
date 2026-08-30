@@ -14,7 +14,6 @@ import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,11 +27,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class ReadaloudMatchesViewModel @Inject constructor(
+class ReadaloudMatchesViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val reviewRepository: ReadaloudReviewRepository,
     private val reviewActions: ReadaloudReviewActions,

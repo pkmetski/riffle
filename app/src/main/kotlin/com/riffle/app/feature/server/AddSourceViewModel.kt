@@ -32,8 +32,6 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,8 +41,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Named
 
 /**
  * Backend kind selectable in [AddSourceScreen]. WebDAV lives here as a peer to the browsable
@@ -98,9 +94,8 @@ sealed class AddSourceBackend {
     }
 }
 
-@HiltViewModel
-class AddSourceViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+class AddSourceViewModel constructor(
+    private val context: Context,
     private val repository: SourceRepository,
     // Per-SourceType credentialed authenticators (ADR 0053). Injected as a Hilt multibinding —
     // adding a new credentialed source contributes one entry via @IntoMap without touching this
@@ -116,7 +111,7 @@ class AddSourceViewModel @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val clock: Clock,
     private val annotationDao: AnnotationDao,
-    @Named(WEBDAV_BANNER_TICKER) private val bannerTicker: Flow<Unit>,
+    private val bannerTicker: Flow<Unit>,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 

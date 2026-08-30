@@ -13,12 +13,10 @@ import com.riffle.core.domain.StoredMediaType
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.models.isStorytellerService
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** A locally-available item paired with the on-disk size of its file. */
 data class LocalItemUi(
@@ -51,8 +49,7 @@ data class DownloadsUiState(
     val cachedTotalBytes: Long get() = cachedItems.sumOf { it.sizeBytes }
 }
 
-@HiltViewModel
-class DownloadsViewModel @Inject constructor(
+class DownloadsViewModel constructor(
     private val downloadsRepository: DownloadsRepository,
     private val libraryObserver: LibraryObserver,
     private val sourceRepository: SourceRepository,

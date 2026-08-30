@@ -49,7 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.LibrarySectionType
@@ -77,13 +77,13 @@ fun GutenbergBrowseScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
-    viewModel: GutenbergBrowseViewModel = hiltViewModel(),
+    viewModel: GutenbergBrowseViewModel = koinViewModel(),
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
     var searchOpen by remember { mutableStateOf(false) }
     val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
-    val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
+    val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
 
     LaunchedEffect(viewModel) {
@@ -398,7 +398,7 @@ private const val GUTENBERG_LANGUAGE_FACET_PREFIX = "language:"
 @Composable
 private fun GutenbergAnnotationsTab(
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
-    viewModel: AnnotationsListViewModel = hiltViewModel(),
+    viewModel: AnnotationsListViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     AnnotationsListScreen(

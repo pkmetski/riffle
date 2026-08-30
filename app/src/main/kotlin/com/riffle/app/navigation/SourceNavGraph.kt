@@ -6,7 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -45,7 +45,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
     composable(ADD_SOURCE_TYPE_PICKER) { backStackEntry ->
         val cameFromSettings = navController.previousBackStackEntry
             ?.destination?.route == SETTINGS
-        val pickerViewModel: SourceTypePickerViewModel = hiltViewModel()
+        val pickerViewModel: SourceTypePickerViewModel = koinViewModel()
         val installedTypes by pickerViewModel.installedTypes.collectAsState()
         SourceTypePickerScreen(
             windowSizeClass = windowSizeClass,
@@ -218,7 +218,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             val parentEntry = remember(backStackEntry) {
                 navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
             }
-            val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
+            val setupVm: SourceSetupViewModel = koinViewModel(viewModelStoreOwner = parentEntry)
             // Add-Source can be reached from the main Settings screen or from either of
             // the settings drill-ins (Readaloud → Configure Storyteller; Annotations
             // Sync → Configure WebDAV). All three should pop back to the caller when
@@ -245,7 +245,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             val parentEntry = remember(backStackEntry) {
                 navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
             }
-            val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
+            val setupVm: SourceSetupViewModel = koinViewModel(viewModelStoreOwner = parentEntry)
             val pending = setupVm.pendingServer
             if (pending == null) {
                 LaunchedEffect(Unit) { navController.popBackStackIfTop(backStackEntry) }

@@ -5,6 +5,7 @@ import android.content.Context
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
+import com.riffle.app.di.riffleViewModelKoinModules
 import com.riffle.app.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
@@ -188,7 +189,7 @@ internal fun shouldSkipMainProcessStartup(isAcraProcess: Boolean): Boolean = isA
  * The Koin module graph for the app. Empty while Hilt still owns every binding; the Hilt → Koin
  * migration PRs move bindings here module by module until Hilt can be dropped entirely.
  */
-internal fun riffleKoinModules(): List<org.koin.core.module.Module> = emptyList()
+internal fun riffleKoinModules(): List<org.koin.core.module.Module> = riffleViewModelKoinModules()
 
 /** 100 MB cap for the on-disk cover cache. */
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024

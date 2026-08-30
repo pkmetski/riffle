@@ -45,13 +45,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnnotationSyncMaintenanceScreen(
     onNavigateBack: () -> Unit,
-    viewModel: AnnotationSyncMaintenanceViewModel = hiltViewModel(),
+    viewModel: AnnotationSyncMaintenanceViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
 

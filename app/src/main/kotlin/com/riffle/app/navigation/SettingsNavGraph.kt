@@ -2,7 +2,7 @@ package com.riffle.app.navigation
 
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.remember
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -60,7 +60,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
         val settingsEntry = remember(backStackEntry) {
             navController.getBackStackEntry(SETTINGS)
         }
-        val settingsVm: SettingsViewModel = hiltViewModel(settingsEntry)
+        val settingsVm: SettingsViewModel = koinViewModel(viewModelStoreOwner = settingsEntry)
         ReadaloudSettingsScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onNavigateToAddSource = { backend, editId ->
@@ -86,7 +86,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
         val settingsEntry = remember(backStackEntry) {
             navController.getBackStackEntry(SETTINGS)
         }
-        val settingsVm: SettingsViewModel = hiltViewModel(settingsEntry)
+        val settingsVm: SettingsViewModel = koinViewModel(viewModelStoreOwner = settingsEntry)
         AnnotationsSyncSettingsScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onNavigateToAddSource = { backend, editId ->
@@ -114,7 +114,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
         val settingsEntry = remember(backStackEntry) {
             navController.getBackStackEntry(SETTINGS)
         }
-        val settingsVm: SettingsViewModel = hiltViewModel(settingsEntry)
+        val settingsVm: SettingsViewModel = koinViewModel(viewModelStoreOwner = settingsEntry)
         DeveloperOptionsScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },

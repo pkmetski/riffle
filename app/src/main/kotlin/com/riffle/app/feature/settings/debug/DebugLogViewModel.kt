@@ -6,21 +6,18 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.logging.LogChannel
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.inject.Inject
 
 /**
  * Backs [DebugLogScreen]. Owns no state of its own — the [InMemoryLogBuffer] is the source of truth
  * and its [StateFlow] drives the UI directly. The VM exists to give the Compose screen a stable
  * Hilt-injected handle to the singleton buffer and to package the "share as .txt" workflow.
  */
-@HiltViewModel
-class DebugLogViewModel @Inject constructor(
+class DebugLogViewModel constructor(
     application: Application,
     private val buffer: InMemoryLogBuffer,
 ) : AndroidViewModel(application) {

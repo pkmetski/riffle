@@ -23,7 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.core.models.LibraryItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,7 +32,7 @@ fun SeriesDetailScreen(
     seriesName: String,
     onItemSelected: (com.riffle.core.models.LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
-    viewModel: SeriesDetailViewModel = hiltViewModel(),
+    viewModel: SeriesDetailViewModel = koinViewModel(),
 ) {
     val items by viewModel.items.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()

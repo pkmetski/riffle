@@ -27,7 +27,6 @@ import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -52,11 +51,9 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class LibraryItemsViewModel @Inject constructor(
+class LibraryItemsViewModel constructor(
     private val savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
     private val refreshLibraryItemsUseCase: RefreshLibraryItems,

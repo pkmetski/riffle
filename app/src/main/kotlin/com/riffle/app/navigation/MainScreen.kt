@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -138,7 +139,7 @@ internal fun libraryEntryRoute(destination: HomeViewModel.StartDestination.Libra
 @Composable
 fun MainScreen(
     windowSizeClass: WindowSizeClass,
-    viewModel: NavigationDrawerViewModel = hiltViewModel(),
+    viewModel: NavigationDrawerViewModel = koinViewModel(),
 ) {
     val startupUpdateVm: com.riffle.app.feature.update.StartupUpdateViewModel = hiltViewModel()
     val updateDialogState by startupUpdateVm.dialogState.collectAsState()

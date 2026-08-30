@@ -4,8 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -22,8 +20,7 @@ import kotlinx.coroutines.flow.stateIn
  * is nothing to disambiguate a second row from the first, so a duplicate would be a silent no-op
  * or a confusing duplicate library entry.
  */
-@HiltViewModel
-class SourceTypePickerViewModel @Inject constructor(
+class SourceTypePickerViewModel constructor(
     sourceRepository: SourceRepository,
 ) : ViewModel() {
 
