@@ -1,80 +1,71 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.kotlin.serialization)
 }
 
-android {
-    namespace = "com.riffle.core.data"
-    compileSdk = 37
-
-    defaultConfig {
+kotlin {
+    android {
+        namespace = "com.riffle.core.data"
+        compileSdk = 37
         minSdk = 24
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
-    }
+        withHostTest {}
 
-    testOptions {
-        unitTests.all { testTask ->
-            testTask.filter {
-                if (project.hasProperty("integrationTests")) {
-                    includeTestsMatching("*IntegrationTest")
-                } else {
-                    excludeTestsMatching("*IntegrationTest")
-                }
-            }
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+    iosArm64()
+    iosSimulatorArm64()
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(project(":core:common"))
+            implementation(project(":core:domain"))
+            implementation(project(":core:models"))
+        }
+        androidMain.dependencies {
+            implementation(project(":core:dictionary"))
+            implementation(project(":core:sync"))
+            implementation(project(":core:sources"))
+            implementation(project(":core:network"))
+            implementation(project(":core:database"))
+            implementation(project(":core:catalog"))
+            implementation(project(":core:catalog-chitanka"))
+            implementation(project(":core:catalog-gutenberg"))
+            implementation(project(":core:catalog-radio-es"))
+            implementation(project(":core:catalog-komga"))
+            implementation(project(":core:logging"))
+            implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.androidx.lifecycle.process)
+            implementation(libs.androidx.datastore.preferences)
+            implementation(libs.androidx.documentfile)
+            implementation(libs.androidx.security.crypto)
+            implementation(libs.koin.android)
+            implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.okhttp)
+            implementation(libs.ktor.client.okhttp)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.koin.core)
+        }
+        getByName("androidHostTest").dependencies {
+            implementation(libs.junit)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okhttp.mockwebserver)
+            implementation(libs.mockk)
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
         }
     }
 }
 
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
-
-    implementation(project(":core:dictionary"))
-    implementation(project(":core:domain"))
-    implementation(project(":core:sync"))
-    implementation(project(":core:sources"))
-    implementation(project(":core:network"))
-    implementation(project(":core:database"))
-    implementation(project(":core:catalog"))
-    implementation(project(":core:catalog-chitanka"))
-    implementation(project(":core:catalog-gutenberg"))
-    implementation(project(":core:catalog-radio-es"))
-    implementation(project(":core:catalog-komga"))
-    implementation(project(":core:logging"))
-    implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.androidx.lifecycle.process)
-    implementation(libs.androidx.datastore.preferences)
-    implementation(libs.androidx.documentfile)
-    implementation(libs.androidx.security.crypto)
-    implementation(platform(libs.koin.bom))
-    implementation(libs.koin.android)
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.kotlinx.serialization.json)
-    implementation(libs.okhttp)
-    implementation(libs.ktor.client.okhttp)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.okhttp.mockwebserver)
-    testImplementation(libs.mockk)
-    testImplementation(libs.ktor.client.okhttp)
-    testImplementation(libs.ktor.client.content.negotiation)
-    testImplementation(libs.ktor.serialization.kotlinx.json)
-
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.kotlinx.coroutines.test)
-    androidTestImplementation(libs.mockk)
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
+    add("androidMainImplementation", platform(libs.koin.bom))
 }
