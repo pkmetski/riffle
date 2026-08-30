@@ -24,7 +24,7 @@ object TestGuardrailLint {
 
     private val REMOVED_TEST_TRAILER = Regex("""^Removed-test:\s*(.+)$""", RegexOption.MULTILINE)
 
-    private val TEST_SOURCE_DIR = Regex("""(^|/)src/(test|androidTest|androidDeviceTest|jvmTest|commonTest)/""")
+    private val TEST_SOURCE_DIR = Regex("""(^|/)src/(test|androidTest|androidDeviceTest|jvmTest|commonTest|androidHostTest)/""")
 
     /** Kotlin files under a test source set are subject to the guardrail. */
     fun isTestSourceFile(path: String): Boolean =
