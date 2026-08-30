@@ -16,6 +16,8 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.LiveStreamCapability
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
@@ -43,27 +45,31 @@ class RadioEsCatalog(
 
     // ---- Facets -------------------------------------------------------------
 
-    @Volatile private var cachedFacets: List<CatalogFacet>? = null
+    private val facetsMutex = Mutex()
+    private var cachedFacets: List<CatalogFacet>? = null
 
     override suspend fun listFacets(rootId: String): List<CatalogFacet> {
         if (rootId != ROOT_PODCASTS) return emptyList()
         cachedFacets?.let { return it }
-        val body = runCatching { http.getString("$apiBase/podcasts/tags") }.getOrNull()
-            ?: return emptyList()
-        val tags = RadioEsParser.parseTags(body)
-        val categories = tags.categories
-            .filter { it.slug.isNotEmpty() }
-            .mapIndexed { idx, cat ->
-                CatalogFacet(key = "slug:${cat.slug}", label = cat.name, sortOrder = idx)
-            }
-        val languages = tags.languages
-            .filter { it.slug.isNotEmpty() }
-            .mapIndexed { idx, lang ->
-                CatalogFacet(key = "lang:${lang.slug}", label = lang.name, sortOrder = categories.size + idx)
-            }
-        val result = categories + languages
-        cachedFacets = result
-        return result
+        return facetsMutex.withLock {
+            cachedFacets?.let { return@withLock it }
+            val body = runCatching { http.getString("$apiBase/podcasts/tags") }.getOrNull()
+                ?: return@withLock emptyList()
+            val tags = RadioEsParser.parseTags(body)
+            val categories = tags.categories
+                .filter { it.slug.isNotEmpty() }
+                .mapIndexed { idx, cat ->
+                    CatalogFacet(key = "slug:${cat.slug}", label = cat.name, sortOrder = idx)
+                }
+            val languages = tags.languages
+                .filter { it.slug.isNotEmpty() }
+                .mapIndexed { idx, lang ->
+                    CatalogFacet(key = "lang:${lang.slug}", label = lang.name, sortOrder = categories.size + idx)
+                }
+            val result = categories + languages
+            cachedFacets = result
+            result
+        }
     }
 
     // ---- Browse -------------------------------------------------------------
