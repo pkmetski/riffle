@@ -80,6 +80,7 @@ hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 koin-bom = { group = "io.insert-koin", name = "koin-bom", version.ref = "koin" }
+koin-core = { group = "io.insert-koin", name = "koin-core", version.ref = "koin" }
 koin-android = { group = "io.insert-koin", name = "koin-android" }
 koin-compose = { group = "io.insert-koin", name = "koin-compose" }
 koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compose" }
