@@ -248,6 +248,7 @@ import io.ktor.client.HttpClient
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import com.riffle.core.data.credentialed.CredentialedSourceInstaller
 import kotlinx.coroutines.flow.map
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
@@ -604,6 +605,8 @@ private val coreDataNetworkModule = module {
 }
 
 private val coreDataRepositoriesModule = module {
+    single { CredentialedSourceInstaller(get(), get(), get(), get()) }
+
     // SourceRepository — uses a lambda to break the circular dependency with ReadaloudSidecarStore
     single<SourceRepository> {
         SourceRepositoryImpl(
