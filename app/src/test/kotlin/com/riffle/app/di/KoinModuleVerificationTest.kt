@@ -98,6 +98,34 @@ class KoinModuleVerificationTest {
             }
         }
 
+        // Duplicate index keys: Koin indexes by ERASED KClass + qualifier, so e.g. two
+        // unqualified Map<...> definitions collide and the last-loaded silently overrides
+        // the first for EVERY injection point of that erased type (this handed
+        // DefaultCatalogRegistry a map of SourceAdapters → ClassCastException). Generic
+        // bindings must carry a named() qualifier.
+        val duplicates = modules.flatMap { it.mappings.keys }
+            .groupingBy { it }.eachCount().filterValues { it > 1 }
+        duplicates.forEach { (key, count) ->
+            problems += "index key '$key' is defined $count times — later definitions silently override earlier ones"
+        }
+
+        // Types resolved via field injection (by inject() in Activities/Services) or
+        // GlobalContext.get() in RiffleApplication — no constructor for reflection to
+        // walk, so pin them explicitly. LocalFilesFolderWatcher going unbound crashed
+        // the production app at startup while the harness (plain test Application)
+        // stayed green.
+        val fieldInjected = listOf(
+            "com.riffle.core.data.localfiles.LocalFilesFolderWatcher", // RiffleApplication.onCreate
+            "com.riffle.app.feature.audio.MediaSourceRegistry", // AudioPlayerService
+            "com.riffle.app.feature.audio.MediaItemRestorerRegistry", // AudioPlayerService
+            "com.riffle.core.data.LocalStoreMigrator", // RiffleApplication.onCreate
+            "com.riffle.core.data.AnnotationSweep", // RiffleApplication.onCreate
+            "com.riffle.core.sync.ProgressSweep", // RiffleApplication.onCreate
+        )
+        fieldInjected.forEach { type ->
+            if (type !in index) problems += "'$type' is resolved via inject()/get() at a field or startup site but has no Koin definition"
+        }
+
         if (problems.isNotEmpty()) {
             fail(
                 "Koin graph has ${problems.size} unresolvable constructor dependenc" +
