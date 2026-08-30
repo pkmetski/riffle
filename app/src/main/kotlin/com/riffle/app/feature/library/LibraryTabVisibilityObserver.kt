@@ -7,7 +7,6 @@ import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -87,8 +86,7 @@ class LibraryTabVisibilityObserver @Inject constructor(
  * val visibility by hiltViewModel<LibraryTabVisibilityViewModel>().visibility.collectAsState()
  * ```
  */
-@HiltViewModel
-class LibraryTabVisibilityViewModel @Inject constructor(
+class LibraryTabVisibilityViewModel constructor(
     savedStateHandle: SavedStateHandle,
     observer: LibraryTabVisibilityObserver,
 ) : ViewModel() {

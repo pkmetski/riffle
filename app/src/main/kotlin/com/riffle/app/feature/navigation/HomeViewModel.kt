@@ -9,13 +9,10 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.models.SourceType
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
-@HiltViewModel
-class HomeViewModel @Inject constructor(
+class HomeViewModel constructor(
     private val sourceRepository: SourceRepository,
     private val libraryObserver: LibraryObserver,
     private val refreshLibraries: RefreshLibraries,

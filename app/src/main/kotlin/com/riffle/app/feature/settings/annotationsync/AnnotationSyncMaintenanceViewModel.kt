@@ -11,13 +11,11 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.WebSourceDescriptors
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** Row data for the per-device list in the Maintenance screen. */
 data class MaintenanceDeviceRowUiState(
@@ -77,8 +75,7 @@ data class AnnotationSyncMaintenanceUiState(
     val snack: MaintenanceSnack = MaintenanceSnack.None,
 )
 
-@HiltViewModel
-class AnnotationSyncMaintenanceViewModel @Inject constructor(
+class AnnotationSyncMaintenanceViewModel constructor(
     private val configStore: com.riffle.core.domain.AnnotationSyncConfigStore,
     private val maintenance: AnnotationSyncMaintenance,
     private val deviceIdStore: DeviceIdStore,

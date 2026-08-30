@@ -210,6 +210,8 @@ dependencies {
     androidTestImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.hilt.android.testing)
     kspAndroidTest(libs.hilt.compiler)
+    androidTestImplementation(platform(libs.koin.bom))
+    androidTestImplementation(libs.koin.test.android)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

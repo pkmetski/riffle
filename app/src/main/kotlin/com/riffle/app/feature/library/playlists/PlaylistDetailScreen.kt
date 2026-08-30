@@ -32,7 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.library.LibraryItemCard
 import com.riffle.core.models.LibraryItem
 import androidx.compose.foundation.layout.Row
@@ -44,7 +44,7 @@ fun PlaylistDetailScreen(
     onNavigateBack: () -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
     onPlayItem: (LibraryItem) -> Unit = onItemSelected,
-    viewModel: PlaylistDetailViewModel = hiltViewModel(),
+    viewModel: PlaylistDetailViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }

@@ -87,7 +87,7 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
@@ -116,7 +116,7 @@ fun LibraryItemDetailScreen(
     onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onNavigateToFacet: (libraryId: String, facet: FacetType, value: String) -> Unit = { _, _, _ -> },
     onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit = { _, _, _ -> },
-    viewModel: LibraryItemDetailViewModel = hiltViewModel(),
+    viewModel: LibraryItemDetailViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()

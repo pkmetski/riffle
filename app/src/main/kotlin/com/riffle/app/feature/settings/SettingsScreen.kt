@@ -31,7 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.panels.AutoScrollSettingsPanel
 import com.riffle.app.feature.settings.panels.BehaviorSettingsPanel
@@ -80,7 +80,7 @@ fun SettingsScreen(
     onNavigateToDictionaryPacks: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
     onNavigateToChangelog: () -> Unit = {},
-    viewModel: SettingsViewModel = hiltViewModel(),
+    viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()

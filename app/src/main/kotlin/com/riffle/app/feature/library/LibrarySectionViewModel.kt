@@ -10,17 +10,14 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-@HiltViewModel
-class LibrarySectionViewModel @Inject constructor(
+class LibrarySectionViewModel constructor(
     savedStateHandle: SavedStateHandle,
     libraryObserver: LibraryObserver,
     sourceRepository: SourceRepository,

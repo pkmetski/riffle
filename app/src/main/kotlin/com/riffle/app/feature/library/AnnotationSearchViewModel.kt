@@ -8,7 +8,6 @@ import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,11 +19,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
-import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class AnnotationSearchViewModel @Inject constructor(
+class AnnotationSearchViewModel constructor(
     savedStateHandle: SavedStateHandle,
     libraryObserver: LibraryObserver,
     annotationStore: AnnotationStore,

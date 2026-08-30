@@ -47,7 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.LocalCoversAreSquare
@@ -85,7 +85,7 @@ fun ChitankaBrowseScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
-    viewModel: ChitankaBrowseViewModel = hiltViewModel(),
+    viewModel: ChitankaBrowseViewModel = koinViewModel(),
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 
@@ -100,7 +100,7 @@ fun ChitankaBrowseScreen(
     var searchOpen by remember { mutableStateOf(false) }
     val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
-    val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
+    val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
     // Annotations are anchored to ebook text — Gramofonche (the audiobook root) can never surface
     // any, so hide the tab there on top of the generic emptiness gate.
@@ -347,7 +347,7 @@ private fun LibraryTabContent(
 @Composable
 private fun ChitankaAnnotationsTab(
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
-    viewModel: AnnotationsListViewModel = hiltViewModel(),
+    viewModel: AnnotationsListViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     AnnotationsListScreen(

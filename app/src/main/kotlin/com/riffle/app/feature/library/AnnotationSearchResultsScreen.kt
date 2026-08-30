@@ -22,7 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +30,7 @@ fun AnnotationSearchResultsScreen(
     onNavigateBack: () -> Unit,
     onAnnotationSelected: (AnnotationSearchResult) -> Unit,
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
-    viewModel: AnnotationSearchViewModel = hiltViewModel(),
+    viewModel: AnnotationSearchViewModel = koinViewModel(),
 ) {
     val results by viewModel.results.collectAsState()
     val bookmarkResults by viewModel.bookmarkResults.collectAsState()

@@ -46,7 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.ContentCacheAutoClear
@@ -59,7 +59,7 @@ fun DownloadsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
-    viewModel: DownloadsViewModel = hiltViewModel(),
+    viewModel: DownloadsViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showRemoveAllDownloadsDialog by remember { mutableStateOf(false) }

@@ -108,7 +108,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -169,7 +169,7 @@ fun LibraryItemsScreen(
     // of executing a library exit/search-clear/tab-reset action.
     isCommittedOnLibraryItems: () -> Boolean = { true },
     onNavigateBack: () -> Unit = {},
-    viewModel: LibraryItemsViewModel = hiltViewModel(),
+    viewModel: LibraryItemsViewModel = koinViewModel(),
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val projection by viewModel.projection.collectAsState()
@@ -352,7 +352,7 @@ fun LibraryItemsScreen(
                         onCoverScaleChange = onCoverScaleChange,
                     )
                     tabIndexForAnnotations() -> {
-                        val annotationsVm: AnnotationsListViewModel = hiltViewModel()
+                        val annotationsVm: AnnotationsListViewModel = koinViewModel()
                         val annotationsState by annotationsVm.state.collectAsState()
                         AnnotationsListScreen(
                             state = annotationsState,

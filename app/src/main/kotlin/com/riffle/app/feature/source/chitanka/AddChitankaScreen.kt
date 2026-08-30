@@ -29,7 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
 import com.riffle.core.models.SourceType
@@ -46,7 +46,7 @@ fun AddChitankaScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onDone: () -> Unit,
-    viewModel: AddChitankaViewModel = hiltViewModel(),
+    viewModel: AddChitankaViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
 

@@ -22,7 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +30,7 @@ fun CollectionDetailScreen(
     collectionName: String,
     onItemSelected: (com.riffle.core.models.LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
-    viewModel: CollectionDetailViewModel = hiltViewModel(),
+    viewModel: CollectionDetailViewModel = koinViewModel(),
 ) {
     val items by viewModel.items.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()

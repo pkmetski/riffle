@@ -4,20 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.models.SourceType
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Drives the zero-config Gutenberg install screen. There is no user input — the ViewModel simply
  * calls [SingletonWebSourceInstaller.install] with [SourceType.GUTENBERG] on demand and reports
  * the state. The screen observes [state] and calls `onDone` when the install completes.
  */
-@HiltViewModel
-class AddGutenbergViewModel @Inject constructor(
+class AddGutenbergViewModel constructor(
     private val installer: SingletonWebSourceInstaller,
 ) : ViewModel() {
 

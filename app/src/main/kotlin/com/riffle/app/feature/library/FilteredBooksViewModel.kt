@@ -13,7 +13,6 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -21,7 +20,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
-import javax.inject.Inject
 
 /**
  * Backs the [FilteredBooksScreen]: lists every Library Item in the current Library matching one
@@ -29,8 +27,7 @@ import javax.inject.Inject
  * offline; when offline, results are further narrowed to locally-available books, mirroring the
  * Series/Collection detail screens.
  */
-@HiltViewModel
-class FilteredBooksViewModel @Inject constructor(
+class FilteredBooksViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
     private val sourceRepository: SourceRepository,

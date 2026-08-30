@@ -11,16 +11,12 @@ import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-@HiltViewModel
-class SelectLibrariesViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+class SelectLibrariesViewModel constructor(
+    private val context: Context,
     private val repository: SourceRepository,
 ) : ViewModel() {
 

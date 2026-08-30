@@ -32,7 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 
 /**
@@ -53,7 +53,7 @@ fun AddLocalFilesScreen(
     windowSizeClass: WindowSizeClass,
     onDone: () -> Unit,
     onNavigateBack: () -> Unit,
-    viewModel: AddLocalFilesViewModel = hiltViewModel(),
+    viewModel: AddLocalFilesViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val launcher = rememberLauncherForActivityResult(PickFolderContract()) { uri ->

@@ -51,7 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
@@ -67,7 +67,7 @@ import com.riffle.app.ui.source.asAuthHeader
 @Composable
 fun ReadaloudMatchesScreen(
     onNavigateBack: () -> Unit,
-    viewModel: ReadaloudMatchesViewModel = hiltViewModel(),
+    viewModel: ReadaloudMatchesViewModel = koinViewModel(),
 ) {
     val review by viewModel.review.collectAsState()
     val tokens by viewModel.tokensByServer.collectAsState()

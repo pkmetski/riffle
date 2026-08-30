@@ -9,7 +9,6 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +20,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
-import javax.inject.Inject
 
 /**
  * UI state for [PlaylistDetailScreen].
@@ -41,8 +39,7 @@ data class PlaylistDetailUiState(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class PlaylistDetailViewModel @Inject constructor(
+class PlaylistDetailViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistsRepository: PlaylistsRepository,
     private val libraryObserver: LibraryObserver,
