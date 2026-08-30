@@ -83,7 +83,6 @@ koin-bom = { group = "io.insert-koin", name = "koin-bom", version.ref = "koin" }
 koin-android = { group = "io.insert-koin", name = "koin-android" }
 koin-compose = { group = "io.insert-koin", name = "koin-compose" }
 koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compose" }
-koin-test-android = { group = "io.insert-koin", name = "koin-test-android" }
 acra-core = { group = "ch.acra", name = "acra-core", version.ref = "acra" }
 acra-toast = { group = "ch.acra", name = "acra-toast", version.ref = "acra" }
 acra-dialog = { group = "ch.acra", name = "acra-dialog", version.ref = "acra" }
