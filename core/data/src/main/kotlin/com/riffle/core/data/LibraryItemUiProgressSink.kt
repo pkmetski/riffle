@@ -5,7 +5,6 @@ import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.UiProgressSink
-import javax.inject.Inject
 
 /**
  * Room-backed [UiProgressSink] the sweep invokes after a ServerWon reconcile so the library grid
@@ -23,7 +22,7 @@ import javax.inject.Inject
  * by fetching item metadata from the catalog before writing the progress columns, so the library
  * grid shows the book and its progress bar without requiring the user to open it first.
  */
-class LibraryItemUiProgressSink @Inject constructor(
+class LibraryItemUiProgressSink constructor(
     private val libraryItemDao: LibraryItemDao,
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,

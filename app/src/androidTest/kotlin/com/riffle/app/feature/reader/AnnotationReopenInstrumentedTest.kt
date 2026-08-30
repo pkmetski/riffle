@@ -9,8 +9,6 @@ import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.database.openInMemoryRiffleDatabase
 import com.riffle.core.domain.DeviceIdStore
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -28,7 +26,8 @@ import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
 import java.util.zip.ZipFile
-import javax.inject.Inject
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * End-to-end re-render-on-reopen for highlights against a real EPUB, without driving WebView text
@@ -37,15 +36,13 @@ import javax.inject.Inject
  * progression and spine index. The Readium decoration itself is rendered by the same
  * DecorableNavigator mechanism the search/readaloud highlights already use.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class AnnotationReopenInstrumentedTest {
+class AnnotationReopenInstrumentedTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val tmp = TemporaryFolder()
+    @get:Rule val tmp = TemporaryFolder()
 
-    @Inject lateinit var assetRetriever: AssetRetriever
-    @Inject lateinit var publicationOpener: PublicationOpener
+    val assetRetriever: AssetRetriever by inject()
+    val publicationOpener: PublicationOpener by inject()
 
     private lateinit var db: RiffleDatabaseAccess
     private lateinit var store: AnnotationStoreImpl
@@ -56,7 +53,6 @@ class AnnotationReopenInstrumentedTest {
 
     @Before
     fun setUp() {
-        hiltRule.inject()
         db = openInMemoryRiffleDatabase(
             context = InstrumentationRegistry.getInstrumentation().targetContext,
             allowMainThreadQueries = true,

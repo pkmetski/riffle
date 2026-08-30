@@ -2,8 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.data.di.EpubCacheStore
-import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CrossEpubBuildInputs
 import com.riffle.core.domain.CrossEpubIndexBuildOutcome
@@ -16,8 +14,6 @@ import com.riffle.core.models.ReadaloudLink
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Collections
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Builds and persists the cross-EPUB index for Confirmed matched books (ADR 0023/0025).
@@ -32,20 +28,19 @@ import javax.inject.Singleton
  * of MB — so this service never downloads it proactively: it builds only once that bundle is already
  * present locally (i.e. after the user has downloaded readaloud for the book).
  */
-@Singleton
 class CrossEpubIndexBuilderService(
     private val catalogRegistry: CatalogRegistry,
-    @EpubCacheStore private val cacheStore: LocalStore,
-    @EpubDownloadsStore private val downloadsStore: LocalStore,
+    private val cacheStore: LocalStore,
+    private val downloadsStore: LocalStore,
     private val store: CrossEpubIndexStore,
     private val sidecarStore: ReadaloudSidecarStore,
     private val clock: () -> Long,
     applicationScope: ApplicationScope,
 ) : CrossEpubIndexBuildTrigger {
-    @Inject constructor(
+    constructor(
         catalogRegistry: CatalogRegistry,
-        @EpubCacheStore cacheStore: LocalStore,
-        @EpubDownloadsStore downloadsStore: LocalStore,
+        cacheStore: LocalStore,
+        downloadsStore: LocalStore,
         store: CrossEpubIndexStore,
         sidecarStore: ReadaloudSidecarStore,
         applicationScope: ApplicationScope,

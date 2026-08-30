@@ -5,10 +5,9 @@ import com.riffle.core.database.CrossEpubIndexEntity
 import com.riffle.core.domain.CrossEpubIndex
 import com.riffle.core.domain.CrossEpubIndexSerializer
 import com.riffle.core.domain.CrossEpubIndexStore
-import javax.inject.Inject
 
 /** [CrossEpubIndexStore] backed by the `cross_epub_index` Room table. */
-class CrossEpubIndexStoreImpl @Inject constructor(
+class CrossEpubIndexStoreImpl constructor(
     private val dao: CrossEpubIndexDao,
 ) : CrossEpubIndexStore {
 

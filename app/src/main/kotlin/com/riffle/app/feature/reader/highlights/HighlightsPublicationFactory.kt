@@ -5,7 +5,6 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
-import javax.inject.Inject
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.readium.r2.shared.publication.Link
@@ -136,7 +135,7 @@ class HighlightsPublicationHandle internal constructor(
  * fixtures — `Unsafe.allocateInstance` + `android.net.FakeUri` — so the rest of this class (HTML
  * rendering, spine filtering, TOC titles, container wiring) gets exercised for real.
  */
-class HighlightsPublicationFactory @Inject constructor() {
+class HighlightsPublicationFactory constructor() {
 
     fun build(
         sourceId: String,

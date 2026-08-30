@@ -24,15 +24,12 @@ import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.StubAbsServer
-import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReaderOrientation
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -45,7 +42,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
+import org.koin.core.qualifier.named
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Real end-to-end verification that tapping an annotation FOCUSES it on screen — i.e. the reader
@@ -55,17 +54,15 @@ import javax.inject.Inject
  * Unlike the earlier logic-only tests, this drives the REAL Readium/Continuous reader and asserts
  * the target element's getBoundingClientRect lands inside the viewport after navigation.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class AnnotationFocusHarnessTest {
+class AnnotationFocusHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
-    @Inject lateinit var annotationStore: AnnotationStore
-    @Inject lateinit var formattingPreferencesStore: FormattingPreferencesStore
+    val database: RiffleDatabaseAccess by inject()
+    val epubCacheStore: LocalStore by inject(named("epubCacheStore"))
+    val annotationStore: AnnotationStore by inject()
+    val formattingPreferencesStore: FormattingPreferencesStore by inject()
 
     private val stubServer = StubAbsServer()
 
@@ -77,7 +74,6 @@ class AnnotationFocusHarnessTest {
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         epubCacheStore.clear()
     }

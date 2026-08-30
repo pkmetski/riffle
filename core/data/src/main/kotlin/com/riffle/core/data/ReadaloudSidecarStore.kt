@@ -5,7 +5,6 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -16,8 +15,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Caches the Readaloud sidecar (SMIL + chapter text, ADR 0040) on disk and prepares it **ahead of
@@ -40,7 +37,6 @@ fun interface ReadaloudSidecarPrefetcher {
     fun prepare(storytellerSourceId: String, storytellerBookId: String)
 }
 
-@Singleton
 class ReadaloudSidecarStore private constructor(
     private val cacheRootDir: () -> File,
     private val fetcher: StorytellerSidecarFetcher,
@@ -51,8 +47,8 @@ class ReadaloudSidecarStore private constructor(
     private val scope: CoroutineScope,
 ) : ReadaloudSidecarPrefetcher, ReadaloudSidecarCache {
 
-    @Inject constructor(
-        @ApplicationContext context: Context,
+    constructor(
+        context: Context,
         fetcher: StorytellerSidecarFetcher,
         sourceRepository: SourceRepository,
         tokenStorage: TokenStorage,

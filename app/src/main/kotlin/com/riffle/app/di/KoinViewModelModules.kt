@@ -1,5 +1,7 @@
 package com.riffle.app.di
 
+import com.riffle.app.feature.annotations.AnnotationsListViewModel
+import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
 import com.riffle.app.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
 import com.riffle.app.feature.library.BookImportManager
@@ -17,7 +19,10 @@ import com.riffle.app.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
 import com.riffle.app.feature.navigation.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
+import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
+import com.riffle.app.feature.reader.PdfReaderViewModel
+import com.riffle.app.feature.reader.cbz.CbzReaderViewModel
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader
 import com.riffle.app.feature.server.AddSourceViewModel
 import com.riffle.app.feature.server.SelectLibrariesViewModel
@@ -26,6 +31,7 @@ import com.riffle.app.feature.server.SourceTypePickerViewModel
 import com.riffle.app.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.app.feature.settings.debug.DebugLogViewModel
+import com.riffle.app.feature.settings.dictionary.DictionaryPacksViewModel
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesViewModel
 import com.riffle.app.feature.source.chitanka.AddChitankaViewModel
 import com.riffle.app.feature.source.chitanka.ChitankaBrowseViewModel
@@ -34,9 +40,11 @@ import com.riffle.app.feature.source.gutenberg.AddGutenbergViewModel
 import com.riffle.app.feature.source.gutenberg.GutenbergBrowseViewModel
 import com.riffle.app.feature.source.gutenberg.friendlyErrorMessage as gutenbergFriendlyError
 import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
+import com.riffle.app.feature.source.radioes.AddRadioEsViewModel
+import com.riffle.app.feature.source.radioes.RadioEsBrowseViewModel
 import com.riffle.app.feature.source.websource.WebSourceLibraryViewModel
-import com.riffle.app.playback.NowPlayingNavigator
-import com.riffle.app.playback.NowPlayingStore
+import com.riffle.app.feature.update.ChangelogViewModel
+import com.riffle.app.feature.update.StartupUpdateViewModel
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
@@ -118,7 +126,6 @@ import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.models.SourceType
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.sync.AnnotationSyncStatusStore
-import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.Flow
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
@@ -126,101 +133,6 @@ import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
-
-private val bridgeModule = module {
-    single { EntryPointAccessors.fromApplication(androidContext(), KoinBridgeEntryPoint::class.java) }
-}
-
-private val bridgeDepsModule = module {
-    single<LibraryObserver> { get<KoinBridgeEntryPoint>().libraryObserver() }
-    single<RefreshLibraryItems> { get<KoinBridgeEntryPoint>().refreshLibraryItems() }
-    single<RefreshSeries> { get<KoinBridgeEntryPoint>().refreshSeries() }
-    single<RefreshCollections> { get<KoinBridgeEntryPoint>().refreshCollections() }
-    single<RefreshLibraries> { get<KoinBridgeEntryPoint>().refreshLibraries() }
-    single<SourceRepository> { get<KoinBridgeEntryPoint>().sourceRepository() }
-    single<TokenStorage> { get<KoinBridgeEntryPoint>().tokenStorage() }
-    single<LibraryItemOfflineAvailability> { get<KoinBridgeEntryPoint>().libraryItemOfflineAvailability() }
-    single<ConnectivityObserver> { get<KoinBridgeEntryPoint>().connectivityObserver() }
-    single<ToReadRepository> { get<KoinBridgeEntryPoint>().toReadRepository() }
-    single<PlaylistsRepository> { get<KoinBridgeEntryPoint>().playlistsRepository() }
-    single<ReadaloudLinkRepository> { get<KoinBridgeEntryPoint>().readaloudLinkRepository() }
-    single<CoverGridDensityStore> { get<KoinBridgeEntryPoint>().coverGridDensityStore() }
-    single<LibraryFilterPreferencesStore> { get<KoinBridgeEntryPoint>().libraryFilterPreferencesStore() }
-    single<AnnotationStore> { get<KoinBridgeEntryPoint>().annotationStore() }
-    single<AudiobookBookmarkStore> { get<KoinBridgeEntryPoint>().audiobookBookmarkStore() }
-    single<AnnotationsLibraryRepository> { get<KoinBridgeEntryPoint>().annotationsLibraryRepository() }
-    single<DispatcherProvider> { get<KoinBridgeEntryPoint>().dispatchers() }
-    single<LibraryVisibilityPreferencesStore> { get<KoinBridgeEntryPoint>().libraryVisibilityPreferencesStore() }
-    single<LastOpenedLibraryStore> { get<KoinBridgeEntryPoint>().lastOpenedLibraryStore() }
-    single<LibraryOrderPreferencesStore> { get<KoinBridgeEntryPoint>().libraryOrderPreferencesStore() }
-    single<CatalogRegistry> { get<KoinBridgeEntryPoint>().catalogRegistry() }
-    single<NowPlayingNavigator> { get<KoinBridgeEntryPoint>().nowPlayingNavigator() }
-    single<NowPlayingStore> { get<KoinBridgeEntryPoint>().nowPlayingStore() }
-    single<RecordItemOpened> { get<KoinBridgeEntryPoint>().recordItemOpened() }
-    single<UpdateReadingProgress> { get<KoinBridgeEntryPoint>().updateReadingProgress() }
-    single<MarkReadAcrossDimensions> { get<KoinBridgeEntryPoint>().markReadAcrossDimensions() }
-    single<EpubRepository> { get<KoinBridgeEntryPoint>().epubRepository() }
-    single<EbookCfiTranslatorFactory> { get<KoinBridgeEntryPoint>().ebookCfiTranslatorFactory() }
-    single<AudiobookPositionStore> { get<KoinBridgeEntryPoint>().audiobookPositionStore() }
-    single<PdfRepository> { get<KoinBridgeEntryPoint>().pdfRepository() }
-    single<CbzRepository> { get<KoinBridgeEntryPoint>().cbzRepository() }
-    single<AudiobookDownloadRepository> { get<KoinBridgeEntryPoint>().audiobookDownloadRepository() }
-    single<AudiobookCacheRepository> { get<KoinBridgeEntryPoint>().audiobookCacheRepository() }
-    single<LocalAvailabilityEvents> { get<KoinBridgeEntryPoint>().localAvailabilityEvents() }
-    single<ReadaloudAudioRepository> { get<KoinBridgeEntryPoint>().readaloudAudioRepository() }
-    single<ReadaloudOfflineDownloader> { get<KoinBridgeEntryPoint>().readaloudOfflineDownloader() }
-    single<CrossEpubIndexBuildTrigger> { get<KoinBridgeEntryPoint>().crossEpubIndexBuildTrigger() }
-    single<ReadaloudSidecarPrefetcher> { get<KoinBridgeEntryPoint>().readaloudSidecarPrefetcher() }
-    factory<ExtractEpubTocUseCase> { get<KoinBridgeEntryPoint>().extractEpubTocUseCase() }
-    factory<ExtractPdfPageCountUseCase> { get<KoinBridgeEntryPoint>().extractPdfPageCountUseCase() }
-    factory<FetchAudiobookChaptersUseCase> { get<KoinBridgeEntryPoint>().fetchAudiobookChaptersUseCase() }
-    single<LibraryRefresher> { get<KoinBridgeEntryPoint>().libraryRefresher() }
-    factory<SaveLocalFileMetadataOverrideUseCase> { get<KoinBridgeEntryPoint>().saveLocalFileMetadataOverride() }
-    factory<CopyCoverImageUseCase> { get<KoinBridgeEntryPoint>().copyCoverImage() }
-    single<ReadingSpeedStore> { get<KoinBridgeEntryPoint>().readingSpeedStore() }
-    single<WebSourceLibraryItemUpserter> { get<KoinBridgeEntryPoint>().webSourceLibraryItemUpserter() }
-    single<WebSourceItemGate> { get<KoinBridgeEntryPoint>().webSourceItemGate() }
-    single<DownloadManager> { get<KoinBridgeEntryPoint>().downloadManager() }
-    single<BookImportManager> { get<KoinBridgeEntryPoint>().bookImportManager() }
-    single<DownloadsRepository> { get<KoinBridgeEntryPoint>().downloadsRepository() }
-    single<ReadaloudSidecarStore> { get<KoinBridgeEntryPoint>().readaloudSidecarStore() }
-    single<ContentCacheSettingsStore> { get<KoinBridgeEntryPoint>().contentCacheSettingsStore() }
-    single<CrashReportRepository> { get<KoinBridgeEntryPoint>().crashReportRepository() }
-    single<FormattingPreferencesStore> { get<KoinBridgeEntryPoint>().formattingPreferencesStore() }
-    single<WakeLockPreferencesStore> { get<KoinBridgeEntryPoint>().wakeLockPreferencesStore() }
-    single<VolumeKeyPreferencesStore> { get<KoinBridgeEntryPoint>().volumeKeyPreferencesStore() }
-    single<ListeningPreferencesStore> { get<KoinBridgeEntryPoint>().listeningPreferencesStore() }
-    single<AppThemeStore> { get<KoinBridgeEntryPoint>().appThemeStore() }
-    single<ReadaloudReviewRepository> { get<KoinBridgeEntryPoint>().readaloudReviewRepository() }
-    single<AppUpdateRepository> { get<KoinBridgeEntryPoint>().appUpdateRepository() }
-    single<AppUpdatePreferencesStore> { get<KoinBridgeEntryPoint>().appUpdatePreferencesStore() }
-    single<ReadaloudPreferencesStore> { get<KoinBridgeEntryPoint>().readaloudPreferencesStore() }
-    single<LocalFilesFolderDao> { get<KoinBridgeEntryPoint>().localFilesFolderDao() }
-    single<LocalFilesFolderRepository> { get<KoinBridgeEntryPoint>().localFilesFolderRepository() }
-    single<LocalFilesScanner> { get<KoinBridgeEntryPoint>().localFilesScanner() }
-    single<LocalFilesSourceInstaller> { get<KoinBridgeEntryPoint>().localFilesSourceInstaller() }
-    single<LocalFilesFolderHealthChecker> { get<KoinBridgeEntryPoint>().localFilesFolderHealthChecker() }
-    single<ComicFormattingPreferencesStore> { get<KoinBridgeEntryPoint>().comicFormattingPreferencesStore() }
-    single<DeveloperOptionsRepository> { get<KoinBridgeEntryPoint>().developerOptionsRepository() }
-    single<AnnotationSyncConfigStore> { get<KoinBridgeEntryPoint>().annotationSyncConfigStore() }
-    single<AnnotationSyncStatusStore> { get<KoinBridgeEntryPoint>().annotationSyncStatusStore() }
-    single<AnnotationDao> { get<KoinBridgeEntryPoint>().annotationDao() }
-    single<InMemoryLogBuffer> { get<KoinBridgeEntryPoint>().inMemoryLogBuffer() }
-    single<AnnotationSyncMaintenance> { get<KoinBridgeEntryPoint>().annotationSyncMaintenance() }
-    single<DeviceIdStore> { get<KoinBridgeEntryPoint>().deviceIdStore() }
-    single<DeviceLabelStore> { get<KoinBridgeEntryPoint>().deviceLabelStore() }
-    single<DeviceLabelResolver> { get<KoinBridgeEntryPoint>().deviceLabelResolver() }
-    single<AnnotationSweepEnqueuer> { get<KoinBridgeEntryPoint>().annotationSweepEnqueuer() }
-    single<ReadaloudReviewActions> { get<KoinBridgeEntryPoint>().readaloudReviewActions() }
-    single<WebDavAnnotationSyncTargetFactory> { get<KoinBridgeEntryPoint>().webDavAnnotationSyncTargetFactory() }
-    single<StorytellerReadaloudSyncer> { get<KoinBridgeEntryPoint>().storytellerReadaloudSyncer() }
-    single<ReadaloudMatchingService> { get<KoinBridgeEntryPoint>().readaloudMatchingService() }
-    single<Map<SourceType, @JvmSuppressWildcards CredentialedAuthenticator>> { get<KoinBridgeEntryPoint>().authenticators() }
-    single<Clock> { get<KoinBridgeEntryPoint>().clock() }
-    single<Flow<Unit>>(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)) { get<KoinBridgeEntryPoint>().webdavBannerTicker() }
-    single<SingletonWebSourceInstaller> { get<KoinBridgeEntryPoint>().singletonWebSourceInstaller() }
-    single<LibraryTabVisibilityObserver> { get<KoinBridgeEntryPoint>().libraryTabVisibilityObserver() }
-}
 
 private val libraryViewModelModule = module {
     viewModel {
@@ -435,6 +347,13 @@ private val settingsViewModelModule = module {
             tokenStorage = get(),
         )
     }
+    viewModel {
+        DictionaryPacksViewModel(
+            packStore = get(),
+            downloader = get(),
+            downloadManager = get(),
+        )
+    }
 }
 
 private val serverViewModelModule = module {
@@ -501,6 +420,19 @@ private val sourceViewModelModule = module {
             toReadRepository = get(),
         )
     }
+    viewModel { AddRadioEsViewModel(installer = get()) }
+    viewModel {
+        RadioEsBrowseViewModel(
+            savedStateHandle = get(),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+        )
+    }
 }
 
 private val downloadsViewModelModule = module {
@@ -516,13 +448,195 @@ private val downloadsViewModelModule = module {
     }
 }
 
+private val readerViewModelModule = module {
+    viewModel {
+        EpubReaderViewModel(
+            application = androidApplication(),
+            savedStateHandle = get(),
+            libraryObserver = get(),
+            updateReadingProgressUseCase = get(),
+            epubRepository = get(),
+            assetRetriever = get(),
+            publicationOpener = get(),
+            readingSessionRepository = get(),
+            timeProvider = get(),
+            readerStateHolder = get(),
+            readaloudAudioRepository = get(),
+            streamingSessionFactory = get(),
+            playerCoordinator = get(),
+            storytellerSyncController = get(),
+            sourceRepository = get(),
+            readaloudLinkRepository = get(),
+            audioIdentityResolver = get(),
+            audioPlaybackPreferencesStore = get(),
+            listeningPreferencesStore = get(),
+            connectivityObserver = get(),
+            readerSyncFactory = get(),
+            readingPositionStore = get(),
+            readingSyncStore = get(),
+            audioSyncStore = get(),
+            openReconcileTargets = get(),
+            readaloudResumeStore = get(),
+            annotationStore = get(),
+            emphasisPreferencesStore = get(),
+            annotationSyncController = get(),
+            nowPlayingStore = get(),
+            progressFlushScope = get(),
+            readaloudPreferencesStore = get(),
+            readingSpeedStore = get(),
+            audiobookHandoffState = get(),
+            sidecarStore = get(),
+            formattingSessionFactory = get(),
+            bookmarksControllerFactory = get(),
+            searchControllerFactory = get(),
+            wakeLockControllerFactory = get(),
+            volumeKeyDispatcher = get(),
+            cadenceController = get(),
+            positionOrchestratorFactory = get(),
+            annotationSessionFactory = get(),
+            readaloudSessionFactory = get(),
+            readerSessionLifecycleFactory = get(),
+            logger = get(),
+            clock = get(),
+            dispatchers = get(),
+            highlightsPublicationFactory = get(),
+            annotationDao = get(),
+            libraryItemDao = get(),
+            highlightsResumeStore = get(),
+            tocRepository = get(),
+            figuresInRangeResolver = get(),
+            catalogRegistry = get(),
+            epubDownloadsStore = get(named("epubDownloadsStore")),
+            epubCacheStore = get(named("epubCacheStore")),
+            pdfExporter = get(),
+            dictionaryRepository = get(),
+            packStore = get(),
+            packDownloader = get(),
+            downloadManager = get(),
+            progressSweep = get(),
+        )
+    }
+    viewModel {
+        PdfReaderViewModel(
+            application = androidApplication(),
+            savedStateHandle = get(),
+            libraryObserver = get(),
+            updateReadingProgressUseCase = get(),
+            pdfRepository = get(),
+            assetRetriever = get(),
+            publicationOpener = get(),
+            wakeLockPreferencesStore = get(),
+            readingSessionRepository = get(),
+            volumeNavigationController = get(),
+            readerStateHolder = get(),
+            annotationStore = get(),
+            sourceRepository = get(),
+            formattingSessionFactory = get(),
+            volumeKeyDispatcher = get(),
+            clock = get(),
+            readingSpeedStore = get(),
+            catalogRegistry = get(),
+        )
+    }
+    viewModel {
+        CbzReaderViewModel(
+            application = androidApplication(),
+            savedStateHandle = get(),
+            libraryObserver = get(),
+            cbzRepository = get(),
+            readingSessionRepository = get(),
+            updateReadingProgressUseCase = get(),
+            wakeLockPreferencesStore = get(),
+            volumeNavigationController = get(),
+            volumeKeyDispatcher = get(),
+            readerStateHolder = get(),
+            panelEngine = get(),
+            panelMaskService = get(),
+            panelViewPreferencesStore = get(),
+            comicFormattingPreferencesStore = get(),
+            bookComicFormattingPreferencesStore = get(),
+            developerOptionsRepository = get(),
+            appearanceCoordinator = get(),
+            panelReportRepository = get(),
+        )
+    }
+}
+
+private val audiobookViewModelModule = module {
+    viewModel {
+        AudiobookPlayerViewModel(
+            savedStateHandle = get(),
+            audiobookRepository = get(),
+            audiobookDownloadRepository = get(),
+            audiobookCacheRepository = get(),
+            bundleAudiobookSource = get(),
+            libraryObserver = get(),
+            updateReadingProgressUseCase = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            controller = get(),
+            readaloudController = get(),
+            audioPlaybackPreferencesStore = get(),
+            listeningPreferencesStore = get(),
+            audioIdentityResolver = get(),
+            readaloudLinkRepository = get(),
+            readaloudAudioRepository = get(),
+            nowPlayingStore = get(),
+            audiobookPositionStore = get(),
+            openReconcileTargets = get(),
+            progressFlushScope = get(),
+            bookmarkStore = get(),
+            connectivityObserver = get(),
+            audiobookHandoffState = get(),
+            followLoopOrchestrator = get(),
+            resumeResolver = get(),
+            reconciliationCoordinator = get(),
+            clock = get(),
+            logger = get(),
+            playlistsRepository = get(),
+            contentCacheAccessStore = get(),
+            progressSweep = get(),
+        )
+    }
+}
+
+private val annotationsViewModelModule = module {
+    viewModel {
+        AnnotationsListViewModel(
+            sourceRepository = get(),
+            repo = get(),
+            tokenStorage = get(),
+            savedStateHandle = get(),
+        )
+    }
+}
+
+private val updateViewModelModule = module {
+    viewModel {
+        StartupUpdateViewModel(
+            appUpdateRepository = get(),
+            appUpdatePreferencesStore = get(),
+            clock = get(),
+            isDevBuild = get(named("isDevBuild")),
+        )
+    }
+    viewModel {
+        ChangelogViewModel(
+            appUpdateRepository = get(),
+        )
+    }
+}
+
 internal fun riffleViewModelKoinModules(): List<Module> = listOf(
-    bridgeModule,
-    bridgeDepsModule,
+    appKoinModule,
     libraryViewModelModule,
     navigationViewModelModule,
     settingsViewModelModule,
     serverViewModelModule,
     sourceViewModelModule,
     downloadsViewModelModule,
+    readerViewModelModule,
+    audiobookViewModelModule,
+    annotationsViewModelModule,
+    updateViewModelModule,
 )

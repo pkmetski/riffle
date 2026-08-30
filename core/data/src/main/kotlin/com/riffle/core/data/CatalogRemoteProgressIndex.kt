@@ -12,7 +12,6 @@ import com.riffle.core.sources.webdav.WebDavProgressEnumerator
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.RemoteProgressIndex
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
 
 /**
  * [RemoteProgressIndex] for WebDAV-backed web sources (ADR 0063).
@@ -32,7 +31,7 @@ import javax.inject.Inject
  * Server sources (ABS, Komga, Storyteller) are never returned by [sourcesWithRemote] — the check
  * `source.type.isWebSource` gates every path.
  */
-class CatalogRemoteProgressIndex @Inject constructor(
+class CatalogRemoteProgressIndex constructor(
     private val sourceRepository: SourceRepository,
     private val annotationSyncConfigStore: AnnotationSyncConfigStore,
     private val enumerator: WebDavProgressEnumerator,

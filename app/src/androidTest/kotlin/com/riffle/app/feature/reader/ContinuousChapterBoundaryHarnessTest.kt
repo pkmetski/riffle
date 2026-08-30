@@ -25,14 +25,11 @@ import com.riffle.app.harness.ReaderSemanticMatchers
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.StubAbsServer
-import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReaderOrientation
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -49,7 +46,9 @@ import java.util.concurrent.TimeUnit
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
-import javax.inject.Inject
+import org.koin.core.qualifier.named
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Device-level regression for the shape observed in "Taking Charge of ADHD": a long chapter,
@@ -57,23 +56,20 @@ import javax.inject.Inject
  * sliding window at that short middle resource, making the adjacent chapters unreachable by
  * scrolling even though TOC navigation could open them directly.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class ContinuousChapterBoundaryHarnessTest {
+class ContinuousChapterBoundaryHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
-    @Inject lateinit var formattingPreferencesStore: FormattingPreferencesStore
+    val database: RiffleDatabaseAccess by inject()
+    val epubCacheStore: LocalStore by inject(named("epubCacheStore"))
+    val formattingPreferencesStore: FormattingPreferencesStore by inject()
 
     private val stubServer = StubAbsServer(epubBytesProvider = ::boundaryEpub)
 
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         epubCacheStore.clear()
         runBlocking {

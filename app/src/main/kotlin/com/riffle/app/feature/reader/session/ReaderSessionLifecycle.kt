@@ -20,9 +20,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -45,9 +42,9 @@ import java.util.zip.ZipFile
  *
  * MUST NOT import android.webkit.*, ContinuousReaderView, or any Compose types.
  */
-class ReaderSessionLifecycle @AssistedInject constructor(
-    @Assisted private val openPublication: suspend (File) -> Publication?,
-    @Assisted private val cfiStringToLocator: suspend (String) -> Locator?,
+class ReaderSessionLifecycle constructor(
+    private val openPublication: suspend (File) -> Publication?,
+    private val cfiStringToLocator: suspend (String) -> Locator?,
     private val libraryObserver: LibraryObserver,
     private val epubRepository: EpubRepository,
     private val sourceRepository: SourceRepository,
@@ -62,8 +59,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
     private val itemProgressPuller: com.riffle.core.data.ItemProgressPuller,
 ) {
 
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(
             openPublication: suspend (File) -> Publication?,
             cfiStringToLocator: suspend (String) -> Locator?,

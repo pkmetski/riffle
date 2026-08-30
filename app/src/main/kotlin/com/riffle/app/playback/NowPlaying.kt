@@ -1,7 +1,5 @@
 package com.riffle.app.playback
 
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * The single playback session currently backed by [com.riffle.app.feature.reader.readaloud.AudioPlayerService].
@@ -24,8 +22,8 @@ sealed interface NowPlaying {
  * singleton outlives any [androidx.activity.ComponentActivity] recreation without needing to be
  * persisted across process death (when there would be no notification to tap anyway).
  */
-@Singleton
-class NowPlayingStore @Inject constructor() {
+
+class NowPlayingStore constructor() {
 
     @Volatile
     var current: NowPlaying? = null

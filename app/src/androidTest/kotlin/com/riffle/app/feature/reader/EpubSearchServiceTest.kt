@@ -3,8 +3,6 @@
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -13,7 +11,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -30,7 +27,8 @@ import java.io.File
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
-import javax.inject.Inject
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Integration tests for Readium's SearchService on a programmatically generated EPUB.
@@ -48,18 +46,14 @@ import javax.inject.Inject
  * so regressions caught here map directly to production behaviour.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class EpubSearchServiceTest {
+class EpubSearchServiceTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val tmp = TemporaryFolder()
+    @get:Rule val tmp = TemporaryFolder()
 
-    @Inject lateinit var assetRetriever: AssetRetriever
-    @Inject lateinit var publicationOpener: PublicationOpener
+    val assetRetriever: AssetRetriever by inject()
+    val publicationOpener: PublicationOpener by inject()
 
-    @Before
-    fun setUp() { hiltRule.inject() }
 
     // ── unique marker per chapter ─────────────────────────────────────────────
 

@@ -24,8 +24,6 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Reads the auto-matcher's persisted verdicts ([ReadaloudLinkDao], [ReadaloudCandidateDao]) and the
@@ -34,7 +32,6 @@ import javax.inject.Singleton
  * [com.riffle.core.domain.usecase.ReadaloudReviewActions]. ABS titles, authors, library names and
  * covers are resolved lazily from [LibraryItemDao] / [LibraryDao].
  */
-@Singleton
 class ReadaloudReviewRepositoryImpl(
     private val libraryItemDao: LibraryItemDao,
     private val libraryDao: LibraryDao,
@@ -44,7 +41,7 @@ class ReadaloudReviewRepositoryImpl(
     private val clock: () -> Long,
 ) : ReadaloudReviewRepository, ReadaloudReviewMutator {
 
-    @Inject constructor(
+    constructor(
         libraryItemDao: LibraryItemDao,
         libraryDao: LibraryDao,
         linkDao: ReadaloudLinkDao,

@@ -6,7 +6,6 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import java.io.IOException
-import javax.inject.Inject
 
 /**
  * Time-limited item cache for web sources (ADR 0052). Composes `Catalog + LibraryObserver +
@@ -42,7 +41,7 @@ import javax.inject.Inject
  * Pull-to-refresh passes `forceRefresh = true`, which bypasses the TTL check but still uses
  * the stale-fallback branch if the network fetch fails.
  */
-class WebSourceItemGate @Inject constructor(
+class WebSourceItemGate constructor(
     private val libraryObserver: LibraryObserver,
     private val freshness: RemoteItemFreshness,
     private val upserter: WebSourceLibraryItemUpserter,

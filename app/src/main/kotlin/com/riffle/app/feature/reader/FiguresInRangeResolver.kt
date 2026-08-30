@@ -6,7 +6,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
-import javax.inject.Inject
 import kotlin.coroutines.resume
 
 /**
@@ -29,7 +28,7 @@ fun interface FiguresInRangeResolver {
  * [FiguresInRangeResolver]). Swap for [WebViewFiguresInRangeResolver] once the JS CFI resolver
  * exists — no ViewModel change needed, only the Hilt binding.
  */
-class NoopFiguresInRangeResolver @Inject constructor() : FiguresInRangeResolver {
+class NoopFiguresInRangeResolver constructor() : FiguresInRangeResolver {
     override suspend fun resolve(cfiRange: String): List<EmbeddedFigure> = emptyList()
 }
 

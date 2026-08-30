@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.util.UUID
-import javax.inject.Inject
 
 class AnnotationStoreImpl(
     private val dao: AnnotationDao,
@@ -22,7 +21,6 @@ class AnnotationStoreImpl(
     private val idGenerator: () -> String,
 ) : AnnotationStore {
 
-    @Inject
     constructor(dao: AnnotationDao, deviceIdStore: DeviceIdStore, clock: Clock) : this(
         dao = dao,
         deviceIdStore = deviceIdStore,

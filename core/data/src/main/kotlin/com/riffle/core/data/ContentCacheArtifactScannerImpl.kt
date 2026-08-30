@@ -1,21 +1,16 @@
 package com.riffle.core.data
 
-import com.riffle.core.data.di.AudiobookCacheDir
-import com.riffle.core.data.di.CbzCacheDir
-import com.riffle.core.data.di.EpubCacheDir
-import com.riffle.core.data.di.PdfCacheDir
 import com.riffle.core.domain.ContentCacheArtifact
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheArtifactScanner
 import com.riffle.core.domain.ContentCacheKey
 import java.io.File
-import javax.inject.Inject
 
-class ContentCacheArtifactScannerImpl @Inject constructor(
-    @EpubCacheDir private val epubCacheDir: File,
-    @PdfCacheDir private val pdfCacheDir: File,
-    @AudiobookCacheDir private val audiobookCacheDir: File,
-    @CbzCacheDir private val cbzCacheDir: File,
+class ContentCacheArtifactScannerImpl constructor(
+    private val epubCacheDir: File,
+    private val pdfCacheDir: File,
+    private val audiobookCacheDir: File,
+    private val cbzCacheDir: File,
 ) : ContentCacheArtifactScanner {
     override fun listArtifacts(): List<ContentCacheArtifact> =
         fileArtifacts(epubCacheDir, ".epub", ContentCacheArtifactKind.Epub) +

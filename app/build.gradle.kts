@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
 }
 
 // Exclude legacy Android Support Library to prevent duplicate-class conflicts with AndroidX.
@@ -156,12 +155,8 @@ dependencies {
     implementation(libs.androidx.compose.material3.window.size)
     implementation(libs.androidx.compose.material.icons.extended)
 
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.hilt.navigation.compose)
-    implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     val koinBom = platform(libs.koin.bom)
@@ -208,8 +203,9 @@ dependencies {
     androidTestImplementation(project(":core:network"))
     androidTestImplementation(project(":core:database"))
     androidTestImplementation(libs.okhttp.mockwebserver)
-    androidTestImplementation(libs.hilt.android.testing)
-    kspAndroidTest(libs.hilt.compiler)
-    debugImplementation(libs.androidx.compose.ui.tooling)
+    androidTestImplementation(koinBom)
+    androidTestImplementation(libs.koin.test)
+    androidTestImplementation(libs.koin.android.test)
+debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

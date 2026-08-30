@@ -2,9 +2,8 @@ package com.riffle.core.data.localfiles
 
 import com.riffle.core.database.LocalFileMetadataOverrideDao
 import com.riffle.core.database.LocalFileMetadataOverrideEntity
-import javax.inject.Inject
 
-class SaveLocalFileMetadataOverrideUseCase @Inject constructor(
+class SaveLocalFileMetadataOverrideUseCase constructor(
     private val overrideDao: LocalFileMetadataOverrideDao,
 ) {
     suspend operator fun invoke(

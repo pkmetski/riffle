@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.feature.library.DownloadProgressIndicator
 import com.riffle.app.feature.library.DownloadState
@@ -41,7 +41,7 @@ import com.riffle.core.dictionary.LanguageCatalogEntry
 @Composable
 fun DictionaryPacksScreen(
     onNavigateBack: () -> Unit,
-    viewModel: DictionaryPacksViewModel = hiltViewModel(),
+    viewModel: DictionaryPacksViewModel = koinViewModel(),
 ) {
     val installedPacks by viewModel.installedPacks.collectAsState()
     val downloadStates by viewModel.downloadStates.collectAsState()

@@ -21,8 +21,6 @@ import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.WakeLockPreferencesStore
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -30,24 +28,22 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import javax.inject.Inject
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class WakeLockHarnessTest {
+class WakeLockHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @Inject lateinit var wakeLockPreferencesStore: WakeLockPreferencesStore
+    val database: RiffleDatabaseAccess by inject()
+    val wakeLockPreferencesStore: WakeLockPreferencesStore by inject()
 
     private val stubServer = StubAbsServer()
 
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         runBlocking { wakeLockPreferencesStore.setKeepScreenOn(true) }
     }

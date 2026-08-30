@@ -4,13 +4,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.riffle.core.data.di.DeviceIdDataStore
 import com.riffle.core.domain.DeviceIdStore
 import java.util.UUID
-import javax.inject.Inject
 
-class DeviceIdStoreImpl @Inject constructor(
-    @param:DeviceIdDataStore private val dataStore: DataStore<Preferences>,
+class DeviceIdStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : DeviceIdStore {
 
     override suspend fun getOrCreate(): String {

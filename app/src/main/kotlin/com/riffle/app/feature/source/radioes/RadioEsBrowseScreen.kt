@@ -50,7 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.core.catalog.CatalogFacet
@@ -74,7 +74,7 @@ fun RadioEsBrowseScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
-    viewModel: RadioEsBrowseViewModel = hiltViewModel(),
+    viewModel: RadioEsBrowseViewModel = koinViewModel(),
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 

@@ -2,8 +2,6 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.ApplicationScope
 import kotlinx.coroutines.Job
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Runs a final progress write (the close / pause flush) on an application-lifetime scope so it isn't
@@ -20,8 +18,8 @@ import javax.inject.Singleton
  * round-trip finishes ("close, then leave right away"). In-session periodic syncs stay on
  * `viewModelScope` — they *should* stop when the screen goes away; only the terminal flush comes here.
  */
-@Singleton
-class ProgressFlushScope @Inject constructor(
+
+class ProgressFlushScope constructor(
     private val applicationScope: ApplicationScope,
 ) {
     /** Launch [write] on the survivable scope; returns its [Job] (for tests / awaiting if needed). */

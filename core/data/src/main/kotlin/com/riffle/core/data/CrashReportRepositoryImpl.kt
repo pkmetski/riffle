@@ -1,10 +1,8 @@
 package com.riffle.core.data
 
-import com.riffle.core.data.di.CrashReportDir
 import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import java.io.File
-import javax.inject.Inject
 
 /**
  * Lists crash reports stored in [reportDir] as individual `*.txt` files written by
@@ -12,8 +10,8 @@ import javax.inject.Inject
  * — the prior single-file design overwrote on every crash. Ordering is by file mtime so
  * the user sees the newest crash first regardless of filename collisions.
  */
-class CrashReportRepositoryImpl @Inject constructor(
-    @param:CrashReportDir private val reportDir: File,
+class CrashReportRepositoryImpl constructor(
+    private val reportDir: File,
 ) : CrashReportRepository {
 
     override fun listCrashReports(): List<CrashReport> {

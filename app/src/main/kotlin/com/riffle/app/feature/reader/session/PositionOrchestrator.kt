@@ -5,9 +5,6 @@ package com.riffle.app.feature.reader.session
 import com.riffle.app.feature.reader.PositionSaveCoordinator
 import com.riffle.app.feature.reader.computeTotalProgression
 import com.riffle.core.domain.ReadingPositionStore
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,12 +28,11 @@ import org.readium.r2.shared.publication.Locator
  *
  * MUST NOT import android.webkit.* or ContinuousReaderView.
  */
-class PositionOrchestrator @AssistedInject constructor(
-    @Assisted private val scope: CoroutineScope,
+class PositionOrchestrator constructor(
+    private val scope: CoroutineScope,
 ) {
 
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(scope: CoroutineScope): PositionOrchestrator
     }
 

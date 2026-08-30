@@ -11,7 +11,6 @@ import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.ProgressRemoteFactory
-import javax.inject.Inject
 
 /**
  * Builds the [ProgressRemote]s the sweep consumes, resolving each Source's Catalog through
@@ -34,7 +33,7 @@ import javax.inject.Inject
  * audio branch also checks isWebSource and uses a Double adapter
  * ([WebDavProgressRemoteFactory.createForAudio]) backed by the same file.
  */
-class CatalogProgressRemoteFactory @Inject constructor(
+class CatalogProgressRemoteFactory constructor(
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemDao: LibraryItemDao,
     private val translatorFactory: EbookCfiTranslatorFactory,

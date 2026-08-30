@@ -8,9 +8,8 @@ import com.riffle.core.domain.TocRepository
 import com.riffle.core.common.isDerivedCacheStale
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import javax.inject.Inject
 
-class TocRepositoryImpl @Inject constructor(
+class TocRepositoryImpl constructor(
     private val dao: TocCacheDao,
     private val clock: Clock,
 ) : TocRepository {

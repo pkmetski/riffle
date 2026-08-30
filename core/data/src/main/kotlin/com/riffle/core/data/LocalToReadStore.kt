@@ -4,12 +4,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import com.riffle.core.data.di.LocalToReadDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Local-only "To Read" backing used by [ToReadRepositoryImpl] when the active Source's Catalog
@@ -26,9 +23,8 @@ interface LocalToReadStore {
     suspend fun remove(libraryId: String, libraryItemId: String)
 }
 
-@Singleton
-class LocalToReadStoreImpl @Inject constructor(
-    @param:LocalToReadDataStore private val dataStore: DataStore<Preferences>,
+class LocalToReadStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : LocalToReadStore {
 
     override fun observeItemIds(libraryId: String): Flow<Set<String>> =

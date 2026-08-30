@@ -34,14 +34,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
 /**
  * Slim Room/Catalog wrapper that satisfies the three segregated library role interfaces.
  * Cross-cutting choreography (readaloud matcher / Storyteller catalogue sync / reading-session
  * push) lives in use-cases under `com.riffle.core.domain.usecase`, NOT here.
  */
-class LibraryRepositoryImpl @Inject constructor(
+class LibraryRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,

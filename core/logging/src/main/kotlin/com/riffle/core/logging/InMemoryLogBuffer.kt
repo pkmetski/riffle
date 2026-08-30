@@ -4,8 +4,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicLong
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Bounded ring buffer of recent log entries so an in-app debug screen can display them
@@ -16,8 +14,7 @@ import javax.inject.Singleton
  * exposed [StateFlow] — subscribers receive the current buffer contents on collect and a
  * fresh snapshot after every append.
  */
-@Singleton
-class InMemoryLogBuffer @Inject constructor() {
+class InMemoryLogBuffer constructor() {
 
     data class Entry(
         val timestampMs: Long,

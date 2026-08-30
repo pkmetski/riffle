@@ -7,14 +7,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
-import com.riffle.core.data.di.DeveloperOptionsDataStore
-import com.riffle.core.data.di.DeveloperOptionsPatStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 /** Seam for PAT storage — injected as [AndroidPatStore] in production, test doubles in tests. */
 interface PatStore {
@@ -57,9 +54,9 @@ class AndroidPatStore(context: Context) : PatStore {
     }
 }
 
-class DeveloperOptionsRepositoryImpl @Inject constructor(
-    @param:DeveloperOptionsDataStore private val dataStore: DataStore<Preferences>,
-    @param:DeveloperOptionsPatStore private val patStore: PatStore,
+class DeveloperOptionsRepositoryImpl constructor(
+    private val dataStore: DataStore<Preferences>,
+    private val patStore: PatStore,
 ) : DeveloperOptionsRepository {
 
     override val developerModeEnabled: Flow<Boolean> =

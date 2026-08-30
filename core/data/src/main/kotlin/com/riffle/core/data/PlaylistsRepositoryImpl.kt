@@ -12,8 +12,6 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Playlists for a library, persisted to Room so the Playlists tab is populated on cold start
@@ -22,8 +20,7 @@ import javax.inject.Singleton
  * matches the pre-Room contract — the same rootId across two sources would still coalesce, but
  * that only happens when a user has two Source rows pointing at the same ABS instance.
  */
-@Singleton
-class PlaylistsRepositoryImpl @Inject constructor(
+class PlaylistsRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,
     private val sourceRepository: SourceRepository,
     private val dao: PlaylistDao,

@@ -2,8 +2,6 @@ package com.riffle.app.feature.reader.readaloud
 
 import android.content.Context
 import com.riffle.core.domain.DispatcherProvider
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 
 /**
  * Makes a streaming-eligible Readaloud available offline by eager-fetching its ABS audio (ADR 0040).
@@ -22,8 +20,8 @@ interface ReadaloudOfflineDownloader {
     ): Boolean?
 }
 
-class ReadaloudOfflineDownloaderImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ReadaloudOfflineDownloaderImpl constructor(
+    private val context: Context,
     private val factory: ReadaloudStreamingSessionFactory,
     private val dispatchers: DispatcherProvider,
 ) : ReadaloudOfflineDownloader {

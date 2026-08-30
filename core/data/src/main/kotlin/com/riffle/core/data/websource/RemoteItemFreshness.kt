@@ -3,7 +3,6 @@ package com.riffle.core.data.websource
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RemoteItemFreshnessEntity
 import com.riffle.core.common.Clock
-import javax.inject.Inject
 
 /**
  * Records when a web-source item's persisted detail was last successfully refetched
@@ -12,7 +11,7 @@ import javax.inject.Inject
  *
  * TTL semantics are the caller's — the service just answers "how old is this row".
  */
-class RemoteItemFreshness @Inject constructor(
+class RemoteItemFreshness constructor(
     private val dao: RemoteItemFreshnessDao,
     private val clock: Clock,
 ) {

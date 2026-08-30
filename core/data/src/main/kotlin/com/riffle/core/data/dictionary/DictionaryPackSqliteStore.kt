@@ -7,9 +7,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
-import javax.inject.Inject
 
-class DictionaryPackSqliteStore @Inject constructor(
+class DictionaryPackSqliteStore constructor(
     private val filesDir: File,
 ) {
     fun readerForLanguage(languageTag: String): PackEntryReader? {

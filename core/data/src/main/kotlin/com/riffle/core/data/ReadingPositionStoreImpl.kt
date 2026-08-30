@@ -6,9 +6,8 @@ import com.riffle.core.common.Clock
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SyncPositionStore
-import javax.inject.Inject
 
-class ReadingPositionStoreImpl @Inject constructor(
+class ReadingPositionStoreImpl constructor(
     private val dao: ReadingPositionDao,
     clock: Clock,
 ) : TimestampedPositionStore<String>(clock), ReadingPositionStore, SyncPositionStore<String> {

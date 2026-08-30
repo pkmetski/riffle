@@ -4,7 +4,6 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
-import javax.inject.Inject
 
 /**
  * Resolves the canonical audio-settings key (ADR 0040): if any ABS item linked to the readaloud
@@ -12,7 +11,7 @@ import javax.inject.Inject
  * readaloud id does. The cardinality is 0–1 audiobook per readaloud; the sort keeps the key stable
  * if the data is ever dirty.
  */
-class AudioIdentityResolverImpl @Inject constructor(
+class AudioIdentityResolverImpl constructor(
     private val linkDao: ReadaloudLinkDao,
     private val libraryItemDao: LibraryItemDao,
 ) : AudioIdentityResolver {

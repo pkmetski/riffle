@@ -15,7 +15,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
-import javax.inject.Inject
 
 /** On-disk manifest written after a successful download so the book plays offline (ADR 0035). */
 @Serializable
@@ -39,11 +38,11 @@ internal data class AudiobookDownloadManifest(
  * not-downloaded and is simply re-fetched. Track transfer is delegated to the shared
  * [AudiobookTrackDownloader].
  */
-class AudiobookDownloadRepositoryImpl @Inject constructor(
+class AudiobookDownloadRepositoryImpl constructor(
     private val audiobookRepository: AudiobookRepository,
     private val trackDownloader: AudiobookTrackDownloader,
-    @com.riffle.core.data.di.AudiobookCacheDir private val cacheDir: File,
-    @com.riffle.core.data.di.AudiobookDownloadsDir private val downloadsDir: File,
+    private val cacheDir: File,
+    private val downloadsDir: File,
     private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents,
 ) : AudiobookDownloadRepository {

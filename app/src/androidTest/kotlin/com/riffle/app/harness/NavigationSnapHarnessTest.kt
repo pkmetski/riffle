@@ -24,21 +24,20 @@ import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
-import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.LocalStore
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.qualifier.named
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Verifies every navigation lands the reader properly column-snapped, against the REAL Readium reader
@@ -53,22 +52,19 @@ import org.junit.runner.RunWith
  *
  * Avoids composeTestRule.waitForIdle() — it blocks indefinitely while the Readium WebView is active.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class NavigationSnapHarnessTest {
+class NavigationSnapHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
+    val database: RiffleDatabaseAccess by inject()
+    val epubCacheStore: LocalStore by inject(named("epubCacheStore"))
 
     private val stubServer = StubAbsServer()
 
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         epubCacheStore.clear()
     }

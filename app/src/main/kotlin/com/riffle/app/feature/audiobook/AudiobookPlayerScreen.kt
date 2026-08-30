@@ -42,7 +42,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.riffle.app.R
 import com.riffle.app.feature.audio.PlayerSurface
@@ -136,7 +136,7 @@ fun AudiobookPlayerScreen(
      *  [PlaylistDetailScreen]) and there IS a next item. Callers navigate to the next item's
      *  audiobook player, preserving the playlist context so auto-advance chains through. */
     onPlaylistAdvance: (nextItemId: String) -> Unit = {},
-    viewModel: AudiobookPlayerViewModel = hiltViewModel(),
+    viewModel: AudiobookPlayerViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // When the book ends naturally (last track played through to STATE_ENDED), either advance to

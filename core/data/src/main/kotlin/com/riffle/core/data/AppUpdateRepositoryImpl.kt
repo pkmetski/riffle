@@ -11,15 +11,13 @@ import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.network.GitHubRelease
 import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.GitHubReleaseResult
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import java.io.File
-import javax.inject.Inject
 
-class AppUpdateRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class AppUpdateRepositoryImpl constructor(
+    private val context: Context,
     private val releaseApi: GitHubReleaseApi,
     private val installer: ApkInstaller,
     private val dispatchers: DispatcherProvider,

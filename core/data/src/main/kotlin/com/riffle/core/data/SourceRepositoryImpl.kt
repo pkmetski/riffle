@@ -21,20 +21,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import javax.inject.Provider
 
-class SourceRepositoryImpl @Inject constructor(
+class SourceRepositoryImpl constructor(
     private val dao: SourceDao,
     private val tokenStorage: TokenStorage,
     private val serverInfoApi: AbsServerInfoApi,
     private val komgaServerInfoApi: KomgaServerInfoApi,
     private val filesCleaner: SourceFilesCleaner,
-    // Provider (not direct injection) breaks the SourceRepository ↔ ReadaloudSidecarStore Hilt
+    // Lambda (not direct injection) breaks the SourceRepository ↔ ReadaloudSidecarStore DI
     // cycle: the sidecar store needs SourceRepository to look up per-source credentials, and the
     // repository needs the cache to purge on source removal. Lazy resolution here means the store
     // is only constructed on the removal path — long after graph resolution has settled.
-    private val sidecarCache: Provider<ReadaloudSidecarCache>,
+    private val sidecarCache: () -> ReadaloudSidecarCache,
     private val installer: CredentialedSourceInstaller,
     private val remoteUserIdResolvers: Map<SourceType, @JvmSuppressWildcards RemoteUserIdResolver>,
 ) : SourceRepository {
@@ -77,7 +75,7 @@ class SourceRepositoryImpl @Inject constructor(
         filesCleaner.deleteAllForSource(sourceId)
         // Readaloud sidecars live in the app cacheDir and are keyed to the storyteller source id;
         // a re-added source shouldn't inherit sidecars from its predecessor.
-        sidecarCache.get().purgeSource(sourceId)
+        sidecarCache().purgeSource(sourceId)
     }
 
     override suspend fun getSourceVersion(sourceId: String): String? {

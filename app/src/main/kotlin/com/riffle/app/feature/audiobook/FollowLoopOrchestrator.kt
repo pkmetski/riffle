@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Owns the audiobook player's periodic "push what we've listened to ABS" tick and the terminal
@@ -34,7 +33,7 @@ import javax.inject.Inject
  * timestamp so the caller can still read/write them (bookmarks, seek-to, handoff prep all touch
  * those values today).
  */
-class FollowLoopOrchestrator @Inject constructor(
+class FollowLoopOrchestrator constructor(
     private val clock: Clock,
     private val progressFlushScope: ProgressFlushScope,
 ) {

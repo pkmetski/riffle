@@ -7,9 +7,8 @@ import com.riffle.core.domain.comic.panel.PanelDetectionConfig
 import com.riffle.core.domain.comic.panel.PanelMaskBinarizer
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
-class AndroidPanelMaskServiceImpl @Inject constructor(
+class AndroidPanelMaskServiceImpl constructor(
     private val config: PanelDetectionConfig,
     private val decoder: PageImageDecoder,
     private val dispatchers: DispatcherProvider,

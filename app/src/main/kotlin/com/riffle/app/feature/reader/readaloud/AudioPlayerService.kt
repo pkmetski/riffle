@@ -25,8 +25,7 @@ import com.riffle.app.R
 import com.riffle.app.feature.audio.MediaItemRestorerRegistry
 import com.riffle.app.feature.audio.MediaSourceRegistry
 import com.riffle.app.feature.audiobook.AbsolutePositionPlayer
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
+import org.koin.android.ext.android.inject
 
 /**
  * Foreground [MediaSessionService] that plays Readaloud audio. Media3 supplies the media
@@ -40,11 +39,10 @@ import javax.inject.Inject
  * `MediaSourceFactory` + `MediaItemRestorer` entry, no edits here (issue #333).
  */
 @OptIn(UnstableApi::class)
-@AndroidEntryPoint
 class AudioPlayerService : MediaSessionService() {
 
-    @Inject lateinit var mediaSourceRegistry: MediaSourceRegistry
-    @Inject lateinit var mediaItemRestorerRegistry: MediaItemRestorerRegistry
+    private val mediaSourceRegistry: MediaSourceRegistry by inject()
+    private val mediaItemRestorerRegistry: MediaItemRestorerRegistry by inject()
 
     private var mediaSession: MediaSession? = null
 

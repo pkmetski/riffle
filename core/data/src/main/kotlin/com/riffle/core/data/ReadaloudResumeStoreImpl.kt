@@ -5,9 +5,8 @@ import com.riffle.core.database.ReadaloudResumePositionEntity
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
-import javax.inject.Inject
 
-class ReadaloudResumeStoreImpl @Inject constructor(
+class ReadaloudResumeStoreImpl constructor(
     private val dao: ReadaloudResumePositionDao,
     private val clock: Clock,
 ) : ReadaloudResumeStore {

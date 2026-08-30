@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import com.riffle.core.common.EncryptedKeyValueStore
 import androidx.security.crypto.MasterKeys
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 
 /**
  * Android-Keystore-backed [EncryptedKeyValueStore] used for credentials such as the
@@ -13,8 +11,8 @@ import javax.inject.Inject
  * missing or corrupt (reinstall, KeyStore invalidated), we delete the prefs file and
  * start fresh — the secret is unrecoverable anyway.
  */
-class KeystoreEncryptedKeyValueStore @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class KeystoreEncryptedKeyValueStore constructor(
+    private val context: Context,
 ) : EncryptedKeyValueStore {
 
     private val prefs by lazy {

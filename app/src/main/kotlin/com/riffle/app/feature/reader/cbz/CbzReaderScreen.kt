@@ -64,7 +64,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -93,7 +93,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 fun CbzReaderScreen(
     onNavigateBack: () -> Unit,
-    viewModel: CbzReaderViewModel = hiltViewModel(),
+    viewModel: CbzReaderViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val currentPage by viewModel.currentPage.collectAsState()

@@ -7,8 +7,6 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import java.util.UUID
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Owns the "install a LocalFiles Source" side of the Add-Source flow. Materialises the singleton
@@ -21,8 +19,7 @@ import javax.inject.Singleton
  * [com.riffle.core.domain.PendingSource] step (no credentials to authenticate, no library set to
  * pick) — the whole flow collapses to "user picked a folder".
  */
-@Singleton
-class LocalFilesSourceInstaller @Inject constructor(
+class LocalFilesSourceInstaller constructor(
     private val sourceDao: SourceDao,
     private val folderRepository: LocalFilesFolderRepository,
     private val scanner: LocalFilesScanner,

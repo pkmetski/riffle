@@ -17,7 +17,7 @@ import javax.inject.Inject
  *
  * Both fire on the application scope so the caller returns as soon as the Room write lands.
  */
-open class RefreshLibraryItems @Inject constructor(
+open class RefreshLibraryItems constructor(
     private val refresher: LibraryRefresher,
     private val storytellerSyncer: StorytellerReadaloudCacheSyncer,
     private val readaloudReconciler: ReadaloudLinkReconciler,

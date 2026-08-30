@@ -35,14 +35,14 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.riffle.core.domain.ReleaseInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChangelogScreen(
     onNavigateBack: () -> Unit,
-    viewModel: ChangelogViewModel = hiltViewModel(),
+    viewModel: ChangelogViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.state.collectAsState()
 

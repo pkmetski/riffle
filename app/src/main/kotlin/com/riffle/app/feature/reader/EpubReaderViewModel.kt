@@ -71,7 +71,6 @@ import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.highlights.realCapturedFontOrNull
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -108,7 +107,6 @@ import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
-import javax.inject.Inject
 
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
@@ -261,8 +259,7 @@ sealed class ReaderState {
 private const val PREPARING_MESSAGE = "Preparing narration…"
 private const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
 
-@HiltViewModel
-class EpubReaderViewModel @Inject constructor(
+class EpubReaderViewModel constructor(
     application: Application,
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
@@ -322,9 +319,7 @@ class EpubReaderViewModel @Inject constructor(
     private val tocRepository: TocRepository,
     private val figuresInRangeResolver: FiguresInRangeResolver,
     private val catalogRegistry: com.riffle.core.catalog.CatalogRegistry,
-    @com.riffle.core.data.di.EpubDownloadsStore
     private val epubDownloadsStore: com.riffle.core.domain.LocalStore,
-    @com.riffle.core.data.di.EpubCacheStore
     private val epubCacheStore: com.riffle.core.domain.LocalStore,
     private val pdfExporter: HighlightsPdfExporter,
     private val dictionaryRepository: com.riffle.core.dictionary.DictionaryRepository,

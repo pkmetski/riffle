@@ -26,20 +26,18 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Coordinates an Auto-Scroll session: holds [state], emits pixel scroll deltas via [scrollDeltas],
  * and forwards lifecycle/UI events into the pure [reduce] state machine. Production uses
  * `DispatcherProvider.mainImmediate`; tests use [forTest] to inject a [StandardTestDispatcher].
  */
-@Singleton
+
 open class AutoScrollController internal constructor(
     dispatcher: CoroutineDispatcher,
     private var clock: Clock = SystemClock,
 ) {
-    @Inject constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate, SystemClock)
+    constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate, SystemClock)
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _state = MutableStateFlow<AutoScrollState>(AutoScrollState.Idle)

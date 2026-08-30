@@ -4,8 +4,6 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
-import com.riffle.core.data.di.EpubCacheStore
-import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.CrossEpubIndexStore
@@ -21,16 +19,15 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
-import javax.inject.Inject
 
-open class ReaderSyncFactory @Inject constructor(
+open class ReaderSyncFactory constructor(
     private val linkRepository: ReadaloudLinkRepository,
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,
     private val indexStore: CrossEpubIndexStore,
     private val libraryObserver: LibraryObserver,
-    @EpubCacheStore private val cacheStore: LocalStore,
-    @EpubDownloadsStore private val downloadsStore: LocalStore,
+    private val cacheStore: LocalStore,
+    private val downloadsStore: LocalStore,
     private val crossEpubIndexBuildTrigger: CrossEpubIndexBuildTrigger,
     private val sidecarCache: ReadaloudSidecarCache,
     private val clock: Clock,

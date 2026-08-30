@@ -11,8 +11,6 @@ import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.app.feature.reader.readaloud.ZipAudioDataSource
 import com.riffle.core.logging.Logger
 import java.io.IOException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * A scheme-keyed [DataSource] factory. The [MediaSourceRegistry] composes a list of these and
@@ -28,16 +26,16 @@ interface MediaSourceFactory {
 
 /** Streamed ABS audiobook tracks (ADR 0035). */
 @OptIn(UnstableApi::class)
-@Singleton
-class HttpAudioSourceFactory @Inject constructor() : MediaSourceFactory {
+
+class HttpAudioSourceFactory constructor() : MediaSourceFactory {
     override fun handles(scheme: String?): Boolean = scheme == "http" || scheme == "https"
     override fun createDataSource(): DataSource = DefaultHttpDataSource.Factory().createDataSource()
 }
 
 /** Downloaded audiobook tracks (ADR 0035, file:// after offline download). */
 @OptIn(UnstableApi::class)
-@Singleton
-class FileAudioSourceFactory @Inject constructor() : MediaSourceFactory {
+
+class FileAudioSourceFactory constructor() : MediaSourceFactory {
     override fun handles(scheme: String?): Boolean = scheme == "file"
     override fun createDataSource(): DataSource = FileDataSource()
 }
@@ -48,8 +46,8 @@ class FileAudioSourceFactory @Inject constructor() : MediaSourceFactory {
  * the controller queues media items.
  */
 @OptIn(UnstableApi::class)
-@Singleton
-class BundleAudioSourceFactory @Inject constructor(private val logger: Logger) : MediaSourceFactory {
+
+class BundleAudioSourceFactory constructor(private val logger: Logger) : MediaSourceFactory {
     override fun handles(scheme: String?): Boolean = scheme == ZIP_SCHEME
     override fun createDataSource(): DataSource {
         val bundle = SharedBundle.current ?: throw IOException("No Readaloud bundle set")
@@ -67,7 +65,7 @@ class BundleAudioSourceFactory @Inject constructor(private val logger: Logger) :
  * `AudioPlayerService.SchemeResolvingDataSource` and `SharedBundle.ReadaloudDataSource`.
  */
 @OptIn(UnstableApi::class)
-class MediaSourceRegistry @Inject constructor(private val factories: List<@JvmSuppressWildcards MediaSourceFactory>) {
+class MediaSourceRegistry constructor(private val factories: List<@JvmSuppressWildcards MediaSourceFactory>) {
     fun asDataSourceFactory(): DataSource.Factory = DataSource.Factory { ResolvingDataSource(factories) }
 
     private class ResolvingDataSource(

@@ -13,7 +13,7 @@ import javax.inject.Inject
  *
  * Pure-JVM testable: depends only on domain interfaces.
  */
-class ReadaloudReviewActions @Inject constructor(
+class ReadaloudReviewActions constructor(
     private val mutator: ReadaloudReviewMutator,
     private val linkRepository: ReadaloudLinkRepository,
     private val audioIdentityResolver: AudioIdentityResolver,

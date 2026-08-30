@@ -6,6 +6,8 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import com.riffle.app.di.riffleViewModelKoinModules
+import com.riffle.core.data.di.coreDataKoinModules
+import com.riffle.core.logging.loggingKoinModule
 import com.riffle.app.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
@@ -13,11 +15,7 @@ import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.network.createImageLoaderOkHttpClient
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.android.HiltAndroidApp
-import dagger.hilt.components.SingletonComponent
+import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.acra.ACRA
@@ -27,21 +25,7 @@ import org.acra.config.limiter
 import org.acra.ktx.initAcra
 import java.util.concurrent.TimeUnit
 
-@HiltAndroidApp
 class RiffleApplication : Application(), ImageLoaderFactory {
-
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface MigratorEntryPoint {
-        fun localStoreMigrator(): LocalStoreMigrator
-        fun connectivityObserver(): com.riffle.core.domain.ConnectivityObserver
-        fun appUpdateRepository(): com.riffle.core.domain.AppUpdateRepository
-        fun applicationScope(): ApplicationScope
-        fun annotationSweep(): AnnotationSweep
-        fun progressSweep(): ProgressSweep
-        fun localFilesFolderWatcher(): LocalFilesFolderWatcher
-        fun logger(): com.riffle.core.logging.Logger
-    }
 
     private var logger: com.riffle.core.logging.Logger = com.riffle.core.logging.NoopLogger
 
@@ -86,20 +70,19 @@ class RiffleApplication : Application(), ImageLoaderFactory {
             androidContext(this@RiffleApplication)
             modules(riffleKoinModules())
         }
-        val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
-        val applicationScope = entryPoint.applicationScope()
-        logger = entryPoint.logger()
+        val applicationScope = get<ApplicationScope>()
+        logger = get<com.riffle.core.logging.Logger>()
 
         // One-time relocation of legacy flat cache/download files into per-Source dirs (ADR 0031).
         // Idempotent and best-effort; runs off the main thread and never blocks startup.
-        val migrator = entryPoint.localStoreMigrator()
+        val migrator = get<LocalStoreMigrator>()
         applicationScope.launchSurvivable {
             runCatching { migrator.migrate() }
         }
 
         // Reclaim any update APK left behind by a previous self-update: a successful install restarts
         // the app before the download flow can delete it, so we sweep the update cache on launch.
-        val appUpdate = entryPoint.appUpdateRepository()
+        val appUpdate = get<com.riffle.core.domain.AppUpdateRepository>()
         applicationScope.launchSurvivable {
             runCatching { appUpdate.sweepStaleApks() }
         }
@@ -123,9 +106,9 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         // observer can already report "online" while the OS constraint still holds the queued sweep
         // — leaving "will retry automatically when connectivity returns" as a broken promise. The
         // validated edge is authoritative.
-        val connectivity = entryPoint.connectivityObserver()
-        val annotationSweep = entryPoint.annotationSweep()
-        val progressSweep = entryPoint.progressSweep()
+        val connectivity = get<com.riffle.core.domain.ConnectivityObserver>()
+        val annotationSweep = get<AnnotationSweep>()
+        val progressSweep = get<ProgressSweep>()
         applicationScope.launchSurvivable {
             kickSweepsOnReconnect(
                 isOnline = connectivity.isOnline,
@@ -136,7 +119,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
 
         // Auto-scan configured LocalFiles folders on app foreground and on SAF change events.
         // Users adding a book to a picked folder never have to hit a manual "Rescan" button.
-        entryPoint.localFilesFolderWatcher().start()
+        get<LocalFilesFolderWatcher>().start()
     }
 
     /**
@@ -185,11 +168,8 @@ class RiffleApplication : Application(), ImageLoaderFactory {
  */
 internal fun shouldSkipMainProcessStartup(isAcraProcess: Boolean): Boolean = isAcraProcess
 
-/**
- * The Koin module graph for the app. Empty while Hilt still owns every binding; the Hilt → Koin
- * migration PRs move bindings here module by module until Hilt can be dropped entirely.
- */
-internal fun riffleKoinModules(): List<org.koin.core.module.Module> = riffleViewModelKoinModules()
+internal fun riffleKoinModules(): List<org.koin.core.module.Module> =
+    coreDataKoinModules() + loggingKoinModule + riffleViewModelKoinModules()
 
 /** 100 MB cap for the on-disk cover cache. */
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024

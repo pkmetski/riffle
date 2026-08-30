@@ -4,7 +4,6 @@ import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudioPlaybackPreferencesEntity
 import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
-import javax.inject.Inject
 
 /**
  * Persists per-book audio playback settings keyed by the resolved [AudioIdentity] (ADR 0040). Unlike
@@ -17,7 +16,7 @@ import javax.inject.Inject
  * hardcoded 1.0× would silently discard a deliberate "play this one book at normal speed" choice and
  * snap it back to the global default. Use [clear] to genuinely un-customise a book.
  */
-class AudioPlaybackPreferencesStoreImpl @Inject constructor(
+class AudioPlaybackPreferencesStoreImpl constructor(
     private val dao: AudioPlaybackPreferencesDao,
 ) : AudioPlaybackPreferencesStore {
 

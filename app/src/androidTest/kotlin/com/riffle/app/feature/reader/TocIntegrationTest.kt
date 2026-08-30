@@ -2,14 +2,10 @@ package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.riffle.app.di.AppModule
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -19,7 +15,8 @@ import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
-import javax.inject.Inject
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Integration test: extract TOC from the bundled test EPUB and verify active entry detection.
@@ -27,18 +24,14 @@ import javax.inject.Inject
  * Opens the real test.epub via Readium's PublicationOpener, extracts its tableOfContents,
  * maps to TocEntry, and verifies that findActiveEntry resolves the correct entry for known hrefs.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class TocIntegrationTest {
+class TocIntegrationTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val tmp = TemporaryFolder()
+    @get:Rule val tmp = TemporaryFolder()
 
-    @Inject lateinit var assetRetriever: AssetRetriever
-    @Inject lateinit var publicationOpener: PublicationOpener
+    val assetRetriever: AssetRetriever by inject()
+    val publicationOpener: PublicationOpener by inject()
 
-    @Before
-    fun setUp() { hiltRule.inject() }
 
     @Test
     fun testEpubHasThreeTopLevelChapters() = runTest {

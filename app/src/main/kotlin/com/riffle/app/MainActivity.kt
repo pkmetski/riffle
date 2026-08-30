@@ -44,23 +44,21 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ResolvedAppearance
 import androidx.compose.runtime.LaunchedEffect
-import dagger.hilt.android.AndroidEntryPoint
+import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.KoinAndroidContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import androidx.lifecycle.lifecycleScope
-import javax.inject.Inject
 
-@AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
-    @Inject lateinit var volumeNavigationController: VolumeNavigationController
-    @Inject lateinit var readerStateHolder: ReaderStateHolder
-    @Inject lateinit var volumeKeyPreferencesStore: VolumeKeyPreferencesStore
-    @Inject lateinit var appearanceCoordinator: AppearanceCoordinator
-    @Inject lateinit var nowPlayingNavigator: NowPlayingNavigator
-    @Inject lateinit var autoScrollController: AutoScrollController
+    private val volumeNavigationController: VolumeNavigationController by inject()
+    private val readerStateHolder: ReaderStateHolder by inject()
+    private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore by inject()
+    private val appearanceCoordinator: AppearanceCoordinator by inject()
+    private val nowPlayingNavigator: NowPlayingNavigator by inject()
+    private val autoScrollController: AutoScrollController by inject()
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>

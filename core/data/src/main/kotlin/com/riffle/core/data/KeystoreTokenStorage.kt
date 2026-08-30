@@ -5,12 +5,10 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
-class KeystoreTokenStorage @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class KeystoreTokenStorage constructor(
+    private val context: Context,
     private val dispatchers: DispatcherProvider,
 ) : TokenStorage {
 

@@ -22,7 +22,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.WakeLockPreferencesStore
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -44,10 +43,8 @@ import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
-import javax.inject.Inject
 
-@HiltViewModel
-class PdfReaderViewModel @Inject constructor(
+class PdfReaderViewModel constructor(
     application: Application,
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,

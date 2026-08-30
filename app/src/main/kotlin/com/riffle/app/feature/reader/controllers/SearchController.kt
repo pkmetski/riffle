@@ -2,9 +2,6 @@ package com.riffle.app.feature.reader.controllers
 
 import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.DispatcherProvider
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -31,13 +28,12 @@ import org.readium.r2.shared.publication.services.search.SearchService
  *
  * MUST NOT import android.webkit.* or ContinuousReaderView.
  */
-class SearchController @AssistedInject constructor(
-    @Assisted private val scope: OrchestratorScope,
+class SearchController constructor(
+    private val scope: OrchestratorScope,
     private val dispatchers: DispatcherProvider,
 ) {
 
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(scope: CoroutineScope): SearchController
     }
 

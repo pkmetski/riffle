@@ -1,6 +1,5 @@
 package com.riffle.core.data
 
-import com.riffle.core.data.di.qualifiers.StreamingHttpClient
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.withHttpByteStream
@@ -8,7 +7,6 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
-import javax.inject.Inject
 
 /**
  * Downloads all tracks in an [AudiobookSession] to a directory. Used by both
@@ -18,8 +16,8 @@ import javax.inject.Inject
  * play-time auto-cache. Returns the [AudiobookDownloadManifest.ManifestTrack] list ordered by track
  * index; throws on any per-track failure (the caller must clean up the dir).
  */
-class AudiobookTrackDownloader @Inject constructor(
-    @StreamingHttpClient private val httpClient: HttpClient,
+class AudiobookTrackDownloader constructor(
+    private val httpClient: HttpClient,
     private val dispatchers: DispatcherProvider,
 ) {
     internal suspend fun download(

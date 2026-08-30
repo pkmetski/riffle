@@ -6,15 +6,11 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.sync.CycleOutcome
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
+import org.koin.core.context.GlobalContext
 
 /**
- * Thin WorkManager shell over [AnnotationSweep] (ADR 0043). Dependencies via a Hilt EntryPoint
- * (no @HiltWorker / custom factory).
+ * Thin WorkManager shell over [AnnotationSweep] (ADR 0043). Dependencies resolved via Koin.
  *
  * Maps the sweep's [CycleOutcome] to a [Result] so WorkManager's exponential backoff actually
  * re-fires after transient failures — and so the retry job carries the CONNECTED constraint that
@@ -27,18 +23,9 @@ class AnnotationSyncWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
 
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface SweepEntryPoint {
-        fun annotationSweep(): AnnotationSweep
-    }
-
     override suspend fun doWork(): Result =
         try {
-            val outcome = EntryPointAccessors
-                .fromApplication(applicationContext, SweepEntryPoint::class.java)
-                .annotationSweep()
-                .run()
+            val outcome = GlobalContext.get().get<AnnotationSweep>().run()
             outcomeToResult(outcome)
         } catch (e: CancellationException) {
             throw e

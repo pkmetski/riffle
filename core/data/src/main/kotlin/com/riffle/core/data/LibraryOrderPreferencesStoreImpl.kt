@@ -4,14 +4,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.riffle.core.data.di.LibraryOrderPreferencesDataStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
-class LibraryOrderPreferencesStoreImpl @Inject constructor(
-    @param:LibraryOrderPreferencesDataStore private val dataStore: DataStore<Preferences>,
+class LibraryOrderPreferencesStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : LibraryOrderPreferencesStore {
 
     // Order matters, so we can't use a Preferences string-set (unordered). We persist the ordered
