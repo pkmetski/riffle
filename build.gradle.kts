@@ -95,8 +95,8 @@ tasks.register("checkRiffleInfraSeams") {
             // ---- Grandfathered — DispatcherProvider sweep follow-up. LocalFiles ingestion
             // pipeline (#475) does direct SAF file I/O and needs Dispatchers.IO. Migrate when the
             // rest of the LocalFiles layer routes through DispatcherProvider.
-            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/AndroidCopyInService.kt",
-            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/SafFolderWalker.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/localfiles/AndroidCopyInService.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/localfiles/SafFolderWalker.kt",
             // CBZ reader dispatches: archive I/O (Dispatchers.IO), image decode for produceState
             // in the reader Compose (Dispatchers.IO), and panel-detector prefetch
             // (Dispatchers.Default). Same rationale as the AudiobookPlayerViewModel entry —
@@ -115,12 +115,12 @@ tasks.register("checkRiffleInfraSeams") {
             "core/catalog-komga/src/main/kotlin/com/riffle/core/catalog/komga/KomgaCatalog.kt",
             // core:data — file I/O, connectivity callbacks, sync timestamps.
             // Developer options PAT store wraps EncryptedSharedPreferences (blocking disk I/O).
-            "core/data/src/main/kotlin/com/riffle/core/data/developer/DeveloperOptionsRepositoryImpl.kt",
-            "core/data/src/main/kotlin/com/riffle/core/data/ConnectivityObserverImpl.kt",
-            "core/data/src/main/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
-            "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
-            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/CopyCoverImageUseCase.kt",
-            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/LocalFilesScanner.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/developer/DeveloperOptionsRepositoryImpl.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/ConnectivityObserverImpl.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/localfiles/CopyCoverImageUseCase.kt",
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/localfiles/LocalFilesScanner.kt",
             // Reader/session/export layer — same reader-layer rationale as the CBZ entries.
             "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/FigureZoomOverlay.kt",

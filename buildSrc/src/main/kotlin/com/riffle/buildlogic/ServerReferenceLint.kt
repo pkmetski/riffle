@@ -53,28 +53,28 @@ object ServerReferenceLint {
         // Credentialed-authenticator layer (ADR 0053 Phase 7) — the ABS and Komga authenticators
         // set `serverType` on the installed Source; the abstract Authenticator carries the field
         // through. Same rationale as SourceRepositoryImpl / AbsApiClient.
-        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/CredentialedAuthenticator.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/CredentialedSourceInstaller.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/AbsCredentialedAuthenticator.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/KomgaCredentialedAuthenticator.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/credentialed/CredentialedAuthenticator.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/credentialed/CredentialedSourceInstaller.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/credentialed/AbsCredentialedAuthenticator.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/credentialed/KomgaCredentialedAuthenticator.kt",
         // Source-type picker + icon resolver map ServerType → labels/icons in the add-source flow.
         "app/src/main/kotlin/com/riffle/app/feature/server/SourceTypePickerScreen.kt",
         "app/src/main/kotlin/com/riffle/app/ui/source/SourceIcon.kt",
         "app/src/main/kotlin/com/riffle/app/ui/source/SourceIconResolver.kt",
         // Data layer: Source repo carries the serverType field; Storyteller +
         // WebDAV internals + reading-session repo pass `serverType` through.
-        "core/data/src/main/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/ReadaloudReviewRepositoryImpl.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/ReadaloudMatchingService.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadaloudReviewRepositoryImpl.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadaloudMatchingService.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",
         // Existing ABS bookmark synchronization sites branch on the grandfathered
         // ServerType/NetworkResult.ServerError names.
-        "core/data/src/main/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
-        "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
+        "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
         // Network clients — ABS and Storyteller HTTP surfaces carry `serverType`.
         "core/net/src/commonMain/kotlin/com/riffle/core/network/AbsApiClient.kt",
         "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApi.kt",
