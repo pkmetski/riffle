@@ -3,6 +3,7 @@ package com.riffle.core.catalog.radioes
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.LiveStreamCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.models.SourceType
@@ -15,6 +16,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -33,6 +35,7 @@ class RadioEsCatalogTest {
         val http = RadioEsHttpClient(
             client = HttpClient(OkHttp),
             userAgent = "Riffle/test",
+            acceptLanguage = "es-ES",
             retryDelaysMs = emptyList(),
         )
         catalog = RadioEsCatalog(
@@ -49,12 +52,11 @@ class RadioEsCatalogTest {
         assertEquals(SourceType.RADIO_ES, catalog.sourceType)
     }
 
-    @Test fun `listRoots returns a single Podcasts root`() = runTest {
+    @Test fun `listRoots includes a Podcasts root with correct properties`() = runTest {
         val roots = catalog.listRoots()
-        assertEquals(1, roots.size)
-        assertEquals(RadioEsCatalog.ROOT_PODCASTS, roots.single().id)
-        assertEquals("Podcasts", roots.single().name)
-        assertEquals("audiobook", roots.single().mediaType)
+        val podcasts = roots.first { it.id == RadioEsCatalog.ROOT_PODCASTS }
+        assertEquals("Podcasts", podcasts.name)
+        assertEquals("audiobook", podcasts.mediaType)
     }
 
     @Test fun `catalog implements AudiobookMediaCapability`() {
@@ -63,6 +65,20 @@ class RadioEsCatalogTest {
 
     @Test fun `catalog implements DownloadsCapability`() {
         assertTrue(catalog is DownloadsCapability)
+    }
+
+    @Test fun `catalog implements LiveStreamCapability`() {
+        assertTrue(catalog is LiveStreamCapability)
+    }
+
+    @Test fun `isLiveStream returns true for station ids`() {
+        val cap = catalog as LiveStreamCapability
+        assertTrue(cap.isLiveStream("s:cope-madrid"))
+    }
+
+    @Test fun `isLiveStream returns false for podcast ids`() {
+        val cap = catalog as LiveStreamCapability
+        assertFalse(cap.isLiveStream("the-daily"))
     }
 
     @Test fun `catalog implements ToReadListCapability`() {
@@ -75,11 +91,20 @@ class RadioEsCatalogTest {
 
     // ---- Facets -------------------------------------------------------------
 
-    @Test fun `listFacets returns categories from tags endpoint`() = runTest {
+    @Test fun `listFacets returns categories and languages from tags endpoint`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-tags.json")))
         val facets = catalog.listFacets(RadioEsCatalog.ROOT_PODCASTS)
         assertTrue("expected at least one category facet, got $facets", facets.isNotEmpty())
         assertTrue(facets.any { it.key == "slug:news" })
+        assertTrue(facets.any { it.key == "lang:spanish" })
+    }
+
+    @Test fun `listFacets language facets sort after category facets`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-tags.json")))
+        val facets = catalog.listFacets(RadioEsCatalog.ROOT_PODCASTS)
+        val lastCategoryOrder = facets.filter { it.key.startsWith("slug:") }.maxOf { it.sortOrder }
+        val firstLanguageOrder = facets.filter { it.key.startsWith("lang:") }.minOf { it.sortOrder }
+        assertTrue("language facets should sort after category facets", firstLanguageOrder > lastCategoryOrder)
     }
 
     @Test fun `listFacets caches result after first fetch`() = runTest {
@@ -126,6 +151,23 @@ class RadioEsCatalogTest {
             "/podcasts/category/news/charts expected, got: ${request.path}",
             request.path?.startsWith("/podcasts/category/news/charts") == true,
         )
+    }
+
+    @Test fun `browse with language facet adds cache-discriminator and sets Accept-Language header`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-podcasts-page1.json")))
+        catalog.browse(
+            rootId = RadioEsCatalog.ROOT_PODCASTS,
+            page = 0,
+            pageSize = 20,
+            facet = FacetSelection(key = "lang:spanish"),
+        )
+        val request = server.takeRequest()
+        assertTrue(
+            "/podcasts/category/podcasts/charts with _lang=spanish expected, got: ${request.path}",
+            request.path?.startsWith("/podcasts/category/podcasts/charts") == true &&
+                request.path?.contains("_lang=spanish") == true,
+        )
+        assertEquals("es", request.getHeader("Accept-Language"))
     }
 
     @Test fun `browse maps podcasts to CatalogItems`() = runTest {
@@ -205,6 +247,16 @@ class RadioEsCatalogTest {
         assertEquals(2, stream.chapters.size)
     }
 
+    @Test fun `openAudiobook chapter titles come from episode titles in chronological order`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-episodes.json")))
+        val cap = catalog as AudiobookMediaCapability
+        val stream = cap.openAudiobook("the-daily", "TestDevice")
+        assertNotNull(stream)
+        // oldest episode first (API newest-first reversed), real titles not generic "Episode N"
+        assertEquals("Episode One", stream!!.chapters[0].title)
+        assertEquals("Episode Two", stream.chapters[1].title)
+    }
+
     @Test fun `getAudiobookChapters returns one chapter per episode with episode title`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-episodes.json")))
         val cap = catalog as AudiobookMediaCapability
@@ -221,6 +273,84 @@ class RadioEsCatalogTest {
         val cap = catalog as AudiobookMediaCapability
         val fp = cap.getFingerprint("the-daily")
         assertNull(fp)
+    }
+
+    // ---- Stations root ----------------------------------------------------------
+
+    @Test fun `listRoots returns both Podcasts and Radio roots`() = runTest {
+        val roots = catalog.listRoots()
+        assertEquals(2, roots.size)
+        assertTrue(roots.any { it.id == RadioEsCatalog.ROOT_PODCASTS })
+        assertTrue(roots.any { it.id == RadioEsCatalog.ROOT_STATIONS })
+    }
+
+    @Test fun `browse stations hits local endpoint`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        catalog.browse(rootId = RadioEsCatalog.ROOT_STATIONS, page = 0, pageSize = 20)
+        val request = server.takeRequest()
+        assertTrue(
+            "/stations/local expected, got: ${request.path}",
+            request.path?.startsWith("/stations/local") == true,
+        )
+    }
+
+    @Test fun `browse stations maps to CatalogItems with isLiveStream true`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        val items = catalog.browse(rootId = RadioEsCatalog.ROOT_STATIONS, page = 0, pageSize = 20)
+        assertEquals(2, items.size)
+        val cope = items.first { it.id == "s:cope-madrid" }
+        assertEquals("COPE Madrid", cope.title)
+        assertEquals("Madrid, Spain", cope.author)
+        assertTrue("isLiveStream must be true for radio stations", cope.isLiveStream)
+        assertEquals(RadioEsCatalog.ROOT_STATIONS, cope.rootId)
+    }
+
+    @Test fun `search stations hits search endpoint`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        catalog.search(rootId = RadioEsCatalog.ROOT_STATIONS, query = "rock", page = 0, pageSize = 20)
+        val request = server.takeRequest()
+        assertTrue(
+            "/stations/search with query=rock expected, got: ${request.path}",
+            request.path?.startsWith("/stations/search") == true &&
+                request.path?.contains("query=rock") == true,
+        )
+    }
+
+    @Test fun `getItem for station id fetches from stations detail endpoint`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-station-detail.json")))
+        val item = catalog.getItem("s:cope-madrid")
+        assertNotNull(item)
+        assertEquals("s:cope-madrid", item!!.id)
+        assertEquals("COPE Madrid", item.title)
+        assertTrue(item.isLiveStream)
+    }
+
+    @Test fun `listFacets returns empty for stations root`() = runTest {
+        val facets = catalog.listFacets(RadioEsCatalog.ROOT_STATIONS)
+        assertTrue(facets.isEmpty())
+    }
+
+    @Test fun `openAudiobook for station returns single-track stream with totalDurationSec zero`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-station-detail.json")))
+        val cap = catalog as AudiobookMediaCapability
+        val stream = cap.openAudiobook("s:cope-madrid", "TestDevice")
+        assertNotNull(stream)
+        assertEquals(0.0, stream!!.totalDurationSec, 0.001)
+        assertEquals(1, stream.tracks.size)
+        assertEquals(
+            "https://madrid-cope-flucast.flumotion.com/cope/madrid.mp3.m3u",
+            stream.tracks[0].contentUrl,
+        )
+        assertTrue(stream.chapters.isEmpty())
+    }
+
+    // ---- Accept-Language ----------------------------------------------------
+
+    @Test fun `requests carry Accept-Language header`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-podcasts-page1.json")))
+        catalog.browse(rootId = RadioEsCatalog.ROOT_PODCASTS, page = 0, pageSize = 20)
+        val request = server.takeRequest()
+        assertEquals("es-ES", request.getHeader("Accept-Language"))
     }
 
     // ---- Connectivity -------------------------------------------------------

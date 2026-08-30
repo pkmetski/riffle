@@ -170,11 +170,11 @@ class SourceIconResolverTest {
     }
 
     @Test
-    fun `favicon URL for radio_es is the radio es logo SVG from the radio es CDN`() {
+    fun `favicon URL for radio_es is the favicon png from the radio es CDN`() {
         val url = SourceIconResolver.faviconUrlFor(
             source(type = SourceType.RADIO_ES, url = "https://radio-es.invalid"),
         )
-        assertEquals("https://www.radio.es/assets/logos-with-safespace/radio-es-logo.svg", url)
+        assertEquals("https://www.radio.es/assets/fav/favicon-48x48.png", url)
     }
 
     @Test
@@ -187,5 +187,19 @@ class SourceIconResolverTest {
     fun `type-only lookup returns radio_es monogram for RADIO_ES regardless of serverType`() {
         val res = SourceIconResolver.fallbackDrawableFor(SourceType.RADIO_ES)
         assertEquals(R.drawable.ic_source_radio_es, res)
+    }
+
+    @Test
+    fun `type-only faviconUrlFor returns fixed CDN url for RADIO_ES without a server url`() {
+        val url = SourceIconResolver.faviconUrlFor(SourceType.RADIO_ES)
+        assertEquals("https://www.radio.es/assets/fav/favicon-48x48.png", url)
+    }
+
+    @Test
+    fun `type-only faviconUrlFor returns null for sources requiring a server url`() {
+        assertNull(SourceIconResolver.faviconUrlFor(SourceType.ABS))
+        assertNull(SourceIconResolver.faviconUrlFor(SourceType.KOMGA))
+        assertNull(SourceIconResolver.faviconUrlFor(SourceType.GUTENBERG))
+        assertNull(SourceIconResolver.faviconUrlFor(SourceType.CHITANKA))
     }
 }

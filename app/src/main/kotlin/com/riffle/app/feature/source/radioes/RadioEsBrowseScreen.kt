@@ -12,12 +12,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.riffle.app.R
+import com.riffle.core.catalog.CatalogFacet
 import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.app.feature.source.common.toggleSearchOpen
@@ -238,6 +242,8 @@ private fun RadioEsLibraryTabContent(
                     )
                 }
             }
+            val categoryFacets = radioEsCategoryFacets(facets)
+            val languageFacets = radioEsLanguageFacets(facets)
             if (facets.isNotEmpty()) {
                 item {
                     FilterChip(
@@ -246,12 +252,21 @@ private fun RadioEsLibraryTabContent(
                         label = { Text(stringResource(R.string.ui_all)) },
                     )
                 }
-                items(facets, key = { it.key }) { facet ->
+                items(categoryFacets, key = { it.key }) { facet ->
                     FilterChip(
                         selected = selectedFacet == facet.key,
                         onClick = { viewModel.selectFacet(facet.key) },
                         label = { Text(facet.label) },
                     )
+                }
+                if (languageFacets.isNotEmpty()) {
+                    item {
+                        RadioEsLanguageFilterChip(
+                            languageFacets = languageFacets,
+                            selectedFacet = selectedFacet,
+                            onSelectFacet = { viewModel.selectFacet(it) },
+                        )
+                    }
                 }
             }
         }
@@ -298,3 +313,67 @@ private fun RadioEsLibraryTabContent(
         }
     }
 }
+
+@Composable
+private fun RadioEsLanguageFilterChip(
+    languageFacets: List<CatalogFacet>,
+    selectedFacet: String?,
+    onSelectFacet: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLanguage = languageFacets.firstOrNull { it.key == selectedFacet }
+
+    Box {
+        FilterChip(
+            selected = selectedLanguage != null,
+            onClick = { expanded = true },
+            label = {
+                Text(
+                    stringResource(
+                        R.string.ui_language_filter,
+                        selectedLanguage?.label ?: stringResource(R.string.ui_any),
+                    ),
+                )
+            },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_any)) },
+                onClick = {
+                    onSelectFacet(null)
+                    expanded = false
+                },
+                leadingIcon = if (selectedLanguage == null) {
+                    { Icon(Icons.Filled.Check, contentDescription = null) }
+                } else null,
+            )
+            languageFacets.forEach { facet ->
+                DropdownMenuItem(
+                    text = { Text(facet.label) },
+                    onClick = {
+                        onSelectFacet(facet.key)
+                        expanded = false
+                    },
+                    leadingIcon = if (facet.key == selectedFacet) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else null,
+                )
+            }
+        }
+    }
+}
+
+internal fun radioEsLanguageFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
+    facets.filter { it.key.startsWith(RADIO_ES_LANGUAGE_FACET_PREFIX) }
+
+internal fun radioEsCategoryFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
+    facets.filterNot { it.key.startsWith(RADIO_ES_LANGUAGE_FACET_PREFIX) }
+
+private const val RADIO_ES_LANGUAGE_FACET_PREFIX = "lang:"

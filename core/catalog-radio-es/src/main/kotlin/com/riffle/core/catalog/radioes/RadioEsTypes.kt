@@ -20,6 +20,23 @@ internal data class RadioEsEpisode(
     val contentFormat: String,
 )
 
+internal data class RadioEsStation(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val logo300x300: String?,
+    val streamUrl: String?,
+    val streamFormat: String,
+    val topics: List<String>,
+    val city: String?,
+    val country: String?,
+)
+
+internal data class RadioEsStationsResult(
+    val stations: List<RadioEsStation>,
+    val totalCount: Int,
+)
+
 internal data class RadioEsCategoryTag(
     val systemName: String,
     val name: String,
@@ -29,6 +46,7 @@ internal data class RadioEsCategoryTag(
 internal data class RadioEsLanguageTag(
     val systemName: String,
     val name: String,
+    val slug: String,
 )
 
 internal data class RadioEsPodcastsResult(

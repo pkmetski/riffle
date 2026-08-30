@@ -9,6 +9,11 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      # 2.7.0 dropped the iosX64 artifact, breaking the KMP build. Re-enable once
+      # Google publishes an iosX64 variant for a newer release.
+      - dependency-name: "androidx.sqlite:sqlite-bundled"
+        versions: ["2.7.0", ">= 2.7.0"]
 
   - package-ecosystem: github-actions
     directory: /

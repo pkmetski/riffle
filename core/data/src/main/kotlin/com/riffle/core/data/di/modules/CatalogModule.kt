@@ -121,6 +121,7 @@ object CatalogModule {
     ): CatalogFactory = RadioEsCatalogFactory(
         httpClient = httpClient,
         userAgent = "Riffle/dev (Android) radio-es-source",
+        acceptLanguage = java.util.Locale.getDefault().toLanguageTag(),
     )
 
     @Provides

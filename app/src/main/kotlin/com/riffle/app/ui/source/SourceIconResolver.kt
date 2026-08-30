@@ -37,6 +37,15 @@ object SourceIconResolver {
         WebSourceDescriptors.forType(source.type)
             ?.iconRemoteUrl(source.url.value, source.serverType)
 
+    /**
+     * Favicon URL for a source type without a configured server URL — only non-null for types
+     * whose icon is a fixed CDN URL independent of any server base (e.g. radio.es).
+     */
+    fun faviconUrlFor(type: SourceType, serverType: ServerType = ServerType.AUDIOBOOKSHELF): String? =
+        WebSourceDescriptors.forType(type)
+            ?.iconRemoteUrl("", serverType)
+            ?.takeIf { it.startsWith("http") }
+
     /** Fallback drawable for a configured [Source]. */
     @DrawableRes
     fun fallbackDrawableFor(source: Source): Int =

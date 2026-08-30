@@ -1,46 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Offline fallback for the radio.es source icon.
-  Shown when Coil has not yet fetched (or cannot fetch) the remote logo from
-  https://www.radio.es/assets/logos-with-safespace/radio-es-logo.svg.
-  Brand color: #E8462A (radio.es primary red).
+  Shown when Coil has not yet fetched the remote favicon from
+  https://www.radio.es/assets/fav/favicon-48x48.png.
+  Dark background (#111111) + green (#00E676) headphone — matches the real favicon.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="40dp"
     android:height="40dp"
     android:viewportWidth="40"
     android:viewportHeight="40">
-    <!-- Red background circle -->
+    <!-- Dark rounded-square background -->
     <path
-        android:pathData="M20,0 A20,20 0 1 0 20,40 A20,20 0 1 0 20,0z"
-        android:fillColor="#E8462A" />
-    <!-- Radio wave arcs (white) — outer -->
+        android:pathData="M5,0 L35,0 Q40,0 40,5 L40,35 Q40,40 35,40 L5,40 Q0,40 0,35 L0,5 Q0,0 5,0 Z"
+        android:fillColor="#111111" />
+    <!-- Headband arc -->
     <path
-        android:pathData="M11.5,23.5 A12,12 0 0 1 28.5,23.5"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2"
+        android:pathData="M11,22 A9,9 0 0 1 29,22"
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.8"
         android:fillColor="#00000000"
         android:strokeLineCap="round" />
-    <!-- Radio wave arcs (white) — middle -->
+    <!-- Left ear cup -->
     <path
-        android:pathData="M14.5,26.5 A8,8 0 0 1 25.5,26.5"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2"
-        android:fillColor="#00000000"
-        android:strokeLineCap="round" />
-    <!-- Radio wave arcs (white) — inner -->
+        android:pathData="M9,20 L9,29 Q9,31 11,31 L13,31 Q15,31 15,29 L15,20 Z"
+        android:fillColor="#00E676" />
+    <!-- Right ear cup -->
     <path
-        android:pathData="M17.5,29.5 A4,4 0 0 1 22.5,29.5"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2"
-        android:fillColor="#00000000"
-        android:strokeLineCap="round" />
-    <!-- Dot at bottom -->
-    <path
-        android:pathData="M20,31 A1.5,1.5 0 1 0 20,34 A1.5,1.5 0 1 0 20,31z"
-        android:fillColor="#FFFFFF" />
-    <!-- "r" lettermark in white -->
-    <path
-        android:pathData="M16,15 L16,23 L17.8,23 L17.8,19.5 C17.8,18.2 18.6,17.5 19.8,17.5 L21,17.5 L21,15.8 C20.6,15.7 20.3,15.7 19.9,15.7 C19.0,15.7 18.1,16.2 17.8,17.1 L17.8,15 Z"
-        android:fillColor="#FFFFFF" />
+        android:pathData="M25,20 L25,29 Q25,31 27,31 L29,31 Q31,31 31,29 L31,20 Z"
+        android:fillColor="#00E676" />
 </vector>

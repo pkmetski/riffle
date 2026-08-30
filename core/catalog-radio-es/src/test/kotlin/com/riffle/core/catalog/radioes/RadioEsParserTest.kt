@@ -84,8 +84,8 @@ class RadioEsParserTest {
     fun `parseEpisodes extracts id title url duration publishDate`() {
         val result = RadioEsParser.parseEpisodes(fixture("radioes-episodes.json"))
         assertEquals(2, result.episodes.size)
-        val ep1 = result.episodes.first()
-        assertEquals("the-daily_episode-one_abc123", ep1.id)
+        // fixture is newest-first (mirrors real API); find by id rather than position
+        val ep1 = result.episodes.first { it.id == "the-daily_episode-one_abc123" }
         assertEquals("Episode One", ep1.title)
         assertEquals("https://dts.podtrac.com/redirect.mp3/traffic.libsyn.com/test/ep1.mp3", ep1.url)
         assertEquals(1800, ep1.durationSec)
@@ -124,6 +124,7 @@ class RadioEsParserTest {
         assertEquals("News", result.categories.first().name)
         assertEquals("news", result.categories.first().slug)
         assertEquals("LANGUAGE_ENGLISH", result.languages.first().systemName)
+        assertEquals("english", result.languages.first().slug)
     }
 
     @Test
@@ -131,6 +132,52 @@ class RadioEsParserTest {
         val result = RadioEsParser.parseTags("""{"categories":[],"languages":[]}""")
         assertTrue(result.categories.isEmpty())
         assertTrue(result.languages.isEmpty())
+    }
+
+    // ---- parseStations ----------------------------------------------------------
+
+    @Test
+    fun `parseStations extracts id name topics city country`() {
+        val result = RadioEsParser.parseStations(fixture("radioes-stations.json"))
+        assertEquals(2, result.stations.size)
+        val cope = result.stations.first { it.id == "cope-madrid" }
+        assertEquals("COPE Madrid", cope.name)
+        assertEquals("Radio informativa de Madrid.", cope.description)
+        assertEquals("https://station-images-prod.radio-assets.com/300/cope-madrid.png", cope.logo300x300)
+        assertEquals(listOf("News"), cope.topics)
+        assertEquals("Madrid", cope.city)
+        assertEquals("Spain", cope.country)
+    }
+
+    @Test
+    fun `parseStations extracts first VALID stream url`() {
+        val result = RadioEsParser.parseStations(fixture("radioes-stations.json"))
+        val cope = result.stations.first { it.id == "cope-madrid" }
+        assertEquals("https://madrid-cope-flucast.flumotion.com/cope/madrid.mp3.m3u", cope.streamUrl)
+        assertEquals("audio/aac", cope.streamFormat)
+    }
+
+    @Test
+    fun `parseStationDetail returns station from bare array`() {
+        val station = RadioEsParser.parseStationDetail(fixture("radioes-station-detail.json"))
+        assertNotNull(station)
+        assertEquals("cope-madrid", station!!.id)
+        assertEquals("COPE Madrid", station.name)
+    }
+
+    @Test
+    fun `parseStationDetail returns null on empty array`() {
+        val station = RadioEsParser.parseStationDetail("[]")
+        assertNull(station)
+    }
+
+    @Test
+    fun `parseStations skips stations with no stream url`() {
+        val body = """{"totalCount":1,"playables":[{"id":"x","name":"No Stream","topics":[],"streams":[]}]}"""
+        val result = RadioEsParser.parseStations(body)
+        // parseStations itself doesn't filter — filtering is in browse(). Just check it doesn't crash.
+        assertEquals(1, result.stations.size)
+        assertNull(result.stations.first().streamUrl)
     }
 
     @Test

@@ -5,7 +5,7 @@
     { "systemName": "CATEGORY_COMEDY", "name": "Comedy", "slug": "comedy" }
   ],
   "languages": [
-    { "systemName": "LANGUAGE_ENGLISH", "name": "English" },
-    { "systemName": "LANGUAGE_SPANISH", "name": "Spanish" }
+    { "systemName": "LANGUAGE_ENGLISH", "name": "English", "slug": "english" },
+    { "systemName": "LANGUAGE_SPANISH", "name": "Spanish", "slug": "spanish" }
   ]
 }

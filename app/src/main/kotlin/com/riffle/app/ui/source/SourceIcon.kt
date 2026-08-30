@@ -64,7 +64,23 @@ fun SourceTypeIcon(
     size: Dp = 40.dp,
 ) {
     val fallbackRes = SourceIconResolver.fallbackDrawableFor(type, serverType)
-    SourceIconMonogram(fallbackRes = fallbackRes, modifier = modifier, size = size)
+    val faviconUrl = SourceIconResolver.faviconUrlFor(type, serverType)
+    if (faviconUrl != null) {
+        val shape = RoundedCornerShape(8.dp)
+        SubcomposeAsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(faviconUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.size(size).clip(shape),
+            loading = { SourceIconMonogram(fallbackRes = fallbackRes, size = size) },
+            error = { SourceIconMonogram(fallbackRes = fallbackRes, size = size) },
+        )
+    } else {
+        SourceIconMonogram(fallbackRes = fallbackRes, modifier = modifier, size = size)
+    }
 }
 
 /** Test tag on the bundled-monogram box; used by settings-row regression tests. */

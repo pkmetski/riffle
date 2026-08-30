@@ -15,6 +15,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.LiveStreamCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
@@ -27,6 +28,7 @@ class RadioEsCatalog(
 ) : Catalog,
     AudiobookMediaCapability,
     DownloadsCapability,
+    LiveStreamCapability,
     ToReadListCapability,
     OfflineBrowseCapability {
 
@@ -36,6 +38,7 @@ class RadioEsCatalog(
 
     override suspend fun listRoots(): List<CatalogRoot> = listOf(
         CatalogRoot(id = ROOT_PODCASTS, name = "Podcasts", mediaType = "audiobook"),
+        CatalogRoot(id = ROOT_STATIONS, name = "Radio", mediaType = "audiobook"),
     )
 
     // ---- Facets -------------------------------------------------------------
@@ -48,11 +51,17 @@ class RadioEsCatalog(
         val body = runCatching { http.getString("$apiBase/podcasts/tags") }.getOrNull()
             ?: return emptyList()
         val tags = RadioEsParser.parseTags(body)
-        val result = tags.categories
+        val categories = tags.categories
             .filter { it.slug.isNotEmpty() }
             .mapIndexed { idx, cat ->
                 CatalogFacet(key = "slug:${cat.slug}", label = cat.name, sortOrder = idx)
             }
+        val languages = tags.languages
+            .filter { it.slug.isNotEmpty() }
+            .mapIndexed { idx, lang ->
+                CatalogFacet(key = "lang:${lang.slug}", label = lang.name, sortOrder = categories.size + idx)
+            }
+        val result = categories + languages
         cachedFacets = result
         return result
     }
@@ -66,11 +75,31 @@ class RadioEsCatalog(
         pageSize: Int,
         facet: FacetSelection?,
     ): List<CatalogItem> {
-        if (rootId != ROOT_PODCASTS) return emptyList()
+        return when (rootId) {
+            ROOT_PODCASTS -> browsePodcasts(facet, page, pageSize)
+            ROOT_STATIONS -> browseStations(page, pageSize)
+            else -> emptyList()
+        }
+    }
+
+    private suspend fun browsePodcasts(facet: FacetSelection?, page: Int, pageSize: Int): List<CatalogItem> {
+        val languageTag = facet?.key
+            ?.takeIf { it.startsWith("lang:") }
+            ?.removePrefix("lang:")
+            ?.let { LANGUAGE_SLUG_TO_TAG[it] }
         val url = browseUrlFor(facet = facet, page = page, pageSize = pageSize)
-        val body = http.getString(url)
+        val body = http.getString(url, acceptLanguageOverride = languageTag)
         return RadioEsParser.parsePodcasts(body).podcasts
             .filter { it.playable }
+            .map { it.toCatalogItem() }
+    }
+
+    private suspend fun browseStations(page: Int, pageSize: Int): List<CatalogItem> {
+        val offset = page * pageSize
+        val url = "$apiBase/stations/local?count=$pageSize&offset=$offset"
+        val body = http.getString(url)
+        return RadioEsParser.parseStations(body).stations
+            .filter { !it.streamUrl.isNullOrBlank() }
             .map { it.toCatalogItem() }
     }
 
@@ -80,7 +109,15 @@ class RadioEsCatalog(
             facet != null && facet.key.startsWith("slug:") -> facet.key.removePrefix("slug:")
             else -> "podcasts"
         }
-        return "$apiBase/podcasts/category/$categorySlug/charts?count=$pageSize&offset=$offset"
+        // The radio.es API routes content by Accept-Language, not a query param. Append the
+        // language slug to the URL so OkHttp caches language-specific responses separately
+        // (the server ignores unknown params; without this the 24h disk cache would serve the
+        // device-locale response to every language selection).
+        val languageCacheParam = when {
+            facet != null && facet.key.startsWith("lang:") -> "&_lang=${facet.key.removePrefix("lang:")}"
+            else -> ""
+        }
+        return "$apiBase/podcasts/category/$categorySlug/charts?count=$pageSize&offset=$offset$languageCacheParam"
     }
 
     // ---- Search -------------------------------------------------------------
@@ -91,23 +128,37 @@ class RadioEsCatalog(
         page: Int,
         pageSize: Int,
     ): List<CatalogItem> {
-        if (rootId != ROOT_PODCASTS || query.isBlank()) return emptyList()
+        if (query.isBlank()) return emptyList()
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
         val offset = page * pageSize
-        val url = "$apiBase/podcasts/search?query=$encoded&count=$pageSize&offset=$offset"
-        val body = http.getString(url)
-        return RadioEsParser.parsePodcasts(body).podcasts
-            .filter { it.playable }
-            .map { it.toCatalogItem() }
+        return when (rootId) {
+            ROOT_PODCASTS -> {
+                val url = "$apiBase/podcasts/search?query=$encoded&count=$pageSize&offset=$offset"
+                val body = http.getString(url)
+                RadioEsParser.parsePodcasts(body).podcasts.filter { it.playable }.map { it.toCatalogItem() }
+            }
+            ROOT_STATIONS -> {
+                val url = "$apiBase/stations/search?query=$encoded&count=$pageSize&offset=$offset"
+                val body = http.getString(url)
+                RadioEsParser.parseStations(body).stations.filter { !it.streamUrl.isNullOrBlank() }.map { it.toCatalogItem() }
+            }
+            else -> emptyList()
+        }
     }
 
     // ---- Item lookup --------------------------------------------------------
 
     override suspend fun getItem(itemId: String): CatalogItem? {
-        val url = "$apiBase/podcasts/details?podcastIds=$itemId"
-        val body = runCatching { http.getString(url) }.getOrNull() ?: return null
-        val podcast = RadioEsParser.parsePodcastDetail(body) ?: return null
-        return podcast.toCatalogItem()
+        return if (itemId.startsWith("s:")) {
+            val stationId = itemId.removePrefix("s:")
+            val url = "$apiBase/stations/details?stationIds=$stationId"
+            val body = runCatching { http.getString(url) }.getOrNull() ?: return null
+            RadioEsParser.parseStationDetail(body)?.toCatalogItem()
+        } else {
+            val url = "$apiBase/podcasts/details?podcastIds=$itemId"
+            val body = runCatching { http.getString(url) }.getOrNull() ?: return null
+            RadioEsParser.parsePodcastDetail(body)?.toCatalogItem()
+        }
     }
 
     // ---- File access (audio-only source) ------------------------------------
@@ -135,12 +186,44 @@ class RadioEsCatalog(
         )
     }
 
+    // ---- LiveStreamCapability -----------------------------------------------
+
+    override fun isLiveStream(itemId: String): Boolean = itemId.startsWith("s:")
+
     // ---- AudiobookMediaCapability ------------------------------------------
 
-    override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
+    private suspend fun fetchEpisodes(itemId: String): List<RadioEsEpisode> {
+        // stations have no episodes
+        if (itemId.startsWith("s:")) return emptyList()
         val url = "$apiBase/podcasts/episodes/by-podcast-ids?podcastIds=$itemId&count=200&offset=0"
         val body = runCatching { http.getString(url) }.getOrNull() ?: return emptyList()
-        return buildTracksFromEpisodes(RadioEsParser.parseEpisodes(body).episodes)
+        // API returns newest-first; reverse to chronological order for playback
+        return RadioEsParser.parseEpisodes(body).episodes.reversed()
+    }
+
+    override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
+        if (itemId.startsWith("s:")) {
+            return fetchStationTrack(itemId)
+        }
+        return buildTracksFromEpisodes(fetchEpisodes(itemId))
+    }
+
+    private suspend fun fetchStationTrack(itemId: String): List<CatalogAudioTrack> {
+        val stationId = itemId.removePrefix("s:")
+        val url = "$apiBase/stations/details?stationIds=$stationId"
+        val body = runCatching { http.getString(url) }.getOrNull() ?: return emptyList()
+        val station = RadioEsParser.parseStationDetail(body) ?: return emptyList()
+        val streamUrl = station.streamUrl ?: return emptyList()
+        return listOf(
+            CatalogAudioTrack(
+                ino = streamUrl,
+                index = 0,
+                startOffsetSec = 0.0,
+                durationSec = 0.0,
+                contentUrl = streamUrl,
+                mimeType = station.streamFormat,
+            )
+        )
     }
 
     override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? = null
@@ -148,19 +231,39 @@ class RadioEsCatalog(
     override fun buildStreamUrl(itemId: String, trackIno: String): String = trackIno
 
     override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
-        val tracks = getTracks(itemId)
+        if (itemId.startsWith("s:")) {
+            val tracks = fetchStationTrack(itemId)
+            if (tracks.isEmpty()) return null
+            return CatalogAudiobookStream(
+                trackUrls = tracks.map { it.contentUrl },
+                tracks = tracks,
+                chapters = emptyList(),
+                totalDurationSec = 0.0,
+                serverCurrentTimeSec = 0.0,
+                serverLastUpdate = 0L,
+            )
+        }
+        val episodes = fetchEpisodes(itemId)
+        val tracks = buildTracksFromEpisodes(episodes)
         if (tracks.isEmpty()) return null
-        return buildAudiobookStream(tracks)
+        return CatalogAudiobookStream(
+            trackUrls = tracks.map { it.contentUrl },
+            tracks = tracks,
+            chapters = synthesizeChaptersFromTracks(tracks, episodes.map { it.title }),
+            totalDurationSec = tracks.sumOf { it.durationSec },
+            serverCurrentTimeSec = 0.0,
+            serverLastUpdate = 0L,
+        )
     }
 
-    override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> =
-        runCatching {
-            val url = "$apiBase/podcasts/episodes/by-podcast-ids?podcastIds=$itemId&count=200&offset=0"
-            val body = http.getString(url)
-            val episodes = RadioEsParser.parseEpisodes(body).episodes
+    override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
+        if (itemId.startsWith("s:")) return emptyList()
+        return runCatching {
+            val episodes = fetchEpisodes(itemId)
             val tracks = buildTracksFromEpisodes(episodes)
             synthesizeChaptersFromTracks(tracks, episodes.map { it.title })
         }.getOrElse { emptyList() }
+    }
 
     // ---- Helpers ------------------------------------------------------------
 
@@ -177,8 +280,51 @@ class RadioEsCatalog(
         genres = categories,
     )
 
+    private fun RadioEsStation.toCatalogItem(): CatalogItem = CatalogItem(
+        id = "s:$id",
+        rootId = ROOT_STATIONS,
+        title = name,
+        author = listOfNotNull(city, country).joinToString(", "),
+        coverUrl = logo300x300,
+        ebookFormat = BookFormat.Audiobook,
+        hasAudio = true,
+        audioDurationSec = 0.0,
+        description = description,
+        genres = topics,
+        isLiveStream = true,
+    )
+
     companion object {
         const val ROOT_PODCASTS = "podcasts"
+        const val ROOT_STATIONS = "stations"
+
+        // Maps radio.es language slugs (from /podcasts/tags) to BCP-47 language tags for
+        // the Accept-Language header. The radio.es API routes content by Accept-Language;
+        // the query-string param has no effect on podcast language filtering.
+        internal val LANGUAGE_SLUG_TO_TAG: Map<String, String> = mapOf(
+            "arabic" to "ar",
+            "chinese" to "zh",
+            "danish" to "da",
+            "dutch" to "nl",
+            "english" to "en",
+            "finnish" to "fi",
+            "french" to "fr",
+            "german" to "de",
+            "greek" to "el",
+            "italian" to "it",
+            "japanese" to "ja",
+            "korean" to "ko",
+            "norwegian" to "no",
+            "polish" to "pl",
+            "portuguese" to "pt",
+            "romanian" to "ro",
+            "russian" to "ru",
+            "spanish" to "es",
+            "swedish" to "sv",
+            "thai" to "th",
+            "turkish" to "tr",
+            "vietnamese" to "vi",
+        )
 
         internal fun buildTracksFromEpisodes(episodes: List<RadioEsEpisode>): List<CatalogAudioTrack> {
             var cumulativeStart = 0.0
@@ -196,16 +342,6 @@ class RadioEsCatalog(
                 track
             }
         }
-
-        internal fun buildAudiobookStream(tracks: List<CatalogAudioTrack>): CatalogAudiobookStream =
-            CatalogAudiobookStream(
-                trackUrls = tracks.map { it.contentUrl },
-                tracks = tracks,
-                chapters = synthesizeChaptersFromTracks(tracks, emptyList()),
-                totalDurationSec = tracks.sumOf { it.durationSec },
-                serverCurrentTimeSec = 0.0,
-                serverLastUpdate = 0L,
-            )
 
         internal fun synthesizeChaptersFromTracks(
             tracks: List<CatalogAudioTrack>,

@@ -9,12 +9,17 @@ import io.ktor.client.HttpClient
 class RadioEsCatalogFactory(
     private val httpClient: HttpClient,
     private val userAgent: String,
+    private val acceptLanguage: String = "en",
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.RADIO_ES
 
     override suspend fun create(source: Source): Catalog {
-        val http = RadioEsHttpClient(client = httpClient, userAgent = userAgent)
+        val http = RadioEsHttpClient(
+            client = httpClient,
+            userAgent = userAgent,
+            acceptLanguage = acceptLanguage,
+        )
         return RadioEsCatalog(http = http)
     }
 }

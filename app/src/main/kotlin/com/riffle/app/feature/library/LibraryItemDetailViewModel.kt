@@ -49,6 +49,7 @@ import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.LiveStreamCapability
 import com.riffle.core.catalog.OriginalCoverCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadaloudCapability
@@ -146,6 +147,8 @@ data class DetailCapabilities(
     val hasSeries: Boolean,
     val hasPlaylists: Boolean,
     val hasAudiobookMedia: Boolean,
+    /** False for live-stream items (radio stations) — progress can't be marked or tracked. */
+    val hasMarkRead: Boolean = true,
     /** True when the Source's Catalog declares [DownloadsCapability] — gates the ebook and
      *  audiobook Download buttons. LocalFiles omits the capability (nothing to fetch). */
     val hasDownloads: Boolean = false,
@@ -185,6 +188,7 @@ data class DetailCapabilities(
             hasSeries = false,
             hasPlaylists = false,
             hasAudiobookMedia = false,
+            hasMarkRead = false,
             hasDownloads = false,
             hasReadaloud = false,
             hasAddToPlaylist = false,
@@ -684,7 +688,9 @@ class LibraryItemDetailViewModel @Inject constructor(
                         // Local Files, Chitanka, and any future backend-less Source.
                         hasPlaylists = true,
                         hasAudiobookMedia = catalog is AudiobookMediaCapability,
-                        hasDownloads = catalog is DownloadsCapability,
+                        hasMarkRead = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) != true,
+                        hasDownloads = catalog is DownloadsCapability &&
+                            (catalog as? LiveStreamCapability)?.isLiveStream(item.id) != true,
                         hasReadaloud = catalog is ReadaloudCapability,
                         // Audiobook-only items on a Source with server-side playlists get the
                         // "Add to playlist…" affordance. Mirrors the tab gate — ebook items on the

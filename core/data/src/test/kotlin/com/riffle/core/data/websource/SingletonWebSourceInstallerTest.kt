@@ -2,12 +2,14 @@ package com.riffle.core.data.websource
 
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
+import com.riffle.core.catalog.radioes.RadioEsCatalog
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
 import com.riffle.core.domain.GutenbergWebSourceDescriptor
+import com.riffle.core.domain.RadioEsWebSourceDescriptor
 import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
@@ -120,6 +122,9 @@ class SingletonWebSourceInstallerTest {
         assertTrue(ChitankaCatalog.ROOT_AUDIOBOOKS in chi)
         val gb = GutenbergWebSourceDescriptor.defaultLibraries.map { it.id }.toSet()
         assertTrue(GutenbergCatalog.ROOT_BOOKS in gb)
+        val re = RadioEsWebSourceDescriptor.defaultLibraries.map { it.id }.toSet()
+        assertTrue(RadioEsCatalog.ROOT_PODCASTS in re)
+        assertTrue(RadioEsCatalog.ROOT_STATIONS in re)
     }
 
     // region in-memory DAOs (copied from LocalFilesSourceInstallerTest; SourceDao/LibraryDao

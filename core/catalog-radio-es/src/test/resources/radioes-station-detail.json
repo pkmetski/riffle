@@ -1,0 +1,16 @@
+[
+  {
+    "id": "cope-madrid",
+    "name": "COPE Madrid",
+    "description": "Radio informativa de Madrid.",
+    "logo300x300": "https://station-images-prod.radio-assets.com/300/cope-madrid.png",
+    "topics": ["News"],
+    "city": "Madrid",
+    "country": "Spain",
+    "hasValidStreams": true,
+    "streams": [
+      { "url": "https://madrid-cope-flucast.flumotion.com/cope/madrid.mp3.m3u", "contentFormat": "audio/aac", "status": "VALID" }
+    ],
+    "type": "STATION"
+  }
+]

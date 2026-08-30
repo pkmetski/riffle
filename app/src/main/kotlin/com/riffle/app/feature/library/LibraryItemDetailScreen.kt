@@ -1524,11 +1524,13 @@ private fun ActionRow(
                 }
             }
         }
-        ReadToggleButton(
-            isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
-            onMarkAsRead = onMarkAsRead,
-            onMarkAsUnread = onMarkAsUnread,
-        )
+        if (capabilities.hasMarkRead) {
+            ReadToggleButton(
+                isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+            )
+        }
         if (capabilities.hasPlaylists) {
             ToReadToggleButton(
                 isInToRead = isInToRead,
