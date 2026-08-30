@@ -196,6 +196,8 @@ dependencies {
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation(libs.json)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(koinBom)
+    testImplementation(libs.koin.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(composeBom)
