@@ -203,6 +203,9 @@ dependencies {
     androidTestImplementation(project(":core:network"))
     androidTestImplementation(project(":core:database"))
     androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(koinBom)
+    androidTestImplementation(libs.koin.test)
+    androidTestImplementation(libs.koin.android.test)
 debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

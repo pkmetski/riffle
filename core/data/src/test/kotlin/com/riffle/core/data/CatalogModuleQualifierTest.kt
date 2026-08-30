@@ -7,52 +7,66 @@ import java.io.File
 class CatalogModuleQualifierTest {
 
     /**
-     * Every unbounded-catalog (web) source's `CatalogFactory` registration must use the
-     * web-source HTTP client (`named(WEB_SOURCE_HTTP_CLIENT)`) rather than the app-wide default.
-     * The named client is the only one backed by the ADR 0052 disk cache +
-     * `ForceCacheHeadersInterceptor` + `OfflineStaleFallbackInterceptor`. Missing the named
-     * qualifier turns filter switches into uncached, non-retriable Gutendex/… round-trips that
-     * fail fast on transient IO — the "couldn't reach Project Gutenberg" error the user hit after
-     * 1–2 filter taps (#516/#520).
+     * Every unbounded-catalog (web) source's `CatalogFactory` entry must inject the
+     * `named("webSourceHttpClient")`-qualified Ktor `HttpClient`, not the app-wide default. The
+     * qualified client is the only one backed by the ADR 0052 disk cache +
+     * `ForceCacheHeadersInterceptor` + `OfflineStaleFallbackInterceptor`. Missing the qualifier
+     * turns filter switches into uncached, non-retriable Gutendex/… round-trips that fail fast on
+     * transient IO — the "couldn't reach Project Gutenberg" error the user hit after 1–2 filter
+     * taps (#516/#520).
      *
-     * Regression test for #516: the Gutenberg factory registration shipped without the named
-     * qualifier and Gutenberg fetches bypassed the cache and stale-fallback interceptor entirely.
-     * Previously checked CatalogModule.kt (Hilt); now checks CoreDataKoinModules.kt (Koin).
+     * Regression test for #516: `provideGutenbergCatalogFactory` shipped without the qualifier
+     * and Gutenberg fetches bypassed the cache and stale-fallback interceptor entirely.
+     * Ported from `CatalogModuleQualifierTest` (Hilt) to Koin: checks `CoreDataKoinModules.kt`
+     * instead of the deleted `CatalogModule.kt`.
      */
     @Test
-    fun `every unbounded-catalog factory uses the web source named HTTP client`() {
-        val source = coreDataKoinModulesSource()
-        val webSourceClientConst = "WEB_SOURCE_HTTP_CLIENT"
+    fun `every unbounded-catalog provider uses the WebSource OkHttp qualifier`() {
+        val source = koinModulesSource()
 
-        // Find all `SourceType.X to XCatalogFactory(` blocks and the closing `)` for each.
-        // We extract the argument block between `CatalogFactory(` and the matching `)`.
-        val registrationRegex = Regex(
-            """SourceType\.(\w+)\s+to\s+\w+CatalogFactory\(([^)]*)\)""",
-            RegexOption.DOT_MATCHES_ALL,
+        // Find the catalog map block (single<Map<SourceType, CatalogFactory>> { mapOf(...) })
+        val catalogMapRegex = Regex(
+            """single<Map<SourceType,\s*CatalogFactory>>\s*\{(.*?)^    \}""",
+            setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.MULTILINE),
         )
-        val matches = registrationRegex.findAll(source).toList()
-        check(matches.isNotEmpty()) { "Could not find any CatalogFactory registrations in CoreDataKoinModules" }
+        val catalogBlock = catalogMapRegex.find(source)?.groupValues?.get(1)
+        checkNotNull(catalogBlock) { "Could not find single<Map<SourceType, CatalogFactory>> block in CoreDataKoinModules.kt" }
+
+        // For each unbounded-catalog SourceType, verify the block contains named("webSourceHttpClient")
+        // near that type's factory entry.
+        val unboundedTypes = SourceType.entries.filter { it.isUnboundedCatalog }
+        check(unboundedTypes.isNotEmpty()) { "No unbounded-catalog SourceTypes found — SourceType.isUnboundedCatalog may be broken" }
+
+        // Split the catalog block by "SourceType." to get per-entry segments.
+        // Each segment starts with the type name, e.g. "CHITANKA to ChitankaCatalogFactory(...),".
+        val segments = catalogBlock.split("SourceType.")
+        check(segments.size > 1) { "Could not split catalog map block by SourceType." }
 
         val offenders = mutableListOf<String>()
-        for (m in matches) {
-            val typeName = m.groupValues[1]
-            val args = m.groupValues[2]
+        for (segment in segments.drop(1)) {
+            // Extract the type name (word at the start of this segment).
+            val typeName = segment.takeWhile { it.isLetterOrDigit() || it == '_' }
             val type = runCatching { SourceType.valueOf(typeName) }.getOrNull() ?: continue
             if (!type.isUnboundedCatalog) continue
-            if (!args.contains(webSourceClientConst)) {
+            val hasHttpClientParam = segment.contains("httpClient") || segment.contains("sharedHttpClient")
+            if (!hasHttpClientParam) continue
+            // Koin module uses named(WEB_SOURCE_HTTP_CLIENT) constant or the literal "webSourceHttpClient"
+            val usesWebSourceNamed = segment.contains("named(WEB_SOURCE_HTTP_CLIENT)") ||
+                segment.contains("webSourceHttpClient")
+            if (!usesWebSourceNamed) {
                 offenders += "$type"
             }
         }
         assert(offenders.isEmpty()) {
-            "Unbounded-catalog factory registrations missing named($webSourceClientConst): $offenders"
+            "Unbounded-catalog entries missing named(\"webSourceHttpClient\") for their HttpClient: $offenders\n" +
+                "See #516/#520 — missing the named qualifier bypasses the disk cache and stale-fallback interceptor."
         }
     }
 
-    private fun coreDataKoinModulesSource(): String {
+    private fun koinModulesSource(): String {
         val candidates = listOf(
             "core/data/src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
             "src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
-            "../../src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
         )
         for (rel in candidates) {
             val f = File(rel)

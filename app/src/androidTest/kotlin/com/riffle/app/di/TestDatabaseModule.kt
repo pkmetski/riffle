@@ -6,7 +6,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
 val testDatabaseKoinModule = module {
-    single<RiffleDatabaseAccess>(override = true) {
+    single<RiffleDatabaseAccess> {
         openRiffleDatabase(
             context = androidContext(),
             fallbackToDestructiveMigration = true,

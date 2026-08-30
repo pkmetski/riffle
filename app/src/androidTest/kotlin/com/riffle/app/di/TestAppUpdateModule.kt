@@ -22,5 +22,5 @@ class FakeAppUpdateRepository : AppUpdateRepository {
 }
 
 val testAppUpdateKoinModule = module {
-    single<AppUpdateRepository>(override = true) { FakeAppUpdateRepository() }
+    single<AppUpdateRepository> { FakeAppUpdateRepository() }
 }
