@@ -10,6 +10,7 @@
     <string name="ui_add_audiobookshelf">Добавете Audiobookshelf</string>
     <string name="ui_add_komga">Добавете Komga</string>
     <string name="ui_add_project_gutenberg">Добавяне на Project Gutenberg</string>
+    <string name="ui_add_radio_es">Добавете radio.es</string>
     <string name="ui_add_source">Добавете източник</string>
     <string name="ui_add_storyteller">Добавете Storyteller</string>
     <string name="ui_add_to_playlist">Добавяне към плейлиста</string>
@@ -65,6 +66,7 @@
     <string name="ui_connect_to_stream_audio">Свържете се за стрийм аудио</string>
     <string name="ui_content_is_provided_by_chitanka_info_and_gramofonche_chitanka_info">Съдържанието се предоставя от chitanka.info и gramofonche.chitanka.info.</string>
     <string name="ui_content_is_provided_by_gutenberg_org_via_the_gutendex_com_api">Съдържанието се предоставя от gutenberg.org чрез API на gutendex.com.</string>
+    <string name="ui_content_is_provided_by_radio_es">Съдържанието се предоставя от radio.es чрез prod.radio-api.net.</string>
     <string name="ui_continue">Продължи</string>
     <string name="ui_could_not_load_book_details">Подробностите за книгата не можаха да се заредят.</string>
     <string name="ui_couldn_t_add_that_folder">Тази папка не можа да се добави.</string>
@@ -245,6 +247,7 @@
     <string name="ui_search_chitanka">Търсене в Chitanka…</string>
     <string name="ui_search_in_book">Търсене в книгата...</string>
     <string name="ui_search_project_gutenberg">Търсене в Project Gutenberg…</string>
+    <string name="ui_search_radio_es">Търсене в radio.es…</string>
     <string name="ui_select_at_least_one_library">Изберете поне една библиотека</string>
     <string name="ui_select_libraries">Изберете библиотеки</string>
     <string name="ui_sentence_highlight">Маркиране на изречението</string>
@@ -362,6 +365,7 @@
     <string name="ui_app_version">Riffle v%1$s%2$s</string>
     <string name="ui_gutenberg_source_description">Разгледайте десетки хиляди безплатни електронни книги от общественото достояние. Не е нужен акаунт — всичко се чете директно от публичния каталог.</string>
     <string name="ui_chitanka_source_description">Разгледайте български електронни книги и аудиокниги от две публични дигитални библиотеки. Не е нужен акаунт — всичко се чете директно от публичните сайтове.</string>
+    <string name="ui_radio_es_source_description">Разгледайте и слушайте подкасти от директорията radio.es. Не е нужен акаунт — всичко се стриймва директно от публичния каталог.</string>
     <string name="ui_auto_scroll_description">Автоматичното превъртане придвижва страницата нагоре със зададено темпо, за да четете без ръце. Налично е в режимите с превъртане. Стартирайте и спирайте от горната лента на четеца; коригирайте скоростта с бутоните за звук, докато работи.</string>
     <string name="ui_cadence_description">Ритъмът подчертава по едно изречение и продължава самостоятелно със зададено темпо, за да четете без ръце. Стартирайте и спирайте от горната лента на четеца; коригирайте скоростта с бутоните за звук, докато работи.</string>
     <string name="ui_cadence_webview_unavailable">Ритъмът не е наличен с WebView на това устройство. Актуализирайте Android System WebView от Play Store, за да го включите.</string>
@@ -573,6 +577,8 @@
     <string name="ui_source_komga_help_text">Преглеждайте и четете библиотеката си в Komga (комикси, манга и електронни книги) от всеки Komga сървър.</string>
     <string name="ui_source_local_files_picker_blurb">Четете EPUB и PDF файлове от папка на това устройство.</string>
     <string name="ui_source_local_files_subtitle">на това устройство</string>
+    <string name="ui_source_radio_es_picker_blurb">Разглеждайте и слушайте подкасти от директорията radio.es.</string>
+    <string name="ui_source_radio_es_subtitle">Директория за подкасти</string>
     <string name="ui_source_storyteller_help_text">Storyteller хоства подравнени електронни книги + аудиокниги („четене на глас“). Riffle съпоставя всеки запис за четене на глас с книга на вашия Audiobookshelf сървър, което позволява синхронизирано възпроизвеждане на текст + аудио в четеца.</string>
     <string name="ui_source_http_retry">Източникът върна HTTP %1$d. Ще се опита отново автоматично.</string>
     <string name="ui_source_http_retry_short">Грешка от източника (HTTP %1$d) · ще се опита отново автоматично</string>
