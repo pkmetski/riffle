@@ -45,11 +45,12 @@ internal fun AppVersionSection(
     }
     ListItem(
         headlineContent = {
-            Column(modifier = Modifier.clickable(onClick = onVersionTap)) {
+            Column {
                 Text(stringResource(R.string.app_name))
                 Text(supporting)
             }
         },
+        modifier = Modifier.clickable(onClick = onVersionTap),
         trailingContent = {
             when (state) {
                 is AppUpdateUiState.Checking ->
