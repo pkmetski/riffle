@@ -286,8 +286,13 @@ class JsonPanelStore constructor(
          *      full-width strip (created by the v31 split) still prevents the pre-v31 merge.
          *      v31 caches can hold a spurious sliver panel (~5.8% tall, ≥50% wide) between the
          *      banner area and the full-width strip on pages with diagonal-separated top sections.
+         * v33: repairOneSidedRowJunctions gap limit raised from 12 to 15 (issue #814). Pages with
+         *      a one-sided diagonal boundary gutter between 13 and 15 pixels wide were previously
+         *      left with the top splash split into two half-height panels. v32 caches for such pages
+         *      hold two full-width stacked panels where the correct result is a spanning left column
+         *      plus two right-side pieces.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 32
+        internal const val CURRENT_SCHEMA_VERSION: Int = 33
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

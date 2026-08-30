@@ -217,7 +217,7 @@ class PanelDetector(
     private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask, gutter: BooleanArray, downscaledWidth: Int, downscaledHeight: Int): List<Bbox> =
         bboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
 
-    private fun repairOneSidedRowJunctions(
+    internal fun repairOneSidedRowJunctions(
         bboxes: List<Bbox>,
         cropped: CroppedMask,
         downscaledWidth: Int,
@@ -234,7 +234,7 @@ class PanelDetector(
                 if (i == j || consumed[j]) return@firstOrNull false
                 val bottom = bboxes[j]
                 val verticalGap = bottom.minY - top.maxY - 1
-                verticalGap in 0..12 &&
+                verticalGap in 0..15 &&
                     similarFullWidthRows(top, bottom, downscaledWidth, downscaledHeight)
             }
             if (bottomIndex == null) {

@@ -1163,6 +1163,76 @@ class PanelDetectorTest {
         )
     }
 
+    // ------------------------------------------------------------------------------------------
+    // repairOneSidedRowJunctions — gap boundary tests (issue #814 fix: 12 → 15)
+    // Directly exercise the repair function with crafted bboxes and a CroppedMask whose gap
+    // strip has content on the LEFT half and gutter on the RIGHT half (one-sided pattern).
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun `repairOneSidedRowJunctions gap=15 boundary — at new upper limit fires`() {
+        // gap=15 is the new inclusive upper bound after the 12→15 bump (issue #814 fix).
+        // The gap strip has content on the LEFT (x=0..299) and gutter on the RIGHT (x=300..599).
+        // The repair must detect the one-sided pattern and emit 3 panels: spanning left column
+        // + top-right piece + bottom-right piece.
+        val (cropped, top, bottom) = oneSidedJunctionInputs(gap = 15)
+        val repaired = detector.repairOneSidedRowJunctions(
+            listOf(top, bottom), cropped,
+            downscaledWidth = cropped.width, downscaledHeight = cropped.height,
+        )
+        assertEquals(
+            "gap=15 is within new 0..15 window; repair must fire and emit 3 panels; got $repaired",
+            3, repaired.size,
+        )
+    }
+
+    @Test
+    fun `repairOneSidedRowJunctions gap=16 boundary — one above limit does not fire`() {
+        // gap=16 is just outside the 0..15 window; the repair must NOT fire.
+        // Identical layout to the gap=15 test; only the vertical gap between the two bboxes
+        // changes. The two full-width bboxes must remain unchanged (no spanning repair).
+        val (cropped, top, bottom) = oneSidedJunctionInputs(gap = 16)
+        val repaired = detector.repairOneSidedRowJunctions(
+            listOf(top, bottom), cropped,
+            downscaledWidth = cropped.width, downscaledHeight = cropped.height,
+        )
+        assertEquals(
+            "gap=16 is outside 0..15 window; repair must not fire; inputs unchanged; got $repaired",
+            2, repaired.size,
+        )
+        assertEquals(setOf(top, bottom), repaired.toSet())
+    }
+
+    /**
+     * Builds a [PanelDetector.CroppedMask] and two full-width [PanelDetector.Bbox]es whose
+     * vertical separation is exactly [gap] pixels. The gap strip has content on the left half
+     * (x=0..299) and gutter on the right half (x=300..599) — the one-sided pattern that
+     * [PanelDetector.repairOneSidedRowJunctions] is designed to detect.
+     *
+     * Page size: 600×800. Top bbox: y=0..374. Gap: y=375..374+gap. Bottom bbox: y=375+gap..799.
+     */
+    private fun oneSidedJunctionInputs(gap: Int): Triple<PanelDetector.CroppedMask, PanelDetector.Bbox, PanelDetector.Bbox> {
+        val w = 600
+        val h = 800
+        val topEnd = 374
+        val gapStart = topEnd + 1
+        val gapEnd = gapStart + gap - 1
+        val botStart = gapEnd + 1
+
+        val data = ByteArray(w * h)
+        // Top panel: full content.
+        for (y in 0..topEnd) for (x in 0 until w) data[y * w + x] = 1
+        // Gap: left half = content, right half = gutter (0 = default).
+        for (y in gapStart..gapEnd) for (x in 0 until 300) data[y * w + x] = 1
+        // Bottom panel: full content.
+        for (y in botStart until h) for (x in 0 until w) data[y * w + x] = 1
+
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+        val top = PanelDetector.Bbox(minX = 0, minY = 0, maxX = w - 1, maxY = topEnd)
+        val bottom = PanelDetector.Bbox(minX = 0, minY = botStart, maxX = w - 1, maxY = h - 1)
+        return Triple(cropped, top, bottom)
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

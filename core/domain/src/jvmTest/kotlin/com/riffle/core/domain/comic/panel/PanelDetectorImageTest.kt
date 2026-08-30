@@ -674,6 +674,35 @@ class PanelDetectorImageTest {
     }
 
     @Test
+    fun `top splash panel is not cut in half at one-sided diagonal gutter`() {
+        // Regression for issue #814: page 65. The top full-width action splash was split at a
+        // false horizontal gutter (~y=590) where the diagonal boundary between the splash and
+        // the lower-right inset enters the inner zone from the right border. The gutter is
+        // ONE-SIDED: gutter pixels only on the right half, content continues on the left half.
+        // splitSinglePanelRecursively found the gutter (≥30% flood-fill fraction) and split
+        // the splash into two half-height panels with a 13-pixel gap.
+        // repairOneSidedRowJunctions missed the repair because 13 > 12 (gap limit).
+        // Fix: floodFillWouldSplit now checks that the left portion of the gutter band also
+        // has low content — a one-sided gutter (left side still full of art) is a diagonal
+        // boundary, not a panel separator.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-814-panel-cut-off.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The top action scene must NOT be split in half at ~y=590.
+        // Pre-fix: two short panels starting near the top (y≈107, h≈476 and y≈596, h≈474).
+        // Post-fix: at least one tall panel (h ≥ 50% of page) starting in the top portion.
+        val topSplash = result.panels.filter { p ->
+            p.y < mask.height * 0.15 &&
+                p.height.toDouble() / mask.height >= 0.50
+        }
+        assertEquals(
+            "expected one tall top splash panel (≥50% page height starting near top), " +
+                "not a half-height split; panels=${result.panels}",
+            1, topSplash.size,
+        )
+    }
+
+    @Test
     fun `page fifty-nine panels include reported top and bottom cut-off areas`() {
         // Regressions for issues #804, #805, and #806: all three reports share the same page-59
         // mask. Top-left was detected at y=142 but expected y≈100; both bottom panels were
