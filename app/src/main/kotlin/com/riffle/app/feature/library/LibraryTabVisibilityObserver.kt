@@ -83,7 +83,7 @@ class LibraryTabVisibilityObserver @Inject constructor(
  * can wire tab visibility in one line:
  *
  * ```
- * val visibility by hiltViewModel<LibraryTabVisibilityViewModel>().visibility.collectAsState()
+ * val visibility by koinViewModel<LibraryTabVisibilityViewModel>().visibility.collectAsState()
  * ```
  */
 class LibraryTabVisibilityViewModel constructor(
