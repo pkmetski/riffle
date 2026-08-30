@@ -135,7 +135,7 @@ jobs:
           key: fonts-v1-${{ hashFiles('Makefile') }}
           restore-keys: fonts-v1-
       - run: make fonts
-      - run: ./gradlew :core:data:testDebugUnitTest -PintegrationTests
+      - run: ./gradlew :core:data:testAndroidHostTest -PintegrationTests
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
