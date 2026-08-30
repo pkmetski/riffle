@@ -4,13 +4,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.domain.cfiDocPathToProgression
 import com.riffle.core.domain.extractCfiDocPath
 import androidx.test.platform.app.InstrumentationRegistry
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -21,7 +18,8 @@ import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
-import javax.inject.Inject
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Validates `Publication.locateProgression(totalProgression)` — the **fallback** inbound-sync
@@ -37,17 +35,14 @@ import javax.inject.Inject
  * Locators that are monotone and carry non-zero within-chapter progression — so a
  * position received as a bare float is still navigable.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class EpubProgressionLocatorTest {
+class EpubProgressionLocatorTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val tmp = TemporaryFolder()
+    @get:Rule val tmp = TemporaryFolder()
 
-    @Inject lateinit var assetRetriever: AssetRetriever
-    @Inject lateinit var publicationOpener: PublicationOpener
+    val assetRetriever: AssetRetriever by inject()
+    val publicationOpener: PublicationOpener by inject()
 
-    @Before fun setUp() { hiltRule.inject() }
 
     @Test
     fun locateProgressionZeroReturnsLocatorAtBookStart() = runTest {

@@ -5,17 +5,15 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.riffle.core.domain.ApkInstaller
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import javax.inject.Inject
 
 /**
  * Launches the system package installer for a downloaded APK via the app's [FileProvider]. The
  * install is signed with the same release key, so Android performs an in-place update; the user
  * still confirms at the system install prompt (and grants "install unknown apps" the first time).
  */
-class AndroidApkInstaller @Inject constructor(
-    @ApplicationContext private val context: Context,
+class AndroidApkInstaller constructor(
+    private val context: Context,
 ) : ApkInstaller {
 
     override fun install(apk: File) {

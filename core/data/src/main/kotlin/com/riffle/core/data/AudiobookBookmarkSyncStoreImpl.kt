@@ -4,9 +4,8 @@ import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.SyncableAudiobookBookmark
-import javax.inject.Inject
 
-class AudiobookBookmarkSyncStoreImpl @Inject constructor(
+class AudiobookBookmarkSyncStoreImpl constructor(
     private val dao: AudiobookBookmarkDao,
 ) : AudiobookBookmarkSyncStore {
 

@@ -10,8 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * In-memory To Read snapshot for a single library.
@@ -28,8 +26,7 @@ private data class ToReadSnapshot(val playlistId: String?, val itemIds: Set<Stri
  * a plain Preferences DataStore. The rest of the app treats both cases identically — the tab and
  * the detail-page toggle work everywhere.
  */
-@Singleton
-class ToReadRepositoryImpl @Inject constructor(
+class ToReadRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,
     private val localStore: LocalToReadStore,
     private val logger: Logger,

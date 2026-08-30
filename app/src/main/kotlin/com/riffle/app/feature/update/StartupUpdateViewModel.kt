@@ -2,20 +2,17 @@ package com.riffle.app.feature.update
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.di.IsDevBuild
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.ReleaseInfo
 import com.riffle.core.domain.UpdateDownloadState
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 // Dev builds produced outside the release pipeline carry a "-dev" suffix and never need an update
 // prompt — the developer is already running the latest code they built themselves.
@@ -26,12 +23,11 @@ data class StartupUpdateDialogState(
     val update: AvailableUpdate,
 )
 
-@HiltViewModel
-class StartupUpdateViewModel @Inject constructor(
+class StartupUpdateViewModel constructor(
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdatePreferencesStore: AppUpdatePreferencesStore,
     private val clock: Clock,
-    @IsDevBuild private val isDevBuild: Boolean,
+    private val isDevBuild: Boolean,
 ) : ViewModel() {
 
     // Read directly like SettingsViewModel does — avoids injecting a bare Int into Hilt.

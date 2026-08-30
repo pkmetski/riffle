@@ -6,7 +6,7 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -60,7 +60,7 @@ internal fun NavGraphBuilder.readerNavGraph(
             },
         )
     ) { backStackEntry ->
-        val viewModel: EpubReaderViewModel = hiltViewModel()
+        val viewModel: EpubReaderViewModel = koinViewModel()
         val context = LocalContext.current
         val exportErrorMessage = stringResource(R.string.export_pdf_error)
         // Highlights mode's "Open in book" (Task 9, ADR 0048): leaves the elided reader and

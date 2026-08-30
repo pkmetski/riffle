@@ -5,20 +5,17 @@ import android.os.ParcelFileDescriptor
 import com.riffle.core.domain.PdfMetadata
 import com.riffle.core.domain.PdfMetadataExtractor
 import com.shockwave.pdfium.PdfiumCore
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Pdfium-backed [PdfMetadataExtractor]. Only implementation on Android — JVM tests inject
  * [com.riffle.core.domain.NoOpPdfMetadataExtractor] via the scanner constructor.
  */
-@Singleton
-class PdfiumPdfMetadataExtractor @Inject constructor(
-    @ApplicationContext private val context: Context,
+
+class PdfiumPdfMetadataExtractor constructor(
+    private val context: Context,
 ) : PdfMetadataExtractor {
 
     override suspend fun extract(file: File): PdfMetadata = withContext(Dispatchers.IO) {

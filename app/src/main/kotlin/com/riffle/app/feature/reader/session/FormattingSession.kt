@@ -13,9 +13,6 @@ import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.autoscroll.layoutContextFor
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -41,8 +38,8 @@ import com.riffle.core.models.ScreenDimensionBucket
  * MUST NOT import org.readium.*, android.webkit.*, or ContinuousReaderView.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class FormattingSession @AssistedInject constructor(
-    @Assisted private val scope: OrchestratorScope,
+class FormattingSession constructor(
+    private val scope: OrchestratorScope,
     private val formattingPreferencesStoreProvider: FormattingPreferencesStoreProvider,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
@@ -51,8 +48,7 @@ class FormattingSession @AssistedInject constructor(
     private val appearanceCoordinator: AppearanceCoordinator,
 ) {
 
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(scope: CoroutineScope): FormattingSession
     }
 

@@ -6,7 +6,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.app.feature.reader.readaloud.ZipAudioDataSource
-import javax.inject.Inject
 
 /**
  * Rebuilds a [MediaItem] whose playback URI Media3 stripped when the controller sent it across the
@@ -24,7 +23,7 @@ interface MediaItemRestorer {
  * concrete ABS URL + per-segment clip window are pulled from the active streaming context.
  */
 @OptIn(UnstableApi::class)
-class StreamingReadaloudItemRestorer @Inject constructor() : MediaItemRestorer {
+class StreamingReadaloudItemRestorer constructor() : MediaItemRestorer {
     override fun restore(item: MediaItem): MediaItem? {
         val streamItem = SharedBundle.streaming?.itemsByMediaId?.get(item.mediaId) ?: return null
         return item.buildUpon()
@@ -44,7 +43,7 @@ class StreamingReadaloudItemRestorer @Inject constructor() : MediaItemRestorer {
  * `file://` once downloaded. Parse-and-restore is enough; no clipping is needed.
  */
 @OptIn(UnstableApi::class)
-class AudiobookHttpItemRestorer @Inject constructor() : MediaItemRestorer {
+class AudiobookHttpItemRestorer constructor() : MediaItemRestorer {
     override fun restore(item: MediaItem): MediaItem? {
         val id = item.mediaId
         if (!(id.startsWith("http") || id.startsWith("file"))) return null
@@ -57,7 +56,7 @@ class AudiobookHttpItemRestorer @Inject constructor() : MediaItemRestorer {
  * Rebuilt to the `zipaudio:///<path>` URI [BundleAudioSourceFactory] consumes.
  */
 @OptIn(UnstableApi::class)
-class BundleZipItemRestorer @Inject constructor() : MediaItemRestorer {
+class BundleZipItemRestorer constructor() : MediaItemRestorer {
     override fun restore(item: MediaItem): MediaItem? {
         // Trailing fallback: a zip-path mediaId is anything that isn't recognised by the upstream
         // restorers in the registry's ordered chain.
@@ -73,7 +72,7 @@ class BundleZipItemRestorer @Inject constructor() : MediaItemRestorer {
  * the service itself reach this point with their URI intact.
  */
 @OptIn(UnstableApi::class)
-class MediaItemRestorerRegistry @Inject constructor(
+class MediaItemRestorerRegistry constructor(
     private val restorers: List<@JvmSuppressWildcards MediaItemRestorer>,
 ) {
     fun restoreAll(items: List<MediaItem>): MutableList<MediaItem> =

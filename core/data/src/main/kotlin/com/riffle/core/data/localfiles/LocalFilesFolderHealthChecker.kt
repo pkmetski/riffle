@@ -3,9 +3,6 @@ package com.riffle.core.data.localfiles
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Reports per-folder SAF-URI health for the LocalFiles Source. A folder is "healthy" when the
@@ -17,9 +14,8 @@ import javax.inject.Singleton
  * Already-copied bytes stay readable regardless (they live under app-private storage), so an
  * unhealthy folder degrades to "we can't rescan for new files" — not "your books disappeared".
  */
-@Singleton
-class LocalFilesFolderHealthChecker @Inject constructor(
-    @ApplicationContext private val context: Context,
+class LocalFilesFolderHealthChecker constructor(
+    private val context: Context,
 ) {
     /**
      * True when [treeUri] still has a persistable read grant on this device. False after the

@@ -14,8 +14,6 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import java.util.UUID
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Owns the "commit an authenticated credentialed source" side of the Add-Source flow — the
@@ -28,8 +26,7 @@ import javax.inject.Singleton
  * a new credentialed source now round-trips its own type through the installer without an edit
  * here.
  */
-@Singleton
-class CredentialedSourceInstaller @Inject constructor(
+class CredentialedSourceInstaller constructor(
     private val sourceDao: SourceDao,
     private val libraryDao: LibraryDao,
     private val tokenStorage: TokenStorage,

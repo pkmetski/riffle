@@ -7,7 +7,6 @@ import com.riffle.core.domain.RemoteKind
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ReconcileLocks
-import javax.inject.Inject
 
 /**
  * Runs the ADR-0036 GET-before-PATCH reconcile for one (sourceId, itemId) — the same primitive
@@ -30,7 +29,7 @@ interface ItemProgressPuller {
     suspend fun pullItem(sourceId: String, itemId: String)
 }
 
-class ReconcilingItemProgressPuller @Inject constructor(
+class ReconcilingItemProgressPuller constructor(
     ebookStore: ReadingPositionStoreImpl,
     audioStore: AudiobookPositionStoreImpl,
     private val catalogRegistry: CatalogRegistry,

@@ -14,9 +14,8 @@ import com.riffle.core.models.ServerProgress
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SyncSessionResult
-import javax.inject.Inject
 
-class ReadingSessionRepositoryImpl @Inject constructor(
+class ReadingSessionRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,
     private val sourceRepository: SourceRepository,
     private val positionStore: ReadingPositionStore,

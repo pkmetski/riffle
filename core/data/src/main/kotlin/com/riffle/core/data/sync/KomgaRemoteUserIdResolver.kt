@@ -6,8 +6,6 @@ import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.models.Source
 import io.ktor.client.HttpClient
 import java.io.IOException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [RemoteUserIdResolver] for [com.riffle.core.models.SourceType.KOMGA]. `token` is the pre-built
@@ -19,8 +17,7 @@ import javax.inject.Singleton
  * [probeKomgaUserId] so the authenticator and the resolver stay in lockstep on fallback rules
  * and cancellation semantics.
  */
-@Singleton
-class KomgaRemoteUserIdResolver @Inject constructor(
+class KomgaRemoteUserIdResolver constructor(
     private val httpClient: HttpClient,
 ) : RemoteUserIdResolver {
     override suspend fun resolve(source: Source, token: String): String? {

@@ -3,10 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.sync.DirtyProgressLedger
-import javax.inject.Inject
 
 /** [DirtyProgressLedger] backed by the two position DAOs' `localUpdatedAt > lastSyncedAt` queries. */
-class RoomDirtyProgressLedger @Inject constructor(
+class RoomDirtyProgressLedger constructor(
     private val readingDao: ReadingPositionDao,
     private val audiobookDao: AudiobookPositionDao,
 ) : DirtyProgressLedger {

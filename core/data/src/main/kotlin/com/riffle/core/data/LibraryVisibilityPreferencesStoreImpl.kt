@@ -4,14 +4,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import com.riffle.core.data.di.LibraryVisibilityPreferencesDataStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
-class LibraryVisibilityPreferencesStoreImpl @Inject constructor(
-    @param:LibraryVisibilityPreferencesDataStore private val dataStore: DataStore<Preferences>,
+class LibraryVisibilityPreferencesStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : LibraryVisibilityPreferencesStore {
 
     override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> =

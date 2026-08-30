@@ -1,6 +1,5 @@
 package com.riffle.app.feature.library
 
-import com.riffle.app.di.DownloadScope
 import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportResult
@@ -14,8 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
-import javax.inject.Inject
-import javax.inject.Singleton
 
 sealed interface BookImportState {
     data object Idle : BookImportState
@@ -37,9 +34,8 @@ internal fun bookImportSnackbarMessage(state: BookImportState): String? =
     if (state is BookImportState.Completed) BOOK_IMPORT_COMPLETED_MESSAGE else null
 
 /** Application-scoped owner for uploads started from a detail screen. */
-@Singleton
-class BookImportManager @Inject constructor(
-    @DownloadScope private val scope: CoroutineScope,
+class BookImportManager constructor(
+    private val scope: CoroutineScope,
     private val logger: Logger = NoopLogger,
 ) {
     private val _states = MutableStateFlow<Map<String, BookImportState>>(emptyMap())

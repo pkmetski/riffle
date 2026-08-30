@@ -5,8 +5,6 @@ import android.os.Build
 import android.provider.Settings
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 
 /**
  * Android implementation of [DeviceLabelResolver].
@@ -20,8 +18,8 @@ import javax.inject.Inject
  * 4. `device-${deviceId.take(8)}` — backstop that fires only on the (effectively impossible)
  *    case of all three sources being blank.
  */
-class AndroidDeviceLabelResolver @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class AndroidDeviceLabelResolver constructor(
+    private val context: Context,
     private val labelStore: DeviceLabelStore,
 ) : DeviceLabelResolver {
 

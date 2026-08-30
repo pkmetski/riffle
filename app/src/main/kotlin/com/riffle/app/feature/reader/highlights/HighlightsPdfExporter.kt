@@ -3,9 +3,7 @@ package com.riffle.app.feature.reader.highlights
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -19,8 +17,8 @@ import kotlin.coroutines.resumeWithException
  * [buildCombinedHtml] is an `internal` top-level function so JVM unit tests can exercise HTML
  * assembly without a live [Context] or [android.webkit.WebView].
  */
-class HighlightsPdfExporter @Inject constructor(
-    @ApplicationContext private val context: Context,
+class HighlightsPdfExporter constructor(
+    private val context: Context,
     private val factory: HighlightsPublicationFactory,
 ) {
     /**

@@ -2,14 +2,12 @@ package com.riffle.core.data.localfiles
 
 import android.content.Context
 import android.net.Uri
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class CopyCoverImageUseCase @Inject constructor(
-    @ApplicationContext private val context: Context,
+class CopyCoverImageUseCase constructor(
+    private val context: Context,
 ) {
     suspend operator fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? =
         withContext(Dispatchers.IO) {

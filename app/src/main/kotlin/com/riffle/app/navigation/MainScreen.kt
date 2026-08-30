@@ -13,7 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -141,7 +141,7 @@ fun MainScreen(
     windowSizeClass: WindowSizeClass,
     viewModel: NavigationDrawerViewModel = koinViewModel(),
 ) {
-    val startupUpdateVm: com.riffle.app.feature.update.StartupUpdateViewModel = hiltViewModel()
+    val startupUpdateVm: com.riffle.app.feature.update.StartupUpdateViewModel = koinViewModel()
     val updateDialogState by startupUpdateVm.dialogState.collectAsState()
     val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
 

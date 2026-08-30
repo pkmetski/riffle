@@ -10,7 +10,7 @@ import javax.inject.Inject
  * push failures are intentionally swallowed — the local stamp lifts the server timestamp via
  * `max()` on the next successful library refresh.
  */
-open class RecordItemOpened @Inject constructor(
+open class RecordItemOpened constructor(
     private val libraryMutator: LibraryMutator,
     private val readingSessionRepository: ReadingSessionRepository,
 ) {

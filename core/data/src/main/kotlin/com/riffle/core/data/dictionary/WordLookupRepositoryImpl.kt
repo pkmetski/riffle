@@ -13,9 +13,8 @@ import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
-class WordLookupRepositoryImpl @Inject constructor(
+class WordLookupRepositoryImpl constructor(
     private val dictionaryPackDao: DictionaryPackDao,
     private val lookupHistoryDao: LookupHistoryDao,
     private val packSqliteStore: DictionaryPackSqliteStore,

@@ -7,11 +7,10 @@ import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.asComicBackgroundTheme
-import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
-class BookComicFormattingPreferencesStoreImpl @Inject constructor(
+class BookComicFormattingPreferencesStoreImpl constructor(
     private val dao: BookComicFormattingPreferencesDao,
 ) : BookComicFormattingPreferencesStore {
 

@@ -3,25 +3,18 @@ package com.riffle.app.di
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.domain.LibraryObserver
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Assert.assertNotNull
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.koin.core.context.GlobalContext
 
 /**
  * Smoke test that verifies the Koin ViewModel module graph initializes correctly and the
- * Hilt bridge exposes at least one known dep. Full graph verification (checkModules) will be
- * added in #737 when the data layer is fully Koin-native and no bridge is needed.
+ * Koin graph exposes at least one known dep. Full graph verification (checkModules) will be
+ * added in #737 when the data layer is fully Koin-native.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class KoinModulesTest {
-
-    @get:Rule
-    val hiltRule = HiltAndroidRule(this)
 
     @Test
     fun koinBridgeResolvesLibraryObserver() {

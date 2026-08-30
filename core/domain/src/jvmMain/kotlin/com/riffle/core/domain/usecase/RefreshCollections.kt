@@ -5,7 +5,7 @@ import com.riffle.core.domain.LibraryRefreshResult
 import javax.inject.Inject
 
 /** Pull a library's collections list. Thin wrapper around [LibraryRefresher]. */
-open class RefreshCollections @Inject constructor(
+open class RefreshCollections constructor(
     private val refresher: LibraryRefresher,
 ) {
     open suspend operator fun invoke(libraryId: String): LibraryRefreshResult =

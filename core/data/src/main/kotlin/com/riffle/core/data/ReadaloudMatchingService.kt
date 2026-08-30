@@ -18,8 +18,6 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
 import com.riffle.core.models.ServerType
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Drives the Storyteller↔ABS auto-matcher ([ReadaloudMatcher]) and persists its verdicts, per
@@ -38,7 +36,6 @@ import javax.inject.Singleton
  *  - A per-candidate dismissal ([ReadaloudDismissalEntity.SCOPE_CANDIDATE]) drops that one pair
  *    from Pending Review on every subsequent run.
  */
-@Singleton
 open class ReadaloudMatchingService(
     private val libraryItemDao: LibraryItemDao,
     private val readaloudLinkDao: ReadaloudLinkDao,
@@ -47,7 +44,7 @@ open class ReadaloudMatchingService(
     private val clock: () -> Long = System::currentTimeMillis,
     private val logger: Logger = NoopLogger,
 ) : com.riffle.core.domain.ReadaloudLinkReconciler {
-    @Inject constructor(
+    constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
         readaloudCandidateDao: ReadaloudCandidateDao,

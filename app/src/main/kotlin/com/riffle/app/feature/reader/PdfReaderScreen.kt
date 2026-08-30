@@ -50,7 +50,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -82,7 +82,7 @@ import org.readium.r2.shared.publication.Locator
 @Composable
 fun PdfReaderScreen(
     onNavigateBack: () -> Unit,
-    viewModel: PdfReaderViewModel = hiltViewModel(),
+    viewModel: PdfReaderViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()

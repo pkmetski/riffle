@@ -10,9 +10,8 @@ import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
-import javax.inject.Inject
 
-class ExtractPdfPageCountUseCase @Inject constructor(
+class ExtractPdfPageCountUseCase constructor(
     private val pdfRepository: PdfRepository,
     private val publicationOpener: PublicationOpener,
     private val assetRetriever: AssetRetriever,

@@ -22,7 +22,6 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,7 +40,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlin.math.roundToInt
-import javax.inject.Inject
 
 /**
  * The book-absolute resume position. When NO position was tracked at all ([hadTrackedPosition] false —
@@ -178,8 +176,7 @@ data class AudiobookPlayerUiState(
     val rewindIntervalSeconds: Int = 15,
 )
 
-@HiltViewModel
-class AudiobookPlayerViewModel @Inject constructor(
+class AudiobookPlayerViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,

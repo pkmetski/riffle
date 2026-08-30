@@ -10,9 +10,8 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.isDerivedCacheStale
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import javax.inject.Inject
 
-class AudiobookChapterCacheRepositoryImpl @Inject constructor(
+class AudiobookChapterCacheRepositoryImpl constructor(
     private val dao: AudiobookChapterCacheDao,
     private val catalogRegistry: CatalogRegistry,
     private val clock: Clock,

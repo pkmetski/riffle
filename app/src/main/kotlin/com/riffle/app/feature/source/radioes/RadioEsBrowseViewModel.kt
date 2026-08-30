@@ -11,13 +11,10 @@ import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
-import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.IOException
 import java.net.UnknownHostException
-import javax.inject.Inject
 
-@HiltViewModel
-class RadioEsBrowseViewModel @Inject constructor(
+class RadioEsBrowseViewModel constructor(
     savedStateHandle: SavedStateHandle,
     sourceRepository: SourceRepository,
     catalogRegistry: CatalogRegistry,

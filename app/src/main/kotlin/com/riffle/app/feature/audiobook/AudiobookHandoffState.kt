@@ -3,8 +3,6 @@ package com.riffle.app.feature.audiobook
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Coordinates the pre-warmed audiobook overlay lifecycle.
@@ -20,8 +18,8 @@ import javax.inject.Singleton
  * Both are [StateFlow] so the signal is never missed even if the VM's collector hasn't started
  * yet when the event fires (the collector sees the current non-null value immediately).
  */
-@Singleton
-class AudiobookHandoffState @Inject constructor() {
+
+class AudiobookHandoffState constructor() {
     private val _pendingHandoff = MutableStateFlow<HandoffSignal?>(null)
     val pendingHandoff: StateFlow<HandoffSignal?> = _pendingHandoff.asStateFlow()
 

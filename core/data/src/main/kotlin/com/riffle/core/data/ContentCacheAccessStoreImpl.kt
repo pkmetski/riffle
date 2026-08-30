@@ -6,15 +6,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import com.riffle.core.common.Clock
-import com.riffle.core.data.di.ContentCacheAccessDataStore
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
-class ContentCacheAccessStoreImpl @Inject constructor(
-    @param:ContentCacheAccessDataStore private val dataStore: DataStore<Preferences>,
+class ContentCacheAccessStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
     private val clock: Clock,
 ) : ContentCacheAccessStore {
 

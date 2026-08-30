@@ -7,9 +7,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.app.feature.reader.readaloud.AudioPlayerService
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.suspendCancellableCoroutine
-import javax.inject.Inject
 import kotlin.coroutines.resume
 
 /**
@@ -52,8 +50,8 @@ interface MediaSessionConnector {
  * `@Singleton` would silently collapse both controllers onto one binder and re-introduce the very
  * divergence the connector was extracted to prevent.
  */
-class DefaultMediaSessionConnector @Inject constructor(
-    @ApplicationContext private val context: Context?,
+class DefaultMediaSessionConnector constructor(
+    private val context: Context?,
 ) : MediaSessionConnector {
 
     private var _controller: MediaController? = null

@@ -19,15 +19,12 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers
 import com.riffle.app.harness.StubAbsServer
-import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReaderOrientation
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.jsoup.Jsoup
@@ -39,7 +36,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
+import org.koin.core.qualifier.named
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * Regression: an annotation created (or visible) in CONTINUOUS mode used to "disappear" when the
@@ -58,17 +57,15 @@ import javax.inject.Inject
  * mid-session and asserts the Readium decoration (`.riffle-highlight-tint`) appears in the
  * fragment's WebView. Mirrors the structure of [ContinuousAnnotationRenderHarnessTest].
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class OrientationFlipAnnotationHarnessTest {
+class OrientationFlipAnnotationHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
-    @Inject lateinit var annotationStore: AnnotationStore
-    @Inject lateinit var formattingPreferencesStore: FormattingPreferencesStore
+    val database: RiffleDatabaseAccess by inject()
+    val epubCacheStore: LocalStore by inject(named("epubCacheStore"))
+    val annotationStore: AnnotationStore by inject()
+    val formattingPreferencesStore: FormattingPreferencesStore by inject()
 
     private val stubServer = StubAbsServer()
     private val targetPhrase = "Section 1.3: Development"
@@ -76,7 +73,6 @@ class OrientationFlipAnnotationHarnessTest {
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         epubCacheStore.clear()
         // Match ContinuousAnnotationRenderHarnessTest's @Before — start MainActivity in Horizontal,

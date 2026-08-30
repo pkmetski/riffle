@@ -1,19 +1,17 @@
 package com.riffle.core.data.localfiles
 
 import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
-import javax.inject.Inject
 
 /**
  * Copies bytes into `filesDir/localfiles/<sourceId>/`. Books land as `<hash>.<ext>`; covers as
  * `covers/<hash>.<ext>`. Partial writes on aborted copies are deleted before returning.
  */
-class AndroidCopyInService @Inject constructor(
-    @ApplicationContext private val context: Context,
+class AndroidCopyInService constructor(
+    private val context: Context,
 ) : CopyInService {
 
     override suspend fun copyBook(

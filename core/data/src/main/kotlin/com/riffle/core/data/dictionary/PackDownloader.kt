@@ -14,10 +14,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 
-class PackDownloader @Inject constructor(
+class PackDownloader constructor(
     private val filesDir: File,
     private val httpClient: HttpClient,
     private val dictionaryPackDao: DictionaryPackDao,

@@ -5,11 +5,10 @@ import com.riffle.core.database.AudiobookBookmarkEntity
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.AudiobookBookmarkStore
 import java.util.UUID
-import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class AudiobookBookmarkStoreImpl @Inject constructor(
+class AudiobookBookmarkStoreImpl constructor(
     private val dao: AudiobookBookmarkDao,
 ) : AudiobookBookmarkStore {
 

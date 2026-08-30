@@ -20,8 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Coordinates a Cadence session — parallel to `AutoScrollController`. Owns:
@@ -37,11 +35,11 @@ import javax.inject.Singleton
  * [com.riffle.core.domain.cadence.onStart]; the caller issues `Pause(ReadaloudStarted)` /
  * `Pause(AutoScrollStarted)` here at the seam so the reducer's pause state carries the cause.
  */
-@Singleton
+
 open class CadenceController internal constructor(
     dispatcher: CoroutineDispatcher,
 ) {
-    @Inject constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate)
+    constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate)
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _state = MutableStateFlow<CadenceState>(CadenceState.Idle)

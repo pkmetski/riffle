@@ -38,9 +38,6 @@ import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.logging.Logger
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -67,14 +64,14 @@ import java.io.File
  * MUST NOT import android.webkit.* or ContinuousReaderView.
  * Only org.readium.* import allowed: Locator (the position handoff type).
  */
-class ReadaloudSession @AssistedInject constructor(
-    @Assisted private val scope: CoroutineScope,
+class ReadaloudSession constructor(
+    private val scope: CoroutineScope,
     /**
      * Returns a snapshot of the reader's most-recently-reported Locator. Injected as a lambda so
      * the session stays decoupled from PositionOrchestrator (which the VM owns until Task 9).
      * The park-state setters (on pause/close) need this to record which page they stopped on.
      */
-    @Assisted private val snapshotLocator: () -> Locator?,
+    private val snapshotLocator: () -> Locator?,
     private val playerCoordinator: PlayerController,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
     private val streamingSessionFactory: ReadaloudStreamingSessionFactory,
@@ -97,8 +94,7 @@ class ReadaloudSession @AssistedInject constructor(
     private val logger: Logger,
 ) {
 
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(
             scope: CoroutineScope,
             snapshotLocator: () -> Locator?,

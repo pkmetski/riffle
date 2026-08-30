@@ -6,7 +6,6 @@ import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.SyncPositionStore
-import javax.inject.Inject
 
 /**
  * Owns the two-peer reconciliation cycle for a matched ABS audiobook (ADR 0023, 0029):
@@ -20,7 +19,7 @@ import javax.inject.Inject
  * it holds mutable references to the attached sync so a self-heal mid-session can promote from
  * fallback to full without threading state through the VM.
  */
-class AudiobookReconciliationCoordinator @Inject constructor(
+class AudiobookReconciliationCoordinator constructor(
     private val readerSyncFactory: ReaderSyncFactory,
     private val openReconcileTargets: OpenReconcileTargets,
     private val audioSyncStore: SyncPositionStore<Double>,

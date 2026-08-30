@@ -3,9 +3,8 @@ package com.riffle.app.feature.library
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.models.LibraryItem
-import javax.inject.Inject
 
-class FetchAudiobookChaptersUseCase @Inject constructor(
+class FetchAudiobookChaptersUseCase constructor(
     private val chapterCacheRepository: AudiobookChapterCacheRepository,
 ) {
     suspend operator fun invoke(item: LibraryItem): List<AudiobookChapter> {

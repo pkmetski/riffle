@@ -30,8 +30,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * App-facing handle to the [AudioPlayerService] for [Audiobook] playback (ADR 0035). Connects via a
@@ -43,8 +41,8 @@ import javax.inject.Singleton
  * Playback speed is granular (any 0.05× step in 0.5–3.0×), shared with the Readaloud player; see
  * [com.riffle.app.feature.audio.PlaybackSpeed].
  */
-@Singleton
-open class AudiobookController @Inject constructor(
+
+open class AudiobookController constructor(
     private val connector: MediaSessionConnector?,
     applicationScope: ApplicationScope?,
     dispatchers: DispatcherProvider,

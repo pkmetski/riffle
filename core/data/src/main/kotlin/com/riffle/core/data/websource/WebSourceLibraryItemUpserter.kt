@@ -6,7 +6,6 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.models.EbookFormat
-import javax.inject.Inject
 
 /**
  * Bridges a browsed [CatalogItem] into the local `library_items` cache when the user taps it.
@@ -26,7 +25,7 @@ import javax.inject.Inject
  * Uses the same insert-or-ignore + updateMetadata pattern as [LibraryItemDao.replaceAllForLibrary]
  * so a re-tap preserves the local `readingProgress` value.
  */
-class WebSourceLibraryItemUpserter @Inject constructor(
+class WebSourceLibraryItemUpserter constructor(
     private val libraryItemDao: LibraryItemDao,
 ) {
     suspend fun upsert(sourceId: String, item: CatalogItem) {

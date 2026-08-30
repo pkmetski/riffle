@@ -22,8 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * App-facing handle to the Readaloud [AudioPlayerService]. Connects via a Media3 [MediaController],
@@ -33,8 +31,8 @@ import javax.inject.Singleton
  * Playback speed is granular (any 0.05× step in 0.5–3.0×, so 1.4× is reachable), set from the
  * mini-player's shared speed sheet; see [com.riffle.app.feature.audio.PlaybackSpeed].
  */
-@Singleton
-open class ReadaloudController @Inject constructor(
+
+open class ReadaloudController constructor(
     private val connector: MediaSessionConnector?,
     applicationScope: ApplicationScope?,
     dispatchers: DispatcherProvider,

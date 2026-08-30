@@ -44,8 +44,7 @@ import kotlinx.coroutines.launch
  * Adding a new unbounded source is a ~10-line subclass:
  *
  * ```kotlin
- * @HiltViewModel
- * class FooBrowseViewModel @Inject constructor(
+ * class FooBrowseViewModel constructor(
  *     savedStateHandle: SavedStateHandle,
  *     sourceRepository: SourceRepository,
  *     catalogRegistry: CatalogRegistry,

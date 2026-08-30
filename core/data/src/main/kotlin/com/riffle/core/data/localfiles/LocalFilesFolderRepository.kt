@@ -10,10 +10,7 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.common.Clock
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Adds/removes configured LocalFiles folders. Each folder maps 1:1 to a [LibraryEntity] named
@@ -21,9 +18,8 @@ import javax.inject.Singleton
  * takes persistable read permission on the tree URI so the folder survives process death; on
  * remove, releases the grant and drops every junction row tying files to that folder.
  */
-@Singleton
-class LocalFilesFolderRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
+class LocalFilesFolderRepository constructor(
+    private val context: Context,
     private val folderDao: LocalFilesFolderDao,
     private val libraryDao: LibraryDao,
     private val fileFolderDao: LocalFilesFileFolderDao,

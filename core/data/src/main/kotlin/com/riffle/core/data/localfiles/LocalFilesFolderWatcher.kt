@@ -15,7 +15,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,8 +22,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Keeps the LocalFiles library in sync with the folders on disk *without* asking the user to hit a
@@ -41,9 +38,8 @@ import javax.inject.Singleton
  * Scans are idempotent (identity-hash keyed) so triggering more often than strictly necessary is
  * cheap: unchanged rows only touch `lastSeenAtEpochMs`.
  */
-@Singleton
-class LocalFilesFolderWatcher @Inject constructor(
-    @ApplicationContext private val context: Context,
+class LocalFilesFolderWatcher constructor(
+    private val context: Context,
     private val sourceRepository: SourceRepository,
     private val folderDao: LocalFilesFolderDao,
     private val scanner: LocalFilesScanner,

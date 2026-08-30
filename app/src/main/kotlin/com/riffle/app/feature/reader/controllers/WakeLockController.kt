@@ -4,9 +4,6 @@ import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.cadence.CadenceState
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,13 +19,12 @@ import kotlinx.coroutines.launch
  *
  * MUST NOT import org.readium.*, android.webkit.*, or ContinuousReaderView.
  */
-class WakeLockController @AssistedInject constructor(
-    @Assisted private val scope: OrchestratorScope,
+class WakeLockController constructor(
+    private val scope: OrchestratorScope,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
-    @Assisted private val autoScrollState: StateFlow<AutoScrollState>,
+    private val autoScrollState: StateFlow<AutoScrollState>,
 ) {
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(scope: CoroutineScope, autoScrollState: StateFlow<AutoScrollState>): WakeLockController
     }
 

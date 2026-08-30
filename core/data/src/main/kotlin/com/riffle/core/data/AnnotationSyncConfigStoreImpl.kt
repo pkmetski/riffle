@@ -8,9 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import javax.inject.Inject
 
-class AnnotationSyncConfigStoreImpl @Inject constructor(
+class AnnotationSyncConfigStoreImpl constructor(
     private val store: EncryptedKeyValueStore,
 ) : AnnotationSyncConfigStore {
 

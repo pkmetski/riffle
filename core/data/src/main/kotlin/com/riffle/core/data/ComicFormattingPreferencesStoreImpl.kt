@@ -6,18 +6,16 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.riffle.core.data.di.ComicFormattingPreferencesDataStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.asComicBackgroundTheme
-import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class ComicFormattingPreferencesStoreImpl @Inject constructor(
-    @param:ComicFormattingPreferencesDataStore private val dataStore: DataStore<Preferences>,
+class ComicFormattingPreferencesStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : ComicFormattingPreferencesStore {
 
     override val preferences: Flow<ComicFormattingPreferences> = dataStore.data.map { prefs ->

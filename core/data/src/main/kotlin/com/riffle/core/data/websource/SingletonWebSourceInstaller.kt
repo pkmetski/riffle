@@ -9,8 +9,6 @@ import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import java.util.UUID
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Owns the "install a singleton web source" side of the Add-Source flow for every zero-config
@@ -25,8 +23,7 @@ import javax.inject.Singleton
  * behaviour as the deleted per-source installers had (`ChitankaSourceInstaller`,
  * `GutenbergSourceInstaller`).
  */
-@Singleton
-class SingletonWebSourceInstaller @Inject constructor(
+class SingletonWebSourceInstaller constructor(
     private val sourceDao: SourceDao,
     private val libraryDao: LibraryDao,
     private val registry: WebSourceRegistry,

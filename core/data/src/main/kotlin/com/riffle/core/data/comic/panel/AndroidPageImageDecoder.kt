@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PixelGrid
-import javax.inject.Inject
 
 /**
  * BitmapFactory-backed decoder. Two-pass:
@@ -14,7 +13,7 @@ import javax.inject.Inject
  *
  * Bitmaps are recycled immediately after luma extraction; we do not keep them around.
  */
-class AndroidPageImageDecoder @Inject constructor() : PageImageDecoder {
+class AndroidPageImageDecoder constructor() : PageImageDecoder {
 
     override fun decode(bytes: ByteArray, targetLongEdge: Int): PageImageDecoder.Result? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

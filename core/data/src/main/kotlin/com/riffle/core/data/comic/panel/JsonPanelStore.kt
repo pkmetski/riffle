@@ -3,7 +3,6 @@ package com.riffle.core.data.comic.panel
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelStore
 import java.io.File
-import javax.inject.Inject
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -19,7 +18,7 @@ import kotlinx.serialization.json.Json
  * `bookId` so a collision on the safe filename doesn't produce a wrong load — we sanity-check
  * on read.
  */
-class JsonPanelStore @Inject constructor(
+class JsonPanelStore constructor(
     private val rootDir: File,
 ) : PanelStore {
 

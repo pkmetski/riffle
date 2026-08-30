@@ -6,7 +6,6 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsBookmarkApi
-import javax.inject.Inject
 
 /**
  * Builds an [AbsBookmarkAnnotationSyncTarget] for a single ABS [Source].
@@ -14,7 +13,7 @@ import javax.inject.Inject
  * Returns null when the source is ineligible (not ABS, missing token, missing `absUserId`) so the
  * holder can quietly skip it — the same source may become eligible later after the user re-auths.
  */
-class AbsBookmarkAnnotationSyncTargetFactory @Inject constructor(
+class AbsBookmarkAnnotationSyncTargetFactory constructor(
     private val absBookmarkApi: AbsBookmarkApi,
     private val tokenStorage: TokenStorage,
 ) {

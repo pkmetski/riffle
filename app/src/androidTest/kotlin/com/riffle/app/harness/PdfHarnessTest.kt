@@ -21,40 +21,36 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilOnPdfPage
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilPdfLoaded
-import com.riffle.core.data.di.PdfCacheStore
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.LocalStore
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
-import javax.inject.Inject
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.qualifier.named
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * End-to-end harness test: drives the full UI from server setup through PDF reader.
  * Uses StubAbsServer for all network calls — no real server required.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class PdfHarnessTest {
+class PdfHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @PdfCacheStore @Inject lateinit var pdfCacheStore: LocalStore
-    @Inject lateinit var volumeNavigationController: VolumeNavigationController
+    val database: RiffleDatabaseAccess by inject()
+    val pdfCacheStore: LocalStore by inject(named("pdfCacheStore"))
+    val volumeNavigationController: VolumeNavigationController by inject()
 
     private val stubServer = StubAbsServer()
 
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         // Clear the file-based PDF cache so every run exercises the download path.
         pdfCacheStore.clear()

@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.highlights
 
-import javax.inject.Inject
 
 /**
  * Resolves a figure's source `href` (as stored on [com.riffle.core.database.AnnotationEntity.imageHref]
@@ -27,6 +26,6 @@ fun interface ResourceFetcher {
  * figcaption-only (missing `<img>`/inline SVG), which is the documented "missing image bytes fall
  * back to figcaption-only" behaviour.
  */
-class NoopResourceFetcher @Inject constructor() : ResourceFetcher {
+class NoopResourceFetcher constructor() : ResourceFetcher {
     override fun fetch(href: String): ByteArray? = null
 }

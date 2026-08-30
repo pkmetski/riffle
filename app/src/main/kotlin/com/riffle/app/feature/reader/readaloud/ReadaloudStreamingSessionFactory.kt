@@ -17,10 +17,8 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerLibraryApi
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.inject.Inject
 
 /**
  * Assembles a streaming Readaloud session (ADR 0040) for a matched book, or returns null so the
@@ -28,8 +26,8 @@ import javax.inject.Inject
  * AND its recording identity is VERIFIED against Storyteller's ingested source — so a mismatch
  * never streams.
  */
-class ReadaloudStreamingSessionFactory @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ReadaloudStreamingSessionFactory constructor(
+    private val context: Context,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val catalogRegistry: CatalogRegistry,
     private val storytellerApi: StorytellerLibraryApi,

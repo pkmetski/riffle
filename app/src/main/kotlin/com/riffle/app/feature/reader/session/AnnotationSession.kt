@@ -11,9 +11,6 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.domain.HighlightColorPreferencesStore
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -58,28 +55,28 @@ sealed class AnnotationSyncBanner {
  *
  * MUST NOT import android.webkit.* or ContinuousReaderView.
  */
-class AnnotationSession @AssistedInject constructor(
-    @Assisted private val scope: CoroutineScope,
+class AnnotationSession constructor(
+    private val scope: CoroutineScope,
     private val annotationStore: AnnotationStore,
     private val annotationStatusStore: AnnotationSyncStatusStore,
     private val highlightColorPreferencesStore: HighlightColorPreferencesStore,
     private val emphasisPreferencesStore: EmphasisPreferencesStore,
     private val progressFlushScope: ProgressFlushScope,
     /** Called on [bind] after [syncOnOpen]; returns the [Job] backing the live-pull loop. */
-    @Assisted private val startLiveSync: (sourceId: String, namespace: String, itemId: String) -> Job,
+    private val startLiveSync: (sourceId: String, namespace: String, itemId: String) -> Job,
     /** Called on each annotation mutation to schedule a debounced push. */
-    @Assisted private val scheduleSync: (sourceId: String, namespace: String, itemId: String) -> Unit,
+    private val scheduleSync: (sourceId: String, namespace: String, itemId: String) -> Unit,
     /** Called on [bind] before [startLiveSync]. Suspend, so annotated with "open". */
-    @Assisted("open") private val syncOnOpen: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
+    private val syncOnOpen: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
     /** Called on [onBookClosed] via [ProgressFlushScope] to push pending annotations. */
-    @Assisted("close") private val syncOnClose: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
+    private val syncOnClose: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
     /**
      * Called after a recolour or note-clear on a highlight that might now be merge-eligible with a
      * same-chapter neighbour. Publication-dependent (needs to rebuild the CFI range), so the VM
      * owns the implementation. Params: annotation id + the post-mutation colour + post-mutation note.
      * See docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md.
      */
-    @Assisted("merge") private val mergeAfterEdit: suspend (id: String, color: String, note: String?) -> Unit,
+    private val mergeAfterEdit: suspend (id: String, color: String, note: String?) -> Unit,
     /**
      * Called when the note editor closes on a PENDING DRAFT (ADR 0056 §4). The draft has no DB
      * row yet, so [commitNoteEdit]'s `updateNote` would match zero rows and the annotation (and
@@ -89,19 +86,18 @@ class AnnotationSession @AssistedInject constructor(
      * colour + emphasis and the note; null (cancel / blank confirm) applies the popup-dismiss
      * semantics — auto-commit the preset, or discard when the preset is ∅ + no emphasis.
      */
-    @Assisted("draftNote") private val commitDraftWithNote: suspend (note: String?) -> Unit,
+    private val commitDraftWithNote: suspend (note: String?) -> Unit,
 ) {
 
-    @AssistedFactory
-    interface Factory {
+    fun interface Factory {
         fun create(
             scope: CoroutineScope,
             startLiveSync: (String, String, String) -> Job,
             scheduleSync: (String, String, String) -> Unit,
-            @Assisted("open") syncOnOpen: suspend (String, String, String) -> Unit,
-            @Assisted("close") syncOnClose: suspend (String, String, String) -> Unit,
-            @Assisted("merge") mergeAfterEdit: suspend (String, String, String?) -> Unit,
-            @Assisted("draftNote") commitDraftWithNote: suspend (String?) -> Unit,
+            syncOnOpen: suspend (String, String, String) -> Unit,
+            syncOnClose: suspend (String, String, String) -> Unit,
+            mergeAfterEdit: suspend (String, String, String?) -> Unit,
+            commitDraftWithNote: suspend (String?) -> Unit,
         ): AnnotationSession
     }
 

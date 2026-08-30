@@ -11,7 +11,6 @@ import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.domain.TokenStorage
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +19,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class AnnotationsListUiState(
     val loading: Boolean = true,
@@ -35,8 +33,7 @@ data class AnnotationsListUiState(
  * annotations to begin with since annotation sync is ABS-server-scoped).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class AnnotationsListViewModel @Inject constructor(
+class AnnotationsListViewModel constructor(
     private val sourceRepository: SourceRepository,
     private val repo: AnnotationsLibraryRepository,
     private val tokenStorage: TokenStorage,

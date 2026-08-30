@@ -15,7 +15,7 @@ import javax.inject.Inject
  * Owns the cross-cutting bug area where a "mark read" that only touched the ebook dimension left
  * the audiobook unfinished and the next sweep restored the old percentage.
  */
-open class MarkReadAcrossDimensions @Inject constructor(
+open class MarkReadAcrossDimensions constructor(
     private val libraryMutator: LibraryMutator,
     private val readingSessionRepository: ReadingSessionRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,

@@ -93,7 +93,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -191,7 +191,7 @@ internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
 fun EpubReaderScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    viewModel: EpubReaderViewModel = hiltViewModel(),
+    viewModel: EpubReaderViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     // Raw user-picked prefs — feeds the FormattingPanel chip selection (so Auto stays

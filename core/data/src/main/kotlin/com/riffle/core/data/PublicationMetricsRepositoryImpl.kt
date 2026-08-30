@@ -6,9 +6,8 @@ import com.riffle.core.database.PublicationMetricsCacheDao
 import com.riffle.core.database.PublicationMetricsCacheEntity
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
-import javax.inject.Inject
 
-class PublicationMetricsRepositoryImpl @Inject constructor(
+class PublicationMetricsRepositoryImpl constructor(
     private val dao: PublicationMetricsCacheDao,
     private val clock: Clock,
 ) : PublicationMetricsRepository {

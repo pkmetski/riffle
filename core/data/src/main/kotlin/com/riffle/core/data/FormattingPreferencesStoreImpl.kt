@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.riffle.core.data.di.FormattingPreferencesDataStore
 import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
@@ -20,10 +19,9 @@ import com.riffle.core.domain.ThemeSchedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalTime
-import javax.inject.Inject
 
-class FormattingPreferencesStoreImpl @Inject constructor(
-    @param:FormattingPreferencesDataStore private val dataStore: DataStore<Preferences>,
+class FormattingPreferencesStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : FormattingPreferencesStore {
 
     override val preferences: Flow<FormattingPreferences> = dataStore.data.map { prefs ->

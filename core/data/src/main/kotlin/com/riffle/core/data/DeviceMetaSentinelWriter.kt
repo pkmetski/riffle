@@ -6,8 +6,6 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.SourceRepository
 import java.time.Instant
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -20,7 +18,6 @@ import kotlinx.coroutines.CancellationException
  * Extracted from the duplicated `writeDeviceMetaQuietly` private methods that previously lived on
  * both [AnnotationSyncController] and [AnnotationSweep].
  */
-@Singleton
 class DeviceMetaSentinelWriter(
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelResolver: DeviceLabelResolver,
@@ -31,7 +28,6 @@ class DeviceMetaSentinelWriter(
      * Hilt-injected constructor: resolves username through [SourceRepository.getById]. Tests use
      * the primary constructor with a deterministic `usernameProvider` lambda.
      */
-    @Inject
     constructor(
         deviceIdStore: DeviceIdStore,
         deviceLabelResolver: DeviceLabelResolver,

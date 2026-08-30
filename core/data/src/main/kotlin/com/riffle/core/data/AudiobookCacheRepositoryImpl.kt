@@ -1,6 +1,5 @@
 package com.riffle.core.data
 
-import com.riffle.core.data.di.AudiobookCacheDir
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookSession
@@ -13,10 +12,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
-import javax.inject.Inject
 
-class AudiobookCacheRepositoryImpl @Inject constructor(
-    @AudiobookCacheDir private val cacheDir: File,
+class AudiobookCacheRepositoryImpl constructor(
+    private val cacheDir: File,
     private val trackDownloader: AudiobookTrackDownloader,
     private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,

@@ -10,9 +10,8 @@ import com.riffle.core.sync.BookmarkRemote
 import com.riffle.core.sync.RemoteBookmark
 import com.riffle.core.sync.SyncSource
 import com.riffle.core.sync.SyncSourceResolver
-import javax.inject.Inject
 
-class CatalogSyncSourceResolver @Inject constructor(
+class CatalogSyncSourceResolver constructor(
     private val registry: CatalogRegistry,
     private val sourceRepository: SourceRepository,
 ) : SyncSourceResolver {

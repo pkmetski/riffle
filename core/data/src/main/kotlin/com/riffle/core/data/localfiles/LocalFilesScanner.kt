@@ -19,7 +19,6 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 /**
  * Walks the LocalFiles Source's configured folders, classifies supported book files (see
@@ -39,7 +38,7 @@ import javax.inject.Inject
  *
  * Not thread-safe: only one scan should be in-flight per source at a time.
  */
-class LocalFilesScanner @Inject constructor(
+class LocalFilesScanner constructor(
     private val folderDao: LocalFilesFolderDao,
     private val fileDao: LocalFilesFileDao,
     private val fileFolderDao: LocalFilesFileFolderDao,

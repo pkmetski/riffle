@@ -4,7 +4,6 @@ import com.riffle.core.domain.AudiobookPositionReconciler
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.common.Clock
-import javax.inject.Inject
 
 /**
  * Computes the position to start playback at when opening an audiobook.
@@ -18,7 +17,7 @@ import javax.inject.Inject
  * arrival) stay inside this class so callers just get a [ResumePoint] out and don't touch the
  * store themselves.
  */
-class AudiobookResumeResolver @Inject constructor(
+class AudiobookResumeResolver constructor(
     private val positionStore: AudiobookPositionStore,
     private val clock: Clock,
 ) {

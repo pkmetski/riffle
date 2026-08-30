@@ -9,7 +9,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.sync.PostSweepMaterializer
 import com.riffle.core.sync.ProgressRemoteFactory
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
 
 /**
  * [PostSweepMaterializer] that creates `library_items` rows for web-source books whose progress
@@ -25,7 +24,7 @@ import javax.inject.Inject
  * skipped on error so a transient network failure does not abort the sweep; missing items are
  * retried on the next sweep.
  */
-class WebSourceLibraryItemMaterializer @Inject constructor(
+class WebSourceLibraryItemMaterializer constructor(
     private val readingPositionDao: ReadingPositionDao,
     private val audiobookPositionDao: AudiobookPositionDao,
     private val libraryItemDao: LibraryItemDao,

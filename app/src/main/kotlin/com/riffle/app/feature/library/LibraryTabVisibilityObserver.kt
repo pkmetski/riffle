@@ -17,8 +17,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Source-agnostic feed of [LibraryTabVisibility] for a given library. The four optional tabs
@@ -31,8 +29,8 @@ import javax.inject.Singleton
  * own bespoke computation because it also folds the offline/search filters into visibility —
  * that filter-awareness is server-source-specific and doesn't belong in this shared observer.
  */
-@Singleton
-class LibraryTabVisibilityObserver @Inject constructor(
+
+class LibraryTabVisibilityObserver constructor(
     private val libraryObserver: LibraryObserver,
     private val toReadRepository: ToReadRepository,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,

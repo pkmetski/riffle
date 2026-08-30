@@ -28,39 +28,35 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilRailActiveSegment
-import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.LocalStore
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
-import javax.inject.Inject
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.qualifier.named
+import org.koin.test.KoinTest
+import org.koin.test.inject
 
 /**
  * End-to-end harness test: drives the full UI from server setup through EPUB reader.
  * Uses StubAbsServer for all network calls — no real server required.
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class EpubHarnessTest {
+class EpubHarnessTest : KoinTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabaseAccess
-    @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
+    val database: RiffleDatabaseAccess by inject()
+    val epubCacheStore: LocalStore by inject(named("epubCacheStore"))
 
     private val stubServer = StubAbsServer()
 
     @Before
     fun setUp() {
         stubServer.start()
-        hiltRule.inject()
         database.clearAllTables()
         epubCacheStore.clear()
     }

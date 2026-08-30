@@ -9,15 +9,12 @@ import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.core.dictionary.PackStore
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-@HiltViewModel
-class DictionaryPacksViewModel @Inject constructor(
+class DictionaryPacksViewModel constructor(
     private val packStore: PackStore,
     private val downloader: PackDownloader,
     private val downloadManager: DownloadManager,

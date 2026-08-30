@@ -4,14 +4,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import com.riffle.core.data.di.VolumeKeyPreferencesDataStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
-class VolumeKeyPreferencesStoreImpl @Inject constructor(
-    @param:VolumeKeyPreferencesDataStore private val dataStore: DataStore<Preferences>,
+class VolumeKeyPreferencesStoreImpl constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : VolumeKeyPreferencesStore {
 
     override val volumeKeyNavigationEnabled: Flow<Boolean> = dataStore.data.map { prefs ->

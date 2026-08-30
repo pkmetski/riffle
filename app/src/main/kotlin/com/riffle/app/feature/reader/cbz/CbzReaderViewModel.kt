@@ -43,9 +43,7 @@ import com.riffle.core.domain.usecase.UpdateReadingProgress
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
-import javax.inject.Inject
 import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -70,8 +68,7 @@ import org.json.JSONObject
  * v1 scope per ADR 0050; Panel View overlay per ADR 0055 (opt-in per-book toggle that frames one
  * panel at a time using auto-detected regions).
  */
-@HiltViewModel
-class CbzReaderViewModel @Inject constructor(
+class CbzReaderViewModel constructor(
     application: Application,
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,

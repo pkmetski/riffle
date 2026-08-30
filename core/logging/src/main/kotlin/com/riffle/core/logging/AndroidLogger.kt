@@ -1,8 +1,6 @@
 package com.riffle.core.logging
 
 import android.util.Log
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Production [Logger]: forwards to [android.util.Log] using the channel's tag and
@@ -12,8 +10,7 @@ import javax.inject.Singleton
  * The [logcatSink] and [clock] seams exist so pure JVM tests can verify buffer appends
  * without touching `android.util.Log` (which is unmocked in unit tests).
  */
-@Singleton
-class AndroidLogger @Inject constructor(
+class AndroidLogger constructor(
     private val buffer: InMemoryLogBuffer,
 ) : Logger {
 

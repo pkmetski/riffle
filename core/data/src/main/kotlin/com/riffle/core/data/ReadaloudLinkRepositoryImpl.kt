@@ -7,11 +7,8 @@ import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ReadaloudLinkRepositoryImpl @Inject constructor(
+class ReadaloudLinkRepositoryImpl constructor(
     private val dao: ReadaloudLinkDao,
 ) : ReadaloudLinkRepository {
 

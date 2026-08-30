@@ -8,9 +8,8 @@ import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.models.ScreenDimensionBucket
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
-class CoverGridDensityStoreImpl @Inject constructor(
+class CoverGridDensityStoreImpl constructor(
     dataStore: DataStore<Preferences>,
     private val dao: CoverGridScaleDao,
 ) : CoverGridDensityStore {

@@ -241,7 +241,7 @@ class ServerRepositoryTest {
         filesCleaner: SourceFilesCleaner,
         sidecarCache: com.riffle.core.domain.ReadaloudSidecarCache = fakeSidecarCache(),
     ): SourceRepositoryImpl {
-        val sidecarCacheProvider = javax.inject.Provider { sidecarCache }
+        val sidecarCacheProvider = { sidecarCache }
         // absApi/storytellerApi/libraryApi are still accepted so callers that don't hit the auth
         // path can leave them as `error`-throwing stubs unchanged. They're wired into the auth
         // helper below on demand.

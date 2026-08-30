@@ -10,7 +10,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ConnectivityObserver
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
@@ -23,12 +22,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ConnectivityObserverImpl @Inject constructor(
-    @ApplicationContext context: Context,
+class ConnectivityObserverImpl constructor(
+    context: Context,
     applicationScope: ApplicationScope,
 ) : ConnectivityObserver {
 

@@ -9,14 +9,13 @@ import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.common.Clock
-import javax.inject.Inject
 
 /**
  * Opens a Source-native direct-play audiobook session (ADR 0035) and maps it to a playable
  * [AudiobookSession]. Track URLs come from the Source's [AudiobookMediaCapability] with any auth
  * headers/tokens baked in. Chapter markers and durations pass straight through to [AudiobookTimeline].
  */
-class AudiobookRepositoryImpl @Inject constructor(
+class AudiobookRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,
     private val clock: Clock,
 ) : AudiobookRepository {

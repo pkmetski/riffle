@@ -19,7 +19,6 @@ import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
-import javax.inject.Inject
 import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 
@@ -61,7 +60,7 @@ internal fun countEpubPositionsFromArchive(
     return total.takeIf { it > 0 }
 }
 
-class ExtractEpubTocUseCase @Inject constructor(
+class ExtractEpubTocUseCase constructor(
     private val epubRepository: EpubRepository,
     private val publicationOpener: PublicationOpener,
     private val assetRetriever: AssetRetriever,
