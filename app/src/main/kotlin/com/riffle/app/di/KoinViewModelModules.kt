@@ -53,10 +53,8 @@ import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.PlaylistsRepository
-import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadaloudSidecarPrefetcher
 import com.riffle.core.data.ReadaloudSidecarStore
-import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase

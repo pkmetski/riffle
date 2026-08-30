@@ -13,10 +13,10 @@ import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
-import com.riffle.core.data.ReadaloudMatchingService
+import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.data.StorytellerReadaloudSyncer
+import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.sources.webdav.TestConnectionResult
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.domain.AnnotationSweepEnqueuer
@@ -97,8 +97,8 @@ sealed class AddSourceBackend {
 class AddSourceViewModel constructor(
     private val context: Context,
     private val repository: SourceRepository,
-    // Per-SourceType credentialed authenticators (ADR 0053). Injected as a Hilt multibinding —
-    // adding a new credentialed source contributes one entry via @IntoMap without touching this
+    // Per-SourceType credentialed authenticators (ADR 0053). Injected as a Koin map binding —
+    // adding a new credentialed source contributes one entry to the map without touching this
     // ViewModel. Kept out of SourceRepository to avoid rippling a `sourceType` param through
     // every anonymous test fake for a Kotlin interface method with a single production caller.
     private val authenticators: Map<SourceType, @JvmSuppressWildcards CredentialedAuthenticator>,
@@ -106,8 +106,8 @@ class AddSourceViewModel constructor(
     private val webdavTargetFactory: WebDavAnnotationSyncTargetFactory,
     private val webdavStatusStore: AnnotationSyncStatusStore,
     private val sweepEnqueuer: AnnotationSweepEnqueuer,
-    private val storytellerSyncer: StorytellerReadaloudSyncer,
-    private val readaloudMatcher: ReadaloudMatchingService,
+    private val storytellerSyncer: StorytellerReadaloudCacheSyncer,
+    private val readaloudMatcher: ReadaloudLinkReconciler,
     private val tokenStorage: TokenStorage,
     private val clock: Clock,
     private val annotationDao: AnnotationDao,
@@ -404,11 +404,7 @@ class AddSourceViewModel constructor(
     }
 
     companion object {
-        /**
-         * Hilt qualifier for the [webdavBanner]'s wall-clock ticker. See [WebdavBannerTickerModule]
-         * for the production ticker (once a minute), and [AddSourceViewModelTest] for the test
-         * override.
-         */
+        /** Koin named qualifier for the [webdavBanner]'s wall-clock ticker (once a minute). */
         const val WEBDAV_BANNER_TICKER = "webdavBannerTicker"
     }
 }
