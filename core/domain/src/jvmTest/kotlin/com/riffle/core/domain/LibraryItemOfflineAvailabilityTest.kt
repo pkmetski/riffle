@@ -159,6 +159,7 @@ class LibraryItemOfflineAvailabilityTest {
     private fun cachingAvailability(
         counting: CountingCbzRepository,
         changes: MutableSharedFlow<StoredItemRef>? = null,
+        nowMillis: () -> Long = { 0L },
     ) = LibraryItemOfflineAvailability(
         epubRepository = FakeEpubRepository(),
         pdfRepository = FakePdfRepository(),
@@ -167,6 +168,7 @@ class LibraryItemOfflineAvailabilityTest {
         bundleAudiobookSource = FakeBundleAudiobookSource(),
         availabilityChanges = changes,
         invalidationScope = changes?.let { CoroutineScope(Dispatchers.Unconfined) },
+        nowMillis = nowMillis,
     )
 
     @Test
@@ -186,6 +188,21 @@ class LibraryItemOfflineAvailabilityTest {
         availability.isAvailableOffline(item(EbookFormat.Cbz))
         assertEquals(1, counting.isDownloadedCalls)
         changes.tryEmit(StoredItemRef("s1", "i1"))
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        assertEquals(2, counting.isDownloadedCalls)
+    }
+
+    @Test
+    fun `memo entries expire after the TTL backstop`() {
+        // Availability paths that never notify (readaloud-bundle download/remove) must still be
+        // picked up eventually — the TTL restores the pre-memo self-healing with bounded staleness.
+        var now = 0L
+        val counting = CountingCbzRepository()
+        val availability = cachingAvailability(counting, nowMillis = { now })
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        availability.isAvailableOffline(item(EbookFormat.Cbz))
+        assertEquals(1, counting.isDownloadedCalls)
+        now = 30_000
         availability.isAvailableOffline(item(EbookFormat.Cbz))
         assertEquals(2, counting.isDownloadedCalls)
     }

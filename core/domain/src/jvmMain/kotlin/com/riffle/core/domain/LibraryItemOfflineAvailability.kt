@@ -17,8 +17,17 @@ import kotlinx.coroutines.launch
  * miss internally constructs an ErrnoException with a full stack fill), and the library's offline
  * projections re-run this over EVERY item whenever any Room flow re-emits — which happens on every
  * reading-progress write, i.e. every reader page turn. Uncached, a large library turns each page
- * turn into a multi-second filesystem sweep. The cache is invalidated per item by
- * [LocalAvailabilityEvents.changes], which every download/cache/delete path already notifies.
+ * turn into a multi-second filesystem sweep.
+ *
+ * Invalidation is two-layered:
+ *  - Event-driven: [LocalAvailabilityEvents.changes] evicts the exact item on every
+ *    download/cache/delete path that notifies.
+ *  - TTL backstop ([ttlMillis]): availability paths that do NOT notify (readaloud bundle
+ *    download/remove uses Storyteller-keyed storage and never emits an ABS-keyed event) and the
+ *    inherent check-then-act window between computing an entry and a concurrent change event
+ *    both self-heal within one TTL, restoring the pre-memo "next sweep recomputes" property with
+ *    bounded staleness. Sweeps fire many times per second during reading, so a 30 s TTL keeps
+ *    ~all of the syscall savings.
  */
 class LibraryItemOfflineAvailability(
     private val epubRepository: EpubRepository,
@@ -28,8 +37,12 @@ class LibraryItemOfflineAvailability(
     private val bundleAudiobookSource: BundleAudiobookSource,
     availabilityChanges: SharedFlow<StoredItemRef>? = null,
     invalidationScope: CoroutineScope? = null,
+    private val ttlMillis: Long = 30_000,
+    private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
-    private val cache = ConcurrentHashMap<String, Boolean>()
+    private class Entry(val available: Boolean, val computedAtMillis: Long)
+
+    private val cache = ConcurrentHashMap<String, Entry>()
 
     init {
         if (availabilityChanges != null && invalidationScope != null) {
@@ -39,8 +52,16 @@ class LibraryItemOfflineAvailability(
         }
     }
 
-    fun isAvailableOffline(item: LibraryItem): Boolean =
-        cache.getOrPut(key(item.sourceId, item.id)) { computeAvailability(item) }
+    fun isAvailableOffline(item: LibraryItem): Boolean {
+        val k = key(item.sourceId, item.id)
+        val now = nowMillis()
+        cache[k]?.let { entry ->
+            if (now - entry.computedAtMillis < ttlMillis) return entry.available
+        }
+        val computed = computeAvailability(item)
+        cache[k] = Entry(computed, now)
+        return computed
+    }
 
     private fun computeAvailability(item: LibraryItem): Boolean {
         val ebookAvailable = when (item.ebookFormat) {

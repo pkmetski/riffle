@@ -150,6 +150,39 @@ class NetworkImageSourceTest {
         assertEquals(listOf(4, 5, 6), repo.fetchedIndices.sorted())
     }
 
+    @Test fun `a page turn joins an in-flight read-ahead instead of duplicating the download`() {
+        val prefetchStarted = java.util.concurrent.CountDownLatch(1)
+        val releasePrefetch = java.util.concurrent.CountDownLatch(1)
+        val fetchCounts = java.util.concurrent.ConcurrentHashMap<Int, Int>()
+        val gatedRepo = object : CbzRepository by fakeRepo {
+            override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
+                fetchCounts.merge(pageIndex, 1, Int::plus)
+                if (pageIndex == 5) {
+                    prefetchStarted.countDown()
+                    releasePrefetch.await() // hold the prefetch in flight (real IO thread — blocking is fine)
+                }
+                return fakeBytes
+            }
+        }
+        val source = NetworkImageSource(
+            "src", "item", 10, gatedRepo,
+            readAheadScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO),
+            readAheadCount = 2,
+        )
+        source.imageBytes(4) // schedules read-ahead of 5 and 6
+        org.junit.Assert.assertTrue(
+            "read-ahead of page 5 never started",
+            prefetchStarted.await(5, java.util.concurrent.TimeUnit.SECONDS),
+        )
+        Thread.sleep(50) // let the in-flight registration settle
+        val turn = java.util.concurrent.Executors.newSingleThreadExecutor().submit<ByteArray> {
+            source.imageBytes(5) // the page turn — must join, not re-download
+        }
+        releasePrefetch.countDown()
+        assertArrayEquals(fakeBytes, turn.get(5, java.util.concurrent.TimeUnit.SECONDS))
+        assertEquals("page 5 downloaded more than once", 1, fetchCounts[5])
+    }
+
     @Test fun `cache retains current page alongside read-ahead entries`() = runTest {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
         val source = readAheadSource(repo, pageCount = 20)

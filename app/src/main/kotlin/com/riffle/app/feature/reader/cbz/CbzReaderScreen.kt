@@ -446,13 +446,15 @@ private fun CbzPage(
     var offsetY by remember(pageIndex) { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
     var zoomAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = pageIndex, key2 = source) {
-        value = decodeWithRetry {
+    val decode by produceState(initialValue = CbzPageDecodeState(), key1 = pageIndex, key2 = source) {
+        val result = decodeWithRetry(attempts = decodeAttemptsFor(source)) {
             withContext(Dispatchers.IO) {
                 runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
             }
         }
+        value = CbzPageDecodeState(bitmap = result, settled = true)
     }
+    val bitmap = decode.bitmap
     val context = LocalContext.current
 
     Box(
@@ -539,8 +541,14 @@ private fun CbzPage(
         // A null bitmap must render the Loading branch explicitly: feeding null data to Coil
         // resolves to the (empty) error state immediately, so the streaming-phase fetch would
         // otherwise show a fully blank page with no feedback until the download completes.
-        when (cbzPageContent(bitmap)) {
+        // Once the decode has settled without a bitmap (retry budget spent, or an undecodable
+        // page in a local archive), show an error instead of an infinite spinner.
+        when (cbzPageContent(bitmap, decode.settled)) {
             CbzPageContent.Loading -> CircularProgressIndicator()
+            CbzPageContent.Error -> Text(
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             CbzPageContent.Image -> SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(bitmap)
@@ -588,13 +596,15 @@ private fun CbzPanelViewer(
         }
     }
 
-    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = currentPage, key2 = state.imageSource) {
-        value = decodeWithRetry {
+    val decode by produceState(initialValue = CbzPageDecodeState(), key1 = currentPage, key2 = state.imageSource) {
+        val result = decodeWithRetry(attempts = decodeAttemptsFor(state.imageSource)) {
             withContext(Dispatchers.IO) {
                 runCatching { decodeSampledBitmap(state.imageSource, currentPage, MAX_PAGE_DIMENSION) }.getOrNull()
             }
         }
+        value = CbzPageDecodeState(bitmap = result, settled = true)
     }
+    val bitmap = decode.bitmap
 
     var viewportW by remember { mutableStateOf(0) }
     var viewportH by remember { mutableStateOf(0) }
@@ -675,8 +685,12 @@ private fun CbzPanelViewer(
 
         // Same null-bitmap contract as CbzPage: render the spinner ourselves — Coil treats a
         // null model as an instant (empty) error, not a loading state.
-        when (cbzPageContent(bitmap)) {
+        when (cbzPageContent(bitmap, decode.settled)) {
             CbzPageContent.Loading -> CircularProgressIndicator()
+            CbzPageContent.Error -> Text(
+                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             CbzPageContent.Image -> SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(bitmap)
@@ -758,15 +772,29 @@ private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
 
 internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 
-internal enum class CbzPageContent { Loading, Image }
+internal enum class CbzPageContent { Loading, Image, Error }
+
+/** Result of a page decode attempt: [settled] flips true once the retry budget is spent. */
+internal data class CbzPageDecodeState(val bitmap: Bitmap? = null, val settled: Boolean = false)
 
 /**
- * What a comic page slot should render for the given decoded bitmap. Null means the decode (or
- * the streaming-phase network fetch feeding it) hasn't completed — the page must show a loading
- * indicator, never a blank page.
+ * What a comic page slot should render. A null bitmap with the decode still running must show a
+ * loading indicator, never a blank page; a null bitmap after the decode settled (retry budget
+ * spent, or an undecodable page) must show an error, never an infinite spinner.
  */
-internal fun cbzPageContent(bitmap: Bitmap?): CbzPageContent =
-    if (bitmap == null) CbzPageContent.Loading else CbzPageContent.Image
+internal fun cbzPageContent(bitmap: Bitmap?, decodeSettled: Boolean): CbzPageContent = when {
+    bitmap != null -> CbzPageContent.Image
+    decodeSettled -> CbzPageContent.Error
+    else -> CbzPageContent.Loading
+}
+
+/**
+ * Retries only make sense when a decode failure can be transient — i.e. the streaming phase,
+ * where the bytes come over the network. A local archive decode fails deterministically
+ * (corrupt page), so retrying just delays the error state.
+ */
+internal fun decodeAttemptsFor(source: CbzImageSource): Int =
+    if (source is NetworkImageSource) 3 else 1
 
 /**
  * Runs [decode] until it yields a bitmap, retrying a failure (null) up to [attempts] total

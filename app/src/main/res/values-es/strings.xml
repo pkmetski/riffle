@@ -355,6 +355,7 @@
     <string name="error_couldnt_save_source">No se pudo guardar la fuente: %1$s</string>
     <string name="error_connection_failed">Error de conexión: %1$s</string>
     <string name="error_connected_library_load_failed">Conectado, pero no se pudieron cargar las bibliotecas: %1$s</string>
+    <string name="error_comic_page_load_failed">No se pudo cargar esta página</string>
     <string name="error_select_failure_type">Selecciona un tipo de problema antes de enviar</string>
     <string name="crash_report_title">Informe de fallo</string>
     <string name="crash_report_text">Riffle falló. Abre Ajustes → Informes de fallos para ver o compartir los detalles.</string>
