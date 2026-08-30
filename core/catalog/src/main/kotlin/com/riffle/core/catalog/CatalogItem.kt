@@ -41,4 +41,6 @@ data class CatalogItem(
     /** Optional stable on-disk identity exposed by server-backed catalogs. */
     val path: String? = null,
     val relPath: String? = null,
+    /** True for live audio streams (radio stations) — no download button, no progress tracking. */
+    val isLiveStream: Boolean = false,
 )

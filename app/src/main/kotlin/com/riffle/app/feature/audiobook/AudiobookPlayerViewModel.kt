@@ -514,7 +514,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // session after the swap) uses local files instead of the live stream. Launched before
             // prepare() so the download starts as early as possible. viewModelScope cancels it if
             // the user exits before caching completes; the partial dir is cleaned up by the impl.
-            if (launchCacheJob) {
+            if (launchCacheJob && session.timeline.durationSec > 0.0) {
                 val capturedSession = session
                 val capturedSourceId = sourceId
                 val capturedItemId = itemId

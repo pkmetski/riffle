@@ -138,6 +138,7 @@ dependencies {
     implementation(project(":core:catalog"))
     implementation(project(":core:catalog-chitanka"))
     implementation(project(":core:catalog-gutenberg"))
+    implementation(project(":core:catalog-radio-es"))
     implementation(project(":core:catalog-komga"))
 
     implementation(libs.androidx.core.ktx)
@@ -173,6 +174,7 @@ dependencies {
     implementation(libs.okhttp)
 
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.session)
     implementation(libs.media3.common)
 

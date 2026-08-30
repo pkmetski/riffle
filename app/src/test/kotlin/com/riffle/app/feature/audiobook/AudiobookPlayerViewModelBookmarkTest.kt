@@ -152,8 +152,10 @@ class AudiobookPlayerViewModelBookmarkTest {
         playlistsRepository: com.riffle.core.data.PlaylistsRepository = NoopPlaylistsRepository,
         savedState: Map<String, Any?> = mapOf("itemId" to itemId),
         handoffState: AudiobookHandoffState = AudiobookHandoffState(),
+        cacheRepository: com.riffle.core.domain.AudiobookCacheRepository = NoCacheRepo,
+        sessionOverride: AudiobookSession? = null,
     ): AudiobookPlayerViewModel {
-        val session = AudiobookSession(
+        val session = sessionOverride ?: AudiobookSession(
             trackUrls = listOf("http://x/track0"),
             tracks = listOf(com.riffle.core.models.AudiobookTrackSpan(0, 0.0, 1000.0)),
             timeline = timeline,
@@ -166,7 +168,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             savedStateHandle = SavedStateHandle(savedState),
             audiobookRepository = repo,
             audiobookDownloadRepository = NoDownloadRepo,
-            audiobookCacheRepository = NoCacheRepo,
+            audiobookCacheRepository = cacheRepository,
             bundleAudiobookSource = NoBundleSource,
             libraryObserver = FakeLibraryRepository(),
             updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
@@ -994,6 +996,45 @@ class AudiobookPlayerViewModelBookmarkTest {
 
     private object StubBuildTrigger : CrossEpubIndexBuildTrigger {
         override fun enqueueBuild(link: ReadaloudLink) {}
+    }
+
+    @Test
+    fun `live stream (durationSec zero) does not trigger the auto-cache job`() = runTest(testDispatcher) {
+        // Regression: radio stations have totalDurationSec == 0.0.  Before the fix, awaitCachedAudiobook()
+        // was called unconditionally on the streaming path, which downloaded the live HLS/MP3 stream to a
+        // local file.  ExoPlayer then failed with ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED on the file://
+        // URI.  The guard added by the fix must skip the cache job for zero-duration sessions.
+        var cacheCalled = false
+        val liveStreamSession = AudiobookSession(
+            trackUrls = listOf("https://stream.example.com/live.mp3"),
+            tracks = listOf(com.riffle.core.models.AudiobookTrackSpan(0, 0.0, 0.0)),
+            timeline = AudiobookTimeline(durationSec = 0.0, chapters = emptyList()),
+            serverCurrentTimeSec = 0.0,
+            serverLastUpdate = 0L,
+        )
+        val trackingCacheRepo = object : com.riffle.core.domain.AudiobookCacheRepository {
+            override fun isCached(sourceId: String, itemId: String) = false
+            override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+            override suspend fun awaitCachedAudiobook(sourceId: String, itemId: String, session: AudiobookSession) {
+                cacheCalled = true
+            }
+            override suspend fun remove(sourceId: String, itemId: String): Long = 0
+        }
+        val controller = FakeController(position = 0.0)
+        val vm = buildViewModel(
+            controller = controller,
+            bookmarkStore = FakeBookmarkStore(),
+            cacheRepository = trackingCacheRepo,
+            sessionOverride = liveStreamSession,
+        )
+        runCurrent()
+
+        assertEquals(
+            "awaitCachedAudiobook must not be called for live streams (durationSec == 0.0)",
+            false,
+            cacheCalled,
+        )
+        vm.clearForTest()
     }
 
     @Test

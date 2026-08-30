@@ -576,6 +576,13 @@
     <string name="ui_source_chitanka_subtitle">Bulgarian public library</string>
     <string name="ui_source_gutenberg_picker_blurb">Browse tens of thousands of free public-domain ebooks.</string>
     <string name="ui_source_gutenberg_subtitle">Public-domain ebooks</string>
+    <string name="source_radio_es_name" translatable="false">radio.es</string>
+    <string name="ui_add_radio_es">Add radio.es</string>
+    <string name="ui_radio_es_source_description">Browse and listen to podcasts from the radio.es directory. No account is needed — everything streams directly from the public catalog.</string>
+    <string name="ui_content_is_provided_by_radio_es">Content is provided by radio.es via prod.radio-api.net.</string>
+    <string name="ui_search_radio_es">Search radio.es podcasts…</string>
+    <string name="ui_source_radio_es_picker_blurb">Browse and listen to podcasts from the radio.es directory.</string>
+    <string name="ui_source_radio_es_subtitle">Podcast directory</string>
     <string name="ui_source_komga_picker_blurb">Stream comics, manga and ebooks from your Komga server.</string>
     <string name="ui_source_komga_help_text">Browse and read your Komga library (comics, manga and ebooks) from any Komga server.</string>
     <string name="ui_source_local_files_picker_blurb">Read EPUBs and PDFs from a folder on this device.</string>

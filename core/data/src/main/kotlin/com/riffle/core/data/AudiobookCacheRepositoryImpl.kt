@@ -35,6 +35,12 @@ class AudiobookCacheRepositoryImpl @Inject constructor(
         if (!mf.exists()) return null
         val manifest = runCatching { json.decodeFromString<AudiobookDownloadManifest>(mf.readText()) }.getOrNull()
             ?: return null
+        // Live streams have durationSec == 0.0 and must not be played from a local file.
+        // A stale entry from before this guard was added is cleaned up here.
+        if (manifest.durationSec == 0.0) {
+            itemDir(sourceId, itemId).deleteRecursively()
+            return null
+        }
         val dir = itemDir(sourceId, itemId)
         return AudiobookSession(
             trackUrls = manifest.tracks.map { File(dir, it.file).toURI().toString() },

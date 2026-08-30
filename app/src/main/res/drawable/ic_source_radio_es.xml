@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Offline fallback for the radio.es source icon.
+  Shown when Coil has not yet fetched the remote favicon from
+  https://www.radio.es/assets/fav/favicon-48x48.png.
+  Dark background (#111111) + green (#00E676) headphone — matches the real favicon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <!-- Dark rounded-square background -->
+    <path
+        android:pathData="M5,0 L35,0 Q40,0 40,5 L40,35 Q40,40 35,40 L5,40 Q0,40 0,35 L0,5 Q0,0 5,0 Z"
+        android:fillColor="#111111" />
+    <!-- Headband arc -->
+    <path
+        android:pathData="M11,22 A9,9 0 0 1 29,22"
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.8"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round" />
+    <!-- Left ear cup -->
+    <path
+        android:pathData="M9,20 L9,29 Q9,31 11,31 L13,31 Q15,31 15,29 L15,20 Z"
+        android:fillColor="#00E676" />
+    <!-- Right ear cup -->
+    <path
+        android:pathData="M25,20 L25,29 Q25,31 27,31 L29,31 Q31,31 31,29 L31,20 Z"
+        android:fillColor="#00E676" />
+</vector>

@@ -100,6 +100,24 @@ class AudiobookCacheRepositoryImplTest {
     }
 
     @Test
+    fun `localSession returns null and deletes stale dir for zero-duration (live stream) manifest`() {
+        val root = tmp.newFolder()
+        val dir = File(root, "srv/s:live").apply { mkdirs() }
+        File(dir, "track-0").writeBytes(ByteArray(5))
+        val liveManifest = AudiobookDownloadManifest(
+            durationSec = 0.0,
+            tracks = listOf(AudiobookDownloadManifest.ManifestTrack(0, "track-0", 0.0, 0.0)),
+            chapters = emptyList(),
+        )
+        File(dir, "manifest.json").writeText(json.encodeToString(liveManifest))
+
+        val session = repo(root).localSession("srv", "s:live")
+
+        assertNull("live stream must not produce a local session", session)
+        assertFalse("stale cache dir must be removed", dir.exists())
+    }
+
+    @Test
     fun `awaitCachedAudiobook downloads all tracks and writes manifest`() = runTest {
         val server = MockWebServer()
         server.start()

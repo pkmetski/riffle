@@ -23,6 +23,8 @@ import com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen
 import com.riffle.app.feature.source.gutenberg.AddGutenbergScreen
 import com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen
 import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
+import com.riffle.app.feature.source.radioes.AddRadioEsScreen
+import com.riffle.app.feature.source.radioes.RadioEsBrowseScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
@@ -132,6 +134,47 @@ internal fun NavGraphBuilder.sourceNavGraph(
         val cameFromSettings = navController.previousBackStackEntry
             ?.destination?.route == SETTINGS
         AddGutenbergScreen(
+            windowSizeClass = windowSizeClass,
+            onDone = {
+                if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                else navController.navigateAsRootIfTop(backStackEntry, HOME)
+            },
+            onNavigateBack = {
+                if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                else navController.navigateAsRootIfTop(backStackEntry, HOME)
+            },
+        )
+    }
+    composable(
+        route = RADIO_ES_BROWSE,
+        arguments = listOf(
+            navArgument("libraryId") { type = NavType.StringType },
+            navArgument("libraryName") { type = NavType.StringType },
+        ),
+    ) { backStackEntry ->
+        val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
+        val libraryName = backStackEntry.arguments?.getString("libraryName")
+            ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
+        RadioEsBrowseScreen(
+            libraryName = libraryName,
+            windowSizeClass = windowSizeClass,
+            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onSectionSeeMore = { sectionType ->
+                navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
+            },
+            onOpenDetail = { itemId ->
+                val encodedId = URLEncoder.encode(itemId, "UTF-8")
+                navController.navigate("library_item_detail/$encodedId")
+            },
+            onAnnotatedBookClick = { sourceId, itemId ->
+                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
+            },
+        )
+    }
+    composable(ADD_RADIO_ES) { backStackEntry ->
+        val cameFromSettings = navController.previousBackStackEntry
+            ?.destination?.route == SETTINGS
+        AddRadioEsScreen(
             windowSizeClass = windowSizeClass,
             onDone = {
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)

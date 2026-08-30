@@ -24,6 +24,7 @@ internal fun sourceDisplayNameRes(type: SourceType): Int = when (type) {
     SourceType.CHITANKA -> R.string.source_chitanka_name
     SourceType.GUTENBERG -> R.string.source_project_gutenberg_name
     SourceType.KOMGA -> R.string.source_komga_name
+    SourceType.RADIO_ES -> R.string.source_radio_es_name
 }
 
 @StringRes
@@ -33,6 +34,7 @@ internal fun sourceSubtitleRes(type: SourceType): Int? = when (type) {
     SourceType.GUTENBERG -> R.string.ui_source_gutenberg_subtitle
     SourceType.ABS,
     SourceType.KOMGA,
+    SourceType.RADIO_ES,
     -> null
 }
 
@@ -43,6 +45,7 @@ internal fun sourcePickerBlurbRes(type: SourceType): Int = when (type) {
     SourceType.CHITANKA -> R.string.ui_source_chitanka_picker_blurb
     SourceType.GUTENBERG -> R.string.ui_source_gutenberg_picker_blurb
     SourceType.KOMGA -> R.string.ui_source_komga_picker_blurb
+    SourceType.RADIO_ES -> R.string.ui_source_radio_es_picker_blurb
 }
 
 internal fun addSourceFormResources(type: SourceType, serverType: ServerType): AddSourceFormResources? =
@@ -73,6 +76,7 @@ internal fun addSourceFormResources(type: SourceType, serverType: ServerType): A
         SourceType.LOCAL_FILES,
         SourceType.CHITANKA,
         SourceType.GUTENBERG,
+        SourceType.RADIO_ES,
         -> null
     }
 

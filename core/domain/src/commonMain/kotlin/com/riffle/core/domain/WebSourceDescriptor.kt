@@ -238,6 +238,7 @@ object WebSourceDescriptors {
         ChitankaWebSourceDescriptor,
         GutenbergWebSourceDescriptor,
         KomgaWebSourceDescriptor,
+        RadioEsWebSourceDescriptor,
     )
 
     fun forType(type: SourceType): WebSourceDescriptor? =
@@ -451,4 +452,29 @@ object GutenbergWebSourceDescriptor : WebSourceDescriptor {
 
     override fun syncNamespaceFor(source: Source): SyncNamespace =
         SyncNamespace.LocalOnly("Project Gutenberg is a public catalog with no per-user account to sync against.")
+}
+
+object RadioEsWebSourceDescriptor : WebSourceDescriptor {
+    override val type = SourceType.RADIO_ES
+    override val displayName = "radio.es"
+    override val toReadSupport = ToReadSupport.LocalOnly
+    override val subtitle = "Podcast directory"
+    override val supportingHosts = "radio.es · prod.radio-api.net"
+    override val addRoute = "add_radio_es"
+    override val browseRoutePrefix = "radio_es_browse"
+    override val urlPlaceholder = "https://radio-es.invalid"
+    override val pickerOrder = 5
+    override val pickerBlurb = "Browse and listen to podcasts from the radio.es directory."
+    override val defaultLibraries = listOf(
+        // ids mirror RadioEsCatalog.ROOT_PODCASTS / ROOT_STATIONS; duplicated here so
+        // :core:domain doesn't depend on :core:catalog-radio-es. A test in :core:data asserts they match.
+        DefaultLibrary(id = "podcasts", name = "Podcasts", mediaType = "audiobook"),
+        DefaultLibrary(id = "stations", name = "Radio", mediaType = "audiobook"),
+    )
+
+    override fun syncNamespaceFor(source: Source): SyncNamespace =
+        SyncNamespace.LocalOnly("radio.es is a public catalog with no per-user account to sync against.")
+
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
+        "https://www.radio.es/assets/fav/favicon-48x48.png"
 }

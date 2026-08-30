@@ -16,14 +16,15 @@ import org.junit.Test
 class SourceTypePickerTest {
 
     @Test
-    fun `cards are ordered ABS LocalFiles Chitanka Gutenberg Komga`() {
+    fun `cards are ordered ABS LocalFiles Chitanka Gutenberg Komga RadioEs`() {
         val cards = sourceTypeCards()
-        assertEquals(5, cards.size)
+        assertEquals(6, cards.size)
         assertEquals(SourceType.ABS, cards[0].type)
         assertEquals(SourceType.LOCAL_FILES, cards[1].type)
         assertEquals(SourceType.CHITANKA, cards[2].type)
         assertEquals(SourceType.GUTENBERG, cards[3].type)
         assertEquals(SourceType.KOMGA, cards[4].type)
+        assertEquals(SourceType.RADIO_ES, cards[5].type)
     }
 
     @Test
@@ -97,6 +98,21 @@ class SourceTypePickerTest {
         assertTrue(cards.any { it.type == SourceType.ABS })
     }
 
+    @Test
+    fun `RadioEs card is enabled and not coming soon`() {
+        val re = sourceTypeCards().first { it.type == SourceType.RADIO_ES }
+        assertTrue(re.enabled)
+        assertFalse(re.comingSoon)
+        assertEquals(R.string.source_radio_es_name, re.titleRes)
+    }
+
+    @Test
+    fun `RadioEs card is hidden once a RadioEs source exists`() {
+        val cards = sourceTypeCards(installedTypes = setOf(SourceType.RADIO_ES))
+        assertTrue(cards.none { it.type == SourceType.RADIO_ES })
+        assertTrue(cards.any { it.type == SourceType.ABS })
+    }
+
     // All credential-less singletons already installed: only ABS + Komga (both multi-instance,
     // credentialed) remain addable.
     @Test
@@ -106,6 +122,7 @@ class SourceTypePickerTest {
                 SourceType.LOCAL_FILES,
                 SourceType.CHITANKA,
                 SourceType.GUTENBERG,
+                SourceType.RADIO_ES,
             ),
         )
         assertEquals(2, cards.size)

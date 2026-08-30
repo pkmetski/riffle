@@ -10,6 +10,7 @@
     <string name="ui_add_audiobookshelf">Añadir Audiobookshelf</string>
     <string name="ui_add_komga">Añadir Komga</string>
     <string name="ui_add_project_gutenberg">Añadir Project Gutenberg</string>
+    <string name="ui_add_radio_es">Añadir radio.es</string>
     <string name="ui_add_source">Añadir fuente</string>
     <string name="ui_add_storyteller">Añadir Storyteller</string>
     <string name="ui_add_to_playlist">Añadir a la lista de reproducción</string>
@@ -65,6 +66,7 @@
     <string name="ui_connect_to_stream_audio">Conéctate para reproducir audio en streaming</string>
     <string name="ui_content_is_provided_by_chitanka_info_and_gramofonche_chitanka_info">El contenido es proporcionado por chitanka.info y gramofonche.chitanka.info.</string>
     <string name="ui_content_is_provided_by_gutenberg_org_via_the_gutendex_com_api">El contenido lo proporciona gutenberg.org a través de la API de gutendex.com.</string>
+    <string name="ui_content_is_provided_by_radio_es">El contenido lo proporciona radio.es a través de prod.radio-api.net.</string>
     <string name="ui_continue">Continuar</string>
     <string name="ui_could_not_load_book_details">No se pudieron cargar los detalles del libro.</string>
     <string name="ui_couldn_t_add_that_folder">No se pudo añadir esa carpeta.</string>
@@ -245,6 +247,7 @@
     <string name="ui_search_chitanka">Buscar en Chitanka…</string>
     <string name="ui_search_in_book">Buscar en el libro…</string>
     <string name="ui_search_project_gutenberg">Buscar Project Gutenberg…</string>
+    <string name="ui_search_radio_es">Buscar en radio.es…</string>
     <string name="ui_select_at_least_one_library">Selecciona al menos una biblioteca</string>
     <string name="ui_select_libraries">Seleccionar bibliotecas</string>
     <string name="ui_sentence_highlight">Resaltado de oración</string>
@@ -363,6 +366,7 @@
     <string name="ui_app_version">Riffle v%1$s%2$s</string>
     <string name="ui_gutenberg_source_description">Explora decenas de miles de libros electrónicos gratuitos de dominio público. No necesitas una cuenta: todo se lee directamente desde el catálogo público.</string>
     <string name="ui_chitanka_source_description">Explora libros electrónicos y audiolibros búlgaros de dos bibliotecas digitales públicas. No necesitas una cuenta: todo se lee directamente desde los sitios públicos.</string>
+    <string name="ui_radio_es_source_description">Explora y escucha podcasts del directorio radio.es. No necesitas una cuenta: todo se transmite directamente desde el catálogo público.</string>
     <string name="ui_auto_scroll_description">El desplazamiento automático mueve la página hacia arriba a un ritmo fijo para que puedas leer con las manos libres. Está disponible en los modos de lectura con desplazamiento. Inícialo y detenlo desde la barra superior del lector; ajusta la velocidad con las teclas de volumen mientras está activo.</string>
     <string name="ui_cadence_description">Cadencia resalta una frase cada vez y avanza por sí sola a un ritmo fijo para que puedas leer con las manos libres. Iníciala y detenla desde la barra superior del lector; ajusta la velocidad con las teclas de volumen mientras está activa.</string>
     <string name="ui_cadence_webview_unavailable">Cadencia no está disponible con el WebView de este dispositivo. Actualiza Android System WebView desde Play Store para activarla.</string>
@@ -573,6 +577,8 @@
     <string name="ui_source_komga_picker_blurb">Reproduce en streaming cómics, manga y ebooks desde tu servidor Komga.</string>
     <string name="ui_source_komga_help_text">Explora y lee tu biblioteca de Komga (cómics, manga y ebooks) desde cualquier servidor Komga.</string>
     <string name="ui_source_local_files_picker_blurb">Lee archivos EPUB y PDF desde una carpeta de este dispositivo.</string>
+    <string name="ui_source_radio_es_picker_blurb">Explora y escucha podcasts del directorio radio.es.</string>
+    <string name="ui_source_radio_es_subtitle">Directorio de podcasts</string>
     <string name="ui_source_local_files_subtitle">en este dispositivo</string>
     <string name="ui_source_storyteller_help_text">Storyteller aloja ebooks + audiolibros alineados, llamados &quot;readalouds&quot;. Riffle enlaza cada readaloud con un libro en tu servidor Audiobookshelf para activar la reproducción sincronizada de texto + audio dentro del lector.</string>
     <string name="ui_source_http_retry">La fuente devolvió HTTP %1$d. Se reintentará automáticamente.</string>
