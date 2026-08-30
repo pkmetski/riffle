@@ -48,7 +48,7 @@ tasks.register("checkRiffleLogTags") {
                 layout.projectDirectory.dir("app/src").asFile,
                 layout.projectDirectory.dir("core").asFile,
             ),
-            allowedRoot = layout.projectDirectory.dir("core/logging/src/main").asFile,
+            allowedRoot = layout.projectDirectory.dir("core/logging/src").asFile,
         )
         if (offenders.isNotEmpty()) {
             throw GradleException(
@@ -91,7 +91,7 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/server/AddServerViewModel.kt",
             // Logger core stamps ISO timestamps for `d`/`w`/`e` calls; routing Clock through the
             // logger primitive would invert the dependency direction. Grandfathered.
-            "core/logging/src/main/kotlin/com/riffle/core/logging/AndroidLogger.kt",
+            "core/logging/src/androidMain/kotlin/com/riffle/core/logging/AndroidLogger.kt",
             // ---- Grandfathered — DispatcherProvider sweep follow-up. LocalFiles ingestion
             // pipeline (#475) does direct SAF file I/O and needs Dispatchers.IO. Migrate when the
             // rest of the LocalFiles layer routes through DispatcherProvider.
@@ -142,7 +142,7 @@ tasks.register("checkRiffleInfraSeams") {
             .flatMap { it.walkTopDown().toList() }
             .filter { it.isFile && it.extension == "kt" }
             // Only enforce on production source — tests legitimately reference the literals in fakes.
-            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") }
+            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") || it.absolutePath.contains("/src/androidHostTest/") || it.absolutePath.contains("/src/jvmTest/") || it.absolutePath.contains("/src/commonTest/") }
             .forEach { f ->
                 val rel = f.relativeTo(layout.projectDirectory.asFile).path
                 if (rel in allowlist) return@forEach
