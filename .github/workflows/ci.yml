@@ -297,6 +297,36 @@ jobs:
           path: app/build/reports/androidTests/
           if-no-files-found: ignore
 
+  ios-framework:
+    name: iOS framework build
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: true
+      - name: Download Gradle wrapper jar
+        run: |
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
+            "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleXCFramework
+      - name: Build Xcode project (simulator)
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
   ios-harness-test:
     name: iOS harness tests
     runs-on: macos-15
