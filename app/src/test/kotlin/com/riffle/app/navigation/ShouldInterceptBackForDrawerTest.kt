@@ -324,3 +324,54 @@ class DrawerNavigationDeduplicationTest {
             File("app/src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
         ).first { it.exists() }
 }
+
+/**
+ * Pins the migration from `androidx.navigation` to `org.jetbrains.androidx.navigation`.
+ *
+ * Both `androidx.navigation` and `org.jetbrains.androidx.navigation` (the JetBrains Compose
+ * Multiplatform fork) annotate `NavController.currentBackStack` as `@RestrictedApi`. The
+ * suppression is intentional and must remain at each use site in MainScreen.kt.
+ *
+ * This test pins the dependency swap itself: it would flip red if the gradle.kts were reverted
+ * to use `androidx.navigation` instead of `org.jetbrains.androidx.navigation`.
+ */
+class NavJetBrainsApiGuardrailTest {
+
+    @Test
+    fun `app module uses JetBrains multiplatform navigation, not androidx navigation`() {
+        val versionsToml = locateVersionsCatalog()
+        val lines = versionsToml.readLines()
+
+        val hasJetbrainsNav = lines.any { line ->
+            line.contains("jetbrains-navigation") && line.contains("org.jetbrains.androidx.navigation")
+        }
+        assertTrue(
+            "libs.versions.toml must declare org.jetbrains.androidx.navigation under " +
+                "a 'jetbrains-navigation' key. If this fails, the dep was reverted to " +
+                "androidx.navigation — restore the JetBrains library entry.",
+            hasJetbrainsNav,
+        )
+
+        val buildGradle = locateNavSource("build.gradle.kts")
+        val usesJetbrainsNav = buildGradle.readLines().any { line ->
+            "jetbrains.navigation.compose" in line && !line.trimStart().startsWith("//")
+        }
+        assertTrue(
+            "app/build.gradle.kts must use libs.jetbrains.navigation.compose (not " +
+                "libs.androidx.navigation.compose). If this fails, the dep swap was reverted.",
+            usesJetbrainsNav,
+        )
+    }
+
+    private fun locateVersionsCatalog(): File =
+        listOf(
+            File("gradle/libs.versions.toml"),
+            File("../gradle/libs.versions.toml"),
+        ).first { it.exists() }
+
+    private fun locateNavSource(fileName: String): File =
+        listOf(
+            File(fileName),
+            File("app/$fileName"),
+        ).first { it.exists() }
+}
