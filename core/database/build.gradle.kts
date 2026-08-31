@@ -35,6 +35,13 @@ kotlin {
         androidMain.get().dependsOn(nonIosMain)
         jvmMain.get().dependsOn(nonIosMain)
 
+        // Explicitly connect iosMain into the compilation graph.
+        // Adding custom dependsOn calls (nonIosMain) can prevent the default hierarchy template
+        // from wiring iosMain → iosArm64Main / iosSimulatorArm64Main automatically.
+        iosMain.get().dependsOn(commonMain.get())
+        iosArm64Main.get().dependsOn(iosMain.get())
+        iosSimulatorArm64Main.get().dependsOn(iosMain.get())
+
         commonMain.dependencies {
             api(project(":core:database-api"))
             implementation(libs.androidx.room.runtime)
