@@ -296,8 +296,14 @@ class JsonPanelStore constructor(
          *      that anchored firstRisingIdx too early, inflating riseSpan and causing the monotonicity
          *      check to fail. Pages with a falling-right diagonal boundary where a horizontal gutter
          *      row sits above the diagonal start now have the correct wider bottom-left panel.
+         * v35: Top-strip column-gap detection added to splitSinglePanelRecursively (issues #848, #849).
+         *      Pages where multi-column middle rows and wide bottom panels share solid black borders
+         *      with no white gutter were returned as a single merged bbox. The new mechanism scans
+         *      the top 25% of a wide bbox for vertical column gaps, measures how far each gap extends
+         *      downward, and either splits horizontally (gap ends mid-bbox) or vertically (gap reaches
+         *      the bbox bottom). v34 caches for such pages hold fewer, over-merged panels.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 35
+        internal const val CURRENT_SCHEMA_VERSION: Int = 36
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
