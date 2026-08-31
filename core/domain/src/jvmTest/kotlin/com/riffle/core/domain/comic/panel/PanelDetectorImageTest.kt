@@ -674,6 +674,35 @@ class PanelDetectorImageTest {
     }
 
     @Test
+    fun `top splash panel is not cut in half at one-sided diagonal gutter`() {
+        // Regression for issue #814: page 65. The top full-width action splash was split at a
+        // false horizontal gutter (~y=590) where the diagonal boundary between the splash and
+        // the lower-right inset enters the inner zone from the right border. The gutter is
+        // ONE-SIDED: gutter pixels only on the right half, content continues on the left half.
+        // splitSinglePanelRecursively found the gutter (≥30% flood-fill fraction) and split
+        // the splash into two half-height panels with a 13-pixel gap.
+        // repairOneSidedRowJunctions missed the repair because 13 > 12 (gap limit).
+        // Fix: floodFillWouldSplit now checks that the left portion of the gutter band also
+        // has low content — a one-sided gutter (left side still full of art) is a diagonal
+        // boundary, not a panel separator.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-814-panel-cut-off.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The top action scene must NOT be split in half at ~y=590.
+        // Pre-fix: two short panels starting near the top (y≈107, h≈476 and y≈596, h≈474).
+        // Post-fix: at least one tall panel (h ≥ 50% of page) starting in the top portion.
+        val topSplash = result.panels.filter { p ->
+            p.y < mask.height * 0.15 &&
+                p.height.toDouble() / mask.height >= 0.50
+        }
+        assertEquals(
+            "expected one tall top splash panel (≥50% page height starting near top), " +
+                "not a half-height split; panels=${result.panels}",
+            1, topSplash.size,
+        )
+    }
+
+    @Test
     fun `page fifty-nine panels include reported top and bottom cut-off areas`() {
         // Regressions for issues #804, #805, and #806: all three reports share the same page-59
         // mask. Top-left was detected at y=142 but expected y≈100; both bottom panels were
@@ -706,6 +735,30 @@ class PanelDetectorImageTest {
         assertTrue(
             "bottom-right panel must start near expected y=1077 (old bug: y=1153); got $bottomRight",
             bottomRight != null && bottomRight.y <= 1090,
+        )
+    }
+
+    @Test
+    fun `issue 835 page 276 cross-gutter diagonal panel must not collapse rows into two full-height columns`() {
+        // Regression for issue #835: page 276. A tilted polaroid photo spans the column gutter
+        // and the bottom section has a dark-background scatter of photos. The device produced
+        // 3 panels (row1-left, row1-right, everything-below-as-one), but must NOT produce two
+        // full-height column strips — that is a worse failure mode introduced on this branch.
+        // Uses loadBinaryFixture (device-identical, no double-binarization) so the repro is
+        // faithful to what the device actually computed.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-835-panel-cut-off-p276.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // No full-height column panel should exist: a panel spanning >75% of page height in a
+        // multi-row layout is the failure mode we're fixing.
+        val fullHeightPanels = result.panels.filter { it.height > mask.height * 0.75 }
+        assertTrue(
+            "full-height column panels indicate failure to split rows; panels=${result.panels}",
+            fullHeightPanels.isEmpty(),
+        )
+        assertTrue(
+            "expected at least 3 panels (row1-left, row1-right, rest); got ${result.panels.size}: ${result.panels}",
+            result.panels.size >= 3,
         )
     }
 
@@ -791,5 +844,68 @@ class PanelDetectorImageTest {
             }
         }
         return PixelGrid(w, h, luma)
+    }
+
+
+    @Test
+    fun `issue 834 bottom-left panel right edge cut off by diagonal gutter`() {
+        // Regression for issue #834: diagonal boundary between bottom-left (small) and bottom-right
+        // (wide) panel leaves bottom-left panel with right edge at x=409 but user expects x=486.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-834-panel-cut-off-p273.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // Bottom section starts around y=1200; pick leftmost panel there.
+        val bottomLeft = result.panels.filter { it.y > 1000 }.minByOrNull { it.x }
+            ?: error("no panels in bottom section")
+        // Bottom-left panel right edge must reach at least x=460 (user drew x=486; allow ±30)
+        assertTrue(
+            "bottom-left panel right edge must reach x≥460, got ${bottomLeft.x + bottomLeft.width}",
+            bottomLeft.x + bottomLeft.width >= 460,
+        )
+    }
+
+    @Test
+    fun `issue 836 page 284 bottom-right panel right edge cut off`() {
+        // Regression for issue #836: bottom-right panel detected at x=830,w=391 but expected at x=665,w=568.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-836-panel-cut-off-p284.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // In the bottom row (y > 1300), the rightmost panel's left edge should start ≤ 750 (not 830+).
+        val bottomRow = result.panels.filter { it.y > 1300 }
+        val bottomRight = bottomRow.maxByOrNull { it.x }
+            ?: error("no panels in bottom row (y>1300), all panels: ${result.panels}")
+        assertTrue(
+            "bottom-right panel x must be ≤750 (expected ~665), got x=${bottomRight.x}",
+            bottomRight.x <= 750,
+        )
+    }
+
+    @Test
+    fun `issue 837 page 291 row-2 right panel too wide due to diagonal gutter`() {
+        // Regression for issue #837: row-2 right panel detected as x=539,w=689 but expected x=669,w=551.
+        // The diagonal gutter between row-2 left and right is not recognized, merging extra width into right.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-837-panel-cut-off-p291.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // In row 2 (y≈564..965), no panel should be wider than 620px.
+        val row2 = result.panels.filter { it.y in 450..800 }
+        val tooWide = row2.filter { it.width > 620 }
+        assertTrue(
+            "row-2 panels must each be ≤620px wide; found overwide: $tooWide",
+            tooWide.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `issue 838 page 297 full-width bottom panel missed entirely`() {
+        // Regression for issue #838: 6 panels detected but a full-width panel at y≈1558 is missed.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-838-missed-panel-p297.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        val bottomPanels = result.panels.filter { it.y > 1400 }
+        assertTrue(
+            "expected a panel below y=1400; got ${result.panels.size} total panels, none below 1400",
+            bottomPanels.isNotEmpty(),
+        )
     }
 }

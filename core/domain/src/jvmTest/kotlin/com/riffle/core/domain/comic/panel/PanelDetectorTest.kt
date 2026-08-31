@@ -1056,6 +1056,68 @@ class PanelDetectorTest {
     }
 
     @Test
+    fun `profileB scan -- flat 1px-bump prefix does not inflate riseSpan when steep diagonal follows (issue 834)`() {
+        // Boundary: falling-right diagonal detected via profileB when a horizontal gutter row
+        // (between row 2 and row 3) generates flat-prefix profileB entries (dy=0) with 1-pixel
+        // bumps (dy=1), followed by a steep diagonal rise (dy=8). The fix: when hasFlatPrefix is
+        // true (dy=0 entries seen), require dy≥2 to anchor firstRisingIdx so the riseSpan excludes
+        // the flat prefix's single-pixel bumps.
+        //
+        // Setup: profileB has flat entries (y=740, x=343..362, dy=0) with 4 bumps (dy=1 at
+        // x=347,352,357,362), then a steep diagonal (dy=8/col, x=369..393).
+        // Without the fix: firstRisingIdx=4 (first bump, dy=1), riseSpan large → ratio < 75% → FAIL.
+        // With the fix:    hasFlatPrefix=true → minDy=2; firstRisingIdx set at first dy=8 → PASS.
+        val w = 1042
+        val h = 1482
+        val data = ByteArray(w * h) { 1 }
+        // Flat prefix at y=740 for x=343..362 (no gaps, no bumps).
+        for (x in 343..362) data[740 * w + x] = 0
+        // Bumps: restore y=740 to content, put gutter at y=741 for bump columns.
+        for (bumpX in intArrayOf(347, 352, 357, 362)) {
+            data[740 * w + bumpX] = 1
+            data[741 * w + bumpX] = 0
+        }
+        // Diagonal x=369..393: first entry at y=740 (same level as flat), then rises at dy=8.
+        data[740 * w + 369] = 0
+        for (x in 370..393) data[(740 + (x - 369) * 8) * w + x] = 0
+        val gutter = BooleanArray(w * h)
+        val left = PanelDetector.Bbox(minX = 27, minY = 739, maxX = 363, maxY = 1441)
+        val right = PanelDetector.Bbox(minX = 369, minY = 739, maxX = 1013, maxY = 1441)
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        val repLeft = result.single { it.minX == left.minX }
+        assertTrue(
+            "falling-right diagonal with flat 1px-bump prefix must be detected and repaired; got $repLeft",
+            repLeft.maxX > left.maxX,
+        )
+    }
+
+    @Test
+    fun `profileB scan -- clean steep diagonal without flat prefix still detected after dy threshold change`() {
+        // Boundary safety: a clean falling-right diagonal (dy=8/col, no flat prefix) is detected
+        // after the firstRisingIdx ≥ 2 fix. firstRisingIdx anchors at i=1 (dy=8 ≥ 2); riseSpan=41;
+        // risingCount/riseSpan = 100% > 75%; extrapolated shift ≈ 96 < maxShiftProfile → PASS.
+        val w = 1042
+        val h = 1482
+        val data = ByteArray(w * h) { 1 }
+        for (x in 352..393) data[(740 + (x - 352) * 8) * w + x] = 0
+        val gutter = BooleanArray(w * h)
+        val left = PanelDetector.Bbox(minX = 27, minY = 739, maxX = 363, maxY = 1441)
+        val right = PanelDetector.Bbox(minX = 364, minY = 739, maxX = 1013, maxY = 1441)
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+
+        val result = detector.repairDiagonalAdjacentColumnPairs(listOf(left, right), cropped, gutter, w, h)
+
+        val repLeft = result.single { it.minX == left.minX }
+        assertTrue(
+            "clean steep diagonal without flat prefix must be detected; got $repLeft",
+            repLeft.maxX > left.maxX,
+        )
+    }
+
+    @Test
     fun `diagonalGutterFallback fires when gutter rows qualify at 22pct but not 20pct — banner stub below`() {
         // Boundary test for the diagonalGutterFallback 22% threshold + bottomH < topH discriminator.
         // Uses 0/255 values to bypass the binarizer texture pass so gutter row content is preserved
@@ -1161,6 +1223,76 @@ class PanelDetectorTest {
             "5%-height wide sliver must be filtered by the 7% banner floor; panels=${result.panels}",
             0, sliver.size,
         )
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // repairOneSidedRowJunctions — gap boundary tests (issue #814 fix: 12 → 15)
+    // Directly exercise the repair function with crafted bboxes and a CroppedMask whose gap
+    // strip has content on the LEFT half and gutter on the RIGHT half (one-sided pattern).
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun `repairOneSidedRowJunctions gap=15 boundary — at new upper limit fires`() {
+        // gap=15 is the new inclusive upper bound after the 12→15 bump (issue #814 fix).
+        // The gap strip has content on the LEFT (x=0..299) and gutter on the RIGHT (x=300..599).
+        // The repair must detect the one-sided pattern and emit 3 panels: spanning left column
+        // + top-right piece + bottom-right piece.
+        val (cropped, top, bottom) = oneSidedJunctionInputs(gap = 15)
+        val repaired = detector.repairOneSidedRowJunctions(
+            listOf(top, bottom), cropped,
+            downscaledWidth = cropped.width, downscaledHeight = cropped.height,
+        )
+        assertEquals(
+            "gap=15 is within new 0..15 window; repair must fire and emit 3 panels; got $repaired",
+            3, repaired.size,
+        )
+    }
+
+    @Test
+    fun `repairOneSidedRowJunctions gap=16 boundary — one above limit does not fire`() {
+        // gap=16 is just outside the 0..15 window; the repair must NOT fire.
+        // Identical layout to the gap=15 test; only the vertical gap between the two bboxes
+        // changes. The two full-width bboxes must remain unchanged (no spanning repair).
+        val (cropped, top, bottom) = oneSidedJunctionInputs(gap = 16)
+        val repaired = detector.repairOneSidedRowJunctions(
+            listOf(top, bottom), cropped,
+            downscaledWidth = cropped.width, downscaledHeight = cropped.height,
+        )
+        assertEquals(
+            "gap=16 is outside 0..15 window; repair must not fire; inputs unchanged; got $repaired",
+            2, repaired.size,
+        )
+        assertEquals(setOf(top, bottom), repaired.toSet())
+    }
+
+    /**
+     * Builds a [PanelDetector.CroppedMask] and two full-width [PanelDetector.Bbox]es whose
+     * vertical separation is exactly [gap] pixels. The gap strip has content on the left half
+     * (x=0..299) and gutter on the right half (x=300..599) — the one-sided pattern that
+     * [PanelDetector.repairOneSidedRowJunctions] is designed to detect.
+     *
+     * Page size: 600×800. Top bbox: y=0..374. Gap: y=375..374+gap. Bottom bbox: y=375+gap..799.
+     */
+    private fun oneSidedJunctionInputs(gap: Int): Triple<PanelDetector.CroppedMask, PanelDetector.Bbox, PanelDetector.Bbox> {
+        val w = 600
+        val h = 800
+        val topEnd = 374
+        val gapStart = topEnd + 1
+        val gapEnd = gapStart + gap - 1
+        val botStart = gapEnd + 1
+
+        val data = ByteArray(w * h)
+        // Top panel: full content.
+        for (y in 0..topEnd) for (x in 0 until w) data[y * w + x] = 1
+        // Gap: left half = content, right half = gutter (0 = default).
+        for (y in gapStart..gapEnd) for (x in 0 until 300) data[y * w + x] = 1
+        // Bottom panel: full content.
+        for (y in botStart until h) for (x in 0 until w) data[y * w + x] = 1
+
+        val cropped = PanelDetector.CroppedMask(w, h, data, offsetX = 0, offsetY = 0)
+        val top = PanelDetector.Bbox(minX = 0, minY = 0, maxX = w - 1, maxY = topEnd)
+        val bottom = PanelDetector.Bbox(minX = 0, minY = botStart, maxX = w - 1, maxY = h - 1)
+        return Triple(cropped, top, bottom)
     }
 
     // --- Synthetic fixture builders ---
