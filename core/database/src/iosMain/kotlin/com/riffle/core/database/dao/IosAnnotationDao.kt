@@ -105,8 +105,9 @@ internal class IosAnnotationDao(
         driver.execute(null,
             "UPDATE annotations SET emphasisStyles = ?, updatedAt = MAX(updatedAt + 1, ?), lastModifiedByDeviceId = ? WHERE id = ? AND type = 'EMPHASIS' AND deleted = 0",
             4) { bindString(0, emphasisStyles); bindLong(1, updatedAt); bindString(2, deviceId); bindString(3, id) }
-        invalidator.invalidate()
-        return driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
+        val count = driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
+        if (count > 0) invalidator.invalidate()
+        return count
     }
 
     override fun observeAnnotationsByPosition(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
@@ -134,8 +135,9 @@ internal class IosAnnotationDao(
             bindString(0, fontFamily); bindLong(1, updatedAt); bindString(2, deviceId)
             bindString(3, sourceId); bindString(4, itemId)
         }
-        invalidator.invalidate()
-        return driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
+        val count = driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
+        if (count > 0) invalidator.invalidate()
+        return count
     }
 
     override suspend fun healSentinelOriginFontFamily(
@@ -147,8 +149,9 @@ internal class IosAnnotationDao(
             bindString(0, fontFamily); bindLong(1, updatedAt); bindString(2, deviceId)
             bindString(3, sourceId); bindString(4, itemId); bindString(5, sentinel)
         }
-        invalidator.invalidate()
-        return driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
+        val count = driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
+        if (count > 0) invalidator.invalidate()
+        return count
     }
 
     override fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int> =
