@@ -14,11 +14,27 @@ import org.junit.Test
 class CbzPageContentTest {
 
     @Test fun `null bitmap while decoding renders the loading indicator, not a blank page`() {
-        assertEquals(CbzPageContent.Loading, cbzPageContent(null, decodeSettled = false))
+        assertEquals(CbzPageContent.Loading, cbzPageContent(hasBitmap = false, decodeSettled = false))
     }
 
     @Test fun `null bitmap after the decode settled renders an error, not an infinite spinner`() {
-        assertEquals(CbzPageContent.Error, cbzPageContent(null, decodeSettled = true))
+        assertEquals(CbzPageContent.Error, cbzPageContent(hasBitmap = false, decodeSettled = true))
+    }
+
+    @Test fun `decoded bitmap with panels still resolving renders loading, never the unpositioned image`() {
+        // Rendering the bitmap before panel detection lands would show it at Identity and then
+        // jump to the panel transform — the spurious pan. The gate must hold on Loading.
+        assertEquals(
+            CbzPageContent.Loading,
+            cbzPageContent(hasBitmap = true, decodeSettled = true, panelsReady = false),
+        )
+    }
+
+    @Test fun `decoded bitmap with panels ready renders the image`() {
+        assertEquals(
+            CbzPageContent.Image,
+            cbzPageContent(hasBitmap = true, decodeSettled = true, panelsReady = true),
+        )
     }
 
     // --- retry budget per source ---
