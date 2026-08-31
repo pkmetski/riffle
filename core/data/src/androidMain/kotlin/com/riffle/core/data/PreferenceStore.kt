@@ -13,21 +13,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
-/**
- * Generic flow/update facade over a single-key `DataStore<Preferences>` entry.
- *
- * Domain-specific stores compose one of these per typed value via [PrefCodecs] and
- * a top-level factory function (e.g. `AppThemeStore(ds)`), so the interface
- * vocabulary stays domain-shaped while the read/write plumbing lives here.
- */
-class PreferenceStore<T>(
+class DataStorePreferenceStore<T>(
     private val dataStore: DataStore<Preferences>,
     private val read: (Preferences) -> T,
     private val write: (MutablePreferences, T) -> Unit,
-) {
-    val flow: Flow<T> = dataStore.data.map(read).distinctUntilChanged()
+) : PreferenceStore<T> {
+    override val flow: Flow<T> = dataStore.data.map(read).distinctUntilChanged()
 
-    suspend fun update(value: T) {
+    override suspend fun update(value: T) {
         dataStore.edit { prefs -> write(prefs, value) }
     }
 }
@@ -41,7 +34,7 @@ data class PreferenceCodec<T>(
 fun <T> preferenceStore(
     dataStore: DataStore<Preferences>,
     codec: PreferenceCodec<T>,
-): PreferenceStore<T> = PreferenceStore(dataStore, codec.read, codec.write)
+): DataStorePreferenceStore<T> = DataStorePreferenceStore(dataStore, codec.read, codec.write)
 
 object PrefCodecs {
     fun boolean(name: String, default: Boolean): PreferenceCodec<Boolean> {

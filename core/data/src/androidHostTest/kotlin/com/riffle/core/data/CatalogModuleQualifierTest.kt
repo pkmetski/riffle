@@ -67,7 +67,9 @@ class CatalogModuleQualifierTest {
 
     private fun koinModulesSource(): String {
         val candidates = listOf(
+            "core/data/src/androidMain/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
+            "src/androidMain/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
             "src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt",
         )
         for (rel in candidates) {
@@ -76,7 +78,12 @@ class CatalogModuleQualifierTest {
         }
         val cwd = File(".").absolutePath
         val fromRoot = generateSequence(File(cwd)) { it.parentFile }
-            .map { File(it, "core/data/src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt") }
+            .flatMap { root ->
+                listOf(
+                    File(root, "core/data/src/androidMain/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt"),
+                    File(root, "core/data/src/main/kotlin/com/riffle/core/data/di/CoreDataKoinModules.kt"),
+                )
+            }
             .firstOrNull { it.exists() }
         checkNotNull(fromRoot) { "CoreDataKoinModules.kt not found from cwd=$cwd" }
         return fromRoot.readText()
