@@ -328,41 +328,50 @@ class DrawerNavigationDeduplicationTest {
 /**
  * Pins the migration from `androidx.navigation` to `org.jetbrains.androidx.navigation`.
  *
- * In `androidx.navigation`, `NavController.currentBackStack` is `@RestrictedApi`, requiring
- * `@SuppressLint("RestrictedApi")` at every use site. In `org.jetbrains.androidx.navigation`
- * (the JetBrains Compose Multiplatform navigation library), `currentBackStack` is a public
- * API — no suppression is needed or appropriate.
+ * Both `androidx.navigation` and `org.jetbrains.androidx.navigation` (the JetBrains Compose
+ * Multiplatform fork) annotate `NavController.currentBackStack` as `@RestrictedApi`. The
+ * suppression is intentional and must remain at each use site in MainScreen.kt.
  *
- * This test would flip red if the dependency were reverted to `androidx.navigation` without
- * also restoring the `@SuppressLint` suppressions — or if the suppressions were re-added
- * while the JetBrains library is in use (which would be misleading).
+ * This test pins the dependency swap itself: it would flip red if the gradle.kts were reverted
+ * to use `androidx.navigation` instead of `org.jetbrains.androidx.navigation`.
  */
 class NavJetBrainsApiGuardrailTest {
 
     @Test
-    fun `MainScreen does not suppress RestrictedApi — currentBackStack is public in JetBrains nav`() {
-        val lines = locateNavSource("MainScreen.kt").readLines()
-        // Match only actual @SuppressLint("RestrictedApi") annotations, not documentation prose.
-        val suppressions = lines.mapIndexedNotNull { index, line ->
-            val trimmed = line.trim()
-            if (trimmed.startsWith("@SuppressLint") && "RestrictedApi" in trimmed) {
-                "${index + 1}: $trimmed"
-            } else null
-        }
+    fun `app module uses JetBrains multiplatform navigation, not androidx navigation`() {
+        val versionsToml = locateVersionsCatalog()
+        val lines = versionsToml.readLines()
 
+        val hasJetbrainsNav = lines.any { line ->
+            line.contains("jetbrains-navigation") && line.contains("org.jetbrains.androidx.navigation")
+        }
         assertTrue(
-            "MainScreen.kt must not contain @SuppressLint(\"RestrictedApi\") — " +
-                "currentBackStack is a public API in org.jetbrains.androidx.navigation. " +
-                "If this fails, either the dep was reverted to androidx.navigation (restore the " +
-                "annotations) or they were re-added unnecessarily (remove them).\n" +
-                suppressions.joinToString("\n"),
-            suppressions.isEmpty(),
+            "libs.versions.toml must declare org.jetbrains.androidx.navigation under " +
+                "a 'jetbrains-navigation' key. If this fails, the dep was reverted to " +
+                "androidx.navigation — restore the JetBrains library entry.",
+            hasJetbrainsNav,
+        )
+
+        val buildGradle = locateNavSource("build.gradle.kts")
+        val usesJetbrainsNav = buildGradle.readLines().any { line ->
+            "jetbrains.navigation.compose" in line && !line.trimStart().startsWith("//")
+        }
+        assertTrue(
+            "app/build.gradle.kts must use libs.jetbrains.navigation.compose (not " +
+                "libs.androidx.navigation.compose). If this fails, the dep swap was reverted.",
+            usesJetbrainsNav,
         )
     }
 
+    private fun locateVersionsCatalog(): File =
+        listOf(
+            File("gradle/libs.versions.toml"),
+            File("../gradle/libs.versions.toml"),
+        ).first { it.exists() }
+
     private fun locateNavSource(fileName: String): File =
         listOf(
-            File("src/main/kotlin/com/riffle/app/navigation/$fileName"),
-            File("app/src/main/kotlin/com/riffle/app/navigation/$fileName"),
+            File(fileName),
+            File("app/$fileName"),
         ).first { it.exists() }
 }

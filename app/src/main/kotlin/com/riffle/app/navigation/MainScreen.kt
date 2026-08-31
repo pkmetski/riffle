@@ -440,12 +440,17 @@ internal fun isReaderRoute(route: String?): Boolean =
 /**
  * Returns the committed top route as Compose state, recomposing whenever the back stack changes.
  *
- * [NavController.currentBackStack] is a public API in JetBrains Compose Multiplatform navigation
- * (unlike in `androidx.navigation` where it was `@RestrictedApi`). It is used here intentionally:
- * [currentBackStackEntryAsState] reflects the *preview* destination during a predictive-back
- * gesture, which would incorrectly disable [libraryItemsBackEnabled] while the gesture is still
- * in progress. Reading the committed back stack via [NavController.currentBackStack] avoids this.
+ * [NavController.currentBackStack] is used intentionally: [currentBackStackEntryAsState] reflects
+ * the *preview* destination during a predictive-back gesture, which would incorrectly disable
+ * [libraryItemsBackEnabled] while the gesture is still in progress. Reading the committed back
+ * stack via [NavController.currentBackStack] avoids this.
+ *
+ * `@SuppressLint("RestrictedApi")` is required because [NavController.currentBackStack] is
+ * annotated `@RestrictedApi` in `org.jetbrains.androidx.navigation` 2.9.x (as it is in
+ * `androidx.navigation`). The annotation is still present in the JetBrains fork — suppress it
+ * rather than routing around the API.
  */
+@android.annotation.SuppressLint("RestrictedApi")
 @Composable
 internal fun NavController.committedTopRouteAsState(): String? {
     val backStack by currentBackStack.collectAsState()
@@ -455,7 +460,8 @@ internal fun NavController.committedTopRouteAsState(): String? {
 /**
  * Reads [NavController.currentBackStack] synchronously.
  *
- * Access is intentional — see [committedTopRouteAsState] for rationale.
+ * `@SuppressLint("RestrictedApi")` is required — see [committedTopRouteAsState] for rationale.
  */
+@android.annotation.SuppressLint("RestrictedApi")
 internal fun NavController.currentBackStackSnapshot(): List<NavBackStackEntry> =
     currentBackStack.value.toList()
