@@ -156,7 +156,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
 
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.androidx.navigation.compose)
+    implementation(libs.jetbrains.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     val koinBom = platform(libs.koin.bom)

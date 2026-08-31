@@ -324,3 +324,45 @@ class DrawerNavigationDeduplicationTest {
             File("app/src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
         ).first { it.exists() }
 }
+
+/**
+ * Pins the migration from `androidx.navigation` to `org.jetbrains.androidx.navigation`.
+ *
+ * In `androidx.navigation`, `NavController.currentBackStack` is `@RestrictedApi`, requiring
+ * `@SuppressLint("RestrictedApi")` at every use site. In `org.jetbrains.androidx.navigation`
+ * (the JetBrains Compose Multiplatform navigation library), `currentBackStack` is a public
+ * API — no suppression is needed or appropriate.
+ *
+ * This test would flip red if the dependency were reverted to `androidx.navigation` without
+ * also restoring the `@SuppressLint` suppressions — or if the suppressions were re-added
+ * while the JetBrains library is in use (which would be misleading).
+ */
+class NavJetBrainsApiGuardrailTest {
+
+    @Test
+    fun `MainScreen does not suppress RestrictedApi — currentBackStack is public in JetBrains nav`() {
+        val lines = locateNavSource("MainScreen.kt").readLines()
+        // Match only actual @SuppressLint("RestrictedApi") annotations, not documentation prose.
+        val suppressions = lines.mapIndexedNotNull { index, line ->
+            val trimmed = line.trim()
+            if (trimmed.startsWith("@SuppressLint") && "RestrictedApi" in trimmed) {
+                "${index + 1}: $trimmed"
+            } else null
+        }
+
+        assertTrue(
+            "MainScreen.kt must not contain @SuppressLint(\"RestrictedApi\") — " +
+                "currentBackStack is a public API in org.jetbrains.androidx.navigation. " +
+                "If this fails, either the dep was reverted to androidx.navigation (restore the " +
+                "annotations) or they were re-added unnecessarily (remove them).\n" +
+                suppressions.joinToString("\n"),
+            suppressions.isEmpty(),
+        )
+    }
+
+    private fun locateNavSource(fileName: String): File =
+        listOf(
+            File("src/main/kotlin/com/riffle/app/navigation/$fileName"),
+            File("app/src/main/kotlin/com/riffle/app/navigation/$fileName"),
+        ).first { it.exists() }
+}

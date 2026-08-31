@@ -1,6 +1,5 @@
 package com.riffle.app.navigation
 
-import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -13,7 +12,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import org.koin.androidx.compose.koinViewModel
 import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -412,7 +410,7 @@ internal fun guardedNavigateBack(isStillTop: () -> Boolean, action: () -> Unit):
 }
 
 private fun NavController.isCommittedTop(backStackEntry: NavBackStackEntry): Boolean =
-    currentBackStackSnapshot().lastOrNull { it.destination.route != null } == backStackEntry
+    currentBackStackEntry == backStackEntry
 
 internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry): Boolean =
     guardedNavigateBack(
@@ -442,25 +440,22 @@ internal fun isReaderRoute(route: String?): Boolean =
 /**
  * Returns the committed top route as Compose state, recomposing whenever the back stack changes.
  *
- * [NavController.currentBackStack] is `@RestrictedApi` (internal to `androidx.navigation`).
- * It is used here intentionally: [currentBackStackEntryAsState] reflects the *preview*
- * destination during a predictive-back gesture, which would incorrectly disable
- * [libraryItemsBackEnabled] while the gesture is still in progress. Reading the committed
- * back stack via [NavController.currentBackStack] avoids this.
+ * [NavController.currentBackStack] is a public API in JetBrains Compose Multiplatform navigation
+ * (unlike in `androidx.navigation` where it was `@RestrictedApi`). It is used here intentionally:
+ * [currentBackStackEntryAsState] reflects the *preview* destination during a predictive-back
+ * gesture, which would incorrectly disable [libraryItemsBackEnabled] while the gesture is still
+ * in progress. Reading the committed back stack via [NavController.currentBackStack] avoids this.
  */
 @Composable
-@SuppressLint("RestrictedApi")
 internal fun NavController.committedTopRouteAsState(): String? {
     val backStack by currentBackStack.collectAsState()
     return committedTopRoute(backStack.map { it.destination.route })
 }
 
 /**
- * Reads [NavController.currentBackStack] synchronously. Centralises the [SuppressLint] so
- * call sites that need a one-shot snapshot don't each need their own suppression annotation.
+ * Reads [NavController.currentBackStack] synchronously.
  *
  * Access is intentional — see [committedTopRouteAsState] for rationale.
  */
-@SuppressLint("RestrictedApi")
 internal fun NavController.currentBackStackSnapshot(): List<NavBackStackEntry> =
-    currentBackStack.value
+    currentBackStack.value.toList()
