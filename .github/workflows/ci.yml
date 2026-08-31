@@ -316,7 +316,7 @@ jobs:
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
       - name: Assemble Riffle XCFramework
-        run: ./gradlew assembleRiffleXCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
       - name: Build Xcode project (simulator)
         run: |
           xcodebuild \
