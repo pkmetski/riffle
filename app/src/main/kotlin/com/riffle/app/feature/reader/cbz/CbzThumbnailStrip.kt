@@ -30,9 +30,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.size.Size as CoilSize
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.size.Size as CoilSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -127,7 +127,6 @@ private fun CbzThumbnail(
                 model = ImageRequest.Builder(context)
                     .data(currentBitmap)
                     .size(CoilSize(264, 360))
-                    .crossfade(false)
                     .build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),

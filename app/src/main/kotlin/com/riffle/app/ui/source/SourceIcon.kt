@@ -13,15 +13,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
-import coil.request.ImageRequest
+import coil3.compose.SubcomposeAsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 
 /**
  * Renders the icon for a configured [Source]: fetches the server's favicon via Coil (using the
- * app-scope [coil.ImageLoader] with its disk cache) and falls back to the bundled monogram
+ * app-scope [coil3.ImageLoader] with its disk cache) and falls back to the bundled monogram
  * drawable while loading or on any error / decode failure. For sources without a network host
  * (e.g. [SourceType.LOCAL_FILES]) the bundled drawable is rendered directly.
  */

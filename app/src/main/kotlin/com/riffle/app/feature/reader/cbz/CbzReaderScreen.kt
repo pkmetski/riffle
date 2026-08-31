@@ -68,8 +68,8 @@ import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import coil.compose.SubcomposeAsyncImage
-import coil.request.ImageRequest
+import coil3.compose.SubcomposeAsyncImage
+import coil3.request.ImageRequest
 import androidx.compose.ui.graphics.asImageBitmap
 import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
@@ -552,7 +552,6 @@ private fun CbzPage(
             CbzPageContent.Image -> SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(bitmap)
-                    .crossfade(false)
                     .build(),
                 contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_number, pageIndex + 1),
                 loading = { CircularProgressIndicator() },
@@ -694,7 +693,6 @@ private fun CbzPanelViewer(
             CbzPageContent.Image -> SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(bitmap)
-                    .crossfade(false)
                     .build(),
                 contentDescription = androidx.compose.ui.res.stringResource(
                     com.riffle.app.R.string.ui_comic_page_panel,

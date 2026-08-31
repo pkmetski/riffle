@@ -166,6 +166,7 @@ dependencies {
     implementation(libs.koin.androidx.compose)
 
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.okhttp)
 
     implementation(libs.media3.exoplayer)
