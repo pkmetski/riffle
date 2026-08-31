@@ -37,6 +37,7 @@ import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOverflowTransform
 import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelReportRepository
+import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.usecase.UpdateReadingProgress
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -100,6 +102,9 @@ class CbzReaderViewModel constructor(
     // Cancel-and-replace the in-flight panel resolve on every page change so a stale resolver
     // can't overwrite a newer page's PagePanels result.
     private var panelResolveJob: Job? = null
+    // previousPanel's cross-page landing-index job — tracked separately so it never orphans
+    // the page resolve launched by gotoPage (both must be cancellable on the next page change).
+    private var panelLandingJob: Job? = null
     // Guard so background prefetches skip store writes after the archive is closed on
     // onCleared, otherwise a stale coroutine calling into a closed ZipFile persists a bogus
     // 1x1 Fallback that would poison the next open's cache.
@@ -174,8 +179,9 @@ class CbzReaderViewModel constructor(
     val currentPagePanels: StateFlow<PagePanels?> = _currentPagePanels
 
     /**
-     * Effective panels after applying the overflow transform (e.g. SPLIT). Used for panel
-     * navigation logic. The screen reads [currentPagePanels] (raw) for rendering.
+     * Effective panels after applying the overflow transform (e.g. SPLIT). This is what the
+     * screen renders AND what panel navigation walks — a null emission here keeps the screen
+     * in its loading state (the SMART_SPLIT seam hold below relies on that contract).
      */
     val effectivePanels: StateFlow<PagePanels?> = combine(
         _currentPagePanels,
@@ -203,7 +209,11 @@ class CbzReaderViewModel constructor(
             },
         )
         pagePanels.copy(panels = transformed)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }
+        // applyOverflow's SMART_SPLIT sampler scans pixels — keep it off the main thread,
+        // especially now that the seam hold puts this emission on the first-render path.
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _currentPanelIndex = MutableStateFlow(0)
     /** 0-based index into [currentPagePanels]. Advances with next/prev-panel gestures. */
@@ -502,6 +512,10 @@ class CbzReaderViewModel constructor(
      */
     fun nextPanel() {
         if (!panelViewOn.value) return nextPage()
+        // Seam hold: raw panels are known but effectivePanels is withheld while the SMART_SPLIT
+        // seam decode runs. Falling through to nextPage() here would skip a page the user never
+        // saw a single panel of — swallow the tap instead; the hold lasts tens of milliseconds.
+        if (effectivePanels.value == null && _currentPagePanels.value != null) return
         val panels = effectivePanels.value?.panels
         if (panels.isNullOrEmpty() || effectivePanels.value?.isFallback == true) return nextPage()
         val nextIndex = _currentPanelIndex.value + 1
@@ -514,6 +528,8 @@ class CbzReaderViewModel constructor(
 
     fun previousPanel() {
         if (!panelViewOn.value) return previousPage()
+        // Same seam-hold swallow as nextPanel — don't turn a withheld emission into a page jump.
+        if (effectivePanels.value == null && _currentPagePanels.value != null) return
         val panels = effectivePanels.value?.panels
         if (panels.isNullOrEmpty() || effectivePanels.value?.isFallback == true) return previousPage()
         val prevIndex = _currentPanelIndex.value - 1
@@ -527,7 +543,11 @@ class CbzReaderViewModel constructor(
             val newPage = (_currentPage.value - 1).coerceAtLeast(0)
             if (newPage == _currentPage.value) return
             gotoPage(newPage)
-            panelResolveJob = viewModelScope.launch {
+            // Track this landing-index job separately: overwriting panelResolveJob here would
+            // orphan the resolve gotoPage just launched (whose sampler/prefetch work must stay
+            // cancellable by the NEXT page change).
+            panelLandingJob?.cancel()
+            panelLandingJob = viewModelScope.launch {
                 val book = panelBook ?: return@launch
                 val pagePanels = withContext(Dispatchers.Default) {
                     runCatching { book.resolvePage(newPage) }.getOrNull()
@@ -585,20 +605,39 @@ class CbzReaderViewModel constructor(
             EnergySamplerState.Resolved(null)
         }
         panelResolveJob = viewModelScope.launch {
-            val current = withContext(Dispatchers.Default) {
+            val resolved = withContext(Dispatchers.Default) {
                 runCatching { book.resolvePage(pageIndex) }.getOrNull()
-            } ?: return@launch
+            }
             if (archiveClosed || _currentPage.value != pageIndex) return@launch
+            if (resolved == null) {
+                // Detection failed (corrupt/unreadable page). Emit a synthetic fallback so the
+                // viewer shows the page fit-whole instead of an endless spinner — the image
+                // gate holds while pagePanels is null, and null would otherwise stay forever.
+                // Resolve the sampler too so a Pending state can't outlive its decode.
+                _currentPagePanels.value = failedDetectionFallback(pageIndex)
+                _energySampler.value = EnergySamplerState.Resolved(null)
+                return@launch
+            }
+            val current = resolved
             _currentPagePanels.value = current
-            // Only decode when SMART_SPLIT is active — the energy sampler is not needed
-            // for OFF or SPLIT, and the decode is non-trivial even at ≤300px. A failed decode
-            // resolves to a null sampler (centre-split fallback), never stays Pending.
-            if (effectiveComicFormatting.value.panelOverflow == PanelOverflowBehavior.SMART_SPLIT) {
-                _energySampler.value = EnergySamplerState.Resolved(
-                    withContext(Dispatchers.Default) {
-                        computeEnergySampler(pageIndex, current.imageWidth, current.imageHeight)
-                    },
-                )
+            // Resolve the seam sampler whenever this page set Pending — keyed on the STATE, not
+            // a re-read of the formatting: if the user toggles SMART_SPLIT off (or off and back
+            // on) mid-decode, a formatting re-check would strand Pending forever and the seam
+            // hold would spin until the next page turn. A failed decode resolves to a null
+            // sampler (centre-split fallback), never stays Pending.
+            if (_energySampler.value == EnergySamplerState.Pending) {
+                val computed = withContext(Dispatchers.Default) {
+                    computeEnergySampler(pageIndex, current.imageWidth, current.imageHeight)
+                }
+                if (archiveClosed || _currentPage.value != pageIndex) {
+                    // Page moved on while we scanned — this result belongs to a page that is no
+                    // longer current; publishing it would release the new page's hold with a
+                    // stale seam and clobber the tracked bitmap.
+                    computed?.second?.let { if (!it.isRecycled) it.recycle() }
+                    return@launch
+                }
+                energySamplerBitmap = computed?.second
+                _energySampler.value = EnergySamplerState.Resolved(computed?.first)
             }
             // Prefetch the next two pages.
             withContext(Dispatchers.Default) {
@@ -681,11 +720,17 @@ class CbzReaderViewModel constructor(
         energySamplerBitmap = null
     }
 
+    /**
+     * Returns the seam-energy sampler and the low-res bitmap it reads, or null when the page
+     * can't be decoded. The CALLER owns the bitmap: register it in [energySamplerBitmap] when
+     * the page is still current, or recycle it immediately when it's stale — this function must
+     * not touch the field itself, or a stale compute could clobber the tracked bitmap.
+     */
     private fun computeEnergySampler(
         pageIndex: Int,
         imageWidth: Int,
         imageHeight: Int,
-    ): ((PanelRegion, Boolean) -> FloatArray)? {
+    ): Pair<(PanelRegion, Boolean) -> FloatArray, Bitmap>? {
         val source = (_state.value as? CbzReaderState.Ready)?.imageSource ?: return null
         // Bounds-only pass.
         val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -705,14 +750,13 @@ class CbzReaderViewModel constructor(
 
         val scaleX = bitmap.width.toFloat() / imageWidth
         val scaleY = bitmap.height.toFloat() / imageHeight
-        // Register the bitmap so onCurrentPageChanged / onCleared can explicitly recycle it.
-        energySamplerBitmap = bitmap
         // The split axis is decided by PanelOverflowTransform (max zoom gain), not here — the
         // sampler just computes energies along whichever axis the transform asks for.
-        return { panel, splitHorizontally ->
+        val sampler: (PanelRegion, Boolean) -> FloatArray = { panel, splitHorizontally ->
             if (splitHorizontally) columnEnergies(bitmap, panel, scaleX, scaleY)
             else rowEnergies(bitmap, panel, scaleX, scaleY)
         }
+        return sampler to bitmap
     }
 
     private fun columnEnergies(
@@ -806,6 +850,19 @@ internal fun mergeComicFormattingOverrides(
 internal fun clampPageForSwap(currentPage: Int, actualPageCount: Int): Int? =
     if (actualPageCount > 0 && currentPage >= actualPageCount) actualPageCount - 1 else null
 
+/**
+ * Synthetic PagePanels for a page whose panel detection failed (corrupt/unreadable page).
+ * isFallback routes the viewer to the fit-whole path, whose transform is Identity — the fake
+ * 1×1 dimensions are never used for camera math.
+ */
+internal fun failedDetectionFallback(pageIndex: Int): PagePanels = PagePanels(
+    pageIndex = pageIndex,
+    imageWidth = 1,
+    imageHeight = 1,
+    panels = listOf(PanelRegion(0, 0, 1, 1)),
+    source = PanelSource.Fallback,
+)
+
 /** SMART_SPLIT seam-sampler resolution state for the current page. */
 internal sealed interface EnergySamplerState {
     /** Page changed with SMART_SPLIT active; the low-res seam decode hasn't finished yet. */
@@ -830,8 +887,10 @@ internal fun shouldHoldForSmartSeam(
     viewportW: Int,
     viewportH: Int,
 ): Boolean = overflow == PanelOverflowBehavior.SMART_SPLIT && samplerPending &&
-    pagePanels.panels.any {
-        PanelOverflowTransform.isOverflowing(
-            it, pagePanels.imageWidth, pagePanels.imageHeight, viewportW, viewportH,
-        )
-    }
+    // Probe with the transform itself (SPLIT = centre seam, same split decision as SMART_SPLIT)
+    // rather than a separate predicate, so "would this page split?" can never drift from what
+    // applyOverflow actually does when the hold releases.
+    PanelOverflowTransform.applyOverflow(
+        pagePanels.panels, pagePanels.imageWidth, pagePanels.imageHeight,
+        viewportW, viewportH, PanelOverflowBehavior.SPLIT,
+    ).size != pagePanels.panels.size

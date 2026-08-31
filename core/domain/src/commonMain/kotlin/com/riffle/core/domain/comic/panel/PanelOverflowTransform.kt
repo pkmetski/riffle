@@ -46,12 +46,15 @@ object PanelOverflowTransform {
         val spansSplitAxis = (isPortrait && widthRatio >= SPAN_THRESHOLD) ||
             (isLandscape && heightRatio >= SPAN_THRESHOLD)
         if (!spansSplitAxis) return null
-        val fitScale = min(viewportWidth.toFloat() / imageWidth, viewportHeight.toFloat() / imageHeight)
-        val panelDisplayW = panel.width * fitScale
-        val panelDisplayH = panel.height * fitScale
-        val zoomWhole = min(viewportWidth / panelDisplayW, viewportHeight / panelDisplayH)
-        val gainHorizontal = min(viewportWidth / (panelDisplayW / 2f), viewportHeight / panelDisplayH) / zoomWhole
-        val gainVertical = min(viewportWidth / panelDisplayW, viewportHeight / (panelDisplayH / 2f)) / zoomWhole
+        // Measure the gain with the SAME function the renderer uses for the camera, so the
+        // split decision can never drift from the zoom the split actually delivers.
+        fun zoomFor(p: PanelRegion) =
+            PanelFitTransform.compute(viewportWidth, viewportHeight, imageWidth, imageHeight, p).scale
+        val zoomWhole = zoomFor(panel)
+        val gainHorizontal =
+            zoomFor(panel.copy(width = (panel.width / 2).coerceAtLeast(1))) / zoomWhole
+        val gainVertical =
+            zoomFor(panel.copy(height = (panel.height / 2).coerceAtLeast(1))) / zoomWhole
         if (max(gainHorizontal, gainVertical) < MIN_SPLIT_ZOOM_GAIN) return null
         return gainHorizontal >= gainVertical
     }

@@ -19,7 +19,7 @@ class StalePageDecodeTest {
         val gated = decodeForPage(stale, currentPage = 4)
         assertEquals(CbzPageDecodeState(), gated)
         // And the derived content state is Loading — not Error, not Image.
-        assertEquals(CbzPageContent.Loading, cbzPageContent(gated.bitmap, gated.settled))
+        assertEquals(CbzPageContent.Loading, cbzPageContent(gated.bitmap != null, gated.settled))
     }
 
     @Test
@@ -32,6 +32,6 @@ class StalePageDecodeTest {
     fun `initial state belongs to no page and is treated as loading`() {
         val initial = CbzPageDecodeState()
         val gated = decodeForPage(initial, currentPage = 0)
-        assertEquals(CbzPageContent.Loading, cbzPageContent(gated.bitmap, gated.settled))
+        assertEquals(CbzPageContent.Loading, cbzPageContent(gated.bitmap != null, gated.settled))
     }
 }
