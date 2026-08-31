@@ -26,6 +26,7 @@ kotlin {
             implementation(project(":core:common"))
             implementation(project(":core:domain"))
             implementation(project(":core:models"))
+            implementation(project(":core:database-api"))
         }
         androidMain.dependencies {
             implementation(project(":core:dictionary"))
