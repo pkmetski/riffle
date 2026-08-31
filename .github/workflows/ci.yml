@@ -324,6 +324,7 @@ jobs:
             -scheme iosApp \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
+            ARCHS=arm64 \
             CODE_SIGNING_ALLOWED=NO \
             build
 
