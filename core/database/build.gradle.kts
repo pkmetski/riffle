@@ -44,11 +44,12 @@ kotlin {
 
         commonMain.dependencies {
             api(project(":core:database-api"))
-            implementation(libs.androidx.room.runtime)
             implementation(libs.kotlinx.coroutines.core)
         }
-        // BundledSQLiteDriver is only used on Android/JVM — never on iOS.
+        // Room and its SQLite driver are Android/JVM-only. Moving them out of commonMain
+        // removes the Room klib from the iOS XCFramework link graph, eliminating OOM.
         getByName("nonIosMain").dependencies {
+            implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
         }
         iosMain.dependencies {
