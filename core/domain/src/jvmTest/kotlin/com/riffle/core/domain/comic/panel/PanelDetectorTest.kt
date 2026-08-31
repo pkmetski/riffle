@@ -1360,6 +1360,100 @@ class PanelDetectorTest {
         )
     }
 
+    // --- Top-strip column-gap detection boundary tests (issues #848, #849) ---
+    //
+    // The top-strip block scans the top 25% of a wide (≥70%) bbox for vertical column gaps.
+    // Fixture anatomy used by these tests:
+    //   - 1-pixel dark header (y=0) seals the gap at the top, making it flood-fill-unreachable.
+    //   - Left and right solid-dark panel columns (no white gap between them and the header).
+    //   - White enclosed gap between the columns (x=leftW..rightStart-1, y=1..panelH).
+    //   - Wide dark bottom panel (y=panelH+1..pageH-1) fills the gap's projection column so the
+    //     standard projection/flood-fill gutter detection finds nothing → rawBestGutter=null.
+    // This exactly reproduces the geometry that causes issues #848/#849 in the real detector.
+
+    @Test
+    fun `top-strip case A — horizontal split fires when gap ends before 70 pct of bbox height`() {
+        // Fixture anatomy (with 20px white margin so binarizer correctly reads DARK=content):
+        //   - 1px dark header at y=20 (x=20..979) seals the gap at the top so it is
+        //     flood-fill-unreachable from the page border.
+        //   - Left column (x=20..389) and right column (x=590..979) span y=20..479.
+        //   - Wide bottom (x=20..979) spans y=480..979, connects both columns into one CC.
+        //   - Enclosed gap: x=390..589, y=21..479.
+        //
+        // In the merged CC bbox the standard projection gutter fails (gap column has 50%+ content
+        // because of the wide bottom) and flood-fill is blocked by the header → rawBestGutter=null.
+        // Top-strip fires (width=960≥70%). gapEndFraction≈(479−20)/960=0.478<0.70 → case A →
+        // horizontal split → TopBbox then gets case-B vertical split → 3 panels total.
+        val grid = fixture(1000, 1000) { canvas ->
+            canvas.fill(LIGHT)
+            canvas.rect(20, 20, 960, 1, DARK)    // 1px header sealing the gap
+            canvas.rect(20, 20, 370, 460, DARK)  // left column
+            canvas.rect(590, 20, 390, 460, DARK) // right column
+            canvas.rect(20, 480, 960, 500, DARK) // wide bottom
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 1000, originalHeight = 1000)
+        assertEquals(
+            "top-strip case A: expected Auto (3 panels), got source=${result.source} panels=${result.panels}",
+            PanelSource.Auto, result.source,
+        )
+        assertTrue(
+            "top-strip case A: expected ≥3 panels (left column, right column, wide bottom), " +
+                "got ${result.panels.size}: ${result.panels}",
+            result.panels.size >= 3,
+        )
+    }
+
+    @Test
+    fun `top-strip case A — split blocked when gap ends at or after 70 pct of bbox height`() {
+        // Same enclosed-gap anatomy but the column panels span y=20..749 so the gap ends at y=749.
+        // gapEndFraction=(749−20)/960=0.759≥0.70 → case A blocked.
+        // The gap also doesn't reach the CC bbox bottom (residual=979−749=230>nearBottomTolerance)
+        // so case B is blocked too. No top-strip split fires; the CC is returned as a single panel.
+        val grid = fixture(1000, 1000) { canvas ->
+            canvas.fill(LIGHT)
+            canvas.rect(20, 20, 960, 1, DARK)    // 1px header
+            canvas.rect(20, 20, 370, 730, DARK)  // left column (y=20..749)
+            canvas.rect(590, 20, 390, 730, DARK) // right column (y=20..749)
+            canvas.rect(20, 750, 960, 230, DARK) // wide bottom (y=750..979)
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 1000, originalHeight = 1000)
+        assertEquals(
+            "top-strip case A blocked at gapEndFraction≥0.70: expected 1 unsplit panel, " +
+                "got ${result.panels.size}: ${result.panels}",
+            1, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `top-strip width guard — block does not fire for bbox narrower than 70 pct of page`() {
+        // Narrow enclosed-gap CC: header (x=20..618, y=20), left sub-panel (x=20..299),
+        // right sub-panel (x=400..618), gap (x=300..399, y=21..479), bottom connector (y=480..579).
+        // CC width = 599 (60% of page) < 70% → top-strip block is skipped.
+        // With rawBestGutter=null (enclosed gap fools projection and flood-fill) and top-strip
+        // blocked by the width guard, the CC is returned as one merged panel instead of two.
+        val grid = fixture(1000, 1000) { canvas ->
+            canvas.fill(LIGHT)
+            canvas.rect(20, 20, 599, 1, DARK)    // header (x=20..618, y=20)
+            canvas.rect(20, 20, 280, 460, DARK)  // left sub-panel (x=20..299, y=20..479)
+            canvas.rect(400, 20, 219, 460, DARK) // right sub-panel (x=400..618, y=20..479)
+            canvas.rect(20, 480, 599, 100, DARK) // bottom connector (x=20..618, y=480..579)
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 1000, originalHeight = 1000)
+        // The enclosed gap at x=300..399 fools standard gutter detection (gap column has
+        // connector content below → 17% of column filled → just above 15% projection threshold).
+        // The top-strip block is skipped because CC width=599<70%×1000. Result: 1 merged panel.
+        assertEquals(
+            "narrow CC: expected Auto (top-strip skipped, CC returned as one panel), " +
+                "got source=${result.source}",
+            PanelSource.Auto, result.source,
+        )
+        assertEquals(
+            "narrow CC: expected 1 panel (top-strip width guard skips split), " +
+                "got ${result.panels.size}: ${result.panels}",
+            1, result.panels.size,
+        )
+    }
+
     /**
      * Builds a [PanelDetector.CroppedMask] and two full-width [PanelDetector.Bbox]es whose
      * vertical separation is exactly [gap] pixels. The gap strip has content on the left half

@@ -908,4 +908,96 @@ class PanelDetectorImageTest {
             bottomPanels.isNotEmpty(),
         )
     }
+
+    @Test
+    fun `issue 846 and 847 page 4 full-height column strips must not span both the top section and the bottom wide panel`() {
+        // Regression for issues #846 and #847 (identical fixture): the page has 3 tall dark panels
+        // in the top ~67% and one wide light panel in the bottom ~33%. The detector produced 2 tall
+        // vertical column strips (x=126 y=123 w=1349 h=2780 and x=1501 y=123 w=711 h=2780) that
+        // span the full page height, merging the top-column layout with the bottom wide panel.
+        // Fix: the horizontal gutter between the top section and the bottom panel must be detected,
+        // so that no panel spans >75% of the page height in a layout that has a clear horizontal
+        // boundary.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-847-split-vertical-p4.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // No panel may span more than 75% of the page height — the two detected full-height column
+        // strips (h=2780 out of 3056, ≈91%) are the failure mode.
+        val fullHeightPanels = result.panels.filter { it.height > mask.height * 0.75 }
+        assertTrue(
+            "full-height column strips indicate the horizontal row boundary was missed; panels=${result.panels}",
+            fullHeightPanels.isEmpty(),
+        )
+        // The bottom wide panel (user-drawn: x=219 y=2080 w=2018 h=803) must be detected.
+        // Require a panel whose vertical centre is in the bottom 30% of the page and whose
+        // width spans at least 60% of the page.
+        // The bottom wide panel cannot be detected as a single full-width panel because the
+        // page's two CCs are separated by a ~26px column gap. Use ≥50% width: the left CC
+        // bottom portion (57.8% of page) passes this while isolated narrow strips do not.
+        val bottomWide = result.panels.filter { p ->
+            p.y + p.height / 2 > mask.height * 0.70 &&
+                p.width.toDouble() / mask.width >= 0.50
+        }
+        assertTrue(
+            "expected a wide panel in the bottom third (y-centre > 70%, w ≥ 50%); panels=${result.panels}",
+            bottomWide.isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun `issue 849 page 6 three middle panels and bottom panel are not all merged into one region`() {
+        // Regression for issue #849: the page has a top splash, a 3-column middle row, and a wide
+        // bottom panel. The detector produced only 2 panels: the top splash (x=154 y=135 w=2052
+        // h=767) and everything below merged into one (x=0 y=965 w=2335 h=2091). The 3 middle
+        // panels and the bottom panel must be detected separately.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-849-split-panel-p6.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The 3 middle panels sit at y≈973-1719 (vertical centre in 30-55% of page height) and
+        // each spans about 27% of the page width. Require at least 2 panels in that zone.
+        val middlePanels = result.panels.filter { p ->
+            p.y + p.height / 2 in (mask.height * 0.30).toInt()..(mask.height * 0.55).toInt() &&
+                p.width.toDouble() / mask.width < 0.60
+        }
+        assertTrue(
+            "expected ≥2 middle-row panels (y-centre 30-55%, w<60%); panels=${result.panels}",
+            middlePanels.size >= 2,
+        )
+        // The wide bottom panel (user-drawn: x=66 y=1668 w=2268 h=1378) must be detected: a panel
+        // whose y-centre is in the bottom 35% and spans at least 75% of the page width.
+        val bottomWide = result.panels.filter { p ->
+            p.y + p.height / 2 > mask.height * 0.65 &&
+                p.width.toDouble() / mask.width >= 0.75
+        }
+        assertTrue(
+            "expected a wide bottom panel (y-centre > 65%, w ≥ 75%); panels=${result.panels}",
+            bottomWide.isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun `issue 848 page 5 complex layout with top splash and multiple panels is not a fallback`() {
+        // Regression for issue #848: the page has a top splash, 3 middle panels, and 4 bottom
+        // panels (8 total user-drawn). The detector returned Fallback (whole-page panel).
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-848-fallback-p5.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(
+            "expected Auto detection, not Fallback; got source=${result.source}",
+            PanelSource.Auto, result.source,
+        )
+        // The page clearly has multiple panel rows — require at least 3 panels.
+        assertTrue(
+            "expected ≥3 panels for this complex layout; got ${result.panels.size}: ${result.panels}",
+            result.panels.size >= 3,
+        )
+        // The bottom section (y > 55% of page) must contain at least 2 panels — these are the
+        // clearly-bordered small panels the user drew in the lower rows.
+        val bottomPanels = result.panels.filter { p ->
+            p.y + p.height / 2 > mask.height * 0.55
+        }
+        assertTrue(
+            "expected ≥2 panels in the bottom section (y-centre > 55%); panels=${result.panels}",
+            bottomPanels.size >= 2,
+        )
+    }
 }

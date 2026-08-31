@@ -1165,8 +1165,46 @@ class PanelDetector(
                 cropped.rowContentCount(y, innerMinX, innerMaxX) < contentCutoff
             }
             // Full ≥7-row threshold for general (non-banner) splits — keeps the guard above
-            // typical 1–5-row sparse-artwork noise.
-            projGutter?.takeIf { (_, thickness) -> thickness >= 7 }
+            // typical 1–5-row sparse-artwork noise. When the widest projection run is thick
+            // (≥7 rows) but would fail the minDimPx split-validity check — e.g. 169 rows of
+            // low-content artwork deep inside the lower panel shadow the genuine 30-row section
+            // boundary above — scan top-to-bottom for the first valid run that is also thick
+            // enough (≥20 rows) to beat a typical inter-column vertical gutter in bestGutter
+            // selection, ensuring the horizontal boundary wins. The ≥20-row floor avoids sparse
+            // artwork dips (typically 1–15 rows) and is below the genuine section boundary run
+            // (~30 rows) observed in practice.
+            run {
+                val pg = projGutter ?: return@run null
+                val (pgStart, pgThick) = pg
+                if (pgThick < 7) return@run null
+                val minDimPxH = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                val pgEnd = pgStart + pgThick - 1
+                if ((pgStart - bbox.minY) >= minDimPxH && (bbox.maxY - pgEnd) >= minDimPxH) return@run pg
+                var runStart = -1
+                val axisEnd = bbox.maxY - edgeMarginY
+                for (y in (bbox.minY + edgeMarginY)..axisEnd) {
+                    val isG = cropped.rowContentCount(y, innerMinX, innerMaxX) < contentCutoff
+                    if (isG) { if (runStart < 0) runStart = y }
+                    else if (runStart >= 0) {
+                        val t = y - runStart
+                        if (t >= 20) {
+                            val topH = runStart - bbox.minY
+                            val botH = bbox.maxY - (runStart + t - 1)
+                            if (topH >= minDimPxH && botH >= minDimPxH) return@run runStart to t
+                        }
+                        runStart = -1
+                    }
+                }
+                if (runStart >= 0) {
+                    val t = axisEnd - runStart + 1
+                    if (t >= 20) {
+                        val topH = runStart - bbox.minY
+                        val botH = bbox.maxY - (runStart + t - 1)
+                        if (topH >= minDimPxH && botH >= minDimPxH) return@run runStart to t
+                    }
+                }
+                null
+            }
                 // Thin-gutter banner fallback: at device scale (inSampleSize=2) the gutter between
                 // a banner and its adjacent section shrinks to ~4 rows after panel borders are
                 // removed, falling below the 7-row floor. Accept ≥4 rows when the split is
@@ -1216,6 +1254,33 @@ class PanelDetector(
                             topH >= bannerMinH && bottomH >= bannerMinH && bottomH < topH
                         }
                     }?.also { horizontalFromDiagonalFallback = true }
+                }
+                // Partial-gutter row-transition fallback: handles inter-section row boundaries
+                // inside tall bboxes where CC has merged multiple page sections. Panel-border pixels
+                // at the transition zone partially block the flood-fill (typical fraction: 15–25%),
+                // keeping it below the standard 30% threshold. Requires the bbox to span ≥ 50% of the
+                // page height (only arises when the CC covers most of the page — a structural anomaly,
+                // not a single-panel bbox), a run of ≥ 7 rows with ≥ 18% flood-fill gutter fraction,
+                // and each resulting piece ≥ minPanelDimensionFraction of the page height.
+                ?: run partialGutterRowTransitionFallback@{
+                    if (height.toDouble() / downscaledHeight.toDouble() < 0.50) return@partialGutterRowTransitionFallback null
+                    val relaxedGutter = widestGutterRun(
+                        axisStart = bbox.minY + edgeMarginY,
+                        axisEnd = bbox.maxY - edgeMarginY,
+                    ) { y ->
+                        val base = y * cropped.width
+                        var g = 0
+                        for (x in innerMinX..innerMaxX) if (gutter[base + x]) g++
+                        g.toLong() * 1000 >= innerWidth.toLong() * 180L
+                    }
+                    relaxedGutter?.takeIf { (start, thickness) ->
+                        if (thickness < 7) return@takeIf false
+                        val end = start + thickness - 1
+                        val topH = start - bbox.minY
+                        val bottomH = bbox.maxY - end
+                        val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                        topH >= minDimPx && bottomH >= minDimPx
+                    }
                 }
                 // If projection found nothing, fall back to a thin flood-fill gutter when
                 // banner-eligible. Flood-fill accessibility confirms the gutter connects to the
@@ -1306,7 +1371,7 @@ class PanelDetector(
 
         val hGutter = effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) }
         val vGutter = effectiveVerticalGutter?.let { Triple("v", it.first, it.second) }
-        val bestGutter = run {
+        val rawBestGutter = run {
             if (hGutter != null && vGutter != null) {
                 // When both H and V gutters are available, prefer H if it would produce a
                 // valid banner split. Without this preference the (typically thicker) vertical
@@ -1327,12 +1392,140 @@ class PanelDetector(
                     width.toDouble() / downscaledWidth >= 0.5 &&
                     minOf(topH, bottomH) >= (downscaledHeight * 0.05).toInt().coerceAtLeast(1) &&
                     (horizontalFromDiagonalFallback || minOf(topH, bottomH) >= (height * 0.25).toInt().coerceAtLeast(1))
+                val hWouldBeInvalid = topH < minDimPx || bottomH < minDimPx
                 if (bannerEligible) hGutter
+                else if (hWouldBeInvalid) {
+                    // The horizontal gutter would fail the minDimPx split-validity check.
+                    // A thick artwork low-content run (e.g. 169 rows deep in panel interior)
+                    // can shadow a thinner but genuine vertical column gutter this way.
+                    // When the vertical gutter would produce a valid split, prefer it.
+                    val (_, vStart, vThick) = vGutter
+                    val vEnd = vStart + vThick - 1
+                    val leftW = vStart - bbox.minX
+                    val rightW = bbox.maxX - vEnd
+                    val minDimPxW = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                    if (leftW >= minDimPxW && rightW >= minDimPxW) vGutter
+                    else listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }!!
+                }
                 else listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }!!
             } else {
                 listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }
             }
-        } ?: return listOf(bbox)
+        }
+
+        // Top-strip column-gap detection: scans the top 25% of a wide bbox for vertical column
+        // gaps, then measures how far each gap extends downward. Handles two layouts:
+        //
+        // (A) "Row separator" gaps — end well before the bbox bottom (gapEndFraction < 70%,
+        //     extension ≥ max(5% height, 30px)): the top portion is multi-column and the bottom
+        //     is a single wide panel. Use the deepest gap end as a HORIZONTAL split point.
+        //     Example: 3-panel middle row merges with a wide bottom panel via shared black
+        //     borders; the white column gutters in the middle row end at the row boundary.
+        //
+        // (B) "Column boundary" gaps — extend all the way to near the bbox bottom (within 2%
+        //     of height or 10px, whichever is larger): the bbox is a single multi-column row
+        //     where full-height projection misses the gutters (columns have dark borders in the
+        //     lower portion but white gutter in the upper portion). Collect all such gaps and
+        //     split the bbox VERTICALLY at each one.
+        //
+        // Width guard (≥ 70%): restricts to full-page-width rows; narrow sub-columns have
+        // already been separated from their neighbours and need no top-strip re-scan.
+        // Height guard (≥ 10%): excludes tiny slivers produced by earlier splits.
+        // The standard gutter would be blocked when axis="v" and this bbox is full-width + short
+        // (the guard at the split site rejects such splits to avoid false positives from speech
+        // bubbles). In that case the standard path returns listOf(bbox) — same as if rawBestGutter
+        // were null — so top-strip detection is equally applicable.
+        val standardVSplitWouldBeBlocked = rawBestGutter?.let {
+            it.first == "v" &&
+                width.toDouble() / downscaledWidth >= 0.95 &&
+                height.toDouble() / downscaledHeight <= 0.25
+        } == true
+        if ((rawBestGutter == null || standardVSplitWouldBeBlocked) &&
+            width.toDouble() / downscaledWidth >= 0.70 &&
+            height.toDouble() / downscaledHeight >= 0.10
+        ) {
+            val topStripH = (height * 0.25).toInt().coerceAtLeast(1)
+            val topStripEnd = bbox.minY + topStripH - 1
+            val maxColStrip = (bbox.minX..bbox.maxX).maxOf { x ->
+                cropped.colContentCount(x, bbox.minY, topStripEnd)
+            }
+            if (maxColStrip > 0) {
+                val stripCutoff = maxColStrip * 0.10
+                val extensionMin = maxOf((height * 0.05).toInt(), 30)
+                val minDimPxH = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                val minDimPxW = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                // Column-boundary threshold: gap must reach within this many rows of the bbox bottom.
+                val nearBottomTolerance = maxOf(10, (height * 0.02).toInt())
+
+                data class GapRun(val gapStart: Int, val gapThick: Int, val lastGapY: Int)
+                val gapRuns = mutableListOf<GapRun>()
+                var runStart3 = -1
+                for (x in (bbox.minX + edgeMarginX)..(bbox.maxX - edgeMarginX + 1)) {
+                    val inGap = x <= bbox.maxX - edgeMarginX &&
+                        cropped.colContentCount(x, bbox.minY, topStripEnd) < stripCutoff
+                    if (inGap) {
+                        if (runStart3 < 0) runStart3 = x
+                    } else if (runStart3 >= 0) {
+                        val gapStart = runStart3
+                        val gapThick = x - runStart3
+                        runStart3 = -1
+                        if (gapThick < 3) continue
+                        val gapContentThreshold = (gapThick * 0.20).toInt().coerceAtLeast(1)
+                        var lastGapY = topStripEnd
+                        for (y in (topStripEnd + 1)..bbox.maxY) {
+                            if (cropped.rowContentCount(y, gapStart, gapStart + gapThick - 1) > gapContentThreshold) break
+                            lastGapY = y
+                        }
+                        gapRuns.add(GapRun(gapStart, gapThick, lastGapY))
+                    }
+                }
+
+                // (B) Column-boundary gaps: reach the bottom → split VERTICALLY at each gap
+                val colBoundaryGaps = gapRuns.filter { bbox.maxY - it.lastGapY <= nearBottomTolerance }
+                if (colBoundaryGaps.isNotEmpty()) {
+                    val sortedGaps = colBoundaryGaps.sortedBy { it.gapStart }
+                    val subBboxes = mutableListOf<Bbox>()
+                    var prevX = bbox.minX
+                    for (gap in sortedGaps) {
+                        if (gap.gapStart > prevX) {
+                            val sub = Bbox(prevX, bbox.minY, gap.gapStart - 1, bbox.maxY)
+                            if (sub.maxX - sub.minX + 1 >= minDimPxW) subBboxes.add(sub)
+                        }
+                        prevX = gap.gapStart + gap.gapThick
+                    }
+                    if (prevX <= bbox.maxX) {
+                        val sub = Bbox(prevX, bbox.minY, bbox.maxX, bbox.maxY)
+                        if (sub.maxX - sub.minX + 1 >= minDimPxW) subBboxes.add(sub)
+                    }
+                    if (subBboxes.size >= 2) {
+                        return subBboxes.flatMap {
+                            splitSinglePanelRecursively(it, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight)
+                        }
+                    }
+                }
+
+                // (A) Row-separator gaps: end before the bottom → split HORIZONTALLY at deepest gap
+                var bestSplitY = -1
+                for (gap in gapRuns) {
+                    val lastGapY = gap.lastGapY
+                    if (lastGapY - topStripEnd < extensionMin) continue
+                    val gapEndFraction = (lastGapY - bbox.minY).toDouble() / height
+                    if (gapEndFraction >= 0.70) continue
+                    val topH = lastGapY - bbox.minY + 1
+                    val bottomH = bbox.maxY - lastGapY
+                    if (topH < minDimPxH || bottomH < minDimPxH) continue
+                    if (lastGapY > bestSplitY) bestSplitY = lastGapY
+                }
+                if (bestSplitY >= 0) {
+                    val topBbox = Bbox(bbox.minX, bbox.minY, bbox.maxX, bestSplitY)
+                    val botBbox = Bbox(bbox.minX, bestSplitY + 1, bbox.maxX, bbox.maxY)
+                    return splitSinglePanelRecursively(topBbox, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight) +
+                        splitSinglePanelRecursively(botBbox, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight)
+                }
+            }
+        }
+
+        val bestGutter = rawBestGutter ?: return listOf(bbox)
 
         if (bestGutter.third < config.internalGutterMinThickness) return listOf(bbox)
         val maxGutterThickness = when (bestGutter.first) {
