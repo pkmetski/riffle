@@ -26,6 +26,9 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.koin.core)
         }
+        iosMain.dependencies {
+            implementation(libs.koin.core)
+        }
         jvmTest.dependencies {
             implementation(libs.junit)
             implementation(libs.kotlinx.coroutines.test)
