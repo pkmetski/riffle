@@ -6,8 +6,8 @@ import android.util.LruCache
 import android.view.WindowManager
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
@@ -446,14 +446,18 @@ private fun CbzPage(
     var offsetY by remember(pageIndex) { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
     var zoomAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val decode by produceState(initialValue = CbzPageDecodeState(), key1 = pageIndex, key2 = source) {
+    val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = pageIndex, key2 = source) {
         val result = decodeWithRetry(attempts = decodeAttemptsFor(source)) {
             withContext(Dispatchers.IO) {
                 runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
             }
         }
-        value = CbzPageDecodeState(bitmap = result, settled = true)
+        value = CbzPageDecodeState(bitmap = result, settled = true, forPage = pageIndex)
     }
+    // Each pager slot has a fixed pageIndex so this gate is currently a no-op, but applying it
+    // keeps the "decode must belong to the page it renders for" contract enforced everywhere
+    // CbzPageDecodeState is consumed, not just in CbzPanelViewer.
+    val decode = decodeForPage(rawDecode, pageIndex)
     val bitmap = decode.bitmap
     val context = LocalContext.current
 
@@ -543,7 +547,7 @@ private fun CbzPage(
         // otherwise show a fully blank page with no feedback until the download completes.
         // Once the decode has settled without a bitmap (retry budget spent, or an undecodable
         // page in a local archive), show an error instead of an infinite spinner.
-        when (cbzPageContent(bitmap, decode.settled)) {
+        when (cbzPageContent(bitmap != null, decode.settled)) {
             CbzPageContent.Loading -> CircularProgressIndicator()
             CbzPageContent.Error -> Text(
                 text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
@@ -595,14 +599,20 @@ private fun CbzPanelViewer(
         }
     }
 
-    val decode by produceState(initialValue = CbzPageDecodeState(), key1 = currentPage, key2 = state.imageSource) {
+    val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = currentPage, key2 = state.imageSource) {
+        // Drop the previous page's bitmap immediately — the gate below already hides it, but
+        // clearing the reference frees the native allocation sooner (API-25 bitmaps live
+        // outside the GC heap).
+        value = CbzPageDecodeState()
         val result = decodeWithRetry(attempts = decodeAttemptsFor(state.imageSource)) {
             withContext(Dispatchers.IO) {
                 runCatching { decodeSampledBitmap(state.imageSource, currentPage, MAX_PAGE_DIMENSION) }.getOrNull()
             }
         }
-        value = CbzPageDecodeState(bitmap = result, settled = true)
+        value = CbzPageDecodeState(bitmap = result, settled = true, forPage = currentPage)
     }
+    // Never render another page's bitmap through this page's panel transform (zoom flash).
+    val decode = decodeForPage(rawDecode, currentPage)
     val bitmap = decode.bitmap
 
     var viewportW by remember { mutableStateOf(0) }
@@ -659,41 +669,60 @@ private fun CbzPanelViewer(
         val translationX = transform.translationX
         val translationY = transform.translationY
 
-        // Animate scale + translation between panels. Declarative — Compose interpolates
-        // whenever the target values change, and a mid-flight change simply re-targets
-        // (interrupt semantics — ADR 0055 §4). Reduce Motion collapses to a snap.
+        // Animate scale + translation between panels. Reduce Motion collapses to a snap.
+        //
+        // We use Animatable directly (not animateFloatAsState) to avoid the spurious pan on
+        // first load. The problem with animateFloatAsState: it uses rememberUpdatedState for the
+        // animationSpec, so any spec change takes effect only after the next recomposition —
+        // the spec we want (snap) is always overwritten to tween by the time the internal
+        // LaunchedEffect coroutine reads it. Animatable gives explicit snapTo/animateTo control.
+        //
+        // The key insight: remember(currentPage, pagePanels, viewportW, viewportH) re-creates
+        // each Animatable — initialized to the CORRECT target — whenever the page, the resolved
+        // panel set, or the viewport size changes. That means on first viewport measurement
+        // (0→real), on every page turn, AND when detection results arrive (pagePanels null→value
+        // is load-bearing here!), the Animatable already starts at the right value; no animation
+        // runs. Only panel-index navigation on an already-measured page goes through animateTo.
         val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
-        val animationSpec = remember(reduceMotion, panelAnimationSpeedMs) {
-            if (reduceMotion || panelAnimationSpeedMs == 0) snap<Float>() else tween<Float>(durationMillis = panelAnimationSpeedMs)
+        val tweenSpec = remember(panelAnimationSpeedMs) { tween<Float>(durationMillis = panelAnimationSpeedMs) }
+        val scaleAnim = remember(currentPage, pagePanels, viewportW, viewportH) { Animatable(zoomScale) }
+        val txAnim = remember(currentPage, pagePanels, viewportW, viewportH) { Animatable(translationX) }
+        val tyAnim = remember(currentPage, pagePanels, viewportW, viewportH) { Animatable(translationY) }
+        LaunchedEffect(zoomScale, translationX, translationY) {
+            if (viewportW <= 0 || viewportH <= 0) return@LaunchedEffect
+            // Skip if Animatables were just initialized to this same target (viewport/page change)
+            if (zoomScale == scaleAnim.targetValue &&
+                translationX == txAnim.targetValue &&
+                translationY == tyAnim.targetValue) return@LaunchedEffect
+            if (reduceMotion || panelAnimationSpeedMs == 0) {
+                scaleAnim.snapTo(zoomScale)
+                txAnim.snapTo(translationX)
+                tyAnim.snapTo(translationY)
+            } else {
+                launch { scaleAnim.animateTo(zoomScale, tweenSpec) }
+                launch { txAnim.animateTo(translationX, tweenSpec) }
+                launch { tyAnim.animateTo(translationY, tweenSpec) }
+            }
         }
-        val animatedScale by animateFloatAsState(
-            targetValue = zoomScale,
-            animationSpec = animationSpec,
-            label = "cbz_panel_scale",
-        )
-        val animatedTx by animateFloatAsState(
-            targetValue = translationX,
-            animationSpec = animationSpec,
-            label = "cbz_panel_tx",
-        )
-        val animatedTy by animateFloatAsState(
-            targetValue = translationY,
-            animationSpec = animationSpec,
-            label = "cbz_panel_ty",
-        )
 
         // Same null-bitmap contract as CbzPage: render the spinner ourselves — Coil treats a
         // null model as an instant (empty) error, not a loading state.
-        when (cbzPageContent(bitmap, decode.settled)) {
+        //
+        // When pagePanels is null the detector hasn't finished yet.  Showing the image at
+        // Identity (whole-page) and then jumping to the panel-focused transform once panels
+        // arrive is exactly the "spurious pan" the user sees.  Holding on a spinner until
+        // panels are ready avoids that — the image first appears already at the correct position.
+        // Fallback pages (pagePanels.isFallback) mean detection completed and found no panels;
+        // they use the whole-page view and must pass through.
+        val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
+        when (cbzPageContent(bitmap != null, decode.settled, panelsReady = pagePanels != null)) {
             CbzPageContent.Loading -> CircularProgressIndicator()
             CbzPageContent.Error -> Text(
                 text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
                 color = MaterialTheme.colorScheme.onSurface,
             )
             CbzPageContent.Image -> SubcomposeAsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(bitmap)
-                    .build(),
+                model = imageRequest,
                 contentDescription = androidx.compose.ui.res.stringResource(
                     com.riffle.app.R.string.ui_comic_page_panel,
                     currentPage + 1,
@@ -702,12 +731,14 @@ private fun CbzPanelViewer(
                 loading = { CircularProgressIndicator() },
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = animatedScale,
-                        scaleY = animatedScale,
-                        translationX = animatedTx,
-                        translationY = animatedTy,
-                    ),
+                    // Lambda form: reads the Animatable values at draw time, so animation frames
+                    // don't recompose the Coil subcompose tree.
+                    .graphicsLayer {
+                        scaleX = scaleAnim.value
+                        scaleY = scaleAnim.value
+                        this.translationX = txAnim.value
+                        this.translationY = tyAnim.value
+                    },
             )
         }
 
@@ -773,15 +804,41 @@ internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 internal enum class CbzPageContent { Loading, Image, Error }
 
 /** Result of a page decode attempt: [settled] flips true once the retry budget is spent. */
-internal data class CbzPageDecodeState(val bitmap: Bitmap? = null, val settled: Boolean = false)
+internal data class CbzPageDecodeState(
+    val bitmap: Bitmap? = null,
+    val settled: Boolean = false,
+    /** The page this decode belongs to; -1 until a decode settles. */
+    val forPage: Int = -1,
+)
 
 /**
- * What a comic page slot should render. A null bitmap with the decode still running must show a
- * loading indicator, never a blank page; a null bitmap after the decode settled (retry budget
- * spent, or an undecodable page) must show an error, never an infinite spinner.
+ * Returns [decode] only when it belongs to [currentPage]; otherwise an empty (loading) state.
+ *
+ * CbzPanelViewer is a single composable reused across pages, and produceState keeps its last
+ * value while the restarted producer decodes the new page. Without this gate the previous
+ * page's bitmap is briefly rendered through the NEW page's panel transform — an unnecessary
+ * zoom flash right before every page change.
  */
-internal fun cbzPageContent(bitmap: Bitmap?, decodeSettled: Boolean): CbzPageContent = when {
-    bitmap != null -> CbzPageContent.Image
+internal fun decodeForPage(decode: CbzPageDecodeState, currentPage: Int): CbzPageDecodeState =
+    if (decode.forPage == currentPage) decode else CbzPageDecodeState()
+
+/**
+ * What a comic page slot should render. A missing bitmap with the decode still running must show
+ * a loading indicator, never a blank page; a missing bitmap after the decode settled (retry
+ * budget spent, or an undecodable page) must show an error, never an infinite spinner.
+ *
+ * [panelsReady] is the Panel View gate: while panel detection is still resolving, a decoded
+ * bitmap must NOT render — it would appear at Identity (whole-page) and then jump to the
+ * panel-focused transform when detection lands (the "spurious pan"). The panel viewer passes
+ * `pagePanels != null`; the plain pager always passes true.
+ */
+internal fun cbzPageContent(
+    hasBitmap: Boolean,
+    decodeSettled: Boolean,
+    panelsReady: Boolean = true,
+): CbzPageContent = when {
+    hasBitmap && panelsReady -> CbzPageContent.Image
+    hasBitmap -> CbzPageContent.Loading
     decodeSettled -> CbzPageContent.Error
     else -> CbzPageContent.Loading
 }

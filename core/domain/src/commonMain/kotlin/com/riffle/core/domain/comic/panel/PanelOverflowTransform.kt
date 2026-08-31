@@ -1,10 +1,63 @@
 package com.riffle.core.domain.comic.panel
 
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 object PanelOverflowTransform {
+
+    /**
+     * Minimum zoom gain a half-split must achieve for a panel to be split.
+     * A true banner (wide+short in portrait) roughly doubles its zoom when halved (gain ≈ 2.0).
+     * Splitting a panel along an axis that is not its binding constraint gains nothing (≈ 1.0):
+     * the "slices" are the same fit view merely panned with black voids — the senseless pan
+     * reported on single-panel pages. 1.5 sits between the two. Note the gain is viewport
+     * dependent: a full-page splash panel splits left/right on a tall 20:9 phone (gain ≈ 1.57,
+     * each half genuinely magnified) but stays whole on a 16:9 display (gain ≈ 1.25).
+     */
+    private const val MIN_SPLIT_ZOOM_GAIN = 1.5f
+
+    /** A panel must span at least this fraction of the page along the viewport's long axis. */
+    private const val SPAN_THRESHOLD = 0.85f
+
+    /**
+     * Decides whether [panel] should be split and along which axis. Returns `true` for a
+     * horizontal (left/right) split, `false` for a vertical (top/bottom) split, or `null` when
+     * the panel should stay whole.
+     *
+     * The direction is the axis whose half-split yields the larger zoom gain — i.e. the axis
+     * that is the binding constraint of the whole-panel fit. Splitting is only worthwhile when
+     * that gain clears [MIN_SPLIT_ZOOM_GAIN]; otherwise the slices render at (nearly) the same
+     * zoom as the whole panel and the extra tap conveys nothing.
+     */
+    private fun splitHorizontallyOrNull(
+        panel: PanelRegion,
+        imageWidth: Int,
+        imageHeight: Int,
+        viewportWidth: Int,
+        viewportHeight: Int,
+    ): Boolean? {
+        if (viewportWidth <= 0 || viewportHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) return null
+        val widthRatio = panel.width.toFloat() / imageWidth
+        val heightRatio = panel.height.toFloat() / imageHeight
+        val isPortrait = viewportHeight > viewportWidth
+        val isLandscape = viewportWidth > viewportHeight
+        val spansSplitAxis = (isPortrait && widthRatio >= SPAN_THRESHOLD) ||
+            (isLandscape && heightRatio >= SPAN_THRESHOLD)
+        if (!spansSplitAxis) return null
+        // Measure the gain with the SAME function the renderer uses for the camera, so the
+        // split decision can never drift from the zoom the split actually delivers.
+        fun zoomFor(p: PanelRegion) =
+            PanelFitTransform.compute(viewportWidth, viewportHeight, imageWidth, imageHeight, p).scale
+        val zoomWhole = zoomFor(panel)
+        val gainHorizontal =
+            zoomFor(panel.copy(width = (panel.width / 2).coerceAtLeast(1))) / zoomWhole
+        val gainVertical =
+            zoomFor(panel.copy(height = (panel.height / 2).coerceAtLeast(1))) / zoomWhole
+        if (max(gainHorizontal, gainVertical) < MIN_SPLIT_ZOOM_GAIN) return null
+        return gainHorizontal >= gainVertical
+    }
 
     fun isOverflowing(
         panel: PanelRegion,
@@ -12,27 +65,18 @@ object PanelOverflowTransform {
         imageHeight: Int,
         viewportWidth: Int,
         viewportHeight: Int,
-    ): Boolean {
-        val fitScale = min(viewportWidth.toFloat() / imageWidth, viewportHeight.toFloat() / imageHeight)
-        val panelDisplayW = panel.width * fitScale
-        val panelDisplayH = panel.height * fitScale
-        val widthRatio = panel.width.toFloat() / imageWidth
-        val heightRatio = panel.height.toFloat() / imageHeight
-        val isPortrait = viewportHeight > viewportWidth
-        val isLandscape = viewportWidth > viewportHeight
-        val isWideOverflow = isPortrait && widthRatio >= 0.85f && panelDisplayW < viewportHeight
-        val isTallOverflow = isLandscape && heightRatio >= 0.85f && panelDisplayH < viewportWidth
-        return isWideOverflow || isTallOverflow
-    }
+    ): Boolean = splitHorizontallyOrNull(panel, imageWidth, imageHeight, viewportWidth, viewportHeight) != null
 
     /**
      * Applies the overflow behavior to the panel list. For SPLIT and SMART_SPLIT, overflowing
-     * panels are divided into two halves. SMART_SPLIT uses [energySampler] to find the
-     * lowest-energy seam in the panel; falls back to dead-centre when the sampler is null.
+     * panels are divided into two halves along the axis that maximises zoom gain. SMART_SPLIT
+     * uses [energySampler] to find the lowest-energy seam in the panel; falls back to
+     * dead-centre when the sampler is null.
      *
-     * @param energySampler Returns a FloatArray of energies along the split axis (columns for
-     * wide panels, rows for tall panels). Length may differ from the panel's pixel dimension —
-     * the split position is derived by normalising the index back to panel pixel space.
+     * @param energySampler Returns a FloatArray of energies along the requested split axis
+     * (columns when `splitHorizontally` is true, rows otherwise). Length may differ from the
+     * panel's pixel dimension — the split position is derived by normalising the index back to
+     * panel pixel space.
      */
     fun applyOverflow(
         panels: List<PanelRegion>,
@@ -41,21 +85,17 @@ object PanelOverflowTransform {
         viewportWidth: Int,
         viewportHeight: Int,
         behavior: PanelOverflowBehavior,
-        energySampler: ((PanelRegion) -> FloatArray)? = null,
+        energySampler: ((panel: PanelRegion, splitHorizontally: Boolean) -> FloatArray)? = null,
     ): List<PanelRegion> {
         if (behavior == PanelOverflowBehavior.OFF) return panels
         return panels.flatMap { panel ->
-            if (isOverflowing(panel, imageWidth, imageHeight, viewportWidth, viewportHeight)) {
-                val widthRatio = panel.width.toFloat() / imageWidth
-                val heightRatio = panel.height.toFloat() / imageHeight
-                val isWide = widthRatio >= heightRatio
-                if (behavior == PanelOverflowBehavior.SMART_SPLIT && energySampler != null) {
-                    panel.splitAtSmartSeam(energySampler(panel), isWide)
-                } else {
-                    panel.splitAtCenter(isWide)
-                }
-            } else {
-                listOf(panel)
+            val splitHorizontally =
+                splitHorizontallyOrNull(panel, imageWidth, imageHeight, viewportWidth, viewportHeight)
+            when {
+                splitHorizontally == null -> listOf(panel)
+                behavior == PanelOverflowBehavior.SMART_SPLIT && energySampler != null ->
+                    panel.splitAtSmartSeam(energySampler(panel, splitHorizontally), splitHorizontally)
+                else -> panel.splitAtCenter(splitHorizontally)
             }
         }
     }
