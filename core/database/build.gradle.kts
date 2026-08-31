@@ -28,11 +28,25 @@ kotlin {
     iosSimulatorArm64()
 
     sourceSets {
+        // Intermediate source set for Android + JVM targets only.
+        // sqlite-bundled and buildRiffleDatabase() live here so the iOS XCFramework link graph
+        // never picks up the bundled SQLite binary (which causes OOM in the Kotlin/Native linker).
+        val nonIosMain by creating { dependsOn(commonMain.get()) }
+        androidMain.get().dependsOn(nonIosMain)
+        jvmMain.get().dependsOn(nonIosMain)
+
         commonMain.dependencies {
             api(project(":core:database-api"))
             implementation(libs.androidx.room.runtime)
-            implementation(libs.androidx.sqlite.bundled)
             implementation(libs.kotlinx.coroutines.core)
+        }
+        // BundledSQLiteDriver is only used on Android/JVM — never on iOS.
+        getByName("nonIosMain").dependencies {
+            implementation(libs.androidx.sqlite.bundled)
+        }
+        iosMain.dependencies {
+            // System SQLite via NativeSqliteDriver: zero added link weight (uses OS SQLite).
+            implementation(libs.sqldelight.native.driver)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -51,11 +65,10 @@ kotlin {
     }
 }
 
+// Room KSP only for Android and JVM — iOS uses SQLDelight, not Room.
 dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
     add("kspJvm", libs.androidx.room.compiler)
-    add("kspIosArm64", libs.androidx.room.compiler)
-    add("kspIosSimulatorArm64", libs.androidx.room.compiler)
 }
 
 room {
