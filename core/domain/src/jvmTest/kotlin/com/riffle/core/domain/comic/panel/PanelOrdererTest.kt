@@ -65,4 +65,92 @@ class PanelOrdererTest {
         assertEquals(20, ordered[0].x)
         assertEquals(210, ordered[1].x)
     }
+
+    // --- Regression tests for issue #791 ---
+    // The shortest-member sharesRowWith rule (introduced for #780) is order-dependent and breaks
+    // the three layouts below. All three should be a single row sorted left-to-right.
+
+    @Test
+    fun `split middle column does not exile the bottom-half continuation panel`() {
+        // CE1 from issue #791 (800×1200 page).
+        // A tall left (A) and tall right (D) flank a short top-middle (B) and a taller
+        // bottom-middle (C). B joining first makes it the shortest member; C then has zero
+        // overlap with B and is wrongly exiled, producing A,B,D,C instead of A,B,C,D.
+        val a = PanelRegion(x = 20, y = 40, width = 240, height = 560)   // tall left
+        val b = PanelRegion(x = 280, y = 40, width = 240, height = 170)  // short mid-top
+        val c = PanelRegion(x = 280, y = 230, width = 240, height = 370) // taller mid-bot
+        val d = PanelRegion(x = 540, y = 40, width = 240, height = 560)  // tall right
+        val ordered = orderer.order(listOf(a, b, d, c))                  // deliberately shuffled
+        assertEquals("all four panels should be in one row sorted left-to-right",
+            listOf(20, 280, 280, 540), ordered.map { it.x })
+        assertEquals("within same x, top panel (B) precedes continuation (C)",
+            listOf(40, 40, 230, 40), ordered.map { it.y })
+    }
+
+    @Test
+    fun `leftward-descending terrace reads left-to-right as a single band`() {
+        // CE2 from issue #791 (terrace: each panel starts a little lower and further left).
+        // Under the shortest-member rule A is exiled because it overlaps C (the shortest
+        // member, h=200) by only 40% → output B,C,A instead of A,B,C.
+        val a = PanelRegion(x = 0, y = 120, width = 180, height = 280)   // bottom-left
+        val b = PanelRegion(x = 200, y = 60, width = 180, height = 280)  // middle
+        val c = PanelRegion(x = 400, y = 0, width = 180, height = 200)   // short top-right
+        val ordered = orderer.order(listOf(c, b, a))                     // deliberately shuffled
+        assertEquals("terrace panels form one row, read left-to-right",
+            listOf(0, 200, 400), ordered.map { it.x })
+    }
+
+    @Test
+    fun `caption strip does not collapse the band and exile the panel below it`() {
+        // CE3 from issue #791.
+        // A thin caption (D, h=40) joins the row first and becomes the shortest member.
+        // B (which starts below D's bottom) then has zero overlap with D and is exiled,
+        // producing A,D,C,B instead of A,D,B,C.
+        val a = PanelRegion(x = 20, y = 20, width = 180, height = 280)  // tall left
+        val d = PanelRegion(x = 220, y = 20, width = 180, height = 40)  // thin caption
+        val b = PanelRegion(x = 220, y = 80, width = 180, height = 220) // panel below caption
+        val c = PanelRegion(x = 620, y = 20, width = 180, height = 280) // tall right
+        val ordered = orderer.order(listOf(a, d, c, b))                 // deliberately shuffled
+        assertEquals("all four in one row, left-to-right (d before b at same x by y)",
+            listOf(20, 220, 220, 620), ordered.map { it.x })
+        assertEquals("D (top) precedes B (below it) at the same x column",
+            listOf(20, 20, 80, 20), ordered.map { it.y })
+    }
+
+    @Test
+    fun `CE1 result is stable regardless of input emission order`() {
+        // Issue #791 also notes the shortest-member rule is order-dependent; verify the fix
+        // produces A,B,C,D for all permutations of the equal-y triplet.
+        val a = PanelRegion(x = 20, y = 40, width = 240, height = 560)
+        val b = PanelRegion(x = 280, y = 40, width = 240, height = 170)
+        val c = PanelRegion(x = 280, y = 230, width = 240, height = 370)
+        val d = PanelRegion(x = 540, y = 40, width = 240, height = 560)
+        val expectedX = listOf(20, 280, 280, 540)
+        val expectedY = listOf(40, 40, 230, 40)
+        for (input in listOf(
+            listOf(a, b, c, d), listOf(d, b, a, c), listOf(b, d, a, c), listOf(a, d, b, c),
+        )) {
+            val ordered = orderer.order(input)
+            assertEquals("emission order $input → wrong x sequence", expectedX, ordered.map { it.x })
+            assertEquals("emission order $input → wrong y sequence", expectedY, ordered.map { it.y })
+        }
+    }
+
+    @Test
+    fun `tall spanning panel still exiles the lower panel in its own column (issue 780 shape)`() {
+        // Regression guard: the union+exile fix must not re-introduce the #780 bug.
+        // Mirrors the real fixture geometry from the #780 test in PanelDetectorImageTest:
+        //   tall-left   x=0..460,  y=200..1080
+        //   upper-right x=520..800, y=200..510  (no x-overlap with tall-left)
+        //   lower-right x=446..800, y=510..1120 (x-overlaps tall-left; extends past its bottom)
+        // Correct order: tall-left → upper-right → lower-right.
+        val tallLeft = PanelRegion(x = 0, y = 200, width = 460, height = 880)    // x=0..460, y=200..1080
+        val upperRight = PanelRegion(x = 520, y = 200, width = 280, height = 310) // x=520..800, y=200..510
+        val lowerRight = PanelRegion(x = 446, y = 510, width = 354, height = 610) // x=446..800, y=510..1120
+        val ordered = orderer.order(listOf(lowerRight, upperRight, tallLeft))     // shuffled
+        assertEquals(3, ordered.size)
+        assertEquals("tall-left must be first", tallLeft, ordered[0])
+        assertEquals("upper-right must be second", upperRight, ordered[1])
+        assertEquals("lower-right must be last", lowerRight, ordered[2])
+    }
 }

@@ -35,17 +35,29 @@ class PanelOrderer(
     }
 
     private fun sharesRowWith(row: List<PanelRegion>, candidate: PanelRegion): Boolean {
-        // A candidate belongs to a row if it y-overlaps the SHORTEST panel in the row by at least
-        // [rowOverlapFraction] of the shorter of (candidate, shortest-panel). Using the shortest
-        // panel (not the cumulative row extent) prevents tall spanning panels — e.g. a left-column
-        // panel that spans two reading rows — from pulling lower-row panels into the same row band
-        // and then having them sorted by x rather than by y (which produces the wrong reading order).
-        val shortest = row.minByOrNull { it.height } ?: return false
-        val overlapTop = maxOf(shortest.y, candidate.y)
-        val overlapBottom = minOf(shortest.bottom, candidate.bottom)
+        // Base: candidate must y-overlap the row's cumulative y-extent by at least
+        // [rowOverlapFraction] of the shorter of (row extent, candidate height).
+        val rowTop = row.minOf { it.y }
+        val rowBottom = row.maxOf { it.bottom }
+        val overlapTop = maxOf(rowTop, candidate.y)
+        val overlapBottom = minOf(rowBottom, candidate.bottom)
         if (overlapBottom <= overlapTop) return false
         val overlap = overlapBottom - overlapTop
-        val shorter = minOf(shortest.height, candidate.height)
-        return overlap.toDouble() / shorter.toDouble() >= rowOverlapFraction
+        val shorter = minOf(rowBottom - rowTop, candidate.height)
+        if (overlap.toDouble() / shorter.toDouble() < rowOverlapFraction) return false
+        // Exile: a row member that x-overlaps the candidate, starts at or above it, and whose
+        // y-range overlaps ≥ [rowOverlapFraction] of the candidate's height while NOT fully
+        // containing the candidate (member.bottom ≤ candidate.bottom — the candidate's tail
+        // sticks out below) signals the candidate is "spilling below" a spanning panel and
+        // belongs in the next row. This fixes #780 (tall-left absorbs lower-right despite
+        // lower-right starting 310 px below upper-right) while leaving mixed-height single-band
+        // layouts intact (#791): in those cases either the member doesn't x-overlap the
+        // candidate, or the overlap fraction is below the threshold because the panels are
+        // y-adjacent rather than y-overlapping.
+        return row.none { member ->
+            member.right > candidate.x && member.x < candidate.right &&
+                member.y <= candidate.y && member.bottom <= candidate.bottom &&
+                (member.bottom - candidate.y).toDouble() / candidate.height.toDouble() >= rowOverlapFraction
+        }
     }
 }

@@ -297,7 +297,7 @@ class JsonPanelStore constructor(
          *      check to fail. Pages with a falling-right diagonal boundary where a horizontal gutter
          *      row sits above the diagonal start now have the correct wider bottom-left panel.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 34
+        internal const val CURRENT_SCHEMA_VERSION: Int = 35
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
