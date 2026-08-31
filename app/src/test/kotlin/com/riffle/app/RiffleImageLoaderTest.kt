@@ -1,5 +1,6 @@
 package com.riffle.app
 
+import coil3.SingletonImageLoader
 import com.riffle.core.network.COVER_CACHE_CONTROL_INTERCEPTOR
 import com.riffle.core.network.createImageLoaderOkHttpClient
 import okhttp3.Authenticator
@@ -18,6 +19,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.Proxy
 import java.net.ProxySelector
@@ -27,6 +29,15 @@ import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
 
 class RiffleImageLoaderTest {
+
+    @Test
+    fun `RiffleApplication implements Coil v3 SingletonImageLoader Factory not v2 ImageLoaderFactory`() {
+        // Pin the Coil v3 factory interface. If someone reverts to coil.ImageLoaderFactory (v2),
+        // the class no longer implements SingletonImageLoader.Factory and this test flips red.
+        assertTrue(
+            RiffleApplication::class.java.interfaces.any { it == SingletonImageLoader.Factory::class.java },
+        )
+    }
 
     @Test
     fun `cover OkHttp client has no disk Cache so it cannot collide with Coil's DiskCache`() {

@@ -52,8 +52,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import org.koin.androidx.compose.koinViewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import androidx.compose.ui.platform.LocalContext
 import com.riffle.core.domain.AbsCandidate
 import com.riffle.core.domain.AbsFormatFilter
@@ -523,7 +526,7 @@ private fun Cover(coverUrl: String?, token: String?) {
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(coverUrl)
-            .apply { if (token != null) addHeader("Authorization", token.asAuthHeader()) }
+            .apply { if (token != null) httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build()) }
             .crossfade(true)
             .build(),
         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),

@@ -32,8 +32,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.app.ui.fadingScrollbar
 import com.riffle.core.data.AnnotatedBook
@@ -133,7 +136,7 @@ private fun AnnotatedBookCoverTile(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(book.coverUrl)
-                        .addHeader("Authorization", token.asAuthHeader())
+                        .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                         .crossfade(true)
                         .build(),
                     contentDescription = book.title,

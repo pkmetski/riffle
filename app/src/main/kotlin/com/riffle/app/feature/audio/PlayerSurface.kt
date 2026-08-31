@@ -61,8 +61,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.feature.audiobook.SleepTimerMode
 import com.riffle.app.feature.audiobook.formatCountdown
@@ -217,7 +219,7 @@ private fun PlayerCover(state: PlayerSurfaceState, modifier: Modifier) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(state.coverUrl)
-                .addHeader("Authorization", "Bearer ${state.authToken}")
+                .httpHeaders(NetworkHeaders.Builder().add("Authorization", "Bearer ${state.authToken}").build())
                 .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,

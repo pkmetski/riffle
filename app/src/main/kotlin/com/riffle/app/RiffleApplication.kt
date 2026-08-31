@@ -2,9 +2,12 @@ package com.riffle.app
 
 import android.app.Application
 import android.content.Context
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.disk.DiskCache
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.riffle.app.di.riffleViewModelKoinModules
 import com.riffle.core.data.di.coreDataKoinModules
 import com.riffle.core.logging.loggingKoinModule
@@ -25,7 +28,7 @@ import org.acra.config.limiter
 import org.acra.ktx.initAcra
 import java.util.concurrent.TimeUnit
 
-class RiffleApplication : Application(), ImageLoaderFactory {
+class RiffleApplication : Application(), SingletonImageLoader.Factory {
 
     private var logger: com.riffle.core.logging.Logger = com.riffle.core.logging.NoopLogger
 
@@ -147,9 +150,11 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         }
     }
 
-    override fun newImageLoader(): ImageLoader =
-        ImageLoader.Builder(this)
-            .okHttpClient { createImageLoaderOkHttpClient() }
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { createImageLoaderOkHttpClient() }))
+            }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))

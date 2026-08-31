@@ -88,8 +88,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
 import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
 import com.riffle.app.feature.audiobook.formatCompactDuration
 import com.riffle.app.feature.readersettings.TocPanel
@@ -612,7 +614,7 @@ internal fun LibraryItemDetailContent(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(item.coverUrl)
-                        .addHeader("Authorization", token.asAuthHeader())
+                        .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                         .instrumentCover("detail", item.id, item.coverUrl)
                         .build(),
                     contentDescription = null,
@@ -976,7 +978,7 @@ internal fun LibraryItemDetailContentTablet(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(item.coverUrl)
-                            .addHeader("Authorization", token.asAuthHeader())
+                            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                             .instrumentCover("detail", item.id, item.coverUrl)
                             .build(),
                         contentDescription = null,
@@ -1182,7 +1184,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(item.coverUrl)
-                            .addHeader("Authorization", token.asAuthHeader())
+                            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                             .instrumentCover("detail", item.id, item.coverUrl)
                             .build(),
                         contentDescription = null,

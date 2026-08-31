@@ -114,8 +114,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import android.util.Log
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
@@ -685,7 +688,7 @@ fun BookCoverTile(
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(item.coverUrl)
-                    .addHeader("Authorization", token.asAuthHeader())
+                    .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                     .crossfade(true)
                     .instrumentCover("item", item.id, item.coverUrl)
                     .build(),
@@ -775,7 +778,7 @@ fun SeriesCoverTile(
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(resolvedCoverUrl)
-                    .addHeader("Authorization", token.asAuthHeader())
+                    .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                     .crossfade(true)
                     .instrumentCover("series", series.id, resolvedCoverUrl)
                     .build(),
@@ -852,7 +855,7 @@ private fun CollectionCoverImage(url: String?, token: String, modifier: Modifier
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(url)
-            .addHeader("Authorization", token.asAuthHeader())
+            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
             .crossfade(true)
             .instrumentCover("collection", null, url)
             .build(),
@@ -915,7 +918,7 @@ private fun SearchSeriesRow(series: Series, token: String, coverUrl: String? = n
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(resolvedCoverUrl)
-                        .addHeader("Authorization", token.asAuthHeader())
+                        .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                         .crossfade(true)
                         .build(),
                     contentDescription = series.name,
@@ -1016,7 +1019,7 @@ internal fun AnnotationResultRow(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(result.bookCoverUrl)
-                            .addHeader("Authorization", token.asAuthHeader())
+                            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                             .crossfade(true)
                             .build(),
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
@@ -1071,7 +1074,7 @@ internal fun AudiobookBookmarkResultRow(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(result.bookCoverUrl)
-                            .addHeader("Authorization", token.asAuthHeader())
+                            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                             .crossfade(true)
                             .build(),
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
@@ -1275,7 +1278,7 @@ internal fun LibraryItemCard(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(item.coverUrl)
-                        .addHeader("Authorization", token.asAuthHeader())
+                        .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
                         .crossfade(true)
                         .instrumentCover("card", item.id, item.coverUrl)
                         .build(),

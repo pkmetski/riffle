@@ -30,7 +30,7 @@ espressoCore = "3.7.0"
 androidxTest = "1.6.2"
 coroutines = "1.11.0"
 kotlinx-serialization = "1.7.3"
-coil = "2.7.0"
+coil = "3.1.0"
 jsoup = "1.23.2"
 media3 = "1.11.0"
 webkit = "1.16.0"
@@ -105,7 +105,8 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
-coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
