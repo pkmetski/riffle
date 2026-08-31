@@ -69,8 +69,7 @@ internal fun PanelReportSheet(
         state.failureType == PanelDetectionFailureType.MergedPanels ||
         state.failureType == PanelDetectionFailureType.SplitPanel ||
         cutOffMode
-    val drawsRectangle = state.failureType == PanelDetectionFailureType.MissedPanel ||
-        state.failureType == PanelDetectionFailureType.SplitPanel
+    val drawsRectangle = drawsRectangle(state.failureType)
     val orderMode = state.failureType == PanelDetectionFailureType.WrongPanelOrder
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
@@ -142,7 +141,8 @@ internal fun PanelReportSheet(
             if (drawMode) {
                 val hint = when (state.failureType) {
                     PanelDetectionFailureType.MissedPanel,
-                    PanelDetectionFailureType.SplitPanel -> "Draw the correct panel boundary"
+                    PanelDetectionFailureType.SplitPanel,
+                    PanelDetectionFailureType.MergedPanels -> "Draw the correct panel boundaries"
                     PanelDetectionFailureType.CutPanelCutOff ->
                         "Tap the cut-off panel to identify it; drag to draw its correct boundary"
                     else -> "Draw panel boundary lines"
@@ -386,6 +386,11 @@ internal fun panelReportOutlineStyle(
         foregroundWidth = foregroundWidth,
     )
 }
+
+internal fun drawsRectangle(failureType: PanelDetectionFailureType?): Boolean =
+    failureType == PanelDetectionFailureType.MissedPanel ||
+        failureType == PanelDetectionFailureType.SplitPanel ||
+        failureType == PanelDetectionFailureType.MergedPanels
 
 private fun DrawScope.drawPanelReportOutline(
     topLeft: Offset,
