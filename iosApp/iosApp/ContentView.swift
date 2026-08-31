@@ -1,7 +1,18 @@
 import SwiftUI
+import UIKit
+import Riffle
 
 struct ContentView: View {
     var body: some View {
-        Text("Hello Riffle!")
+        ComposeView()
+            .ignoresSafeArea()
     }
+}
+
+struct ComposeView: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        MainViewControllerKt.MainViewController()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
