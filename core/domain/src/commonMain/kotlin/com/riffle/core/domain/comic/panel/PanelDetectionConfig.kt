@@ -132,4 +132,40 @@ data class PanelDetectionConfig(
      * `(1 - 2 * this)` fraction on the perpendicular axis.
      */
     val internalGutterInnerSampleInset: Double = 0.1,
+
+    // ── Energy-valley gutter confirmation (issue #788) ────────────────────────
+
+    /**
+     * A suspected column gutter (inferred from other non-suspicious row bands) is confirmed when
+     * the minimum luma-gradient energy in the search window is below this fraction of the median
+     * energy across all columns of that row band. Lower = stricter (requires a more pronounced
+     * valley). A genuine blank gutter column has near-zero energy while dithered/art panel
+     * columns are high. Diagonal-layout pages can produce moderate energy at the candidate position
+     * (≈0.29 of median) even when no gutter is present → keep the threshold tight (< 0.25) to
+     * leave enough separation above the diagonal-layout signal and below the real gutter signal.
+     */
+    val energyValleyDepthRatio: Double = 0.25,
+
+    /**
+     * Half-width of the search window around a candidate gutter x (as a fraction of the cropped
+     * page width). The valley minimum is found within [candidateX ± width × this].
+     *
+     * Keep this tight: a large window allows the search to stray into white-space regions of a
+     * genuine full-width panel and cause a false split. The gutter is never more than a few
+     * percent of the width away from the candidate position derived from the non-suspicious row.
+     */
+    val energyValleyWindowFraction: Double = 0.05,
+
+    /**
+     * Minimum fraction of rows in the suspicious band that must have a **flood-fill gutter** pixel
+     * at the candidate column before the energy-valley check is attempted. Flood-fill gutter pixels
+     * are background pixels reachable from the page border — this excludes internal panel
+     * white-space that is enclosed by panel content and not connected to any actual inter-panel gap.
+     * A real bubble occludes only part of the gutter height; rows outside the bubble retain
+     * border-connected background at the gutter column, so this fraction is non-trivial. A genuine
+     * full-width panel's interior white-space is not reachable from the border, so the fraction is
+     * near zero and the check is skipped — preventing false splits on splash rows and real pages
+     * where a full-width panel happens to have a low-energy column at the candidate position.
+     */
+    val energyValleyMinPartialGutterFraction: Double = 0.15,
 )
