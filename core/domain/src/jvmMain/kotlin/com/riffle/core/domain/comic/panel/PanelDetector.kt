@@ -31,7 +31,7 @@ class PanelDetector(
         require(originalWidth > 0 && originalHeight > 0) { "original dimensions must be positive" }
         val fallback = fitWhole(pageIndex, originalWidth, originalHeight)
         val mask = binarize(grid) ?: return fallback
-        return detectFromMask(mask, grid.width, grid.height, pageIndex, originalWidth, originalHeight, fallback)
+        return detectFromMask(mask, grid.width, grid.height, pageIndex, originalWidth, originalHeight, fallback, grid)
     }
 
     /**
@@ -60,10 +60,11 @@ class PanelDetector(
         originalWidth: Int,
         originalHeight: Int,
         fallback: PagePanels,
+        grid: PixelGrid? = null,
     ): PagePanels {
         val cropped = trimMargin(mask) ?: return fallback
 
-        val projResult = gridByProjection(cropped, pageIndex, originalWidth, originalHeight, downscaledWidth, downscaledHeight)
+        val projResult = gridByProjection(cropped, grid, pageIndex, originalWidth, originalHeight, downscaledWidth, downscaledHeight)
         if (projResult != null) return projResult
 
         // Same repair-before-merge ordering as gridByProjection — see the comment there.
@@ -100,6 +101,7 @@ class PanelDetector(
      */
     private fun gridByProjection(
         cropped: CroppedMask,
+        grid: PixelGrid?,
         pageIndex: Int,
         originalWidth: Int,
         originalHeight: Int,
@@ -147,9 +149,37 @@ class PanelDetector(
         val allSuspicious = bandColBands.all { isSuspicious(it) }
         if (allSuspicious) return null
 
+        // Flood-fill gutter is needed both here (for bubble-tolerant gutter confirmation) and
+        // below (for splitSinglePanelRecursively and repair stages). Compute once and reuse.
+        // A pixel is a flood-fill gutter pixel if it is background (mask=0) AND reachable from
+        // the page border — this reliably excludes internal panel white-space that looks like a
+        // gutter in raw mask data but is not connected to any actual inter-panel gap.
+        val gutter = floodFillGutter(cropped)
+
+        // Bubble-tolerant gutter confirmation (issue #788): when a suspicious band's column
+        // projection fails because bubble/art content crosses the gutter, the gutter column still
+        // has lower luma-gradient energy than the dithered/art panel columns on either side.
+        // Use column gutter positions inferred from the non-suspicious bands as suspects, then
+        // confirm each via an energy valley in the suspicious band's luma profile.
+        val effectiveColBands: List<List<Band>> = if (grid != null) {
+            val candidateXs = bandColBands.indices
+                .filter { !isSuspicious(bandColBands[it]) }
+                .flatMap { i -> gutterCentresFromColBands(bandColBands[i]) }
+                .distinct()
+            bandColBands.mapIndexed { rowIndex, colBands ->
+                if (isSuspicious(colBands) && candidateXs.isNotEmpty()) {
+                    energyValleySplit(grid, gutter, cropped, rowBands[rowIndex], colBands, candidateXs) ?: colBands
+                } else {
+                    colBands
+                }
+            }
+        } else {
+            bandColBands
+        }
+
         val rawBboxes = mutableListOf<Bbox>()
         for ((rowIndex, rowBand) in rowBands.withIndex()) {
-            for (colBand in bandColBands[rowIndex]) {
+            for (colBand in effectiveColBands[rowIndex]) {
                 rawBboxes.add(Bbox(colBand.start, rowBand.start, colBand.end, rowBand.end))
             }
         }
@@ -167,7 +197,6 @@ class PanelDetector(
         //     diagonal boundary (#783) — which also removes the false right-edge difference that
         //     previously made stacked column panels look like a diagonal-spanning pair (#786).
         //  3. mergeDiagonalSpanningPanels after both repairs, so it sees final column geometry.
-        val gutter = floodFillGutter(cropped)
         val projAfterSplit = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
         val projAfterJunc = repairOneSidedRowJunctions(projAfterSplit, cropped, downscaledWidth, downscaledHeight)
         val projAfterRowRepair = repairDiagonalTwoColumnRows(projAfterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
@@ -1577,6 +1606,86 @@ class PanelDetector(
     }
 
     private data class Band(val start: Int, val end: Int)
+
+    /** Returns the x-centre of each gutter gap between adjacent column bands. */
+    private fun gutterCentresFromColBands(colBands: List<Band>): List<Int> =
+        (0 until colBands.size - 1).map { i -> (colBands[i].end + colBands[i + 1].start) / 2 }
+
+    /**
+     * For a suspicious (full-width) row band, attempts to confirm a vertical gutter boundary
+     * using luma-gradient energy. Each [candidateXs] position is checked with two gates:
+     *
+     * 1. **Flood-fill gutter evidence**: at least [PanelDetectionConfig.energyValleyMinPartialGutterFraction]
+     *    of the band's rows must be flood-fill gutter pixels at the candidate column. Flood-fill
+     *    gutter pixels are background pixels reachable from the page border, which correctly
+     *    excludes internal panel white-space (enclosed by panel content, not border-connected).
+     *    A real bubble occludes only part of the gutter height; rows outside the bubble retain
+     *    border-connected background at the gutter column.
+     *
+     * 2. **Energy valley**: the minimum luma-gradient energy in the search window must be below
+     *    [PanelDetectionConfig.energyValleyDepthRatio] × the median profile energy.
+     *
+     * Returns null if no candidate passes both gates.
+     */
+    private fun energyValleySplit(
+        grid: PixelGrid,
+        gutter: BooleanArray,
+        cropped: CroppedMask,
+        rowBand: Band,
+        colBands: List<Band>,
+        candidateXs: List<Int>,
+    ): List<Band>? {
+        val bandHeight = rowBand.end - rowBand.start + 1
+        val energies = columnLumaEnergyProfile(grid, cropped, rowBand.start, rowBand.end)
+        val sorted = energies.copyOf().also { it.sort() }
+        val medianEnergy = sorted[sorted.size / 2]
+        if (medianEnergy == 0f) return null
+
+        val threshold = medianEnergy * config.energyValleyDepthRatio
+        val windowHalf = (cropped.width * config.energyValleyWindowFraction).toInt().coerceAtLeast(1)
+
+        for (candidateX in candidateXs) {
+            // Gate 1: the gutter must be visible as border-connected background in enough rows.
+            // Using flood-fill pixels (not raw mask) rejects internal panel white-space that is
+            // not connected to the page border and therefore not a real inter-panel gutter.
+            var gutterRows = 0
+            for (cy in rowBand.start..rowBand.end) {
+                if (gutter[cy * cropped.width + candidateX]) gutterRows++
+            }
+            if (gutterRows.toDouble() / bandHeight < config.energyValleyMinPartialGutterFraction) continue
+
+            // Gate 2: energy valley at the candidate position.
+            val wStart = (candidateX - windowHalf).coerceAtLeast(0)
+            val wEnd = (candidateX + windowHalf).coerceAtMost(cropped.width - 1)
+            var minEnergy = Float.MAX_VALUE
+            var minX = candidateX
+            for (x in wStart..wEnd) {
+                if (energies[x] < minEnergy) {
+                    minEnergy = energies[x]
+                    minX = x
+                }
+            }
+            if (minEnergy < threshold) {
+                val left = Band(colBands[0].start, minX - 1)
+                val right = Band(minX + 1, colBands[0].end)
+                if (left.end >= left.start && right.end >= right.start) return listOf(left, right)
+            }
+        }
+        return null
+    }
+
+    /** Sum of |luma[y][x] − luma[y+1][x]| per column for rows [yStart, yEnd) in CroppedMask coords. */
+    private fun columnLumaEnergyProfile(grid: PixelGrid, cropped: CroppedMask, yStart: Int, yEnd: Int): FloatArray =
+        FloatArray(cropped.width) { cx ->
+            val gx = cx + cropped.offsetX
+            var energy = 0f
+            for (cy in yStart until yEnd) {
+                energy += kotlin.math.abs(
+                    grid.get(gx, cy + cropped.offsetY) - grid.get(gx, cy + 1 + cropped.offsetY),
+                ).toFloat()
+            }
+            energy
+        }
 
     /**
      * Given a 1-D projection, return the runs of "content" (values above a threshold derived from

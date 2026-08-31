@@ -1265,6 +1265,101 @@ class PanelDetectorTest {
         assertEquals(setOf(top, bottom), repaired.toSet())
     }
 
+    // --- Energy-valley gutter confirmation (issue #788) ---
+
+    @Test
+    fun `energy valley confirmation splits bubble-blocked column gutter into 4 panels`() {
+        // Reproduces issue #788 projection-path failure: row 1 has two panels separated by a
+        // vertical gutter, but a speech bubble covers the MIDDLE portion of the gutter height,
+        // pushing colContentCount above the 15% cutoff → the column gutter is never found →
+        // row 1 is treated as a single full-width (suspicious) band.
+        //
+        // The bubble covers ~76% of the band height; the gutter is still visible (background)
+        // in the top ~12% and bottom ~12% rows. Crucially, the visible fraction is in the
+        // range [15%, 30%): gate 1 (energyValleyMinPartialGutterFraction=15%) PASSES, but the
+        // flood-fill internal-gutter split (internalGutterFloodFillFraction=30%) CANNOT find it.
+        // Only the energy valley can confirm the split:
+        //   (1) partial gutter evidence: ~24% of rows at the gutter column are background → gate 1 passes.
+        //   (2) energy valley: gutter columns have near-zero luma-gradient (solid-dark → flat)
+        //       while dithered panel columns have high gradient → valley confirmed → split fires.
+        // Without the energy-valley feature, neither the flood-fill nor any other stage finds the
+        // gutter → suspicious band stays full-width → 3 panels instead of 4.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Row band 0 (y=20..269): clean two-panel layout, vertical gutter at x=190..209.
+            canvas.ditheredRect(x = 20, y = 20, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            canvas.ditheredRect(x = 210, y = 20, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            // Row band 1 (y=290..539): same two panels; gutter visible at top+bottom but blocked
+            // in the middle 190 rows by a "bubble" that crosses the gutter columns.
+            canvas.ditheredRect(x = 20, y = 290, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            canvas.ditheredRect(x = 210, y = 290, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            // Bubble blocking the gutter: solid-dark, covers y=320..509 (~76% of band height).
+            // Leaves only ~24% gutter-background rows visible — above the 15% energy-valley gate
+            // but below the 30% flood-fill threshold, so ONLY the energy valley can trigger the
+            // split. Solid DARK has zero vertical gradient → luma energy ≈ 0 → valley fires.
+            canvas.rect(x = 190, y = 320, w = 20, h = 190, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(
+            "bubble-blocked gutter must be confirmed via energy-valley and split into 4 panels; " +
+                "got ${result.panels.size} (source=${result.source})",
+            4, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `energy valley boundary — no partial gutter evidence suppresses split on full-width panel`() {
+        // Both-sides boundary test for energyValleyMinPartialGutterFraction: a genuine full-width
+        // panel (T-layout splash) must not be falsely split, because EVERY row at the candidate
+        // column x has content — there is no partial gutter visible → the fraction-gate blocks it.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Row band 0 (splash, full-width): genuine single panel across the full page.
+            canvas.ditheredRect(x = 20, y = 20, w = 360, h = 250, base = DARK, accent = 160.toByte())
+            // Row band 1 (two panels): provides a candidate column gutter at ≈x=200.
+            canvas.ditheredRect(x = 20, y = 290, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            canvas.ditheredRect(x = 210, y = 290, w = 170, h = 250, base = DARK, accent = 160.toByte())
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        // T-layout: splash row must remain a single full-width panel.
+        assertEquals(
+            "genuine full-width splash must NOT be split by energy-valley; expected 3 panels, " +
+                "got ${result.panels.size} (source=${result.source})",
+            3, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `energy valley boundary — high-energy gutter columns suppress the split`() {
+        // Both-sides boundary test for the valley depth ratio: when the gutter columns also have
+        // high energy (dithered like the panels), no valley is found and the suspicious row stays
+        // as a single full-width band → 3 panels total (2 from clean row + 1 full-width from row 1).
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Row band 0 (clean): two panels with gutter at x=190..209.
+            canvas.ditheredRect(x = 20, y = 20, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            canvas.ditheredRect(x = 210, y = 20, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            // Row band 1: gutter partially visible (~24% of rows background, satisfying gate 1),
+            // but below the 30% flood-fill threshold so only the energy valley decides.
+            // Dithered gutter: high energy everywhere → no valley → gate 2 fails → no split.
+            canvas.ditheredRect(x = 20, y = 290, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            canvas.ditheredRect(x = 210, y = 290, w = 170, h = 250, base = DARK, accent = 160.toByte())
+            canvas.ditheredRect(x = 190, y = 320, w = 20, h = 190, base = DARK, accent = 160.toByte())
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(
+            "high-energy gutter columns must NOT be split by energy valley; expected 3 panels, " +
+                "got ${result.panels.size} (source=${result.source})",
+            3, result.panels.size,
+        )
+    }
+
     /**
      * Builds a [PanelDetector.CroppedMask] and two full-width [PanelDetector.Bbox]es whose
      * vertical separation is exactly [gap] pixels. The gap strip has content on the left half
