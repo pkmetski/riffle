@@ -53,6 +53,7 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
             implementation(libs.koin.core)
+            implementation(project(":core:database"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)

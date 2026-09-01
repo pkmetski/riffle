@@ -1,19 +1,6 @@
 package com.riffle.core.database
 
-import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import kotlinx.coroutines.Dispatchers
-
-internal fun RoomDatabase.Builder<RiffleDatabase>.buildRiffleDatabase(): RiffleDatabaseAccess =
-    addMigrations(*RIFFLE_DATABASE_MIGRATIONS)
-        .setDriver(BundledSQLiteDriver())
-        .setQueryCoroutineContext(Dispatchers.Default)
-        .build()
-        .asDatabaseAccess()
-
-private fun RiffleDatabase.asDatabaseAccess(): RiffleDatabaseAccess =
-    DefaultRiffleDatabaseAccess(this)
 
 internal class DefaultRiffleDatabaseAccess(
     internal val database: RiffleDatabase,

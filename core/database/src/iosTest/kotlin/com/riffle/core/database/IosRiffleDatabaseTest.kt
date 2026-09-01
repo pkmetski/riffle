@@ -10,8 +10,8 @@ import kotlin.test.assertEquals
 
 class IosRiffleDatabaseTest {
     @Test
-    fun bundledDriverCreatesDatabaseAndPreservesFlowQueriesOnIos() = runTest {
-        val path = "${NSTemporaryDirectory()}riffle-room-kmp-${NSUUID().UUIDString}.db"
+    fun nativeSqliteDriverCreatesDatabaseAndPreservesFlowQueriesOnIos() = runTest {
+        val path = "${NSTemporaryDirectory()}riffle-sqldelight-${NSUUID().UUIDString}.db"
         val database = openRiffleDatabase(path)
         val source = SourceEntity(
             id = "source-1",

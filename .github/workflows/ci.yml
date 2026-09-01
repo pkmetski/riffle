@@ -316,14 +316,15 @@ jobs:
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
       - name: Assemble Riffle XCFramework
-        run: ./gradlew assembleRiffleXCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
       - name: Build Xcode project (simulator)
         run: |
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
-            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16' \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
+            ARCHS=arm64 \
             CODE_SIGNING_ALLOWED=NO \
             build
 

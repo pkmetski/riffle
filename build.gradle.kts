@@ -129,7 +129,8 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/source/localfiles/PdfiumPdfMetadataExtractor.kt",
             // core:database KMP factory — Room's setQueryCoroutineContext() requires a direct
             // CoroutineContext; injecting DispatcherProvider here would invert the dependency graph.
-            "core/database/src/commonMain/kotlin/com/riffle/core/database/RiffleDatabaseFactory.kt",
+            "core/database/src/nonIosMain/kotlin/com/riffle/core/database/RiffleDatabaseFactory.kt",
+            "core/database/src/nonIosMain/kotlin/com/riffle/core/database/RiffleDatabaseBuilderExt.kt",
         )
 
         val scanRoots = listOf(
