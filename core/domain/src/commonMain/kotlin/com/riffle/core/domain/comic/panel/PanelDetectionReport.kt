@@ -21,4 +21,5 @@ data class PanelDetectionReport(
     val drawnPanels: List<PanelRegion> = emptyList(),
     val drawnBoundaries: List<PanelBoundaryLine> = emptyList(),
     val expectedPanelOrder: List<Int>? = null,
+    val falsePanelIndices: List<Int>? = null,
 )

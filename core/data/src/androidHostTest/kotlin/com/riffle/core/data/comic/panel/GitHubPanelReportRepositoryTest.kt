@@ -145,6 +145,49 @@ class GitHubPanelReportRepositoryTest {
     }
 
     @Test
+    fun `gist metadata contains false panel indices when FalsePanel report submitted`() = runTest {
+        server.enqueue(MockResponse().setBody(
+            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+        ).setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
+
+        val reportWithFalsePanels = fakeReport.copy(
+            failureType = PanelDetectionFailureType.FalsePanel,
+            falsePanelIndices = listOf(0, 2),
+        )
+        repo().submit(reportWithFalsePanels, ByteArray(0))
+
+        val gistRequest = server.takeRequest()
+        val gistBody = Json { ignoreUnknownKeys = true }
+            .parseToJsonElement(gistRequest.body.readUtf8()).jsonObject
+        val metadata = gistBody["files"]!!.jsonObject["metadata.json"]!!
+            .jsonObject["content"]!!.jsonPrimitive.content
+        assertTrue("metadata contains falsePanelIndices", metadata.contains("falsePanelIndices"))
+        assertTrue("metadata contains panel 0", metadata.contains("0"))
+        assertTrue("metadata contains panel 2", metadata.contains("2"))
+    }
+
+    @Test
+    fun `issue body contains false panel indices when FalsePanel report submitted`() = runTest {
+        server.enqueue(MockResponse().setBody(
+            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+        ).setResponseCode(201))
+        server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
+
+        val reportWithFalsePanels = fakeReport.copy(
+            failureType = PanelDetectionFailureType.FalsePanel,
+            falsePanelIndices = listOf(0, 2),
+        )
+        repo().submit(reportWithFalsePanels, ByteArray(0))
+
+        server.takeRequest() // consume gist
+        val issueRequest = server.takeRequest()
+        val parsedBody = Json { ignoreUnknownKeys = true }
+            .parseToJsonElement(issueRequest.body.readUtf8()).jsonObject["body"]?.jsonPrimitive?.content ?: ""
+        assertTrue("body contains false panel indices", parsedBody.contains("[0, 2]"))
+    }
+
+    @Test
     fun `submit returns failure when API call fails`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"message":"Bad credentials"}"""))
 

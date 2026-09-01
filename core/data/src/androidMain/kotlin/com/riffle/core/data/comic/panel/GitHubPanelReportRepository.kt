@@ -78,6 +78,9 @@ class GitHubPanelReportRepository(
                 report.expectedPanelOrder?.let { order ->
                     put("expectedPanelOrder", JsonArray(order.map { JsonPrimitive(it) }))
                 }
+                report.falsePanelIndices?.let { indices ->
+                    put("falsePanelIndices", JsonArray(indices.map { JsonPrimitive(it) }))
+                }
             }
         ).toString()
 
@@ -123,6 +126,11 @@ class GitHubPanelReportRepository(
         val order = report.expectedPanelOrder
         if (order != null) {
             appendLine("**Expected panel order:** $order")
+            appendLine()
+        }
+        val falsePanels = report.falsePanelIndices
+        if (falsePanels != null) {
+            appendLine("**False panels:** $falsePanels")
             appendLine()
         }
         appendLine("**Detected panels:**")

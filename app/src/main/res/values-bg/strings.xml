@@ -360,6 +360,7 @@
     <string name="error_connected_library_load_failed">Свързано, но библиотеките не можаха да се заредят: %1$s</string>
     <string name="error_comic_page_load_failed">Тази страница не можа да се зареди</string>
     <string name="error_select_failure_type">Изберете тип проблем преди изпращане</string>
+    <string name="error_mark_false_panel">Маркирайте поне един фалшив панел преди изпращане</string>
     <string name="crash_report_title">Доклад за срив</string>
     <string name="crash_report_text">Riffle се срина. Отворете Настройки → Доклади за сривове, за да видите или споделите подробностите.</string>
     <string name="ui_seconds_short">%1$d сек</string>
