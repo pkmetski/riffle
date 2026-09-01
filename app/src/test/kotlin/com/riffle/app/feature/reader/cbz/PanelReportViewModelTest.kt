@@ -321,6 +321,23 @@ class PanelReportViewModelTest {
     }
 
     @Test
+    fun `submit FalsePanel with no panels marked shows error`() = runTest {
+        var submitted = false
+        val repo = object : PanelReportRepository {
+            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> {
+                submitted = true
+                return Result.success("https://github.com/pkmetski/riffle/issues/1")
+            }
+        }
+        val vm = makeVm(repository = repo)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        vm.submit(maskPng = ByteArray(0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(submitted)
+        assertEquals("Mark at least one panel as false before submitting", vm.state.value.error)
+    }
+
+    @Test
     fun `submit requires failure type`() = runTest {
         val vm = makeVm()
         vm.submit(maskPng = ByteArray(0))
@@ -344,5 +361,6 @@ class PanelReportViewModelTest {
         detectedSource = PanelSource.Auto,
         repository = repository,
         selectFailureTypeMessage = "Select a failure type before submitting",
+        markFalsePanelMessage = "Mark at least one panel as false before submitting",
     )
 }

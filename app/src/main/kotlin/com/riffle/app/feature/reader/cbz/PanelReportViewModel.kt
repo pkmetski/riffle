@@ -39,6 +39,7 @@ class PanelReportViewModel(
     val detectedSource: PanelSource,
     private val repository: PanelReportRepository,
     private val selectFailureTypeMessage: String,
+    private val markFalsePanelMessage: String,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PanelReportUiState())
@@ -127,6 +128,10 @@ class PanelReportViewModel(
         val ft = _state.value.failureType
         if (ft == null) {
             _state.update { it.copy(error = selectFailureTypeMessage) }
+            return
+        }
+        if (ft == PanelDetectionFailureType.FalsePanel && _state.value.falsePanelIndices.isEmpty()) {
+            _state.update { it.copy(error = markFalsePanelMessage) }
             return
         }
         viewModelScope.launch {

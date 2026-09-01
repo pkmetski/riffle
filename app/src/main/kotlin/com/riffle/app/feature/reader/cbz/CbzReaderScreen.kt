@@ -349,6 +349,7 @@ fun CbzReaderScreen(
     if (reportSheetOpen && data != null) {
         val (mask, maskPng) = data
         val selectFailureTypeMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_select_failure_type)
+        val markFalsePanelMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_mark_false_panel)
         val maskBitmap = remember(mask) {
             val pixels = PanelMaskEncoder.toArgbPixels(mask)
             android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
@@ -371,6 +372,7 @@ fun CbzReaderScreen(
                 detectedSource = rawPanels?.source ?: PanelSource.Fallback,
                 repository = viewModel.panelReportRepository,
                 selectFailureTypeMessage = selectFailureTypeMessage,
+                markFalsePanelMessage = markFalsePanelMessage,
             )
         }
         PanelReportSheet(

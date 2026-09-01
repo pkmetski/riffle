@@ -78,6 +78,9 @@ class GitHubPanelReportRepository(
                 report.expectedPanelOrder?.let { order ->
                     put("expectedPanelOrder", JsonArray(order.map { JsonPrimitive(it) }))
                 }
+                report.falsePanelIndices?.let { indices ->
+                    put("falsePanelIndices", JsonArray(indices.map { JsonPrimitive(it) }))
+                }
             }
         ).toString()
 
