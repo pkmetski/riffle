@@ -1124,4 +1124,28 @@ class PanelDetectorImageTest {
             bottomStripPanels.size >= 2,
         )
     }
+
+    @Test
+    fun `issue 879 page 34 top panel must not be merged into gutter by dark silhouette touching border`() {
+        // Regression for issue #879 (page 34): the top panel (upper-left, y≈0–557) was not
+        // detected. The right-side dark silhouette figure touches the top/right page borders,
+        // making the vertical gutter between the top panel and the silhouette inaccessible in
+        // the inner region of the merged CC's top sub-bbox after horizontal splitting. The gutter
+        // IS accessible from the top and bottom borders (visible in both strips). The both-strips
+        // confirmation fallback detects this as a genuine straight gutter.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-879-missed-panel-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The top panel must appear as a detected panel whose top edge is in the upper portion of
+        // the page (y ≤ 200 after filterAndTighten strips the white top margin, which is ~117 px)
+        // and whose bottom edge is between y=400 and y=700 (top ~18% of the page).
+        val topPanel = result.panels.firstOrNull { p ->
+            p.y <= 200 && (p.y + p.height) in 400..700
+        }
+        assertNotNull(
+            "top panel (top edge ≤ y=200, bottom edge in 400–700) must be detected; " +
+                "all panels=${result.panels}",
+            topPanel,
+        )
+    }
 }

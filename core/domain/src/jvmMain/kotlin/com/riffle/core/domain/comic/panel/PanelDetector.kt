@@ -1321,6 +1321,10 @@ class PanelDetector(
         // (22%-relaxed projection path). Used below to skip the bannerBboxMinHeightPx guard,
         // which is too strict for sub-bboxes produced by a prior vertical split.
         var horizontalFromDiagonalFallback = false
+        // Set to true when effectiveVerticalGutter came from the both-strips confirmation fallback
+        // (top + bottom border both see the gutter at the same column). Used in the vertical split
+        // guard to allow a top-strip sparse check instead of requiring the full bbox to be sparse.
+        var verticalFromBothStripsConfirmation = false
         val effectiveHorizontalGutter: Pair<Int, Int>? = if (floodFillWouldSplit) horizontalGutter else run {
             val maxRowContent = (bbox.minY..bbox.maxY).maxOf { y ->
                 cropped.rowContentCount(y, innerMinX, innerMaxX)
@@ -1612,7 +1616,81 @@ class PanelDetector(
                     }?.let { (_, thickness) -> thickness in 7..40 } == true
                     !topHasRun
                 }
-        }
+        } ?: run {
+            // Both-strips confirmation: handles vertical gutters visible from BOTH the top and
+            // bottom borders but blocked in the inner region (e.g. a tall silhouette that extends
+            // leftward into the gutter zone, covering the gutter column in most inner rows).
+            // The bottom-strip fallback blocks when the top strip has a run (anti-diagonal guard).
+            // This fallback fires precisely in that case: top strip has a run AND bottom strip has
+            // a run at the same column → confirmed straight gutter, not a diagonal boundary.
+            // A true diagonal produces runs at DIFFERENT column positions in the two strips.
+            if (width.toDouble() / downscaledWidth.toDouble() < 0.70) return@run null
+            if (height.toDouble() / downscaledHeight.toDouble() > 0.35) return@run null
+            val topStripConfH = (height * 0.20).toInt().coerceAtLeast(1)
+            val topStripConfEnd = bbox.minY + topStripConfH - 1
+            val bottomStripConfH = (height * 0.25).toInt().coerceAtLeast(1)
+            val bottomStripConfStart = bbox.maxY - bottomStripConfH + 1
+            val thresholdK = (config.internalGutterFloodFillFraction * 1000).toLong()
+            val topRun = widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                var g = 0
+                for (y in bbox.minY..topStripConfEnd) if (gutter[y * cropped.width + x]) g++
+                g.toLong() * 1000 >= topStripConfH.toLong() * thresholdK
+            }?.takeIf { (_, t) -> t in config.internalGutterMinThickness..40 } ?: return@run null
+            val botRun = widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                var g = 0
+                for (y in bottomStripConfStart..bbox.maxY) if (gutter[y * cropped.width + x]) g++
+                g.toLong() * 1000 >= bottomStripConfH.toLong() * thresholdK
+            }?.takeIf { (_, t) -> t in config.internalGutterMinThickness..40 } ?: return@run null
+            // Both runs found — verify they overlap in column position (same gutter, not diagonal)
+            val (topStart, topThick) = topRun
+            val (botStart, botThick) = botRun
+            if (topStart + topThick <= botStart || botStart + botThick <= topStart) return@run null
+            // Return the wider run as the effective gutter position
+            if (topThick >= botThick) topRun else botRun
+        }?.also { verticalFromBothStripsConfirmation = true }
+        ?: run {
+            // Top-strip-only fallback: handles vertical gutters accessible from the TOP PAGE
+            // BORDER only (bottom border blocked by artwork, e.g. a tall silhouette extending
+            // leftward into the gutter zone below its head). This can only happen for a sub-region
+            // that touches the top of the page — sub-regions at larger y values have the gutter
+            // accessible via horizontal gutters above them (accessible from side borders), and all
+            // existing fallbacks handle those correctly. Restricting to bbox.minY ≤ 3% of page
+            // height prevents false positives on bottom-section sub-regions whose top-strip
+            // whitespace comes from horizontal gutters, not the actual page border.
+            if (width.toDouble() / downscaledWidth.toDouble() < 0.70) return@run null
+            if (height.toDouble() / downscaledHeight.toDouble() > 0.35) return@run null
+            if (bbox.minY > downscaledHeight * 0.03) return@run null
+            val topStripOnlyH = (height * 0.20).toInt().coerceAtLeast(1)
+            val topStripOnlyEnd = bbox.minY + topStripOnlyH - 1
+            val botStripOnlyH = (height * 0.25).toInt().coerceAtLeast(1)
+            val botStripOnlyStart = bbox.maxY - botStripOnlyH + 1
+            val threshK = (config.internalGutterFloodFillFraction * 1000).toLong()
+            // Guard: bottom strip must have NO flood-fill run. If it does, it's either a diagonal
+            // boundary (handled by repairDiagonalTwoColumnRows) or the both-strips case above.
+            val hasBotRun = widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                var g = 0
+                for (y in botStripOnlyStart..bbox.maxY) if (gutter[y * cropped.width + x]) g++
+                g.toLong() * 1000 >= botStripOnlyH.toLong() * threshK
+            }?.let { (_, t) -> t >= config.internalGutterMinThickness } == true
+            if (hasBotRun) return@run null
+            widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                var g = 0
+                for (y in bbox.minY..topStripOnlyEnd) if (gutter[y * cropped.width + x]) g++
+                g.toLong() * 1000 >= topStripOnlyH.toLong() * threshK
+            }?.takeIf { (_, t) -> t in 1..40 }
+        }?.also { verticalFromBothStripsConfirmation = true }
 
         val hGutter = effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) }
         val vGutter = effectiveVerticalGutter?.let { Triple("v", it.first, it.second) }
@@ -1797,14 +1875,24 @@ class PanelDetector(
             width.toDouble() / downscaledWidth.toDouble() >= 0.95 &&
             height.toDouble() / downscaledHeight.toDouble() <= 0.25
         ) {
-            // Allow the split only when the chosen gutter column has fewer than 10% dark pixels
-            // across the full bbox height. A genuine inter-panel gutter is a near-empty white
-            // channel — a few border-ink pixels at most. A speech-bubble or artwork "gutter" inside
-            // a single wide panel has significantly more content in the column (typically 15–40%)
-            // and is rejected. If neither flood-fill nor projection found a gutter, block as before.
+            // Allow the split only when there is clear evidence of a genuine inter-panel gutter.
+            // Two cases are accepted:
+            // (a) The gutter column is sparse throughout the full bbox height (< 10% dark pixels).
+            //     Catches #880: clean white channel between drawn-border side-by-side panels.
+            // (b) The gutter was confirmed by the both-strips fallback AND the top portion of the
+            //     column is sparse (< 10% of topStripH). Catches #879: a silhouette figure crosses
+            //     the gutter column in the inner region but the top strip is white. Speech-bubble
+            //     and artwork false gutters have content in the column including at the top, and
+            //     are rejected by the top-strip check.
+            val topStripHForGuard = (height * 0.25).toInt().coerceAtLeast(1)
             val gutterColContent = cropped.colContentCount(start, bbox.minY, bbox.maxY)
-            val isGenuineFullHeightGutter = effectiveVerticalGutter != null &&
-                gutterColContent.toLong() * 10L <= height.toLong()
+            val topStripColContent = if (verticalFromBothStripsConfirmation) {
+                cropped.colContentCount(start, bbox.minY, bbox.minY + topStripHForGuard - 1)
+            } else 0
+            val isGenuineFullHeightGutter = effectiveVerticalGutter != null && (
+                gutterColContent.toLong() * 10L <= height.toLong() ||
+                (verticalFromBothStripsConfirmation && topStripColContent.toLong() * 10L <= topStripHForGuard.toLong())
+            )
             if (!isGenuineFullHeightGutter) return listOf(bbox)
         }
 
@@ -1844,6 +1932,27 @@ class PanelDetector(
             val rightWidth = bbox.maxX - end
             val minDimPx = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             if (leftWidth < minDimPx || rightWidth < minDimPx) return listOf(bbox)
+            // If the bbox is wide enough to survive as a banner (≥ 50% page width, height ≥ 7%
+            // page height) but too short for the standard min-dimension check (height < 14%), block
+            // a vertical split that would produce two halves both below the banner width threshold
+            // (< 50% each). The split would destroy the banner-eligible wide panel by fragmenting it
+            // into two pieces that each fail both sanity-check paths and are filtered entirely.
+            // Example: #879 page 34 top sub-region (width=69%, height=14%) split at an internal
+            // whitespace column produces two 30%+35% halves — neither survives the banner exception.
+            // Allow the split when at least one half is ≥ 50% wide, which is the scenario where the
+            // split is genuinely revealing a banner and an adjacent section.
+            val bboxHeightFraction = height.toDouble() / downscaledHeight.toDouble()
+            if (bboxHeightFraction < config.minPanelDimensionFraction) {
+                val bannerWidthPx = downscaledWidth * 0.5
+                val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                val bannerBannerMinHFraction = 0.07
+                if (
+                    bboxWidthFraction >= 0.5 &&
+                    height.toDouble() / downscaledHeight.toDouble() >= bannerBannerMinHFraction &&
+                    leftWidth < bannerWidthPx &&
+                    rightWidth < bannerWidthPx
+                ) return listOf(bbox)
+            }
         }
 
         return if (axis == "h") {
@@ -1942,9 +2051,18 @@ class PanelDetector(
         // diagonal-gutter fallback from surviving as spurious panels (#797/#802).
         val bannerWidthThreshold = originalWidth * 0.5
         val bannerMinHeight = (originalHeight * 0.07).toInt().coerceAtLeast(1)
+        // A moderately wide panel (≥ 25% page width) that is taller than 10% of the page is also
+        // kept. This catches top-panel fragments produced when a page's top region has internal
+        // whitespace accessible from the top border: CC detection splits the region into two
+        // adjacent CCs each ~30-35% wide and ~14% tall — too narrow for the ≥ 50% banner check
+        // but real panels. The 10% height floor is well above the 5-6% diagonal slivers that
+        // the 7% floor is designed to reject (issue #879).
+        val narrowBannerWidthThreshold = originalWidth * 0.25
+        val narrowBannerMinHeight = (originalHeight * 0.10).toInt().coerceAtLeast(1)
         val filtered = regions.filter {
             (it.width >= minWidth && it.height >= minHeight) ||
-                (it.width >= bannerWidthThreshold && it.height >= bannerMinHeight)
+                (it.width >= bannerWidthThreshold && it.height >= bannerMinHeight) ||
+                (it.width >= narrowBannerWidthThreshold && it.height >= narrowBannerMinHeight)
         }
         if (filtered.isEmpty()) return null
 
