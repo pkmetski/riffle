@@ -346,7 +346,7 @@ internal fun PanelReportSheet(
 
             Button(
                 onClick = onSubmit,
-                enabled = !state.submitting && state.submittedIssueUrl == null,
+                enabled = !state.submitting && (state.submittedIssueUrl == null || state.failureType != state.submittedForFailureType),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.submitting) CircularProgressIndicator(modifier = Modifier.size(16.dp))

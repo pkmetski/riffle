@@ -25,6 +25,7 @@ data class PanelReportUiState(
     val orderedPanelIndices: List<Int> = emptyList(),
     val submitting: Boolean = false,
     val submittedIssueUrl: String? = null,
+    val submittedForFailureType: PanelDetectionFailureType? = null,
     val error: String? = null,
 )
 
@@ -134,7 +135,7 @@ class PanelReportViewModel(
                 expectedPanelOrder = s.orderedPanelIndices.takeIf { it.isNotEmpty() },
             )
             repository.submit(report, maskPng).fold(
-                onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url) } },
+                onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url, submittedForFailureType = ft) } },
                 onFailure = { e -> _state.update { it.copy(submitting = false, error = e.message ?: "Unknown error") } },
             )
         }

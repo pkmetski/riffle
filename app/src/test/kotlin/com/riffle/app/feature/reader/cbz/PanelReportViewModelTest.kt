@@ -223,6 +223,27 @@ class PanelReportViewModelTest {
     }
 
     @Test
+    fun `setFailureType after submit keeps issue URL visible but marks it as for a different type`() = runTest {
+        val repo = object : PanelReportRepository {
+            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
+                Result.success("https://github.com/pkmetski/riffle/issues/1")
+        }
+        val vm = makeVm(repository = repo)
+        vm.setFailureType(PanelDetectionFailureType.MissedPanel)
+        vm.submit(maskPng = ByteArray(0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("https://github.com/pkmetski/riffle/issues/1", vm.state.value.submittedIssueUrl)
+        assertEquals(PanelDetectionFailureType.MissedPanel, vm.state.value.submittedForFailureType)
+
+        // Changing the issue type re-enables the button (failureType != submittedForFailureType)
+        // but keeps the URL visible for feedback
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        assertEquals("https://github.com/pkmetski/riffle/issues/1", vm.state.value.submittedIssueUrl)
+        assertEquals(PanelDetectionFailureType.FalsePanel, vm.state.value.failureType)
+        assertEquals(PanelDetectionFailureType.MissedPanel, vm.state.value.submittedForFailureType)
+    }
+
+    @Test
     fun `setFailureType clears tap state`() = runTest {
         val region = PanelRegion(x = 0, y = 0, width = 200, height = 200)
         val vm = makeVm(panels = listOf(region))
