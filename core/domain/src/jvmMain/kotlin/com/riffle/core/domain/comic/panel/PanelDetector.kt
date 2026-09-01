@@ -72,7 +72,8 @@ class PanelDetector(
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
         val afterSplit = splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight)
-        val afterJunc = repairOneSidedRowJunctions(afterSplit, cropped, downscaledWidth, downscaledHeight)
+        val afterCoalesce = coalesceNarrowStripColumns(afterSplit, cropped, gutter, downscaledWidth, downscaledHeight)
+        val afterJunc = repairOneSidedRowJunctions(afterCoalesce, cropped, downscaledWidth, downscaledHeight)
         val afterRowRepair = repairDiagonalTwoColumnRows(afterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterPairRepair = repairDiagonalAdjacentColumnPairs(afterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterMerge = mergeDiagonalSpanningPanels(afterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
@@ -198,7 +199,8 @@ class PanelDetector(
         //     previously made stacked column panels look like a diagonal-spanning pair (#786).
         //  3. mergeDiagonalSpanningPanels after both repairs, so it sees final column geometry.
         val projAfterSplit = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
-        val projAfterJunc = repairOneSidedRowJunctions(projAfterSplit, cropped, downscaledWidth, downscaledHeight)
+        val projAfterCoalesce = coalesceNarrowStripColumns(projAfterSplit, cropped, gutter, downscaledWidth, downscaledHeight)
+        val projAfterJunc = repairOneSidedRowJunctions(projAfterCoalesce, cropped, downscaledWidth, downscaledHeight)
         val projAfterRowRepair = repairDiagonalTwoColumnRows(projAfterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterPairRepair = repairDiagonalAdjacentColumnPairs(projAfterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterMerge = mergeDiagonalSpanningPanels(projAfterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
@@ -246,6 +248,170 @@ class PanelDetector(
      */
     private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask, gutter: BooleanArray, downscaledWidth: Int, downscaledHeight: Int): List<Bbox> =
         bboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
+
+    /**
+     * Merges groups of narrow adjacent vertical panels that together form a taller combined
+     * region, then re-splits each group HORIZONTALLY ONLY. Handles the pattern where intra-panel
+     * white background (e.g. space between character silhouettes) is flood-fill reachable from
+     * the outer border and creates false column-gutter signals, producing narrow vertical strips
+     * instead of the correct stacked panels.
+     *
+     * A group qualifies when ALL of:
+     *  - Each panel is narrow (width < 20% of page width).
+     *  - Consecutive panels in the group are horizontally adjacent (gap ≤ 10% of page width).
+     *  - Consecutive panels share y-range overlap (≥ 20% of the shorter panel's height).
+     *  - The merged union is TALLER than it is wide (h ≥ w — pillar-like, not row-like).
+     *  - At least one panel in the group spans ≥ 70% of the union's height (spanning pillar).
+     *
+     * After merging, the union is split at any horizontal internal gutter (≥ 30% flood-fill
+     * coverage). The resulting sub-bboxes are tightened to content bounds. If no horizontal
+     * gutter is found, the union is returned as-is.
+     */
+    private fun coalesceNarrowStripColumns(
+        bboxes: List<Bbox>,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox> {
+        val narrowThreshold = (downscaledWidth * 0.20).toInt()
+        val (narrow, notNarrow) = bboxes.partition { it.maxX - it.minX + 1 < narrowThreshold }
+        if (narrow.size < 2) return bboxes
+
+        val maxGapX = (downscaledWidth * 0.10).toInt()
+
+        // Sort by minX to build x-adjacent groups; include y-overlap check to avoid merging
+        // panels from different row bands that share a similar x position.
+        val sorted = narrow.sortedBy { it.minX }
+        val groups = mutableListOf<MutableList<Bbox>>()
+        var current = mutableListOf(sorted[0])
+        for (i in 1 until sorted.size) {
+            val curr = sorted[i]
+            val groupMaxX = current.maxOf { it.maxX }
+            val gapX = curr.minX - groupMaxX - 1
+            // Group by x-proximity only — do NOT require y-overlap.  A strip that was split into
+            // upper/lower halves by splitSinglePanelRecursively produces two bboxes with identical
+            // x-ranges but non-overlapping y-ranges (overlap = 0).  Requiring y-overlap would
+            // prevent those halves from being reunited, leaving stray fragments that survive the
+            // pillar union and appear as extra panels (issues #876/#877).
+            if (gapX <= maxGapX) {
+                current.add(curr)
+            } else {
+                groups.add(current)
+                current = mutableListOf(curr)
+            }
+        }
+        groups.add(current)
+
+        val result = notNarrow.toMutableList()
+        for (group in groups) {
+            if (group.size < 2) {
+                result.addAll(group)
+                continue
+            }
+            val unionMinX = group.minOf { it.minX }
+            val unionMinY = group.minOf { it.minY }
+            val unionMaxX = group.maxOf { it.maxX }
+            val unionMaxY = group.maxOf { it.maxY }
+            val unionW = unionMaxX - unionMinX + 1
+            val unionH = unionMaxY - unionMinY + 1
+
+            // Only merge if the combined region is taller than wide (pillar-like).
+            if (unionH < unionW) {
+                result.addAll(group)
+                continue
+            }
+            // Require at least one panel that spans ≥ 70% of the union height (a true spanning
+            // pillar). Without this guard, two short stacked narrow panels at different y-ranges
+            // would incorrectly be merged and returned as a single union panel.
+            val hasSpanningPanel = group.any { p -> (p.maxY - p.minY + 1).toDouble() / unionH >= 0.70 }
+            if (!hasSpanningPanel) {
+                result.addAll(group)
+                continue
+            }
+
+            // Try to split using y-gaps from non-spanning bboxes (those that don't cover the
+            // full pillar height). These are the "middle" panels that were split horizontally
+            // by splitSinglePanelRecursively — their boundaries mark the real inter-panel gutter
+            // more reliably than pixel-based gutter detection, which can fail when stray anti-
+            // aliasing pixels at character edges block the flood-fill (issues #876/#877).
+            val nonSpanning = group.filter { (it.maxY - it.minY + 1).toDouble() / unionH < 0.80 }
+            if (nonSpanning.size >= 2) {
+                val sortedByMaxY = nonSpanning.sortedBy { it.maxY }
+                var bestGapStart = -1
+                var bestGapSize = 0
+                for (i in 0 until sortedByMaxY.size - 1) {
+                    val gapStart = sortedByMaxY[i].maxY + 1
+                    val gapEnd = sortedByMaxY[i + 1].minY - 1
+                    if (gapEnd >= gapStart) {
+                        val size = gapEnd - gapStart + 1
+                        if (size > bestGapSize) {
+                            bestGapSize = size
+                            bestGapStart = gapStart
+                        }
+                    }
+                }
+                val minDimPxH = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                if (bestGapStart > 0
+                    && bestGapStart - unionMinY >= minDimPxH
+                    && unionMaxY - (bestGapStart + bestGapSize - 1) >= minDimPxH
+                ) {
+                    result.add(tighten(Bbox(unionMinX, unionMinY, unionMaxX, bestGapStart - 1), cropped))
+                    result.add(tighten(Bbox(unionMinX, bestGapStart + bestGapSize, unionMaxX, unionMaxY), cropped))
+                    continue
+                }
+            }
+            val union = Bbox(unionMinX, unionMinY, unionMaxX, unionMaxY)
+            result.addAll(splitUnionHorizontalOnly(union, cropped, gutter, downscaledHeight))
+        }
+        return result
+    }
+
+    /**
+     * Splits [bbox] at its widest horizontal internal gutter (≥ [Config.internalGutterFloodFillFraction]
+     * of inner columns are flood-fill gutter pixels, run ≥ [Config.internalGutterMinThickness] rows,
+     * each half ≥ [Config.minPanelDimensionFraction] of the page). Returns the two tightened
+     * sub-bboxes, or a singleton list containing the original [bbox] if no valid split is found.
+     */
+    private fun splitUnionHorizontalOnly(
+        bbox: Bbox,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+        downscaledHeight: Int,
+    ): List<Bbox> {
+        val width = bbox.maxX - bbox.minX + 1
+        val height = bbox.maxY - bbox.minY + 1
+        val edgeMarginX = (width * config.internalGutterEdgeMargin).toInt().coerceAtLeast(1)
+        val innerMinX = bbox.minX + edgeMarginX
+        val innerMaxX = bbox.maxX - edgeMarginX
+        val innerWidth = innerMaxX - innerMinX + 1
+        if (innerWidth <= 0) return listOf(bbox)
+        val edgeMarginY = (height * config.internalGutterEdgeMargin).toInt().coerceAtLeast(1)
+        val thresholdTimesK = (config.internalGutterFloodFillFraction * 1000).toLong()
+
+        fun countGutter(y: Int): Int {
+            var g = 0
+            for (x in innerMinX..innerMaxX) if (gutter[y * cropped.width + x]) g++
+            return g
+        }
+        val hGutter = widestGutterRun(
+            axisStart = bbox.minY + edgeMarginY,
+            axisEnd = bbox.maxY - edgeMarginY,
+        ) { y ->
+            countGutter(y).toLong() * 1000 >= innerWidth.toLong() * thresholdTimesK
+        } ?: return listOf(bbox)
+
+        val (start, thickness) = hGutter
+        if (thickness < config.internalGutterMinThickness) return listOf(bbox)
+        val end = start + thickness - 1
+        val minDimPxH = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        if (start - bbox.minY < minDimPxH || bbox.maxY - end < minDimPxH) return listOf(bbox)
+
+        return listOf(
+            tighten(Bbox(bbox.minX, bbox.minY, bbox.maxX, start - 1), cropped),
+            tighten(Bbox(bbox.minX, end + 1, bbox.maxX, bbox.maxY), cropped),
+        )
+    }
 
     internal fun repairOneSidedRowJunctions(
         bboxes: List<Bbox>,
@@ -999,9 +1165,12 @@ class PanelDetector(
                 val yOvBottom = minOf(left.maxY, right.maxY)
                 val overlapH = (yOvBottom - yOvTop + 1L).coerceAtLeast(0L)
                 while (newLeftMax > left.maxX) {
-                    val overlapW = (newLeftMax - newRightMin + 1L).coerceAtLeast(0L)
+                    // Use right.minX (fixed output position) rather than newRightMin which can
+                    // exceed right.minX during walk-back, making the proxy overlap reach zero while
+                    // the actual output overlap (newLeftMax - right.minX) remains large.
+                    val overlapW = (newLeftMax - minOf(newRightMin, right.minX) + 1L).coerceAtLeast(0L)
                     val leftArea = (newLeftMax - left.minX + 1L) * (left.maxY - left.minY + 1L)
-                    val rightArea = (right.maxX - newRightMin + 1L) * (right.maxY - right.minY + 1L)
+                    val rightArea = (right.maxX - minOf(newRightMin, right.minX) + 1L) * (right.maxY - right.minY + 1L)
                     if (overlapW * overlapH <= overlapCap * minOf(leftArea, rightArea)) break
                     newLeftMax--
                     newRightMin++

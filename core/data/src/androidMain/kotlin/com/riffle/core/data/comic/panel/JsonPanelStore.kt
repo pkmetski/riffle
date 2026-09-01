@@ -302,8 +302,20 @@ class JsonPanelStore constructor(
          *      the top 25% of a wide bbox for vertical column gaps, measures how far each gap extends
          *      downward, and either splits horizontally (gap ends mid-bbox) or vertically (gap reaches
          *      the bbox bottom). v34 caches for such pages hold fewer, over-merged panels.
+         * v36: coalesceNarrowStripColumns added to both gridByProjection and CC paths (issues #876,
+         *      #877). When splitSinglePanelRecursively cuts a pillar-like column into narrow vertical
+         *      strips, a union bbox is formed and split horizontally at the y-gap between non-spanning
+         *      members (anti-aliasing pixels in the true gutter make pixel-based detection unreliable,
+         *      so the gap is derived directly from the pre-split bbox boundaries). Also fixes a
+         *      walk-back overflow in repairDiagonalAdjacentColumnPairs: the loop was using the dynamic
+         *      newRightMin as the right-edge proxy, so when newRightMin exceeded right.minX the proxy
+         *      overlap reached zero prematurely while the actual output overlap remained large; the
+         *      loop now pins to minOf(newRightMin, right.minX) to prevent the sanity-check rejection
+         *      that previously forced the page onto the CC fallback path. v35 caches for pages with
+         *      silhouette columns split into narrow vertical strips hold an unsplit wide panel where
+         *      two stacked panels should appear.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 36
+        internal const val CURRENT_SCHEMA_VERSION: Int = 37
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

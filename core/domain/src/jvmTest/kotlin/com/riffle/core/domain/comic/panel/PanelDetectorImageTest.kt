@@ -762,6 +762,55 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `issue 882 page 66 bottom row panels are non-overlapping after coalesceNarrowStripColumns fix`() {
+        // Regression for issue #882 (page 66): the two bottom-row panels overlapped horizontally
+        // ([2] x=0–450 and [3] x=58–1003 overlapped in x=58–450). coalesceNarrowStripColumns
+        // now correctly re-unites the strips and splits them, producing two non-overlapping panels.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-882-split-panel-p66.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 4 panels (top + middle + bottom-left + bottom-right); panels=${result.panels}",
+            4, result.panels.size,
+        )
+        val bottomPanels = result.panels.filter { p -> p.y + p.height / 2 > mask.height * 0.6 }
+        assertEquals("expected 2 bottom-row panels; all panels=${result.panels}", 2, bottomPanels.size)
+        val bottomLeft = bottomPanels.minByOrNull { it.x }!!
+        val bottomRight = bottomPanels.maxByOrNull { it.x }!!
+        assertTrue(
+            "bottom panels must not overlap in x (left.maxX=${bottomLeft.x + bottomLeft.width} vs right.minX=${bottomRight.x}); panels=${result.panels}",
+            bottomLeft.x + bottomLeft.width <= bottomRight.x,
+        )
+    }
+
+    @Test
+    fun `issue 883 page 67 top-right panel x boundary corrected after coalesceNarrowStripColumns fix`() {
+        // Regression for issues #883 and #884 (page 67): the top-right panel was detected as
+        // x=129–1042 (overlapping with the top-left panel at x=9–530). After the
+        // coalesceNarrowStripColumns fix the strips are correctly re-united, giving the top-right
+        // panel a left boundary ≥530 (clearly to the right of the top-left panel).
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-883-split-panel-p67.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 5 panels (top-left, top-right, mid-left, mid-right, bottom); panels=${result.panels}",
+            5, result.panels.size,
+        )
+        val topPanels = result.panels.filter { p -> p.y + p.height / 2 < mask.height * 0.4 }
+        assertEquals("expected 2 top-row panels; all panels=${result.panels}", 2, topPanels.size)
+        val topLeft = topPanels.minByOrNull { it.x }!!
+        val topRight = topPanels.maxByOrNull { it.x }!!
+        assertTrue(
+            "top-right panel must not overlap with top-left: right.minX=${topRight.x} topLeft.maxX=${topLeft.x + topLeft.width}; panels=${result.panels}",
+            topRight.x >= topLeft.x + topLeft.width,
+        )
+        assertTrue(
+            "top-right panel left boundary must be ≥500 (old bug: x=129); got x=${topRight.x}; panels=${result.panels}",
+            topRight.x >= 500,
+        )
+    }
+
     // --- Helpers ---
 
     // NOTE: 20/240 deliberately misses PanelMaskBinarizer's pre-binarized 0/255 fast path, so
@@ -998,6 +1047,27 @@ class PanelDetectorImageTest {
         assertTrue(
             "expected ≥2 panels in the bottom section (y-centre > 55%); panels=${result.panels}",
             bottomPanels.size >= 2,
+        )
+    }
+
+    @Test
+    fun `issue 876 page 32 right-side bottom row not split into narrow vertical strips`() {
+        // Regression for issues #876 and #877 (page 32): the right section of the bottom row
+        // (x=819–1871 upper, x=812–1960 lower) was split into 4 narrow vertical strips
+        // (x=804–1111, x=1225–1586 ×2, x=1690–1987) instead of 2 proper stacked panels.
+        // Root cause: intra-panel white background between character silhouettes was flood-fill
+        // reachable from the outer border, creating false column-gutter signals.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-876-merged-panels-p32.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The right-bottom section (panel centre in right half AND bottom half of page) must
+        // contain exactly 2 stacked panels — not 4 narrow vertical strips.
+        val rightBottom = result.panels.filter { p ->
+            p.x + p.width / 2 > mask.width / 2 && p.y + p.height / 2 > mask.height / 2
+        }
+        assertEquals(
+            "expected 2 right-side bottom panels (upper and lower stacked); all panels=${result.panels}",
+            2, rightBottom.size,
         )
     }
 }
