@@ -223,24 +223,24 @@ class PanelReportViewModelTest {
     }
 
     @Test
-    fun `setFailureType clears submittedIssueUrl so report button is re-enabled`() = runTest {
-        var submitted = false
+    fun `setFailureType after submit keeps issue URL visible but marks it as for a different type`() = runTest {
         val repo = object : PanelReportRepository {
-            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> {
-                submitted = true
-                return Result.success("https://github.com/pkmetski/riffle/issues/1")
-            }
+            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
+                Result.success("https://github.com/pkmetski/riffle/issues/1")
         }
         val vm = makeVm(repository = repo)
         vm.setFailureType(PanelDetectionFailureType.MissedPanel)
         vm.submit(maskPng = ByteArray(0))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue(submitted)
         assertEquals("https://github.com/pkmetski/riffle/issues/1", vm.state.value.submittedIssueUrl)
+        assertEquals(PanelDetectionFailureType.MissedPanel, vm.state.value.submittedForFailureType)
 
-        // Changing the issue type should allow a new report to be submitted
+        // Changing the issue type re-enables the button (failureType != submittedForFailureType)
+        // but keeps the URL visible for feedback
         vm.setFailureType(PanelDetectionFailureType.FalsePanel)
-        assertNull(vm.state.value.submittedIssueUrl)
+        assertEquals("https://github.com/pkmetski/riffle/issues/1", vm.state.value.submittedIssueUrl)
+        assertEquals(PanelDetectionFailureType.FalsePanel, vm.state.value.failureType)
+        assertEquals(PanelDetectionFailureType.MissedPanel, vm.state.value.submittedForFailureType)
     }
 
     @Test
