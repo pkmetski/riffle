@@ -223,6 +223,27 @@ class PanelReportViewModelTest {
     }
 
     @Test
+    fun `setFailureType clears submittedIssueUrl so report button is re-enabled`() = runTest {
+        var submitted = false
+        val repo = object : PanelReportRepository {
+            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> {
+                submitted = true
+                return Result.success("https://github.com/pkmetski/riffle/issues/1")
+            }
+        }
+        val vm = makeVm(repository = repo)
+        vm.setFailureType(PanelDetectionFailureType.MissedPanel)
+        vm.submit(maskPng = ByteArray(0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(submitted)
+        assertEquals("https://github.com/pkmetski/riffle/issues/1", vm.state.value.submittedIssueUrl)
+
+        // Changing the issue type should allow a new report to be submitted
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        assertNull(vm.state.value.submittedIssueUrl)
+    }
+
+    @Test
     fun `setFailureType clears tap state`() = runTest {
         val region = PanelRegion(x = 0, y = 0, width = 200, height = 200)
         val vm = makeVm(panels = listOf(region))

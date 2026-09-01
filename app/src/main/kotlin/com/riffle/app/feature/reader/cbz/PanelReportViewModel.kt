@@ -46,6 +46,7 @@ class PanelReportViewModel(
         _state.update { it.copy(
             failureType = type,
             error = null,
+            submittedIssueUrl = null,
             tappedX = null,
             tappedY = null,
             tappedPanelIndex = null,
