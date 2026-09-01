@@ -1070,4 +1070,58 @@ class PanelDetectorImageTest {
             2, rightBottom.size,
         )
     }
+
+    @Test
+    fun `issue 878 page 33 full-width splash and middle strip must not be merged into one panel`() {
+        // Regression for issue #878 (page 33): the top splash panel (park scene, y≈60–1648) and
+        // the middle horizontal strip below it were merged into one large CC (y=60–2049) because
+        // the shared drawn border between them (ink line at y≈1637–1648, ~92% full-width content)
+        // had no white-gutter valley — all prior fallbacks look for sparse rows and fail when the
+        // separator is a dense drawn line. The dense-border horizontal split detects the ink spike
+        // and splits there. Expected: ≥ 3 panels total (top splash, middle strip, and the two
+        // side-by-side bottom panels which were already detected correctly).
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-878-merged-panels-p33.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The merged CC (y=60..2049, spanning 65% of page height) must be split: no single
+        // panel may cover more than 55% of the page height.
+        val maxPanelHeightFraction = result.panels.maxOf { it.height.toDouble() / mask.height }
+        assertTrue(
+            "top splash and middle strip must not be merged: max panel height = ${maxPanelHeightFraction * 100.0}% " +
+                "of page (must be < 55%); all panels=${result.panels}",
+            maxPanelHeightFraction < 0.55,
+        )
+    }
+
+    @Test
+    fun `issue 880 page 35 top panel and bottom strips must not be merged into one panel`() {
+        // Regression for issue #880 (page 35): the top panel and the two bottom side-by-side
+        // strips were merged into one large CC (y=0–2019, spanning 66% of page height) because
+        // the shared drawn border (a full-width ink band at y=1575–1585, ~100% content) had no
+        // white-gutter valley. The dense-border horizontal split detects the band and splits
+        // the CC into top panel + bottom strip; the full-height-gutter exception then splits
+        // the bottom strip vertically into two side-by-side panels.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-880-merged-panels-p35.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The top panel (from the merged CC) must not extend into the bottom-strip zone.
+        // Its bottom edge must be at or above y≈1590 (border ends at y=1585).
+        val topPanel = result.panels.minByOrNull { it.y }!!
+        assertTrue(
+            "top panel bottom edge must be at or above y=1620 (border at y=1575–1585); " +
+                "got y=${topPanel.y} h=${topPanel.height} → bottom=${topPanel.y + topPanel.height}",
+            topPanel.y + topPanel.height <= 1620,
+        )
+        // There must be at least two panels centred in the bottom-strip zone (y≈1587–2029):
+        // bottom-left and bottom-right. They must not be merged into one full-width panel.
+        val bottomStripPanels = result.panels.filter { p ->
+            val cy = p.y + p.height / 2
+            cy in 1587..2029
+        }
+        assertTrue(
+            "the bottom strip (y=1587–2029) must contain ≥ 2 panels (bottom-left + bottom-right), " +
+                "not one merged full-width panel; found ${bottomStripPanels.size}: $bottomStripPanels",
+            bottomStripPanels.size >= 2,
+        )
+    }
 }

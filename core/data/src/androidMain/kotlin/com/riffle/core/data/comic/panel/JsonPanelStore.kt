@@ -314,8 +314,22 @@ class JsonPanelStore constructor(
          *      that previously forced the page onto the CC fallback path. v35 caches for pages with
          *      silhouette columns split into narrow vertical strips hold an unsplit wide panel where
          *      two stacked panels should appear.
+         * v37: Dense-border horizontal split fallback added to splitSinglePanelRecursively (issues
+         *      #878, #880). Pages where adjacent panels share a fully drawn ink border (no white
+         *      gutter between them) could not be split by any prior fallback because all prior paths
+         *      look for sparse/white rows. The new fallback scans for runs of 3–20 consecutive rows
+         *      where ≥90% of the bbox width is dark content (a drawn panel-border band), then uses a
+         *      post-border spike test (avg content in the 5–15 rows after the band must be <80%) to
+         *      reject broad artwork zones. The minimum piece height is the banner threshold (7% of
+         *      page) rather than the general threshold (14%) so the shorter strip produced by the
+         *      split can survive applyGlobalSanityChecks via the banner exception. The vertical split
+         *      guard for full-width short bboxes (width ≥95%, height ≤25%) now also allows a split
+         *      when the chosen gutter column has <10% dark pixels across the bbox height, permitting
+         *      the bottom strip from the dense-border split to be divided into side-by-side panels.
+         *      v36 caches for pages with drawn ink borders between adjacent panels hold a single
+         *      over-merged panel spanning both the top panel and the bottom side-by-side strips.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 37
+        internal const val CURRENT_SCHEMA_VERSION: Int = 38
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

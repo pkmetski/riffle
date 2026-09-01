@@ -1451,6 +1451,82 @@ class PanelDetector(
                         topH >= minDimPx && bottomH >= minDimPx
                     }
                 }
+                // Dense-border horizontal split: for wide (≥ 70% page width), tall (≥ 50% page
+                // height) merged bboxes, detect a drawn panel separator as a thin band of
+                // near-full-width rows. Unlike white-gutter splits (sparse rows), drawn panel
+                // borders appear as DENSE rows — ≥ 90% of the full bbox width — because the
+                // shared ink line spans the entire panel width. The band must be thin (≤ 20 rows)
+                // to exclude broad artwork regions (dark backgrounds, large silhouettes). A spike
+                // test confirms the border is a true transition: the average content of rows 5–15
+                // after the border must be < 80% of full bbox width. Without the spike test,
+                // short sub-runs inside a broad artwork zone produce false splits.
+                //
+                // Minimum piece height: uses the banner-level floor (7%) rather than the standard
+                // minPanelDimensionFraction (14%), because the strip produced by this split may be
+                // a narrow banner that is wide enough to survive applyGlobalSanityChecks via the
+                // banner exception (≥ 50% width, ≥ 7% height).
+                //
+                // Sets horizontalFromDiagonalFallback = true to bypass the bannerBboxMinHeightPx
+                // (25%-of-bbox) guard below — the dense-border split is a genuine panel boundary,
+                // not an artifact of a recursive split on an already-narrow sub-bbox.
+                //
+                // Issue #878: shared border at y=1637–1648 (92%) correctly splits a park-scene
+                // splash from the middle strip; post-border rows drop to 64–73%.
+                // Issue #880: shared border at y=1575–1585 (100%) splits the top panel from the
+                // bottom strips; post-border rows drop to 56–67%.
+                ?: run denseBorderHorizontalSplitFallback@{
+                    val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                    val bboxHeightFraction = height.toDouble() / downscaledHeight.toDouble()
+                    if (bboxWidthFraction < 0.70) return@denseBorderHorizontalSplitFallback null
+                    if (bboxHeightFraction < 0.50) return@denseBorderHorizontalSplitFallback null
+                    val fullBboxWidth = bbox.maxX - bbox.minX + 1
+                    val borderThresholdK = 900L  // ≥ 90% of fullBboxWidth per 1000
+                    val postBorderThresholdK = 800L  // < 80% for spike confirmation
+                    val maxBorderThick = 20
+                    // Use banner-level minimum (7% of page height) so the strip produced by the
+                    // split can be kept by the banner exception in applyGlobalSanityChecks.
+                    val bannerMinH = (downscaledHeight * 0.07).toInt().coerceAtLeast(30)
+                    var runStartD = -1
+                    val borderAxisEnd = bbox.maxY - edgeMarginY
+                    var foundResult: Pair<Int, Int>? = null
+                    loop@ for (y in (bbox.minY + edgeMarginY)..borderAxisEnd) {
+                        val isBorderRow = cropped.rowContentCount(y, bbox.minX, bbox.maxX).toLong() * 1000L >=
+                            fullBboxWidth.toLong() * borderThresholdK
+                        if (isBorderRow) {
+                            if (runStartD < 0) runStartD = y
+                            // Run too thick → artwork (dark background / silhouette), not a drawn border.
+                            // Cancel; subsequent border row restarts a fresh search.
+                            if (y - runStartD >= maxBorderThick) runStartD = -1
+                        } else if (runStartD >= 0) {
+                            val thickness = y - runStartD
+                            if (thickness >= 3) {
+                                val end = runStartD + thickness - 1
+                                val topH = runStartD - bbox.minY
+                                val bottomH = bbox.maxY - end
+                                if (topH >= bannerMinH && bottomH >= bannerMinH) {
+                                    // Spike test: average content of rows 5–15 after the border must drop
+                                    // below 80% of full bbox width, confirming this separates two distinct
+                                    // content regions rather than a brief dip inside a dark artwork zone.
+                                    val checkStart = end + 5
+                                    val checkEnd = minOf(end + 15, bbox.maxY)
+                                    if (checkStart <= checkEnd) {
+                                        var postSum = 0L
+                                        for (cy in checkStart..checkEnd) {
+                                            postSum += cropped.rowContentCount(cy, bbox.minX, bbox.maxX)
+                                        }
+                                        val checkCount = checkEnd - checkStart + 1
+                                        if (postSum * 1000L < fullBboxWidth.toLong() * postBorderThresholdK * checkCount) {
+                                            foundResult = runStartD to thickness
+                                            break@loop
+                                        }
+                                    }
+                                }
+                            }
+                            runStartD = -1
+                        }
+                    }
+                    foundResult
+                }?.also { horizontalFromDiagonalFallback = true }
                 // If projection found nothing, fall back to a thin flood-fill gutter when
                 // banner-eligible. Flood-fill accessibility confirms the gutter connects to the
                 // page border; the banner conditions guard against caption-box false splits.
@@ -1709,12 +1785,27 @@ class PanelDetector(
         // A short full-width band is usually a banner/splash row. White speech balloons and
         // lighting gaps inside it can look like vertical gutters, but splitting them produces
         // narrow side fragments instead of real panels.
+        //
+        // Exception: allow the split when the gutter is a genuine full-height enclosed separator
+        // found by projection (verticalGutter == null, meaning flood-fill didn't reach it) AND the
+        // gutter column has ZERO dark pixels across the full bbox height. This catches the bottom
+        // strip produced by the dense-border horizontal split, which contains two real side-by-side
+        // panels separated by a pure-white enclosed gutter. Speech-bubble false gutters always have
+        // dark border pixels in the column → colContentCount > 0, so they fail the check.
         if (
             axis == "v" &&
             width.toDouble() / downscaledWidth.toDouble() >= 0.95 &&
             height.toDouble() / downscaledHeight.toDouble() <= 0.25
         ) {
-            return listOf(bbox)
+            // Allow the split only when the chosen gutter column has fewer than 10% dark pixels
+            // across the full bbox height. A genuine inter-panel gutter is a near-empty white
+            // channel — a few border-ink pixels at most. A speech-bubble or artwork "gutter" inside
+            // a single wide panel has significantly more content in the column (typically 15–40%)
+            // and is rejected. If neither flood-fill nor projection found a gutter, block as before.
+            val gutterColContent = cropped.colContentCount(start, bbox.minY, bbox.maxY)
+            val isGenuineFullHeightGutter = effectiveVerticalGutter != null &&
+                gutterColContent.toLong() * 10L <= height.toLong()
+            if (!isGenuineFullHeightGutter) return listOf(bbox)
         }
 
         // Skip the split if either resulting sub-panel would be too narrow to survive
