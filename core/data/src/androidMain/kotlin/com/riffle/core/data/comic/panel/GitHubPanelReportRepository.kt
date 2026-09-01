@@ -125,6 +125,11 @@ class GitHubPanelReportRepository(
             appendLine("**Expected panel order:** $order")
             appendLine()
         }
+        val falsePanels = report.falsePanelIndices
+        if (falsePanels != null) {
+            appendLine("**False panels:** $falsePanels")
+            appendLine()
+        }
         appendLine("**Detected panels:**")
         report.detectedPanels.forEachIndexed { i, p ->
             appendLine("- [$i] x=${p.x} y=${p.y} w=${p.width} h=${p.height}")

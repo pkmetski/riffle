@@ -71,6 +71,7 @@ internal fun PanelReportSheet(
         cutOffMode
     val drawsRectangle = drawsRectangle(state.failureType)
     val orderMode = state.failureType == PanelDetectionFailureType.WrongPanelOrder
+    val falsePanelMode = state.failureType == PanelDetectionFailureType.FalsePanel
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -154,6 +155,11 @@ internal fun PanelReportSheet(
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
             }
+            if (falsePanelMode) {
+                Text("Tap to mark or unmark panels as false detections",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -161,7 +167,7 @@ internal fun PanelReportSheet(
                     .aspectRatio(mask.width.toFloat() / mask.height.toFloat())
                     .border(1.dp, Color.Gray)
                     .onSizeChanged { canvasSize = it }
-                    .pointerInput(cutOffMode, drawMode, orderMode, state.failureType, canvasSize) {
+                    .pointerInput(cutOffMode, drawMode, orderMode, falsePanelMode, state.failureType, canvasSize) {
                         when {
                             cutOffMode -> awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -226,10 +232,10 @@ internal fun PanelReportSheet(
                                 if (scaleX > 0f && scaleY > 0f) {
                                     val ix = (offset.x / scaleX).toInt().coerceIn(0, mask.width - 1)
                                     val iy = (offset.y / scaleY).toInt().coerceIn(0, mask.height - 1)
-                                    if (orderMode) {
-                                        viewModel.tapForOrder(ix, iy)
-                                    } else {
-                                        viewModel.onTap(tappedImageX = ix, tappedImageY = iy)
+                                    when {
+                                        orderMode -> viewModel.tapForOrder(ix, iy)
+                                        falsePanelMode -> viewModel.toggleFalsePanel(ix, iy)
+                                        else -> viewModel.onTap(tappedImageX = ix, tappedImageY = iy)
                                     }
                                 }
                             }
@@ -246,7 +252,7 @@ internal fun PanelReportSheet(
                     viewModel.detectedPanels.forEachIndexed { i, p ->
                         val orderPos = orderedIndexMap[i]
                         val isOrdered = orderPos != null
-                        val selected = state.tappedPanelIndex == i
+                        val selected = if (falsePanelMode) i in state.falsePanelIndices else state.tappedPanelIndex == i
                         drawPanelReportOutline(
                             topLeft = Offset(p.x * scaleX, p.y * scaleY),
                             size = Size(p.width * scaleX, p.height * scaleY),

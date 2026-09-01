@@ -244,6 +244,70 @@ class PanelReportViewModelTest {
     }
 
     @Test
+    fun `toggleFalsePanel adds panel index to falsePanelIndices`() = runTest {
+        val panels = listOf(
+            PanelRegion(x = 0, y = 0, width = 100, height = 100),
+            PanelRegion(x = 100, y = 0, width = 100, height = 100),
+        )
+        val vm = makeVm(panels = panels)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        vm.toggleFalsePanel(ix = 50, iy = 50)   // inside panel 0
+        vm.toggleFalsePanel(ix = 150, iy = 50)  // inside panel 1
+        assertEquals(setOf(0, 1), vm.state.value.falsePanelIndices)
+    }
+
+    @Test
+    fun `toggleFalsePanel removes panel when already selected`() = runTest {
+        val panels = listOf(PanelRegion(x = 0, y = 0, width = 100, height = 100))
+        val vm = makeVm(panels = panels)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        vm.toggleFalsePanel(ix = 50, iy = 50)
+        vm.toggleFalsePanel(ix = 50, iy = 50)
+        assertTrue(vm.state.value.falsePanelIndices.isEmpty())
+    }
+
+    @Test
+    fun `toggleFalsePanel outside all panels does nothing`() = runTest {
+        val panels = listOf(PanelRegion(x = 0, y = 0, width = 100, height = 100))
+        val vm = makeVm(panels = panels)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        vm.toggleFalsePanel(ix = 500, iy = 500)
+        assertTrue(vm.state.value.falsePanelIndices.isEmpty())
+    }
+
+    @Test
+    fun `setFailureType clears falsePanelIndices`() = runTest {
+        val panels = listOf(PanelRegion(x = 0, y = 0, width = 100, height = 100))
+        val vm = makeVm(panels = panels)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        vm.toggleFalsePanel(ix = 50, iy = 50)
+        vm.setFailureType(PanelDetectionFailureType.MissedPanel)
+        assertTrue(vm.state.value.falsePanelIndices.isEmpty())
+    }
+
+    @Test
+    fun `submit passes falsePanelIndices to report`() = runTest {
+        var capturedReport: PanelDetectionReport? = null
+        val repo = object : PanelReportRepository {
+            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> {
+                capturedReport = report
+                return Result.success("https://github.com/pkmetski/riffle/issues/1")
+            }
+        }
+        val panels = listOf(
+            PanelRegion(x = 0, y = 0, width = 100, height = 100),
+            PanelRegion(x = 100, y = 0, width = 100, height = 100),
+        )
+        val vm = makeVm(panels = panels, repository = repo)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        vm.toggleFalsePanel(ix = 50, iy = 50)   // panel 0
+        vm.toggleFalsePanel(ix = 150, iy = 50)  // panel 1
+        vm.submit(maskPng = ByteArray(0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(0, 1), capturedReport?.falsePanelIndices)
+    }
+
+    @Test
     fun `setFailureType clears tap state`() = runTest {
         val region = PanelRegion(x = 0, y = 0, width = 200, height = 200)
         val vm = makeVm(panels = listOf(region))

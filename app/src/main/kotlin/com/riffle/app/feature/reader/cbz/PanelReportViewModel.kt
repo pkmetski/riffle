@@ -23,6 +23,7 @@ data class PanelReportUiState(
     val drawnPanels: List<PanelRegion> = emptyList(),
     val drawnBoundaries: List<PanelBoundaryLine> = emptyList(),
     val orderedPanelIndices: List<Int> = emptyList(),
+    val falsePanelIndices: Set<Int> = emptySet(),
     val submitting: Boolean = false,
     val submittedIssueUrl: String? = null,
     val submittedForFailureType: PanelDetectionFailureType? = null,
@@ -53,6 +54,7 @@ class PanelReportViewModel(
             drawnPanels = emptyList(),
             drawnBoundaries = emptyList(),
             orderedPanelIndices = emptyList(),
+            falsePanelIndices = emptySet(),
         ) }
     }
 
@@ -76,6 +78,18 @@ class PanelReportViewModel(
     fun tapForOrder(ix: Int, iy: Int) {
         val panelIndex = panelIndexAt(ix, iy)
         if (panelIndex >= 0) addOrRemoveOrderedPanel(panelIndex)
+    }
+
+    fun toggleFalsePanel(ix: Int, iy: Int) {
+        val panelIndex = panelIndexAt(ix, iy)
+        if (panelIndex < 0) return
+        _state.update { s ->
+            val updated = if (panelIndex in s.falsePanelIndices)
+                s.falsePanelIndices - panelIndex
+            else
+                s.falsePanelIndices + panelIndex
+            s.copy(falsePanelIndices = updated)
+        }
     }
 
     private fun panelIndexAt(x: Int, y: Int): Int =
@@ -133,6 +147,7 @@ class PanelReportViewModel(
                 drawnPanels = s.drawnPanels,
                 drawnBoundaries = s.drawnBoundaries,
                 expectedPanelOrder = s.orderedPanelIndices.takeIf { it.isNotEmpty() },
+                falsePanelIndices = s.falsePanelIndices.sorted().takeIf { it.isNotEmpty() },
             )
             repository.submit(report, maskPng).fold(
                 onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url, submittedForFailureType = ft) } },
