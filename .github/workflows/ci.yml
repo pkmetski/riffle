@@ -321,7 +321,7 @@ jobs:
         run: |
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
-            -scheme iosApp \
+            -scheme Riffle \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             ARCHS=arm64 \
