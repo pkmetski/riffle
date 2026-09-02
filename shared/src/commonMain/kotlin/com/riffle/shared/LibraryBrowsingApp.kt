@@ -10,6 +10,6 @@ import androidx.compose.ui.Modifier
 @Composable
 fun LibraryBrowsingApp() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        BasicText("Riffle")
+        BasicText("Riffle — library browsing coming soon")
     }
 }

@@ -5,10 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.data.PlaylistsRepository
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.urlDecode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -19,18 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.net.URLDecoder
 
-/**
- * UI state for [PlaylistDetailScreen].
- *
- * - [isLoading] — the initial fetch hasn't completed yet
- * - [deleted]  — the playlist no longer exists on the server (ABS auto-deletes an emptied
- *                 playlist; setting this true lets the screen show a terminal empty state
- *                 and pop back rather than sit on "Loading…" forever, which was the bug
- *                 shipped in the first cut when [PlaylistsRepository.getPlaylist] returned
- *                 null after the user removed the last item)
- */
 data class PlaylistDetailUiState(
     val name: String = "",
     val items: List<LibraryItem> = emptyList(),
@@ -50,14 +40,8 @@ class PlaylistDetailViewModel constructor(
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
     val playlistId: String = savedStateHandle.get<String>("playlistId") ?: ""
     private val initialName: String =
-        URLDecoder.decode(savedStateHandle.get<String>("playlistName") ?: "", "UTF-8")
+        (savedStateHandle.get<String>("playlistName") ?: "").urlDecode()
 
-    /** Playlist snapshot loaded from the repository.
-     *  - [PlaylistLoad.Loading] — before the first getPlaylist returns
-     *  - [PlaylistLoad.Present] — the playlist exists on the source
-     *  - [PlaylistLoad.Deleted] — a getPlaylist returned null AFTER a prior Present, i.e. the
-     *    playlist was auto-deleted by ABS when its last item was removed. Distinct from Loading
-     *    so the UI knows to show an empty state and pop back instead of spinning. */
     private sealed interface PlaylistLoad {
         data object Loading : PlaylistLoad
         data class Present(val playlist: CatalogPlaylist) : PlaylistLoad
@@ -120,8 +104,6 @@ class PlaylistDetailViewModel constructor(
         loadFlow.value = if (fetched != null) {
             PlaylistLoad.Present(fetched)
         } else if (loadFlow.value is PlaylistLoad.Loading) {
-            // First fetch found nothing — treat as deleted (either the id was stale from a nav
-            // arg or the playlist has since disappeared). Better to surface it than spin.
             PlaylistLoad.Deleted
         } else {
             PlaylistLoad.Deleted

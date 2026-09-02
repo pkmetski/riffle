@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
-import com.riffle.app.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard

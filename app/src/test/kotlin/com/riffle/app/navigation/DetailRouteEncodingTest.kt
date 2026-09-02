@@ -1,7 +1,7 @@
 package com.riffle.app.navigation
 
-import com.riffle.app.feature.library.LibrarySectionType
-import com.riffle.app.feature.navigation.HomeViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.HomeViewModel
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType

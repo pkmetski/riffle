@@ -1,6 +1,7 @@
 package com.riffle.app.feature.library
 
 import com.riffle.app.R
+import com.riffle.feature.library.LibrarySectionType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -23,14 +24,12 @@ class LibraryLocalizationResourceTest {
 
     @Test
     fun `home section types use localized string resources`() {
-        assertEquals(
-            mapOf(
-                LibrarySectionType.IN_PROGRESS to R.string.ui_section_in_progress,
-                LibrarySectionType.FINISHED to R.string.ui_section_completed,
-                LibrarySectionType.RECENTLY_ADDED to R.string.ui_section_recently_added,
-                LibrarySectionType.CONTINUE_SERIES to R.string.ui_section_continue_series,
-            ),
-            LibrarySectionType.entries.associateWith { it.titleResId },
-        )
+        // LibrarySectionType.titleResId (@StringRes) was removed when the type moved to
+        // feature:library commonMain — Android @StringRes cannot be used in KMP code.
+        // Titles are now plain English strings; composeResources localization is a follow-up.
+        assertEquals("In Progress", LibrarySectionType.IN_PROGRESS.title)
+        assertEquals("Completed", LibrarySectionType.FINISHED.title)
+        assertEquals("Recently Added", LibrarySectionType.RECENTLY_ADDED.title)
+        assertEquals("Continue Series", LibrarySectionType.CONTINUE_SERIES.title)
     }
 }

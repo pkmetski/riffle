@@ -21,8 +21,8 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.riffle.app.feature.library.LibrarySectionType
-import com.riffle.app.feature.navigation.HomeViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.playback.NowPlaying

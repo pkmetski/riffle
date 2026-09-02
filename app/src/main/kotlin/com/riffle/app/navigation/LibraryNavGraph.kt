@@ -16,11 +16,11 @@ import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
-import com.riffle.app.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.library.playlists.PlaylistDetailScreen
 import com.riffle.app.feature.navigation.HomeScreen
-import com.riffle.app.feature.navigation.HomeViewModel
+import com.riffle.feature.library.HomeViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope

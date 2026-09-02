@@ -7,26 +7,22 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.FacetType
+import com.riffle.feature.library.facetMatches
+import com.riffle.feature.library.urlDecode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.net.URLDecoder
 
-/**
- * Backs the [FilteredBooksScreen]: lists every Library Item in the current Library matching one
- * metadata facet (ADR 0033). The filter runs locally over the already-synced items, so it works
- * offline; when offline, results are further narrowed to locally-available books, mirroring the
- * Series/Collection detail screens.
- */
 class FilteredBooksViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
@@ -41,7 +37,7 @@ class FilteredBooksViewModel constructor(
     val facetType: FacetType = runCatching {
         FacetType.valueOf(savedStateHandle.get<String>("facetType") ?: "")
     }.getOrDefault(FacetType.AUTHOR)
-    val facetValue: String = URLDecoder.decode(savedStateHandle.get<String>("facetValue") ?: "", "UTF-8")
+    val facetValue: String = (savedStateHandle.get<String>("facetValue") ?: "").urlDecode()
 
     val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
         .map { !it }

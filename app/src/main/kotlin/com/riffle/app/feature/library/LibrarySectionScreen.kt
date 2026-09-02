@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.LibrarySectionType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +41,7 @@ fun LibrarySectionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(sectionType.titleResId)) },
+                title = { Text(sectionType.title) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
