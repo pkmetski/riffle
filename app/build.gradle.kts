@@ -126,6 +126,7 @@ dependencies {
 
     implementation(project(":core:domain"))
     implementation(project(":feature:library"))
+    implementation(project(":feature:source"))
     implementation(project(":core:sources"))
     implementation(project(":core:sync"))
     implementation(project(":core:data"))

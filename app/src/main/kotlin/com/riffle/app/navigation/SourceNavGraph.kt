@@ -15,9 +15,9 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.riffle.app.feature.server.AddSourceScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
-import com.riffle.app.feature.server.SourceSetupViewModel
+import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.app.feature.server.SourceTypePickerScreen
-import com.riffle.app.feature.server.SourceTypePickerViewModel
+import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.app.feature.source.chitanka.AddChitankaScreen
 import com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen
 import com.riffle.app.feature.source.gutenberg.AddGutenbergScreen

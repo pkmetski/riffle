@@ -26,8 +26,8 @@ import com.riffle.app.feature.reader.cbz.CbzReaderViewModel
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader
 import com.riffle.app.feature.server.AddSourceViewModel
 import com.riffle.app.feature.server.SelectLibrariesViewModel
-import com.riffle.app.feature.server.SourceSetupViewModel
-import com.riffle.app.feature.server.SourceTypePickerViewModel
+import com.riffle.feature.source.SourceSetupViewModel
+import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.app.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.app.feature.settings.debug.DebugLogViewModel
