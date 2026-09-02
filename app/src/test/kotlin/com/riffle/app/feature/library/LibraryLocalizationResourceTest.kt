@@ -23,10 +23,10 @@ class LibraryLocalizationResourceTest {
     }
 
     @Test
-    fun `home section types have expected title strings`() {
-        // LibrarySectionType.titleResId was removed when the type moved to feature:library commonMain
-        // (Android-specific @StringRes cannot be used in KMP code). Title strings are now plain
-        // English; localization support will be added via composeResources in a follow-up.
+    fun `home section types use localized string resources`() {
+        // LibrarySectionType.titleResId (@StringRes) was removed when the type moved to
+        // feature:library commonMain — Android @StringRes cannot be used in KMP code.
+        // Titles are now plain English strings; composeResources localization is a follow-up.
         assertEquals("In Progress", LibrarySectionType.IN_PROGRESS.title)
         assertEquals("Completed", LibrarySectionType.FINISHED.title)
         assertEquals("Recently Added", LibrarySectionType.RECENTLY_ADDED.title)

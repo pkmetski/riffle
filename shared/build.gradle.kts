@@ -30,10 +30,7 @@ kotlin {
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
-            implementation(libs.jetbrains.navigation.compose)
             implementation(libs.koin.core)
-            implementation(libs.koin.compose)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
