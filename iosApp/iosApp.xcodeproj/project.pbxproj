@@ -230,6 +230,7 @@
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosApp;
+				PRODUCT_MODULE_NAME = RiffleApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -259,6 +260,7 @@
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosApp;
+				PRODUCT_MODULE_NAME = RiffleApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
