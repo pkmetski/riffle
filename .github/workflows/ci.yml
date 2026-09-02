@@ -338,10 +338,19 @@ jobs:
       - uses: actions/checkout@v7
       - name: Run iOS integration tests
         run: |
+          # Pick the latest available iPhone simulator on this runner dynamically.
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+            for d in data['devices'][runtime_key]:
+              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                print(d['udid']); exit()
+          ")
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,id=$UDID" \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild-test.log; exit ${PIPESTATUS[0]}
       - name: Upload test log

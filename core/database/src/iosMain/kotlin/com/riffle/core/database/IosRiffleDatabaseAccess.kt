@@ -15,8 +15,8 @@ import com.riffle.core.database.dao.IosNoOpCoverGridScaleDao
 import com.riffle.core.database.dao.IosNoOpCrossEpubIndexDao
 import com.riffle.core.database.dao.IosNoOpDictionaryPackDao
 import com.riffle.core.database.dao.IosNoOpLocalFileMetadataOverrideDao
-import com.riffle.core.database.dao.IosNoOpLocalFilesFileFolderDao
 import com.riffle.core.database.dao.IosNoOpLocalFilesFileDao
+import com.riffle.core.database.dao.IosNoOpLocalFilesFileFolderDao
 import com.riffle.core.database.dao.IosNoOpLocalFilesFolderDao
 import com.riffle.core.database.dao.IosNoOpLookupHistoryDao
 import com.riffle.core.database.dao.IosNoOpPublicationMetricsCacheDao
