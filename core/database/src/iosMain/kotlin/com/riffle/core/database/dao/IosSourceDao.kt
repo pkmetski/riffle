@@ -13,7 +13,6 @@ internal class IosSourceDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : SourceDao {
-
     override fun observeAll(): Flow<List<SourceEntity>> =
         invalidator.version.flatMapLatest { flow { emit(querySources()) } }
 

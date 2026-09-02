@@ -17,7 +17,6 @@ internal class IosAnnotationDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : AnnotationDao {
-
     override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
         invalidator.version.flatMapLatest {
             flow {

@@ -10,7 +10,6 @@ internal class IosTocCacheDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : TocCacheDao {
-
     override suspend fun get(sourceId: String, itemId: String): TocCacheEntity? =
         driver.executeQuery(
             null,

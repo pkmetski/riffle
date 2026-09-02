@@ -32,7 +32,6 @@ import com.riffle.core.database.dao.IosSourceDao
 import com.riffle.core.database.dao.IosTocCacheDao
 
 internal class IosRiffleDatabaseAccess(private val driver: SqlDriver) : RiffleDatabaseAccess {
-
     private val invalidator = IosInvalidator()
 
     private val sourceDao = IosSourceDao(driver, invalidator)

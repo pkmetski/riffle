@@ -9,6 +9,12 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 
 [*.{kt,kts}]
+ktlint_code_style = intellij_idea
 max_line_length = 160
 ktlint_standard_no-wildcard-imports = enabled
 ktlint_standard_import-ordering = enabled
+
+# The iosMain DAO implementations use compact SQL binding lambdas (multiple bind calls
+# per lambda separated by semicolons). Disable statement-wrapping for these files.
+[**/iosMain/**/*.kt]
+ktlint_standard_statement-wrapping = disabled
