@@ -11,7 +11,7 @@ fun String.urlDecode(): String {
                 bytes.add(substring(i + 1, i + 3).toInt(16).toByte())
                 i += 3
             }
-            result.append(bytes.toByteArray().toString(Charsets.UTF_8))
+            result.append(bytes.toByteArray().decodeToString())
         } else if (get(i) == '+') {
             result.append(' ')
             i++
