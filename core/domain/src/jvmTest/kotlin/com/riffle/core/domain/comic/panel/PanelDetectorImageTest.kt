@@ -1148,4 +1148,77 @@ class PanelDetectorImageTest {
             topPanel,
         )
     }
+
+    @Test
+    fun `issue 890 page 32 bottom-left panel must not bleed into right-side panel column`() {
+        // Regression for issue #890 (page 32): the bottom-left panel was detected with w=979,
+        // extending to x=1083, overlapping with the right-side stacked panels that start at x=804.
+        // Dark silhouette content at the bottom of the page connected across the vertical gutter,
+        // making the CC extend rightward past the panel boundary.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-890-panel-cutoff-p32.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The bottom-left panel (x-centre < 50% page width, y-centre > 50% page height) must
+        // stop at or before the right panels' left boundary (~x=804); allow up to x=830 for rounding.
+        val bottomLeft = result.panels.firstOrNull { p ->
+            p.x + p.width / 2 < mask.width / 2 && p.y + p.height / 2 > mask.height / 2
+        }
+        assertNotNull(
+            "expected a bottom-left panel (x-centre < 50%, y-centre > 50%); panels=${result.panels}",
+            bottomLeft,
+        )
+        val rightEdge = bottomLeft!!.x + bottomLeft.width
+        assertTrue(
+            "bottom-left panel right edge must be ≤ 830 (before the right panels at x=804); " +
+                "got x=${bottomLeft.x} w=${bottomLeft.width} → right=$rightEdge; all panels=${result.panels}",
+            rightEdge <= 830,
+        )
+    }
+
+    @Test
+    fun `issue 891 page 33 middle strip must be one full-width panel not split into left and right halves`() {
+        // Regression for issue #891 (page 33): the middle horizontal strip (y≈1649-2050) was split
+        // into a left half (x=0-883, w=884) and a right half (x=899-1986, w=1088) because the
+        // interior white space at x≈884-898 between the two depicted characters was flood-fill
+        // reachable from the page exterior, creating a false column-gutter signal.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-891-split-panel-p33.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The middle strip (y-centre in y=1649..2066) must be covered by exactly ONE panel spanning
+        // ≥ 80% of the page width — not split into two halves.
+        val midStripPanels = result.panels.filter { p ->
+            val cy = p.y + p.height / 2
+            cy in 1649..2066
+        }
+        val fullWidthMidPanel = midStripPanels.firstOrNull { p -> p.width >= mask.width * 0.80 }
+        assertNotNull(
+            "expected one full-width (≥80%) middle strip panel in y=1649-2066; " +
+                "found ${midStripPanels.size} panel(s) there: $midStripPanels; all panels=${result.panels}",
+            fullWidthMidPanel,
+        )
+    }
+
+    @Test
+    fun `issue 892 page 34 tall right-side panel must not be missed due to border-connected silhouette`() {
+        // Regression for issue #892 (page 34): a tall panel in the upper-right region
+        // (x≈1507, y≈117-1493, w≈477, h≈1376) was not detected. The standing figure silhouette
+        // connects to adjacent dark content which merges it into a larger CC, and the resulting
+        // sub-bbox is either too small after splitting or the split fails to isolate it.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-892-missed-panel-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // There must be a panel in the right column (x-centre > 70% of page) whose y-range
+        // covers a substantial portion of the upper half (y-centre < 60% page height, h ≥ 15% page).
+        val tallRightPanel = result.panels.firstOrNull { p ->
+            p.x + p.width / 2 > mask.width * 0.70 &&
+                p.y + p.height / 2 < mask.height * 0.60 &&
+                p.height >= mask.height * 0.15
+        }
+        assertNotNull(
+            "expected a tall panel in the right column (x-centre > 70%, y-centre < 60%, h ≥ 15%); " +
+                "all panels=${result.panels}",
+            tallRightPanel,
+        )
+    }
+
 }

@@ -328,8 +328,23 @@ class JsonPanelStore constructor(
          *      the bottom strip from the dense-border split to be divided into side-by-side panels.
          *      v36 caches for pages with drawn ink borders between adjacent panels hold a single
          *      over-merged panel spanning both the top panel and the bottom side-by-side strips.
+         * v38: Banner exception added for split CCs (issue #879) and detection fixes for:
+         *      border-connected whitespace creating false vertical splits in full-width short strips
+         *      (#876 follow-up). v37 caches hold the pre-fix panel layout.
+         * v39: Three fixes for issues #890, #891, #892:
+         *      - #890: trimArtworkBleedOverlaps post-processing clips panels whose bbox bleeds mildly
+         *        (≤35%) into a neighbouring panel's column due to artwork crossing the drawn panel
+         *        border. v38 caches for such pages hold an over-wide bottom-left panel.
+         *      - #891: Full-width short strip vertical split guard now also requires the gutter column
+         *        to have flood-fill gutter pixels in BOTH the top and bottom 25% of the strip
+         *        (bilateral accessibility check). Prevents false splits where a speech balloon tail
+         *        makes interior whitespace border-accessible from only one side. v38 caches for such
+         *        pages hold a middle strip incorrectly split into two halves.
+         *      - #892: coalesceNarrowStripColumns now detects narrow strips separated by a suspicious
+         *        full-width row band, extends their union to the full column boundary, and emits one
+         *        tall panel. v38 caches for such pages miss the tall right-side column panel.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 38
+        internal const val CURRENT_SCHEMA_VERSION: Int = 39
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

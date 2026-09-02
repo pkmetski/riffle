@@ -77,7 +77,8 @@ class PanelDetector(
         val afterRowRepair = repairDiagonalTwoColumnRows(afterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterPairRepair = repairDiagonalAdjacentColumnPairs(afterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterMerge = mergeDiagonalSpanningPanels(afterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
-        val afterExpand = expandDiagonalBboxOverlaps(afterMerge)
+        val afterBleedTrim = trimArtworkBleedOverlaps(afterMerge, downscaledWidth)
+        val afterExpand = expandDiagonalBboxOverlaps(afterBleedTrim)
 
         val result = sanityCheck(
             candidates = afterExpand,
@@ -205,7 +206,7 @@ class PanelDetector(
         val projAfterPairRepair = repairDiagonalAdjacentColumnPairs(projAfterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterMerge = mergeDiagonalSpanningPanels(projAfterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
         val bboxesInCropped = expandTopsToNearbyContentFragments(
-            expandDiagonalBboxOverlaps(projAfterMerge),
+            expandDiagonalBboxOverlaps(trimArtworkBleedOverlaps(projAfterMerge, downscaledWidth)),
             cropped,
         )
 
@@ -326,7 +327,44 @@ class PanelDetector(
             // would incorrectly be merged and returned as a single union panel.
             val hasSpanningPanel = group.any { p -> (p.maxY - p.minY + 1).toDouble() / unionH >= 0.70 }
             if (!hasSpanningPanel) {
-                result.addAll(group)
+                // Before giving up, check whether a suspicious (full-width) bbox spans the
+                // y-gap between the narrow strips. A suspicious band is one whose column gutter
+                // was undetectable in the projection (artwork bleed connects left and right
+                // content). When such a band sits between the narrow strips, the strips are
+                // partial representations of one tall column panel — not separate panels.
+                // Extend the union to the full column boundary (gutter-start..right-margin)
+                // so the tall panel is captured at its actual width.
+                val groupMinY = group.minOf { it.minY }
+                val groupMaxY = group.maxOf { it.maxY }
+                val suspiciousWidthThreshold = downscaledWidth * 85 / 100
+                val suspiciousRightEdgeThreshold = downscaledWidth * 9 / 10
+                val suspiciousGapBbox = notNarrow.firstOrNull { nb ->
+                    (nb.maxX - nb.minX + 1) >= suspiciousWidthThreshold &&
+                        nb.maxX >= suspiciousRightEdgeThreshold &&
+                        nb.maxY >= groupMinY && nb.minY <= groupMaxY
+                }
+                if (suspiciousGapBbox != null) {
+                    // Left boundary: end of the adjacent center/left column + 1.
+                    val leftAdjacentMaxX = notNarrow
+                        .filter { nb ->
+                            nb.maxX < unionMinX && nb.maxY >= groupMinY && nb.minY <= groupMaxY
+                        }
+                        .maxOfOrNull { it.maxX }
+                    val extendedMinX = if (leftAdjacentMaxX != null) leftAdjacentMaxX + 1 else unionMinX
+                    val extendedMaxX = suspiciousGapBbox.maxX
+                    val extended = Bbox(extendedMinX, unionMinY, extendedMaxX, unionMaxY)
+                    result.addAll(splitUnionHorizontalOnly(extended, cropped, gutter, downscaledHeight))
+                    continue
+                }
+                // No spanning panel and no suspicious-gap band: the group's strips are
+                // partial slices of a tall right-column panel whose border-connected gutter
+                // was lost to ink bleed (#892). Treat the bounding union as a single panel
+                // candidate — splitUnionHorizontalOnly will split it at any valid internal
+                // horizontal gutter (both halves ≥ minPanelDimensionFraction), or return
+                // the whole union unsplit when the inter-strip gutters produce sub-panels
+                // too short to survive sanity checks on their own.
+                val union = Bbox(unionMinX, unionMinY, unionMaxX, unionMaxY)
+                result.addAll(splitUnionHorizontalOnly(union, cropped, gutter, downscaledHeight))
                 continue
             }
 
@@ -803,6 +841,74 @@ class PanelDetector(
                 if (pad <= 0) continue
                 result[leftIdx] = Bbox(left.minX, left.minY, left.maxX + pad, left.maxY)
                 result[rightIdx] = Bbox((right.minX - pad).coerceAtLeast(0), right.minY, right.maxX, right.maxY)
+            }
+        }
+        return result
+    }
+
+    /**
+     * Trims panels whose bounding box bleeds mildly into a neighbouring panel's column due to
+     * artwork crossing the drawn panel border (e.g. a large silhouette figure painted past the
+     * border line). The bleed manifests as a small horizontal overlap (≤35% of the bleeding
+     * panel's width) with a y-adjacent panel whose x-centre is clearly in a different column.
+     *
+     * Without this step the bleeding panel's bbox is too wide and the mild overlap (< 25%)
+     * slips under the sanity-check rejection threshold, resulting in a panel that covers the
+     * neighbouring column's territory (#890).
+     */
+    private fun trimArtworkBleedOverlaps(
+        bboxes: List<Bbox>,
+        downscaledWidth: Int,
+    ): List<Bbox> {
+        if (bboxes.size < 2) return bboxes
+        val minDimPx = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        val result = bboxes.toMutableList()
+        var changed = true
+        while (changed) {
+            changed = false
+            outer@ for (i in result.indices) {
+                for (j in result.indices) {
+                    if (i == j) continue
+                    val a = result[i]
+                    val b = result[j]
+                    // A must extend rightward past B's left edge
+                    if (a.maxX <= b.minX || a.minX >= b.minX) continue
+                    // A's x-centre must be clearly left of B's x-centre (different columns)
+                    val aCenterX = (a.minX + a.maxX) / 2
+                    val bCenterX = (b.minX + b.maxX) / 2
+                    if (aCenterX >= bCenterX) continue
+                    // Must share meaningful y-overlap (≥30% of shorter panel's height)
+                    val yOverlapStart = maxOf(a.minY, b.minY)
+                    val yOverlapEnd = minOf(a.maxY, b.maxY)
+                    if (yOverlapEnd < yOverlapStart) continue
+                    val yOverlapLen = yOverlapEnd - yOverlapStart + 1
+                    val shorterH = minOf(a.maxY - a.minY + 1, b.maxY - b.minY + 1)
+                    if (yOverlapLen.toDouble() / shorterH < 0.30) continue
+                    // Diagonal-boundary repairs (repairDiagonalAdjacentColumnPairs) produce overlapping
+                    // bboxes for panels from the SAME projection row band — those panels share
+                    // identical top-y. Artwork bleed (repairDiagonalAdjacentColumnPairs incorrectly
+                    // widening a panel into a neighbouring cross-row-band panel) produces A and B
+                    // from different projection row bands → B.minY > A.minY by at least 5px.
+                    if (b.minY <= a.minY + 5) continue
+                    // A tall diagonal panel (A) naturally overlaps with the lower-right panel (B/C)
+                    // in the same row band — both share the same bottom edge. True artwork bleed has
+                    // A extending significantly BELOW B (A.maxY >> B.maxY). If A and B share the
+                    // same bottom edge (±5px), the overlap is legitimate diagonal geometry, not bleed.
+                    if (a.maxY <= b.maxY + 5) continue
+                    // X-bleed must be 10–35% of A's width. The lower bound excludes tiny
+                    // diagonal-expansion overlaps (~1–5%) added by expandDiagonalBboxOverlaps;
+                    // the upper bound excludes genuine panel mergers that are not artwork bleed.
+                    val aWidth = a.maxX - a.minX + 1
+                    val xBleed = a.maxX - b.minX + 1
+                    val xBleedFraction = xBleed.toDouble() / aWidth
+                    if (xBleedFraction < 0.10 || xBleedFraction > 0.35) continue
+                    // Clipped A must still be at least minDimPx wide
+                    val clippedWidth = b.minX - a.minX
+                    if (clippedWidth < minDimPx) continue
+                    result[i] = Bbox(a.minX, a.minY, b.minX - 1, a.maxY)
+                    changed = true
+                    continue@outer
+                }
             }
         }
         return result
@@ -1889,8 +1995,26 @@ class PanelDetector(
             val topStripColContent = if (verticalFromBothStripsConfirmation) {
                 cropped.colContentCount(start, bbox.minY, bbox.minY + topStripHForGuard - 1)
             } else 0
+            // For the projection-based sparse-column exception (gutterColContent < 10%):
+            // a genuine dense-border inter-panel gutter has the column white throughout the
+            // full strip, with at most a thin horizontal border crossing it at the top and
+            // bottom edges (typically 1–3 dark pixels in the edge 10%). A speech-balloon
+            // interior that spans the inner section of the strip has the surrounding panel
+            // artwork ABOVE and BELOW the balloon — producing significantly denser content
+            // at x=start in the top and bottom 10% of the strip.
+            // Require BOTH edges of the gutter column to be sparse so that genuine border
+            // gutters (#880) pass but speech-balloon interiors (#891) are rejected.
+            // Top edge: ≤ 25% content (× 4); bottom edge: ≤ 33% content (× 3). The asymmetry
+            // is intentional — the drawn bottom border of adjacent panels can contribute
+            // ~26% content at the gutter column's bottom edge (#880: botEdgeContent=11/43=25.6%),
+            // while speech-balloon false gutters have ≥ 37% at both edges (#891).
+            val edgeCheckH = (height * 0.10).toInt().coerceAtLeast(1)
+            val topEdgeContent = cropped.colContentCount(start, bbox.minY, bbox.minY + edgeCheckH - 1)
+            val botEdgeContent = cropped.colContentCount(start, bbox.maxY - edgeCheckH + 1, bbox.maxY)
             val isGenuineFullHeightGutter = effectiveVerticalGutter != null && (
-                gutterColContent.toLong() * 10L <= height.toLong() ||
+                (gutterColContent.toLong() * 10L <= height.toLong() &&
+                    topEdgeContent * 4L <= edgeCheckH.toLong() &&
+                    botEdgeContent * 3L <= edgeCheckH.toLong()) ||
                 (verticalFromBothStripsConfirmation && topStripColContent.toLong() * 10L <= topStripHForGuard.toLong())
             )
             if (!isGenuineFullHeightGutter) return listOf(bbox)
@@ -2439,6 +2563,7 @@ class PanelDetector(
     private fun filterAndTighten(components: List<Bbox>, cropped: CroppedMask): List<Bbox> {
         val pageArea = cropped.width.toLong() * cropped.height.toLong()
         val minArea = (pageArea.toDouble() * config.minPanelAreaFraction).toLong()
+
 
         return components
             .filter { it.area() >= minArea }
