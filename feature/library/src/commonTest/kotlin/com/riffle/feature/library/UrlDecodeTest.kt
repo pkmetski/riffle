@@ -29,4 +29,16 @@ class UrlDecodeTest {
     fun emptyStringReturnsEmpty() {
         assertEquals("", "".urlDecode())
     }
+
+    @Test
+    fun decodesMultiByteUtf8Sequence() {
+        // 'é' = UTF-8 bytes 0xC3 0xA9; URLEncoder produces "%C3%A9"
+        assertEquals("Café Stories", "Caf%C3%A9+Stories".urlDecode())
+    }
+
+    @Test
+    fun decodesThreeByteUtf8Sequence() {
+        // '€' = UTF-8 bytes 0xE2 0x82 0xAC; URLEncoder produces "%E2%82%AC"
+        assertEquals("12€", "12%E2%82%AC".urlDecode())
+    }
 }
