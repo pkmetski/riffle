@@ -1,6 +1,7 @@
 package com.riffle.core.domain.comic.panel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -1686,6 +1687,116 @@ class PanelDetectorTest {
             "right-column narrow strip must be kept separate (x-centre span > 25% guard); " +
                 "got=${result.panels}",
             rightPanels.isNotEmpty(),
+        )
+    }
+
+    // --- mergeSharedBorderFalseGaps boundary tests ---
+
+    @Test
+    fun `mergeSharedBorderFalseGaps merges two same-row panels when at least two panels below straddle the gap`() {
+        // Boundary test — inside the trigger zone:
+        // A thin ink border (binarized to white) creates a gap of ~4% page width between two
+        // same-row panels. The pair IS the topmost on the page (gate 1). No other row has a
+        // column boundary near gapLeft (gate 2 passes). Two wide panels below span the full gap
+        // [gapLeft, gapRight] confirming the gap is a binarization artifact (gate 3). Merge.
+        val pageW = 2000
+        val p0 = PanelRegion(x = 100, y = 100, width = 700, height = 400)   // top-row left; right=800 (gapLeft)
+        val p1 = PanelRegion(x = 880, y = 100, width = 620, height = 400)   // top-row right; gapRight=880, gapW=80
+        val p2 = PanelRegion(x = 100, y = 500, width = 1400, height = 400)  // row 2 below: x≤800, x+w=1500≥880, w=1400≥mergedW/2=700
+        val p3 = PanelRegion(x = 100, y = 900, width = 1400, height = 400)  // row 3 below: same
+        val panels = listOf(p0, p1, p2, p3)
+        val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
+        // Gates: (1) topmost pair ✓; (2) no validator ✓; (3) count=2 ≥ 2 ✓ → merge
+        assertEquals("expected 3 panels after merge (merged top-row pair + rows 2-3); got=$result", 3, result.size)
+        val topPanel = result.firstOrNull { it.y + it.height / 2 < 500 }
+        assertNotNull("expected one merged top-row panel; got=$result", topPanel)
+        assertEquals("merged top panel must span from x=100; got=$result", 100, topPanel!!.x)
+        assertEquals("merged top panel width must be 1400; got=$result", 1400, topPanel.width)
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps does NOT merge when only one panel below spans the full gap`() {
+        // Boundary test — just outside gate 3:
+        // Topmost pair with narrow gap; gate 1 (topmost) and gate 2 (no column validator) both
+        // pass, but only ONE panel below spans [gapLeft, gapRight]. Gate 3 requires ≥ 2.
+        val pageW = 2000
+        val p0 = PanelRegion(x = 100, y = 100, width = 700, height = 400)   // top-row left
+        val p1 = PanelRegion(x = 880, y = 100, width = 620, height = 400)   // top-row right (gapW=80)
+        val p2 = PanelRegion(x = 100, y = 500, width = 1400, height = 400)  // only 1 panel below spanning
+        val panels = listOf(p0, p1, p2)
+        val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
+        // No merge: only 1 straddling panel below (need ≥ 2 for gate 3)
+        assertEquals("panels must NOT be merged when < 2 panels span the gap below; got=$result", 3, result.size)
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps does NOT merge non-topmost pair even when two rows below span the gap`() {
+        // Boundary test — gate 1 blocks: the pair is NOT in the topmost row.
+        // A panel row ABOVE the candidate pair means any straddle-below evidence is ambiguous
+        // (the rows below could simply be wider than this row's genuine column split). Only
+        // true top-row artifact gaps can be merged.
+        val pageW = 2000
+        val pAbove = PanelRegion(x = 100, y = 0, width = 1400, height = 90)   // a panel ABOVE the candidate pair
+        val p0 = PanelRegion(x = 100, y = 100, width = 700, height = 400)     // middle-left (not topmost)
+        val p1 = PanelRegion(x = 880, y = 100, width = 620, height = 400)     // middle-right
+        val p2 = PanelRegion(x = 100, y = 500, width = 1400, height = 400)    // row below — spans full gap
+        val p3 = PanelRegion(x = 100, y = 900, width = 1400, height = 400)    // row below — spans full gap
+        val panels = listOf(pAbove, p0, p1, p2, p3)
+        val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
+        // No merge: gate 1 fails (pAbove starts at y=0 < candidateTop=100)
+        assertEquals("must NOT merge a non-topmost pair even with 2 straddling rows below; got=$result", 5, result.size)
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps does NOT merge when adjacent row has a column boundary at the gap`() {
+        // Boundary test — gate 2 blocks: an adjacent row (within 2×shorter of candidateBottom)
+        // has a panel right edge near gapLeft.
+        // shorter=400, candidateBottom=500, adjacentZoneBottom=500+800=1300.
+        // colTolerance = max(80, 100) = 100. p2 right=810; |810-800|=10 ≤ 100 → VALIDATOR.
+        val pageW = 2000
+        val p0 = PanelRegion(x = 100, y = 100, width = 700, height = 400)  // top-left; right=800 (gapLeft)
+        val p1 = PanelRegion(x = 880, y = 100, width = 620, height = 400)  // top-right; gapW=80
+        val p2 = PanelRegion(x = 100, y = 600, width = 710, height = 400)  // mid-left; y=600 < adjacentZoneBottom=1300; right=810; VALIDATOR
+        val p3 = PanelRegion(x = 880, y = 600, width = 620, height = 400)  // mid-right (same column split)
+        val p4 = PanelRegion(x = 100, y = 1100, width = 1400, height = 400) // below — spans full gap; y=1100 < 1300 (in zone)
+        val p5 = PanelRegion(x = 100, y = 1600, width = 1400, height = 400) // below — y=1600 > 1300 (outside zone, not a validator)
+        val panels = listOf(p0, p1, p2, p3, p4, p5)
+        val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
+        // No merge: gate 2 fires (p2 is an adjacent-row column validator)
+        assertEquals("must NOT merge when adjacent row has a column boundary near gap_left; got=$result", 6, result.size)
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps does NOT merge when gap exceeds 7pct of page width`() {
+        // Boundary test — gap just outside the 7% trigger zone (8%):
+        // A column gap of 8% of page width (160px on a 2000px-wide page) is wider than the
+        // binarizer-artifact threshold — it is treated as a real inter-column gutter.
+        val pageW = 2000
+        val gapW = (pageW * 0.08).toInt()  // 160px — just outside the 7% trigger
+        val p0 = PanelRegion(x = 100, y = 100, width = 600, height = 400)
+        val p1 = PanelRegion(x = 100 + 600 + gapW, y = 100, width = 700, height = 400) // gap=160px
+        val mergedW = p1.x + p1.width - p0.x  // 1400 + 160 = ... actually 100+600+160+700=1560? no
+        // p0 right=700, p1 left=860, gap=160, p1 right=860+700=1560, merged=1560-100=1460
+        val p2 = PanelRegion(x = 100, y = 600, width = 1460, height = 400) // matches merged width exactly
+        val panels = listOf(p0, p1, p2)
+        val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
+        assertEquals("panels must NOT be merged when gap > 7% of page width; got=$result", 3, result.size)
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps does NOT merge tall column panel with short row panel`() {
+        // The height-ratio guard (max/min < 2) prevents merging a short top-row panel with a tall
+        // right-column panel even though they share the same y-start and have a narrow gap.
+        val pageW = 2000
+        val shortPanel = PanelRegion(x = 100, y = 100, width = 1400, height = 400) // h=400
+        val tallPanel = PanelRegion(x = 1560, y = 100, width = 400, height = 1300) // h=1300, gap=60px
+        // height ratio = 1300/400 = 3.25 > 2 → must NOT merge
+        val p2 = PanelRegion(x = 100, y = 600, width = 1860, height = 400) // wide other panel
+        val panels = listOf(shortPanel, tallPanel, p2)
+        val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
+        assertEquals(
+            "tall column panel must not merge with short row panel (height ratio > 2); got=$result",
+            3, result.size,
         )
     }
 }

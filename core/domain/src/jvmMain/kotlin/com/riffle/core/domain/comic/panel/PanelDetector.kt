@@ -225,7 +225,8 @@ class PanelDetector(
             )
         }
 
-        val meaningful = applyGlobalSanityChecks(regions, originalWidth, originalHeight)
+        val afterFalseGapMerge = mergeSharedBorderFalseGaps(regions, originalWidth)
+        val meaningful = applyGlobalSanityChecks(afterFalseGapMerge, originalWidth, originalHeight)
         meaningful ?: return null
         return PagePanels(
             pageIndex = pageIndex,
@@ -2627,7 +2628,8 @@ class PanelDetector(
             )
         }
 
-        val meaningful = applyGlobalSanityChecks(regions, originalWidth, originalHeight) ?: return null
+        val merged = mergeSharedBorderFalseGaps(regions, originalWidth)
+        val meaningful = applyGlobalSanityChecks(merged, originalWidth, originalHeight) ?: return null
         return PagePanels(
             pageIndex = pageIndex,
             imageWidth = originalWidth,
@@ -2635,6 +2637,109 @@ class PanelDetector(
             panels = meaningful,
             source = PanelSource.Auto,
         )
+    }
+
+    /**
+     * Merges pairs of panels in the same row band that are separated by a thin gap at an
+     * x-position that is NOT a consistent column boundary across the page. This handles the
+     * case where a thin ink border between two regions was binarized to white, creating a
+     * false column gap that the projection detector treats as a real gutter.
+     *
+     * A gap is considered false when ALL of the following hold:
+     *  (a) the gap is narrow (< 7% of page width),
+     *  (b) the two panels share nearly the same y-range (y-overlap ≥ 80% of the shorter panel),
+     *  (c) both panels have similar heights (max/min height ratio < 2 — prevents merging a
+     *      short row panel with a tall column panel whose y-range happens to encompass it),
+     *  (d) the merged width is within 15% of the widest single panel in any other row band —
+     *      a real column gap produces a merge whose combined width is anomalously wider than
+     *      any adjacent-row panel, while a false gap produces a merge that matches the normal
+     *      panel width for the layout (issue #893 / #895: merged=1375 matches rows 2-3=1375;
+     *      the real bottom-row gap at x=341 produces merged=1870, 36% above widest-other=1514).
+     */
+    internal fun mergeSharedBorderFalseGaps(
+        panels: List<PanelRegion>,
+        pageWidth: Int,
+    ): List<PanelRegion> {
+        val maxGapW = (pageWidth * 0.07).toInt()
+        val result = panels.toMutableList()
+        var changed = true
+        while (changed) {
+            changed = false
+            outer@ for (i in result.indices) {
+                for (j in result.indices) {
+                    if (i == j) continue
+                    val a = result[i]
+                    val b = result[j]
+                    // a must be strictly to the left of b with no x overlap
+                    if (a.x + a.width > b.x) continue
+                    val gapLeft = a.x + a.width
+                    val gapRight = b.x
+                    val gapW = gapRight - gapLeft
+                    if (gapW > maxGapW) continue
+                    // Same row band: y-overlap ≥ 80% of shorter panel's height
+                    val aBottom = a.y + a.height
+                    val bBottom = b.y + b.height
+                    val overlapY = minOf(aBottom, bBottom) - maxOf(a.y, b.y)
+                    val shorter = minOf(a.height, b.height)
+                    if (overlapY < shorter * 0.80) continue
+                    // Similar heights: prevents merging a row panel with a taller column panel
+                    if (maxOf(a.height, b.height) > minOf(a.height, b.height) * 2) continue
+                    val mergedW = gapRight + b.width - a.x
+                    val candidateTop = minOf(a.y, b.y)
+                    val candidateBottom = maxOf(aBottom, bBottom)
+                    // Gate 1 — Topmost-row guard: only merge a pair that sits in the topmost
+                    // row on the page. A middle-row pair may also have many panels below it
+                    // spanning the gap (those rows are simply wider), so the straddle check
+                    // alone cannot distinguish a real middle-row column from a top-row artifact.
+                    val isTopmostPair = result.none { other ->
+                        other !== a && other !== b && other.y < candidateTop
+                    }
+                    if (!isTopmostPair) continue
+                    // Gate 2 — Column-boundary validator: if any panel in an ADJACENT row band
+                    // (within 2× the candidate pair's height below it) has its right edge near
+                    // gapLeft, the column at gapLeft is a real gutter shared across rows → don't
+                    // merge. Panels far below are excluded: a coincidentally-aligned edge on a
+                    // distant page section is not evidence of a shared column boundary.
+                    val colTolerance = maxOf(gapW, (pageWidth * 0.07).toInt())
+                    val adjacentZoneBottom = candidateBottom + shorter * 2
+                    val hasColumnValidator = result.any { other ->
+                        if (other === a || other === b) return@any false
+                        val otherBottom = other.y + other.height
+                        val ov = minOf(candidateBottom, otherBottom) - maxOf(candidateTop, other.y)
+                        if (ov > shorter / 2) return@any false  // skip: same row band
+                        if (other.y >= adjacentZoneBottom) return@any false  // skip: too far below
+                        val rightEdge = other.x + other.width
+                        rightEdge in (gapLeft - colTolerance)..(gapLeft + colTolerance)
+                    }
+                    if (hasColumnValidator) continue
+                    // Gate 3 — Straddle-below confirmation: at least 2 panels that start BELOW
+                    // the candidate pair and span the FULL gap range [gapLeft, gapRight] confirm
+                    // that the gap position is not a column boundary in subsequent rows (i.e.
+                    // subsequent rows have content at the gap's x, so it is a binarization
+                    // artifact restricted to this row only).
+                    val straddlingBelow = result.count { other ->
+                        if (other === a || other === b) return@count false
+                        other.y >= candidateBottom &&
+                            other.x <= gapLeft &&
+                            other.x + other.width >= gapRight &&
+                            other.width >= mergedW / 2
+                    }
+                    if (straddlingBelow < 2) continue
+                    // Merge a and b into one panel
+                    val merged = PanelRegion(
+                        x = a.x,
+                        y = minOf(a.y, b.y),
+                        width = mergedW,
+                        height = maxOf(aBottom, bBottom) - minOf(a.y, b.y),
+                    )
+                    result[i] = merged
+                    result.removeAt(j)
+                    changed = true
+                    break@outer
+                }
+            }
+        }
+        return result
     }
 
     private fun fitWhole(pageIndex: Int, w: Int, h: Int): PagePanels = PagePanels(

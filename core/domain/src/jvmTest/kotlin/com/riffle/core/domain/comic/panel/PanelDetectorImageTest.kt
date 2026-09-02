@@ -1254,4 +1254,68 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `issue 895 page 34 top wide panel must not be split at thin ink border`() {
+        // Regression for issue #895 (page 34): the top-row wide panel is split into two halves
+        // at x≈722-805 because a thin ink border between the two speech-bubble regions was
+        // binarized to white. The false gap is detectable because rows 2-3 span ACROSS x=722
+        // with no column boundary there — a consistent column gap would appear in all rows.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-895-split-top-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // There must be exactly one panel in the top row (y-centre in the top 22% of the page)
+        // that spans the full left-to-right content width (> 60% of page width). The old split
+        // produced two panels, each ≈ 30-35% wide, neither satisfying the 60% width test.
+        val topRowPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.22
+        }
+        val wideTopPanel = topRowPanels.firstOrNull { p -> p.width > mask.width * 0.60 }
+        assertNotNull(
+            "expected one wide top-row panel (width > 60% of page, y-centre < 22% of page) but got " +
+                "top-row panels: $topRowPanels, all panels: ${result.panels}",
+            wideTopPanel,
+        )
+    }
+
+    @Test
+    fun `issue 893 page 34 top wide panel must not be split at thin ink border`() {
+        // Regression for issue #893 (page 34): same split-top as #895 — the top wide panel was
+        // reported as 2 halves instead of 1 unified panel.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-893-split-top-panel-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        val topRowPanels = result.panels.filter { p ->
+            p.y + p.height / 2 < mask.height * 0.22
+        }
+        val wideTopPanel = topRowPanels.firstOrNull { p -> p.width > mask.width * 0.60 }
+        assertNotNull(
+            "expected one wide top-row panel (width > 60% of page, y-centre < 22% of page) but got " +
+                "top-row panels: $topRowPanels, all panels: ${result.panels}",
+            wideTopPanel,
+        )
+    }
+
+    @Test
+    fun `issue 894 page 34 tall right-side panel must start near the top of the page not mid-page`() {
+        // Regression for issue #894 (page 34): the tall right-column panel (the standing figure
+        // silhouette) was detected as a fragment starting at y≈381 instead of y≈111. The top
+        // portion (y=111-381) was being swallowed into adjacent CCs and not returned as part of
+        // the right-column union.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-894-missed-tall-right-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // The tall right-column panel (x-centre > 70% page width) must begin in the top row
+        // (top edge y < 200) and span at least 30% of the page height.
+        val tallRightPanel = result.panels.firstOrNull { p ->
+            p.x + p.width / 2 > mask.width * 0.70 &&
+                p.y < 200 &&
+                p.height >= mask.height * 0.30
+        }
+        assertNotNull(
+            "expected a tall right-column panel starting near the top (x-centre > 70%, top-edge y < 200, " +
+                "h ≥ 30% page height); all panels=${result.panels}",
+            tallRightPanel,
+        )
+    }
+
 }
