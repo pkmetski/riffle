@@ -1621,4 +1621,71 @@ class PanelDetectorTest {
             }
         }
     }
+
+    @Test
+    fun `narrow strips from the same column (x-centres within 25pct) are coalesced into a tall panel`() {
+        // Boundary test for the x-centre span guard in coalesceNarrowStripColumns
+        // (!hasSpanningPanel path). When strips' x-centres span ≤ 25% of the downscaled page
+        // width they are in the same column and the union-fallback applies.
+        // Layout: wide left panels + two narrow right strips at the same x (x-centre span = 0).
+        val W = 400; val H = 600
+        val leftW = 290; val rightW = 70   // rightW/W = 17.5% < 20% → narrow
+        val rightX = leftW + 10
+        val strip1H = 120; val strip2H = 120; val gutter = 20
+        // x-centre of both strips = rightX + rightW/2 = 335; span = 0 → ≤ 25% of W/2 = 50px
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            canvas.rect(x = 0, y = 0, w = leftW, h = strip1H, color = DARK)
+            canvas.rect(x = 0, y = strip1H + gutter, w = leftW, h = strip2H, color = DARK)
+            canvas.rect(x = rightX, y = 0, w = rightW, h = strip1H, color = DARK)
+            canvas.rect(x = rightX, y = strip1H + gutter, w = rightW, h = strip2H, color = DARK)
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+        assertEquals(PanelSource.Auto, result.source)
+        val rightPanels = result.panels.filter { it.x > W / 2 }
+        assertTrue(
+            "same-column narrow strips (x-centre span=0 ≤ 25% guard) must produce at least one " +
+                "surviving right-column panel; got=${result.panels}",
+            rightPanels.isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun `narrow strips from different columns (x-centres span more than 25pct) are NOT coalesced`() {
+        // Boundary test: strips whose x-centres span > 25% of the downscaled page width come from
+        // different columns and must be kept separate. Coalescing them loses real panels.
+        // Layout: two wide row panels (top and bottom) plus a narrow left and a narrow right strip
+        // in the middle row. The wide rows provide panel coverage for Auto; the narrow strips are
+        // genuinely separate panels that must not be merged into a single wide union.
+        // x-centres: leftStrip at 10+30=40, rightStrip at 330+30=370; span=330 >> 25% of W/2=50.
+        val W = 400; val H = 800
+        val stripW = 60    // 60/400 = 15% < 20% → narrow
+        val leftX = 10; val rightX = 330
+        val rowH = 200; val stripH = 200; val gutter = 20
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Wide top and bottom rows to ensure sufficient panel coverage for Auto detection.
+            canvas.rect(x = 5, y = 0, w = W - 10, h = rowH, color = DARK)
+            canvas.rect(x = 5, y = rowH + stripH + gutter * 2, w = W - 10, h = rowH, color = DARK)
+            // Two narrow strips in the middle at very different x positions (different columns).
+            canvas.rect(x = leftX, y = rowH + gutter, w = stripW, h = stripH, color = DARK)
+            canvas.rect(x = rightX, y = rowH + gutter, w = stripW, h = stripH, color = DARK)
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+        assertEquals(PanelSource.Auto, result.source)
+        // Both narrow strips must survive as separate panels — not merged into one wide union.
+        val midY = rowH + gutter + stripH / 2
+        val leftPanels = result.panels.filter { it.x + it.width / 2 < W / 2 && it.y + it.height / 2 in (rowH)..(rowH + stripH + gutter) }
+        val rightPanels = result.panels.filter { it.x + it.width / 2 >= W / 2 && it.y + it.height / 2 in (rowH)..(rowH + stripH + gutter) }
+        assertTrue(
+            "left-column narrow strip must be kept separate (x-centre span > 25% guard); " +
+                "got=${result.panels}",
+            leftPanels.isNotEmpty(),
+        )
+        assertTrue(
+            "right-column narrow strip must be kept separate (x-centre span > 25% guard); " +
+                "got=${result.panels}",
+            rightPanels.isNotEmpty(),
+        )
+    }
 }
