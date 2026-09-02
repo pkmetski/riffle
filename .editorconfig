@@ -13,9 +13,12 @@ ktlint_code_style = intellij_idea
 max_line_length = 160
 ktlint_standard_no-wildcard-imports = enabled
 ktlint_standard_import-ordering = enabled
-# Disable function-signature — its "collapse to single line" enforcement in intellij_idea
-# style conflicts with the existing multi-line parameter style in iosMain files.
+# Disable wrapping rules that conflict with the existing iosMain DAO style.
 ktlint_standard_function-signature = disabled
+ktlint_standard_argument-list-wrapping = disabled
+ktlint_standard_parameter-list-wrapping = disabled
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_trailing-comma-on-declaration-site = disabled
 
 # The iosMain DAO implementations use compact SQL binding lambdas (multiple bind calls
 # per lambda separated by semicolons). Disable statement-wrapping for these files.
