@@ -7,13 +7,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.usecase.RefreshCollections
+import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.usecase.RefreshCollections
+import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,7 +35,7 @@ class CollectionDetailViewModel constructor(
     private val tokenStorage: TokenStorage,
     private val offlineAvailability: LibraryItemOfflineAvailability,
     private val connectivityObserver: ConnectivityObserver,
-    private val dispatchers: com.riffle.core.domain.DispatcherProvider,
+    private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
 
     val collectionId: String = savedStateHandle.get<String>("collectionId") ?: ""
@@ -55,8 +56,6 @@ class CollectionDetailViewModel constructor(
     val items: StateFlow<List<LibraryItem>> = combine(allItems, isOffline) { items, offline ->
         if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
     }
-        // isAvailableOffline stats the filesystem per item — keep the sweep off Main
-        // (see LibraryFilterEngine.projection).
         .flowOn(dispatchers.default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -77,9 +76,6 @@ class CollectionDetailViewModel constructor(
                 .filter { it }
                 .collect { refresh() }
         }
-        // Retry while the last refresh failed AND the device is online (server unreachable on
-        // an otherwise-healthy network). When the device itself is offline we skip polling —
-        // the on-reconnect listener above already triggers a refresh when connectivity returns.
         viewModelScope.launch {
             combine(_refreshFailed, connectivityObserver.isOnline) { failed, online -> failed && online }
                 .collectLatest { shouldPoll ->

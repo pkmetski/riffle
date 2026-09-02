@@ -1,6 +1,8 @@
 package com.riffle.app.feature.library
 
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.feature.library.librarySectionItems
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library

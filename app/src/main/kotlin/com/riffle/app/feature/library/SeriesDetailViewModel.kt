@@ -7,13 +7,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.usecase.RefreshSeries
+import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.usecase.RefreshSeries
+import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,9 +71,6 @@ class SeriesDetailViewModel constructor(
                 .filter { it }
                 .collect { refresh() }
         }
-        // Retry while the last refresh failed AND the device is online (server unreachable on
-        // an otherwise-healthy network). When the device itself is offline we skip polling —
-        // the on-reconnect listener above already triggers a refresh when connectivity returns.
         viewModelScope.launch {
             combine(_refreshFailed, connectivityObserver.isOnline) { failed, online -> failed && online }
                 .collectLatest { shouldPoll ->

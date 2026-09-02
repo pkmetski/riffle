@@ -17,7 +17,7 @@ import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
 import com.riffle.app.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
-import com.riffle.app.feature.navigation.HomeViewModel
+import com.riffle.feature.library.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase

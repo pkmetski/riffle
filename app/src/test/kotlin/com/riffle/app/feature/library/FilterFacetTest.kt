@@ -2,6 +2,9 @@ package com.riffle.app.feature.library
 
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.FacetType
+import com.riffle.feature.library.facetMatches
+import com.riffle.feature.library.facetTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

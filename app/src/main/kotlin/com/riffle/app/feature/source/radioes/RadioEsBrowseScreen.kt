@@ -54,7 +54,7 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.core.catalog.CatalogFacet
-import com.riffle.app.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.app.feature.source.common.toggleSearchOpen
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid

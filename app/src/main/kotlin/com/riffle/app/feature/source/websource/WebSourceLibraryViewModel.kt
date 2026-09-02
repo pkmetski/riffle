@@ -8,7 +8,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.library.HomeTabContent
-import com.riffle.app.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.LibraryObserver

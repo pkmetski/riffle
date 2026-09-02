@@ -10,7 +10,8 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
-import kotlinx.coroutines.flow.Flow
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.librarySectionItems
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -51,15 +52,4 @@ class LibrarySectionViewModel constructor(
             }
         }
     }
-}
-
-internal fun librarySectionItems(
-    libraryObserver: LibraryObserver,
-    libraryId: String,
-    sectionType: LibrarySectionType,
-): Flow<List<LibraryItem>> = when (sectionType) {
-    LibrarySectionType.IN_PROGRESS -> libraryObserver.observeInProgressItems(libraryId)
-    LibrarySectionType.FINISHED -> libraryObserver.observeFinishedItems(libraryId)
-    LibrarySectionType.RECENTLY_ADDED -> libraryObserver.observeRecentlyAddedItems(libraryId)
-    LibrarySectionType.CONTINUE_SERIES -> libraryObserver.observeContinueSeriesItems(libraryId)
 }

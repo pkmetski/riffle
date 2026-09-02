@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
+import com.riffle.feature.library.FacetType
+import com.riffle.feature.library.facetTitle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

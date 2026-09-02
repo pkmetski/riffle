@@ -1,4 +1,4 @@
-package com.riffle.app.feature.navigation
+package com.riffle.feature.library
 
 import androidx.lifecycle.ViewModel
 import com.riffle.core.domain.DispatcherProvider

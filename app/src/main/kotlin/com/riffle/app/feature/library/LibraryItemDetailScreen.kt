@@ -101,6 +101,7 @@ import com.riffle.app.ui.isTabletLayout
 import com.riffle.app.ui.source.asAuthHeader
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.FacetType
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
