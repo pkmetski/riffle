@@ -59,8 +59,8 @@
 			);
 			buildRules = ();
 			dependencies = ();
-			name = iosApp;
-			productName = iosApp;
+			name = Riffle;
+			productName = Riffle;
 			productReference = B1000001 /* iosApp.app */;
 			productType = "com.apple.product-type.application";
 		};
