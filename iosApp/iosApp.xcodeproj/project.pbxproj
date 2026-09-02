@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		B1000010 /* RiffleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* RiffleApp.swift */; };
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
+		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000020 /* RiffleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleApp.swift; sourceTree = "<group>"; };
 		B1000021 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -31,6 +33,7 @@
 			children = (
 				B1000020 /* RiffleApp.swift */,
 				B1000021 /* ContentView.swift */,
+				B1000022 /* Assets.xcassets */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -51,6 +54,7 @@
 			buildConfigurationList = B1000050;
 			buildPhases = (
 				B1000040 /* Sources */,
+				B1000042 /* Resources */,
 				B1000041 /* KMP Embed Framework */,
 			);
 			buildRules = ();
@@ -108,6 +112,17 @@
 			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B1000042 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000012 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B1000040 /* Sources */ = {
@@ -196,6 +211,7 @@
 		B1000072 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -206,6 +222,7 @@
 					"$(SRCROOT)/../shared/build/bin/iosArm64/debugFramework",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Riffle;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -230,6 +247,7 @@
 		B1000073 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -239,6 +257,7 @@
 					"$(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Riffle;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

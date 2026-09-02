@@ -4,7 +4,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Dark navy rounded card -->
+    <path
+        android:fillColor="#374057"
+        android:pathData="M28,18 Q18,18 18,28 L18,80 Q18,90 28,90 L80,90 Q90,90 90,80 L90,28 Q90,18 80,18 Z"/>
+    <!-- White open book (left page) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,30 L54,78 M38,46 L54,30 L70,46" />
+        android:pathData="M54,38 Q44,36 36,40 L36,68 Q44,65 54,67 Z"/>
+    <!-- White open book (right page) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,38 Q64,36 72,40 L72,68 Q64,65 54,67 Z"/>
 </vector>
