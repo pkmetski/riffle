@@ -136,6 +136,35 @@ class PanelOrdererTest {
         }
     }
 
+    // --- Regression tests for issue #896 ---
+    // The exile check used member.y <= candidate.y, which fired even for panels sharing the
+    // same y-coordinate, placing the second-processed equal-y panel into a new row and
+    // producing wrong reading order. Fix: strictly less than (<).
+
+    @Test
+    fun `two panels sharing identical y are placed in the same row left-to-right (issue 896)`() {
+        // Regression: exile check member.y <= candidate.y fired on equal-y panels when the
+        // member x-overlapped the candidate. Fix: member.y < candidate.y (strictly less).
+        val left = PanelRegion(x = 0, y = 609, width = 430, height = 459)    // y=609..1068
+        val right = PanelRegion(x = 449, y = 609, width = 500, height = 459) // y=609..1068
+        // Pass right first so right enters the row before left is processed (triggers old bug).
+        val ordered = orderer.order(listOf(right, left))
+        assertEquals("left panel (x=0) must come first in reading order", 0, ordered[0].x)
+        assertEquals("right panel (x=449) must come second in reading order", 449, ordered[1].x)
+    }
+
+    @Test
+    fun `panel starting one pixel below a spanning member is still exiled to the next row`() {
+        // Boundary: member.y=0 < candidate.y=1 (strictly less) — exile still fires.
+        // Verifies the fix (< instead of <=) does NOT break exile for the non-equal-y case.
+        val spanning = PanelRegion(x = 0, y = 0, width = 400, height = 500)   // y=0..500
+        val lower = PanelRegion(x = 200, y = 1, width = 200, height = 499)    // y=1..500, x-overlaps
+        // exile: member.y(0) < candidate.y(1) ✓, overlap fraction=(500-1)/499=1.0 ≥ 0.5 ✓
+        val ordered = orderer.order(listOf(lower, spanning))
+        assertEquals("spanning panel must be first", spanning, ordered[0])
+        assertEquals("lower panel must be exiled to second row", lower, ordered[1])
+    }
+
     @Test
     fun `tall spanning panel still exiles the lower panel in its own column (issue 780 shape)`() {
         // Regression guard: the union+exile fix must not re-introduce the #780 bug.

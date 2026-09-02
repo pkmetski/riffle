@@ -1199,6 +1199,39 @@ class PanelDetectorImageTest {
     }
 
     @Test
+    fun `issue 896 page 64 equal-y panels must be ordered left-to-right not exiled to separate rows`() {
+        // Regression for issue #896 (page 64): two side-by-side panels sharing the same y
+        // were placed in wrong reading order. The PanelOrderer exile check used
+        // member.y <= candidate.y, which fired on equal-y panels and exiled the second-processed
+        // one to a new row, reversing the left-to-right order. Fix: member.y < candidate.y.
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-896-wrong-order-p64.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        // detector.detect() returns unordered panels; apply PanelOrderer (as PanelOrchestrator
+        // does) before checking the reading-order invariant.
+        val panels = PanelOrderer().order(result.panels)
+        // For any two panels in the ordered result that share a row band (y-overlap ≥ 50% of
+        // the shorter panel's height), the one appearing first must have a smaller or equal x.
+        for (i in panels.indices) {
+            for (j in i + 1 until panels.size) {
+                val a = panels[i]
+                val b = panels[j]
+                val overlapTop = maxOf(a.y, b.y)
+                val overlapBottom = minOf(a.y + a.height, b.y + b.height)
+                if (overlapBottom <= overlapTop) continue
+                val overlap = overlapBottom - overlapTop
+                val shorter = minOf(a.height, b.height)
+                if (overlap.toDouble() / shorter.toDouble() < 0.5) continue
+                assertTrue(
+                    "panel[${i}] (x=${a.x}) appears before panel[${j}] (x=${b.x}) in the same " +
+                        "row band but has greater x — wrong reading order; ordered panels=$panels",
+                    a.x <= b.x,
+                )
+            }
+        }
+    }
+
+    @Test
     fun `issue 892 page 34 tall right-side panel must not be missed due to border-connected silhouette`() {
         // Regression for issue #892 (page 34): a tall panel in the upper-right region
         // (x≈1507, y≈117-1493, w≈477, h≈1376) was not detected. The standing figure silhouette

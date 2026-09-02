@@ -356,6 +356,18 @@ class PanelDetector(
                     result.addAll(splitUnionHorizontalOnly(extended, cropped, gutter, downscaledHeight))
                     continue
                 }
+                // No suspicious gap band. Only treat the group as a single tall column panel
+                // (union fallback) when all strips have strictly non-overlapping y-ranges —
+                // the signature of a single column panel that was split horizontally by
+                // splitSinglePanelRecursively. Strips with overlapping y-ranges come from
+                // different row bands and must be kept separate (#892 fix guard against
+                // fixture-a regression where narrow same-row strips were incorrectly merged).
+                val sortedByMinY = group.sortedBy { it.minY }
+                val allNonOverlappingY = sortedByMinY.zipWithNext().all { (a, b) -> b.minY > a.maxY }
+                if (!allNonOverlappingY) {
+                    result.addAll(group)
+                    continue
+                }
                 // No spanning panel and no suspicious-gap band: the group's strips are
                 // partial slices of a tall right-column panel whose border-connected gutter
                 // was lost to ink bleed (#892). Treat the bounding union as a single panel
