@@ -328,8 +328,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-  ios-harness-test:
-    name: iOS harness tests
+  ios-database-test:
+    name: iOS database tests (core:database)
     runs-on: macos-15
     timeout-minutes: 15
     steps:
@@ -346,13 +346,13 @@ jobs:
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - name: Run iOS simulator harness tests
+      - name: Run iOS database tests
         run: ./gradlew :core:database:iosSimulatorArm64Test :core:sync:iosSimulatorArm64Test
-      - name: Upload iOS harness reports
+      - name: Upload iOS database test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-harness-test-reports
+          name: ios-database-test-reports
           path: |
             core/database/build/reports/tests/
             core/sync/build/reports/tests/
