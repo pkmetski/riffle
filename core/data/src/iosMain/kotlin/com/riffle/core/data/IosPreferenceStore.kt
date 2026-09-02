@@ -10,6 +10,7 @@ class IosPreferenceStore<T>(
     private val defaultValue: T,
     private val write: (T) -> Any?,
 ) : PreferenceStore<T> {
+    @Suppress("ktlint:standard:property-naming")
     private val _state = MutableStateFlow(defaultValue)
 
     override val flow: Flow<T> get() = _state

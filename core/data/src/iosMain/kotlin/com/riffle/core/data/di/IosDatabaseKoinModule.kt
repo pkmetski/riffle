@@ -46,11 +46,12 @@ val iosDatabaseModule =
 @OptIn(ExperimentalForeignApi::class)
 private fun iosDatabasePath(): String {
     @Suppress("UNCHECKED_CAST")
-    val paths = NSSearchPathForDirectoriesInDomains(
-        NSApplicationSupportDirectory,
-        NSUserDomainMask,
-        true,
-    ) as List<String>
+    val paths =
+        NSSearchPathForDirectoriesInDomains(
+            NSApplicationSupportDirectory,
+            NSUserDomainMask,
+            true,
+        ) as List<String>
     val appSupport = paths.first()
     NSFileManager.defaultManager.createDirectoryAtPath(
         appSupport,
