@@ -356,15 +356,15 @@ class PanelDetector(
                     result.addAll(splitUnionHorizontalOnly(extended, cropped, gutter, downscaledHeight))
                     continue
                 }
-                // No suspicious gap band. Only treat the group as a single tall column panel
-                // (union fallback) when all strips have strictly non-overlapping y-ranges —
-                // the signature of a single column panel that was split horizontally by
-                // splitSinglePanelRecursively. Strips with overlapping y-ranges come from
-                // different row bands and must be kept separate (#892 fix guard against
-                // fixture-a regression where narrow same-row strips were incorrectly merged).
-                val sortedByMinY = group.sortedBy { it.minY }
-                val allNonOverlappingY = sortedByMinY.zipWithNext().all { (a, b) -> b.minY > a.maxY }
-                if (!allNonOverlappingY) {
+                // No suspicious gap band. Only apply the union fallback when the strips are
+                // from the same column (similar x-centres). Strips whose x-centres span more
+                // than 25% of the page width come from different columns in the same row band
+                // and must be kept separate — merging them produces a wide box that loses the
+                // actual panels (fixture-a regression: narrow same-row-band strips at different
+                // x-positions were incorrectly coalesced into a union that dropped 2 panels).
+                val xCentres = group.map { (it.minX + it.maxX) / 2 }
+                val xCentreSpan = xCentres.max() - xCentres.min()
+                if (xCentreSpan > downscaledWidth * 0.25) {
                     result.addAll(group)
                     continue
                 }
