@@ -1454,6 +1454,95 @@ class PanelDetectorTest {
         )
     }
 
+    @Test
+    fun `narrow pillar group with no spanning panel — union returned unsplit when top portion is below min height`() {
+        // Boundary test for the !hasSpanningPanel → splitUnionHorizontalOnly path in
+        // coalesceNarrowStripColumns (#892). Three narrow right-column strips each have
+        // h=139 which is just BELOW minDimPxH (1000 × 0.14 = 140). The union y-gutter at
+        // y=139 produces a top portion of 139px < 140 — splitUnionHorizontalOnly returns the
+        // whole union unsplit as one tall panel. Before the fix, the three strips were returned
+        // separately and all filtered (too short/small individually).
+        val W = 500
+        val H = 1000
+        val gutter = 17       // inter-row gutter height (LIGHT pixels)
+        val stripH = 139      // each strip/row height — just below minDimPxH (140)
+        val colGutter = 10    // column gutter width
+        val leftW = 350       // left panels width (not narrow: 350/500 = 70% > 20%)
+        val rightW = 90       // right strips width (narrow: 90/500 = 18% < 20%)
+        val rightX = leftW + colGutter   // right strips start at x=360
+
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Three left panels stacked (wide, serve as context)
+            canvas.rect(x = 0, y = 0,                         w = leftW, h = stripH, color = DARK)
+            canvas.rect(x = 0, y = stripH + gutter,           w = leftW, h = stripH, color = DARK)
+            canvas.rect(x = 0, y = (stripH + gutter) * 2,     w = leftW, h = stripH, color = DARK)
+            // Three narrow right-column strips at the same row structure
+            canvas.rect(x = rightX, y = 0,                    w = rightW, h = stripH, color = DARK)
+            canvas.rect(x = rightX, y = stripH + gutter,      w = rightW, h = stripH, color = DARK)
+            canvas.rect(x = rightX, y = (stripH + gutter) * 2, w = rightW, h = stripH, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+        assertEquals(PanelSource.Auto, result.source)
+
+        // The 3 right strips have h=139 each, which is just below minDimPxH=140.  Without the
+        // !hasSpanningPanel → splitUnionHorizontalOnly fix, each strip is returned separately and
+        // all 3 are filtered by applyGlobalSanityChecks (h/H = 13.9% < 14%).  With the fix they
+        // are coalesced into a union that survives sanity checks.
+        val rightPanels = result.panels.filter { it.x > W / 2 }
+        assertTrue(
+            "right-column strips (h=$stripH < minDimPxH=140 each) must be coalesced into at " +
+                "least 1 surviving panel; pre-fix: all 3 filtered individually; " +
+                "got panels=${result.panels}",
+            rightPanels.isNotEmpty(),
+        )
+        assertTrue(
+            "all right-column panels must have h ≥ minDimPxH=140; " +
+                "got heights=${rightPanels.map { it.height }}",
+            rightPanels.all { it.height >= 140 },
+        )
+    }
+
+    @Test
+    fun `narrow pillar group with no spanning panel — union split when both portions meet min height`() {
+        // Boundary test for the !hasSpanningPanel → splitUnionHorizontalOnly path in
+        // coalesceNarrowStripColumns. Two narrow right-column strips each have h ≥ minDimPxH
+        // (1000 × 0.14 = 140). The union y-gutter at y=200 produces a top portion of 200px ≥ 140
+        // AND a bottom portion of 463px ≥ 140 — splitUnionHorizontalOnly splits the union into
+        // two distinct panels, one for each original strip.
+        val W = 500
+        val H = 1000
+        val gutter = 17
+        val strip1H = 200      // top strip height — above minDimPxH (140)
+        val strip2H = 463      // bottom strip height — above minDimPxH (140)
+        val colGutter = 10
+        val leftW = 350
+        val rightW = 90
+        val rightX = leftW + colGutter
+
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            canvas.rect(x = 0, y = 0,                   w = leftW, h = strip1H, color = DARK)
+            canvas.rect(x = 0, y = strip1H + gutter,    w = leftW, h = strip2H, color = DARK)
+            canvas.rect(x = rightX, y = 0,              w = rightW, h = strip1H, color = DARK)
+            canvas.rect(x = rightX, y = strip1H + gutter, w = rightW, h = strip2H, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+        assertEquals(PanelSource.Auto, result.source)
+
+        // Both strips are individually ≥ minDimPxH=140, so even when coalesced into a union,
+        // splitUnionHorizontalOnly splits them back apart (top portion h=200 ≥ 140, bottom h=463 ≥ 140).
+        // Verify the right column is represented by exactly 2 separate panels — not merged into 1.
+        val rightPanels = result.panels.filter { it.x > W / 2 }
+        assertEquals(
+            "right-column strips (h=$strip1H and h=$strip2H, both ≥ minDimPxH=140) must be " +
+                "detected as 2 separate panels; got panels=${result.panels}",
+            2, rightPanels.size,
+        )
+    }
+
     /**
      * Builds a [PanelDetector.CroppedMask] and two full-width [PanelDetector.Bbox]es whose
      * vertical separation is exactly [gap] pixels. The gap strip has content on the left half
@@ -1531,5 +1620,72 @@ class PanelDetectorTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `narrow strips from the same column (x-centres within 25pct) are coalesced into a tall panel`() {
+        // Boundary test for the x-centre span guard in coalesceNarrowStripColumns
+        // (!hasSpanningPanel path). When strips' x-centres span ≤ 25% of the downscaled page
+        // width they are in the same column and the union-fallback applies.
+        // Layout: wide left panels + two narrow right strips at the same x (x-centre span = 0).
+        val W = 400; val H = 600
+        val leftW = 290; val rightW = 70   // rightW/W = 17.5% < 20% → narrow
+        val rightX = leftW + 10
+        val strip1H = 120; val strip2H = 120; val gutter = 20
+        // x-centre of both strips = rightX + rightW/2 = 335; span = 0 → ≤ 25% of W/2 = 50px
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            canvas.rect(x = 0, y = 0, w = leftW, h = strip1H, color = DARK)
+            canvas.rect(x = 0, y = strip1H + gutter, w = leftW, h = strip2H, color = DARK)
+            canvas.rect(x = rightX, y = 0, w = rightW, h = strip1H, color = DARK)
+            canvas.rect(x = rightX, y = strip1H + gutter, w = rightW, h = strip2H, color = DARK)
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+        assertEquals(PanelSource.Auto, result.source)
+        val rightPanels = result.panels.filter { it.x > W / 2 }
+        assertTrue(
+            "same-column narrow strips (x-centre span=0 ≤ 25% guard) must produce at least one " +
+                "surviving right-column panel; got=${result.panels}",
+            rightPanels.isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun `narrow strips from different columns (x-centres span more than 25pct) are NOT coalesced`() {
+        // Boundary test: strips whose x-centres span > 25% of the downscaled page width come from
+        // different columns and must be kept separate. Coalescing them loses real panels.
+        // Layout: two wide row panels (top and bottom) plus a narrow left and a narrow right strip
+        // in the middle row. The wide rows provide panel coverage for Auto; the narrow strips are
+        // genuinely separate panels that must not be merged into a single wide union.
+        // x-centres: leftStrip at 10+30=40, rightStrip at 330+30=370; span=330 >> 25% of W/2=50.
+        val W = 400; val H = 800
+        val stripW = 60    // 60/400 = 15% < 20% → narrow
+        val leftX = 10; val rightX = 330
+        val rowH = 200; val stripH = 200; val gutter = 20
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Wide top and bottom rows to ensure sufficient panel coverage for Auto detection.
+            canvas.rect(x = 5, y = 0, w = W - 10, h = rowH, color = DARK)
+            canvas.rect(x = 5, y = rowH + stripH + gutter * 2, w = W - 10, h = rowH, color = DARK)
+            // Two narrow strips in the middle at very different x positions (different columns).
+            canvas.rect(x = leftX, y = rowH + gutter, w = stripW, h = stripH, color = DARK)
+            canvas.rect(x = rightX, y = rowH + gutter, w = stripW, h = stripH, color = DARK)
+        }
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+        assertEquals(PanelSource.Auto, result.source)
+        // Both narrow strips must survive as separate panels — not merged into one wide union.
+        val midY = rowH + gutter + stripH / 2
+        val leftPanels = result.panels.filter { it.x + it.width / 2 < W / 2 && it.y + it.height / 2 in (rowH)..(rowH + stripH + gutter) }
+        val rightPanels = result.panels.filter { it.x + it.width / 2 >= W / 2 && it.y + it.height / 2 in (rowH)..(rowH + stripH + gutter) }
+        assertTrue(
+            "left-column narrow strip must be kept separate (x-centre span > 25% guard); " +
+                "got=${result.panels}",
+            leftPanels.isNotEmpty(),
+        )
+        assertTrue(
+            "right-column narrow strip must be kept separate (x-centre span > 25% guard); " +
+                "got=${result.panels}",
+            rightPanels.isNotEmpty(),
+        )
     }
 }

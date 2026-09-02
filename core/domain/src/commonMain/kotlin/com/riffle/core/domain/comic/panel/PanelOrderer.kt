@@ -56,7 +56,7 @@ class PanelOrderer(
         // y-adjacent rather than y-overlapping.
         return row.none { member ->
             member.right > candidate.x && member.x < candidate.right &&
-                member.y <= candidate.y && member.bottom <= candidate.bottom &&
+                member.y < candidate.y && member.bottom <= candidate.bottom &&
                 (member.bottom - candidate.y).toDouble() / candidate.height.toDouble() >= rowOverlapFraction
         }
     }

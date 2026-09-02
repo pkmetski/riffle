@@ -302,8 +302,49 @@ class JsonPanelStore constructor(
          *      the top 25% of a wide bbox for vertical column gaps, measures how far each gap extends
          *      downward, and either splits horizontally (gap ends mid-bbox) or vertically (gap reaches
          *      the bbox bottom). v34 caches for such pages hold fewer, over-merged panels.
+         * v36: coalesceNarrowStripColumns added to both gridByProjection and CC paths (issues #876,
+         *      #877). When splitSinglePanelRecursively cuts a pillar-like column into narrow vertical
+         *      strips, a union bbox is formed and split horizontally at the y-gap between non-spanning
+         *      members (anti-aliasing pixels in the true gutter make pixel-based detection unreliable,
+         *      so the gap is derived directly from the pre-split bbox boundaries). Also fixes a
+         *      walk-back overflow in repairDiagonalAdjacentColumnPairs: the loop was using the dynamic
+         *      newRightMin as the right-edge proxy, so when newRightMin exceeded right.minX the proxy
+         *      overlap reached zero prematurely while the actual output overlap remained large; the
+         *      loop now pins to minOf(newRightMin, right.minX) to prevent the sanity-check rejection
+         *      that previously forced the page onto the CC fallback path. v35 caches for pages with
+         *      silhouette columns split into narrow vertical strips hold an unsplit wide panel where
+         *      two stacked panels should appear.
+         * v37: Dense-border horizontal split fallback added to splitSinglePanelRecursively (issues
+         *      #878, #880). Pages where adjacent panels share a fully drawn ink border (no white
+         *      gutter between them) could not be split by any prior fallback because all prior paths
+         *      look for sparse/white rows. The new fallback scans for runs of 3–20 consecutive rows
+         *      where ≥90% of the bbox width is dark content (a drawn panel-border band), then uses a
+         *      post-border spike test (avg content in the 5–15 rows after the band must be <80%) to
+         *      reject broad artwork zones. The minimum piece height is the banner threshold (7% of
+         *      page) rather than the general threshold (14%) so the shorter strip produced by the
+         *      split can survive applyGlobalSanityChecks via the banner exception. The vertical split
+         *      guard for full-width short bboxes (width ≥95%, height ≤25%) now also allows a split
+         *      when the chosen gutter column has <10% dark pixels across the bbox height, permitting
+         *      the bottom strip from the dense-border split to be divided into side-by-side panels.
+         *      v36 caches for pages with drawn ink borders between adjacent panels hold a single
+         *      over-merged panel spanning both the top panel and the bottom side-by-side strips.
+         * v38: Banner exception added for split CCs (issue #879) and detection fixes for:
+         *      border-connected whitespace creating false vertical splits in full-width short strips
+         *      (#876 follow-up). v37 caches hold the pre-fix panel layout.
+         * v39: Three fixes for issues #890, #891, #892:
+         *      - #890: trimArtworkBleedOverlaps post-processing clips panels whose bbox bleeds mildly
+         *        (≤35%) into a neighbouring panel's column due to artwork crossing the drawn panel
+         *        border. v38 caches for such pages hold an over-wide bottom-left panel.
+         *      - #891: Full-width short strip vertical split guard now also requires the gutter column
+         *        to have flood-fill gutter pixels in BOTH the top and bottom 25% of the strip
+         *        (bilateral accessibility check). Prevents false splits where a speech balloon tail
+         *        makes interior whitespace border-accessible from only one side. v38 caches for such
+         *        pages hold a middle strip incorrectly split into two halves.
+         *      - #892: coalesceNarrowStripColumns now detects narrow strips separated by a suspicious
+         *        full-width row band, extends their union to the full column boundary, and emits one
+         *        tall panel. v38 caches for such pages miss the tall right-side column panel.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 36
+        internal const val CURRENT_SCHEMA_VERSION: Int = 39
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
