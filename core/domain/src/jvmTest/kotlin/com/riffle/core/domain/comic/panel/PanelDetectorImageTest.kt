@@ -1231,6 +1231,60 @@ class PanelDetectorImageTest {
         }
     }
 
+    // ---- Fidelity tests for open issues on page 34 (#893, #894, #895) ----
+    // All three page-34 fixtures are byte-identical (same binarized mask).
+    // These tests pin the CURRENT (known-buggy) algorithm output. They exist so
+    // that any accidental regression (e.g. count drops from 9 to 7) is caught by
+    // CI even though the underlying bugs are unresolved.
+    //
+    // Known defects captured here:
+    //   #893 / #895: top-row false split — the two top panels ((124,117) and (805,117))
+    //     are separate CCs because the binarizer drops the thin border at x≈722–805.
+    //     Algorithm cannot distinguish this gap from a real gutter.
+    //   #894: tall right panel ((1533,111,453,1345)) is only partially detected as a
+    //     fragment (x≈1488, y≈381, h≈595). The silhouette connects to adjacent content,
+    //     preventing isolation of the full right column panel.
+    //
+    // When a future fix resolves one of these, update the expected values here and
+    // delete the associated GitHub issue.
+
+    @Test
+    fun `issue 893 page 34 fidelity — current 9-panel output with false top-row split (open issue)`() {
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-893-split-top-panel-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "issue 893 page 34 fidelity: current algorithm produces 9 panels (2 false top-row splits " +
+                "from missing binarizer border); update if a future fix changes this",
+            9, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `issue 894 page 34 fidelity — current 9-panel output with missed tall right panel (open issue)`() {
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-894-missed-tall-right-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "issue 894 page 34 fidelity: current algorithm produces 9 panels; the tall right-column " +
+                "panel (user-drawn: x=1533 y=111 h=1345) is only a fragment (h≈595); " +
+                "update if a future fix changes this",
+            9, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `issue 895 page 34 fidelity — current 9-panel output with false top-row split (open issue)`() {
+        val mask = loadBinaryFixture("panel-detection-fixtures/issue-895-split-top-p34.png")
+        val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "issue 895 page 34 fidelity: current algorithm produces 9 panels (same mask as #893/#894); " +
+                "update if a future fix changes this",
+            9, result.panels.size,
+        )
+    }
+
     @Test
     fun `issue 892 page 34 tall right-side panel must not be missed due to border-connected silhouette`() {
         // Regression for issue #892 (page 34): a tall panel in the upper-right region
