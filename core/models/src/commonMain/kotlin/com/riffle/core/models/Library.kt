@@ -13,5 +13,6 @@ data class Library(
  * from any Server Switcher or library picker.
  */
 const val READALOUD_MEDIA_TYPE = "readaloud"
+const val BOOK_MEDIA_TYPE = "book"
 
 val Library.isReadaloud: Boolean get() = mediaType == READALOUD_MEDIA_TYPE
