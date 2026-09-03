@@ -12,10 +12,10 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSData
-import platform.Foundation.NSDate
-import platform.Foundation.NSFileHandle
-import platform.posix.memcpy
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fread
+import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
 class IosLocalFilesScanner(
@@ -164,20 +164,19 @@ class IosLocalFilesScanner(
     }
 
     private fun readHead(path: String): ByteArray {
-        val handle = NSFileHandle(forReadingAtPath = path) ?: return ByteArray(0)
+        val f = fopen(path, "rb") ?: return ByteArray(0)
         return try {
-            val data: NSData = handle.readDataOfLength(HEAD_BYTES.toULong())
-            ByteArray(data.length.toInt()).also { buf ->
-                buf.usePinned { pinned ->
-                    memcpy(pinned.addressOf(0), data.bytes, data.length)
-                }
+            val buf = ByteArray(HEAD_BYTES.toInt())
+            val n = buf.usePinned { pinned ->
+                fread(pinned.addressOf(0), 1.toULong(), HEAD_BYTES.toULong(), f)
             }
+            buf.copyOf(n.toInt())
         } finally {
-            handle.closeFile()
+            fclose(f)
         }
     }
 
-    private fun nowMs(): Long = (NSDate().timeIntervalSince1970() * 1000.0).toLong()
+    private fun nowMs(): Long = time(null).toLong() * 1000L
 
     companion object {
         private const val HEAD_BYTES = 64 * 1024L

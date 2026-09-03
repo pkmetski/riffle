@@ -2,14 +2,16 @@ package com.riffle.core.data.localfiles
 
 import com.riffle.core.domain.DispatcherProvider
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSFileModificationDate
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSFileType
 import platform.Foundation.NSFileTypeDirectory
 import platform.Foundation.NSNumber
+import platform.posix.lstat
 
 @OptIn(ExperimentalForeignApi::class)
 class IosFolderWalker(private val dispatchers: DispatcherProvider) {
@@ -34,8 +36,12 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
                 walkDirectory(childPath, out)
             } else {
                 val size = (attrs[NSFileSize] as? NSNumber)?.longValue ?: 0L
-                val mtime = ((attrs[NSFileModificationDate] as? NSDate)
-                    ?.timeIntervalSince1970()?.times(1000.0))?.toLong() ?: 0L
+                val mtime = memScoped {
+                    val st = alloc<platform.posix.stat>()
+                    if (lstat(childPath, st.ptr) == 0) {
+                        st.st_mtimespec.tv_sec * 1000L + st.st_mtimespec.tv_nsec / 1_000_000L
+                    } else 0L
+                }
                 out += IosWalkedFile(
                     path = childPath,
                     displayName = name,

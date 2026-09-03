@@ -10,13 +10,14 @@ import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSError
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
-import platform.Foundation.writeToFile
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fwrite
 
 @OptIn(ExperimentalForeignApi::class)
 class IosCopyInService(private val dispatchers: DispatcherProvider) {
@@ -59,8 +60,9 @@ class IosCopyInService(private val dispatchers: DispatcherProvider) {
         val manager = NSFileManager.defaultManager
         if (manager.fileExistsAtPath(dest)) manager.removeItemAtPath(dest, error = null)
         bytes.usePinned { pinned ->
-            NSData(bytes = pinned.addressOf(0), length = bytes.size.toULong())
-                .writeToFile(dest, atomically = true)
+            val f = fopen(dest, "wb") ?: error("Cannot open $dest for writing")
+            fwrite(pinned.addressOf(0), 1.toULong(), bytes.size.toULong(), f)
+            fclose(f)
         }
         dest
     }

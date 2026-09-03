@@ -6,8 +6,8 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.Foundation.NSDate
 import platform.Foundation.NSUUID
+import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
 class IosLocalFilesFolderRepository(
@@ -43,7 +43,7 @@ class IosLocalFilesFolderRepository(
         folder?.let { libraryDao.deleteById(sourceId, it.libraryId) }
     }
 
-    private fun nowMs(): Long = (NSDate().timeIntervalSince1970() * 1000.0).toLong()
+    private fun nowMs(): Long = time(null).toLong() * 1000L
 
     companion object {
         const val LOCAL_FILES_LIBRARY_ID_PREFIX = "local:folder:"
