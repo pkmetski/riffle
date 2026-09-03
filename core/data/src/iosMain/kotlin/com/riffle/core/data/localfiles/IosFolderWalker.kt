@@ -1,7 +1,7 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
@@ -12,9 +12,9 @@ import platform.Foundation.NSFileTypeDirectory
 import platform.Foundation.NSNumber
 
 @OptIn(ExperimentalForeignApi::class)
-class IosFolderWalker {
+class IosFolderWalker(private val dispatchers: DispatcherProvider) {
 
-    suspend fun walk(folderPath: String): List<IosWalkedFile> = withContext(Dispatchers.Default) {
+    suspend fun walk(folderPath: String): List<IosWalkedFile> = withContext(dispatchers.io) {
         val out = mutableListOf<IosWalkedFile>()
         walkDirectory(folderPath, out)
         out
@@ -22,6 +22,7 @@ class IosFolderWalker {
 
     private fun walkDirectory(dirPath: String, out: MutableList<IosWalkedFile>) {
         val manager = NSFileManager.defaultManager
+
         @Suppress("UNCHECKED_CAST")
         val names = manager.contentsOfDirectoryAtPath(dirPath, error = null) as? List<String> ?: return
         for (name in names) {

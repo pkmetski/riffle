@@ -1,5 +1,6 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
@@ -8,7 +9,6 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
@@ -19,7 +19,7 @@ import platform.Foundation.NSUserDomainMask
 import platform.Foundation.writeToFile
 
 @OptIn(ExperimentalForeignApi::class)
-class IosCopyInService {
+class IosCopyInService(private val dispatchers: DispatcherProvider) {
 
     private val documentsDir: String by lazy {
         @Suppress("UNCHECKED_CAST")
@@ -32,7 +32,7 @@ class IosCopyInService {
         sourceItemId: String,
         extension: String,
         sourcePath: String,
-    ): String = withContext(Dispatchers.Default) {
+    ): String = withContext(dispatchers.io) {
         val dest = bookPath(sourceId, sourceItemId, extension)
         ensureParent(dest)
         val manager = NSFileManager.defaultManager
@@ -53,7 +53,7 @@ class IosCopyInService {
         sourceItemId: String,
         extension: String,
         bytes: ByteArray,
-    ): String = withContext(Dispatchers.Default) {
+    ): String = withContext(dispatchers.io) {
         val dest = coverPath(sourceId, sourceItemId, extension)
         ensureParent(dest)
         val manager = NSFileManager.defaultManager
@@ -65,7 +65,7 @@ class IosCopyInService {
         dest
     }
 
-    suspend fun deleteBook(sourceId: String, sourceItemId: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteBook(sourceId: String, sourceItemId: String) = withContext(dispatchers.io) {
         val dir = sourceDir(sourceId)
         val manager = NSFileManager.defaultManager
 
@@ -78,7 +78,7 @@ class IosCopyInService {
         }
     }
 
-    suspend fun deleteCover(sourceId: String, sourceItemId: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteCover(sourceId: String, sourceItemId: String) = withContext(dispatchers.io) {
         val dir = "${sourceDir(sourceId)}/covers"
         val manager = NSFileManager.defaultManager
 

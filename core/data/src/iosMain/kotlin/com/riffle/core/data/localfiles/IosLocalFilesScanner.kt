@@ -7,10 +7,10 @@ import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
@@ -25,6 +25,7 @@ class IosLocalFilesScanner(
     private val libraryItemDao: LibraryItemDao,
     private val walker: IosFolderWalker,
     private val copyIn: IosCopyInService,
+    private val dispatchers: DispatcherProvider,
 ) {
 
     data class ScanReport(
@@ -36,7 +37,7 @@ class IosLocalFilesScanner(
 
     data class ScanFailure(val displayName: String, val reason: String)
 
-    suspend fun scan(sourceId: String): ScanReport = withContext(Dispatchers.Default) {
+    suspend fun scan(sourceId: String): ScanReport = withContext(dispatchers.io) {
         val scanStart = nowMs()
         val folders = folderDao.forSource(sourceId)
         var added = 0

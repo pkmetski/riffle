@@ -48,7 +48,7 @@ internal object IosIdentityHasher {
                     i < 20 -> ((b and c) or (b.inv() and d)) to 0x5A827999
                     i < 40 -> (b xor c xor d) to 0x6ED9EBA1
                     i < 60 -> ((b and c) or (b and d) or (c and d)) to 0x8F1BBCDC.toInt()
-                    else   -> (b xor c xor d) to 0xCA62C1D6.toInt()
+                    else -> (b xor c xor d) to 0xCA62C1D6.toInt()
                 }
                 val temp = a.rotateLeft(5) + f + e + k + w[i]
                 e = d; d = c; c = b.rotateLeft(30); b = a; a = temp
@@ -58,7 +58,7 @@ internal object IosIdentityHasher {
 
         val result = ByteArray(20)
         for (i in 0 until 5) {
-            result[i * 4]     = (h[i] ushr 24).toByte()
+            result[i * 4] = (h[i] ushr 24).toByte()
             result[i * 4 + 1] = (h[i] ushr 16).toByte()
             result[i * 4 + 2] = (h[i] ushr 8).toByte()
             result[i * 4 + 3] = h[i].toByte()
