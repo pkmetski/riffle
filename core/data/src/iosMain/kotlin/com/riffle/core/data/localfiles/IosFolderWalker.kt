@@ -40,7 +40,9 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
                     val st = alloc<platform.posix.stat>()
                     if (lstat(childPath, st.ptr) == 0) {
                         st.st_mtimespec.tv_sec * 1000L + st.st_mtimespec.tv_nsec / 1_000_000L
-                    } else 0L
+                    } else {
+                        0L
+                    }
                 }
                 out += IosWalkedFile(
                     path = childPath,
