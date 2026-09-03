@@ -6,7 +6,6 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.db.SqlSchema
 
 internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
-
     // Tracks the iOS schema version independently of the Android Room schema version.
     // Bumped only when the iOS-side DDL changes; Android Room migrations are irrelevant here.
     override val version: Long = 1L

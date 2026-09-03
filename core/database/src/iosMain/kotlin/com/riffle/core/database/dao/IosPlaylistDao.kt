@@ -15,7 +15,6 @@ internal class IosPlaylistDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : PlaylistDao {
-
     override fun observeByRootId(rootId: String): Flow<List<PlaylistEntity>> =
         invalidator.version.flatMapLatest {
             flow {

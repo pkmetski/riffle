@@ -17,7 +17,6 @@ internal class IosAnnotationDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : AnnotationDao {
-
     override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
         invalidator.version.flatMapLatest {
             flow {
@@ -62,7 +61,8 @@ internal class IosAnnotationDao(
         sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
     ): AnnotationEntity? =
         driver.executeQuery(null,
-            "SELECT $ALL_COLS FROM annotations WHERE sourceId = ? AND itemId = ? AND chapterHref = ? AND type = 'IMAGE' AND deleted = 0 AND (? IS NULL OR imageHref = ?) AND (? IS NULL OR imageSvg = ?) LIMIT 1",
+            "SELECT $ALL_COLS FROM annotations WHERE sourceId = ? AND itemId = ? AND chapterHref = ? " +
+                "AND type = 'IMAGE' AND deleted = 0 AND (? IS NULL OR imageHref = ?) AND (? IS NULL OR imageSvg = ?) LIMIT 1",
             { cursor -> QueryResult.Value(if (cursor.next().value) cursor.toAnnotationEntity() else null) },
             7) {
             bindString(0, sourceId); bindString(1, itemId); bindString(2, chapterHref)
@@ -103,7 +103,8 @@ internal class IosAnnotationDao(
 
     override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int {
         driver.execute(null,
-            "UPDATE annotations SET emphasisStyles = ?, updatedAt = MAX(updatedAt + 1, ?), lastModifiedByDeviceId = ? WHERE id = ? AND type = 'EMPHASIS' AND deleted = 0",
+            "UPDATE annotations SET emphasisStyles = ?, updatedAt = MAX(updatedAt + 1, ?), lastModifiedByDeviceId = ? " +
+                "WHERE id = ? AND type = 'EMPHASIS' AND deleted = 0",
             4) { bindString(0, emphasisStyles); bindLong(1, updatedAt); bindString(2, deviceId); bindString(3, id) }
         val count = driver.executeQuery(null, "SELECT changes()", { c -> QueryResult.Value(if (c.next().value) c.getLong(0)?.toInt() ?: 0 else 0) }, 0).value
         if (count > 0) invalidator.invalidate()
@@ -114,7 +115,8 @@ internal class IosAnnotationDao(
         invalidator.version.flatMapLatest {
             flow {
                 emit(driver.executeQuery(null,
-                    "SELECT $ALL_COLS FROM annotations WHERE sourceId = ? AND itemId = ? AND deleted = 0 ORDER BY spineIndex ASC, progression ASC, createdAt ASC, id ASC",
+                    "SELECT $ALL_COLS FROM annotations WHERE sourceId = ? AND itemId = ? AND deleted = 0 " +
+                        "ORDER BY spineIndex ASC, progression ASC, createdAt ASC, id ASC",
                     ::mapRows, 2) { bindString(0, sourceId); bindString(1, itemId) }.value)
             }
         }
@@ -130,7 +132,8 @@ internal class IosAnnotationDao(
         sourceId: String, itemId: String, fontFamily: String, updatedAt: Long, deviceId: String,
     ): Int {
         driver.execute(null,
-            "UPDATE annotations SET originFontFamily = ?, updatedAt = ?, lastModifiedByDeviceId = ? WHERE sourceId = ? AND itemId = ? AND deleted = 0 AND originFontFamily IS NULL",
+            "UPDATE annotations SET originFontFamily = ?, updatedAt = ?, lastModifiedByDeviceId = ? " +
+                "WHERE sourceId = ? AND itemId = ? AND deleted = 0 AND originFontFamily IS NULL",
             5) {
             bindString(0, fontFamily); bindLong(1, updatedAt); bindString(2, deviceId)
             bindString(3, sourceId); bindString(4, itemId)
@@ -144,7 +147,8 @@ internal class IosAnnotationDao(
         sourceId: String, itemId: String, sentinel: String, fontFamily: String, updatedAt: Long, deviceId: String,
     ): Int {
         driver.execute(null,
-            "UPDATE annotations SET originFontFamily = ?, updatedAt = ?, lastModifiedByDeviceId = ? WHERE sourceId = ? AND itemId = ? AND deleted = 0 AND originFontFamily = ?",
+            "UPDATE annotations SET originFontFamily = ?, updatedAt = ?, lastModifiedByDeviceId = ? " +
+                "WHERE sourceId = ? AND itemId = ? AND deleted = 0 AND originFontFamily = ?",
             6) {
             bindString(0, fontFamily); bindLong(1, updatedAt); bindString(2, deviceId)
             bindString(3, sourceId); bindString(4, itemId); bindString(5, sentinel)

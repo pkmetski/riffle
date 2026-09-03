@@ -15,7 +15,10 @@ class IosFileStore : FileStore {
             .firstOrNull() ?: error("Cannot resolve iOS documents directory")
     }
 
-    override fun resolve(namespace: String, relativePath: String): String {
+    override fun resolve(
+        namespace: String,
+        relativePath: String,
+    ): String {
         val base = "$documentsDir/$namespace"
         NSFileManager.defaultManager.createDirectoryAtPath(
             base,

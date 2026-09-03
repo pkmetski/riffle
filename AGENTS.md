@@ -129,6 +129,36 @@ This overrides the general "do not build or install without permission" and "do 
 
 When a named constant exists for a value (e.g. `AnnotationEntity.TYPE_BOOKMARK = "BOOKMARK"`, `AnnotationEntity.TYPE_HIGHLIGHT`, status codes, mime types, well-known string IDs), use the constant at every call site — including inside string comparisons, when constructing fakes, and in tests. Do not redeclare a local `private const val MIRROR = "BOOKMARK"`, do not paste the literal `"BOOKMARK"` into a comparison, and do not assume the storage value is lowercase / uppercase / camelCase without checking. A typo'd literal silently fails to match the real value but reads as correct in code review — exactly how the `annotation.type == "bookmark"` bug shipped against the database's `"BOOKMARK"`. The same rule applies to tests: a fixture using a literal mirrors a production typo and lets the bug appear green.
 
+## iOS/Android multi-platform parity
+
+Every new feature and every bug fix must be implemented on **both Android and iOS**. This is not optional and applies equally to fixes in `androidMain`, `commonMain`, and `iosMain`.
+
+### Code reuse comes first
+
+Before writing any platform-specific implementation, ask: can this logic live in `commonMain`? The answer is usually yes for ViewModels, domain logic, business rules, and network calls. Platform-specific code (`androidMain` / `iosMain`) is only acceptable for things that are genuinely impossible to share: Android Views/Fragments, iOS UIKit/AVFoundation bindings, and expect/actual seams for APIs with no KMP equivalent.
+
+- **Wrong**: duplicate the logic in `androidMain` and `iosMain`.
+- **Right**: extract to `commonMain`, bind platform-specific backends behind an `interface` or `expect/actual`.
+
+When an Android implementation is being moved or a new feature is being added, check whether any existing `androidMain` code can be lifted to `commonMain` at the same time. Leave the codebase more shared after every PR, never less.
+
+### Tests must mirror both platforms
+
+For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test. This means:
+
+1. Identify the relevant Android test classes (harness tests in `app/src/androidTest`, unit tests in `**/test`).
+2. Create (or extend) the matching `docs/testing/ios-scenarios/<N>-<feature>.md` scenario doc.
+3. Implement each scenario as an `XCTest` UI test in `iosApp/iosAppTests/`.
+
+The iOS XCTest suite runs in CI (`iOS integration tests` job). A PR that adds Android tests without the corresponding iOS coverage will be sent back.
+
+### Minimum checklist for every multi-platform PR
+
+- [ ] Feature/fix logic lives in `commonMain` (or has a documented reason it cannot).
+- [ ] Android harness tests (and/or JVM unit tests) pass: `make harness-test` / `./gradlew test jvmTest`.
+- [ ] iOS XCTest scenarios listed in `docs/testing/ios-scenarios/` and implemented in `iosApp/iosAppTests/`.
+- [ ] `xcodebuild test` passes on iOS simulator.
+
 ## Agent skills
 
 ### Issue tracker

@@ -1,0 +1,18 @@
+included:
+  - iosApp
+
+excluded:
+  - iosApp/iosApp.xcodeproj
+
+opt_in_rules:
+  - empty_count
+  - closure_end_indentation
+  - closure_spacing
+  - operator_usage_whitespace
+
+disabled_rules:
+  - todo
+
+line_length:
+  warning: 160
+  error: 200

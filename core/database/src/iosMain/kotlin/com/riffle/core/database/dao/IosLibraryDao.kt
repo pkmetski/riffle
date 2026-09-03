@@ -14,7 +14,6 @@ internal class IosLibraryDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : LibraryDao {
-
     override fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>> =
         invalidator.version.flatMapLatest {
             flow { emit(queryLibrariesForSource(sourceId)) }

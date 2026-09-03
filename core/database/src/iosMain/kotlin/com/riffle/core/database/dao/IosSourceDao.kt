@@ -13,7 +13,6 @@ internal class IosSourceDao(
     private val driver: SqlDriver,
     private val invalidator: IosInvalidator,
 ) : SourceDao {
-
     override fun observeAll(): Flow<List<SourceEntity>> =
         invalidator.version.flatMapLatest { flow { emit(querySources()) } }
 
@@ -28,7 +27,8 @@ internal class IosSourceDao(
     override suspend fun upsert(source: SourceEntity) {
         driver.execute(
             null,
-            "INSERT OR REPLACE INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO sources " +
+                "(id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             8,
         ) {
             bindString(0, source.id)
@@ -166,7 +166,8 @@ internal class IosSourceDao(
     private fun querySources(): List<SourceEntity> =
         driver.executeQuery(
             null,
-            "SELECT id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type FROM sources ORDER BY serverType ASC, username ASC, url ASC",
+            "SELECT id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type " +
+                "FROM sources ORDER BY serverType ASC, username ASC, url ASC",
             { cursor ->
                 val result = mutableListOf<SourceEntity>()
                 while (cursor.next().value) result.add(cursor.toSourceEntity())

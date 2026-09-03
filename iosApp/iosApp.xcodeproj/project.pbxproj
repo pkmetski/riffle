@@ -10,6 +10,7 @@
 		B1000010 /* RiffleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* RiffleApp.swift */; };
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
+		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +18,8 @@
 		B1000020 /* RiffleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleApp.swift; sourceTree = "<group>"; };
 		B1000021 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B1001001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -24,6 +27,7 @@
 			isa = PBXGroup;
 			children = (
 				B1000003 /* iosApp */,
+				B1001003 /* iosAppTests */,
 				B1000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -42,8 +46,17 @@
 			isa = PBXGroup;
 			children = (
 				B1000001 /* iosApp.app */,
+				B1001001 /* iosAppTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B1001003 /* iosAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				B1001020 /* iosAppTests.swift */,
+			);
+			path = iosAppTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -64,6 +77,19 @@
 			productReference = B1000001 /* iosApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B1001005 /* iosAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1001050;
+			buildPhases = (
+				B1001040 /* Sources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = iosAppTests;
+			productName = iosAppTests;
+			productReference = B1001001 /* iosAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -75,6 +101,9 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					B1000005 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					B1001005 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -93,6 +122,7 @@
 			projectRoot = "";
 			targets = (
 				B1000005 /* iosApp */,
+				B1001005 /* iosAppTests */,
 			);
 		};
 /* End PBXProject section */
@@ -131,6 +161,14 @@
 			files = (
 				B1000010 /* RiffleApp.swift in Sources */,
 				B1000011 /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1001040 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1001010 /* iosAppTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -269,6 +307,40 @@
 			};
 			name = Release;
 		};
+		B1001072 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosAppTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B1001073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosAppTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -286,6 +358,15 @@
 			buildConfigurations = (
 				B1000070 /* Debug */,
 				B1000071 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1001050 /* Build configuration list for PBXNativeTarget "iosAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1001072 /* Debug */,
+				B1001073 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
