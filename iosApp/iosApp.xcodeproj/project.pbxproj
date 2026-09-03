@@ -66,9 +66,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = B1000050;
 			buildPhases = (
+				B1000041 /* KMP Embed Framework */,
 				B1000040 /* Sources */,
 				B1000042 /* Resources */,
-				B1000041 /* KMP Embed Framework */,
 			);
 			buildRules = ();
 			dependencies = ();
