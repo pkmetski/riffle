@@ -104,6 +104,9 @@ object ServerReferenceLint {
         // Resource-ID resolver for add-source copy maps ServerType → string resource per ABS variant.
         "app/src/main/kotlin/com/riffle/app/ui/source/WebSourceUi.kt",
         "app/src/main/kotlin/com/riffle/app/feature/annotations/AnnotationsListViewModel.kt",
+        // iOS SourceRepository mirrors CredentialedSourceInstaller's toDomain() and threads
+        // the same grandfathered ServerType field through. Same rationale as androidMain impl.
+        "core/data/src/iosMain/kotlin/com/riffle/core/data/IosSourceRepositoryImpl.kt",
     )
 
     data class Offender(

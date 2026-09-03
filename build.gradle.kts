@@ -109,6 +109,9 @@ tasks.register("checkRiffleInfraSeams") {
             // unenforced). Same sweep-follow-up rationale as the blocks above.
             // DefaultDispatcherProvider moved main → jvmMain in the core carve-out (#576).
             "core/domain/src/jvmMain/kotlin/com/riffle/core/domain/DefaultDispatcherProvider.kt",
+            // iOS DispatcherProvider implementation — maps abstract dispatcher names to platform
+            // dispatchers. This IS the seam; it's the leaf that calls Dispatchers.* directly.
+            "core/domain/src/iosMain/kotlin/com/riffle/core/domain/IosDispatcherProvider.kt",
             // Catalog adapters: network/parse work pinned to Dispatchers.IO/Default.
             "core/catalog-chitanka/src/main/kotlin/com/riffle/core/catalog/chitanka/ChitankaCatalog.kt",
             "core/catalog-gutenberg/src/main/kotlin/com/riffle/core/catalog/gutenberg/GutenbergCatalog.kt",
