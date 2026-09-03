@@ -34,29 +34,33 @@ class IosSourceRepositoryImpl(
     override suspend fun commit(
         pending: PendingSource,
         hiddenLibraryIds: Set<String>,
-    ): CommitSourceResult = try {
+    ): CommitSourceResult {
         val id = NSUUID().UUIDString
         // Save credentials before inserting the row so the first observer read already sees the token.
         tokenStorage.saveToken(id, pending.token)
         tokenStorage.savePassword(id, pending.password)
-        val entity = SourceEntity(
-            id = id,
-            url = pending.url.value,
-            isActive = false,
-            insecureConnectionAllowed = pending.insecureConnectionAllowed,
-            username = pending.username,
-            serverType = pending.serverType.name,
-            absUserId = pending.userId.takeIf { it.isNotBlank() },
-            type = pending.sourceType.name,
-        )
-        val inserted = dao.upsertAsFirstIfNoActive(entity)
-        val libraryRows = pending.libraries.map {
-            LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = id)
+        return try {
+            val entity = SourceEntity(
+                id = id,
+                url = pending.url.value,
+                isActive = false,
+                insecureConnectionAllowed = pending.insecureConnectionAllowed,
+                username = pending.username,
+                serverType = pending.serverType.name,
+                absUserId = pending.userId.takeIf { it.isNotBlank() },
+                type = pending.sourceType.name,
+            )
+            val inserted = dao.upsertAsFirstIfNoActive(entity)
+            val libraryRows = pending.libraries.map {
+                LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = id)
+            }
+            libraryDao.replaceAllForSource(sourceId = id, libraries = libraryRows)
+            CommitSourceResult.Success(inserted.toDomain())
+        } catch (t: Throwable) {
+            tokenStorage.deleteToken(id)
+            tokenStorage.deletePassword(id)
+            CommitSourceResult.Failure(t)
         }
-        libraryDao.replaceAllForSource(sourceId = id, libraries = libraryRows)
-        CommitSourceResult.Success(inserted.toDomain())
-    } catch (t: Throwable) {
-        CommitSourceResult.Failure(t)
     }
 
     override suspend fun setActive(sourceId: String) {
@@ -66,6 +70,7 @@ class IosSourceRepositoryImpl(
     override suspend fun remove(sourceId: String) {
         dao.deleteSourceGraph(sourceId)
         tokenStorage.deleteToken(sourceId)
+        tokenStorage.deletePassword(sourceId)
     }
 
     override suspend fun getSourceVersion(sourceId: String): String? = null

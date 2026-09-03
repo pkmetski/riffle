@@ -29,4 +29,9 @@ class NormalizeAbsUrlTest {
     fun urlWithPortAndPathPassesThrough() {
         assertEquals("http://192.168.1.1:13378", normalizeAbsUrl("http://192.168.1.1:13378"))
     }
+
+    @Test
+    fun uppercaseSchemePassesThrough() {
+        assertEquals("HTTP://abs.local", normalizeAbsUrl("HTTP://abs.local"))
+    }
 }

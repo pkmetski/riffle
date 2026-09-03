@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.BOOK_MEDIA_TYPE
 import com.riffle.core.models.Library
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
@@ -32,7 +33,7 @@ class AddAbsSourceViewModel(
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
 
-    private val _sourceAdded = Channel<Unit>(Channel.BUFFERED)
+    private val _sourceAdded = Channel<Unit>(Channel.CONFLATED)
     val sourceAdded: Flow<Unit> = _sourceAdded.receiveAsFlow()
 
     fun onConnect() {
@@ -66,9 +67,13 @@ class AddAbsSourceViewModel(
                 )
                 val libraries = when (librariesResult) {
                     is NetworkResult.Success -> librariesResult.value
-                        .filter { it.mediaType == "book" }
+                        .filter { it.mediaType == BOOK_MEDIA_TYPE }
                         .map { Library(id = it.id, name = it.name, mediaType = it.mediaType, isUnsupported = false) }
                     else -> { error = "Failed to fetch libraries"; return@launch }
+                }
+                if (libraries.isEmpty()) {
+                    error = "No book libraries found on this server"
+                    return@launch
                 }
 
                 val pending = PendingSource(
@@ -96,6 +101,7 @@ class AddAbsSourceViewModel(
 
 internal fun normalizeAbsUrl(raw: String): String {
     val trimmed = raw.trim()
-    return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
+    val lower = trimmed.lowercase()
+    return if (lower.startsWith("http://") || lower.startsWith("https://")) trimmed
     else "https://$trimmed"
 }
