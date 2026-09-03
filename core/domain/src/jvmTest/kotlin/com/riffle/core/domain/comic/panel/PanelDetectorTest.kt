@@ -1775,8 +1775,7 @@ class PanelDetectorTest {
         val gapW = (pageW * 0.08).toInt()  // 160px — just outside the 7% trigger
         val p0 = PanelRegion(x = 100, y = 100, width = 600, height = 400)
         val p1 = PanelRegion(x = 100 + 600 + gapW, y = 100, width = 700, height = 400) // gap=160px
-        val mergedW = p1.x + p1.width - p0.x  // 1400 + 160 = ... actually 100+600+160+700=1560? no
-        // p0 right=700, p1 left=860, gap=160, p1 right=860+700=1560, merged=1560-100=1460
+        // p0 right=700, p1 left=860, gap=160, p1 right=860+700=1560, merged would be 1560-100=1460
         val p2 = PanelRegion(x = 100, y = 600, width = 1460, height = 400) // matches merged width exactly
         val panels = listOf(p0, p1, p2)
         val result = detector.mergeSharedBorderFalseGaps(panels, pageW)
@@ -1928,5 +1927,42 @@ class PanelDetectorTest {
         val nestedInner = PanelDetector.Bbox(100, 600, 800, 900) // fully inside nestedOuter
         val result = detector.mergeCrossContainedBboxes(listOf(a, b, nestedOuter, nestedInner))
         assertEquals("disjoint and fully-nested bboxes must not merge; got=$result", 4, result.size)
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps tolerates a same-row sibling starting slightly above the pair`() {
+        // Gate-1 tolerance boundary (fires): a tall right-column sibling whose tightened top edge
+        // sits a few px above the pair (within 2% of page width) must not disable the merge —
+        // content tightening routinely jitters top edges by a handful of pixels.
+        val pageW = 2000
+        val p0 = PanelRegion(x = 100, y = 100, width = 700, height = 400)
+        val p1 = PanelRegion(x = 880, y = 100, width = 620, height = 400)   // gap 80px = 4% < 7%
+        val tallSibling = PanelRegion(x = 1560, y = 70, width = 380, height = 1200) // 30px above < 40px tol
+        val p2 = PanelRegion(x = 100, y = 520, width = 1400, height = 400)
+        val p3 = PanelRegion(x = 100, y = 940, width = 1400, height = 400)
+        val result = detector.mergeSharedBorderFalseGaps(listOf(p0, p1, tallSibling, p2, p3), pageW)
+        assertEquals(
+            "pair must merge despite a sibling 30px above (within the 2% tolerance); got=$result",
+            4, result.size,
+        )
+    }
+
+    @Test
+    fun `mergeSharedBorderFalseGaps merges a pair at most once - no cascading collapse of a 3-column row`() {
+        // Cascade guard: a genuine 3-column top row with two narrow gutters over two full-width
+        // rows must lose at most ONE gap to a false-positive merge; the merged result must not
+        // itself merge again and collapse the whole row into a single panel.
+        val pageW = 2000
+        val c1 = PanelRegion(x = 100, y = 100, width = 600, height = 400)
+        val c2 = PanelRegion(x = 760, y = 100, width = 600, height = 400)  // gap 60px = 3%
+        val c3 = PanelRegion(x = 1420, y = 100, width = 480, height = 400) // gap 60px = 3%
+        val r1 = PanelRegion(x = 100, y = 520, width = 1800, height = 400)
+        val r2 = PanelRegion(x = 100, y = 940, width = 1800, height = 400)
+        val result = detector.mergeSharedBorderFalseGaps(listOf(c1, c2, c3, r1, r2), pageW)
+        val topRow = result.filter { it.y == 100 }
+        assertTrue(
+        "the 3-column top row must keep at least 2 panels (no cascading collapse); got=$result",
+            topRow.size >= 2,
+        )
     }
 }

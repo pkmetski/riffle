@@ -157,9 +157,14 @@ class PanelOrdererTest {
     fun `panel starting one pixel below a spanning member is still exiled to the next row`() {
         // Boundary: member.y=0 < candidate.y=1 (strictly less) — exile still fires.
         // Verifies the fix (< instead of <=) does NOT break exile for the non-equal-y case.
-        val spanning = PanelRegion(x = 0, y = 0, width = 400, height = 500)   // y=0..500
-        val lower = PanelRegion(x = 200, y = 1, width = 200, height = 499)    // y=1..500, x-overlaps
-        // exile: member.y(0) < candidate.y(1) ✓, overlap fraction=(500-1)/499=1.0 ≥ 0.5 ✓
+        // The candidate spills 100px (20% of the shorter height) below the member's bottom so
+        // the #907 tail gate is satisfied and the exile path — not same-band x-ordering — is
+        // what this test pins. The candidate also sits LEFT of the member: same-band ordering
+        // would emit it first, so the assertion flips red if the exile stops firing.
+        val spanning = PanelRegion(x = 200, y = 0, width = 400, height = 500)  // x=200..600, y=0..500
+        val lower = PanelRegion(x = 0, y = 1, width = 400, height = 599)       // x=0..400, y=1..600
+        // exile: member.y(0) < candidate.y(1) ✓, overlap=(500-1)/599=0.83 ≥ 0.5 ✓,
+        // tail=(600-500)/min(599,500)=0.20 ≥ 0.03 ✓
         val ordered = orderer.order(listOf(lower, spanning))
         assertEquals("spanning panel must be first", spanning, ordered[0])
         assertEquals("lower panel must be exiled to second row", lower, ordered[1])

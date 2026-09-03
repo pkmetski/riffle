@@ -54,15 +54,18 @@ class PanelOrderer(
         // cases either the member doesn't x-overlap the candidate, or the overlap fraction is
         // below the threshold because the panels are y-adjacent rather than y-overlapping.
         //
-        // The tail must be ≥ 3% of the candidate's height (#907): a row panel that ends level
-        // with a right-column spanning panel (tail = 0, or a couple of rounding pixels) is
-        // BESIDE the column, not below it — exiling it splits the left column's rows across
-        // bands and reads the tall column in the middle. #780's genuine spill has a 40px tail
-        // (6.6% of the candidate); page-34's false spill has 0px.
+        // The tail must be ≥ 3% of the SHORTER of (candidate, member) height (#907): a row panel
+        // that ends level with a right-column spanning panel (tail = 0, or a couple of rounding
+        // pixels) is BESIDE the column, not below it — exiling it splits the left column's rows
+        // across bands and reads the tall column in the middle. #780's genuine spill has a 40px
+        // tail (6.6% of the candidate); page-34's false spill has 0px. Measuring against the
+        // shorter height keeps the required spill absolute-ish when the candidate itself is very
+        // tall (3% of a tall candidate would otherwise demand an unrealistically large tail).
         return row.none { member ->
             member.right > candidate.x && member.x < candidate.right &&
                 member.y < candidate.y &&
-                (candidate.bottom - member.bottom).toDouble() / candidate.height.toDouble() >= 0.03 &&
+                (candidate.bottom - member.bottom).toDouble() /
+                minOf(candidate.height, member.height).toDouble() >= 0.03 &&
                 (member.bottom - candidate.y).toDouble() / candidate.height.toDouble() >= rowOverlapFraction
         }
     }

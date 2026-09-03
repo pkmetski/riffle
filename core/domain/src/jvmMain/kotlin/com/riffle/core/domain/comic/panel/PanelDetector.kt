@@ -74,13 +74,7 @@ class PanelDetector(
         val afterSplit = splitAtInternalGutters(filtered, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterCoalesce = coalesceNarrowStripColumns(afterSplit, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterJunc = repairOneSidedRowJunctions(afterCoalesce, cropped, downscaledWidth, downscaledHeight)
-        val afterRowRepair = repairDiagonalTwoColumnRows(afterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
-        val afterPairRepair = repairDiagonalAdjacentColumnPairs(afterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
-        val afterMerge = mergeDiagonalSpanningPanels(afterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
-        val afterBoundaryRepair = repairMisalignedStackedRowBoundaries(afterMerge, cropped, downscaledWidth)
-        val afterCrossMerge = mergeCrossContainedBboxes(afterBoundaryRepair)
-        val afterBleedTrim = trimArtworkBleedOverlaps(afterCrossMerge, downscaledWidth)
-        val afterExpand = expandDiagonalBboxOverlaps(afterBleedTrim)
+        val afterExpand = refineRepairedBboxes(afterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
 
         val result = sanityCheck(
             candidates = afterExpand,
@@ -204,13 +198,8 @@ class PanelDetector(
         val projAfterSplit = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
         val projAfterCoalesce = coalesceNarrowStripColumns(projAfterSplit, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterJunc = repairOneSidedRowJunctions(projAfterCoalesce, cropped, downscaledWidth, downscaledHeight)
-        val projAfterRowRepair = repairDiagonalTwoColumnRows(projAfterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
-        val projAfterPairRepair = repairDiagonalAdjacentColumnPairs(projAfterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
-        val projAfterMerge = mergeDiagonalSpanningPanels(projAfterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
-        val projAfterBoundaryRepair = repairMisalignedStackedRowBoundaries(projAfterMerge, cropped, downscaledWidth)
-        val projAfterCrossMerge = mergeCrossContainedBboxes(projAfterBoundaryRepair)
         val bboxesInCropped = expandTopsToNearbyContentFragments(
-            expandDiagonalBboxOverlaps(trimArtworkBleedOverlaps(projAfterCrossMerge, downscaledWidth)),
+            refineRepairedBboxes(projAfterJunc, cropped, gutter, downscaledWidth, downscaledHeight),
             cropped,
         )
 
@@ -2588,6 +2577,32 @@ class PanelDetector(
     }
 
     /**
+     * The shared post-junction repair chain, applied identically by both detection paths
+     * (gridByProjection and the CC fallback). Keeping it in one place guarantees the mask-replay
+     * and grid pipelines never drift apart in stage order — the divergence class behind #905.
+     *
+     * Repair order matters (device-verified on the #783/#784/#786 pages): diagonal row/pair
+     * repairs before the diagonal-spanning merge; the misaligned-boundary repair on final column
+     * geometry; bleed trimming BEFORE the cross-containment merge because the diagonal repairs
+     * deliberately produce overlapping bboxes and a bleed overlap must be trimmed, not unioned.
+     */
+    private fun refineRepairedBboxes(
+        bboxes: List<Bbox>,
+        cropped: CroppedMask,
+        gutter: BooleanArray,
+        downscaledWidth: Int,
+        downscaledHeight: Int,
+    ): List<Bbox> {
+        val afterRowRepair = repairDiagonalTwoColumnRows(bboxes, cropped, gutter, downscaledWidth, downscaledHeight)
+        val afterPairRepair = repairDiagonalAdjacentColumnPairs(afterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
+        val afterMerge = mergeDiagonalSpanningPanels(afterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
+        val afterBoundaryRepair = repairMisalignedStackedRowBoundaries(afterMerge, cropped, downscaledWidth)
+        val afterBleedTrim = trimArtworkBleedOverlaps(afterBoundaryRepair, downscaledWidth)
+        val afterCrossMerge = mergeCrossContainedBboxes(afterBleedTrim)
+        return expandDiagonalBboxOverlaps(afterCrossMerge)
+    }
+
+    /**
      * Repairs a stacked pair of two-cell rows whose column boundaries are misaligned because one
      * row was split at a FALSE gap (white space inside a borderless panel's artwork) while the
      * other row was split at the true column gutter.
@@ -2618,7 +2633,7 @@ class PanelDetector(
         val minMisalignment = maxOf((downscaledWidth * 0.04).toInt(), 40)
 
         // Group cells into "rows": sets of exactly two x-adjacent bboxes sharing a y-range.
-        data class Row(val left: Bbox, val right: Bbox, val indices: Pair<Int, Int>)
+        data class Row(val left: Bbox, val right: Bbox)
         val rows = mutableListOf<Row>()
         for (i in bboxes.indices) {
             for (j in i + 1 until bboxes.size) {
@@ -2633,10 +2648,11 @@ class PanelDetector(
                         kotlin.math.abs(bboxes[k].minY - a.minY) <= yTol &&
                         kotlin.math.abs(bboxes[k].maxY - a.maxY) <= yTol
                 }
-                if (!hasThird) rows.add(Row(l, r, i to j))
+                if (!hasThird) rows.add(Row(l, r))
             }
         }
         if (rows.size < 2) return bboxes
+        val pad = (downscaledWidth * 0.02).toInt()
 
         for (top in rows) {
             for (bottom in rows) {
@@ -2653,6 +2669,11 @@ class PanelDetector(
                 val c1 = (g1Start + g1End) / 2
                 val c2 = (g2Start + g2End) / 2
                 if (kotlin.math.abs(c1 - c2) < minMisalignment) continue
+                // Cheap arithmetic gate first: the panel-continuity check below needs a real
+                // row gap to test against; reject before the expensive pixel scans.
+                val gapYStart = top.left.maxY + 1
+                val gapYEnd = bottom.left.minY - 1
+                if (gapYEnd - gapYStart + 1 < 3) continue
 
                 // Gate: which boundary is real? A FALSE boundary's continuation through the
                 // other row is blocked by solid artwork (every column in its band — padded 2%
@@ -2664,7 +2685,6 @@ class PanelDetector(
                 // Thresholds: blocked ≥ 0.65, continues ≤ 0.50 (issue #905 measured 0.71-0.73 on
                 // the blocked side and 0.25-0.44 on the open side across the real-luma and
                 // mask-replay pipelines).
-                val pad = (downscaledWidth * 0.02).toInt()
                 val g2ThroughTop = minLongestContentRunFraction(
                     g2Start - pad, g2End + pad, top.left.minY, top.left.maxY, cropped,
                 )
@@ -2677,13 +2697,6 @@ class PanelDetector(
                 val realStart = if (topIsFalse) g2Start else g1Start
                 val realEnd = if (topIsFalse) g2End else g1End
 
-                // Panel-continuity gate: the spanning panel's artwork must bridge the y-gap
-                // between the two rows (the one-sided horizontal cut went straight through it).
-                // In a genuine staggered grid nothing crosses the row gap, so this gate keeps
-                // legitimate staggered layouts untouched. Requires a real gap to test against.
-                val gapYStart = top.left.maxY + 1
-                val gapYEnd = bottom.left.minY - 1
-                if (gapYEnd - gapYStart + 1 < 3) continue
                 val leftSpanMin = minOf(top.left.minX, bottom.left.minX)
                 val rightSpanMax = maxOf(top.right.maxX, bottom.right.maxX)
                 // The spanning (falsely-split) panel lies on the side of the real boundary
@@ -2779,29 +2792,24 @@ class PanelDetector(
         val ys = yStart.coerceAtLeast(0)
         val ye = yEnd.coerceAtMost(cropped.height - 1)
         if (xs > xe || ys > ye) return 0
-        var count = 0
-        for (x in xs..xe) {
-            var full = true
-            for (y in ys..ye) {
-                if (cropped.data[y * cropped.width + x] != 1.toByte()) {
-                    full = false
-                    break
-                }
-            }
-            if (full) count++
-        }
-        return count
+        val h = ye - ys + 1
+        return (xs..xe).count { x -> cropped.colContentCount(x, ys, ye) == h }
     }
 
 
     /**
      * Merges pairs of overlapping bboxes where one contains the other's x-range while the other
-     * contains the first's y-range (a "plus" arrangement). Distinct real panels never overlap at
-     * all, so this shape only arises when two pipeline stages each recovered a partial view of
-     * the SAME panel — issue #905's tall right column: coalesceNarrowStripColumns built a narrow
+     * contains the first's y-range (a "plus" arrangement) — two partial views of the SAME column
+     * panel. Issue #905's tall right column: coalesceNarrowStripColumns built a narrow
      * full-height pillar from the row-1/row-3 strips while energyValleySplit produced the wider
      * row-2 cell. Without this merge the pillar is later dropped as a sliver by
      * applyGlobalSanityChecks and only the mid-page fragment survives.
+     *
+     * NOTE: the predicate is deliberately unguarded beyond cross-containment. Upstream repairs
+     * can emit degenerate (minX > maxX) bboxes, and at least one pinned page (#755's noir
+     * splash+banner layout) depends on such a box being absorbed here; adding size or width
+     * guards redirects those absorptions and changes pinned layouts. Harden only together with
+     * a fix to the degenerate-bbox producers.
      */
     internal fun mergeCrossContainedBboxes(bboxes: List<Bbox>): List<Bbox> {
         val result = bboxes.toMutableList()
@@ -2899,18 +2907,25 @@ class PanelDetector(
      *  (b) the two panels share nearly the same y-range (y-overlap ≥ 80% of the shorter panel),
      *  (c) both panels have similar heights (max/min height ratio < 2 — prevents merging a
      *      short row panel with a tall column panel whose y-range happens to encompass it),
-     *  (d) the merged width is within 15% of the widest single panel in any other row band —
-     *      a real column gap produces a merge whose combined width is anomalously wider than
-     *      any adjacent-row panel, while a false gap produces a merge that matches the normal
-     *      panel width for the layout (issue #893 / #895: merged=1375 matches rows 2-3=1375;
-     *      the real bottom-row gap at x=341 produces merged=1870, 36% above widest-other=1514).
+     * plus the three gates commented inline below: (1) the pair is in the topmost row band,
+     * (2) no adjacent row has a panel edge at the gap (a shared column boundary means the gap is
+     * a real gutter), and (3) at least two panels below span the full gap (rows below have
+     * content at the gap's x, so the gap is an artifact restricted to this row).
+     *
+     * A panel produced by a merge never merges again (single-merge-per-pair): cascading would
+     * let a genuine 3-column top row collapse into one panel two merges at a time.
      */
     internal fun mergeSharedBorderFalseGaps(
         panels: List<PanelRegion>,
         pageWidth: Int,
     ): List<PanelRegion> {
         val maxGapW = (pageWidth * 0.07).toInt()
+        // Tolerance for "same row / at the boundary" comparisons: absorbs content-tightening
+        // jitter of the top edges and overlap-expansion of rows (both a few px to a few dozen px
+        // at detection resolution) without admitting genuinely different rows.
+        val edgeTolerance = (pageWidth * 0.02).toInt()
         val result = panels.toMutableList()
+        val mergedResults = mutableSetOf<PanelRegion>()
         var changed = true
         while (changed) {
             changed = false
@@ -2919,6 +2934,7 @@ class PanelDetector(
                     if (i == j) continue
                     val a = result[i]
                     val b = result[j]
+                    if (a in mergedResults || b in mergedResults) continue
                     // a must be strictly to the left of b with no x overlap
                     if (a.x + a.width > b.x) continue
                     val gapLeft = a.x + a.width
@@ -2940,8 +2956,10 @@ class PanelDetector(
                     // row on the page. A middle-row pair may also have many panels below it
                     // spanning the gap (those rows are simply wider), so the straddle check
                     // alone cannot distinguish a real middle-row column from a top-row artifact.
+                    // The tolerance keeps the gate from being disabled by a same-row sibling
+                    // (e.g. a tall right column) whose tightened top edge sits a few px higher.
                     val isTopmostPair = result.none { other ->
-                        other !== a && other !== b && other.y < candidateTop
+                        other !== a && other !== b && other.y < candidateTop - edgeTolerance
                     }
                     if (!isTopmostPair) continue
                     // Gate 2 — Column-boundary validator: if any panel in an ADJACENT row band
@@ -2949,7 +2967,7 @@ class PanelDetector(
                     // gapLeft, the column at gapLeft is a real gutter shared across rows → don't
                     // merge. Panels far below are excluded: a coincidentally-aligned edge on a
                     // distant page section is not evidence of a shared column boundary.
-                    val colTolerance = maxOf(gapW, (pageWidth * 0.07).toInt())
+                    val colTolerance = maxOf(gapW, maxGapW)
                     val adjacentZoneBottom = candidateBottom + shorter * 2
                     val hasColumnValidator = result.any { other ->
                         if (other === a || other === b) return@any false
@@ -2965,10 +2983,11 @@ class PanelDetector(
                     // the candidate pair and span the FULL gap range [gapLeft, gapRight] confirm
                     // that the gap position is not a column boundary in subsequent rows (i.e.
                     // subsequent rows have content at the gap's x, so it is a binarization
-                    // artifact restricted to this row only).
+                    // artifact restricted to this row only). The tolerance admits rows whose
+                    // expanded bbox starts a few px above the pair's bottom edge.
                     val straddlingBelow = result.count { other ->
                         if (other === a || other === b) return@count false
-                        other.y >= candidateBottom &&
+                        other.y >= candidateBottom - edgeTolerance &&
                             other.x <= gapLeft &&
                             other.x + other.width >= gapRight &&
                             other.width >= mergedW / 2
@@ -2983,6 +3002,7 @@ class PanelDetector(
                     )
                     result[i] = merged
                     result.removeAt(j)
+                    mergedResults.add(merged)
                     changed = true
                     break@outer
                 }

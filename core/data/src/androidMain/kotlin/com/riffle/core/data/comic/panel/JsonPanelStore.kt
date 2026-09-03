@@ -343,12 +343,12 @@ class JsonPanelStore constructor(
          *      - #892: coalesceNarrowStripColumns now detects narrow strips separated by a suspicious
          *        full-width row band, extends their union to the full column boundary, and emits one
          *        tall panel. v38 caches for such pages miss the tall right-side column panel.
-         * v40: mergeSharedBorderFalseGaps post-processing merges two same-row-band panels when their
-         *      shared gap is narrow (< 7% page width) and the merged width matches panels in adjacent
-         *      rows (within 15%). This handles thin ink borders binarized to white that create a false
-         *      column gap visible only in one row — the false signal is identified because adjacent rows
-         *      span across it with panels of similar width (issues #893, #895). v39 caches for such
-         *      pages hold the top-row wide panel split into two halves.
+         * v40: mergeSharedBorderFalseGaps post-processing merges a topmost-row pair of same-row-band
+         *      panels separated by a narrow gap (< 7% page width) when at least two panels below
+         *      straddle the full gap and no adjacent row has a panel edge at the gap (a shared column
+         *      boundary would mean the gap is a real gutter). This handles thin ink borders binarized
+         *      to white that create a false column gap visible only in one row (issues #893, #895).
+         *      v39 caches for such pages hold the top-row wide panel split into two halves.
          * v41: Two repairs for borderless panels spanning multiple rows (issue #905).
          *      (1) repairMisalignedStackedRowBoundaries realigns stacked two-cell rows whose column
          *      boundaries are misaligned because one row split at a false gap inside a borderless
