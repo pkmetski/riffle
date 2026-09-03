@@ -14,6 +14,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.koin.core)
             implementation(libs.androidx.lifecycle.viewmodel)
+            implementation(libs.compose.runtime)  // mutableStateOf in ViewModels
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
