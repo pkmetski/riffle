@@ -18,6 +18,8 @@ import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.logging.iosLoggingModule
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.KomgaLibraryApi
+import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.feature.library.HomeViewModel
 import org.koin.dsl.module
@@ -27,11 +29,12 @@ private val iosLibraryModule = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
     single<AbsLibraryApi> { get<AbsApiClient>() }
+    single<KomgaLibraryApi> { KomgaLibraryApiClient(get()) }
 
     single<DispatcherProvider> { IosDispatcherProvider }
     single<SourceRepository> { IosSourceRepositoryImpl(get()) }
     single<LibraryObserver> { IosLibraryObserverImpl(get(), get()) }
-    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get()) }
+    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
