@@ -2,6 +2,8 @@ package com.riffle.core.data.localfiles
 
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
 import platform.Foundation.NSUUID
 
 class IosLocalFilesSourceInstaller(
@@ -32,7 +34,7 @@ class IosLocalFilesSourceInstaller(
     }
 
     suspend fun ensureLocalFilesSource(): String {
-        sourceDao.getByType(LOCAL_FILES_TYPE)?.let { return it.id }
+        sourceDao.getByType(SourceType.LOCAL_FILES.name)?.let { return it.id }
         val id = NSUUID().UUIDString()
         val entity = SourceEntity(
             id = id,
@@ -40,14 +42,13 @@ class IosLocalFilesSourceInstaller(
             isActive = false,
             insecureConnectionAllowed = false,
             username = "",
-            serverType = "AUDIOBOOKSHELF",
-            type = LOCAL_FILES_TYPE,
+            serverType = ServerType.AUDIOBOOKSHELF.name,
+            type = SourceType.LOCAL_FILES.name,
         )
         return sourceDao.upsertAsFirstIfNoActive(entity).id
     }
 
     companion object {
         const val LOCAL_FILES_URL_PLACEHOLDER = "https://localfiles.invalid"
-        const val LOCAL_FILES_TYPE = "LOCAL_FILES"
     }
 }

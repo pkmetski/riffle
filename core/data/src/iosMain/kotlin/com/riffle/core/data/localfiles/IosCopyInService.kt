@@ -1,12 +1,18 @@
 package com.riffle.core.data.localfiles
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
+import platform.Foundation.NSError
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
@@ -31,7 +37,14 @@ class IosCopyInService {
         ensureParent(dest)
         val manager = NSFileManager.defaultManager
         if (manager.fileExistsAtPath(dest)) manager.removeItemAtPath(dest, error = null)
-        manager.copyItemAtPath(sourcePath, toPath = dest, error = null)
+        memScoped {
+            val err = alloc<ObjCObjectVar<NSError?>>()
+            val ok = manager.copyItemAtPath(sourcePath, toPath = dest, error = err.ptr)
+            if (!ok) {
+                val desc = err.value?.localizedDescription ?: "unknown error"
+                error("Failed to copy $sourcePath → $dest: $desc")
+            }
+        }
         dest
     }
 
