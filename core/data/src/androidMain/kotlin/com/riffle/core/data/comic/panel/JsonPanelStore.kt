@@ -349,8 +349,17 @@ class JsonPanelStore constructor(
          *      column gap visible only in one row — the false signal is identified because adjacent rows
          *      span across it with panels of similar width (issues #893, #895). v39 caches for such
          *      pages hold the top-row wide panel split into two halves.
+         * v41: Two repairs for borderless panels spanning multiple rows (issue #905).
+         *      (1) repairMisalignedStackedRowBoundaries realigns stacked two-cell rows whose column
+         *      boundaries are misaligned because one row split at a false gap inside a borderless
+         *      panel's artwork while the other split at the true gutter — validated by content-run
+         *      blocking plus artwork bridging the row gap. (2) mergeCrossContainedBboxes unions two
+         *      partial views of the same panel (a coalesced narrow pillar and a wider row cell that
+         *      cross-contain each other) before the pillar can be dropped as a sliver. v40 caches
+         *      hold the tall right-column panel as a mid-page fragment and the bottom-left tall
+         *      panel fragmented, with the mid panel extended into its artwork.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 40
+        internal const val CURRENT_SCHEMA_VERSION: Int = 41
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

@@ -1799,4 +1799,134 @@ class PanelDetectorTest {
             3, result.size,
         )
     }
+
+    // --- repairMisalignedStackedRowBoundaries (issue #905) ---
+
+    /**
+     * Builds a synthetic cropped mask of two stacked two-cell rows. Layout knobs:
+     *  - top row cells: (10..340 | 360..990), boundary gap 341..359 (the FALSE gap when the
+     *    left panel's art continues through the row gap)
+     *  - bottom row cells: (10..800 | 830..990), boundary gap 801..829 (the real gutter)
+     *  - top-right cell content: solid art 360..790, mid panel 850..990 — the real-boundary
+     *    band (801..829) stays clear in the top row so its continuation reads as open
+     *  - bottom cells solid
+     *  - [bridged]: when true, the left art also fills the row gap rows (501..519), the
+     *    signature of a one-sided horizontal cut through a borderless spanning panel
+     *  - [blockRealBoundaryInTop]: when true, solid content also fills 781..849 in the top row,
+     *    making the real boundary's continuation read as blocked (ambiguous case)
+     */
+    private fun stackedRowsMask(bridged: Boolean, blockRealBoundaryInTop: Boolean = false): PanelDetector.CroppedMask {
+        val w = 1000
+        val h = 1000
+        val data = ByteArray(w * h)
+        fun fill(x0: Int, y0: Int, x1: Int, y1: Int) {
+            for (y in y0..y1) for (x in x0..x1) data[y * w + x] = 1
+        }
+        // top row y100..500
+        fill(10, 100, 340, 500) // balloon strip (left part of the falsely-split panel)
+        fill(360, 100, 790, 500) // borderless art (also left panel, absorbed into top-right cell)
+        fill(850, 100, 990, 500) // mid panel content
+        if (blockRealBoundaryInTop) fill(781, 100, 849, 500)
+        // bottom row y520..990
+        fill(10, 520, 800, 990) // bottom-left (solid across the false gap 341..359 → blocked)
+        fill(830, 520, 990, 990) // bottom-right
+        // row gap y501..519: art bridges it when the spanning panel is genuine
+        if (bridged) fill(360, 501, 790, 519)
+        return PanelDetector.CroppedMask(w, h, data, 0, 0)
+    }
+
+    private val stackedTopLeft = PanelDetector.Bbox(10, 100, 340, 500)
+    private val stackedTopRight = PanelDetector.Bbox(360, 100, 990, 500)
+    private val stackedBottomLeft = PanelDetector.Bbox(10, 520, 800, 990)
+    private val stackedBottomRight = PanelDetector.Bbox(830, 520, 990, 990)
+
+    @Test
+    fun `repairMisalignedStackedRowBoundaries realigns a false top-row split to the bottom row boundary`() {
+        // Regression for issue #905 (page-34 bottom band): the upper row split at a false gap
+        // inside the borderless left panel's artwork while the lower row split at the true
+        // gutter. The repair must rebuild three panels: the spanning left column, the top-right
+        // cell trimmed to the real boundary, and the untouched bottom-right cell.
+        val cropped = stackedRowsMask(bridged = true)
+        val input = listOf(stackedTopLeft, stackedTopRight, stackedBottomLeft, stackedBottomRight)
+        val result = detector.repairMisalignedStackedRowBoundaries(input, cropped, 1000)
+        assertEquals("expected 3 panels after realignment; got=$result", 3, result.size)
+        val spanning = result.firstOrNull { it.minX <= 10 && it.maxY >= 990 && it.minY <= 100 }
+        assertNotNull("expected a spanning left column (minX ≤ 10, y 100..990); got=$result", spanning)
+        assertTrue("spanning column must end left of the real boundary; got=$spanning", spanning!!.maxX <= 800)
+        val trimmedTopRight = result.firstOrNull { it.minY <= 100 && it.maxY <= 519 && it.minX >= 830 }
+        assertNotNull("expected top-right cell re-trimmed to start at the real boundary; got=$result", trimmedTopRight)
+    }
+
+    @Test
+    fun `repairMisalignedStackedRowBoundaries does NOT fire when nothing bridges the row gap`() {
+        // Staggered-grid guard: same geometry, but the row gap is clear — two genuine rows with
+        // differently positioned column boundaries must stay untouched.
+        val cropped = stackedRowsMask(bridged = false)
+        val input = listOf(stackedTopLeft, stackedTopRight, stackedBottomLeft, stackedBottomRight)
+        val result = detector.repairMisalignedStackedRowBoundaries(input, cropped, 1000)
+        assertEquals("staggered rows must not be realigned; got=$result", input.toSet(), result.toSet())
+    }
+
+    @Test
+    fun `repairMisalignedStackedRowBoundaries does NOT fire when both boundaries are blocked through the other row`() {
+        // Ambiguity guard: when the real-boundary band is ALSO blocked through the top row
+        // (solid content at 781..849), neither boundary can be validated — leave untouched.
+        val cropped = stackedRowsMask(bridged = true, blockRealBoundaryInTop = true)
+        val input = listOf(stackedTopLeft, stackedTopRight, stackedBottomLeft, stackedBottomRight)
+        val result = detector.repairMisalignedStackedRowBoundaries(input, cropped, 1000)
+        assertEquals("ambiguous blocking must not realign; got=$result", input.toSet(), result.toSet())
+    }
+
+    @Test
+    fun `repairMisalignedStackedRowBoundaries does NOT fire when boundaries are aligned`() {
+        // Aligned-boundaries guard: a clean 2x2 grid (both rows split at the same x) must never
+        // be touched even when artwork bridges the row gap.
+        val w = 1000
+        val h = 1000
+        val data = ByteArray(w * h)
+        fun fill(x0: Int, y0: Int, x1: Int, y1: Int) {
+            for (y in y0..y1) for (x in x0..x1) data[y * w + x] = 1
+        }
+        fill(10, 100, 480, 500); fill(520, 100, 990, 500)
+        fill(10, 520, 480, 990); fill(520, 520, 990, 990)
+        fill(10, 501, 480, 519) // bridge on the left — still must not fire
+        val cropped = PanelDetector.CroppedMask(w, h, data, 0, 0)
+        val input = listOf(
+            PanelDetector.Bbox(10, 100, 480, 500),
+            PanelDetector.Bbox(520, 100, 990, 500),
+            PanelDetector.Bbox(10, 520, 480, 990),
+            PanelDetector.Bbox(520, 520, 990, 990),
+        )
+        val result = detector.repairMisalignedStackedRowBoundaries(input, cropped, 1000)
+        assertEquals("aligned 2x2 grid must not be realigned; got=$result", input.toSet(), result.toSet())
+    }
+
+    // --- mergeCrossContainedBboxes (issue #905) ---
+
+    @Test
+    fun `mergeCrossContainedBboxes merges a tall pillar with a wider row cell it cross-contains`() {
+        // Regression for issue #905 (tall right column): the coalesced narrow pillar and the
+        // energy-split row-2 cell are two partial views of the same panel — the pillar's y-range
+        // contains the cell's, the cell's x-range contains the pillar's. They must merge to the
+        // union instead of the pillar later being dropped as a sliver.
+        val pillar = PanelDetector.Bbox(1551, 0, 1779, 1362)
+        val rowCell = PanelDetector.Bbox(1493, 440, 1947, 858)
+        val other = PanelDetector.Bbox(124, 0, 1491, 422)
+        val result = detector.mergeCrossContainedBboxes(listOf(pillar, rowCell, other))
+        assertEquals("cross-contained pair must merge; got=$result", 2, result.size)
+        assertTrue(
+            "merged union (1493,0,1947,1362) expected; got=$result",
+            result.contains(PanelDetector.Bbox(1493, 0, 1947, 1362)),
+        )
+    }
+
+    @Test
+    fun `mergeCrossContainedBboxes does NOT merge disjoint or fully nested bboxes`() {
+        val a = PanelDetector.Bbox(0, 0, 400, 400)
+        val b = PanelDetector.Bbox(500, 0, 900, 400) // disjoint
+        val nestedOuter = PanelDetector.Bbox(0, 500, 900, 990)
+        val nestedInner = PanelDetector.Bbox(100, 600, 800, 900) // fully inside nestedOuter
+        val result = detector.mergeCrossContainedBboxes(listOf(a, b, nestedOuter, nestedInner))
+        assertEquals("disjoint and fully-nested bboxes must not merge; got=$result", 4, result.size)
+    }
 }

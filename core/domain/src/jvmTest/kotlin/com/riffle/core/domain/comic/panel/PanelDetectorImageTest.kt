@@ -1260,7 +1260,10 @@ class PanelDetectorImageTest {
         // at x≈722-805 because a thin ink border between the two speech-bubble regions was
         // binarized to white. The false gap is detectable because rows 2-3 span ACROSS x=722
         // with no column boundary there — a consistent column gap would appear in all rows.
-        val mask = loadBinaryFixture("panel-detection-fixtures/issue-895-split-top-p34.png")
+        // Uses loadMaskFixture (luma PixelGrid) so detection runs the grid path — including
+        // energyValleySplit — exactly as on device (issue #905 showed the binary-mask path
+        // diverges from the device pipeline).
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-895-split-top-p34.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         // There must be exactly one panel in the top row (y-centre in the top 22% of the page)
@@ -1281,7 +1284,7 @@ class PanelDetectorImageTest {
     fun `issue 893 page 34 top wide panel must not be split at thin ink border`() {
         // Regression for issue #893 (page 34): same split-top as #895 — the top wide panel was
         // reported as 2 halves instead of 1 unified panel.
-        val mask = loadBinaryFixture("panel-detection-fixtures/issue-893-split-top-panel-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-893-split-top-panel-p34.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         val topRowPanels = result.panels.filter { p ->
@@ -1301,7 +1304,7 @@ class PanelDetectorImageTest {
         // silhouette) was detected as a fragment starting at y≈381 instead of y≈111. The top
         // portion (y=111-381) was being swallowed into adjacent CCs and not returned as part of
         // the right-column union.
-        val mask = loadBinaryFixture("panel-detection-fixtures/issue-894-missed-tall-right-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-894-missed-tall-right-p34.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         // The tall right-column panel (x-centre > 70% page width) must begin in the top row
@@ -1317,5 +1320,60 @@ class PanelDetectorImageTest {
             tallRightPanel,
         )
     }
+
+    @Test
+    fun `issue 905 page 34 full layout - tall right column, bottom-left tall panel, and mid panel`() {
+        // Regression for issue #905 (page 34, full user redraw). Two independent failures:
+        //  1. The borderless tall right-column panel (standing figure + reflection, spanning
+        //     rows 1-3) was returned as a mid-page fragment (y≈381, h≈595): the coalesced
+        //     right-column pillar was content-tightened below the sliver-width floor and dropped
+        //     by applyGlobalSanityChecks, leaving only the row-2 energy-split cell.
+        //  2. The bottom band was cut by a one-sided horizontal gutter (only exists right of the
+        //     borderless left panel's art), then the upper half split at a false 23px balloon
+        //     gap (x≈341-363) instead of the true 20px gutter (x≈831-850) — fragmenting the
+        //     bottom-left tall panel and extending the mid panel into its artwork.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-905-page34-full-redraw.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 7 panels (3 wide rows + tall right column + bottom-left tall + mid + bottom-right), " +
+                "got ${result.panels.size}: ${result.panels}",
+            7, result.panels.size,
+        )
+        // Tall right column: starts in the top row and spans rows 1-3 (~44% of page height).
+        val tallRight = result.panels.firstOrNull { p ->
+            p.x + p.width / 2 > grid.width * 0.72 &&
+                p.y < 250 &&
+                p.height >= grid.height * 0.40
+        }
+        assertNotNull(
+            "expected a tall right-column panel (x-centre > 72%, top edge y < 250, h ≥ 40% page); " +
+                "all panels=${result.panels}",
+            tallRight,
+        )
+        // Bottom-left tall panel: hugs the left margin, spans both bottom rows (~50% of height).
+        val leftTall = result.panels.firstOrNull { p ->
+            p.x < 30 &&
+                p.width >= grid.width * 0.35 &&
+                p.height >= grid.height * 0.45
+        }
+        assertNotNull(
+            "expected a bottom-left tall panel (x < 30, w ≥ 35%, h ≥ 45% page); " +
+                "all panels=${result.panels}",
+            leftTall,
+        )
+        // The mid and bottom-right panels must not extend into the left panel's artwork: every
+        // bottom-half panel other than the left tall panel starts right of 40% page width.
+        val intruders = result.panels.filter { p ->
+            p !== leftTall && p.y > grid.height * 0.45 && p.x < grid.width * 0.40
+        }
+        assertEquals(
+            "bottom-half panels other than the left tall panel must start right of 40% page width; " +
+                "intruders=$intruders",
+            emptyList<PanelRegion>(), intruders,
+        )
+    }
+
+
 
 }

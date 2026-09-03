@@ -77,7 +77,9 @@ class PanelDetector(
         val afterRowRepair = repairDiagonalTwoColumnRows(afterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterPairRepair = repairDiagonalAdjacentColumnPairs(afterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val afterMerge = mergeDiagonalSpanningPanels(afterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
-        val afterBleedTrim = trimArtworkBleedOverlaps(afterMerge, downscaledWidth)
+        val afterBoundaryRepair = repairMisalignedStackedRowBoundaries(afterMerge, cropped, downscaledWidth)
+        val afterCrossMerge = mergeCrossContainedBboxes(afterBoundaryRepair)
+        val afterBleedTrim = trimArtworkBleedOverlaps(afterCrossMerge, downscaledWidth)
         val afterExpand = expandDiagonalBboxOverlaps(afterBleedTrim)
 
         val result = sanityCheck(
@@ -205,8 +207,10 @@ class PanelDetector(
         val projAfterRowRepair = repairDiagonalTwoColumnRows(projAfterJunc, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterPairRepair = repairDiagonalAdjacentColumnPairs(projAfterRowRepair, cropped, gutter, downscaledWidth, downscaledHeight)
         val projAfterMerge = mergeDiagonalSpanningPanels(projAfterPairRepair, downscaledWidth, downscaledHeight, cropped, gutter)
+        val projAfterBoundaryRepair = repairMisalignedStackedRowBoundaries(projAfterMerge, cropped, downscaledWidth)
+        val projAfterCrossMerge = mergeCrossContainedBboxes(projAfterBoundaryRepair)
         val bboxesInCropped = expandTopsToNearbyContentFragments(
-            expandDiagonalBboxOverlaps(trimArtworkBleedOverlaps(projAfterMerge, downscaledWidth)),
+            expandDiagonalBboxOverlaps(trimArtworkBleedOverlaps(projAfterCrossMerge, downscaledWidth)),
             cropped,
         )
 
@@ -2581,6 +2585,251 @@ class PanelDetector(
         return components
             .filter { it.area() >= minArea }
             .map { tighten(it, cropped) }
+    }
+
+    /**
+     * Repairs a stacked pair of two-cell rows whose column boundaries are misaligned because one
+     * row was split at a FALSE gap (white space inside a borderless panel's artwork) while the
+     * other row was split at the true column gutter.
+     *
+     * Geometry (issue #905, page-34 bottom band): a borderless tall panel occupies the left
+     * column of BOTH rows. A one-sided horizontal gutter (present only right of the tall panel's
+     * art) cut the band into two rows; the upper row then split at a false balloon gap (x≈352)
+     * while the lower row split at the true gutter (x≈820). The repair detects the misaligned
+     * boundaries, validates which one is real via gutter continuation, and rebuilds three
+     * panels: the spanning column (unioned across both rows up to the real boundary), the other
+     * cell of the falsely-split row re-trimmed to start at the real boundary, and the untouched
+     * cell of the correctly-split row.
+     *
+     * A boundary is REAL when its gutter band contains a column that is ≥ 85% flood-fill gutter
+     * through the OTHER row's y-range (the gutter continues through both rows); it is FALSE when
+     * no column in its band reaches 30% through the other row (solid artwork blocks it).
+     * Requiring both conditions leaves staggered grids — where neither boundary continues into
+     * the neighbouring row — untouched.
+     */
+    internal fun repairMisalignedStackedRowBoundaries(
+        bboxes: List<Bbox>,
+        cropped: CroppedMask,
+        downscaledWidth: Int,
+    ): List<Bbox> {
+        if (bboxes.size < 4) return bboxes
+        val yTol = 8
+        val edgeTol = (downscaledWidth * 0.02).toInt().coerceAtLeast(4)
+        val minMisalignment = maxOf((downscaledWidth * 0.04).toInt(), 40)
+
+        // Group cells into "rows": sets of exactly two x-adjacent bboxes sharing a y-range.
+        data class Row(val left: Bbox, val right: Bbox, val indices: Pair<Int, Int>)
+        val rows = mutableListOf<Row>()
+        for (i in bboxes.indices) {
+            for (j in i + 1 until bboxes.size) {
+                val a = bboxes[i]
+                val b = bboxes[j]
+                if (kotlin.math.abs(a.minY - b.minY) > yTol || kotlin.math.abs(a.maxY - b.maxY) > yTol) continue
+                val (l, r) = if (a.minX <= b.minX) a to b else b to a
+                if (l.maxX >= r.minX) continue // must be disjoint in x with a gap
+                // No third cell may share this y-range — only clean two-cell rows qualify.
+                val hasThird = bboxes.indices.any { k ->
+                    k != i && k != j &&
+                        kotlin.math.abs(bboxes[k].minY - a.minY) <= yTol &&
+                        kotlin.math.abs(bboxes[k].maxY - a.maxY) <= yTol
+                }
+                if (!hasThird) rows.add(Row(l, r, i to j))
+            }
+        }
+        if (rows.size < 2) return bboxes
+
+        for (top in rows) {
+            for (bottom in rows) {
+                if (top === bottom) continue
+                val rowGap = bottom.left.minY - top.left.maxY - 1
+                if (rowGap !in 0..30) continue
+                if (kotlin.math.abs(top.left.minX - bottom.left.minX) > edgeTol) continue
+                if (kotlin.math.abs(top.right.maxX - bottom.right.maxX) > edgeTol) continue
+                val g1Start = top.left.maxX + 1
+                val g1End = top.right.minX - 1
+                val g2Start = bottom.left.maxX + 1
+                val g2End = bottom.right.minX - 1
+                if (g1Start > g1End || g2Start > g2End) continue
+                val c1 = (g1Start + g1End) / 2
+                val c2 = (g2Start + g2End) / 2
+                if (kotlin.math.abs(c1 - c2) < minMisalignment) continue
+
+                // Gate: which boundary is real? A FALSE boundary's continuation through the
+                // other row is blocked by solid artwork (every column in its band — padded 2%
+                // to tolerate borderless art edges wandering between rows — is crossed by a long
+                // content run); a REAL boundary's continuation has some column with only a
+                // modest longest-run. Longest solid content run is used instead of flood-fill
+                // reachability because the space between borderless art and a drawn border is
+                // often enclosed (not border-reachable) yet clearly not a solid crossing.
+                // Thresholds: blocked ≥ 0.65, continues ≤ 0.50 (issue #905 measured 0.71-0.73 on
+                // the blocked side and 0.25-0.44 on the open side across the real-luma and
+                // mask-replay pipelines).
+                val pad = (downscaledWidth * 0.02).toInt()
+                val g2ThroughTop = minLongestContentRunFraction(
+                    g2Start - pad, g2End + pad, top.left.minY, top.left.maxY, cropped,
+                )
+                val g1ThroughBottom = minLongestContentRunFraction(
+                    g1Start - pad, g1End + pad, bottom.left.minY, bottom.left.maxY, cropped,
+                )
+                val topIsFalse = g1ThroughBottom >= 0.65 && g2ThroughTop <= 0.50
+                val bottomIsFalse = g2ThroughTop >= 0.65 && g1ThroughBottom <= 0.50
+                if (!topIsFalse && !bottomIsFalse) continue // ambiguous — leave untouched
+                val realStart = if (topIsFalse) g2Start else g1Start
+                val realEnd = if (topIsFalse) g2End else g1End
+
+                // Panel-continuity gate: the spanning panel's artwork must bridge the y-gap
+                // between the two rows (the one-sided horizontal cut went straight through it).
+                // In a genuine staggered grid nothing crosses the row gap, so this gate keeps
+                // legitimate staggered layouts untouched. Requires a real gap to test against.
+                val gapYStart = top.left.maxY + 1
+                val gapYEnd = bottom.left.minY - 1
+                if (gapYEnd - gapYStart + 1 < 3) continue
+                val leftSpanMin = minOf(top.left.minX, bottom.left.minX)
+                val rightSpanMax = maxOf(top.right.maxX, bottom.right.maxX)
+                // The spanning (falsely-split) panel lies on the side of the real boundary
+                // that contains the false gap. The artwork of that panel must bridge the row
+                // gap (the one-sided horizontal cut went straight through it) across a
+                // substantial band of columns — thin ink crossings (border strokes, balloon
+                // tails) do not count, hence the width-relative floor. In a genuine staggered
+                // grid nothing solid crosses the row gap, so this keeps those layouts untouched.
+                val falseGapCentre = if (topIsFalse) c1 else c2
+                val spanningLeft = falseGapCentre < realStart
+                val bridge = if (spanningLeft) {
+                    val w = realStart - leftSpanMin
+                    fullContentColumnCount(leftSpanMin, realStart - 1, gapYStart, gapYEnd, cropped) >= maxOf(w / 20, 12)
+                } else {
+                    val w = rightSpanMax - realEnd
+                    fullContentColumnCount(realEnd + 1, rightSpanMax, gapYStart, gapYEnd, cropped) >= maxOf(w / 20, 12)
+                }
+                if (!bridge) continue
+
+                val falseRow = if (topIsFalse) top else bottom
+                val trueRow = if (topIsFalse) bottom else top
+                val repaired: List<Bbox> = if (spanningLeft) {
+                    listOf(
+                        // Spanning left column across both rows, up to the real boundary.
+                        tighten(Bbox(leftSpanMin, top.left.minY, realStart - 1, bottom.left.maxY), cropped),
+                        // The falsely-split row's right cell, re-trimmed to the real boundary.
+                        tighten(Bbox(realEnd + 1, falseRow.right.minY, falseRow.right.maxX, falseRow.right.maxY), cropped),
+                        trueRow.right,
+                    )
+                } else {
+                    listOf(
+                        // Spanning right column across both rows, from the real boundary.
+                        tighten(Bbox(realEnd + 1, top.right.minY, rightSpanMax, bottom.right.maxY), cropped),
+                        // The falsely-split row's left cell, re-trimmed to the real boundary.
+                        tighten(Bbox(falseRow.left.minX, falseRow.left.minY, realStart - 1, falseRow.left.maxY), cropped),
+                        trueRow.left,
+                    )
+                }
+                val consumed = setOf(top.left, top.right, bottom.left, bottom.right)
+                return bboxes.filterNot { it in consumed } + repaired
+            }
+        }
+        return bboxes
+    }
+
+    /**
+     * Minimum over columns [xStart]..[xEnd] of the longest consecutive CONTENT run within
+     * [yStart]..[yEnd], as a fraction of the y-range height. 1.0 means every column is crossed
+     * by a full-height solid content run (a boundary here would cut through artwork); a small
+     * value means at least one column is essentially clear (a plausible panel boundary).
+     */
+    private fun minLongestContentRunFraction(
+        xStart: Int,
+        xEnd: Int,
+        yStart: Int,
+        yEnd: Int,
+        cropped: CroppedMask,
+    ): Double {
+        val xs = xStart.coerceAtLeast(0)
+        val xe = xEnd.coerceAtMost(cropped.width - 1)
+        val ys = yStart.coerceAtLeast(0)
+        val ye = yEnd.coerceAtMost(cropped.height - 1)
+        if (xs > xe || ys > ye) return 1.0
+        val h = ye - ys + 1
+        var minRun = 1.0
+        for (x in xs..xe) {
+            var longest = 0
+            var current = 0
+            for (y in ys..ye) {
+                if (cropped.data[y * cropped.width + x] == 1.toByte()) {
+                    current++
+                    if (current > longest) longest = current
+                } else {
+                    current = 0
+                }
+            }
+            val f = longest.toDouble() / h
+            if (f < minRun) minRun = f
+        }
+        return minRun
+    }
+
+    /** Number of columns in [xStart]..[xEnd] that are content for EVERY row of [yStart]..[yEnd]. */
+    private fun fullContentColumnCount(
+        xStart: Int,
+        xEnd: Int,
+        yStart: Int,
+        yEnd: Int,
+        cropped: CroppedMask,
+    ): Int {
+        val xs = xStart.coerceAtLeast(0)
+        val xe = xEnd.coerceAtMost(cropped.width - 1)
+        val ys = yStart.coerceAtLeast(0)
+        val ye = yEnd.coerceAtMost(cropped.height - 1)
+        if (xs > xe || ys > ye) return 0
+        var count = 0
+        for (x in xs..xe) {
+            var full = true
+            for (y in ys..ye) {
+                if (cropped.data[y * cropped.width + x] != 1.toByte()) {
+                    full = false
+                    break
+                }
+            }
+            if (full) count++
+        }
+        return count
+    }
+
+
+    /**
+     * Merges pairs of overlapping bboxes where one contains the other's x-range while the other
+     * contains the first's y-range (a "plus" arrangement). Distinct real panels never overlap at
+     * all, so this shape only arises when two pipeline stages each recovered a partial view of
+     * the SAME panel — issue #905's tall right column: coalesceNarrowStripColumns built a narrow
+     * full-height pillar from the row-1/row-3 strips while energyValleySplit produced the wider
+     * row-2 cell. Without this merge the pillar is later dropped as a sliver by
+     * applyGlobalSanityChecks and only the mid-page fragment survives.
+     */
+    internal fun mergeCrossContainedBboxes(bboxes: List<Bbox>): List<Bbox> {
+        val result = bboxes.toMutableList()
+        var changed = true
+        while (changed) {
+            changed = false
+            outer@ for (i in result.indices) {
+                for (j in result.indices) {
+                    if (i == j) continue
+                    val tall = result[i]
+                    val wide = result[j]
+                    if (wide.minX <= tall.minX && wide.maxX >= tall.maxX &&
+                        tall.minY <= wide.minY && tall.maxY >= wide.maxY
+                    ) {
+                        result[i] = Bbox(
+                            minOf(tall.minX, wide.minX),
+                            minOf(tall.minY, wide.minY),
+                            maxOf(tall.maxX, wide.maxX),
+                            maxOf(tall.maxY, wide.maxY),
+                        )
+                        result.removeAt(j)
+                        changed = true
+                        break@outer
+                    }
+                }
+            }
+        }
+        return result
     }
 
     private fun tighten(bbox: Bbox, cropped: CroppedMask): Bbox {
