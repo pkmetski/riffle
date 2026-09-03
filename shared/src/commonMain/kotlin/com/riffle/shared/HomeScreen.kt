@@ -19,15 +19,18 @@ import org.koin.compose.koinInject
 fun HomeScreen() {
     val viewModel = koinInject<HomeViewModel>()
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
+    var refreshKey by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
         destination = viewModel.getStartDestination()
     }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when (val dest = destination) {
             null -> BasicText("Loading…")
-            is HomeViewModel.StartDestination.AddSource -> BasicText("Add a source to get started")
+            is HomeViewModel.StartDestination.AddSource -> AddAbsSourceScreen(
+                onSourceAdded = { refreshKey++ },
+            )
             is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
             is HomeViewModel.StartDestination.Library -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 BasicText("Library: ${dest.libraryName}")

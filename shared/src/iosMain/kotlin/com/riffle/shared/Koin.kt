@@ -16,6 +16,7 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.logging.iosLoggingModule
+import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.createDefaultHttpClient
@@ -26,16 +27,18 @@ import org.koin.core.context.startKoin as koinStartKoin
 private val iosLibraryModule = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
+    single<AbsApi> { get<AbsApiClient>() }
     single<AbsLibraryApi> { get<AbsApiClient>() }
 
     single<DispatcherProvider> { IosDispatcherProvider }
-    single<SourceRepository> { IosSourceRepositoryImpl(get()) }
+    single<SourceRepository> { IosSourceRepositoryImpl(get(), get(), get()) }
     single<LibraryObserver> { IosLibraryObserverImpl(get(), get()) }
     single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
+    single { AddAbsSourceViewModel(get(), get(), get()) }
 }
 
 fun startKoin() {
