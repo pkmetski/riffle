@@ -20,7 +20,9 @@ ktlint_standard_parameter-list-wrapping = disabled
 ktlint_standard_trailing-comma-on-call-site = disabled
 ktlint_standard_trailing-comma-on-declaration-site = disabled
 
-# The iosMain DAO implementations use compact SQL binding lambdas (multiple bind calls
-# per lambda separated by semicolons). Disable statement-wrapping for these files.
+# The iosMain DAO implementations use compact SQL binding lambdas and dense call chains.
+# Disable wrapping rules that conflict with the existing style.
 [**/iosMain/**/*.kt]
 ktlint_standard_statement-wrapping = disabled
+ktlint_standard_wrapping = disabled
+ktlint_standard_multiline-expression-wrapping = disabled
