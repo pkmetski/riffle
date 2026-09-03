@@ -33,7 +33,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `epub that is downloaded is available offline`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(downloaded = true),
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -46,7 +46,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `epub that is only cached is available offline`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(cached = true),
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -59,7 +59,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `pdf that is downloaded is available offline`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(downloaded = true),
             cbzRepository = FakeCbzRepository(),
@@ -72,7 +72,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `downloaded audiobook-only item is available offline`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -85,7 +85,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `matched item with only the audiobook downloaded is available offline`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(), // ebook not downloaded/cached
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -98,7 +98,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `item with nothing downloaded or cached is not available offline`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -111,7 +111,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `item with no ebook or audiobook download is offline-available when its bundle is downloaded`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -124,7 +124,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     @Test
     fun `item with no downloads and no bundle is not offline-available`() {
-        val availability = LibraryItemOfflineAvailability(
+        val availability = LibraryItemOfflineAvailabilityImpl(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
             cbzRepository = FakeCbzRepository(),
@@ -160,7 +160,7 @@ class LibraryItemOfflineAvailabilityTest {
         counting: CountingCbzRepository,
         changes: MutableSharedFlow<StoredItemRef>? = null,
         nowMillis: () -> Long = { 0L },
-    ) = LibraryItemOfflineAvailability(
+    ) = LibraryItemOfflineAvailabilityImpl(
         epubRepository = FakeEpubRepository(),
         pdfRepository = FakePdfRepository(),
         cbzRepository = counting,
