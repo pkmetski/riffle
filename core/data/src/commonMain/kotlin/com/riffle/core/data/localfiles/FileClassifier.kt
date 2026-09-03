@@ -10,7 +10,7 @@ object FileClassifier {
     enum class Kind { EPUB, PDF, CBZ, UNKNOWN }
 
     private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
-    private val PDF_MAGIC = "%PDF-".toByteArray(Charsets.US_ASCII)
+    private val PDF_MAGIC = "%PDF-".encodeToByteArray()
 
     fun classify(name: String, head: ByteArray): Kind {
         val ext = name.substringAfterLast('.', "").lowercase()
