@@ -164,7 +164,7 @@ class IosLocalFilesScanner(
     }
 
     private fun readHead(path: String): ByteArray {
-        val handle = NSFileHandle.fileHandleForReadingAtPath(path) ?: return ByteArray(0)
+        val handle = NSFileHandle(forReadingAtPath = path) ?: return ByteArray(0)
         return try {
             val data: NSData = handle.readDataOfLength(HEAD_BYTES.toULong())
             ByteArray(data.length.toInt()).also { buf ->
@@ -177,7 +177,7 @@ class IosLocalFilesScanner(
         }
     }
 
-    private fun nowMs(): Long = (NSDate.date().timeIntervalSince1970 * 1000.0).toLong()
+    private fun nowMs(): Long = (NSDate().timeIntervalSince1970() * 1000.0).toLong()
 
     companion object {
         private const val HEAD_BYTES = 64 * 1024L

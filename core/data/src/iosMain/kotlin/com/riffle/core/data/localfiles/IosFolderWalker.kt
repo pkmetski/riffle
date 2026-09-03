@@ -35,7 +35,7 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
             } else {
                 val size = (attrs[NSFileSize] as? NSNumber)?.longValue ?: 0L
                 val mtime = ((attrs[NSFileModificationDate] as? NSDate)
-                    ?.timeIntervalSince1970?.times(1000.0))?.toLong() ?: 0L
+                    ?.timeIntervalSince1970()?.times(1000.0))?.toLong() ?: 0L
                 out += IosWalkedFile(
                     path = childPath,
                     displayName = name,

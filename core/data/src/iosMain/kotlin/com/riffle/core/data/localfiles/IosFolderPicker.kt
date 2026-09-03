@@ -6,7 +6,7 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIWindow
-import platform.UniformTypeIdentifiers.UTType
+import platform.UniformTypeIdentifiers.UTTypeFolder
 import platform.darwin.NSObject
 
 @OptIn(ExperimentalForeignApi::class)
@@ -19,7 +19,7 @@ class IosFolderPicker : FolderPickerInterface {
         if (activeDelegate != null) return
 
         val picker = UIDocumentPickerViewController(
-            forOpeningContentTypes = listOf(UTType.folder),
+            forOpeningContentTypes = listOf(UTTypeFolder),
         )
         val delegate = FolderPickerDelegate(onResult) { activeDelegate = null }
         activeDelegate = delegate
@@ -35,8 +35,8 @@ class IosFolderPicker : FolderPickerInterface {
         return UIApplication.sharedApplication.connectedScenes
             .mapNotNull { it as? platform.UIKit.UIWindowScene }
             .flatMap { it.windows as List<UIWindow> }
-            .firstOrNull { it.isKeyWindow }
-            ?: UIApplication.sharedApplication.windows.filterIsInstance<UIWindow>().firstOrNull { it.isKeyWindow }
+            .firstOrNull { it.isKeyWindow() }
+            ?: UIApplication.sharedApplication.windows.filterIsInstance<UIWindow>().firstOrNull { it.isKeyWindow() }
     }
 }
 

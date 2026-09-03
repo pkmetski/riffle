@@ -59,7 +59,7 @@ class IosCopyInService(private val dispatchers: DispatcherProvider) {
         val manager = NSFileManager.defaultManager
         if (manager.fileExistsAtPath(dest)) manager.removeItemAtPath(dest, error = null)
         bytes.usePinned { pinned ->
-            NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
+            NSData(bytes = pinned.addressOf(0), length = bytes.size.toULong())
                 .writeToFile(dest, atomically = true)
         }
         dest
