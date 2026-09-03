@@ -42,8 +42,8 @@ class IosRiffleDatabaseSchemaTest {
     // ── Schema version ────────────────────────────────────────────────────────
 
     @Test
-    fun schemaVersionIsOne() {
-        assertEquals(1L, IosRiffleDatabaseSchema.version)
+    fun schemaVersionIsTwo() {
+        assertEquals(2L, IosRiffleDatabaseSchema.version)
     }
 
     // ── Table: sources ────────────────────────────────────────────────────────
@@ -163,7 +163,7 @@ class IosRiffleDatabaseSchemaTest {
         // Should not throw. When the schema version matches the driver's on-disk version,
         // NativeSqliteDriver does not call migrate() at all; calling it explicitly here
         // verifies the implementation is safe regardless.
-        IosRiffleDatabaseSchema.migrate(driver, 1L, 1L)
+        IosRiffleDatabaseSchema.migrate(driver, 2L, 2L)
     }
 
     @Test
@@ -172,6 +172,7 @@ class IosRiffleDatabaseSchemaTest {
             "sources", "libraries", "library_items", "toc_cache",
             "playlists", "playlist_items", "annotations",
             "series", "series_items", "collections", "collection_items",
+            "local_files_folders", "local_files_files", "local_files_file_folders",
         )
         val actual = allTableNames()
         val missing = expected - actual
@@ -185,10 +186,54 @@ class IosRiffleDatabaseSchemaTest {
             "sources", "libraries", "library_items",
             "series", "series_items", "collections", "collection_items",
             "toc_cache", "playlists", "playlist_items", "annotations",
+            "local_files_folders", "local_files_files", "local_files_file_folders",
         )
         val actual = allTableNames()
         val unknown = actual - knownTables
         assertTrue(unknown.isEmpty(), "Unexpected tables created by DDL: $unknown")
+    }
+
+    // ── Tables: local_files_* ─────────────────────────────────────────────────
+
+    @Test
+    fun localFilesFoldersTableHasAllRequiredColumns() {
+        val cols = tableColumns("local_files_folders")
+        assertTrue(cols.containsAll(listOf(
+            "id", "sourceId", "treeUri", "displayName", "libraryId",
+        )), "local_files_folders columns: $cols")
+    }
+
+    @Test
+    fun localFilesFilesTableHasAllRequiredColumns() {
+        val cols = tableColumns("local_files_files")
+        assertTrue(cols.containsAll(listOf(
+            "id", "sourceId", "path", "identityHash", "displayName",
+            "format", "sizeBytes", "lastModifiedMs", "lastSeenMs",
+        )), "local_files_files columns: $cols")
+    }
+
+    @Test
+    fun localFilesFileFoldersTableHasAllRequiredColumns() {
+        val cols = tableColumns("local_files_file_folders")
+        assertTrue(cols.containsAll(listOf(
+            "fileId", "folderId", "libraryItemId", "lastScannedMs",
+        )), "local_files_file_folders columns: $cols")
+    }
+
+    // ── Migration: v1 → v2 ───────────────────────────────────────────────────
+
+    @Test
+    fun migrateV1ToV2CreatesLocalFilesTables() {
+        // The driver is already at v2 (created in setUp via NativeSqliteDriver with the schema).
+        // Calling migrate(1L, 2L) explicitly verifies that the migration DDL runs without error
+        // and that the resulting tables have the expected shape. CREATE TABLE IF NOT EXISTS
+        // makes this safe to run on an already-v2 schema.
+        IosRiffleDatabaseSchema.migrate(driver, 1L, 2L)
+
+        val tables = allTableNames()
+        assertTrue("local_files_folders" in tables, "local_files_folders must exist after v1→v2 migration")
+        assertTrue("local_files_files" in tables, "local_files_files must exist after v1→v2 migration")
+        assertTrue("local_files_file_folders" in tables, "local_files_file_folders must exist after v1→v2 migration")
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
