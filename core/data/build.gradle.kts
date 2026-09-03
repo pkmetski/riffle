@@ -55,6 +55,7 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.koin.core)
             implementation(project(":core:database"))
+            implementation(project(":core:net"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)
