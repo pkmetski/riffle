@@ -8,10 +8,10 @@ import app.cash.sqldelight.db.SqlSchema
 internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     // Tracks the iOS schema version independently of the Android Room schema version.
     // Bumped only when the iOS-side DDL changes; Android Room migrations are irrelevant here.
-    override val version: Long = 1L
+    override val version: Long = 2L
 
     override fun create(driver: SqlDriver): QueryResult.Value<Unit> {
-        DDL.forEach { driver.execute(null, it, 0) }
+        (DDL + LOCAL_FILES_DDL).forEach { driver.execute(null, it, 0) }
         return QueryResult.Value(Unit)
     }
 
@@ -21,7 +21,9 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
         newVersion: Long,
         vararg callbacks: AfterVersion,
     ): QueryResult.Value<Unit> {
-        // No iOS migrations yet — schema debuted at version 1.
+        if (oldVersion < 2L) {
+            LOCAL_FILES_DDL.forEach { driver.execute(null, it, 0) }
+        }
         return QueryResult.Value(Unit)
     }
 
@@ -172,5 +174,45 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
             FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
         )""",
         "CREATE INDEX IF NOT EXISTS index_annotations_sourceId_itemId ON annotations(sourceId, itemId)",
+    )
+
+    private val LOCAL_FILES_DDL = listOf(
+        """CREATE TABLE IF NOT EXISTS local_files_folders (
+            sourceId TEXT NOT NULL,
+            treeUri TEXT NOT NULL,
+            displayName TEXT NOT NULL,
+            addedAtEpochMs INTEGER NOT NULL,
+            libraryId TEXT NOT NULL,
+            PRIMARY KEY (sourceId, treeUri),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_local_files_folders_sourceId ON local_files_folders(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS local_files_files (
+            sourceId TEXT NOT NULL,
+            sourceItemId TEXT NOT NULL,
+            originalUri TEXT NOT NULL,
+            copiedPath TEXT NOT NULL,
+            coverPath TEXT,
+            format TEXT NOT NULL,
+            sizeBytes INTEGER NOT NULL,
+            mtimeEpochMs INTEGER NOT NULL,
+            lastSeenAtEpochMs INTEGER NOT NULL,
+            displayName TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (sourceId, sourceItemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_local_files_files_sourceId ON local_files_files(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS local_files_file_folders (
+            sourceId TEXT NOT NULL,
+            sourceItemId TEXT NOT NULL,
+            folderTreeUri TEXT NOT NULL,
+            lastSeenAtEpochMs INTEGER NOT NULL,
+            PRIMARY KEY (sourceId, sourceItemId, folderTreeUri),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_local_files_file_folders_sourceId ON local_files_file_folders(sourceId)",
+        "CREATE INDEX IF NOT EXISTS index_local_files_file_folders_folder ON local_files_file_folders(sourceId, folderTreeUri)",
     )
 }
