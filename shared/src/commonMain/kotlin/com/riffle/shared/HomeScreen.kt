@@ -1,13 +1,12 @@
 package com.riffle.shared
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,32 +47,34 @@ fun HomeScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text("Add a source to get started")
+                    BasicText("Add a source to get started")
                     if (installing) {
-                        CircularProgressIndicator()
-                        Text("Scanning folder…")
+                        BasicText("Scanning folder…")
                     } else {
-                        Button(onClick = {
-                            folderPicker.pickFolder { uri ->
-                                if (uri == null) return@pickFolder
-                                installing = true
-                                message = null
-                                scope.launch {
-                                    val result = runCatching { installer.installFolder(uri) }
-                                    installing = false
-                                    message = result.fold(
-                                        onSuccess = { "Added ${it.added} books" },
-                                        onFailure = { "Error: ${it.message}" },
-                                    )
-                                    if (result.isSuccess) {
-                                        refreshKey++
+                        BasicText(
+                            text = "Add Local Files",
+                            modifier = Modifier
+                                .clickable {
+                                    folderPicker.pickFolder { uri ->
+                                        if (uri == null) return@pickFolder
+                                        installing = true
+                                        message = null
+                                        scope.launch {
+                                            val result = runCatching { installer.installFolder(uri) }
+                                            installing = false
+                                            message = result.fold(
+                                                onSuccess = { "Added ${it.added} books" },
+                                                onFailure = { "Error: ${it.message}" },
+                                            )
+                                            if (result.isSuccess) {
+                                                refreshKey++
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        }) {
-                            Text("Add Local Files")
-                        }
-                        message?.let { Text(it) }
+                                .padding(12.dp),
+                        )
+                        message?.let { BasicText(it) }
                     }
                 }
             }
