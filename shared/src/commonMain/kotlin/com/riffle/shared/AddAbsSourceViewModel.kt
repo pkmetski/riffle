@@ -40,7 +40,7 @@ class AddAbsSourceViewModel(
             error = null
             isLoading = true
             try {
-                val normalizedUrl = normalizeUrl(url)
+                val normalizedUrl = normalizeAbsUrl(url)
                 val parsedUrl = SourceUrl.parse(normalizedUrl)
                 if (parsedUrl == null) {
                     error = "Invalid server URL — include http:// or https://"
@@ -92,10 +92,10 @@ class AddAbsSourceViewModel(
             }
         }
     }
+}
 
-    private fun normalizeUrl(raw: String): String {
-        val trimmed = raw.trim()
-        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
-        else "https://$trimmed"
-    }
+internal fun normalizeAbsUrl(raw: String): String {
+    val trimmed = raw.trim()
+    return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
+    else "https://$trimmed"
 }
