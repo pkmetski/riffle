@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.models.CatalogPlaylist
 import kotlinx.coroutines.flow.Flow
 
 /**
