@@ -16,6 +16,7 @@ class IosLastOpenedLibraryStoreImpl : LastOpenedLibraryStore {
         stateFor(sourceId).value = libraryId
     }
 
+    @Synchronized
     private fun stateFor(sourceId: String): MutableStateFlow<String?> =
         flows.getOrPut(sourceId) {
             MutableStateFlow(defaults.stringForKey(key(sourceId)))

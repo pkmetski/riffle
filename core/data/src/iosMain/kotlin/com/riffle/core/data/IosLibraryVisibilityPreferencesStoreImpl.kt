@@ -21,6 +21,7 @@ class IosLibraryVisibilityPreferencesStoreImpl : LibraryVisibilityPreferencesSto
         persist(sourceId, updated)
     }
 
+    @Synchronized
     private fun stateFor(sourceId: String): MutableStateFlow<Set<String>> =
         flows.getOrPut(sourceId) {
             @Suppress("UNCHECKED_CAST")
