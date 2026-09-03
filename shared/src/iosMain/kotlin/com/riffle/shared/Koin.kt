@@ -1,20 +1,35 @@
 package com.riffle.shared
 
+import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
+import com.riffle.core.data.PlaylistsRepository
+import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
+import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
+import com.riffle.core.domain.LibraryFilterPreferencesStore
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.ReadaloudLinkReconciler
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
+import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
+import com.riffle.core.domain.usecase.RefreshLibraryItems
+import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.logging.iosLoggingModule
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
@@ -23,6 +38,23 @@ import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionViewModel
+import com.riffle.shared.library.AnnotationsListViewModel
+import com.riffle.shared.library.IosNoOpAnnotationStore
+import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
+import com.riffle.shared.library.IosNoOpApplicationScope
+import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
+import com.riffle.shared.library.IosNoOpCoverGridDensityStore
+import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
+import com.riffle.shared.library.IosNoOpLibraryItemOfflineAvailability
+import com.riffle.shared.library.IosNoOpPlaylistsRepository
+import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
+import com.riffle.shared.library.IosNoOpReadaloudReconciler
+import com.riffle.shared.library.IosNoOpStorytellerSyncer
+import com.riffle.shared.library.IosNoOpToReadRepository
+import com.riffle.shared.library.LibraryItemsViewModel
+import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
@@ -42,6 +74,64 @@ private val iosLibraryModule = module {
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { AddAbsSourceViewModel(get(), get(), get()) }
+
+    // No-op service-layer bindings for library browsing (follow-up issues #912-#916 implement)
+    single<PlaylistsRepository> { IosNoOpPlaylistsRepository() }
+    single<ToReadRepository> { IosNoOpToReadRepository() }
+    single<LibraryItemOfflineAvailability> { IosNoOpLibraryItemOfflineAvailability() }
+    single<StorytellerReadaloudCacheSyncer> { IosNoOpStorytellerSyncer }
+    single<ReadaloudLinkReconciler> { IosNoOpReadaloudReconciler }
+    single<ApplicationScope> { IosNoOpApplicationScope }
+    single { RefreshLibraryItems(get(), get(), get(), get()) }
+    single { RefreshCollections(get()) }
+    single { RefreshSeries(get()) }
+    single<CoverGridDensityStore> { IosNoOpCoverGridDensityStore() }
+    single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
+    single<AnnotationStore> { IosNoOpAnnotationStore() }
+    single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
+    single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
+    single<AnnotationsLibraryRepository> { IosNoOpAnnotationsLibraryRepository() }
+
+    // ViewModel factories — keyed by libraryId (+ sectionType for section screen)
+    factory { params ->
+        LibraryItemsViewModel(
+            libraryId = params.get(),
+            libraryObserver = get(),
+            refreshLibraryItemsUseCase = get(),
+            refreshSeriesUseCase = get(),
+            refreshCollectionsUseCase = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            offlineAvailability = get(),
+            connectivityObserver = get(),
+            toReadRepository = get(),
+            playlistsRepository = get(),
+            readaloudLinkRepository = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            annotationStore = get(),
+            audiobookBookmarkStore = get(),
+            annotationsLibraryRepository = get(),
+            dispatchers = get(),
+        )
+    }
+    factory { params ->
+        LibrarySectionViewModel(
+            libraryId = params.get(),
+            sectionType = params.get(),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
+    factory { params ->
+        AnnotationsListViewModel(
+            libraryId = params.get(),
+            sourceRepository = get(),
+            repo = get(),
+            tokenStorage = get(),
+        )
+    }
 }
 
 fun startKoin() {

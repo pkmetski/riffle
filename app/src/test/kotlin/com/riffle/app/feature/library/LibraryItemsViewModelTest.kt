@@ -16,6 +16,7 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
@@ -318,7 +319,7 @@ class LibraryItemsViewModelTest {
         refreshCollectionsUseCase = com.riffle.app.testing.NoopRefreshCollections(),
         sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
-        offlineAvailability = LibraryItemOfflineAvailability(
+        offlineAvailability = LibraryItemOfflineAvailabilityImpl(
             epubRepository,
             pdfRepository,
             NoopCbzRepository(),
