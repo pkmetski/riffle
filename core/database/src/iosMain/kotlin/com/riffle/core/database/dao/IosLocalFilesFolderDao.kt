@@ -1,5 +1,6 @@
 package com.riffle.core.database.dao
 
+import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlCursor
 import app.cash.sqldelight.db.SqlDriver
 import com.riffle.core.database.IosInvalidator
@@ -55,7 +56,7 @@ internal class IosLocalFilesFolderDao(
         invalidator.invalidate()
     }
 
-    private fun mapRows(cursor: SqlCursor): List<LocalFilesFolderEntity> {
+    private fun mapRows(cursor: SqlCursor): QueryResult.Value<List<LocalFilesFolderEntity>> {
         val result = mutableListOf<LocalFilesFolderEntity>()
         while (cursor.next().value) {
             result += LocalFilesFolderEntity(
@@ -66,6 +67,6 @@ internal class IosLocalFilesFolderDao(
                 libraryId = cursor.getString(4)!!,
             )
         }
-        return result
+        return QueryResult.Value(result)
     }
 }

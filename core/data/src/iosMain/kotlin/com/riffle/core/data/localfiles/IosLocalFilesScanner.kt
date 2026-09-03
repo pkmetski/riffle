@@ -12,8 +12,8 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSDate
 import platform.Foundation.NSData
+import platform.Foundation.NSDate
 import platform.Foundation.NSFileHandle
 import platform.posix.memcpy
 

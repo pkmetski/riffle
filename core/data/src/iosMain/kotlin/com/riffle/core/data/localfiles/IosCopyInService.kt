@@ -68,6 +68,7 @@ class IosCopyInService {
     suspend fun deleteBook(sourceId: String, sourceItemId: String) = withContext(Dispatchers.Default) {
         val dir = sourceDir(sourceId)
         val manager = NSFileManager.defaultManager
+
         @Suppress("UNCHECKED_CAST")
         val entries = manager.contentsOfDirectoryAtPath(dir, error = null) as? List<String> ?: return@withContext
         for (name in entries) {
@@ -78,8 +79,9 @@ class IosCopyInService {
     }
 
     suspend fun deleteCover(sourceId: String, sourceItemId: String) = withContext(Dispatchers.Default) {
-        val dir = "${ sourceDir(sourceId) }/covers"
+        val dir = "${sourceDir(sourceId)}/covers"
         val manager = NSFileManager.defaultManager
+
         @Suppress("UNCHECKED_CAST")
         val entries = manager.contentsOfDirectoryAtPath(dir, error = null) as? List<String> ?: return@withContext
         for (name in entries) {
