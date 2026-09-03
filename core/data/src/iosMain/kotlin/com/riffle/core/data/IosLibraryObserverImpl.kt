@@ -24,8 +24,11 @@ class IosLibraryObserverImpl(
             .map { sources -> sources.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
             .flatMapLatest { sourceId ->
-                if (sourceId == null) flowOf(emptyList())
-                else libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
+                if (sourceId == null) {
+                    flowOf(emptyList())
+                } else {
+                    libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
+                }
             }
 
     override fun observeLibraries(sourceId: String): Flow<List<Library>> =

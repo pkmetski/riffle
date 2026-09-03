@@ -5,8 +5,8 @@ import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
-import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.di.iosDataModule
+import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
@@ -20,8 +20,8 @@ import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.feature.library.HomeViewModel
-import org.koin.core.context.startKoin as koinStartKoin
 import org.koin.dsl.module
+import org.koin.core.context.startKoin as koinStartKoin
 
 private val iosLibraryModule = module {
     single { createDefaultHttpClient() }
