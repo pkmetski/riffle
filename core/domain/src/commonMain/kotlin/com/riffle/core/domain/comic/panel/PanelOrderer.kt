@@ -46,17 +46,26 @@ class PanelOrderer(
         val shorter = minOf(rowBottom - rowTop, candidate.height)
         if (overlap.toDouble() / shorter.toDouble() < rowOverlapFraction) return false
         // Exile: a row member that x-overlaps the candidate, starts at or above it, and whose
-        // y-range overlaps ≥ [rowOverlapFraction] of the candidate's height while NOT fully
-        // containing the candidate (member.bottom ≤ candidate.bottom — the candidate's tail
-        // sticks out below) signals the candidate is "spilling below" a spanning panel and
-        // belongs in the next row. This fixes #780 (tall-left absorbs lower-right despite
-        // lower-right starting 310 px below upper-right) while leaving mixed-height single-band
-        // layouts intact (#791): in those cases either the member doesn't x-overlap the
-        // candidate, or the overlap fraction is below the threshold because the panels are
-        // y-adjacent rather than y-overlapping.
+        // y-range overlaps ≥ [rowOverlapFraction] of the candidate's height while a MEANINGFUL
+        // tail of the candidate (≥ 3% of its height) sticks out below the member signals the
+        // candidate is "spilling below" a spanning panel and belongs in the next row. This fixes
+        // #780 (tall-left absorbs lower-right despite lower-right starting 310 px below
+        // upper-right) while leaving mixed-height single-band layouts intact (#791): in those
+        // cases either the member doesn't x-overlap the candidate, or the overlap fraction is
+        // below the threshold because the panels are y-adjacent rather than y-overlapping.
+        //
+        // The tail must be ≥ 3% of the SHORTER of (candidate, member) height (#907): a row panel
+        // that ends level with a right-column spanning panel (tail = 0, or a couple of rounding
+        // pixels) is BESIDE the column, not below it — exiling it splits the left column's rows
+        // across bands and reads the tall column in the middle. #780's genuine spill has a 40px
+        // tail (6.6% of the candidate); page-34's false spill has 0px. Measuring against the
+        // shorter height keeps the required spill absolute-ish when the candidate itself is very
+        // tall (3% of a tall candidate would otherwise demand an unrealistically large tail).
         return row.none { member ->
             member.right > candidate.x && member.x < candidate.right &&
-                member.y < candidate.y && member.bottom <= candidate.bottom &&
+                member.y < candidate.y &&
+                (candidate.bottom - member.bottom).toDouble() /
+                minOf(candidate.height, member.height).toDouble() >= 0.03 &&
                 (member.bottom - candidate.y).toDouble() / candidate.height.toDouble() >= rowOverlapFraction
         }
     }

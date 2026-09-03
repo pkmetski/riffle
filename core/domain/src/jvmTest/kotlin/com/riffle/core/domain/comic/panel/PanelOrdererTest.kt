@@ -157,9 +157,14 @@ class PanelOrdererTest {
     fun `panel starting one pixel below a spanning member is still exiled to the next row`() {
         // Boundary: member.y=0 < candidate.y=1 (strictly less) — exile still fires.
         // Verifies the fix (< instead of <=) does NOT break exile for the non-equal-y case.
-        val spanning = PanelRegion(x = 0, y = 0, width = 400, height = 500)   // y=0..500
-        val lower = PanelRegion(x = 200, y = 1, width = 200, height = 499)    // y=1..500, x-overlaps
-        // exile: member.y(0) < candidate.y(1) ✓, overlap fraction=(500-1)/499=1.0 ≥ 0.5 ✓
+        // The candidate spills 100px (20% of the shorter height) below the member's bottom so
+        // the #907 tail gate is satisfied and the exile path — not same-band x-ordering — is
+        // what this test pins. The candidate also sits LEFT of the member: same-band ordering
+        // would emit it first, so the assertion flips red if the exile stops firing.
+        val spanning = PanelRegion(x = 200, y = 0, width = 400, height = 500)  // x=200..600, y=0..500
+        val lower = PanelRegion(x = 0, y = 1, width = 400, height = 599)       // x=0..400, y=1..600
+        // exile: member.y(0) < candidate.y(1) ✓, overlap=(500-1)/599=0.83 ≥ 0.5 ✓,
+        // tail=(600-500)/min(599,500)=0.20 ≥ 0.03 ✓
         val ordered = orderer.order(listOf(lower, spanning))
         assertEquals("spanning panel must be first", spanning, ordered[0])
         assertEquals("lower panel must be exiled to second row", lower, ordered[1])
@@ -181,5 +186,62 @@ class PanelOrdererTest {
         assertEquals("tall-left must be first", tallLeft, ordered[0])
         assertEquals("upper-right must be second", upperRight, ordered[1])
         assertEquals("lower-right must be last", lowerRight, ordered[2])
+    }
+
+    // --- Regression tests for issue #907 ---
+    // The exile rule (issue #780) used member.bottom <= candidate.bottom, so a row panel that
+    // ends at EXACTLY the same y as a right-column spanning panel — zero tail below it — was
+    // still exiled into its own row, splitting the left column's rows across bands and reading
+    // the tall column between them. A candidate only "spills below" a spanning member when a
+    // meaningful tail (≥ 3% of its height) sticks out below the member's bottom.
+
+    @Test
+    fun `issue 907 page 34 - three left rows read before the right column panel that ends level with row 3`() {
+        // Real page-34 geometry (1987×3054): three stacked wide rows on the left, one borderless
+        // tall panel on the right spanning all three rows and ending level with row 3
+        // (both bottom at y=1480). Expected reading order: the three rows top-to-bottom, then
+        // the tall column — mirroring the bottom half of the same page, where the left spanning
+        // column is read first and then the right cells top-to-bottom.
+        val top = PanelRegion(x = 124, y = 117, width = 1378, height = 423)
+        val row2 = PanelRegion(x = 124, y = 557, width = 1369, height = 419)
+        val tallRight = PanelRegion(x = 1484, y = 117, width = 464, height = 1363)
+        val row3 = PanelRegion(x = 124, y = 993, width = 1380, height = 487)
+        val leftTall = PanelRegion(x = 8, y = 1514, width = 798, height = 1540)
+        val mid = PanelRegion(x = 835, y = 1542, width = 1043, height = 674)
+        val bottomRight = PanelRegion(x = 835, y = 2237, width = 1043, height = 817)
+        val ordered = orderer.order(listOf(top, row2, tallRight, row3, leftTall, mid, bottomRight))
+        assertEquals(
+            "expected rows 1-3 then tall right column, then bottom group; got $ordered",
+            listOf(top, row2, row3, tallRight, leftTall, mid, bottomRight),
+            ordered,
+        )
+    }
+
+    @Test
+    fun `zero tail below a spanning member does not exile - equal bottoms stay in one band`() {
+        // Boundary: candidate ends exactly level with the spanning member (tail = 0 < 3%).
+        val spanning = PanelRegion(x = 500, y = 0, width = 300, height = 1000)
+        val rowA = PanelRegion(x = 0, y = 0, width = 520, height = 480)   // x-overlaps spanning by 20
+        val rowB = PanelRegion(x = 0, y = 520, width = 520, height = 480) // bottom=1000 == spanning
+        val ordered = orderer.order(listOf(rowA, spanning, rowB))
+        assertEquals(
+            "equal-bottom candidate must stay in the band (rows then column); got $ordered",
+            listOf(rowA, rowB, spanning),
+            ordered,
+        )
+    }
+
+    @Test
+    fun `tail above 3 percent of candidate height still exiles (issue 780 preserved)`() {
+        // Boundary: candidate sticks out 60px below the member (60/600 = 10% ≥ 3%) → exiled.
+        val spanning = PanelRegion(x = 0, y = 0, width = 460, height = 1060)
+        val upperRight = PanelRegion(x = 520, y = 0, width = 280, height = 500)
+        val lowerRight = PanelRegion(x = 446, y = 520, width = 354, height = 600) // bottom=1120 > 1060
+        val ordered = orderer.order(listOf(lowerRight, upperRight, spanning))
+        assertEquals(
+            "spilling candidate (10% tail) must be exiled below the spanning column; got $ordered",
+            listOf(spanning, upperRight, lowerRight),
+            ordered,
+        )
     }
 }

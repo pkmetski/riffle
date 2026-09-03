@@ -343,8 +343,28 @@ class JsonPanelStore constructor(
          *      - #892: coalesceNarrowStripColumns now detects narrow strips separated by a suspicious
          *        full-width row band, extends their union to the full column boundary, and emits one
          *        tall panel. v38 caches for such pages miss the tall right-side column panel.
+         * v40: mergeSharedBorderFalseGaps post-processing merges a topmost-row pair of same-row-band
+         *      panels separated by a narrow gap (< 7% page width) when at least two panels below
+         *      straddle the full gap and no adjacent row has a panel edge at the gap (a shared column
+         *      boundary would mean the gap is a real gutter). This handles thin ink borders binarized
+         *      to white that create a false column gap visible only in one row (issues #893, #895).
+         *      v39 caches for such pages hold the top-row wide panel split into two halves.
+         * v41: Two repairs for borderless panels spanning multiple rows (issue #905).
+         *      (1) repairMisalignedStackedRowBoundaries realigns stacked two-cell rows whose column
+         *      boundaries are misaligned because one row split at a false gap inside a borderless
+         *      panel's artwork while the other split at the true gutter — validated by content-run
+         *      blocking plus artwork bridging the row gap. (2) mergeCrossContainedBboxes unions two
+         *      partial views of the same panel (a coalesced narrow pillar and a wider row cell that
+         *      cross-contain each other) before the pillar can be dropped as a sliver. v40 caches
+         *      hold the tall right-column panel as a mid-page fragment and the bottom-left tall
+         *      panel fragmented, with the mid panel extended into its artwork.
+         * v42: PanelOrderer exile rule requires a meaningful tail (≥ 3% of candidate height) below
+         *      the spanning member before exiling a panel to the next row (issue #907). A row
+         *      panel ending level with a right-column spanning panel was exiled into its own band,
+         *      reading the tall column between the rows it spans instead of after them. v41 caches
+         *      hold that wrong reading order (panels are stored ordered).
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 39
+        internal const val CURRENT_SCHEMA_VERSION: Int = 42
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
