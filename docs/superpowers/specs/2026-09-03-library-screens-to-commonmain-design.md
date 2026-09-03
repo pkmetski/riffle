@@ -246,27 +246,57 @@ Create `docs/testing/ios-scenarios/` directory and add scenario docs per AGENTS.
 
 ---
 
+## Phase 5 addendum: LibrarySectionScreen navigation
+
+`LibrarySectionScreen` is being moved to `shared/commonMain` in Phase 4. Wire its navigation
+within `HomeScreen.kt` immediately — do not leave `onSectionSeeMore` as a no-op:
+
+```kotlin
+// HomeScreen.kt — simple in-memory nav state
+var screen by remember { mutableStateOf<LibraryScreen>(LibraryScreen.Grid) }
+
+sealed interface LibraryScreen {
+    data class Grid(val libraryId: String, val libraryName: String) : LibraryScreen
+    data class Section(val type: LibrarySectionType) : LibraryScreen
+}
+
+when (val s = screen) {
+    is LibraryScreen.Grid -> LibraryItemsScreen(
+        ...
+        onSectionSeeMore = { type -> screen = LibraryScreen.Section(type) },
+        onItemSelected = { /* TODO #915 */ },
+        ...
+    )
+    is LibraryScreen.Section -> LibrarySectionScreen(
+        sectionType = s.type,
+        onItemSelected = { /* TODO #915 */ },
+        onNavigateBack = { screen = LibraryScreen.Grid(...) },
+    )
+}
+```
+
+`onItemSelected` in both screens stays a no-op pending #915, which adds
+`LibraryScreen.ItemDetail` and the `LibraryItemDetailScreen`.
+
+---
+
 ## Phase 8: GitHub issues for deferred iOS implementations
 
-Open the following issues with label `multi-platform`:
+Issues created with label `multi-platform`:
 
-**Issue A: "feat(ios): implement Playlists and To-Read tabs in library browser"**
-Wire `PlaylistsRepositoryImpl` for iOS (ABS playlist API calls via `AbsApiClient`), wire
-`ToReadRepositoryImpl`. Allows the Playlists and To-Read tabs to show real data on iOS.
-
-**Issue B: "feat(ios): implement collection and series refresh in library browser"**
-Wire `RefreshCollections` and `RefreshSeries` for iOS so the Collections and Series tabs
-refresh from ABS. Includes collection-detail and series-detail navigation screens.
-
-**Issue C: "feat(ios): implement offline availability and download status in library browser"**
-Wire `LibraryItemOfflineAvailabilityImpl` for iOS (ebook + audiobook cache checks), implement
-download buttons and the offline-filter toggle. Includes `DownloadButton` composable adaptation.
+- **#912** — feat(ios): implement Playlists and To-Read tabs in library browser
+- **#913** — feat(ios): implement collection and series refresh in library browser
+- **#914** — feat(ios): implement offline availability and download status in library browser
+- **#915** — feat(ios): move LibraryItemDetailScreen to commonMain and wire item navigation
+  *(critical: without this, tapping a book does nothing on iOS)*
+- **#916** — feat(ios): move SeriesDetailScreen and CollectionDetailScreen to commonMain
 
 ---
 
 ## Spec self-review
 
-- No TBDs or placeholders.
+- `onSectionSeeMore` is now wired within this PR (Phase 5 addendum), not deferred.
+- `onItemSelected` is correctly deferred to #915 which adds the nav state machine extension.
 - Phases are ordered by dependency: interfaces → use cases → VMs → screens → wiring → tests → issues.
 - Android is untouched throughout; no regressions possible from that side.
 - `@Inject` removal from jvmMain use cases: safe because Hilt was replaced by Koin in #840.
