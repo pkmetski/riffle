@@ -1,4 +1,4 @@
-package com.riffle.app.feature.server
+package com.riffle.feature.source
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Backs [SourceTypePickerScreen] with the set of already-installed [SourceType]s. The picker
+ * Backs the source-type picker with the set of already-installed [SourceType]s. The picker
  * screen filters cards from `WebSourceDescriptors.all`, hiding descriptor-`isSingleton` types
  * whose entry is present in [installedTypes]. Post-ADR-0053: adding a new singleton source is a
  * descriptor registration; no per-source `has<X>Source` StateFlow to author here.

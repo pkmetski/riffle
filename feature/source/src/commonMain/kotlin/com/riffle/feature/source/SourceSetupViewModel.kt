@@ -1,4 +1,4 @@
-package com.riffle.app.feature.server
+package com.riffle.feature.source
 
 import androidx.lifecycle.ViewModel
 import com.riffle.core.domain.PendingSource
