@@ -358,8 +358,13 @@ class JsonPanelStore constructor(
          *      cross-contain each other) before the pillar can be dropped as a sliver. v40 caches
          *      hold the tall right-column panel as a mid-page fragment and the bottom-left tall
          *      panel fragmented, with the mid panel extended into its artwork.
+         * v42: PanelOrderer exile rule requires a meaningful tail (≥ 3% of candidate height) below
+         *      the spanning member before exiling a panel to the next row (issue #907). A row
+         *      panel ending level with a right-column spanning panel was exiled into its own band,
+         *      reading the tall column between the rows it spans instead of after them. v41 caches
+         *      hold that wrong reading order (panels are stored ordered).
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 41
+        internal const val CURRENT_SCHEMA_VERSION: Int = 42
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
