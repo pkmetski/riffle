@@ -1196,6 +1196,10 @@ private val coreDataMiscModule = module {
             logger = get(),
         )
     }
+    single<com.riffle.core.data.localfiles.FolderPickerInterface> { com.riffle.core.data.localfiles.AndroidFolderPicker() }
+    single<com.riffle.core.data.localfiles.LocalFilesInstallerInterface> {
+        com.riffle.core.data.localfiles.AndroidLocalFilesInstaller(get())
+    }
     single { LocalFilesFolderHealthChecker(context = androidContext()) }
     single {
         LocalFilesFolderWatcher(

@@ -107,6 +107,10 @@ object ServerReferenceLint {
         // iOS SourceRepository mirrors CredentialedSourceInstaller's toDomain() and threads
         // the same grandfathered ServerType field through. Same rationale as androidMain impl.
         "core/data/src/iosMain/kotlin/com/riffle/core/data/IosSourceRepositoryImpl.kt",
+        // iOS LocalFiles source installer must stamp ServerType.AUDIOBOOKSHELF on the synthetic
+        // LOCAL_FILES SourceEntity — the field is required by SourceDao.upsertAsFirstIfNoActive;
+        // using the typed constant is the only way to avoid a string-literal divergence (AGENTS.md).
+        "core/data/src/iosMain/kotlin/com/riffle/core/data/localfiles/IosLocalFilesSourceInstaller.kt",
     )
 
     data class Offender(
