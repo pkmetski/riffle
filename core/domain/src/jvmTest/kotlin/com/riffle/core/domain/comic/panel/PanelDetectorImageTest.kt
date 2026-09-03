@@ -1133,7 +1133,7 @@ class PanelDetectorImageTest {
         // the inner region of the merged CC's top sub-bbox after horizontal splitting. The gutter
         // IS accessible from the top and bottom borders (visible in both strips). The both-strips
         // confirmation fallback detects this as a genuine straight gutter.
-        val mask = loadBinaryFixture("panel-detection-fixtures/issue-879-missed-panel-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-905-page34-full-redraw.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         // The top panel must appear as a detected panel whose top edge is in the upper portion of
@@ -1237,7 +1237,7 @@ class PanelDetectorImageTest {
         // (x≈1507, y≈117-1493, w≈477, h≈1376) was not detected. The standing figure silhouette
         // connects to adjacent dark content which merges it into a larger CC, and the resulting
         // sub-bbox is either too small after splitting or the split fails to isolate it.
-        val mask = loadBinaryFixture("panel-detection-fixtures/issue-892-missed-panel-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-905-page34-full-redraw.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         // There must be a panel in the right column (x-centre > 70% of page) whose y-range
@@ -1263,7 +1263,7 @@ class PanelDetectorImageTest {
         // Uses loadMaskFixture (luma PixelGrid) so detection runs the grid path — including
         // energyValleySplit — exactly as on device (issue #905 showed the binary-mask path
         // diverges from the device pipeline).
-        val mask = loadMaskFixture("panel-detection-fixtures/issue-895-split-top-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-905-page34-full-redraw.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         // There must be exactly one panel in the top row (y-centre in the top 22% of the page)
@@ -1284,7 +1284,7 @@ class PanelDetectorImageTest {
     fun `issue 893 page 34 top wide panel must not be split at thin ink border`() {
         // Regression for issue #893 (page 34): same split-top as #895 — the top wide panel was
         // reported as 2 halves instead of 1 unified panel.
-        val mask = loadMaskFixture("panel-detection-fixtures/issue-893-split-top-panel-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-905-page34-full-redraw.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         val topRowPanels = result.panels.filter { p ->
@@ -1304,7 +1304,7 @@ class PanelDetectorImageTest {
         // silhouette) was detected as a fragment starting at y≈381 instead of y≈111. The top
         // portion (y=111-381) was being swallowed into adjacent CCs and not returned as part of
         // the right-column union.
-        val mask = loadMaskFixture("panel-detection-fixtures/issue-894-missed-tall-right-p34.png")
+        val mask = loadMaskFixture("panel-detection-fixtures/issue-905-page34-full-redraw.png")
         val result = detector.detect(mask, pageIndex = 0, originalWidth = mask.width, originalHeight = mask.height)
         assertEquals(PanelSource.Auto, result.source)
         // The tall right-column panel (x-centre > 70% page width) must begin in the top row
