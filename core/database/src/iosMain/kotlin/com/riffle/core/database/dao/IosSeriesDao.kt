@@ -207,8 +207,8 @@ internal class IosSeriesDao(
     companion object {
         private const val LI_COLS =
             "li.sourceId, li.id, li.libraryId, li.title, li.author, li.coverUrl, " +
-            "li.readingProgress, li.ebookFileIno, li.ebookFormat, li.hasAudio, li.audioDurationSec, " +
-            "li.description, li.seriesName, li.seriesSequence, li.publishedYear, li.genres, li.publisher, " +
-            "li.language, li.lastOpenedAt, li.addedAt, li.isbn, li.asin, li.finishedAt, li.pageCount"
+                "li.readingProgress, li.ebookFileIno, li.ebookFormat, li.hasAudio, li.audioDurationSec, " +
+                "li.description, li.seriesName, li.seriesSequence, li.publishedYear, li.genres, li.publisher, " +
+                "li.language, li.lastOpenedAt, li.addedAt, li.isbn, li.asin, li.finishedAt, li.pageCount"
     }
 }
