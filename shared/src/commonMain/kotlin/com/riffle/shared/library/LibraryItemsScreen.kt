@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -76,10 +77,9 @@ fun LibraryItemsScreen(
     val projection by viewModel.projection.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
 
+    Column(modifier = Modifier.fillMaxSize()) {
+    LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer)
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer)
-        }
         if (isLoading) {
             item {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
@@ -153,6 +153,7 @@ fun LibraryItemsScreen(
             }
         }
     }
+    } // Column
 }
 
 @Composable
@@ -164,13 +165,13 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(
-            text = "☰",
+        Box(
             modifier = Modifier
-                .padding(end = 12.dp)
-                .clickable(onClick = onMenuClick),
-            style = TextStyle(fontSize = 20.sp),
-        )
+                .clickable(onClick = onMenuClick)
+                .padding(end = 12.dp, top = 4.dp, bottom = 4.dp),
+        ) {
+            BasicText(text = "☰", style = TextStyle(fontSize = 20.sp))
+        }
         BasicText(text = title, style = SectionTitleStyle)
     }
 }
