@@ -61,12 +61,15 @@ import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.library.LibraryItemsViewModel
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
+import com.riffle.shared.reader.IosPdfDownloader
+import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
 private fun iosLibraryModule(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
+    pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
 ) = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
@@ -88,6 +91,10 @@ private fun iosLibraryModule(
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
     single { IosEpubDownloader(get(), get(), get()) }
+
+    // PDF reader
+    single<IosPdfNavigatorBridgeFactory> { pdfNavigatorBridgeFactory }
+    single { IosPdfDownloader(get(), get(), get()) }
 
     // Audiobook player
     single<AbsPlaybackApi> { get<AbsApiClient>() }
@@ -200,13 +207,14 @@ private fun iosLibraryModule(
 fun startKoin(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
+    pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
 ) {
     koinStartKoin {
         modules(
             iosLoggingModule,
             iosDataModule,
             iosDatabaseModule,
-            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory),
+            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory),
         )
     }
 }

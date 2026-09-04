@@ -6,7 +6,8 @@ struct RiffleApp: App {
     init() {
         KoinKt.startKoin(
             navigatorBridgeFactory: ReadiumEpubNavigatorBridgeFactory(),
-            audioPlayerBridgeFactory: IosAudioPlayerBridgeFactoryImpl()
+            audioPlayerBridgeFactory: IosAudioPlayerBridgeFactoryImpl(),
+            pdfNavigatorBridgeFactory: PdfKitNavigatorBridgeFactoryImpl()
         )
     }
     var body: some Scene {
