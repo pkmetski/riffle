@@ -1,0 +1,27 @@
+name: Setup Gradle
+description: Configure Java and Gradle, and download the Gradle wrapper jar. Requires checkout to have already run.
+
+inputs:
+  java-version:
+    default: '21'
+  cache-encryption-key:
+    required: true
+  cache-read-only:
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+    - uses: gradle/actions/setup-gradle@v6.3.0
+      with:
+        cache-encryption-key: ${{ inputs.cache-encryption-key }}
+        cache-read-only: ${{ inputs.cache-read-only }}
+    - name: Download Gradle wrapper jar
+      shell: bash
+      run: |
+        curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
+          "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"

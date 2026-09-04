@@ -1,0 +1,224 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Android build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: android-build-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: 'false'
+      - uses: ./.github/actions/setup-fonts
+      - run: ./gradlew assembleDebug
+
+  lint:
+    name: Android lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: android-lint-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # checkTestGuardrails (riffleChecks) diffs against the merge base with origin/main.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - uses: ./.github/actions/setup-fonts
+      # riffleChecks runs the custom lints + test guardrails; module `check` (their other hook)
+      # is never invoked on CI, so they must be listed explicitly here.
+      - run: ./gradlew lint riffleChecks
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-reports
+          path: "**/build/reports/lint-results-*.html"
+          if-no-files-found: ignore
+
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: android-unit-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - uses: ./.github/actions/setup-fonts
+      # KMP modules (core:common/models/domain/sources/net) have no `test` lifecycle
+      # task — their JVM tests only run via `jvmTest`. `./gradlew test` alone silently
+      # skipped all of them from the KMP conversion (#644) onward.
+      - run: ./gradlew test jvmTest -PversionName=0.0.0-ci
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/
+            core/*/build/reports/tests/
+          if-no-files-found: ignore
+
+  integration-test:
+    name: Android integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: android-integration-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - uses: ./.github/actions/setup-fonts
+      - run: ./gradlew :core:data:testAndroidHostTest -PintegrationTests
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-reports
+          path: core/data/build/reports/tests/
+          if-no-files-found: ignore
+
+  connected-test:
+    # Instrumented Room tests (migrations + DAOs) need an emulator, so they run here on a
+    # hardware-accelerated AVD rather than in the JVM jobs above.
+    name: Android database tests (core:database)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: android-connected-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run core:database connected tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          script: ./gradlew :core:database:connectedAndroidDeviceTest
+      - name: Upload connected-test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: connected-test-reports
+          path: core/database/build/reports/androidTests/
+          if-no-files-found: ignore
+
+  harness-test-phone:
+    name: Android harness tests (phone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: android-harness-phone-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - uses: ./.github/actions/setup-fonts
+      - name: Build Android harness APKs
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Android phone harness tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 25
+          target: google_apis
+          arch: x86
+          profile: pixel
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
+          # android-emulator-runner executes every script line as a separate `sh -c`
+          # process, so shell variables do NOT survive across lines. Keep the gradle
+          # invocation, the logcat capture, and the exit on ONE line or test failures
+          # get silently swallowed (that exact bug shipped in #650 and green-washed
+          # every harness failure from 2026-08-03 onward).
+          script: |
+            adb logcat -G 16M || true
+            adb logcat -c || true
+            rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-phone.txt || true; exit $rc
+      - name: Upload harness phone reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-harness-test-phone-reports
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore
+      - name: Upload phone logcat
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-test-phone-logcat
+          path: logcat-phone.txt
+          if-no-files-found: ignore
+
+  harness-test-tablet:
+    name: Android harness tests (tablet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: android-harness-tablet-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - uses: ./.github/actions/setup-fonts
+      - name: Build Android harness APKs
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Android tablet harness tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 25
+          target: google_apis
+          arch: x86
+          profile: Nexus 10
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
+      - name: Upload harness tablet reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-harness-test-tablet-reports
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore
