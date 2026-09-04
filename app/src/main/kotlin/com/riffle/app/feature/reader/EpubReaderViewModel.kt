@@ -4111,10 +4111,11 @@ internal fun elidedChapterTitle(href: String, derived: String, toc: List<TocEntr
 private val UUID_TITLE_REGEX =
     Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
-// Matches auto-generated EPUB spine filenames: letters/underscores/hyphens followed by 3+
-// digits (e.g. "part0010", "item003", "text00001"). Human-readable titles never end in
-// zero-padded digit runs of this length, so these are safe to treat as unhelpful.
-private val SPINE_FILENAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_-]*\\d{3,}$")
+// Matches auto-generated EPUB spine filenames: letters/underscores/hyphens followed by 2+
+// digits (e.g. "part0010", "item003", "text00001", "ch06", "ch10"). Human-readable titles
+// never end in zero-padded digit runs of this length, so these are safe to treat as unhelpful.
+// Two-digit minimum covers common patterns like "ch06"/"ch10" that only have two-digit padding.
+private val SPINE_FILENAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_-]*\\d{2,}$")
 
 internal fun looksUnhelpfulTitle(title: String): Boolean =
     title.isBlank() || title.equals("Chapter", ignoreCase = true) ||
