@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
@@ -43,6 +44,7 @@ import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.shared.reader.EpubReaderScreen
+import com.riffle.shared.reader.PdfReaderScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -53,6 +55,7 @@ private sealed interface LibraryNav {
     data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
     data class Reader(val item: LibraryItem) : LibraryNav
+    data class PdfReader(val item: LibraryItem) : LibraryNav
     data class AudiobookPlayer(val item: LibraryItem) : LibraryNav
 }
 
@@ -332,11 +335,16 @@ private fun LibraryHost(
             onReadNotSupported = {
                 when {
                     current.item.isListenable -> nav = LibraryNav.AudiobookPlayer(current.item)
+                    current.item.ebookFormat == EbookFormat.Pdf -> nav = LibraryNav.PdfReader(current.item)
                     current.item.isReadable -> nav = LibraryNav.Reader(current.item)
                 }
             },
         )
         is LibraryNav.Reader -> EpubReaderScreen(
+            item = current.item,
+            onBack = { nav = LibraryNav.Items },
+        )
+        is LibraryNav.PdfReader -> PdfReaderScreen(
             item = current.item,
             onBack = { nav = LibraryNav.Items },
         )
