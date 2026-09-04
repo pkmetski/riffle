@@ -52,6 +52,7 @@ import com.riffle.shared.library.IosNoOpLibraryItemOfflineAvailability
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
+import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.library.LibraryItemsViewModel
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
@@ -127,6 +128,17 @@ private val iosLibraryModule = module {
             sourceRepository = get(),
             repo = get(),
             tokenStorage = get(),
+        )
+    }
+    factory { params ->
+        LibraryItemDetailViewModel(
+            itemId = params.get(),
+            sourceId = params.get(),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            toReadRepository = get(),
+            connectivityObserver = get(),
         )
     }
 }
