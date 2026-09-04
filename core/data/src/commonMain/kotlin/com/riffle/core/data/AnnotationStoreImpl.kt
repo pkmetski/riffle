@@ -10,9 +10,9 @@ import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.EmphasisStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.riffle.core.common.randomUuidString
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-import java.util.UUID
 
 class AnnotationStoreImpl(
     private val dao: AnnotationDao,
@@ -25,7 +25,7 @@ class AnnotationStoreImpl(
         dao = dao,
         deviceIdStore = deviceIdStore,
         clock = clock::nowMs,
-        idGenerator = { UUID.randomUUID().toString() },
+        idGenerator = { randomUuidString() },
     )
 
     override fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>> =
