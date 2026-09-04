@@ -44,13 +44,13 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
+import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
-import com.riffle.shared.library.IosNoOpLibraryItemOfflineAvailability
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
@@ -78,7 +78,7 @@ private val iosLibraryModule = module {
 
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
-    single<LibraryItemOfflineAvailability> { IosNoOpLibraryItemOfflineAvailability() }
+    single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     single<StorytellerReadaloudCacheSyncer> { IosNoOpStorytellerSyncer }
     single<ReadaloudLinkReconciler> { IosNoOpReadaloudReconciler }
     single<ApplicationScope> { IosNoOpApplicationScope }
