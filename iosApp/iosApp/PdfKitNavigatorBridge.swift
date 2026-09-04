@@ -63,11 +63,11 @@ final class PdfKitViewController: UIViewController {
     var onPageChanged: ((Int) -> Void)?
 
     private let pdfView: PDFView = {
-        let v = PDFView()
-        v.displayMode = .singlePageContinuous
-        v.autoScales = true
-        v.translatesAutoresizingMaskIntoConstraints = false
-        return v
+        let view = PDFView()
+        view.displayMode = .singlePageContinuous
+        view.autoScales = true
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
     }()
 
     override func viewDidLoad() {
@@ -78,7 +78,7 @@ final class PdfKitViewController: UIViewController {
             pdfView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             pdfView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             pdfView.topAnchor.constraint(equalTo: view.topAnchor),
-            pdfView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            pdfView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
         NotificationCenter.default.addObserver(

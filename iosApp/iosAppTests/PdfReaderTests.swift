@@ -10,9 +10,9 @@ final class PdfReaderTests: XCTestCase {
 
     func testFactoryCreatesDistinctInstances() {
         let factory = PdfKitNavigatorBridgeFactoryImpl()
-        let b1 = factory.create()
-        let b2 = factory.create()
-        XCTAssertFalse(b1 === (b2 as AnyObject), "Factory must return distinct instances")
+        let bridge1 = factory.create()
+        let bridge2 = factory.create()
+        XCTAssertFalse(bridge1 === (bridge2 as AnyObject), "Factory must return distinct instances")
     }
 
     func testViewControllerIsNonNilBeforeOpen() {
@@ -75,23 +75,22 @@ final class PdfReaderTests: XCTestCase {
 
     // MARK: - Scenario 06-D: Page-change callback
 
-    func testPageChangeCallbackIsInvokedOnSimulatedChange() {
+    func testPageChangeCallbackIsInvokedOnSimulatedChange() throws {
         let bridge = PdfKitNavigatorBridgeImpl()
         var received: Int?
         bridge.setPageChangeCallback(callback: PageChangeCallbackCapture { received = $0 })
-        // Drive via test helper on the inner view controller
-        let vc = bridge.viewController() as! PdfKitViewController
-        vc.simulatePageChange(2)
+        let pdfViewController = try XCTUnwrap(bridge.viewController() as? PdfKitViewController)
+        pdfViewController.simulatePageChange(2)
         XCTAssertEqual(received, 2)
     }
 
-    func testClearingCallbackStopsFiring() {
+    func testClearingCallbackStopsFiring() throws {
         let bridge = PdfKitNavigatorBridgeImpl()
         var count = 0
         bridge.setPageChangeCallback(callback: PageChangeCallbackCapture { _ in count += 1 })
         bridge.setPageChangeCallback(callback: nil)
-        let vc = bridge.viewController() as! PdfKitViewController
-        vc.simulatePageChange(1)
+        let pdfViewController = try XCTUnwrap(bridge.viewController() as? PdfKitViewController)
+        pdfViewController.simulatePageChange(1)
         XCTAssertEqual(count, 0)
     }
 
@@ -106,9 +105,9 @@ final class PdfReaderTests: XCTestCase {
     /// Creates a minimal in-memory PDF with [pageCount] A4 pages and writes it to a temp file.
     private func writeTempPdf(pageCount: Int) -> URL {
         let doc = PDFDocument()
-        for i in 0..<pageCount {
+        for pageIndex in 0..<pageCount {
             let page = PDFPage()
-            doc.insert(page, at: i)
+            doc.insert(page, at: pageIndex)
         }
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_\(pageCount)p.pdf")
         doc.write(to: url)
