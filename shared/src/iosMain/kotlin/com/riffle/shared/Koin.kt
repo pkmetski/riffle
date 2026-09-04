@@ -56,8 +56,8 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.library.LibraryItemsViewModel
-import org.koin.core.context.startKoin as koinStartKoin
 import org.koin.dsl.module
+import org.koin.core.context.startKoin as koinStartKoin
 
 private val iosLibraryModule = module {
     single { createDefaultHttpClient() }
