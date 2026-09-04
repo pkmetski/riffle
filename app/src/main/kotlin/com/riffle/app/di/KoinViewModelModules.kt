@@ -417,6 +417,8 @@ private val sourceViewModelModule = module {
             savedStateHandle = get(),
             libraryObserver = get(),
             toReadRepository = get(),
+            libraryMutator = get(),
+            remoteItemFreshness = get(),
         )
     }
     viewModel { AddRadioEsViewModel(installer = get()) }

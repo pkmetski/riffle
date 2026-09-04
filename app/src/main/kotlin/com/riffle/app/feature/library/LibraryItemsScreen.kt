@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -510,9 +511,11 @@ fun BookSectionGrid(
     onSeeMore: (() -> Unit)? = null,
     linkedItemIds: Set<String> = emptySet(),
     showSeriesBadge: Boolean = false,
+    onItemLongPress: ((LibraryItem) -> Unit)? = null,
 ) {
     val minCell = shelfCoverMinCellSize()
     val spacing = 8.dp
+    var longPressedItem by remember { mutableStateOf<LibraryItem?>(null) }
     BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
         val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
         val previewCount = max(1, columns * 2 - 1)
@@ -528,13 +531,30 @@ fun BookSectionGrid(
                 SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
             } else {
                 val item = preview[index]
-                BookCoverTile(
-                    item = item,
-                    token = token,
-                    onClick = { onItemSelected(item) },
-                    hasReadaloudLink = item.id in linkedItemIds,
-                    seriesNameBadge = if (showSeriesBadge) item.seriesName else null,
-                )
+                Box {
+                    BookCoverTile(
+                        item = item,
+                        token = token,
+                        onClick = { onItemSelected(item) },
+                        onLongClick = if (onItemLongPress != null) { { longPressedItem = item } } else null,
+                        hasReadaloudLink = item.id in linkedItemIds,
+                        seriesNameBadge = if (showSeriesBadge) item.seriesName else null,
+                    )
+                    if (onItemLongPress != null) {
+                        DropdownMenu(
+                            expanded = longPressedItem == item,
+                            onDismissRequest = { longPressedItem = null },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.ui_remove_from_library)) },
+                                onClick = {
+                                    longPressedItem = null
+                                    onItemLongPress(item)
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -665,6 +685,7 @@ fun BookCoverTile(
     item: LibraryItem,
     token: String,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     hasReadaloudLink: Boolean = false,
     seriesNameBadge: String? = null,
 ) {
@@ -677,7 +698,17 @@ fun BookCoverTile(
     Column(
         modifier = Modifier
             .alpha(alpha)
-            .clickable(enabled = item.isPlayable, onClick = onClick),
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        enabled = item.isPlayable,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
+                } else {
+                    Modifier.clickable(enabled = item.isPlayable, onClick = onClick)
+                }
+            ),
     ) {
         Box(
             modifier = Modifier
@@ -1492,6 +1523,7 @@ internal fun HomeTabContent(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
     onCoverScaleChange: (Float) -> Unit = {},
+    onItemLongPress: ((LibraryItem) -> Unit)? = null,
 ) {
     if (isLoading) return
     if (inProgress.isEmpty() && continueSeries.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
@@ -1538,6 +1570,7 @@ internal fun HomeTabContent(
                     onItemSelected = onItemSelected,
                     onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
                     linkedItemIds = linkedItemIds,
+                    onItemLongPress = onItemLongPress,
                 )
             }
         }
@@ -1551,6 +1584,7 @@ internal fun HomeTabContent(
                     onSeeMore = null,
                     linkedItemIds = linkedItemIds,
                     showSeriesBadge = true,
+                    onItemLongPress = onItemLongPress,
                 )
             }
         }
@@ -1563,6 +1597,7 @@ internal fun HomeTabContent(
                     onItemSelected = onItemSelected,
                     onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
                     linkedItemIds = linkedItemIds,
+                    onItemLongPress = onItemLongPress,
                 )
             }
         }
@@ -1575,6 +1610,7 @@ internal fun HomeTabContent(
                     onItemSelected = onItemSelected,
                     onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
                     linkedItemIds = linkedItemIds,
+                    onItemLongPress = onItemLongPress,
                 )
             }
         }

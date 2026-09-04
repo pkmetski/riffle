@@ -21,6 +21,7 @@ class RecordItemOpenedTest {
         override suspend fun markItemOpened(itemId: String) { openedIds += itemId }
         override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+        override suspend fun deleteItem(sourceId: String, itemId: String) = Unit
     }
 
     private class RecordingSession : ReadingSessionRepository {

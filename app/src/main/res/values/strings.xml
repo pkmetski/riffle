@@ -227,6 +227,7 @@
     <string name="ui_remove_download">Remove download</string>
     <string name="ui_remove_folder">Remove folder?</string>
     <string name="ui_remove_folder_3">Remove folder</string>
+    <string name="ui_remove_from_library">Remove from library</string>
     <string name="ui_remove_from_playlist">Remove from playlist</string>
     <string name="ui_remove_readaloud_download">Remove readaloud download</string>
     <string name="ui_remove_source">Remove source</string>
