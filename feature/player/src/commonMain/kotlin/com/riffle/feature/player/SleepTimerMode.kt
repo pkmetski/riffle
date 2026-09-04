@@ -11,5 +11,5 @@ fun SleepTimerMode.formatCountdown(): String {
     val totalSec = remainingMs / 1_000L
     val min = totalSec / 60
     val sec = totalSec % 60
-    return "%d:%02d".format(min, sec)
+    return "${min}:${sec.toString().padStart(2, '0')}"
 }

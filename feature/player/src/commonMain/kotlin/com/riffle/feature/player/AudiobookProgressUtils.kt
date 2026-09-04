@@ -75,9 +75,9 @@ fun formatCompactDuration(
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return when {
-        hours > 0 && minutes > 0 -> templates.hoursMinutes.format(hours, minutes)
-        hours > 0 -> templates.hours.format(hours)
-        else -> templates.minutes.format(minutes)
+        hours > 0 && minutes > 0 -> applyPositionalTemplate(templates.hoursMinutes, hours, minutes)
+        hours > 0 -> applyPositionalTemplate(templates.hours, hours)
+        else -> applyPositionalTemplate(templates.minutes, minutes)
     }
 }
 
@@ -96,6 +96,19 @@ fun buildAudiobookFacts(
     }
     // The medium label alone has no real facts, so it is not worth a line.
     return if (parts.size > 1) parts.joinToString(" · ") else null
+}
+
+/**
+ * Replaces `%1$d`, `%2$d` … positional integer specifiers in [template] with [values] in order.
+ * Used in lieu of `String.format()` which is JVM-only; keeps [CompactDurationLabelTemplates]
+ * localizable without platform-specific APIs.
+ */
+private fun applyPositionalTemplate(template: String, vararg values: Int): String {
+    var result = template
+    values.forEachIndexed { index, value ->
+        result = result.replace("%${index + 1}\$d", value.toString())
+    }
+    return result
 }
 
 /** Whether the reader's readaloud control is shown, and whether it can be tapped. */

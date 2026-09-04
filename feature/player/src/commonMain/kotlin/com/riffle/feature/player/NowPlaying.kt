@@ -23,7 +23,7 @@ sealed interface NowPlaying {
  */
 class NowPlayingStore constructor() {
 
-    @Volatile
+    @kotlin.concurrent.Volatile
     var current: NowPlaying? = null
         private set
 
