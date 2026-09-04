@@ -7,13 +7,13 @@ import ReadiumNavigator
 // MARK: - ReadiumEpubNavigatorBridge
 
 /// Implements IosEpubNavigatorBridge (generated from Kotlin iosMain's IosEpubNavigatorBridge).
-/// Wraps Readium Swift's EPUBNavigatorViewController, bridging it to the KMP shared layer.
+/// Wraps Readium Swift 3.x EPUBNavigatorViewController, bridging it to the KMP shared layer.
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
     private let hostViewController = UIViewController()
     private var epubNavigator: EPUBNavigatorViewController?
     private var publication: Publication?
-    // Updated on main thread by the delegate; read from snapshotLocatorJson() on any thread.
+    // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
     private var cachedLocatorJson: String?
 
     // Callbacks registered by ReadiumSwiftNavigator
@@ -28,33 +28,36 @@ import ReadiumNavigator
     func openEpub(filePath: String, locatorJson: String?) {
         Task { @MainActor in
             do {
-                let fileUrl = URL(fileURLWithPath: filePath)
-                let asset = FileAsset(url: fileUrl)
-                let streamer = Streamer()
-                let result = await streamer.open(asset: asset, allowUserInteraction: false)
-                switch result {
-                case .failure:
-                    return
-                case .success(let pub):
-                    self.publication = pub
-                    var initialLocator: Locator?
-                    if let json = locatorJson, let data = json.data(using: .utf8) {
-                        initialLocator = try? JSONDecoder().decode(Locator.self, from: data)
-                    }
-                    let config = EPUBNavigatorViewController.Configuration()
-                    let navigator = try EPUBNavigatorViewController(
-                        publication: pub,
-                        initialLocation: initialLocator,
-                        config: config
-                    )
-                    navigator.delegate = self
-                    self.epubNavigator = navigator
-                    self.hostViewController.addChild(navigator)
-                    navigator.view.frame = self.hostViewController.view.bounds
-                    navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                    self.hostViewController.view.addSubview(navigator.view)
-                    navigator.didMove(toParent: self.hostViewController)
+                guard let fileURL = FileURL(path: filePath, isDirectory: false) else { return }
+
+                // Readium 3.x: retrieve an Asset from a local file, then open into a Publication.
+                let httpClient = DefaultHTTPClient()
+                let assetRetriever = AssetRetriever(httpClient: httpClient)
+                let assetResult = await assetRetriever.retrieve(url: fileURL)
+                guard case .success(let asset) = assetResult else { return }
+
+                let opener = PublicationOpener(parser: CompositePublicationParser([EPUBParser()]))
+                let pubResult = await opener.open(asset: asset, allowUserInteraction: false)
+                guard case .success(let pub) = pubResult else { return }
+                self.publication = pub
+
+                var initialLocator: Locator?
+                if let json = locatorJson,
+                   let jsonValue = try? JSONValue(jsonString: json) {
+                    initialLocator = try? Locator(json: jsonValue, warnings: nil)
                 }
+
+                let navigator = try EPUBNavigatorViewController(
+                    publication: pub,
+                    initialLocation: initialLocator
+                )
+                navigator.delegate = self
+                self.epubNavigator = navigator
+                self.hostViewController.addChild(navigator)
+                navigator.view.frame = self.hostViewController.view.bounds
+                navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                self.hostViewController.view.addSubview(navigator.view)
+                navigator.didMove(toParent: self.hostViewController)
             } catch {
                 // Ignore open errors — reader shows blank state
             }
@@ -62,21 +65,20 @@ import ReadiumNavigator
     }
 
     func goForward() {
-        Task { @MainActor in _ = try? await epubNavigator?.goForward(animated: true) }
+        Task { @MainActor in _ = await epubNavigator?.goForward(options: .animated) }
     }
 
     func goBackward() {
-        Task { @MainActor in _ = try? await epubNavigator?.goBackward(animated: true) }
+        Task { @MainActor in _ = await epubNavigator?.goBackward(options: .animated) }
     }
 
     func goToLocator(locatorJson: String) {
-        guard let data = locatorJson.data(using: .utf8),
-              let locator = try? JSONDecoder().decode(Locator.self, from: data) else { return }
-        Task { @MainActor in _ = try? await epubNavigator?.go(to: locator, animated: true) }
+        guard let jsonValue = try? JSONValue(jsonString: locatorJson),
+              let locator = try? Locator(json: jsonValue, warnings: nil) else { return }
+        Task { @MainActor in _ = await epubNavigator?.go(to: locator, options: .animated) }
     }
 
-    /// Thread-safe: returns the cached locator JSON last emitted by the delegate (main thread),
-    /// rather than querying epubNavigator.currentLocation which requires the main thread.
+    /// Thread-safe: returns the cached locator JSON last emitted by the delegate on the main thread.
     func snapshotLocatorJson() -> String? { cachedLocatorJson }
 
     func setLocatorCallback(callback: ((String) -> Void)?) {
@@ -108,8 +110,7 @@ import ReadiumNavigator
 
 extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
-        guard let data = try? JSONEncoder().encode(locator),
-              let json = String(data: data, encoding: .utf8) else { return }
+        guard let json = try? locator.jsonString() else { return }
         cachedLocatorJson = json
         locatorCallback?(json)
     }
