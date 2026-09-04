@@ -41,6 +41,7 @@ import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
+import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
@@ -66,6 +67,7 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.library.LibraryItemsViewModel
+import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfDownloader
@@ -83,7 +85,9 @@ private fun iosLibraryModule(
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
     single<AbsLibraryApi> { get<AbsApiClient>() }
-    single<KomgaLibraryApi> { KomgaLibraryApiClient(get()) }
+    single { KomgaLibraryApiClient(get()) }
+    single<KomgaLibraryApi> { get<KomgaLibraryApiClient>() }
+    single<KomgaCbzApi> { get<KomgaLibraryApiClient>() }
 
     single<DispatcherProvider> { IosDispatcherProvider }
     single<SourceRepository> { IosSourceRepositoryImpl(get(), get(), get()) }
@@ -103,6 +107,9 @@ private fun iosLibraryModule(
     // PDF reader
     single<IosPdfNavigatorBridgeFactory> { pdfNavigatorBridgeFactory }
     single { IosPdfDownloader(get(), get(), get()) }
+
+    // CBZ reader
+    single { IosCbzDownloader(get(), get(), get()) }
 
     // Audiobook player
     single<AbsPlaybackApi> { get<AbsApiClient>() }

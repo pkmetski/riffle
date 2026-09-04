@@ -44,6 +44,7 @@ import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.SeriesDetailScreen
+import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
 import com.riffle.shared.settings.SettingsScreen
@@ -64,6 +65,7 @@ internal sealed interface LibraryNav {
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
     data class Reader(val item: LibraryItem) : LibraryNav
     data class PdfReader(val item: LibraryItem) : LibraryNav
+    data class CbzReader(val item: LibraryItem) : LibraryNav
     data class AudiobookPlayer(val item: LibraryItem) : LibraryNav
 }
 
@@ -74,6 +76,7 @@ internal sealed interface LibraryNav {
 internal fun readerNavForItem(item: LibraryItem): LibraryNav? = when {
     item.isListenable -> LibraryNav.AudiobookPlayer(item)
     item.ebookFormat == EbookFormat.Pdf -> LibraryNav.PdfReader(item)
+    item.ebookFormat == EbookFormat.Cbz -> LibraryNav.CbzReader(item)
     item.isReadable -> LibraryNav.Reader(item)
     else -> null
 }
@@ -397,6 +400,10 @@ private fun LibraryHost(
             onBack = { nav = LibraryNav.Items },
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(
+            item = current.item,
+            onBack = { nav = LibraryNav.Items },
+        )
+        is LibraryNav.CbzReader -> CbzReaderScreen(
             item = current.item,
             onBack = { nav = LibraryNav.Items },
         )

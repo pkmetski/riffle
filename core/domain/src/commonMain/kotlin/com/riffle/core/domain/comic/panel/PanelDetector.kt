@@ -2486,7 +2486,7 @@ class PanelDetector(
         val ch = bottom - top + 1
         val out = ByteArray(cw * ch)
         for (y in 0 until ch) {
-            System.arraycopy(mask.data, (top + y) * w + left, out, y * cw, cw)
+            mask.data.copyInto(out, destinationOffset = y * cw, startIndex = (top + y) * w + left, endIndex = (top + y) * w + left + cw)
         }
         return CroppedMask(cw, ch, out, offsetX = left, offsetY = top)
     }
