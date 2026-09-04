@@ -35,3 +35,6 @@ docs/superpowers/
 
 # Local Claude Code runtime lock (transient)
 .claude/scheduled_tasks.lock
+
+# Xcode per-user workspace state
+*.xcuserstate
