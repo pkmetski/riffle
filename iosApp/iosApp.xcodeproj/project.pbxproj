@@ -19,6 +19,7 @@
 		B1004010 /* AudiobookPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1004020 /* AudiobookPlayerTests.swift */; };
 		B1005020 /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1006010 /* PdfReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1006020 /* PdfReaderTests.swift */; };
+		B1007010 /* ComicsReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1007020 /* ComicsReaderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +34,7 @@
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
+		B1007020 /* ComicsReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicsReaderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -73,6 +75,7 @@
 				B1001020 /* iosAppTests.swift */,
 				B1004020 /* AudiobookPlayerTests.swift */,
 				B1006020 /* PdfReaderTests.swift */,
+				B1007020 /* ComicsReaderTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -215,6 +218,7 @@
 				B1001010 /* iosAppTests.swift in Sources */,
 				B1004010 /* AudiobookPlayerTests.swift in Sources */,
 				B1006010 /* PdfReaderTests.swift in Sources */,
+				B1007010 /* ComicsReaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
