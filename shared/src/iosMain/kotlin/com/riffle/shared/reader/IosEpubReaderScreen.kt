@@ -25,6 +25,7 @@ import platform.Foundation.NSUserDefaults
  * iOS EPUB reader composable. Downloads the EPUB if not cached, then embeds the Readium Swift
  * navigator via UIKitViewController and persists the reading position across sessions.
  */
+@Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()

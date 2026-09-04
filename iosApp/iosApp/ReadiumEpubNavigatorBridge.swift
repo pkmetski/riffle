@@ -1,4 +1,5 @@
 import UIKit
+import Riffle
 import ReadiumShared
 import ReadiumStreamer
 import ReadiumNavigator
@@ -47,7 +48,6 @@ import ReadiumNavigator
                         config: config
                     )
                     navigator.delegate = self
-                    navigator.addObserver(self)
                     self.epubNavigator = navigator
                     self.hostViewController.addChild(navigator)
                     navigator.view.frame = self.hostViewController.view.bounds
@@ -114,21 +114,13 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         locatorCallback?(json)
     }
 
-    func navigator(_ navigator: Navigator, didTapAt point: CGPoint) {
+    func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
         tapCallback?()
     }
 
     func navigator(_ navigator: Navigator, presentExternalURL url: URL) {}
 
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {}
-}
-
-// MARK: - Page-load signal
-
-extension ReadiumEpubNavigatorBridge: EPUBNavigatorViewController.Observer {
-    func epubNavigatorDidLoadChapter(_ navigator: EPUBNavigatorViewController) {
-        pageLoadCallback?()
-    }
 }
 
 // MARK: - Test helpers
