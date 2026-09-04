@@ -49,7 +49,9 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
+import com.riffle.shared.downloads.DownloadsViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
+import com.riffle.shared.settings.SettingsViewModel
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
 import com.riffle.shared.library.IosNoOpAppThemeStore
@@ -127,6 +129,8 @@ private fun iosLibraryModule(
     single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
     single<AppThemeStore> { IosNoOpAppThemeStore() }
     single<DownloadsRepository> { IosNoOpDownloadsRepository() }
+    single { DownloadsViewModel(get()) }
+    single { SettingsViewModel(get(), get(), get()) }
     single<AnnotationStore> { IosNoOpAnnotationStore() }
     single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
     single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
