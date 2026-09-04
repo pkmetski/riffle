@@ -11,8 +11,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -122,8 +124,14 @@ class AudiobookCacheRepositoryImplTest {
         val server = MockWebServer()
         server.start()
         try {
-            server.enqueue(MockResponse().setBody("audio-track-0"))
-            server.enqueue(MockResponse().setBody("audio-track-1"))
+            // HEAD pre-scan runs in parallel before downloads; returning 405 tells it the server
+            // doesn't support HEAD, so the pre-scan skips gracefully and downloads proceed normally.
+            server.dispatcher = object : Dispatcher() {
+                private val getQueue = ArrayDeque(listOf("audio-track-0", "audio-track-1"))
+                override fun dispatch(request: RecordedRequest): MockResponse =
+                    if (request.method == "HEAD") MockResponse().setResponseCode(405)
+                    else MockResponse().setBody(getQueue.removeFirst())
+            }
             val session = AudiobookSession(
                 trackUrls = listOf(
                     server.url("/track-0.mp3").toString(),
