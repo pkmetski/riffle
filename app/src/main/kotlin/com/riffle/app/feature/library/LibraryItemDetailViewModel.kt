@@ -368,7 +368,11 @@ class LibraryItemDetailViewModel constructor(
                 _uploadPreflight.value = UploadPreflight.Blocked("The item is not loaded yet")
                 return@launch
             }
-            val sourceItem = catalogRegistry.forSourceId(item.sourceId)?.getItem(item.id)
+            val sourceItem = try {
+                catalogRegistry.forSourceId(item.sourceId)?.getItem(item.id)
+            } catch (_: Throwable) {
+                null
+            }
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId)
             if (sourceItem == null || destinationCatalog !is BookImportCapability) {
                 _uploadPreflight.value = UploadPreflight.Blocked("This item cannot be prepared for upload")
@@ -670,7 +674,8 @@ class LibraryItemDetailViewModel constructor(
                     // versa. Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the
                     // JVM-target rationale).
                     val catalog = catalogRegistry.forSourceId(item.sourceId)
-                    val canUploadToConfiguredSource = canUploadWebSourceItem(
+                    val isLiveStream = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) == true
+                    val canUploadToConfiguredSource = !isLiveStream && canUploadWebSourceItem(
                         catalog?.sourceType,
                         sourceRepository.observeAll().first().any { destination ->
                             destination.id != item.sourceId &&

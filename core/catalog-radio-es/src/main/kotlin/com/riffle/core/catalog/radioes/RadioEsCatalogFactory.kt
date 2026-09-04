@@ -20,6 +20,6 @@ class RadioEsCatalogFactory(
             userAgent = userAgent,
             acceptLanguage = acceptLanguage,
         )
-        return RadioEsCatalog(http = http)
+        return RadioEsCatalog(http = http, bytesClient = httpClient)
     }
 }
