@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
  *    bounded staleness. Sweeps fire many times per second during reading, so a 30 s TTL keeps
  *    ~all of the syscall savings.
  */
-class LibraryItemOfflineAvailability(
+class LibraryItemOfflineAvailabilityImpl(
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
     private val cbzRepository: CbzRepository,
@@ -39,7 +39,7 @@ class LibraryItemOfflineAvailability(
     invalidationScope: CoroutineScope? = null,
     private val ttlMillis: Long = 30_000,
     private val nowMillis: () -> Long = System::currentTimeMillis,
-) {
+) : LibraryItemOfflineAvailability {
     private class Entry(val available: Boolean, val computedAtMillis: Long)
 
     private val cache = ConcurrentHashMap<String, Entry>()
@@ -52,7 +52,7 @@ class LibraryItemOfflineAvailability(
         }
     }
 
-    fun isAvailableOffline(item: LibraryItem): Boolean {
+    override fun isAvailableOffline(item: LibraryItem): Boolean {
         val k = key(item.sourceId, item.id)
         val now = nowMillis()
         cache[k]?.let { entry ->

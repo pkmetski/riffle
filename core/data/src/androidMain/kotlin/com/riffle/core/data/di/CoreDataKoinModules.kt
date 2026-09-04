@@ -165,6 +165,7 @@ import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryOrderPreferencesStore
@@ -730,8 +731,8 @@ private val coreDataRepositoriesModule = module {
         )
     }
 
-    single {
-        LibraryItemOfflineAvailability(
+    single<LibraryItemOfflineAvailability> {
+        LibraryItemOfflineAvailabilityImpl(
             epubRepository = get(),
             pdfRepository = get(),
             cbzRepository = get(),

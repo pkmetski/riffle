@@ -56,8 +56,14 @@ class AddAbsSourceViewModel(
                 )
                 val loginUser = when (loginResult) {
                     is NetworkResult.Success -> loginResult.value
-                    is NetworkResult.Offline -> { error = "No network connection"; return@launch }
-                    else -> { error = "Invalid username or password"; return@launch }
+                    is NetworkResult.Offline -> {
+                        error = "No network connection"
+                        return@launch
+                    }
+                    else -> {
+                        error = "Invalid username or password"
+                        return@launch
+                    }
                 }
 
                 val librariesResult = absLibraryApi.getLibraries(
@@ -66,10 +72,14 @@ class AddAbsSourceViewModel(
                     insecureAllowed = false,
                 )
                 val libraries = when (librariesResult) {
-                    is NetworkResult.Success -> librariesResult.value
-                        .filter { it.mediaType == BOOK_MEDIA_TYPE }
-                        .map { Library(id = it.id, name = it.name, mediaType = it.mediaType, isUnsupported = false) }
-                    else -> { error = "Failed to fetch libraries"; return@launch }
+                    is NetworkResult.Success ->
+                        librariesResult.value
+                            .filter { it.mediaType == BOOK_MEDIA_TYPE }
+                            .map { Library(id = it.id, name = it.name, mediaType = it.mediaType, isUnsupported = false) }
+                    else -> {
+                        error = "Failed to fetch libraries"
+                        return@launch
+                    }
                 }
                 if (libraries.isEmpty()) {
                     error = "No book libraries found on this server"
@@ -102,6 +112,9 @@ class AddAbsSourceViewModel(
 internal fun normalizeAbsUrl(raw: String): String {
     val trimmed = raw.trim()
     val lower = trimmed.lowercase()
-    return if (lower.startsWith("http://") || lower.startsWith("https://")) trimmed
-    else "https://$trimmed"
+    return if (lower.startsWith("http://") || lower.startsWith("https://")) {
+        trimmed
+    } else {
+        "https://$trimmed"
+    }
 }

@@ -14,6 +14,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
@@ -148,7 +149,7 @@ class LibraryFilterEngineTest {
             libraryObserver = fakeRepo(),
             annotationStore = annotationStore,
             audiobookBookmarkStore = audiobookBookmarkStore,
-            offlineAvailability = LibraryItemOfflineAvailability(
+            offlineAvailability = LibraryItemOfflineAvailabilityImpl(
                 epubRepository,
                 fakePdfRepo(),
                 NoopCbzRepository(),

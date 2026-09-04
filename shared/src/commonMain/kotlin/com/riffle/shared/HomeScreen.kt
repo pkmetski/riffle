@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,8 +21,16 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.shared.library.LibraryItemsScreen
+import com.riffle.shared.library.LibrarySectionScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+
+private sealed interface LibraryNav {
+    data object Items : LibraryNav
+    data class Section(val sectionType: LibrarySectionType) : LibraryNav
+}
 
 @Composable
 fun HomeScreen() {
@@ -79,9 +88,32 @@ fun HomeScreen() {
                 }
             }
             is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
-            is HomeViewModel.StartDestination.Library -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                BasicText("Library: ${dest.libraryName}")
-            }
+            is HomeViewModel.StartDestination.Library -> LibraryHost(
+                libraryId = dest.libraryId,
+                libraryName = dest.libraryName,
+            )
         }
+    }
+}
+
+@Composable
+private fun LibraryHost(libraryId: String, libraryName: String) {
+    var nav by rememberSaveable { mutableStateOf<LibraryNav>(LibraryNav.Items) }
+
+    when (val current = nav) {
+        is LibraryNav.Items -> LibraryItemsScreen(
+            libraryId = libraryId,
+            libraryName = libraryName,
+            onOpenDrawer = {},
+            onItemSelected = {},
+            onSeriesSelected = {},
+            onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
+        )
+        is LibraryNav.Section -> LibrarySectionScreen(
+            libraryId = libraryId,
+            sectionType = current.sectionType,
+            onBack = { nav = LibraryNav.Items },
+            onItemSelected = {},
+        )
     }
 }

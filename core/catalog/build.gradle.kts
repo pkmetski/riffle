@@ -4,6 +4,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":core:models"))
     implementation(project(":core:domain"))
     implementation(project(":core:network"))
     implementation(libs.kotlinx.coroutines.core)
