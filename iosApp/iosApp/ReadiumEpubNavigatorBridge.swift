@@ -6,9 +6,9 @@ import ReadiumNavigator
 
 // MARK: - ReadiumEpubNavigatorBridge
 
-/// Implements SharedIosEpubNavigatorBridge (generated from Kotlin iosMain's IosEpubNavigatorBridge).
+/// Implements IosEpubNavigatorBridge (generated from Kotlin iosMain's IosEpubNavigatorBridge).
 /// Wraps Readium Swift's EPUBNavigatorViewController, bridging it to the KMP shared layer.
-@objc class ReadiumEpubNavigatorBridge: NSObject, SharedIosEpubNavigatorBridge {
+@objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
     private let hostViewController = UIViewController()
     private var epubNavigator: EPUBNavigatorViewController?
@@ -21,7 +21,7 @@ import ReadiumNavigator
     private var pageLoadCallback: (() -> Void)?
     private var tapCallback: (() -> Void)?
 
-    // MARK: - SharedIosEpubNavigatorBridge
+    // MARK: - IosEpubNavigatorBridge
 
     func viewController() -> UIViewController { hostViewController }
 
@@ -136,8 +136,8 @@ extension ReadiumEpubNavigatorBridge {
 
 // MARK: - ReadiumEpubNavigatorBridgeFactory
 
-@objc class ReadiumEpubNavigatorBridgeFactory: NSObject, SharedIosEpubNavigatorBridgeFactory {
-    func create() -> any SharedIosEpubNavigatorBridge {
+@objc class ReadiumEpubNavigatorBridgeFactory: NSObject, IosEpubNavigatorBridgeFactory {
+    func create() -> any IosEpubNavigatorBridge {
         ReadiumEpubNavigatorBridge()
     }
 }
