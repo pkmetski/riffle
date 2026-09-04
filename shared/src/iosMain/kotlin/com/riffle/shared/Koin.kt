@@ -2,6 +2,7 @@ package com.riffle.shared
 
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
+import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
@@ -44,7 +45,6 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
-import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
 import com.riffle.shared.library.IosNoOpApplicationScope
@@ -56,8 +56,8 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.library.LibraryItemsViewModel
-import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
+import org.koin.dsl.module
 
 private val iosLibraryModule = module {
     single { createDefaultHttpClient() }
