@@ -14,6 +14,8 @@ import com.riffle.app.feature.audio.MediaSourceRegistry
 import com.riffle.app.feature.audio.StreamingReadaloudItemRestorer
 import com.riffle.app.feature.audiobook.AudiobookController
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
+import com.riffle.feature.player.AudioPlayerInterface
+import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.app.feature.audiobook.AudiobookReconciliationCoordinator
 import com.riffle.app.feature.audiobook.AudiobookResumeResolver
 import com.riffle.app.feature.audiobook.FollowLoopOrchestrator
@@ -91,6 +93,7 @@ import kotlinx.coroutines.flow.flow
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
+import org.koin.dsl.bind
 import org.koin.dsl.module
 import org.readium.adapter.pdfium.document.PdfiumDocumentFactory
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -231,7 +234,7 @@ val appKoinModule: Module = module {
             logger = get(),
             clock = get(),
         )
-    }
+    } bind ReadaloudHandoff::class
     single {
         AudiobookController(
             connector = get<MediaSessionConnector>(),
@@ -240,7 +243,7 @@ val appKoinModule: Module = module {
             logger = get(),
             clock = get(),
         )
-    }
+    } bind AudioPlayerInterface::class
 
     // ---- Readaloud streaming -----------------------------------------------------------------
 
@@ -282,7 +285,7 @@ val appKoinModule: Module = module {
             clock = get(),
             logger = get(),
         )
-    }
+    } bind com.riffle.feature.reader.ReaderSyncFactoryInterface::class
     factory { HighlightsPdfExporter(context = androidContext(), factory = get()) }
     single {
         LibraryTabVisibilityObserver(

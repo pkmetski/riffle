@@ -25,7 +25,7 @@ import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
-import com.riffle.app.playback.NowPlaying
+import com.riffle.feature.player.NowPlaying
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType

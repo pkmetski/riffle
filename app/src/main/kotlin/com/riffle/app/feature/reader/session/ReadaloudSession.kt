@@ -10,8 +10,8 @@ import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
 import com.riffle.app.feature.reader.readaloudControlState
-import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingStore
+import com.riffle.feature.player.NowPlaying
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome

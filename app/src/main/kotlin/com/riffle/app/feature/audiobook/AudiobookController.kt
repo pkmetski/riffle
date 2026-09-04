@@ -17,6 +17,8 @@ import com.riffle.core.common.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
+import com.riffle.feature.player.AudioPlayerInterface
+import com.riffle.feature.player.SleepTimerMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -29,7 +31,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * App-facing handle to the [AudioPlayerService] for [Audiobook] playback (ADR 0035). Connects via a
@@ -48,23 +49,12 @@ open class AudiobookController constructor(
     dispatchers: DispatcherProvider,
     private val logger: Logger,
     private val clock: Clock,
-) {
+) : AudioPlayerInterface {
     // Test seam: a subclass that overrides every member the player touches needs no real connector
     // (it's only consulted in [ensureConnected], which fakes never reach). Keeps the controller
     // unit-fakeable without Robolectric. Unconfined dispatchers — subclasses override every method
     // that launches on the scope; the scope is constructed but never dispatched against.
     protected constructor() : this(null, null, UnconfinedDispatcherProvider, RecordingLogger(), SystemClock)
-
-    data class PlaybackState(
-        val connected: Boolean = false,
-        val isPlaying: Boolean = false,
-        val speed: Float = 1f,
-        val positionSec: Double = 0.0,
-        val durationSec: Double = 0.0,
-        // Book-absolute position up to which ExoPlayer has buffered ahead of [positionSec].
-        // Projected through [AbsolutePositionPlayer.getBufferedPosition], so no offset math here.
-        val bufferedSec: Double = 0.0,
-    )
 
     // Main.immediate is required for Media3 MediaController calls; the survivable Job tree comes from
     // ApplicationScope so we don't allocate a sibling SupervisorJob. In tests, subclasses override every
@@ -73,18 +63,18 @@ open class AudiobookController constructor(
     // surprised by sibling-cancel behaviour.
     private val scope: CoroutineScope = applicationScope?.scopeOn(dispatchers.mainImmediate)
         ?: CoroutineScope(SupervisorJob() + dispatchers.mainImmediate)
-    private val _state = MutableStateFlow(PlaybackState())
-    open val state: StateFlow<PlaybackState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(AudioPlayerInterface.PlaybackState())
+    override val state: StateFlow<AudioPlayerInterface.PlaybackState> = _state.asStateFlow()
 
     private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
-    open val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+    override val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
 
     // replay=1 so a STATE_ENDED that fires while no collector is attached — e.g. across an Activity
     // recreation (rotation, theme change) right at end-of-book — is still delivered to the next
     // collector. The VM acts on it by stopping the controller (releasing the session), so a re-emit
     // after that point can't re-trigger; idempotent.
     private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
-    open val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
+    override val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
     private var timerJob: Job? = null
 
     private val controller: MediaController? get() = connector?.controller
@@ -127,16 +117,17 @@ open class AudiobookController constructor(
      * Connects (if needed) and queues the audiobook's [trackUrls] (tokenised ABS URLs), one per
      * [spans] entry, then seeks to [startAtSec] on the book-absolute timeline.
      */
-    open suspend fun prepare(
+    override suspend fun prepare(
         trackUrls: List<String>,
         spans: List<AudiobookTrackSpan>,
         durationSec: Double,
         startAtSec: Double,
-        localZipFile: File? = null,
-        coverUri: String? = null,
-        bookTitle: String? = null,
-        chapters: List<AudiobookChapter> = emptyList(),
+        localZipFilePath: String?,
+        coverUri: String?,
+        bookTitle: String?,
+        chapters: List<AudiobookChapter>,
     ) {
+        val localZipFile = localZipFilePath?.let { java.io.File(it) }
         logger.d(LogChannel.Handoff) { "AB.prepare start (controller already connected=${controller != null})" }
         val t0 = clock.nowMs()
         this.spans = spans
@@ -182,11 +173,11 @@ open class AudiobookController constructor(
      * pre-warm so the first swipe-up pays ~0 ms instead of the full [MediaController.Builder.buildAsync]
      * round-trip (ADR 0039).
      */
-    open suspend fun warmBinder() {
+    override suspend fun warmBinder() {
         ensureConnected()
     }
 
-    open fun play() {
+    override fun play() {
         // Latch the intent; [maybeStart] / the STATE_READY gate starts playback once the player is
         // buffered at the resume position (see [ResumePlaybackGate]).
         wantsToPlay = true
@@ -202,7 +193,7 @@ open class AudiobookController constructor(
         }
     }
 
-    fun pause() {
+    override fun pause() {
         timerJob?.cancel()
         timerJob = null
         _sleepTimer.value = SleepTimerMode.None
@@ -213,12 +204,12 @@ open class AudiobookController constructor(
         pushState()
     }
 
-    open fun setSpeed(speed: Float) {
+    override fun setSpeed(speed: Float) {
         controller?.setPlaybackSpeed(speed)
         pushState()
     }
 
-    open fun setSleepTimer(mode: SleepTimerMode) {
+    override fun setSleepTimer(mode: SleepTimerMode) {
         timerJob?.cancel()
         timerJob = null
         _sleepTimer.value = mode
@@ -236,14 +227,14 @@ open class AudiobookController constructor(
         // EndOfChapter: no countdown needed; ViewModel calls triggerSleepNow() on chapter change.
     }
 
-    open fun cancelSleepTimer() {
+    override fun cancelSleepTimer() {
         timerJob?.cancel()
         timerJob = null
         _sleepTimer.value = SleepTimerMode.None
     }
 
     // Called by ViewModel when a chapter boundary is crossed in EndOfChapter mode.
-    open fun triggerSleepNow() {
+    override fun triggerSleepNow() {
         timerJob?.cancel()
         timerJob = scope.launch { fadeAndStop() }
     }
@@ -260,7 +251,7 @@ open class AudiobookController constructor(
     }
 
     /** Seeks to a book-absolute position, resolving it to the right track + offset. */
-    open fun seekTo(absoluteSec: Double) {
+    override fun seekTo(absoluteSec: Double) {
         val clamped = absoluteSec.coerceIn(0.0, if (durationSec > 0) durationSec else absoluteSec)
         val index = AudiobookTracks.trackIndexAt(clamped, spans)
         val offset = AudiobookTracks.offsetInTrackSec(clamped, spans)
@@ -269,7 +260,7 @@ open class AudiobookController constructor(
         pushState()
     }
 
-    fun skipBy(deltaSec: Double) = seekTo(currentAbsoluteSec() + deltaSec)
+    override fun skipBy(deltaSec: Double) = seekTo(currentAbsoluteSec() + deltaSec)
     fun rewind() = skipBy(-REWIND_SEC)
     fun forward() = skipBy(FORWARD_SEC)
 
@@ -278,7 +269,7 @@ open class AudiobookController constructor(
     // That value is what the MediaController reports back here, so this side must NOT add the
     // current track's startOffset again — doing so double-counts every time playback advances past
     // track 0 and inflates the displayed position past durationSec (e.g. 19:56 books reading 27:50+).
-    open fun currentAbsoluteSec(): Double {
+    override fun currentAbsoluteSec(): Double {
         val c = controller ?: return 0.0
         return pendingSeek.sample { c.currentPosition / 1000.0 }
     }
@@ -289,7 +280,7 @@ open class AudiobookController constructor(
      * tail of the queue at `file://` URLs instead of the original `http://` stream URLs. The
      * currently-playing track (indices < [fromIndex]) is left untouched.
      */
-    open fun swapTracksFromIndex(fromIndex: Int, newUrls: List<String>) {
+    override fun swapTracksFromIndex(fromIndex: Int, newUrls: List<String>) {
         val c = controller ?: return
         if (!prepared || newUrls.isEmpty() || fromIndex >= c.mediaItemCount) return
         val templateMetadata = c.getMediaItemAt(fromIndex.coerceAtMost(c.mediaItemCount - 1)).mediaMetadata
@@ -308,12 +299,12 @@ open class AudiobookController constructor(
      * auto-advance — the connector.release() etc. must NOT.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun clearEndOfBookCache() {
+    override fun clearEndOfBookCache() {
         _playbackEnded.resetReplayCache()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    open fun stop() {
+    override fun stop() {
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
@@ -335,7 +326,7 @@ open class AudiobookController constructor(
         lastRemainingMinuteBucket = -1L
         lastChapterIndex = -1
         pendingSeek.reset()
-        _state.value = PlaybackState()
+        _state.value = AudioPlayerInterface.PlaybackState()
     }
 
     /**
@@ -348,7 +339,7 @@ open class AudiobookController constructor(
      * Keeps the [MediaController] Binder connection alive (ADR 0039) so the incoming side reconnects
      * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
      */
-    fun releaseForHandoff() {
+    override fun releaseForHandoff() {
         logger.d(LogChannel.Handoff) { "AB.releaseForHandoff (T0 — audio pausing)" }
         cancelSleepTimer()
         pollJob?.cancel()
@@ -368,7 +359,7 @@ open class AudiobookController constructor(
         lastRemainingMinuteBucket = -1L
         lastChapterIndex = -1
         pendingSeek.reset()
-        _state.value = PlaybackState()
+        _state.value = AudioPlayerInterface.PlaybackState()
     }
 
     private suspend fun ensureConnected(): MediaController? {
@@ -403,7 +394,7 @@ open class AudiobookController constructor(
         // buffer band. Pin it to the pending target (== "nothing loaded past the seek yet") until the
         // discontinuity lands and the server rebroadcasts the real projected value.
         val bufferedSec = if (pendingSeek.pendingSec != null) position else (c?.bufferedPosition ?: 0L) / 1000.0
-        _state.value = PlaybackState(
+        _state.value = AudioPlayerInterface.PlaybackState(
             connected = c != null,
             isPlaying = c?.isPlaying == true,
             speed = c?.playbackParameters?.speed ?: 1f,

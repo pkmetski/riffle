@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
@@ -12,10 +12,9 @@ import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.WriteResult
 import kotlinx.coroutines.test.runTest
-import org.json.JSONObject
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Pins the [WriteResult] contract on the Catalog-backed peer adapters (#302 / #434 / #528): a
@@ -44,10 +43,8 @@ class AbsProgressPeerTest {
     private fun audioEp(peer: AudiobookProgressPeerCapability) =
         CatalogAudioEndpoint(peer = peer, itemId = "i", durationSec = 100.0)
 
-    private fun locator(href: String, progression: Double): String = JSONObject()
-        .put("href", href)
-        .put("locations", JSONObject().put("progression", progression))
-        .toString()
+    private fun locator(href: String, progression: Double): String =
+        """{"href":"$href","locations":{"progression":$progression}}"""
 
     /** PATCH succeeds — peer echoes the stamp back mirroring ABS's PATCH response. */
     private class OkPeer(private val stamp: Long) : ProgressPeerCapability, AudiobookProgressPeerCapability {
@@ -83,7 +80,7 @@ class AbsProgressPeerTest {
     fun `ebook peer Failed when Catalog push errors`() = runTest {
         val peer = EbookProgressPeer(ebookEp(FailPeer()), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.5)))
-        assertTrue("expected Failed, was $result", result is WriteResult.Failed)
+        assertTrue(result is WriteResult.Failed, "expected Failed, was $result")
     }
 
     @Test
@@ -97,6 +94,6 @@ class AbsProgressPeerTest {
     fun `audiobook peer Failed when Catalog push errors`() = runTest {
         val peer = AudiobookProgressPeerAdapter(audioEp(FailPeer()), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.2)))
-        assertTrue("expected Failed, was $result", result is WriteResult.Failed)
+        assertTrue(result is WriteResult.Failed, "expected Failed, was $result")
     }
 }

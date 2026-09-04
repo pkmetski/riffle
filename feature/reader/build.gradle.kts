@@ -12,12 +12,14 @@ kotlin {
             api(project(":core:domain"))
             api(project(":core:models"))
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.koin.core)
-            implementation(libs.androidx.lifecycle.viewmodel)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+        }
+        jvmMain.dependencies {
+            api(project(":core:catalog"))
+            api(project(":core:logging"))
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))

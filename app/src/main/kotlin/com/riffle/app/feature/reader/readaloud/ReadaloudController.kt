@@ -13,6 +13,7 @@ import com.riffle.core.common.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
+import com.riffle.feature.player.ReadaloudHandoff
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -38,7 +39,7 @@ open class ReadaloudController constructor(
     dispatchers: DispatcherProvider,
     private val logger: Logger,
     private val clock: Clock,
-) {
+) : ReadaloudHandoff {
     // Test seam: subclasses that override the pre-warm methods need no real connector (only consulted
     // in [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without
     // Robolectric. Unconfined dispatchers are used here because test subclasses override every
@@ -197,12 +198,12 @@ open class ReadaloudController constructor(
      * [playFromSecond] can skip the SMIL computation at commit time (ADR 0039). No-op when [track]
      * is null (audiobook-only entry with no prior readaloud session this app lifetime).
      */
-    fun preWarmSeek(globalSec: Double) {
+    override fun preWarmSeek(globalSec: Double) {
         preWarmedPosition = track?.seekTarget(globalSec)
     }
 
     /** Discards any pre-warmed seek target — call when the drag is abandoned. */
-    fun cancelPreWarm() {
+    override fun cancelPreWarm() {
         preWarmedPosition = null
     }
 
