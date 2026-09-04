@@ -131,6 +131,7 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun CbzPager(vm: CbzReaderViewModel, imageSource: ComicImageSource) {
     val pagerState = rememberPagerState(
@@ -149,6 +150,7 @@ private fun CbzPager(vm: CbzReaderViewModel, imageSource: ComicImageSource) {
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 @Composable
 private fun ComicPageView(imageSource: ComicImageSource, pageIndex: Int) {
