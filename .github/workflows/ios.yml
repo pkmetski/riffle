@@ -14,9 +14,11 @@ jobs:
       group: ios-lint-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-gradle
         with:
-          fetch-depth: '0'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       - name: Kotlin lint (iosMain source sets)
         run: |
@@ -73,6 +75,7 @@ jobs:
       group: ios-build-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
@@ -97,6 +100,7 @@ jobs:
       group: ios-database-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
         with:
           java-version: '17'

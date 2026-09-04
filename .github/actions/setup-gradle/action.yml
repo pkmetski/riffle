@@ -1,9 +1,7 @@
 name: Setup Gradle
-description: Checkout, configure Java and Gradle, and download the Gradle wrapper jar.
+description: Configure Java and Gradle, and download the Gradle wrapper jar. Requires checkout to have already run.
 
 inputs:
-  fetch-depth:
-    default: '1'
   java-version:
     default: '21'
   cache-encryption-key:
@@ -14,9 +12,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v7
-      with:
-        fetch-depth: ${{ inputs.fetch-depth }}
     - uses: actions/setup-java@v6
       with:
         distribution: temurin
