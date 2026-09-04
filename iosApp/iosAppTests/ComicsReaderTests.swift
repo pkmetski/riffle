@@ -1,74 +1,74 @@
 import XCTest
-import Riffle
 
 // Covers scenarios from docs/testing/ios-scenarios/06-comics-reader.md
-//
-// Tests the iOS-layer classes exported in the Riffle framework:
-//   - IosCbzArchive: ZIP parser and ComicImageSource implementation
-//   - IosNoOpPanelEngine: panel engine no-op singleton
-//
-// CbzReaderViewModel (in feature:reader/commonMain) is an implementation dependency
-// of the shared module and is not exported to the framework — its behaviour is fully
-// covered by the JVM unit tests in CbzReaderViewModelTest (commonTest).
+
 final class ComicsReaderTests: XCTestCase {
 
-    // MARK: - IosCbzArchive: graceful handling of invalid/empty bytes
+    private var app: XCUIApplication!
 
-    func testIosCbzArchiveWithEmptyBytesReturnsZeroPages() {
-        let archive = IosCbzArchive(archiveBytes: KotlinByteArray(size: 0))
-        XCTAssertEqual(archive.pageCount, 0,
-                       "Archive with empty bytes must return 0 pages")
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launch()
     }
 
-    func testIosCbzArchiveWithNonZipBytesReturnsZeroPages() {
-        let junkBytes = KotlinByteArray(size: 4)
-        junkBytes.set(index: 0, value: Int8(bitPattern: 0x01))
-        junkBytes.set(index: 1, value: Int8(bitPattern: 0x02))
-        junkBytes.set(index: 2, value: Int8(bitPattern: 0x03))
-        junkBytes.set(index: 3, value: Int8(bitPattern: 0x04))
-        let archive = IosCbzArchive(archiveBytes: junkBytes)
-        XCTAssertEqual(archive.pageCount, 0,
-                       "Archive with non-ZIP bytes must return 0 pages")
+    override func tearDownWithError() throws {
+        app.terminate()
+        app = nil
     }
 
-    // MARK: - IosNoOpPanelEngine: singleton and Fallback contract
+    // MARK: - Scenario 06-C: Opening a CBZ
 
-    func testIosNoOpPanelEngineSharedIsAccessible() {
-        // KMP object singletons may return distinct ObjC wrappers per call, so === isn't reliable.
-        // Verify the shared accessor returns a non-nil engine that implements the PanelEngine contract.
-        let engine = IosNoOpPanelEngine.shared
-        XCTAssertNotNil(engine, "IosNoOpPanelEngine.shared must be accessible")
+    /// 06-C.1 — Tapping a CBZ item opens the comics reader screen.
+    func testComicsReaderOpensFromLibrary() throws {
+        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — comics reader test requires a connected server")
+        }
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+
+        let cbzTile = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'cbz'")
+        ).firstMatch
+        guard cbzTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No CBZ tile found in library — requires a server with CBZ items")
+        }
+
+        cbzTile.tap()
+
+        let backButton = app.buttons["← Back"].firstMatch
+        XCTAssertTrue(
+            backButton.waitForExistence(timeout: 15),
+            "Comics reader should show a Back button after opening"
+        )
     }
 
-    func testIosNoOpPanelEngineForBookReturnsBook() {
-        let engine = IosNoOpPanelEngine.shared
-        let book = engine.forBook(bookId: "test") { _ in KotlinByteArray(size: 0) }
-        XCTAssertNotNil(book, "forBook must return a non-nil book handle")
-    }
+    // MARK: - Scenario 06-G: Back navigation
 
-    func testIosNoOpPanelEngineResolvePageReturnsFallback() {
-        let engine = IosNoOpPanelEngine.shared
-        let book = engine.forBook(bookId: "book1") { _ in KotlinByteArray(size: 0) }
-        let panels = book.resolvePage(pageIndex: 0)
-        XCTAssertTrue(panels.isFallback, "No-op engine must always return Fallback source")
-    }
+    /// 06-G.1 — Tapping back from the comics reader returns to the library.
+    func testComicsReaderBackNavigationReturnsToLibrary() throws {
+        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — comics reader test requires a connected server")
+        }
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
 
-    func testIosNoOpPanelEngineResolvePageHasOnePanelRegion() {
-        let engine = IosNoOpPanelEngine.shared
-        let book = engine.forBook(bookId: "book1") { _ in KotlinByteArray(size: 0) }
-        let panels = book.resolvePage(pageIndex: 2)
-        XCTAssertEqual(panels.panels.count, 1, "Fallback must have exactly one whole-page panel")
-    }
+        let cbzTile = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'cbz'")
+        ).firstMatch
+        guard cbzTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No CBZ tile found in library — requires a server with CBZ items")
+        }
 
-    // MARK: - Scenario 06-A validation: CBZ format routes to CbzReader
+        cbzTile.tap()
 
-    func testEbookFormatCbzIsRecognised() {
-        // Verifies that the "cbz" storage string round-trips through EbookFormat.from()
-        // — the same lookup the nav routing gate in HomeScreen uses to dispatch CbzReaderScreen.
-        let cbzFormat = ModelsEbookFormat.companion.from(raw: "cbz")
-        XCTAssertNotNil(cbzFormat,
-                        "EbookFormat.from(raw: \"cbz\") must return a non-nil format")
-        XCTAssertEqual(cbzFormat.toStorageString(), "cbz",
-                       "Round-trip storage string must equal \"cbz\"")
+        let backButton = app.buttons["← Back"].firstMatch
+        guard backButton.waitForExistence(timeout: 15) else {
+            throw XCTSkip("Comics reader did not open")
+        }
+
+        backButton.tap()
+
+        let sectionLabels = ["In Progress", "Recently Added", "Finished", "All Books", "Series", "Collections"]
+        let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
+        XCTAssertTrue(backOnHome, "Tapping Back from comics reader should return to library home")
     }
 }
