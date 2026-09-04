@@ -9,9 +9,9 @@ final class AudiobookPlayerTests: XCTestCase {
 
     func testBridgeFactoryCreatesDistinctInstances() {
         let factory = IosAudioPlayerBridgeFactoryImpl()
-        let b1 = factory.create()
-        let b2 = factory.create()
-        XCTAssertFalse(b1 === (b2 as AnyObject), "Factory must return distinct instances")
+        let bridge1 = factory.create()
+        let bridge2 = factory.create()
+        XCTAssertFalse(bridge1 === (bridge2 as AnyObject), "Factory must return distinct instances")
     }
 
     func testDisposeIsIdempotent() {
@@ -75,7 +75,10 @@ final class AudiobookPlayerTests: XCTestCase {
 
     func testFactoryProducesWorkingBridge() {
         let factory = IosAudioPlayerBridgeFactoryImpl()
-        let bridge = factory.create() as! IosAudioPlayerBridgeImpl
+        guard let bridge = factory.create() as? IosAudioPlayerBridgeImpl else {
+            XCTFail("Factory must return IosAudioPlayerBridgeImpl")
+            return
+        }
         XCTAssertFalse(bridge.isPlaying())
         XCTAssertEqual(bridge.currentPositionSec(), 0.0, accuracy: 0.001)
         bridge.dispose()

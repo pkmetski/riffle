@@ -81,8 +81,8 @@ import Riffle
 
         // Find the track that covers positionSec
         var targetTrackIndex = 0
-        for (i, offset) in trackStartOffsets.enumerated() {
-            if offset <= positionSec { targetTrackIndex = i }
+        for (idx, offset) in trackStartOffsets.enumerated() where offset <= positionSec {
+            targetTrackIndex = idx
         }
 
         let targetOffset = trackStartOffsets[targetTrackIndex]
@@ -146,7 +146,7 @@ import Riffle
             MPMediaItemPropertyArtist: author,
             MPMediaItemPropertyPlaybackDuration: durationSec,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: positionSec,
-            MPNowPlayingInfoPropertyPlaybackRate: Double(player?.rate ?? 1),
+            MPNowPlayingInfoPropertyPlaybackRate: Double(player?.rate ?? 1)
         ]
         // Artwork loading is asynchronous; for v1 we use a plain text placeholder
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
