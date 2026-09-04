@@ -20,4 +20,14 @@ class UploadDestinationVisibilityTest {
     fun `server source item cannot upload through this action`() {
         assertFalse(canUploadWebSourceItem(SourceType.ABS, hasImportDestination = true))
     }
+
+    @Test
+    fun `radio-es podcast item with an import destination can upload`() {
+        assertTrue(canUploadWebSourceItem(SourceType.RADIO_ES, hasImportDestination = true))
+    }
+
+    @Test
+    fun `radio-es item without configured destination cannot upload`() {
+        assertFalse(canUploadWebSourceItem(SourceType.RADIO_ES, hasImportDestination = false))
+    }
 }

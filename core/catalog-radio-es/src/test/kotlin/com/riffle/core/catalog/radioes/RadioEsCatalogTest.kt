@@ -32,14 +32,16 @@ class RadioEsCatalogTest {
 
     @Before fun setUp() {
         server = MockWebServer().also { it.start() }
+        val httpClient = HttpClient(OkHttp)
         val http = RadioEsHttpClient(
-            client = HttpClient(OkHttp),
+            client = httpClient,
             userAgent = "Riffle/test",
             acceptLanguage = "es-ES",
             retryDelaysMs = emptyList(),
         )
         catalog = RadioEsCatalog(
             http = http,
+            bytesClient = httpClient,
             apiBase = server.url("").toString().trimEnd('/'),
         )
     }
@@ -360,5 +362,33 @@ class RadioEsCatalogTest {
         val health = catalog.connectivityCheck()
         assertNotNull(health)
         assertTrue(health.isReachable)
+    }
+
+    // ---- withTrackStream (upload support) -----------------------------------
+
+    @Test fun `withTrackStream streams podcast episode bytes from episode URL`() = runTest {
+        val audioBytes = byteArrayOf(0x49, 0x44, 0x33) // ID3 magic bytes
+        server.enqueue(MockResponse().setResponseCode(200).setBody(okio.Buffer().write(audioBytes)))
+        val trackIno = server.url("/episodes/test.mp3").toString()
+        val received = catalog.withTrackStream(
+            itemId = "the-daily",
+            trackIno = trackIno,
+        ) { stream ->
+            stream.byteStream().readBytes()
+        }
+        assertEquals(audioBytes.toList(), received.toList())
+    }
+
+    @Test fun `withTrackStream throws for live stream station items`() = runTest {
+        var threwExpected = false
+        try {
+            catalog.withTrackStream(
+                itemId = "s:cope-madrid",
+                trackIno = "https://stream.example.com/live.m3u8",
+            ) { }
+        } catch (e: RadioEsException) {
+            threwExpected = true
+        }
+        assertTrue("expected RadioEsException for live stream", threwExpected)
     }
 }

@@ -9,6 +9,7 @@ import com.riffle.core.catalog.CatalogAudiobookChapter
 import com.riffle.core.catalog.CatalogAudiobookStream
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileRetryPolicy
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
@@ -19,15 +20,18 @@ import com.riffle.core.catalog.LiveStreamCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.common.Clock
 import com.riffle.core.common.SystemClock
 import com.riffle.core.models.SourceType
+import io.ktor.client.HttpClient
 import java.net.URLEncoder
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class RadioEsCatalog(
     private val http: RadioEsHttpClient,
+    private val bytesClient: HttpClient,
     private val apiBase: String = RadioEsParser.BASE,
     private val clock: Clock = SystemClock,
 ) : Catalog,
@@ -181,6 +185,29 @@ class RadioEsCatalog(
         handleHint: String?,
         block: suspend (CatalogFileStream) -> T,
     ): T = throw RadioEsException("radio.es is audio-only — use AudiobookMediaCapability per episode")
+
+    // ---- Track streaming (upload support) -----------------------------------
+
+    override suspend fun <T> withTrackStream(
+        itemId: String,
+        trackIno: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T {
+        if (isLiveStream(itemId)) {
+            throw RadioEsException("Live radio streams cannot be uploaded — only podcast episodes can")
+        }
+        return bytesClient.withCatalogFileStream(
+            handle = CatalogFileHandle.Stream(url = trackIno, format = BookFormat.Audiobook),
+            retryPolicy = CatalogFileRetryPolicy(
+                statusCodes = setOf(429, 503),
+                delaysMs = RadioEsHttpClient.DEFAULT_RETRY_DELAYS_MS,
+            ),
+            httpFailure = { failure ->
+                RadioEsHttpException(failure.code, failure.url, failure.description)
+            },
+            block = block,
+        )
+    }
 
     // ---- Connectivity -------------------------------------------------------
 
