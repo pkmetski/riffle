@@ -111,8 +111,7 @@ data class NavigatorNavigationOptions(
 )
 
 /** Bumps every time the renderer finishes loading a chapter and layout has settled. */
-@JvmInline
-value class NavigatorPageLoad(val generation: Int)
+data class NavigatorPageLoad(val generation: Int)
 
 /** Platform-agnostic search result for a single text match. */
 data class NavigatorSearchMatch(
