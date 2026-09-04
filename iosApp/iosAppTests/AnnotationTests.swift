@@ -45,29 +45,29 @@ final class AnnotationTests: XCTestCase {
 
     func testHexColorRed() {
         let color = UIColor(hex: "#FF0000")
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
-        XCTAssertEqual(r, 1.0, accuracy: 0.01)
-        XCTAssertEqual(g, 0.0, accuracy: 0.01)
-        XCTAssertEqual(b, 0.0, accuracy: 0.01)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        XCTAssertEqual(red, 1.0, accuracy: 0.01)
+        XCTAssertEqual(green, 0.0, accuracy: 0.01)
+        XCTAssertEqual(blue, 0.0, accuracy: 0.01)
     }
 
     func testHexColorGreen() {
         let color = UIColor(hex: "#00FF00")
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
-        XCTAssertEqual(r, 0.0, accuracy: 0.01)
-        XCTAssertEqual(g, 1.0, accuracy: 0.01)
-        XCTAssertEqual(b, 0.0, accuracy: 0.01)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        XCTAssertEqual(red, 0.0, accuracy: 0.01)
+        XCTAssertEqual(green, 1.0, accuracy: 0.01)
+        XCTAssertEqual(blue, 0.0, accuracy: 0.01)
     }
 
     func testHexColorBlue() {
         let color = UIColor(hex: "#0000FF")
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
-        XCTAssertEqual(r, 0.0, accuracy: 0.01)
-        XCTAssertEqual(g, 0.0, accuracy: 0.01)
-        XCTAssertEqual(b, 1.0, accuracy: 0.01)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        XCTAssertEqual(red, 0.0, accuracy: 0.01)
+        XCTAssertEqual(green, 0.0, accuracy: 0.01)
+        XCTAssertEqual(blue, 1.0, accuracy: 0.01)
     }
 
     // MARK: - Scenario 07-D: Malformed JSON does not crash

@@ -201,10 +201,10 @@ private extension UIColor {
         let scanner = Scanner(string: cleaned)
         var rgb: UInt64 = 0
         scanner.scanHexInt64(&rgb)
-        let r = CGFloat((rgb >> 16) & 0xFF) / 255
-        let g = CGFloat((rgb >> 8) & 0xFF) / 255
-        let b = CGFloat(rgb & 0xFF) / 255
-        self.init(red: r, green: g, blue: b, alpha: 1)
+        let red = CGFloat((rgb >> 16) & 0xFF) / 255
+        let green = CGFloat((rgb >> 8) & 0xFF) / 255
+        let blue = CGFloat(rgb & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue, alpha: 1)
     }
 }
 
