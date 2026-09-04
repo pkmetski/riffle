@@ -1,12 +1,10 @@
 package com.riffle.shared.downloads
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.StoredItemArtifact
-import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.StoredMediaType
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -29,8 +27,7 @@ data class LocalItemUiState(
 
 class DownloadsViewModel(
     private val downloadsRepository: DownloadsRepository,
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadsUiState())
     val uiState: StateFlow<DownloadsUiState> = _uiState
@@ -40,7 +37,7 @@ class DownloadsViewModel(
     }
 
     fun load() {
-        scope.launch {
+        viewModelScope.launch {
             val downloaded = downloadsRepository.getDownloadedArtifacts().map { it.toUiState() }
             val cached = downloadsRepository.getCachedArtifacts().map { it.toUiState() }
             _uiState.value = DownloadsUiState(
@@ -52,28 +49,28 @@ class DownloadsViewModel(
     }
 
     fun removeDownload(sourceId: String, itemId: String) {
-        scope.launch {
+        viewModelScope.launch {
             downloadsRepository.removeDownload(sourceId, itemId)
             load()
         }
     }
 
     fun removeAllDownloads() {
-        scope.launch {
+        viewModelScope.launch {
             downloadsRepository.removeAllDownloads()
             load()
         }
     }
 
     fun removeCached(sourceId: String, itemId: String) {
-        scope.launch {
+        viewModelScope.launch {
             downloadsRepository.removeCached(sourceId, itemId)
             load()
         }
     }
 
     fun clearAllCached() {
-        scope.launch {
+        viewModelScope.launch {
             downloadsRepository.clearAllCached()
             load()
         }

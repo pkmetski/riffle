@@ -50,6 +50,10 @@ import com.riffle.shared.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
+/**
+ * Top-level section — mirrors Android's nav graph routes (Library/Settings/Downloads).
+ * Tapping Settings or Downloads in the drawer closes it and navigates here, exactly as on Android.
+ */
 private enum class AppSection { Library, Settings, Downloads }
 
 internal sealed interface LibraryNav {
@@ -82,7 +86,7 @@ fun HomeScreen() {
     val installer = koinInject<LocalFilesInstallerInterface>()
     val scope = rememberCoroutineScope()
 
-    var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
+    var appSection by remember { mutableStateOf(AppSection.Library) }
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var installing by remember { mutableStateOf(false) }
@@ -112,10 +116,14 @@ fun HomeScreen() {
     }
 
     Box(Modifier.fillMaxSize()) {
-        // Main content
+        // Main content — Settings and Downloads are full-screen, same as Android
         when (appSection) {
-            AppSection.Settings -> SettingsScreen(onOpenDrawer = { drawerOpen = true })
-            AppSection.Downloads -> DownloadsScreen(onOpenDrawer = { drawerOpen = true })
+            AppSection.Settings -> SettingsScreen(
+                onBack = { appSection = AppSection.Library },
+            )
+            AppSection.Downloads -> DownloadsScreen(
+                onBack = { appSection = AppSection.Library },
+            )
             AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (val dest = destination) {
                     null -> BasicText("Loading…")
@@ -170,8 +178,8 @@ fun HomeScreen() {
             }
         }
 
-        // Drawer overlay
-        if (drawerOpen) {
+        // Drawer overlay — only shown over Library (same behaviour as Android ModalNavigationDrawer)
+        if (drawerOpen && appSection == AppSection.Library) {
             // Scrim
             Box(
                 Modifier
@@ -192,7 +200,6 @@ fun HomeScreen() {
                     allServers = allServers,
                     visibleLibraries = visibleLibraries,
                     activeLibraryId = activeLibraryId,
-                    activeSection = appSection,
                     onServerSelected = { source ->
                         drawerOpen = false
                         drawerViewModel.setActiveServer(source.id)
@@ -200,7 +207,6 @@ fun HomeScreen() {
                     },
                     onLibrarySelected = { library ->
                         drawerOpen = false
-                        appSection = AppSection.Library
                         activeLibraryId = library.id
                         drawerViewModel.setActiveLibrary(library.id)
                         destination = HomeViewModel.StartDestination.Library(
@@ -229,7 +235,6 @@ private fun DrawerSheetContent(
     allServers: List<Source>,
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
-    activeSection: AppSection,
     onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -309,7 +314,7 @@ private fun DrawerSheetContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                if (library.id == activeLibraryId && activeSection == AppSection.Library) Color(0xFFE8E8E8) else Color.Transparent,
+                                if (library.id == activeLibraryId) Color(0xFFE8E8E8) else Color.Transparent,
                             )
                             .clickable { onLibrarySelected(library) }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -323,11 +328,10 @@ private fun DrawerSheetContent(
             }
         }
 
-        // Bottom nav rows
+        // Bottom nav rows — same position as Android's ModalNavigationDrawer footer items
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(if (activeSection == AppSection.Downloads) Color(0xFFE8E8E8) else Color.Transparent)
                 .clickable { onNavigateToDownloads() }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
@@ -336,7 +340,6 @@ private fun DrawerSheetContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(if (activeSection == AppSection.Settings) Color(0xFFE8E8E8) else Color.Transparent)
                 .clickable { onNavigateToSettings() }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {

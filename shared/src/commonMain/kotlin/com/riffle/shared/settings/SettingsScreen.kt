@@ -20,24 +20,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.AppTheme
-import com.riffle.core.models.Source
 import org.koin.compose.koinInject
 
 @Composable
-fun SettingsScreen(onOpenDrawer: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit) {
     val viewModel = koinInject<SettingsViewModel>()
     val state by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .verticalScroll(rememberScrollState()),
     ) {
+        // Back header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBack() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            BasicText("← Libraries", style = TextStyle(fontSize = 15.sp, color = Color(0xFF1565C0)))
+        }
+
         BasicText(
             text = "Settings",
-            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
-            modifier = Modifier.padding(bottom = 16.dp),
+            style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
 
         // Sources section
@@ -80,7 +88,7 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
             }
         }
 
-        // Platform-specific sections rendered by the expect/actual extension
+        // Platform-specific sections
         PlatformSettingsSections()
     }
 }
@@ -89,8 +97,8 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
 private fun SectionHeader(title: String) {
     BasicText(
         text = title,
-        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1565C0)),
-        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1565C0)),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
     )
 }
 
@@ -104,10 +112,10 @@ private fun SettingsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            BasicText(label, style = TextStyle(fontSize = 15.sp))
+            BasicText(label, style = TextStyle(fontSize = 14.sp))
             if (subtitle != null) {
                 BasicText(subtitle, style = TextStyle(fontSize = 12.sp, color = Color.Gray))
             }

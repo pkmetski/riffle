@@ -385,16 +385,24 @@ class LibraryItemsViewModel constructor(
         return job
     }
 
-    private suspend fun runRefresh() = coroutineScope {
-        val itemsDeferred = async { refreshLibraryItemsUseCase(libraryId) }
-        val seriesDeferred = async { refreshSeriesUseCase(libraryId) }
-        val collectionsDeferred = async { refreshCollectionsUseCase(libraryId) }
-        val toReadDeferred = async { toReadRepository.refresh(libraryId) }
-        val playlistsDeferred = async { playlistsRepository.refresh(libraryId) }
-        val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
-        toReadDeferred.await()
-        playlistsDeferred.await()
-        _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
+    private suspend fun runRefresh() {
+        try {
+            coroutineScope {
+                val itemsDeferred = async { refreshLibraryItemsUseCase(libraryId) }
+                val seriesDeferred = async { refreshSeriesUseCase(libraryId) }
+                val collectionsDeferred = async { refreshCollectionsUseCase(libraryId) }
+                val toReadDeferred = async { toReadRepository.refresh(libraryId) }
+                val playlistsDeferred = async { playlistsRepository.refresh(libraryId) }
+                val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
+                toReadDeferred.await()
+                playlistsDeferred.await()
+                _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            _refreshFailed.value = true
+        }
     }
 
     private fun representativeSeriesCoverUrl(

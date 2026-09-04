@@ -7,6 +7,8 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.DownloadsRepository
+import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.CoverGridDensityStore
@@ -130,6 +132,12 @@ internal class IosNoOpAnnotationsLibraryRepository : AnnotationsLibraryRepositor
 internal class IosNoOpAppThemeStore : AppThemeStore {
     override val appTheme: Flow<AppTheme> = flowOf(AppTheme.System)
     override suspend fun setAppTheme(value: AppTheme) {}
+}
+
+internal class IosNoOpFormattingPreferencesStore : FormattingPreferencesStore {
+    override val preferences: Flow<FormattingPreferences> = flowOf(FormattingPreferences())
+    override suspend fun update(preferences: FormattingPreferences) {}
+    override suspend fun setCadencePlatformSupported(supported: Boolean) {}
 }
 
 internal class IosNoOpDownloadsRepository : DownloadsRepository {

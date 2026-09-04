@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.BasicText
@@ -26,7 +27,7 @@ import com.riffle.core.domain.StoredMediaType
 import org.koin.compose.koinInject
 
 @Composable
-fun DownloadsScreen(onOpenDrawer: () -> Unit) {
+fun DownloadsScreen(onBack: () -> Unit) {
     val viewModel = koinInject<DownloadsViewModel>()
     val state by viewModel.uiState.collectAsState()
     var showClearAllDialog by remember { mutableStateOf(false) }
@@ -37,6 +38,14 @@ fun DownloadsScreen(onOpenDrawer: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
+        // Back row — matches Android TopAppBar back navigation
+        BasicText(
+            text = "← Back",
+            style = TextStyle(fontSize = 15.sp, color = Color(0xFF1565C0)),
+            modifier = Modifier
+                .clickable { onBack() }
+                .padding(bottom = 12.dp),
+        )
         BasicText(
             text = "Downloads",
             style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
