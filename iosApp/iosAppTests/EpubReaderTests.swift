@@ -28,8 +28,8 @@ final class EpubReaderTests: XCTestCase {
     func testReleaseIsIdempotent() {
         // release() must not crash when called multiple times.
         let bridge = ReadiumEpubNavigatorBridge()
-        bridge.release()
-        bridge.release()
+        bridge.disposeNavigator()
+        bridge.disposeNavigator()
     }
 
     // MARK: - Scenario 03-C: Callback registration

@@ -91,7 +91,7 @@ import ReadiumNavigator
         tapCallback = callback
     }
 
-    func release() {
+    func disposeNavigator() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.epubNavigator?.willMove(toParent: nil)

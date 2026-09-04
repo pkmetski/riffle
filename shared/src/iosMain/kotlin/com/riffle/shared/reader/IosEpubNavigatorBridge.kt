@@ -38,8 +38,8 @@ interface IosEpubNavigatorBridge {
     /** Called when the user taps on the book body (not a link). */
     fun setTapCallback(callback: (() -> Unit)?)
 
-    /** Release Readium resources. */
-    fun release()
+    /** Release Readium resources. Renamed to avoid clash with NSObject.release on the Swift side. */
+    fun disposeNavigator()
 }
 
 /** Factory so Koin can produce one bridge instance per reader open. */

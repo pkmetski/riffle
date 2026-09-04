@@ -69,7 +69,7 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         bridge.setLocatorCallback(null)
         bridge.setPageLoadCallback(null)
         bridge.setTapCallback(null)
-        bridge.release()
+        bridge.disposeNavigator()
     }
 
     override val positionFlow: Flow<NavigatorPosition> = _positionFlow
