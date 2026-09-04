@@ -295,6 +295,7 @@
     <string name="ui_unowned">Без собственик</string>
     <string name="ui_update">Актуализиране</string>
     <string name="ui_update_available">Налична е актуализация</string>
+    <string name="ui_upload_completed">Качването завърши</string>
     <string name="ui_upload_failed">Качването е неуспешно</string>
     <string name="ui_upload_to">Качване в...</string>
     <string name="ui_upload_unavailable">Качването не е налично</string>

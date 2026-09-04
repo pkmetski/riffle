@@ -18,7 +18,7 @@ class BookImportManagerTest {
     @Test
     fun `completed import produces a success message`() {
         assertEquals(
-            BOOK_IMPORT_COMPLETED_MESSAGE,
+            com.riffle.app.R.string.ui_upload_completed,
             bookImportSnackbarMessage(BookImportState.Completed),
         )
     }

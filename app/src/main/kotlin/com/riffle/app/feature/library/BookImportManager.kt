@@ -1,5 +1,7 @@
 package com.riffle.app.feature.library
 
+import androidx.annotation.StringRes
+import com.riffle.app.R
 import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportResult
@@ -28,10 +30,9 @@ sealed interface BookImportState {
     data class Failed(val message: String) : BookImportState
 }
 
-internal const val BOOK_IMPORT_COMPLETED_MESSAGE = "Upload completed"
-
-internal fun bookImportSnackbarMessage(state: BookImportState): String? =
-    if (state is BookImportState.Completed) BOOK_IMPORT_COMPLETED_MESSAGE else null
+@StringRes
+internal fun bookImportSnackbarMessage(state: BookImportState): Int? =
+    if (state is BookImportState.Completed) R.string.ui_upload_completed else null
 
 /** Application-scoped owner for uploads started from a detail screen. */
 class BookImportManager constructor(

@@ -295,6 +295,7 @@
     <string name="ui_unowned">Sin propietario</string>
     <string name="ui_update">Actualizar</string>
     <string name="ui_update_available">Actualización disponible</string>
+    <string name="ui_upload_completed">Subida completada</string>
     <string name="ui_upload_failed">Error al subir</string>
     <string name="ui_upload_to">Subir a…</string>
     <string name="ui_upload_unavailable">Subida no disponible</string>
