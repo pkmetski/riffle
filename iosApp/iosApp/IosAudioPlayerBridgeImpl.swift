@@ -30,8 +30,8 @@ import Riffle
 
         // Convert KotlinDoubleArray to native [Double]
         var offsets: [Double] = []
-        for i in 0..<Int(trackStartOffsetsSec.size) {
-            offsets.append(trackStartOffsetsSec.get(index: Int32(i)))
+        for idx in 0..<Int(trackStartOffsetsSec.size) {
+            offsets.append(trackStartOffsetsSec.get(index: Int32(idx)))
         }
         self.trackStartOffsets = offsets
         self.totalDurationSec = totalDurationSec
