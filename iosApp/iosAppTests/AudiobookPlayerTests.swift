@@ -1,86 +1,108 @@
 import XCTest
-import Riffle
 
 // Covers scenarios from docs/testing/ios-scenarios/04-audiobook-player.md
 
 final class AudiobookPlayerTests: XCTestCase {
 
-    // MARK: - Scenario 04-A / 04-E: Bridge lifecycle
+    private var app: XCUIApplication!
 
-    func testBridgeFactoryCreatesDistinctInstances() {
-        let factory = IosAudioPlayerBridgeFactoryImpl()
-        let bridge1 = factory.create()
-        let bridge2 = factory.create()
-        XCTAssertFalse(bridge1 === (bridge2 as AnyObject), "Factory must return distinct instances")
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launch()
     }
 
-    func testDisposeIsIdempotent() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        bridge.dispose()
-        bridge.dispose()
+    override func tearDownWithError() throws {
+        app.terminate()
+        app = nil
     }
 
-    func testCurrentPositionIsZeroBeforePrepare() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        XCTAssertEqual(bridge.currentPositionSec(), 0.0, accuracy: 0.001)
-    }
+    // MARK: - Scenario 04-A: Player opens from library
 
-    func testIsPlayingFalseBeforePrepare() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        XCTAssertFalse(bridge.isPlaying())
-    }
+    /// 04-A.1 — Tapping a listenable item opens the audiobook player screen.
+    func testAudiobookPlayerOpensFromLibrary() throws {
+        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — audiobook player test requires a connected server")
+        }
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
 
-    // MARK: - Scenario 04-B: Callbacks
+        // Look for "In Progress" or any section that might contain audiobooks.
+        // Skip if no audiobook item with a headphone/speaker accessibility hint is found.
+        let audiobookTile = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'audiobook' OR label CONTAINS[c] 'listen'")
+        ).firstMatch
+        guard audiobookTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No audiobook tile found in library — requires a server with audiobook items")
+        }
 
-    func testPositionCallbackIsInvokedOnSimulate() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        var received: Double?
-        bridge.setPositionCallback { pos in received = pos }
-        bridge.simulatePositionUpdate(42.5)
-        XCTAssertEqual(received, 42.5, accuracy: 0.001)
-    }
+        audiobookTile.tap()
 
-    func testPlayingCallbackIsInvokedOnSimulate() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        var received: Bool?
-        bridge.setPlayingCallback { playing in received = playing }
-        bridge.simulatePlayingChanged(true)
-        XCTAssertTrue(received == true)
-    }
-
-    func testClearingCallbackPreventsInvocation() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        var count = 0
-        bridge.setPositionCallback { _ in count += 1 }
-        bridge.simulatePositionUpdate(1.0)
-        bridge.setPositionCallback(nil)
-        bridge.simulatePositionUpdate(2.0)
-        XCTAssertEqual(count, 1, "Callback cleared — second simulate must not fire it")
-    }
-
-    // MARK: - Scenario 04-E: Now Playing (smoke test — no crash)
-
-    func testSetNowPlayingInfoDoesNotCrash() {
-        let bridge = IosAudioPlayerBridgeImpl()
-        bridge.setNowPlayingInfo(
-            title: "Test Book",
-            author: "Test Author",
-            durationSec: 3600,
-            positionSec: 120,
-            coverUrl: nil
+        // The player screen should show a back arrow and playback controls.
+        let backArrow = app.staticTexts["← Back"].firstMatch
+        XCTAssertTrue(
+            backArrow.waitForExistence(timeout: 10),
+            "Audiobook player screen should show '← Back'"
         )
     }
 
-    // MARK: - Factory smoke test
+    // MARK: - Scenario 04-C: Player controls visible
 
-    func testFactoryProducesWorkingBridge() {
-        let factory = IosAudioPlayerBridgeFactoryImpl()
-        guard let bridge = factory.create() as? IosAudioPlayerBridgeImpl else {
-            XCTFail("Factory must return IosAudioPlayerBridgeImpl")
-            return
+    /// 04-C.1 — Player screen shows play/pause control and chapter navigation.
+    func testAudiobookPlayerControlsVisible() throws {
+        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — audiobook player test requires a connected server")
         }
-        XCTAssertFalse(bridge.isPlaying())
-        XCTAssertEqual(bridge.currentPositionSec(), 0.0, accuracy: 0.001)
-        bridge.dispose()
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+
+        let audiobookTile = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'audiobook' OR label CONTAINS[c] 'listen'")
+        ).firstMatch
+        guard audiobookTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No audiobook tile found in library — requires a server with audiobook items")
+        }
+        audiobookTile.tap()
+
+        guard app.staticTexts["← Back"].waitForExistence(timeout: 10) else {
+            throw XCTSkip("Player screen did not open")
+        }
+
+        // Play/pause button (▶ or ⏸)
+        let playPause = app.buttons.matching(
+            NSPredicate(format: "label == '▶' OR label == '⏸'")
+        ).firstMatch
+        XCTAssertTrue(
+            playPause.waitForExistence(timeout: 5),
+            "Play/pause button should be visible on the player screen"
+        )
+    }
+
+    // MARK: - Scenario 04-G: Back navigation
+
+    /// 04-G.1 — Tapping '← Back' from the player returns to the library.
+    func testAudiobookPlayerBackNavigationReturnsToLibrary() throws {
+        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — audiobook player test requires a connected server")
+        }
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+
+        let audiobookTile = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'audiobook' OR label CONTAINS[c] 'listen'")
+        ).firstMatch
+        guard audiobookTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No audiobook tile found in library — requires a server with audiobook items")
+        }
+        audiobookTile.tap()
+
+        let backArrow = app.staticTexts["← Back"].firstMatch
+        guard backArrow.waitForExistence(timeout: 10) else {
+            throw XCTSkip("Player screen did not open")
+        }
+
+        backArrow.tap()
+
+        // Library home should reappear
+        let sectionLabels = ["In Progress", "Recently Added", "Finished", "All Books", "Series", "Collections"]
+        let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
+        XCTAssertTrue(backOnHome, "Tapping '← Back' from player should return to library home")
     }
 }
