@@ -3,9 +3,6 @@ package com.riffle.core.domain
 import java.io.File
 import java.io.InputStream
 
-/** A locally-stored item, identified by its owning Server and item id (ADR 0031). */
-data class StoredItemRef(val sourceId: String, val itemId: String)
-
 // Files are keyed by (sourceId, itemId) — item ids are only unique within a Server (ADR 0031).
 // On disk they live under dir/<sourceId>/<itemId><ext> so two Servers' colliding ids never
 // overwrite each other.

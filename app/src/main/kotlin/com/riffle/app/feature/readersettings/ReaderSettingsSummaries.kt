@@ -10,7 +10,7 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import java.time.LocalTime
+import com.riffle.core.domain.LocalMinuteTime
 import kotlin.math.roundToInt
 
 fun ReaderTheme.label(): String = when (this) {
@@ -173,7 +173,7 @@ fun localizedCadenceSummary(prefs: FormattingPreferences): String =
     }
 
 fun autoScheduleSummary(schedule: ThemeSchedule): String {
-    fun t(time: LocalTime) = "%02d:%02d".format(time.hour, time.minute)
+    fun t(time: LocalMinuteTime) = "%02d:%02d".format(time.hour, time.minute)
     return "Day ${t(schedule.dayStart)} · ${schedule.dayTheme.label()} → " +
         "Night ${t(schedule.nightStart)} · ${schedule.nightTheme.label()}"
 }
@@ -190,7 +190,7 @@ fun autoThemeSummary(
 
 @Composable
 fun localizedAutoScheduleSummary(schedule: ThemeSchedule): String {
-    fun t(time: LocalTime) = "%02d:%02d".format(time.hour, time.minute)
+    fun t(time: LocalMinuteTime) = "%02d:%02d".format(time.hour, time.minute)
     return stringResource(
         R.string.ui_auto_schedule_summary,
         t(schedule.dayStart),

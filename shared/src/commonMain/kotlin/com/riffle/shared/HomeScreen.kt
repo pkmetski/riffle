@@ -38,6 +38,7 @@ import com.riffle.core.models.Source
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.shared.audiobook.AudiobookPlayerScreen
+import com.riffle.shared.downloads.DownloadsScreen
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
@@ -45,8 +46,15 @@ import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
+import com.riffle.shared.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+
+/**
+ * Top-level section — mirrors Android's nav graph routes (Library/Settings/Downloads).
+ * Tapping Settings or Downloads in the drawer closes it and navigates here, exactly as on Android.
+ */
+private enum class AppSection { Library, Settings, Downloads }
 
 internal sealed interface LibraryNav {
     data object Items : LibraryNav
@@ -78,6 +86,7 @@ fun HomeScreen() {
     val installer = koinInject<LocalFilesInstallerInterface>()
     val scope = rememberCoroutineScope()
 
+    var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var installing by remember { mutableStateOf(false) }
@@ -107,62 +116,70 @@ fun HomeScreen() {
     }
 
     Box(Modifier.fillMaxSize()) {
-        // Main content
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            when (val dest = destination) {
-                null -> BasicText("Loading…")
-                is HomeViewModel.StartDestination.AddSource -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        BasicText("Add a source to get started")
-                        if (installing) {
-                            BasicText("Scanning folder…")
-                        } else {
-                            BasicText(
-                                text = "Add Local Files",
-                                modifier = Modifier
-                                    .clickable {
-                                        folderPicker.pickFolder { uri ->
-                                            if (uri == null) return@pickFolder
-                                            installing = true
-                                            message = null
-                                            scope.launch {
-                                                val result = runCatching { installer.installFolder(uri) }
-                                                installing = false
-                                                message = result.fold(
-                                                    onSuccess = { "Added ${it.added} books" },
-                                                    onFailure = { "Error: ${it.message}" },
-                                                )
-                                                if (result.isSuccess) {
-                                                    refreshKey++
+        // Main content — Settings and Downloads are full-screen, same as Android
+        when (appSection) {
+            AppSection.Settings -> SettingsScreen(
+                onBack = { appSection = AppSection.Library },
+            )
+            AppSection.Downloads -> DownloadsScreen(
+                onBack = { appSection = AppSection.Library },
+            )
+            AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                when (val dest = destination) {
+                    null -> BasicText("Loading…")
+                    is HomeViewModel.StartDestination.AddSource -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            BasicText("Add a source to get started")
+                            if (installing) {
+                                BasicText("Scanning folder…")
+                            } else {
+                                BasicText(
+                                    text = "Add Local Files",
+                                    modifier = Modifier
+                                        .clickable {
+                                            folderPicker.pickFolder { uri ->
+                                                if (uri == null) return@pickFolder
+                                                installing = true
+                                                message = null
+                                                scope.launch {
+                                                    val result = runCatching { installer.installFolder(uri) }
+                                                    installing = false
+                                                    message = result.fold(
+                                                        onSuccess = { "Added ${it.added} books" },
+                                                        onFailure = { "Error: ${it.message}" },
+                                                    )
+                                                    if (result.isSuccess) {
+                                                        refreshKey++
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                    .padding(12.dp),
-                            )
-                            message?.let { BasicText(it) }
+                                        .padding(12.dp),
+                                )
+                                message?.let { BasicText(it) }
+                            }
                         }
                     }
-                }
-                is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
-                is HomeViewModel.StartDestination.Library -> {
-                    LaunchedEffect(dest.libraryId) {
-                        if (activeLibraryId == null) activeLibraryId = dest.libraryId
+                    is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
+                    is HomeViewModel.StartDestination.Library -> {
+                        LaunchedEffect(dest.libraryId) {
+                            if (activeLibraryId == null) activeLibraryId = dest.libraryId
+                        }
+                        LibraryHost(
+                            libraryId = dest.libraryId,
+                            libraryName = dest.libraryName,
+                            onOpenDrawer = { drawerOpen = true },
+                        )
                     }
-                    LibraryHost(
-                        libraryId = dest.libraryId,
-                        libraryName = dest.libraryName,
-                        onOpenDrawer = { drawerOpen = true },
-                    )
                 }
             }
         }
 
-        // Drawer overlay
-        if (drawerOpen) {
+        // Drawer overlay — only shown over Library (same behaviour as Android ModalNavigationDrawer)
+        if (drawerOpen && appSection == AppSection.Library) {
             // Scrim
             Box(
                 Modifier
@@ -198,6 +215,14 @@ fun HomeScreen() {
                             libraryName = library.name,
                         )
                     },
+                    onNavigateToSettings = {
+                        drawerOpen = false
+                        appSection = AppSection.Settings
+                    },
+                    onNavigateToDownloads = {
+                        drawerOpen = false
+                        appSection = AppSection.Downloads
+                    },
                 )
             }
         }
@@ -212,6 +237,8 @@ private fun DrawerSheetContent(
     activeLibraryId: String?,
     onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDownloads: () -> Unit,
 ) {
     var switcherExpanded by remember { mutableStateOf(false) }
 
@@ -299,6 +326,24 @@ private fun DrawerSheetContent(
                     }
                 }
             }
+        }
+
+        // Bottom nav rows — same position as Android's ModalNavigationDrawer footer items
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToDownloads() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            BasicText("Downloads", style = TextStyle(fontSize = 15.sp))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToSettings() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            BasicText("Settings", style = TextStyle(fontSize = 15.sp))
         }
     }
 }

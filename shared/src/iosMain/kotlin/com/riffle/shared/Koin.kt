@@ -14,10 +14,13 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.DownloadsRepository
+import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
@@ -47,12 +50,16 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
+import com.riffle.shared.downloads.DownloadsViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
+import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
+import com.riffle.shared.library.IosNoOpDownloadsRepository
+import com.riffle.shared.library.IosNoOpFormattingPreferencesStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
@@ -63,6 +70,7 @@ import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
+import com.riffle.shared.settings.SettingsViewModel
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
@@ -121,6 +129,11 @@ private fun iosLibraryModule(
     single { RefreshSeries(get()) }
     single<CoverGridDensityStore> { IosNoOpCoverGridDensityStore() }
     single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
+    single<AppThemeStore> { IosNoOpAppThemeStore() }
+    single<FormattingPreferencesStore> { IosNoOpFormattingPreferencesStore() }
+    single<DownloadsRepository> { IosNoOpDownloadsRepository() }
+    single { DownloadsViewModel(get()) }
+    single { SettingsViewModel(get(), get(), get()) }
     single<AnnotationStore> { IosNoOpAnnotationStore() }
     single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
     single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }

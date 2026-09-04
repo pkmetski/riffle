@@ -1,6 +1,5 @@
 package com.riffle.core.domain
 
-import java.time.LocalTime
 import com.riffle.core.models.HighlightColor
 
 data class FormattingPreferences(
@@ -72,38 +71,38 @@ data class AppThemeReaderThemes(
 }
 
 data class ThemeSchedule(
-    val dayStart: LocalTime = DEFAULT_DAY_START,
-    val nightStart: LocalTime = DEFAULT_NIGHT_START,
+    val dayStart: LocalMinuteTime = DEFAULT_DAY_START,
+    val nightStart: LocalMinuteTime = DEFAULT_NIGHT_START,
     val dayTheme: ReaderTheme = DEFAULT_DAY_THEME,
     val nightTheme: ReaderTheme = DEFAULT_NIGHT_THEME,
 ) {
-    fun resolve(now: LocalTime): ReaderTheme =
+    fun resolve(now: LocalMinuteTime): ReaderTheme =
         if (isNight(now)) nightTheme else dayTheme
 
     // Treats the two times as boundaries on a 24h circle. The night arc runs
     // clockwise from nightStart up to (but not including) dayStart. At exactly
     // nightStart we are in night; at exactly dayStart we are in day. Equal
     // times collapse the night arc to length zero → always-day.
-    private fun isNight(now: LocalTime): Boolean {
+    private fun isNight(now: LocalMinuteTime): Boolean {
         if (dayStart == nightStart) return false
-        return if (nightStart.isBefore(dayStart)) {
-            !now.isBefore(nightStart) && now.isBefore(dayStart)
+        return if (nightStart < dayStart) {
+            now >= nightStart && now < dayStart
         } else {
-            !now.isBefore(nightStart) || now.isBefore(dayStart)
+            now >= nightStart || now < dayStart
         }
     }
 
     // The next clock-time at which `resolve` would return a different theme.
     // Used by the reader VM to schedule a one-shot delay until the next switch.
     // Returns dayStart when the schedule is degenerate so callers always have a value.
-    fun nextBoundaryAfter(now: LocalTime): LocalTime {
+    fun nextBoundaryAfter(now: LocalMinuteTime): LocalMinuteTime {
         if (dayStart == nightStart) return dayStart
         return if (isNight(now)) dayStart else nightStart
     }
 
     companion object {
-        val DEFAULT_DAY_START: LocalTime = LocalTime.of(7, 0)
-        val DEFAULT_NIGHT_START: LocalTime = LocalTime.of(20, 0)
+        val DEFAULT_DAY_START: LocalMinuteTime = LocalMinuteTime.of(7, 0)
+        val DEFAULT_NIGHT_START: LocalMinuteTime = LocalMinuteTime.of(20, 0)
         val DEFAULT_DAY_THEME: ReaderTheme = ReaderTheme.Light
         val DEFAULT_NIGHT_THEME: ReaderTheme = ReaderTheme.Dark
     }
@@ -113,18 +112,18 @@ data class ThemeSchedule(
 // the user picked Auto. For any non-Auto theme this is a no-op identity. Reader VMs
 // run this at render-time so every downstream consumer (Readium mapper, palette,
 // chapter-rail backdrop) keeps reading `prefs.theme` and stays ignorant of Auto.
-fun FormattingPreferences.withResolvedTheme(now: LocalTime): FormattingPreferences =
+fun FormattingPreferences.withResolvedTheme(now: LocalMinuteTime): FormattingPreferences =
     withResolvedTheme(now, appTheme = AppTheme.System, systemInDark = false)
 
 fun FormattingPreferences.withResolvedTheme(
-    now: LocalTime,
+    now: LocalMinuteTime,
     appTheme: AppTheme,
     systemInDark: Boolean,
 ): FormattingPreferences =
     if (theme == ReaderTheme.Auto) copy(theme = resolveAutoReaderTheme(now, appTheme, systemInDark)) else this
 
 fun FormattingPreferences.resolveAutoReaderTheme(
-    now: LocalTime,
+    now: LocalMinuteTime,
     appTheme: AppTheme,
     systemInDark: Boolean,
 ): ReaderTheme = when (autoReaderThemeMode) {

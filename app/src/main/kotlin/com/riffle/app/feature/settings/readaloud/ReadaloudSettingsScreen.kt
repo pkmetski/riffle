@@ -43,8 +43,8 @@ import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.app.feature.server.AddSourceBackend
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.withResolvedTheme
-import java.time.LocalTime
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.SettingsViewModel
@@ -84,7 +84,7 @@ fun ReadaloudSettingsScreen(
     // the currently-scheduled concrete theme here — otherwise a night-schedule user opening
     // Settings during the dark arc would still see swatches on the Light fallback.
     val readerBackground = formattingPreferences
-        .withResolvedTheme(LocalTime.now(), appTheme, systemInDark)
+        .withResolvedTheme(run { val t = java.time.LocalTime.now(); LocalMinuteTime(t.hour, t.minute) }, appTheme, systemInDark)
         .swatchBackdropColor
 
     val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }

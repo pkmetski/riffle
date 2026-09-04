@@ -181,8 +181,8 @@ class EpubReaderViewModelTest {
     @Test
     fun `Auto prefs flip at each schedule boundary across a 24h cycle`() = runTest {
         val schedule = com.riffle.core.domain.ThemeSchedule(
-            dayStart = java.time.LocalTime.of(7, 0),
-            nightStart = java.time.LocalTime.of(21, 0),
+            dayStart = com.riffle.core.domain.LocalMinuteTime.of(7, 0),
+            nightStart = com.riffle.core.domain.LocalMinuteTime.of(21, 0),
             dayTheme = com.riffle.core.domain.ReaderTheme.Light,
             nightTheme = com.riffle.core.domain.ReaderTheme.Dark,
         )
@@ -190,15 +190,17 @@ class EpubReaderViewModelTest {
             theme = com.riffle.core.domain.ReaderTheme.Auto,
             themeSchedule = schedule,
         )
-        var fakeNow = java.time.LocalTime.of(20, 59)
+        var fakeNow = com.riffle.core.domain.LocalMinuteTime.of(20, 59)
         val emitted = mutableListOf<com.riffle.core.domain.ReaderTheme>()
 
         backgroundScope.launch {
             emitted += prefs.withResolvedTheme(fakeNow).theme
             while (true) {
                 val next = schedule.nextBoundaryAfter(fakeNow)
-                val delayMs = ((next.toSecondOfDay() - fakeNow.toSecondOfDay() + 24 * 3600) % (24 * 3600)) * 1000L
-                delay(delayMs.coerceAtLeast(1_000L))
+                val nowMin = (fakeNow.hour * 60 + fakeNow.minute).toLong()
+                val nextMin = (next.hour * 60 + next.minute).toLong()
+                val delayMs = (((nextMin - nowMin + 24 * 60) % (24 * 60)) * 60_000L).coerceAtLeast(60_000L)
+                delay(delayMs)
                 fakeNow = next
                 emitted += prefs.withResolvedTheme(fakeNow).theme
             }
@@ -229,8 +231,8 @@ class EpubReaderViewModelTest {
     @Test
     fun `degenerate schedule (equal day-and-night) emits no boundary ticks`() = runTest {
         val degenerate = com.riffle.core.domain.ThemeSchedule(
-            dayStart = java.time.LocalTime.of(8, 0),
-            nightStart = java.time.LocalTime.of(8, 0),
+            dayStart = com.riffle.core.domain.LocalMinuteTime.of(8, 0),
+            nightStart = com.riffle.core.domain.LocalMinuteTime.of(8, 0),
         )
         var tickCount = 0
         backgroundScope.launch {

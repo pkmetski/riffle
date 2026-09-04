@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalTime
+import com.riffle.core.domain.LocalMinuteTime
 
 class BookFormattingOverridesTest {
 
@@ -137,8 +137,8 @@ class BookFormattingOverridesTest {
     @Test
     fun `applyTo always threads global themeSchedule (no per-book override)`() {
         val customSchedule = ThemeSchedule(
-            dayStart = LocalTime.of(6, 30),
-            nightStart = LocalTime.of(19, 45),
+            dayStart = LocalMinuteTime.of(6, 30),
+            nightStart = LocalMinuteTime.of(19, 45),
             dayTheme = ReaderTheme.Sepia,
             nightTheme = ReaderTheme.DarkDim,
         )
