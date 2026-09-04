@@ -36,12 +36,15 @@ jobs:
   integration-tests:
     name: iOS integration tests
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 30
     concurrency:
       group: ios-integration-tests-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       - name: Run iOS integration tests
         run: |
           # Pick the latest available iPhone simulator on this runner dynamically.
