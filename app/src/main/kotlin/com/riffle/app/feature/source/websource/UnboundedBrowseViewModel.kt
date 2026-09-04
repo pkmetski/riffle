@@ -187,18 +187,63 @@ abstract class UnboundedBrowseViewModel(
             .map { books -> books.associate { it.id to it.readingProgress } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    // Progress from server-source items (e.g. ABS), keyed by normalised title+author. Used as a
+    // fallback when the Chitanka item has no local progress — covers items the user uploaded to ABS
+    // via the in-app import or an external script and then listened to entirely on the server side.
+    // Loaded eagerly (not gated on _unownedFilterActive) because the progress indicator must appear
+    // regardless of whether the Unowned filter is on. buildProgressByNormKey() is much lighter than
+    // buildOwnedItemIndex() — it only filters items with progress > 0 — so the main-thread cost is
+    // acceptable even for large ABS libraries.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val serverSourceProgressByNormKey: StateFlow<Map<String, Float>> =
+        sourceRepository.observeAll()
+            .map { sources -> sources.filter { !it.type.isWebSource }.map { it.id } }
+            .flatMapLatest { serverSourceIds ->
+                if (serverSourceIds.isEmpty()) flowOf(emptyMap())
+                else {
+                    val perSourceFlows = serverSourceIds.map { sourceId ->
+                        libraryObserver.observeAllItemsForSource(sourceId)
+                    }
+                    combine(perSourceFlows) { arrays -> buildProgressByNormKey(arrays.flatMap { it }) }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    // Merged progress lookup — local Chitanka progress by item id (primary source, highest
+    // fidelity), falling back to server-source progress keyed by normalised title+author. Combining
+    // both into one StateFlow keeps the filteredItems combine at 5 parameters (the typed overload
+    // limit for kotlinx.coroutines combine).
+    private data class ProgressLookup(
+        val byItemId: Map<String, Float>,
+        val byNormKey: Map<String, Float>,
+    ) {
+        fun progressFor(item: CatalogItem): Float? {
+            val local = byItemId[item.id]
+            if (local != null) return local
+            if (byNormKey.isEmpty()) return null
+            val normTitle = normalizeTitle(item.title)
+            val normAuthor = normalizeTitle(item.author)
+            return byNormKey["$normTitle$NORM_KEY_SEP$normAuthor"] ?: byNormKey[normTitle]
+        }
+    }
+
+    private val progressLookup: StateFlow<ProgressLookup> =
+        combine(localReadingProgressByItemId, serverSourceProgressByNormKey) { local, server ->
+            ProgressLookup(local, server)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, ProgressLookup(emptyMap(), emptyMap()))
+
     val filteredItems: StateFlow<List<CatalogItem>> =
         combine(
             _items,
-            localReadingProgressByItemId,
+            progressLookup,
             _notStartedFilterActive,
             ownedItemIndex,
             _unownedFilterActive,
-        ) { catalog, progressById, notStartedActive, index, unownedActive ->
+        ) { catalog, progress, notStartedActive, index, unownedActive ->
             catalog
                 .map { item ->
-                    val localProgress = progressById[item.id]
-                    if (localProgress == null) item else item.copy(readingProgress = localProgress)
+                    val p = progress.progressFor(item)
+                    if (p != null) item.copy(readingProgress = p) else item
                 }
                 .filter { item -> !notStartedActive || (item.readingProgress ?: 0f) <= 0f }
                 .filter { item -> !unownedActive || !index.isOwned(item) }

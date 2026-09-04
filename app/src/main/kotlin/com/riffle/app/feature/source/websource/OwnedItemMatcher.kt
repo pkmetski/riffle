@@ -4,7 +4,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.models.LibraryItem
 import java.text.Normalizer
 
-private const val SEP = "|||"
+internal const val NORM_KEY_SEP = "|||"
 
 /**
  * Pre-built index of a user's server-source library items for the "Unowned" catalog filter.
@@ -45,7 +45,7 @@ internal class OwnedItemIndex(
         val normAuthor = normalizeTitle(item.author)
 
         // 2. Exact combined key
-        if (normAuthor.isNotEmpty() && "$normTitle$SEP$normAuthor" in exactKeys) return true
+        if (normAuthor.isNotEmpty() && "$normTitle$NORM_KEY_SEP$normAuthor" in exactKeys) return true
 
         // 3. Title-only key
         if (normTitle in exactKeys) return true
@@ -83,6 +83,35 @@ internal class OwnedItemIndex(
     }
 }
 
+/**
+ * Maps normalized title+author keys to the highest [LibraryItem.readingProgress] seen for that
+ * key across all server-source items. Only includes items where progress > 0.
+ *
+ * Used by [UnboundedBrowseViewModel] to surface played/in-progress state for catalog items that
+ * have been uploaded to a server source (e.g. ABS) by the user — even when the item was never
+ * played through Riffle on the web-source side.
+ *
+ * Keys stored per item:
+ *   - `"$normTitle$NORM_KEY_SEP$normAuthor"` — combined key (when author is non-empty)
+ *   - `"$normTitle"` — title-only key (always stored as fallback)
+ */
+internal fun buildProgressByNormKey(items: List<LibraryItem>): Map<String, Float> {
+    val result = mutableMapOf<String, Float>()
+    for (item in items) {
+        val progress = item.readingProgress
+        if (progress <= 0f) continue
+        val normTitle = normalizeTitle(item.title)
+        if (normTitle.isEmpty()) continue
+        val normAuthor = normalizeTitle(item.author)
+        // Title-only key — always stored so items with no author field in ABS still match.
+        result.merge(normTitle, progress, ::maxOf)
+        if (normAuthor.isNotEmpty()) {
+            result.merge("$normTitle$NORM_KEY_SEP$normAuthor", progress, ::maxOf)
+        }
+    }
+    return result
+}
+
 internal fun buildOwnedItemIndex(items: List<LibraryItem>): OwnedItemIndex {
     val isbns = mutableSetOf<String>()
     val exactKeys = mutableSetOf<String>()
@@ -106,7 +135,7 @@ internal fun buildOwnedItemIndex(items: List<LibraryItem>): OwnedItemIndex {
                 if (baseNorm.isNotEmpty()) titlesWithMeta.add(baseNorm)
             }
         } else {
-            exactKeys.add("$normTitle$SEP$normAuthor")
+            exactKeys.add("$normTitle$NORM_KEY_SEP$normAuthor")
         }
         scanList.add(OwnedItemIndex.AbsEntry(normTitle, normAuthor))
     }
