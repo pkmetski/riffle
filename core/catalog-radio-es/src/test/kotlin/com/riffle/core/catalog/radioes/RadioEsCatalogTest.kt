@@ -368,6 +368,23 @@ class RadioEsCatalogTest {
         )
     }
 
+    @Test fun `browse stations with multi-word country facet uses space-separated name as search query`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        catalog.browse(
+            rootId = RadioEsCatalog.ROOT_STATIONS,
+            page = 0,
+            pageSize = 20,
+            facet = FacetSelection(key = "country:united-states"),
+        )
+        val request = server.takeRequest()
+        assertTrue(
+            "/stations/search with query=United+States expected, got: ${request.path}",
+            request.path?.startsWith("/stations/search") == true &&
+                (request.path?.contains("query=United+States") == true ||
+                    request.path?.contains("query=United%20States") == true),
+        )
+    }
+
     @Test fun `browse stations with no facet uses device locale Accept-Language header`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
         catalog.browse(rootId = RadioEsCatalog.ROOT_STATIONS, page = 0, pageSize = 20)

@@ -134,7 +134,7 @@ class RadioEsCatalog(
         if (facet != null && facet.key.startsWith("country:")) {
             val slug = facet.key.removePrefix("country:")
             val countryName = cachedCountryNameBySlug?.get(slug)
-                ?: slug.replaceFirstChar { it.uppercase() }
+                ?: slug.split("-").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
             val encoded = URLEncoder.encode(countryName, "UTF-8")
             val url = "$apiBase/stations/search?query=$encoded&count=$pageSize&offset=$offset"
             val body = http.getString(url)
