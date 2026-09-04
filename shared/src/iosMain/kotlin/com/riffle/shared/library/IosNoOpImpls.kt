@@ -2,8 +2,6 @@ package com.riffle.shared.library
 
 import com.riffle.core.data.AnnotatedBook
 import com.riffle.core.data.AnnotationsLibraryRepository
-import com.riffle.core.data.PlaylistsRepository
-import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
@@ -17,7 +15,6 @@ import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.models.AudiobookIdentityResult
-import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ReadaloudLink
@@ -30,24 +27,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-
-internal class IosNoOpPlaylistsRepository : PlaylistsRepository {
-    override fun observePlaylists(rootId: String): Flow<List<CatalogPlaylist>> = flowOf(emptyList())
-    override suspend fun refresh(rootId: String): Boolean = false
-    override suspend fun getPlaylist(rootId: String, playlistId: String): CatalogPlaylist? = null
-    override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist =
-        CatalogPlaylist(id = "", rootId = rootId, name = name, bookCount = 0)
-    override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String): Boolean = false
-    override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String): Boolean = false
-}
-
-internal class IosNoOpToReadRepository : ToReadRepository {
-    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
-    override suspend fun refresh(libraryId: String): Boolean = false
-    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
-    override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = false
-    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = false
-}
 
 internal class IosNoOpLibraryItemOfflineAvailability : LibraryItemOfflineAvailability {
     override fun isAvailableOffline(item: LibraryItem): Boolean = false

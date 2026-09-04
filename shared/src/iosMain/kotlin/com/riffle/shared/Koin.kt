@@ -5,7 +5,9 @@ import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
+import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
+import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
@@ -47,11 +49,9 @@ import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpLibraryItemOfflineAvailability
-import com.riffle.shared.library.IosNoOpPlaylistsRepository
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
-import com.riffle.shared.library.IosNoOpToReadRepository
 import com.riffle.shared.library.LibraryItemsViewModel
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
@@ -73,9 +73,8 @@ private val iosLibraryModule = module {
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { AddAbsSourceViewModel(get(), get(), get()) }
 
-    // No-op service-layer bindings for library browsing (follow-up issues #912-#916 implement)
-    single<PlaylistsRepository> { IosNoOpPlaylistsRepository() }
-    single<ToReadRepository> { IosNoOpToReadRepository() }
+    single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
+    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosNoOpLibraryItemOfflineAvailability() }
     single<StorytellerReadaloudCacheSyncer> { IosNoOpStorytellerSyncer }
     single<ReadaloudLinkReconciler> { IosNoOpReadaloudReconciler }
