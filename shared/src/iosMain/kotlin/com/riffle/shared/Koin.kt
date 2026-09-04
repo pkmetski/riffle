@@ -39,8 +39,10 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
+import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
@@ -139,6 +141,31 @@ private val iosLibraryModule = module {
             tokenStorage = get(),
             toReadRepository = get(),
             connectivityObserver = get(),
+        )
+    }
+    factory { params ->
+        SeriesDetailViewModel(
+            seriesId = params.get(),
+            libraryId = params.get(),
+            libraryObserver = get(),
+            refreshSeriesUseCase = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            offlineAvailability = get(),
+            connectivityObserver = get(),
+        )
+    }
+    factory { params ->
+        CollectionDetailViewModel(
+            collectionId = params.get(),
+            libraryId = params.get(),
+            libraryObserver = get(),
+            refreshCollectionsUseCase = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            offlineAvailability = get(),
+            connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
 }

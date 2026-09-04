@@ -23,9 +23,11 @@ import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
+import com.riffle.shared.library.SeriesDetailScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -33,6 +35,8 @@ private sealed interface LibraryNav {
     data object Items : LibraryNav
     data class Section(val sectionType: LibrarySectionType) : LibraryNav
     data class ItemDetail(val item: LibraryItem) : LibraryNav
+    data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
+    data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
 }
 
 @Composable
@@ -109,7 +113,20 @@ private fun LibraryHost(libraryId: String, libraryName: String) {
             libraryName = libraryName,
             onOpenDrawer = {},
             onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
-            onSeriesSelected = {},
+            onSeriesSelected = { series ->
+                nav = LibraryNav.SeriesDetail(
+                    seriesId = series.id,
+                    seriesLibraryId = series.libraryId,
+                    seriesName = series.name,
+                )
+            },
+            onCollectionSelected = { collection ->
+                nav = LibraryNav.CollectionDetail(
+                    collectionId = collection.id,
+                    collectionLibraryId = collection.libraryId,
+                    collectionName = collection.name,
+                )
+            },
             onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
         )
         is LibraryNav.Section -> LibrarySectionScreen(
@@ -123,6 +140,20 @@ private fun LibraryHost(libraryId: String, libraryName: String) {
             sourceId = current.item.sourceId.ifEmpty { null },
             onBack = { nav = LibraryNav.Items },
             onReadNotSupported = {},
+        )
+        is LibraryNav.SeriesDetail -> SeriesDetailScreen(
+            seriesId = current.seriesId,
+            libraryId = current.seriesLibraryId,
+            seriesName = current.seriesName,
+            onItemSelected = {},
+            onNavigateBack = { nav = LibraryNav.Items },
+        )
+        is LibraryNav.CollectionDetail -> CollectionDetailScreen(
+            collectionId = current.collectionId,
+            libraryId = current.collectionLibraryId,
+            collectionName = current.collectionName,
+            onItemSelected = {},
+            onNavigateBack = { nav = LibraryNav.Items },
         )
     }
 }
