@@ -2,6 +2,7 @@ package com.riffle.shared
 
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
+import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
@@ -50,7 +51,6 @@ import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
-import com.riffle.shared.library.IosNoOpLibraryItemOfflineAvailability
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
@@ -84,7 +84,7 @@ private fun iosLibraryModule(navigatorBridgeFactory: IosEpubNavigatorBridgeFacto
 
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
-    single<LibraryItemOfflineAvailability> { IosNoOpLibraryItemOfflineAvailability() }
+    single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     single<StorytellerReadaloudCacheSyncer> { IosNoOpStorytellerSyncer }
     single<ReadaloudLinkReconciler> { IosNoOpReadaloudReconciler }
     single<ApplicationScope> { IosNoOpApplicationScope }

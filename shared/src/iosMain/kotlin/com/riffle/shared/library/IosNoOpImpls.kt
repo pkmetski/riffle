@@ -8,7 +8,6 @@ import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferences
 import com.riffle.core.domain.LibraryFilterPreferencesStore
-import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
@@ -16,7 +15,6 @@ import com.riffle.core.models.Annotation
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.models.AudiobookIdentityResult
 import com.riffle.core.models.EmbeddedFigure
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.models.ScreenDimensionBucket
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,10 +25,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-
-internal class IosNoOpLibraryItemOfflineAvailability : LibraryItemOfflineAvailability {
-    override fun isAvailableOffline(item: LibraryItem): Boolean = false
-}
 
 internal object IosNoOpStorytellerSyncer : StorytellerReadaloudCacheSyncer {
     override suspend fun syncStale() {}

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -250,6 +252,12 @@ fun BookCoverTile(
             isAudiobook = item.isListenable && !item.isReadable,
             modifier = Modifier.fillMaxSize(),
         )
+        if (item.isDownloaded || item.isCached) {
+            DownloadedBadge(
+                downloaded = item.isDownloaded,
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+            )
+        }
     }
 }
 
@@ -345,4 +353,15 @@ private fun CollectionTile(
             style = TextStyle(color = Color.White, fontSize = 11.sp),
         )
     }
+}
+
+@Composable
+private fun DownloadedBadge(downloaded: Boolean, modifier: Modifier = Modifier) {
+    val color = if (downloaded) Color(0xFF6650A4) else Color(0xFFB0A0D0)
+    Box(
+        modifier = modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(color),
+    )
 }
