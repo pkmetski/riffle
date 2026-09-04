@@ -2,6 +2,7 @@ package com.riffle.core.database
 
 import app.cash.sqldelight.db.SqlDriver
 import com.riffle.core.database.dao.IosAnnotationDao
+import com.riffle.core.database.dao.IosCollectionDao
 import com.riffle.core.database.dao.IosLibraryDao
 import com.riffle.core.database.dao.IosLibraryItemDao
 import com.riffle.core.database.dao.IosLocalFilesFileDao
@@ -13,7 +14,6 @@ import com.riffle.core.database.dao.IosNoOpAudiobookChapterCacheDao
 import com.riffle.core.database.dao.IosNoOpAudiobookPositionDao
 import com.riffle.core.database.dao.IosNoOpBookComicFormattingPreferencesDao
 import com.riffle.core.database.dao.IosNoOpBookFormattingPreferencesDao
-import com.riffle.core.database.dao.IosNoOpCollectionDao
 import com.riffle.core.database.dao.IosNoOpCoverGridScaleDao
 import com.riffle.core.database.dao.IosNoOpCrossEpubIndexDao
 import com.riffle.core.database.dao.IosNoOpDictionaryPackDao
@@ -26,8 +26,8 @@ import com.riffle.core.database.dao.IosNoOpReadaloudLinkDao
 import com.riffle.core.database.dao.IosNoOpReadaloudResumePositionDao
 import com.riffle.core.database.dao.IosNoOpReadingPositionDao
 import com.riffle.core.database.dao.IosNoOpRemoteItemFreshnessDao
-import com.riffle.core.database.dao.IosNoOpSeriesDao
 import com.riffle.core.database.dao.IosPlaylistDao
+import com.riffle.core.database.dao.IosSeriesDao
 import com.riffle.core.database.dao.IosSourceDao
 import com.riffle.core.database.dao.IosTocCacheDao
 
@@ -43,13 +43,15 @@ internal class IosRiffleDatabaseAccess(private val driver: SqlDriver) : RiffleDa
     private val localFilesFolderDao = IosLocalFilesFolderDao(driver, invalidator)
     private val localFilesFileDao = IosLocalFilesFileDao(driver, invalidator)
     private val localFilesFileFolderDao = IosLocalFilesFileFolderDao(driver, invalidator)
+    private val seriesDao = IosSeriesDao(driver, invalidator)
+    private val collectionDao = IosCollectionDao(driver, invalidator)
 
     override fun close() = driver.close()
     override fun sourceDao() = sourceDao
     override fun libraryDao() = libraryDao
     override fun libraryItemDao() = libraryItemDao
-    override fun seriesDao() = IosNoOpSeriesDao
-    override fun collectionDao() = IosNoOpCollectionDao
+    override fun seriesDao() = seriesDao
+    override fun collectionDao() = collectionDao
     override fun readingPositionDao() = IosNoOpReadingPositionDao
     override fun bookFormattingPreferencesDao() = IosNoOpBookFormattingPreferencesDao
     override fun readaloudLinkDao() = IosNoOpReadaloudLinkDao

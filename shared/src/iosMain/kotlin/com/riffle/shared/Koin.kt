@@ -66,7 +66,7 @@ private val iosLibraryModule = module {
     single<DispatcherProvider> { IosDispatcherProvider }
     single<SourceRepository> { IosSourceRepositoryImpl(get(), get(), get()) }
     single<LibraryObserver> { IosLibraryObserverImpl(get(), get()) }
-    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get()) }
+    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
