@@ -147,8 +147,9 @@ fun LibraryItemDetailScreen(
         }
     }
 
+    val bookImportSnackbar = bookImportSnackbarMessage(bookImportState)?.let { stringResource(it) }
     LaunchedEffect(bookImportState) {
-        bookImportSnackbarMessage(bookImportState)?.let { message ->
+        bookImportSnackbar?.let { message ->
             snackbarHostState.showSnackbar(
                 message = message,
                 duration = SnackbarDuration.Short,

@@ -298,6 +298,7 @@
     <string name="ui_unowned">Unowned</string>
     <string name="ui_update">Update</string>
     <string name="ui_update_available">Update available</string>
+    <string name="ui_upload_completed">Upload completed</string>
     <string name="ui_upload_failed">Upload failed</string>
     <string name="ui_upload_to">Upload to…</string>
     <string name="ui_upload_unavailable">Upload unavailable</string>
