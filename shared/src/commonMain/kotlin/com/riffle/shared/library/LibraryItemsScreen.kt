@@ -33,6 +33,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.library.LibrarySectionType
@@ -52,6 +53,7 @@ fun LibraryItemsScreen(
     onOpenDrawer: () -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
     onSeriesSelected: (Series) -> Unit,
+    onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
 ) {
@@ -116,6 +118,24 @@ fun LibraryItemsScreen(
                     HorizontalBookRow(
                         items = projection.finished.take(10),
                         onItemClick = onItemSelected,
+                    )
+                }
+            }
+            if (projection.series.isNotEmpty()) {
+                item { SectionHeader("Series", onSeeAll = null) }
+                item {
+                    SeriesRow(
+                        series = projection.series.take(10),
+                        onSeriesClick = onSeriesSelected,
+                    )
+                }
+            }
+            if (projection.collections.isNotEmpty()) {
+                item { SectionHeader("Collections", onSeeAll = null) }
+                item {
+                    CollectionRow(
+                        collections = projection.collections.take(10),
+                        onCollectionClick = onCollectionSelected,
                     )
                 }
             }
@@ -229,6 +249,100 @@ fun BookCoverTile(
         DefaultCoverPlaceholder(
             isAudiobook = item.isListenable && !item.isReadable,
             modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun SeriesRow(
+    series: List<Series>,
+    onSeriesClick: (Series) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.height(SECTION_ROW_HEIGHT.dp),
+    ) {
+        items(series, key = { it.id }) { s ->
+            SeriesTile(
+                series = s,
+                modifier = Modifier.width(SECTION_CELL_WIDTH.dp),
+                onClick = { onSeriesClick(s) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SeriesTile(
+    series: Series,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        DefaultCoverPlaceholder(
+            isAudiobook = false,
+            modifier = Modifier.fillMaxSize(),
+        )
+        BasicText(
+            text = series.name,
+            modifier = Modifier
+                .padding(4.dp)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(4.dp),
+            style = TextStyle(color = Color.White, fontSize = 11.sp),
+        )
+    }
+}
+
+@Composable
+private fun CollectionRow(
+    collections: List<Collection>,
+    onCollectionClick: (Collection) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.height(SECTION_ROW_HEIGHT.dp),
+    ) {
+        items(collections, key = { it.id }) { col ->
+            CollectionTile(
+                collection = col,
+                modifier = Modifier.width(SECTION_CELL_WIDTH.dp),
+                onClick = { onCollectionClick(col) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CollectionTile(
+    collection: Collection,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        DefaultCoverPlaceholder(
+            isAudiobook = false,
+            modifier = Modifier.fillMaxSize(),
+        )
+        BasicText(
+            text = collection.name,
+            modifier = Modifier
+                .padding(4.dp)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(4.dp),
+            style = TextStyle(color = Color.White, fontSize = 11.sp),
         )
     }
 }
