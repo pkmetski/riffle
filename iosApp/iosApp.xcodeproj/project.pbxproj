@@ -11,6 +11,10 @@
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
+		B1002010 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1002001 /* ReadiumShared */; };
+		B1002011 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1002002 /* ReadiumStreamer */; };
+		B1002012 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1002003 /* ReadiumNavigator */; };
+		B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +24,7 @@
 		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B1001001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
+		B1002030 /* ReadiumEpubNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadiumEpubNavigatorBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -38,6 +43,7 @@
 				B1000020 /* RiffleApp.swift */,
 				B1000021 /* ContentView.swift */,
 				B1000022 /* Assets.xcassets */,
+				B1002030 /* ReadiumEpubNavigatorBridge.swift */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -69,9 +75,15 @@
 				B1000041 /* KMP Embed Framework */,
 				B1000040 /* Sources */,
 				B1000042 /* Resources */,
+				B1002040 /* Frameworks */,
 			);
 			buildRules = ();
 			dependencies = ();
+			packageProductDependencies = (
+				B1002001 /* ReadiumShared */,
+				B1002002 /* ReadiumStreamer */,
+				B1002003 /* ReadiumNavigator */,
+			);
 			name = Riffle;
 			productName = Riffle;
 			productReference = B1000001 /* iosApp.app */;
@@ -121,12 +133,28 @@
 			productRefGroup = B1000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */,
+			);
 			targets = (
 				B1000005 /* iosApp */,
 				B1001005 /* iosAppTests */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B1002040 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1002010 /* ReadiumShared in Frameworks */,
+				B1002011 /* ReadiumStreamer in Frameworks */,
+				B1002012 /* ReadiumNavigator in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		B1000041 /* KMP Embed Framework */ = {
@@ -162,6 +190,7 @@
 			files = (
 				B1000010 /* RiffleApp.swift in Sources */,
 				B1000011 /* ContentView.swift in Sources */,
+				B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -345,6 +374,35 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/readium/swift-toolkit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B1002001 /* ReadiumShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumShared;
+		};
+		B1002002 /* ReadiumStreamer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumStreamer;
+		};
+		B1002003 /* ReadiumNavigator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumNavigator;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		B1000050 /* Build configuration list for PBXNativeTarget "iosApp" */ = {

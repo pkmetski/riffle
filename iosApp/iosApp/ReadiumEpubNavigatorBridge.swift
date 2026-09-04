@@ -1,0 +1,142 @@
+import UIKit
+import ReadiumShared
+import ReadiumStreamer
+import ReadiumNavigator
+
+// MARK: - ReadiumEpubNavigatorBridge
+
+/// Implements SharedIosEpubNavigatorBridge (generated from Kotlin iosMain's IosEpubNavigatorBridge).
+/// Wraps Readium Swift's EPUBNavigatorViewController, bridging it to the KMP shared layer.
+@objc class ReadiumEpubNavigatorBridge: NSObject, SharedIosEpubNavigatorBridge {
+
+    private let hostViewController = UIViewController()
+    private var epubNavigator: EPUBNavigatorViewController?
+    private var publication: Publication?
+
+    // Callbacks registered by ReadiumSwiftNavigator
+    private var locatorCallback: ((String) -> Void)?
+    private var pageLoadCallback: (() -> Void)?
+    private var tapCallback: (() -> Void)?
+
+    // MARK: - SharedIosEpubNavigatorBridge
+
+    func viewController() -> UIViewController { hostViewController }
+
+    func openEpub(filePath: String, locatorJson: String?) {
+        Task { @MainActor in
+            do {
+                let fileUrl = URL(fileURLWithPath: filePath)
+                let asset = FileAsset(url: fileUrl)
+                let streamer = Streamer()
+                let result = await streamer.open(asset: asset, allowUserInteraction: false)
+                switch result {
+                case .failure:
+                    return
+                case .success(let pub):
+                    self.publication = pub
+                    var initialLocator: Locator?
+                    if let json = locatorJson, let data = json.data(using: .utf8) {
+                        initialLocator = try? JSONDecoder().decode(Locator.self, from: data)
+                    }
+                    let config = EPUBNavigatorViewController.Configuration()
+                    let navigator = try EPUBNavigatorViewController(
+                        publication: pub,
+                        initialLocation: initialLocator,
+                        config: config
+                    )
+                    navigator.delegate = self
+                    self.epubNavigator = navigator
+                    self.hostViewController.addChild(navigator)
+                    navigator.view.frame = self.hostViewController.view.bounds
+                    navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                    self.hostViewController.view.addSubview(navigator.view)
+                    navigator.didMove(toParent: self.hostViewController)
+                }
+            } catch {
+                // Ignore open errors — reader shows blank state
+            }
+        }
+    }
+
+    func goForward() {
+        Task { @MainActor in _ = try? await epubNavigator?.goForward(animated: true) }
+    }
+
+    func goBackward() {
+        Task { @MainActor in _ = try? await epubNavigator?.goBackward(animated: true) }
+    }
+
+    func goToLocator(_ locatorJson: String) {
+        guard let data = locatorJson.data(using: .utf8),
+              let locator = try? JSONDecoder().decode(Locator.self, from: data) else { return }
+        Task { @MainActor in _ = try? await epubNavigator?.go(to: locator, animated: true) }
+    }
+
+    func snapshotLocatorJson() -> String? {
+        guard let locator = epubNavigator?.currentLocation,
+              let data = try? JSONEncoder().encode(locator) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    func setLocatorCallback(_ callback: ((String) -> Void)?) {
+        locatorCallback = callback
+    }
+
+    func setPageLoadCallback(_ callback: (() -> Void)?) {
+        pageLoadCallback = callback
+    }
+
+    func setTapCallback(_ callback: (() -> Void)?) {
+        tapCallback = callback
+    }
+
+    func release() {
+        epubNavigator?.willMove(toParent: nil)
+        epubNavigator?.view.removeFromSuperview()
+        epubNavigator?.removeFromParent()
+        epubNavigator = nil
+        publication = nil
+    }
+}
+
+// MARK: - EPUBNavigatorDelegate
+
+extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
+    func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
+        guard let data = try? JSONEncoder().encode(locator),
+              let json = String(data: data, encoding: .utf8) else { return }
+        locatorCallback?(json)
+    }
+
+    func navigator(_ navigator: Navigator, didTapAt point: CGPoint) {
+        tapCallback?()
+    }
+
+    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {}
+
+    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {}
+}
+
+// MARK: - Page-load signal
+
+extension ReadiumEpubNavigatorBridge: EPUBNavigatorViewController.Observer {
+    func epubNavigatorDidLoadChapter(_ navigator: EPUBNavigatorViewController) {
+        pageLoadCallback?()
+    }
+}
+
+// MARK: - Test helpers
+
+extension ReadiumEpubNavigatorBridge {
+    @objc func simulateLocatorUpdate(_ json: String) { locatorCallback?(json) }
+    @objc func simulatePageLoad() { pageLoadCallback?() }
+    @objc func simulateTap() { tapCallback?() }
+}
+
+// MARK: - ReadiumEpubNavigatorBridgeFactory
+
+@objc class ReadiumEpubNavigatorBridgeFactory: NSObject, SharedIosEpubNavigatorBridgeFactory {
+    func create() -> any SharedIosEpubNavigatorBridge {
+        ReadiumEpubNavigatorBridge()
+    }
+}

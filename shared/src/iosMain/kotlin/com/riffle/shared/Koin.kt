@@ -56,10 +56,12 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.library.LibraryItemsViewModel
+import com.riffle.shared.reader.IosEpubDownloader
+import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
-private val iosLibraryModule = module {
+private fun iosLibraryModule(navigatorBridgeFactory: IosEpubNavigatorBridgeFactory) = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
@@ -75,6 +77,10 @@ private val iosLibraryModule = module {
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { AddAbsSourceViewModel(get(), get(), get()) }
+
+    // EPUB reader
+    single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
+    single { IosEpubDownloader(get(), get(), get()) }
 
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
@@ -170,13 +176,13 @@ private val iosLibraryModule = module {
     }
 }
 
-fun startKoin() {
+fun startKoin(navigatorBridgeFactory: IosEpubNavigatorBridgeFactory) {
     koinStartKoin {
         modules(
             iosLoggingModule,
             iosDataModule,
             iosDatabaseModule,
-            iosLibraryModule,
+            iosLibraryModule(navigatorBridgeFactory),
         )
     }
 }

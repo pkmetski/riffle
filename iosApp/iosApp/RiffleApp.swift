@@ -4,7 +4,7 @@ import Riffle
 @main
 struct RiffleApp: App {
     init() {
-        KoinKt.startKoin()
+        KoinKt.startKoin(navigatorBridgeFactory: ReadiumEpubNavigatorBridgeFactory())
     }
     var body: some Scene {
         WindowGroup {

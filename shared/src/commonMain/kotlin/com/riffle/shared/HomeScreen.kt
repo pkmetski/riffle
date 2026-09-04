@@ -28,6 +28,7 @@ import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.SeriesDetailScreen
+import com.riffle.shared.reader.EpubReaderScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -37,6 +38,7 @@ private sealed interface LibraryNav {
     data class ItemDetail(val item: LibraryItem) : LibraryNav
     data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
+    data class Reader(val item: LibraryItem) : LibraryNav
 }
 
 @Composable
@@ -139,7 +141,11 @@ private fun LibraryHost(libraryId: String, libraryName: String) {
             itemId = current.item.id,
             sourceId = current.item.sourceId.ifEmpty { null },
             onBack = { nav = LibraryNav.Items },
-            onReadNotSupported = {},
+            onReadNotSupported = { if (current.item.isReadable) nav = LibraryNav.Reader(current.item) },
+        )
+        is LibraryNav.Reader -> EpubReaderScreen(
+            item = current.item,
+            onBack = { nav = LibraryNav.Items },
         )
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
             seriesId = current.seriesId,
