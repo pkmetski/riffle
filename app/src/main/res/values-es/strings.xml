@@ -350,6 +350,7 @@
     <string name="ui_download_readaloud_audio_size">Descargar audio de lectura en voz alta (%1$s)</string>
     <string name="ui_words_per_minute">%1$d ppm</string>
     <string name="ui_language_filter">Idioma: %1$s</string>
+    <string name="ui_country_filter">País: %1$s</string>
     <string name="error_enter_valid_url">Introduce una URL válida (p. ej. https://abs.example.com)</string>
     <string name="error_parse_webdav_url">No se pudo interpretar la URL; debería parecerse a https://example.com/dav/path</string>
     <string name="error_auth_failed_check_credentials">Error de autenticación; comprueba tu usuario y contraseña.</string>

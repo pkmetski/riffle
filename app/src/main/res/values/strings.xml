@@ -353,6 +353,7 @@
     <string name="ui_download_readaloud_audio_size">Download readaloud audio (%1$s)</string>
     <string name="ui_words_per_minute">%1$d wpm</string>
     <string name="ui_language_filter">Language: %1$s</string>
+    <string name="ui_country_filter">Country: %1$s</string>
     <string name="error_enter_valid_url">Enter a valid URL (e.g. https://abs.example.com)</string>
     <string name="error_parse_webdav_url">Could not parse URL — it should look like https://example.com/dav/path</string>
     <string name="error_auth_failed_check_credentials">Authentication failed — check your username and password.</string>

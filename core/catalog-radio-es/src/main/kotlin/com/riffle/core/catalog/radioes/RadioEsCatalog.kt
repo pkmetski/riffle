@@ -51,8 +51,17 @@ class RadioEsCatalog(
     private val facetsMutex = Mutex()
     private var cachedFacets: List<CatalogFacet>? = null
 
-    override suspend fun listFacets(rootId: String): List<CatalogFacet> {
-        if (rootId != ROOT_PODCASTS) return emptyList()
+    private val stationTagsMutex = Mutex()
+    private var cachedCountryFacets: List<CatalogFacet>? = null
+    private var cachedCountryNameBySlug: Map<String, String>? = null
+
+    override suspend fun listFacets(rootId: String): List<CatalogFacet> = when (rootId) {
+        ROOT_PODCASTS -> loadPodcastFacets()
+        ROOT_STATIONS -> loadStationCountryFacets()
+        else -> emptyList()
+    }
+
+    private suspend fun loadPodcastFacets(): List<CatalogFacet> {
         cachedFacets?.let { return it }
         return facetsMutex.withLock {
             cachedFacets?.let { return@withLock it }
@@ -75,6 +84,23 @@ class RadioEsCatalog(
         }
     }
 
+    private suspend fun loadStationCountryFacets(): List<CatalogFacet> {
+        cachedCountryFacets?.let { return it }
+        return stationTagsMutex.withLock {
+            cachedCountryFacets?.let { return@withLock it }
+            val body = runCatching { http.getString("$apiBase/stations/tags") }.getOrNull()
+                ?: return@withLock emptyList()
+            val countries = RadioEsParser.parseStationCountries(body)
+                .filter { it.slug.isNotEmpty() }
+            cachedCountryNameBySlug = countries.associate { it.slug to it.systemName }
+            val facets = countries.mapIndexed { idx, c ->
+                CatalogFacet(key = "country:${c.slug}", label = c.name, sortOrder = idx)
+            }
+            cachedCountryFacets = facets
+            facets
+        }
+    }
+
     // ---- Browse -------------------------------------------------------------
 
     override suspend fun browse(
@@ -86,7 +112,7 @@ class RadioEsCatalog(
     ): List<CatalogItem> {
         return when (rootId) {
             ROOT_PODCASTS -> browsePodcasts(facet, page, pageSize)
-            ROOT_STATIONS -> browseStations(page, pageSize)
+            ROOT_STATIONS -> browseStations(facet, page, pageSize)
             else -> emptyList()
         }
     }
@@ -103,8 +129,19 @@ class RadioEsCatalog(
             .map { it.toCatalogItem() }
     }
 
-    private suspend fun browseStations(page: Int, pageSize: Int): List<CatalogItem> {
+    private suspend fun browseStations(facet: FacetSelection?, page: Int, pageSize: Int): List<CatalogItem> {
         val offset = page * pageSize
+        if (facet != null && facet.key.startsWith("country:")) {
+            val slug = facet.key.removePrefix("country:")
+            val countryName = cachedCountryNameBySlug?.get(slug)
+                ?: slug.replaceFirstChar { it.uppercase() }
+            val encoded = URLEncoder.encode(countryName, "UTF-8")
+            val url = "$apiBase/stations/search?query=$encoded&count=$pageSize&offset=$offset"
+            val body = http.getString(url)
+            return RadioEsParser.parseStations(body).stations
+                .filter { !it.streamUrl.isNullOrBlank() }
+                .map { it.toCatalogItem() }
+        }
         val url = "$apiBase/stations/local?count=$pageSize&offset=$offset"
         val body = http.getString(url)
         return RadioEsParser.parseStations(body).stations
