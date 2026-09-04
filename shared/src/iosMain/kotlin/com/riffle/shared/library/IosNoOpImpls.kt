@@ -3,7 +3,11 @@ package com.riffle.shared.library
 import com.riffle.core.data.AnnotatedBook
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AppTheme
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.DownloadsRepository
+import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferences
@@ -121,4 +125,19 @@ internal class IosNoOpReadaloudLinkRepository : ReadaloudLinkRepository {
 internal class IosNoOpAnnotationsLibraryRepository : AnnotationsLibraryRepository {
     override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
     override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
+}
+
+internal class IosNoOpAppThemeStore : AppThemeStore {
+    override val appTheme: Flow<AppTheme> = flowOf(AppTheme.System)
+    override suspend fun setAppTheme(value: AppTheme) {}
+}
+
+internal class IosNoOpDownloadsRepository : DownloadsRepository {
+    override fun getDownloadedArtifacts(): List<StoredItemArtifact> = emptyList()
+    override fun getCachedArtifacts(): List<StoredItemArtifact> = emptyList()
+    override fun sizeOf(sourceId: String, itemId: String): Long = 0L
+    override suspend fun removeDownload(sourceId: String, itemId: String) {}
+    override suspend fun removeCached(sourceId: String, itemId: String) {}
+    override suspend fun removeAllDownloads() {}
+    override suspend fun clearAllCached() {}
 }

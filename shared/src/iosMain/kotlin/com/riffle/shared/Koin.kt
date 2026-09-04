@@ -14,7 +14,9 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DispatcherProvider
@@ -50,7 +52,9 @@ import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
+import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
+import com.riffle.shared.library.IosNoOpDownloadsRepository
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
@@ -121,6 +125,8 @@ private fun iosLibraryModule(
     single { RefreshSeries(get()) }
     single<CoverGridDensityStore> { IosNoOpCoverGridDensityStore() }
     single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
+    single<AppThemeStore> { IosNoOpAppThemeStore() }
+    single<DownloadsRepository> { IosNoOpDownloadsRepository() }
     single<AnnotationStore> { IosNoOpAnnotationStore() }
     single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
     single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
