@@ -48,7 +48,7 @@ import com.riffle.shared.reader.PdfReaderScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
-private sealed interface LibraryNav {
+internal sealed interface LibraryNav {
     data object Items : LibraryNav
     data class Section(val sectionType: LibrarySectionType) : LibraryNav
     data class ItemDetail(val item: LibraryItem) : LibraryNav
@@ -57,6 +57,17 @@ private sealed interface LibraryNav {
     data class Reader(val item: LibraryItem) : LibraryNav
     data class PdfReader(val item: LibraryItem) : LibraryNav
     data class AudiobookPlayer(val item: LibraryItem) : LibraryNav
+}
+
+/**
+ * Decides which reader destination to open for [item] when the detail screen triggers "open reader".
+ * Returns null when the item has no supported playback format.
+ */
+internal fun readerNavForItem(item: LibraryItem): LibraryNav? = when {
+    item.isListenable -> LibraryNav.AudiobookPlayer(item)
+    item.ebookFormat == EbookFormat.Pdf -> LibraryNav.PdfReader(item)
+    item.isReadable -> LibraryNav.Reader(item)
+    else -> null
 }
 
 @Composable
@@ -333,11 +344,7 @@ private fun LibraryHost(
             sourceId = current.item.sourceId.ifEmpty { null },
             onBack = { nav = LibraryNav.Items },
             onReadNotSupported = {
-                when {
-                    current.item.isListenable -> nav = LibraryNav.AudiobookPlayer(current.item)
-                    current.item.ebookFormat == EbookFormat.Pdf -> nav = LibraryNav.PdfReader(current.item)
-                    current.item.isReadable -> nav = LibraryNav.Reader(current.item)
-                }
+                readerNavForItem(current.item)?.let { nav = it }
             },
         )
         is LibraryNav.Reader -> EpubReaderScreen(
