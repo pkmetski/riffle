@@ -1,8 +1,8 @@
 package com.riffle.core.data.websource
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RemoteItemFreshnessEntity
-import com.riffle.core.common.Clock
 
 /**
  * Records when a web-source item's persisted detail was last successfully refetched

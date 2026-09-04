@@ -36,6 +36,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
@@ -52,6 +53,7 @@ private sealed interface LibraryNav {
     data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
     data class Reader(val item: LibraryItem) : LibraryNav
+    data class AudiobookPlayer(val item: LibraryItem) : LibraryNav
 }
 
 @Composable
@@ -327,9 +329,18 @@ private fun LibraryHost(
             itemId = current.item.id,
             sourceId = current.item.sourceId.ifEmpty { null },
             onBack = { nav = LibraryNav.Items },
-            onReadNotSupported = { if (current.item.isReadable) nav = LibraryNav.Reader(current.item) },
+            onReadNotSupported = {
+                when {
+                    current.item.isListenable -> nav = LibraryNav.AudiobookPlayer(current.item)
+                    current.item.isReadable -> nav = LibraryNav.Reader(current.item)
+                }
+            },
         )
         is LibraryNav.Reader -> EpubReaderScreen(
+            item = current.item,
+            onBack = { nav = LibraryNav.Items },
+        )
+        is LibraryNav.AudiobookPlayer -> AudiobookPlayerScreen(
             item = current.item,
             onBack = { nav = LibraryNav.Items },
         )

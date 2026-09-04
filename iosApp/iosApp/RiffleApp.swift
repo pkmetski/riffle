@@ -4,7 +4,10 @@ import Riffle
 @main
 struct RiffleApp: App {
     init() {
-        KoinKt.startKoin(navigatorBridgeFactory: ReadiumEpubNavigatorBridgeFactory())
+        KoinKt.startKoin(
+            navigatorBridgeFactory: ReadiumEpubNavigatorBridgeFactory(),
+            audioPlayerBridgeFactory: IosAudioPlayerBridgeFactoryImpl()
+        )
     }
     var body: some Scene {
         WindowGroup {
