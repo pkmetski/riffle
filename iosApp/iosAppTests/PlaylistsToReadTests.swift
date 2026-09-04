@@ -17,8 +17,9 @@ final class PlaylistsToReadTests: XCTestCase {
 
     // Regression: both "To Read" and "To Listen" must be in RESERVED_PLAYLIST_NAMES so
     // IosPlaylistsRepositoryImpl's filter hides both from the user-facing Playlists tab.
-    func testReservedPlaylistNamesContainsToReadAndToListen() {
-        let reserved = PlaylistsRepositoryKt.RESERVED_PLAYLIST_NAMES as! Set<String>
+    func testReservedPlaylistNamesContainsToReadAndToListen() throws {
+        let raw = PlaylistsRepositoryKt.RESERVED_PLAYLIST_NAMES
+        let reserved = try XCTUnwrap(raw as? Set<String>)
         XCTAssertTrue(reserved.contains("To Read"),
                       "RESERVED_PLAYLIST_NAMES must contain 'To Read' to hide it from the Playlists tab")
         XCTAssertTrue(reserved.contains("To Listen"),
