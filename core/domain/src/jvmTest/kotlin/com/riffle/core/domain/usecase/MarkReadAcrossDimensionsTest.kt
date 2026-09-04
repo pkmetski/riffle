@@ -37,6 +37,7 @@ class MarkReadAcrossDimensionsTest {
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             progressCalls += itemId to progress
         }
+        override suspend fun deleteItem(sourceId: String, itemId: String) = Unit
     }
 
     private class RecordingSession : ReadingSessionRepository {

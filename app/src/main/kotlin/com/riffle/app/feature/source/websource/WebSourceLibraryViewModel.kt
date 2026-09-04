@@ -11,6 +11,8 @@ import com.riffle.app.feature.library.HomeTabContent
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.core.data.ToReadRepository
+import com.riffle.core.data.websource.RemoteItemFreshness
+import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * Room-backed acquired-item shelves shared by every Web Source.
@@ -30,6 +33,8 @@ class WebSourceLibraryViewModel constructor(
     savedStateHandle: SavedStateHandle,
     libraryObserver: LibraryObserver,
     toReadRepository: ToReadRepository,
+    private val libraryMutator: LibraryMutator,
+    private val remoteItemFreshness: RemoteItemFreshness,
 ) : ViewModel() {
 
     private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -50,6 +55,17 @@ class WebSourceLibraryViewModel constructor(
         toReadItemIds = toReadRepository.observeToReadItemIds(libraryId),
         allBooks = libraryObserver.observeAllBooks(libraryId),
     ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun removeFromLibrary(sourceId: String, itemId: String) {
+        viewModelScope.launch {
+            removeFromLibrary(
+                sourceId = sourceId,
+                itemId = itemId,
+                libraryMutator = libraryMutator,
+                clearFreshness = remoteItemFreshness::clear,
+            )
+        }
+    }
 }
 
 internal fun webSourceToReadItems(
@@ -57,6 +73,16 @@ internal fun webSourceToReadItems(
     allBooks: Flow<List<LibraryItem>>,
 ): Flow<List<LibraryItem>> = combine(toReadItemIds, allBooks) { ids, all ->
     all.filter { it.id in ids }
+}
+
+internal suspend fun removeFromLibrary(
+    sourceId: String,
+    itemId: String,
+    libraryMutator: LibraryMutator,
+    clearFreshness: suspend (String, String) -> Unit,
+) {
+    libraryMutator.deleteItem(sourceId, itemId)
+    clearFreshness(sourceId, itemId)
 }
 
 @Composable
@@ -81,6 +107,7 @@ fun WebSourceHomeTab(
         onItemSelected = { item -> onOpenDetail(item.id) },
         onSectionSeeMore = onSectionSeeMore,
         onCoverScaleChange = onCoverScaleChange,
+        onItemLongPress = { item -> viewModel.removeFromLibrary(item.sourceId, item.id) },
     )
 }
 

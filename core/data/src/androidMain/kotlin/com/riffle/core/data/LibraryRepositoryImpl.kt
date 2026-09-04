@@ -168,6 +168,10 @@ class LibraryRepositoryImpl constructor(
         libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
     }
 
+    override suspend fun deleteItem(sourceId: String, itemId: String) {
+        libraryItemDao.deleteById(sourceId, itemId)
+    }
+
     override suspend fun refreshLibraries(): LibraryRefreshResult {
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer

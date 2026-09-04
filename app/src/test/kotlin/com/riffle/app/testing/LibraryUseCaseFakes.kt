@@ -30,6 +30,7 @@ object NoopLibraryMutator : LibraryMutator {
     override suspend fun markItemOpened(itemId: String) = Unit
     override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+    override suspend fun deleteItem(sourceId: String, itemId: String) = Unit
 }
 
 object NoopReadingSessionRepository : ReadingSessionRepository {

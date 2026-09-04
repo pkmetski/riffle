@@ -223,6 +223,7 @@
     <string name="ui_remove_download">Eliminar descarga</string>
     <string name="ui_remove_folder">¿Quitar carpeta?</string>
     <string name="ui_remove_folder_3">Quitar carpeta</string>
+    <string name="ui_remove_from_library">Eliminar de la biblioteca</string>
     <string name="ui_remove_from_playlist">Eliminar de la lista de reproducción</string>
     <string name="ui_remove_readaloud_download">Eliminar descarga de lectura en voz alta</string>
     <string name="ui_remove_source">Eliminar fuente</string>

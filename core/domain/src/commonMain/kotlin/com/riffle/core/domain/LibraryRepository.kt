@@ -75,6 +75,9 @@ interface LibraryMutator {
 
     /** Writes the new readingProgress to a specific server's local row. Cross-server callers. */
     suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float)
+
+    /** Removes the item row from the local cache. Safe for web-source items (re-openable from catalog). */
+    suspend fun deleteItem(sourceId: String, itemId: String)
 }
 
 /**

@@ -223,6 +223,7 @@
     <string name="ui_remove_download">Премахване на изтеглянето</string>
     <string name="ui_remove_folder">Премахване на папка?</string>
     <string name="ui_remove_folder_3">Премахване на папка</string>
+    <string name="ui_remove_from_library">Премахване от библиотеката</string>
     <string name="ui_remove_from_playlist">Премахване от плейлиста</string>
     <string name="ui_remove_readaloud_download">Премахнете изтеглянето за четене на глас</string>
     <string name="ui_remove_source">Премахване на източника</string>
