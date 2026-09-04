@@ -59,6 +59,7 @@ kotlin {
             implementation(libs.koin.core)
             implementation(project(":core:database"))
             implementation(project(":core:net"))
+            implementation(project(":core:logging"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)
