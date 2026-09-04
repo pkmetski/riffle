@@ -5,7 +5,9 @@ import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
+import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
+import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
@@ -47,8 +49,6 @@ import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpLibraryItemOfflineAvailability
-import com.riffle.core.data.IosPlaylistsRepositoryImpl
-import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
