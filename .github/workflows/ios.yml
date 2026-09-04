@@ -1,0 +1,114 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: iOS lint
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-lint-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: ./.github/actions/setup-gradle
+        with:
+          fetch-depth: '0'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Kotlin lint (iosMain source sets)
+        run: |
+          ./gradlew \
+            :shared:ktlintIosMainSourceSetCheck \
+            :core:database:ktlintIosMainSourceSetCheck \
+            :core:net:ktlintIosMainSourceSetCheck \
+            :core:data:ktlintIosMainSourceSetCheck \
+            :core:logging:ktlintIosMainSourceSetCheck
+      - name: Install SwiftLint
+        run: brew install swiftlint
+      - name: SwiftLint (iosApp/)
+        run: swiftlint lint iosApp/
+
+  integration-tests:
+    name: iOS integration tests
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-integration-tests-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run iOS integration tests
+        run: |
+          # Pick the latest available iPhone simulator on this runner dynamically.
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+            for d in data['devices'][runtime_key]:
+              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                print(d['udid']); exit()
+          ")
+          xcodebuild test \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee xcodebuild-test.log; exit ${PIPESTATUS[0]}
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-integration-test-log
+          path: xcodebuild-test.log
+          if-no-files-found: ignore
+
+  build:
+    name: iOS build
+    runs-on: macos-15
+    timeout-minutes: 30
+    concurrency:
+      group: ios-build-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
+      - name: Build Xcode project (simulator)
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme Riffle \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  database-test:
+    name: iOS database tests (core:database)
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-database-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Run iOS database tests
+        run: ./gradlew :core:database:iosSimulatorArm64Test :core:sync:iosSimulatorArm64Test
+      - name: Upload iOS database test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-database-test-reports
+          path: |
+            core/database/build/reports/tests/
+            core/sync/build/reports/tests/
+          if-no-files-found: ignore

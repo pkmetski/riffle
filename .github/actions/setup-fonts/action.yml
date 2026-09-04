@@ -1,0 +1,14 @@
+name: Setup Android Fonts
+description: Restore font assets from cache and run make fonts.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v6
+      with:
+        path: app/src/main/assets/fonts
+        key: fonts-v1-${{ hashFiles('Makefile') }}
+        restore-keys: fonts-v1-
+    - name: Download fonts
+      shell: bash
+      run: make fonts
