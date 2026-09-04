@@ -69,7 +69,7 @@ import ReadiumNavigator
         Task { @MainActor in _ = try? await epubNavigator?.goBackward(animated: true) }
     }
 
-    func goToLocator(_ locatorJson: String) {
+    func goToLocator(locatorJson: String) {
         guard let data = locatorJson.data(using: .utf8),
               let locator = try? JSONDecoder().decode(Locator.self, from: data) else { return }
         Task { @MainActor in _ = try? await epubNavigator?.go(to: locator, animated: true) }
@@ -79,15 +79,15 @@ import ReadiumNavigator
     /// rather than querying epubNavigator.currentLocation which requires the main thread.
     func snapshotLocatorJson() -> String? { cachedLocatorJson }
 
-    func setLocatorCallback(_ callback: ((String) -> Void)?) {
+    func setLocatorCallback(callback: ((String) -> Void)?) {
         locatorCallback = callback
     }
 
-    func setPageLoadCallback(_ callback: (() -> Void)?) {
+    func setPageLoadCallback(callback: (() -> Void)?) {
         pageLoadCallback = callback
     }
 
-    func setTapCallback(_ callback: (() -> Void)?) {
+    func setTapCallback(callback: (() -> Void)?) {
         tapCallback = callback
     }
 

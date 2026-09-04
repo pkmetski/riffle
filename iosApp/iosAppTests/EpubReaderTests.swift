@@ -66,7 +66,7 @@ final class EpubReaderTests: XCTestCase {
         let bridge = ReadiumEpubNavigatorBridge()
         var count = 0
         bridge.setLocatorCallback { _ in count += 1 }
-        bridge.setLocatorCallback(nil)
+        bridge.setLocatorCallback(callback: nil)
         bridge.simulateLocatorUpdate("{}")
         XCTAssertEqual(count, 0)
     }
