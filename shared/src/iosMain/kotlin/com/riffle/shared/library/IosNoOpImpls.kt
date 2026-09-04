@@ -113,14 +113,18 @@ internal class IosNoOpAnnotationStore : AnnotationStore {
     ): Annotation = error("Not implemented on iOS")
     override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String): Int = 0
     override suspend fun healSentinelOriginFontFamily(sourceId: String, itemId: String, sentinel: String, fontFamily: String): Int = 0
-    override suspend fun upgradeImageToCaptionHighlight(id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String, figure: EmbeddedFigure): Annotation? = null
+    override suspend fun upgradeImageToCaptionHighlight(
+        id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String, figure: EmbeddedFigure,
+    ): Annotation? = null
     override suspend fun mergeFiguresIntoHighlight(id: String, newFigures: List<EmbeddedFigure>): Annotation? = null
     override suspend fun delete(id: String) {}
     override suspend fun recolor(id: String, color: String) {}
     override suspend fun updateNote(id: String, note: String?) {}
     override suspend fun renameBookmark(id: String, title: String) {}
     override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
-    override suspend fun findImageAnnotationForFigure(sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?): Annotation? = null
+    override suspend fun findImageAnnotationForFigure(
+        sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+    ): Annotation? = null
 }
 
 internal class IosNoOpAudiobookBookmarkStore : AudiobookBookmarkStore {
