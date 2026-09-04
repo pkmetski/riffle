@@ -1,6 +1,5 @@
 package com.riffle.core.domain.comic.panel
 
-import java.util.ArrayDeque
 
 /**
  * On-device panel detector for comic pages. Modeled on Kumiko's approach: treat the gutter as a
@@ -16,7 +15,7 @@ import java.util.ArrayDeque
  *     a [PanelSource.Fallback] result with one whole-page region.
  *
  * Input is a downscaled [PixelGrid] plus the source image's original dimensions; output
- * coordinates are in the original image's pixel space. Pure JVM — no Android imports.
+ * coordinates are in the original image's pixel space.
  */
 class PanelDetector(
     private val config: PanelDetectionConfig = PanelDetectionConfig(),
@@ -2511,7 +2510,7 @@ class PanelDetector(
         for (y in 0 until h) { seed(0, y); seed(w - 1, y) }
 
         while (queue.isNotEmpty()) {
-            val idx = queue.pollFirst()
+            val idx = queue.removeFirst()
             val x = idx % w
             val y = idx / w
             if (x > 0) seed(x - 1, y)
@@ -2540,7 +2539,7 @@ class PanelDetector(
             var minY = start / w
             var maxY = minY
             while (queue.isNotEmpty()) {
-                val idx = queue.pollFirst()
+                val idx = queue.removeFirst()
                 val x = idx % w
                 val y = idx / w
                 if (x < minX) minX = x
