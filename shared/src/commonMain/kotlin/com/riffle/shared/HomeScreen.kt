@@ -20,8 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import kotlinx.coroutines.launch
@@ -30,6 +32,7 @@ import org.koin.compose.koinInject
 private sealed interface LibraryNav {
     data object Items : LibraryNav
     data class Section(val sectionType: LibrarySectionType) : LibraryNav
+    data class ItemDetail(val item: LibraryItem) : LibraryNav
 }
 
 @Composable
@@ -105,7 +108,7 @@ private fun LibraryHost(libraryId: String, libraryName: String) {
             libraryId = libraryId,
             libraryName = libraryName,
             onOpenDrawer = {},
-            onItemSelected = {},
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
             onSeriesSelected = {},
             onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
         )
@@ -113,7 +116,13 @@ private fun LibraryHost(libraryId: String, libraryName: String) {
             libraryId = libraryId,
             sectionType = current.sectionType,
             onBack = { nav = LibraryNav.Items },
-            onItemSelected = {},
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
+        )
+        is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
+            itemId = current.item.id,
+            sourceId = current.item.sourceId.ifEmpty { null },
+            onBack = { nav = LibraryNav.Items },
+            onReadNotSupported = {},
         )
     }
 }
