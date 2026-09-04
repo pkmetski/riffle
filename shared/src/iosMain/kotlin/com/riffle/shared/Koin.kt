@@ -1,6 +1,10 @@
 package com.riffle.shared
 
+import com.riffle.core.common.Clock
+import com.riffle.core.common.IosSystemClock
+import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryObserverImpl
@@ -52,8 +56,6 @@ import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.downloads.DownloadsViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
-import com.riffle.shared.library.IosNoOpAnnotationStore
-import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
@@ -134,10 +136,11 @@ private fun iosLibraryModule(
     single<DownloadsRepository> { IosNoOpDownloadsRepository() }
     single { DownloadsViewModel(get()) }
     single { SettingsViewModel(get(), get(), get()) }
-    single<AnnotationStore> { IosNoOpAnnotationStore() }
+    single<Clock> { IosSystemClock }
+    single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
     single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
     single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
-    single<AnnotationsLibraryRepository> { IosNoOpAnnotationsLibraryRepository() }
+    single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get()) }
 
     // ViewModel factories — keyed by libraryId (+ sectionType for section screen)
     factory { params ->
