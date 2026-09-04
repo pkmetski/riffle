@@ -88,7 +88,7 @@
 			name = iosAppTests;
 			productName = iosAppTests;
 			productReference = B1001001 /* iosAppTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -105,6 +105,7 @@
 					};
 					B1001005 = {
 						CreatedOnToolsVersion = 16.0;
+						TestTargetID = B1000005;
 					};
 				};
 			};
@@ -321,6 +322,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Riffle;
 			};
 			name = Debug;
 		};
@@ -337,6 +339,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
+				TEST_TARGET_NAME = Riffle;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
