@@ -76,6 +76,7 @@ private fun iosLibraryModule(navigatorBridgeFactory: IosEpubNavigatorBridgeFacto
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
+    single { DrawerViewModel(get(), get(), get(), get()) }
     single { AddAbsSourceViewModel(get(), get(), get()) }
 
     // EPUB reader
