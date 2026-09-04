@@ -720,31 +720,114 @@ class ChitankaBrowseViewModelTest {
     }
 
     @Test
-    fun `owned item index does not query Room until unowned filter is activated`() = runTest(dispatcher) {
-        // Regression: ownedItemIndex used SharingStarted.Eagerly without gating on the filter,
-        // so observeAllItemsForSource() was called on every VM creation regardless of whether
-        // the user had the Unowned filter on. For a large ABS library this ran buildOwnedItemIndex()
-        // on the main thread every time a source or library switch recreated the VM, causing
-        // UI freezes. The index must only be built when the filter is actually active.
-        var queryFired = false
-        val spyObserver = object : LibraryObserver by FakeLibraryObserver() {
-            override fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> {
-                queryFired = true
-                return flowOf(emptyList())
+    fun `server source items are queried on startup to populate progress for browse items`() =
+        runTest(dispatcher) {
+            // serverSourceProgressByNormKey fires observeAllItemsForSource eagerly so that browse
+            // items uploaded to ABS can show their played/in-progress state without requiring the
+            // Unowned filter to be active. The buildOwnedItemIndex() path (which caused the original
+            // UI-freeze regression) remains gated on _unownedFilterActive — see the test below.
+            var queryFired = false
+            val spyObserver = object : LibraryObserver by FakeLibraryObserver() {
+                override fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> {
+                    queryFired = true
+                    return flowOf(emptyList())
+                }
             }
+            val vm = makeVm(
+                sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+                libraryObserver = spyObserver,
+            )
+            advanceUntilIdle()
+
+            assertTrue("serverSourceProgressByNormKey must query Room on startup for progress", queryFired)
         }
+
+    @Test
+    fun `owned item index does not hide items until unowned filter is activated`() = runTest(dispatcher) {
+        // buildOwnedItemIndex() is still gated on _unownedFilterActive. Even though server source
+        // items are loaded eagerly for progress tracking, the ownership exclusion only takes effect
+        // once the user toggles the Unowned filter.
+        val serverItem = serverLibraryItem(title = "Dune", author = "Frank Herbert")
+        val serverItems = MutableStateFlow(listOf(serverItem))
+
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+            listOf(item("cat-1").copy(title = "Dune", author = "Frank Herbert"), item("cat-2"))
+
         val vm = makeVm(
+            catalog = catalog,
             sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
-            libraryObserver = spyObserver,
+            libraryObserver = FakeLibraryObserver(serverSourceItemsFlow = serverItems),
         )
         advanceUntilIdle()
 
-        assertFalse("ownedItemIndex must not query Room while the unowned filter is off", queryFired)
+        // Both items visible before filter is activated — the loaded server items don't trigger hiding
+        assertEquals(2, vm.filteredItems.value.size)
+        assertFalse(vm.unownedFilterActive.value)
 
         vm.toggleUnownedFilter()
         advanceUntilIdle()
 
-        assertTrue("ownedItemIndex must query Room once the filter is activated", queryFired)
+        // After filter: owned item hidden because buildOwnedItemIndex() ran
+        assertTrue(vm.unownedFilterActive.value)
+        assertEquals(listOf("cat-2"), vm.filteredItems.value.map { it.id })
+    }
+
+    @Test
+    fun `catalog items uploaded to ABS show played progress from server source`() = runTest(dispatcher) {
+        // Root cause of "Gramofonche uploaded item is not marked as played": localReadingProgressByItemId
+        // only queries Chitanka source items (scoped by activeServerId). When a user uploads a
+        // Gramofonche item to ABS and listens there, the ABS item's readingProgress is never
+        // reflected in the Chitanka browse grid. serverSourceProgressByNormKey fixes this by
+        // looking up server-source progress by normalized title+author as a fallback.
+        val serverItem = serverLibraryItem(title = "Приказки", author = "Народни приказки")
+            .copy(readingProgress = 1.0f)
+        val serverItems = MutableStateFlow(listOf(serverItem))
+
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+            listOf(
+                item("prikazki/1-slug").copy(title = "Приказки", author = "Народни приказки"),
+                item("prikazki/2-other"),
+            )
+
+        val vm = makeVm(
+            rootId = ChitankaCatalog.ROOT_AUDIOBOOKS,
+            catalog = catalog,
+            sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+            libraryObserver = FakeLibraryObserver(serverSourceItemsFlow = serverItems),
+        )
+        advanceUntilIdle()
+
+        val byId = vm.filteredItems.value.associateBy { it.id }
+        assertEquals(1.0f, byId.getValue("prikazki/1-slug").readingProgress)
+        assertEquals(null, byId.getValue("prikazki/2-other").readingProgress)
+    }
+
+    @Test
+    fun `local Chitanka progress takes precedence over server source progress`() = runTest(dispatcher) {
+        // If the same item has local progress in the Chitanka source (e.g., user played it in
+        // Riffle before uploading) AND server-source progress, the local value wins.
+        val itemId = "prikazki/3-test"
+        val roomItems = MutableStateFlow(listOf(libraryItem(itemId, progress = 0.7f)
+            .copy(libraryId = ChitankaCatalog.ROOT_AUDIOBOOKS)))
+
+        val serverItem = serverLibraryItem(title = itemId, author = "A").copy(readingProgress = 1.0f)
+        val serverItems = MutableStateFlow(listOf(serverItem))
+
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+            listOf(item(itemId))
+
+        val vm = makeVm(
+            rootId = ChitankaCatalog.ROOT_AUDIOBOOKS,
+            catalog = catalog,
+            sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+            libraryObserver = FakeLibraryObserver(allBooksFlow = roomItems, serverSourceItemsFlow = serverItems),
+        )
+        advanceUntilIdle()
+
+        assertEquals(0.7f, vm.filteredItems.value.first().readingProgress)
     }
 
     // ---- filter helpers ----------------------------------------------------------
