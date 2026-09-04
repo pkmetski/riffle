@@ -39,7 +39,7 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
 
-    init {
+    private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
             parseLocatorJson(json)?.let { pos ->
                 lastPosition = pos
@@ -55,7 +55,13 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         }
     }
 
+    init {
+        registerBridgeCallbacks()
+    }
+
     override suspend fun open(bookFilePath: String, initialLocatorJson: LocatorJson?) {
+        // Re-register in case close() was called and callbacks were cleared for a prior open.
+        registerBridgeCallbacks()
         bridge.openEpub(bookFilePath, initialLocatorJson)
     }
 
@@ -75,13 +81,16 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         when (target) {
             is NavigatorNavigationTarget.ToLocatorJson -> bridge.goToLocator(target.locatorJson)
             is NavigatorNavigationTarget.ToHref -> {
-                // Build a minimal Readium Locator JSON for an href navigation.
-                val fragment = target.fragment?.let { ""","locations":{"fragments":["$it"]}""" } ?: ""
-                bridge.goToLocator("""{"href":"${target.href}","type":"application/xhtml+xml"$fragment}""")
+                val href = target.href.escapeForJson()
+                val fragment = target.fragment?.let { f ->
+                    ""","locations":{"fragments":["${f.escapeForJson()}"]}"""
+                } ?: ""
+                bridge.goToLocator("""{"href":"$href","type":"application/xhtml+xml"$fragment}""")
             }
             is NavigatorNavigationTarget.ToProgression -> {
+                val href = target.href.escapeForJson()
                 bridge.goToLocator(
-                    """{"href":"${target.href}","type":"application/xhtml+xml","locations":{"progression":${target.progression}}}"""
+                    """{"href":"$href","type":"application/xhtml+xml","locations":{"progression":${target.progression}}}"""
                 )
             }
         }
@@ -94,9 +103,7 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         }
     }
 
-    override fun applyDecorations(group: String, decorations: List<NavigatorDecoration>) {
-        // v1: decoration rendering not implemented on iOS
-    }
+    override fun applyDecorations(group: String, decorations: List<NavigatorDecoration>) {}
 
     override suspend fun applyHighlightDomPatch(patchJson: String) {}
 
@@ -146,4 +153,6 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
             locatorJson = json,
         )
     }
+
+    private fun String.escapeForJson() = replace("\\", "\\\\").replace("\"", "\\\"")
 }

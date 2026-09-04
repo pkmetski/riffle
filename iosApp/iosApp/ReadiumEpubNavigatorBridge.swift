@@ -12,6 +12,8 @@ import ReadiumNavigator
     private let hostViewController = UIViewController()
     private var epubNavigator: EPUBNavigatorViewController?
     private var publication: Publication?
+    // Updated on main thread by the delegate; read from snapshotLocatorJson() on any thread.
+    private var cachedLocatorJson: String?
 
     // Callbacks registered by ReadiumSwiftNavigator
     private var locatorCallback: ((String) -> Void)?
@@ -45,6 +47,7 @@ import ReadiumNavigator
                         config: config
                     )
                     navigator.delegate = self
+                    navigator.addObserver(self)
                     self.epubNavigator = navigator
                     self.hostViewController.addChild(navigator)
                     navigator.view.frame = self.hostViewController.view.bounds
@@ -72,11 +75,9 @@ import ReadiumNavigator
         Task { @MainActor in _ = try? await epubNavigator?.go(to: locator, animated: true) }
     }
 
-    func snapshotLocatorJson() -> String? {
-        guard let locator = epubNavigator?.currentLocation,
-              let data = try? JSONEncoder().encode(locator) else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
+    /// Thread-safe: returns the cached locator JSON last emitted by the delegate (main thread),
+    /// rather than querying epubNavigator.currentLocation which requires the main thread.
+    func snapshotLocatorJson() -> String? { cachedLocatorJson }
 
     func setLocatorCallback(_ callback: ((String) -> Void)?) {
         locatorCallback = callback
@@ -91,11 +92,15 @@ import ReadiumNavigator
     }
 
     func release() {
-        epubNavigator?.willMove(toParent: nil)
-        epubNavigator?.view.removeFromSuperview()
-        epubNavigator?.removeFromParent()
-        epubNavigator = nil
-        publication = nil
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.epubNavigator?.willMove(toParent: nil)
+            self.epubNavigator?.view.removeFromSuperview()
+            self.epubNavigator?.removeFromParent()
+            self.epubNavigator = nil
+            self.publication = nil
+            self.cachedLocatorJson = nil
+        }
     }
 }
 
@@ -105,6 +110,7 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         guard let data = try? JSONEncoder().encode(locator),
               let json = String(data: data, encoding: .utf8) else { return }
+        cachedLocatorJson = json
         locatorCallback?(json)
     }
 
@@ -128,7 +134,10 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorViewController.Observer {
 // MARK: - Test helpers
 
 extension ReadiumEpubNavigatorBridge {
-    @objc func simulateLocatorUpdate(_ json: String) { locatorCallback?(json) }
+    @objc func simulateLocatorUpdate(_ json: String) {
+        cachedLocatorJson = json
+        locatorCallback?(json)
+    }
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
 }
