@@ -23,8 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.riffle.app.feature.audiobook.SleepTimerMode
-import com.riffle.app.feature.audiobook.formatCountdown
+import com.riffle.feature.player.SleepTimerMode
+import com.riffle.feature.player.formatCountdown
 
 private val PRESETS_MINUTES = listOf(5, 15, 30, 45, 60, 90)
 

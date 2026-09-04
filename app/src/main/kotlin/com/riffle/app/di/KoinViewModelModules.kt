@@ -565,8 +565,12 @@ private val readerViewModelModule = module {
 
 private val audiobookViewModelModule = module {
     viewModel {
+        val handle = get<androidx.lifecycle.SavedStateHandle>()
         AudiobookPlayerViewModel(
-            savedStateHandle = get(),
+            navItemId = handle.get<String>("itemId") ?: "",
+            navPlaylistId = handle.get<String>("playlistId"),
+            navPlaylistLibraryId = handle.get<String>("libraryId"),
+            navStartAtSec = handle.get<Float>("startAtSec") ?: -1f,
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),
             audiobookCacheRepository = get(),
@@ -576,7 +580,7 @@ private val audiobookViewModelModule = module {
             sourceRepository = get(),
             tokenStorage = get(),
             controller = get(),
-            readaloudController = get(),
+            readaloudHandoff = get(),
             audioPlaybackPreferencesStore = get(),
             listeningPreferencesStore = get(),
             audioIdentityResolver = get(),

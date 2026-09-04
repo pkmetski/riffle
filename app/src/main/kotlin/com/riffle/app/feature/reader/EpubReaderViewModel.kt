@@ -3520,7 +3520,7 @@ class EpubReaderViewModel constructor(
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
-        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Readaloud && it.itemId == itemId }
+        nowPlayingStore.clearIf { it is com.riffle.feature.player.NowPlaying.Readaloud && it.itemId == itemId }
         // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
         playerCoordinator.dispose()
     }

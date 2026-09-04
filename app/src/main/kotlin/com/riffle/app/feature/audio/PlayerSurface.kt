@@ -66,8 +66,8 @@ import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.riffle.app.ui.DefaultCoverPlaceholder
-import com.riffle.app.feature.audiobook.SleepTimerMode
-import com.riffle.app.feature.audiobook.formatCountdown
+import com.riffle.feature.player.SleepTimerMode
+import com.riffle.feature.player.formatCountdown
 import com.riffle.app.feature.readersettings.PlaybackSpeed
 
 /**

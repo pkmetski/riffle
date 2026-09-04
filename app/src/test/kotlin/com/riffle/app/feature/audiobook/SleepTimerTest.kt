@@ -2,8 +2,10 @@ package com.riffle.app.feature.audiobook
 
 import com.riffle.core.network.NetworkResult
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.feature.player.AudioPlayerInterface
+import com.riffle.feature.player.SleepTimerMode
+import com.riffle.feature.player.formatCountdown
 import com.riffle.app.feature.reader.AudiobookFollow
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
@@ -131,7 +133,7 @@ class SleepTimerTest {
     private class FakeController(position: Double = 0.0) : AudiobookController() {
         var position: Double = position
 
-        override val state = MutableStateFlow(AudiobookController.PlaybackState(positionSec = position))
+        override val state = MutableStateFlow(AudioPlayerInterface.PlaybackState(positionSec = position))
 
         private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
         override val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
@@ -146,7 +148,7 @@ class SleepTimerTest {
             spans: List<AudiobookTrackSpan>,
             durationSec: Double,
             startAtSec: Double,
-            localZipFile: File?,
+            localZipFilePath: String?,
             coverUri: String?,
             bookTitle: String?,
             chapters: List<AudiobookChapter>,
@@ -193,7 +195,10 @@ class SleepTimerTest {
         )
         val sharedPositionStore = FakePositionStore()
         return AudiobookPlayerViewModel(
-            savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
+            navItemId = itemId,
+            navPlaylistId = null,
+            navPlaylistLibraryId = null,
+            navStartAtSec = -1f,
             audiobookRepository = FakeAudiobookRepository(session),
             audiobookDownloadRepository = NoDownloadRepo,
             audiobookCacheRepository = NoCacheRepo,
@@ -203,7 +208,7 @@ class SleepTimerTest {
             sourceRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
-            readaloudController = FakeReadaloudController(),
+            readaloudHandoff = FakeReadaloudController(),
             audioPlaybackPreferencesStore = FakePrefsStore,
             listeningPreferencesStore = FakeListeningPreferencesStore,
             audioIdentityResolver = FakeIdentityResolver,
@@ -332,7 +337,7 @@ class SleepTimerTest {
         runCurrent()
 
         // Advance to chapter 1 by moving position into [500, 1000)
-        controller.state.value = AudiobookController.PlaybackState(positionSec = 600.0)
+        controller.state.value = AudioPlayerInterface.PlaybackState(positionSec = 600.0)
         runCurrent()
 
         assertEquals(1, controller.triggerNowCalled)
@@ -343,7 +348,7 @@ class SleepTimerTest {
     fun `EoC mode does NOT fire triggerSleepNow when chapter index decreases`() = runTest(testDispatcher) {
         // Start in chapter 1 (positionSec = 600.0)
         val controller = FakeController(position = 600.0)
-        controller.state.value = AudiobookController.PlaybackState(positionSec = 600.0)
+        controller.state.value = AudioPlayerInterface.PlaybackState(positionSec = 600.0)
         val vm = buildViewModel(controller)
         runCurrent()
 
@@ -352,7 +357,7 @@ class SleepTimerTest {
         runCurrent()
 
         // Go backward to chapter 0
-        controller.state.value = AudiobookController.PlaybackState(positionSec = 100.0)
+        controller.state.value = AudioPlayerInterface.PlaybackState(positionSec = 100.0)
         runCurrent()
 
         assertEquals(0, controller.triggerNowCalled)
@@ -371,7 +376,7 @@ class SleepTimerTest {
         runCurrent()
 
         // Advance to chapter 1
-        controller.state.value = AudiobookController.PlaybackState(positionSec = 600.0)
+        controller.state.value = AudioPlayerInterface.PlaybackState(positionSec = 600.0)
         runCurrent()
 
         assertEquals(0, controller.triggerNowCalled)

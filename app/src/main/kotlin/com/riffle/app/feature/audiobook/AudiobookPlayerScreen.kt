@@ -51,6 +51,8 @@ import com.riffle.app.feature.audio.PlayerSurfaceState
 import com.riffle.app.feature.audio.formatHms
 import com.riffle.app.feature.reader.CornerBookmarkIndicator
 import com.riffle.core.models.AudiobookBookmark
+import com.riffle.feature.player.AudiobookPlayerEvent
+import com.riffle.feature.player.buildAudiobookFacts
 
 /**
  * Full-screen [Audiobook Player] (ADR 0035): square cover, title/author, current-chapter label, a

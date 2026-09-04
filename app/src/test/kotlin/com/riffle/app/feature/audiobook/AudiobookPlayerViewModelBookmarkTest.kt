@@ -2,8 +2,9 @@ package com.riffle.app.feature.audiobook
 
 import com.riffle.core.network.NetworkResult
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.feature.player.AudioPlayerInterface
+import com.riffle.feature.player.AudiobookPlayerEvent
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.app.feature.reader.ProgressFlushScope
@@ -105,7 +106,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         var preparedStartAtSec: Double? = null
         var preparedBookTitle: String? = null
         var stopCount = 0
-        override val state = MutableStateFlow(PlaybackState())
+        override val state = MutableStateFlow(com.riffle.feature.player.AudioPlayerInterface.PlaybackState())
         private val ended = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         override val playbackEnded: kotlinx.coroutines.flow.SharedFlow<Unit> = ended.asSharedFlow()
         fun emitEnded() { ended.tryEmit(Unit) }
@@ -114,7 +115,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             spans: List<com.riffle.core.models.AudiobookTrackSpan>,
             durationSec: Double,
             startAtSec: Double,
-            localZipFile: File?,
+            localZipFilePath: String?,
             coverUri: String?,
             bookTitle: String?,
             chapters: List<com.riffle.core.domain.AudiobookChapter>,
@@ -149,7 +150,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         listeningStore: ListeningPreferencesStore = FakeListeningPreferencesStore,
         positionStore: com.riffle.core.domain.AudiobookPositionStore = FakePositionStore(),
         logger: RecordingLogger = RecordingLogger(),
-        playlistsRepository: com.riffle.core.data.PlaylistsRepository = NoopPlaylistsRepository,
+        playlistsRepository: com.riffle.core.domain.PlaylistsRepository = NoopPlaylistsRepository,
         savedState: Map<String, Any?> = mapOf("itemId" to itemId),
         handoffState: AudiobookHandoffState = AudiobookHandoffState(),
         cacheRepository: com.riffle.core.domain.AudiobookCacheRepository = NoCacheRepo,
@@ -165,7 +166,10 @@ class AudiobookPlayerViewModelBookmarkTest {
         val repo = FakeAudiobookRepository(session)
         lastAudiobookRepo = repo
         return AudiobookPlayerViewModel(
-            savedStateHandle = SavedStateHandle(savedState),
+            navItemId = savedState["itemId"] as? String ?: "",
+            navPlaylistId = savedState["playlistId"] as? String,
+            navPlaylistLibraryId = savedState["libraryId"] as? String,
+            navStartAtSec = savedState["startAtSec"] as? Float ?: -1f,
             audiobookRepository = repo,
             audiobookDownloadRepository = NoDownloadRepo,
             audiobookCacheRepository = cacheRepository,
@@ -175,7 +179,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             sourceRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
-            readaloudController = FakeReadaloudController(),
+            readaloudHandoff = FakeReadaloudController(),
             audioPlaybackPreferencesStore = prefsStore,
             listeningPreferencesStore = listeningStore,
             audioIdentityResolver = FakeIdentityResolver,
@@ -650,7 +654,7 @@ class AudiobookPlayerViewModelBookmarkTest {
 
         // Simulate the controller settled at the rewound start and playing, then pause.
         ctrl.position = 530.0
-        ctrl.state.value = AudiobookController.PlaybackState(isPlaying = true)
+        ctrl.state.value = AudioPlayerInterface.PlaybackState(isPlaying = true)
         vm.togglePlayPause() // playing → pause → pushProgressOnStop
         runCurrent()
 
