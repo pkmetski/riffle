@@ -18,6 +18,10 @@ internal class CumulativeDownloadProgress(
     private var downloaded = initialDownloaded.coerceAtLeast(0L)
     private var total = total.takeIf { it > 0L } ?: 0L
 
+    /** Returns true when a positive total is already known (from fingerprint or a prior call). */
+    @Synchronized
+    fun hasKnownTotal(): Boolean = total > 0L
+
     /** Establishes an initially unknown total exactly once. */
     @Synchronized
     fun establishTotal(candidate: Long?) {
