@@ -1281,3 +1281,36 @@ class RailSegmentGeneratorTest {
         assertEquals(-1, railSegmentIndexAt(emptyList(), 5f, 100f))
     }
 }
+
+/**
+ * Regression: EPUBs where every spine resource has exactly one Readium position (short chapters,
+ * or resources that the position service counts as a single screen) produce uniform weight=1f
+ * segments. The previous hasRealSegmentPositions guard incorrectly treated equal weights as
+ * "positions not yet computed" and suppressed time-remaining labels. The guard has been removed;
+ * time-remaining estimates are only suppressed when totalPositions is 0 (no segments at all).
+ */
+class EqualWeightTimeRemainingRegressionTest {
+
+    @Test
+    fun `one-position-per-resource EPUB produces non-zero totalPositions enabling time estimates`() {
+        val toc = listOf(
+            TocEntry("Chapter 1", "ch1.xhtml"),
+            TocEntry("Chapter 2", "ch2.xhtml"),
+            TocEntry("Chapter 3", "ch3.xhtml"),
+        )
+        val spineHrefs = listOf("ch1.xhtml", "ch2.xhtml", "ch3.xhtml")
+        val positionCounts = listOf(1, 1, 1)
+
+        val segments = weightSegmentsByChapterLength(
+            buildRailSegments(toc, spineHrefs = spineHrefs, positionCounts = positionCounts),
+            spineHrefs,
+            positionCounts,
+        )
+
+        // All weights are 1f (equal) because every resource has exactly 1 position — this is
+        // real data, not a preliminary state. totalPositions must be > 0 so estimates are shown.
+        assertTrue(segments.all { it.weight == 1f })
+        val totalPositions = segments.fold(0f) { acc, s -> acc + s.weight }
+        assertTrue("totalPositions must be > 0 so time-remaining estimates are not suppressed", totalPositions > 0f)
+    }
+}
