@@ -37,6 +37,7 @@ import com.riffle.core.logging.iosLoggingModule
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
@@ -44,6 +45,8 @@ import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
+import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
+import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAnnotationStore
 import com.riffle.shared.library.IosNoOpAnnotationsLibraryRepository
@@ -61,7 +64,10 @@ import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
-private fun iosLibraryModule(navigatorBridgeFactory: IosEpubNavigatorBridgeFactory) = module {
+private fun iosLibraryModule(
+    navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
+    audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
+) = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
@@ -82,6 +88,20 @@ private fun iosLibraryModule(navigatorBridgeFactory: IosEpubNavigatorBridgeFacto
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
     single { IosEpubDownloader(get(), get(), get()) }
+
+    // Audiobook player
+    single<AbsPlaybackApi> { get<AbsApiClient>() }
+    single<IosAudioPlayerBridgeFactory> { audioPlayerBridgeFactory }
+    factory { params ->
+        IosAudiobookPlayerViewModel(
+            itemId = params.get(),
+            sourceId = params.get(),
+            bridgeFactory = get(),
+            absPlaybackApi = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
 
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
@@ -177,13 +197,16 @@ private fun iosLibraryModule(navigatorBridgeFactory: IosEpubNavigatorBridgeFacto
     }
 }
 
-fun startKoin(navigatorBridgeFactory: IosEpubNavigatorBridgeFactory) {
+fun startKoin(
+    navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
+    audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
+) {
     koinStartKoin {
         modules(
             iosLoggingModule,
             iosDataModule,
             iosDatabaseModule,
-            iosLibraryModule(navigatorBridgeFactory),
+            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory),
         )
     }
 }

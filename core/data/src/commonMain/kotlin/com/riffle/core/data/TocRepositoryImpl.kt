@@ -1,11 +1,11 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.Clock
+import com.riffle.core.common.isDerivedCacheStale
 import com.riffle.core.database.TocCacheDao
 import com.riffle.core.database.TocCacheEntity
-import com.riffle.core.common.Clock
-import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
-import com.riffle.core.common.isDerivedCacheStale
+import com.riffle.core.models.TocEntry
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
