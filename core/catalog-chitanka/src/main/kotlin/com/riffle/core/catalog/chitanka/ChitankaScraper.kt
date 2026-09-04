@@ -270,6 +270,14 @@ internal object GramofoncheScraper {
     private val CATEGORY_PATH_PATTERN = Regex("^/(prikazki|pesnicki|zagolemi)/[^/]+/$")
 
     /**
+     * Splits Gramofonche link text at the first `(` or `/` (preceded by optional whitespace),
+     * which separates the human-readable title from metadata suffixes like `(narrator)` or
+     * `/Балкантон`. Used identically in listing and detail parsing.
+     */
+    private val TITLE_SUFFIX_SPLIT = Regex("\\s*[(/]")
+    private fun extractTitle(text: String): String = text.split(TITLE_SUFFIX_SPLIT)[0].trim()
+
+    /**
      * Captures a Gramofonche duration span in either the listing "..NNмин" line or the detail
      * page. Supports the three shapes the site uses in the wild:
      *   - minutes only: `43мин`
@@ -299,8 +307,8 @@ internal object GramofoncheScraper {
             // Text excluding the <i>-wrapped subtitle
             val clone = linkEl.clone()
             clone.select("i").remove()
-            val fullText = clone.text().trim()
-            val title = fullText.split(Regex("\\s*[(/]"))[0].trim()
+            val fullText = clone.text()
+            val title = extractTitle(fullText)
 
             val authors = mutableListOf<String>()
             val iText = linkEl.selectFirst("i")?.text()?.trim().orEmpty()
@@ -376,7 +384,7 @@ internal object GramofoncheScraper {
             val href = el.attr("href").ifEmpty { return@forEach }
             val clone = el.clone()
             clone.select("i").remove()
-            val trackTitle = clone.text().replace(Regex("\\s*\\(.*$"), "").trim()
+            val trackTitle = extractTitle(clone.text())
             downloads += ChitankaDownload(url = ChitankaScraper.toAbsolute(href, pageUrl), title = trackTitle)
         }
 

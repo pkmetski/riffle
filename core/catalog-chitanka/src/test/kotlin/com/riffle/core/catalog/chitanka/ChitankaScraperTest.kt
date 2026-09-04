@@ -197,6 +197,35 @@ class GramofoncheScraperTest {
     }
 
     /**
+     * Regression: multi-track Balkanton-disc pages have anchor text like "Title/Балкантон"
+     * (no narrator parenthetical). The old `replace(Regex("\\s*\\(.*$"), "")` only strips from
+     * `(` onwards, so it left "/Балкантон" in place. That dirty title was then stored verbatim
+     * as a chapter title when the book was imported into ABS, causing the chapter drawer to show
+     * "Track/Балкантон" instead of "Track". The fix splits at the first `(` or `/`, matching
+     * the same approach used by `parseSearchResults`. These three shapes cover all cases observed
+     * on the live site: slash-only, paren-only, and paren-then-slash.
+     */
+    @Test
+    fun `track title strips slash-label suffix from mp3 anchor text`() {
+        fun parse(anchorText: String): String {
+            val html = """
+                <html><body><div id="content-wrapper">
+                  <h1>Book</h1>
+                  <a href="./track.mp3">$anchorText</a>
+                </div></body></html>
+            """.trimIndent()
+            return GramofoncheScraper.parseDetailPage(html, "https://gramofonche.chitanka.info/prikazki/foo/")
+                .downloads.first().title
+        }
+        // Slash-only: "/Балкантон" must be stripped.
+        assertEquals("Клан-недоклан", parse("Клан-недоклан/Балкантон"))
+        // Paren-only: "(narrator)" must be stripped.
+        assertEquals("Аладин и вълшебната лампа", parse("Аладин и вълшебната лампа (Шехерезада, реж. Мария Нанчева)"))
+        // Paren-then-slash: both must be stripped when the narrator comes before the label.
+        assertEquals("Щъркел и лисица", parse("Щъркел и лисица (<i>изпълнение: X</i>)/Балкантон"))
+    }
+
+    /**
      * Regression: the duration regex used to be `(\d+)мин` and re-materialised the value as
      * `"${minutes}мин"`, silently dropping the hour component from combined spans and yielding
      * an empty string for hour-only entries. Both shapes exist on the live site — pin the
