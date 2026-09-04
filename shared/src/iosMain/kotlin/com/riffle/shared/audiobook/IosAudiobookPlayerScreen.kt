@@ -96,6 +96,7 @@ actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun LoadingContent() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -106,6 +107,7 @@ private fun LoadingContent() {
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun FailedContent(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -128,6 +130,7 @@ private fun FailedContent(onBack: () -> Unit) {
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun PlayerContent(
     state: IosAudiobookPlayerState,
@@ -264,6 +267,7 @@ private fun PlayerContent(
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun ProgressBar(
     positionSec: Double,
@@ -288,6 +292,7 @@ private fun ProgressBar(
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun PlayPauseButton(isPlaying: Boolean, onClick: () -> Unit) {
     Box(
@@ -305,6 +310,7 @@ private fun PlayPauseButton(isPlaying: Boolean, onClick: () -> Unit) {
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 private fun ControlButton(label: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
