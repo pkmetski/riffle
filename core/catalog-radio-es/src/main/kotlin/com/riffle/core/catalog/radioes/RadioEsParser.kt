@@ -64,6 +64,11 @@ internal object RadioEsParser {
         return parseStation(obj)
     }
 
+    fun parseStationCountries(body: String): List<RadioEsCountryTag> {
+        val root = json.parseToJsonElement(body).jsonObject
+        return root["countries"]?.jsonArray?.mapNotNull { parseCountryTag(it) } ?: emptyList()
+    }
+
     fun parseTags(body: String): RadioEsTagsResult {
         val root = json.parseToJsonElement(body).jsonObject
         val cats = root["categories"]?.jsonArray?.mapNotNull { parseTag(it) } ?: emptyList()
@@ -153,6 +158,14 @@ internal object RadioEsParser {
         val name = obj["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val slug = obj["slug"]?.jsonPrimitive?.contentOrNull.orEmpty()
         return RadioEsCategoryTag(systemName = systemName, name = name, slug = slug)
+    }
+
+    private fun parseCountryTag(element: JsonElement): RadioEsCountryTag? {
+        val obj = element as? JsonObject ?: return null
+        val systemName = obj["systemName"]?.jsonPrimitive?.contentOrNull.orEmpty().ifEmpty { return null }
+        val name = obj["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val slug = obj["slug"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        return RadioEsCountryTag(systemName = systemName, name = name, slug = slug)
     }
 
     private fun parseLangTag(element: JsonElement): RadioEsLanguageTag? {

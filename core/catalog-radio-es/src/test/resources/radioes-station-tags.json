@@ -1,0 +1,17 @@
+{
+  "languages": [
+    { "systemName": "English", "name": "English", "slug": "english" },
+    { "systemName": "German", "name": "German", "slug": "german" }
+  ],
+  "topics": [
+    { "systemName": "News", "name": "News", "slug": "news" }
+  ],
+  "genres": [
+    { "systemName": "Pop", "name": "Pop", "slug": "pop" }
+  ],
+  "countries": [
+    { "systemName": "Germany", "name": "Germany", "slug": "germany", "count": 1234 },
+    { "systemName": "Spain", "name": "Spain", "slug": "spain", "count": 456 },
+    { "systemName": "United States", "name": "United States", "slug": "united-states", "count": 789 }
+  ]
+}

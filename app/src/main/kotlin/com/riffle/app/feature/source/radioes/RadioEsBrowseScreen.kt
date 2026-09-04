@@ -269,6 +269,16 @@ private fun RadioEsLibraryTabContent(
                         )
                     }
                 }
+                val countryFacets = radioEsCountryFacets(facets)
+                if (countryFacets.isNotEmpty()) {
+                    item {
+                        RadioEsCountryFilterChip(
+                            countryFacets = countryFacets,
+                            selectedFacet = selectedFacet,
+                            onSelectFacet = { viewModel.selectFacet(it) },
+                        )
+                    }
+                }
             }
         }
         Box(modifier = Modifier.fillMaxSize()) {
@@ -371,10 +381,71 @@ private fun RadioEsLanguageFilterChip(
     }
 }
 
+@Composable
+private fun RadioEsCountryFilterChip(
+    countryFacets: List<CatalogFacet>,
+    selectedFacet: String?,
+    onSelectFacet: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedCountry = countryFacets.firstOrNull { it.key == selectedFacet }
+
+    Box {
+        FilterChip(
+            selected = selectedCountry != null,
+            onClick = { expanded = true },
+            label = {
+                Text(
+                    stringResource(
+                        R.string.ui_country_filter,
+                        selectedCountry?.label ?: stringResource(R.string.ui_any),
+                    ),
+                )
+            },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_any)) },
+                onClick = {
+                    onSelectFacet(null)
+                    expanded = false
+                },
+                leadingIcon = if (selectedCountry == null) {
+                    { Icon(Icons.Filled.Check, contentDescription = null) }
+                } else null,
+            )
+            countryFacets.forEach { facet ->
+                DropdownMenuItem(
+                    text = { Text(facet.label) },
+                    onClick = {
+                        onSelectFacet(facet.key)
+                        expanded = false
+                    },
+                    leadingIcon = if (facet.key == selectedFacet) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else null,
+                )
+            }
+        }
+    }
+}
+
 internal fun radioEsLanguageFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
     facets.filter { it.key.startsWith(RADIO_ES_LANGUAGE_FACET_PREFIX) }
 
 internal fun radioEsCategoryFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
     facets.filterNot { it.key.startsWith(RADIO_ES_LANGUAGE_FACET_PREFIX) }
+        .filterNot { it.key.startsWith(RADIO_ES_COUNTRY_FACET_PREFIX) }
+
+internal fun radioEsCountryFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
+    facets.filter { it.key.startsWith(RADIO_ES_COUNTRY_FACET_PREFIX) }
 
 private const val RADIO_ES_LANGUAGE_FACET_PREFIX = "lang:"
+private const val RADIO_ES_COUNTRY_FACET_PREFIX = "country:"

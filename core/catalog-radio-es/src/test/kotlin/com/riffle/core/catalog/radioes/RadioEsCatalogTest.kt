@@ -327,9 +327,71 @@ class RadioEsCatalogTest {
         assertTrue(item.isLiveStream)
     }
 
-    @Test fun `listFacets returns empty for stations root`() = runTest {
+    @Test fun `listFacets returns country facets for stations root`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-station-tags.json")))
         val facets = catalog.listFacets(RadioEsCatalog.ROOT_STATIONS)
-        assertTrue(facets.isEmpty())
+        assertTrue("expected country facets for stations, got: $facets", facets.isNotEmpty())
+        assertTrue(facets.all { it.key.startsWith("country:") })
+        assertTrue(facets.any { it.key == "country:germany" })
+        assertTrue(facets.any { it.key == "country:spain" })
+    }
+
+    @Test fun `listFacets for stations root uses stations tags endpoint not podcast tags`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-station-tags.json")))
+        catalog.listFacets(RadioEsCatalog.ROOT_STATIONS)
+        val request = server.takeRequest()
+        assertTrue(
+            "/stations/tags expected, got: ${request.path}",
+            request.path?.startsWith("/stations/tags") == true,
+        )
+    }
+
+    @Test fun `listFacets for stations root caches separately from podcast facets`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-tags.json")))
+        server.enqueue(MockResponse().setBody(fixture("radioes-station-tags.json")))
+        catalog.listFacets(RadioEsCatalog.ROOT_PODCASTS)
+        catalog.listFacets(RadioEsCatalog.ROOT_STATIONS)
+        assertEquals("each root should hit its own tags endpoint once", 2, server.requestCount)
+    }
+
+    @Test fun `browse stations with country facet sends search request with country name`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        catalog.browse(
+            rootId = RadioEsCatalog.ROOT_STATIONS,
+            page = 0,
+            pageSize = 20,
+            facet = FacetSelection(key = "country:germany"),
+        )
+        val request = server.takeRequest()
+        assertTrue(
+            "/stations/search with query=Germany expected, got: ${request.path}",
+            request.path?.startsWith("/stations/search") == true &&
+                request.path?.contains("query=Germany") == true,
+        )
+    }
+
+    @Test fun `browse stations with multi-word country facet uses space-separated name as search query`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        catalog.browse(
+            rootId = RadioEsCatalog.ROOT_STATIONS,
+            page = 0,
+            pageSize = 20,
+            facet = FacetSelection(key = "country:united-states"),
+        )
+        val request = server.takeRequest()
+        assertTrue(
+            "/stations/search with query=United+States expected, got: ${request.path}",
+            request.path?.startsWith("/stations/search") == true &&
+                (request.path?.contains("query=United+States") == true ||
+                    request.path?.contains("query=United%20States") == true),
+        )
+    }
+
+    @Test fun `browse stations with no facet uses device locale Accept-Language header`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-stations.json")))
+        catalog.browse(rootId = RadioEsCatalog.ROOT_STATIONS, page = 0, pageSize = 20)
+        val request = server.takeRequest()
+        assertEquals("es-ES", request.getHeader("Accept-Language"))
     }
 
     @Test fun `openAudiobook for station returns single-track stream with totalDurationSec zero`() = runTest {

@@ -351,6 +351,7 @@
     <string name="ui_download_readaloud_audio_size">Изтегляне на аудио за четене на глас (%1$s)</string>
     <string name="ui_words_per_minute">%1$d думи/мин</string>
     <string name="ui_language_filter">Език: %1$s</string>
+    <string name="ui_country_filter">Държава: %1$s</string>
     <string name="error_enter_valid_url">Въведете валиден URL (напр. https://abs.example.com)</string>
     <string name="error_parse_webdav_url">URL адресът не можа да се разчете — трябва да изглежда като https://example.com/dav/path</string>
     <string name="error_auth_failed_check_credentials">Удостоверяването е неуспешно — проверете потребителското име и паролата.</string>

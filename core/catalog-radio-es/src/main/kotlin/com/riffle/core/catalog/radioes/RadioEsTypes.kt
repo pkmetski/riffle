@@ -59,6 +59,12 @@ internal data class RadioEsEpisodesResult(
     val totalCount: Int,
 )
 
+internal data class RadioEsCountryTag(
+    val systemName: String,
+    val name: String,
+    val slug: String,
+)
+
 internal data class RadioEsTagsResult(
     val categories: List<RadioEsCategoryTag>,
     val languages: List<RadioEsLanguageTag>,

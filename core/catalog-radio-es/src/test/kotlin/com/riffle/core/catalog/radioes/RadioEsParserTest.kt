@@ -181,6 +181,23 @@ class RadioEsParserTest {
     }
 
     @Test
+    fun `parseStationCountries extracts country list from stations tags body`() {
+        val countries = RadioEsParser.parseStationCountries(fixture("radioes-station-tags.json"))
+        assertEquals(3, countries.size)
+        val germany = countries.first { it.slug == "germany" }
+        assertEquals("Germany", germany.systemName)
+        assertEquals("Germany", germany.name)
+        val us = countries.first { it.slug == "united-states" }
+        assertEquals("United States", us.systemName)
+    }
+
+    @Test
+    fun `parseStationCountries tolerates missing countries key`() {
+        val countries = RadioEsParser.parseStationCountries("""{"languages":[],"topics":[]}""")
+        assertTrue(countries.isEmpty())
+    }
+
+    @Test
     fun `parseTags skips tag entries missing systemName`() {
         val body = """{"categories":[{"name":"NoSystemName"},{"systemName":"CAT_OK","name":"OK"}],"languages":[]}"""
         val result = RadioEsParser.parseTags(body)
