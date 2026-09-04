@@ -115,7 +115,7 @@ import ReadiumNavigator
         Task { @MainActor in
             guard let nav = epubNavigator else { return }
             let decorations = parseDecorations(decorationsJson)
-            nav.apply(decorations: decorations, forGroup: group)
+            nav.apply(decorations: decorations, in: group)
         }
     }
 
