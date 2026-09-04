@@ -103,7 +103,25 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         }
     }
 
-    override fun applyDecorations(group: String, decorations: List<NavigatorDecoration>) {}
+    override fun applyDecorations(group: String, decorations: List<NavigatorDecoration>) {
+        bridge.applyDecorations(serializeDecorations(decorations), group)
+    }
+
+    private fun serializeDecorations(decorations: List<NavigatorDecoration>): String {
+        val items = decorations.joinToString(",") { d ->
+            when (d) {
+                is NavigatorDecoration.Highlight ->
+                    """{"id":"${d.id.escapeForJson()}","type":"highlight","locator":${d.locatorJson},"color":"${d.color.escapeForJson()}","alpha":${d.alpha}}"""
+                is NavigatorDecoration.Bookmark ->
+                    """{"id":"${d.id.escapeForJson()}","type":"bookmark","locator":${d.locatorJson}}"""
+                is NavigatorDecoration.NoteGlyph ->
+                    """{"id":"${d.id.escapeForJson()}","type":"noteGlyph","locator":${d.locatorJson}}"""
+                is NavigatorDecoration.SearchMark ->
+                    """{"id":"${d.id.escapeForJson()}","type":"searchMark","locator":${d.locatorJson},"isCurrent":${d.isCurrent}}"""
+            }
+        }
+        return "[$items]"
+    }
 
     override suspend fun applyHighlightDomPatch(patchJson: String) {}
 

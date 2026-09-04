@@ -1,8 +1,5 @@
 package com.riffle.shared.library
 
-import com.riffle.core.data.AnnotatedBook
-import com.riffle.core.data.AnnotationsLibraryRepository
-import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
@@ -17,10 +14,8 @@ import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
-import com.riffle.core.models.Annotation
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.models.AudiobookIdentityResult
-import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.models.ScreenDimensionBucket
 import kotlinx.coroutines.CoroutineDispatcher
@@ -28,7 +23,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
@@ -67,44 +61,6 @@ internal class IosNoOpLibraryFilterPreferencesStore : LibraryFilterPreferencesSt
     override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {}
 }
 
-internal class IosNoOpAnnotationStore : AnnotationStore {
-    override fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
-    override fun observeBookmarks(sourceId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
-    override fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
-    override fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>> = flowOf(emptyList())
-    override fun observeEmphasis(sourceId: String, itemId: String): Flow<List<Annotation>> = emptyFlow()
-    override suspend fun createHighlight(
-        sourceId: String, itemId: String, cfi: String, textSnippet: String,
-        chapterHref: String, textBefore: String, textAfter: String, color: String,
-        spineIndex: Int, progression: Double, embeddedFigures: List<EmbeddedFigure>?,
-        originFontFamily: String, textSnippetHtml: String?,
-    ): Annotation = error("Not implemented on iOS")
-    override suspend fun createBookmark(
-        sourceId: String, itemId: String, cfi: String, textSnippet: String,
-        chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
-        originFontFamily: String, fragmentAnchor: String?,
-    ): Annotation = error("Not implemented on iOS")
-    override suspend fun createImageAnnotation(
-        sourceId: String, itemId: String, cfi: String, textSnippet: String,
-        chapterHref: String, spineIndex: Int, progression: Double,
-        imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
-    ): Annotation = error("Not implemented on iOS")
-    override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String): Int = 0
-    override suspend fun healSentinelOriginFontFamily(sourceId: String, itemId: String, sentinel: String, fontFamily: String): Int = 0
-    override suspend fun upgradeImageToCaptionHighlight(
-        id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String, figure: EmbeddedFigure,
-    ): Annotation? = null
-    override suspend fun mergeFiguresIntoHighlight(id: String, newFigures: List<EmbeddedFigure>): Annotation? = null
-    override suspend fun delete(id: String) {}
-    override suspend fun recolor(id: String, color: String) {}
-    override suspend fun updateNote(id: String, note: String?) {}
-    override suspend fun renameBookmark(id: String, title: String) {}
-    override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
-    override suspend fun findImageAnnotationForFigure(
-        sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
-    ): Annotation? = null
-}
-
 internal class IosNoOpAudiobookBookmarkStore : AudiobookBookmarkStore {
     override fun observe(sourceId: String, itemId: String): Flow<List<AudiobookBookmark>> = flowOf(emptyList())
     override fun observeForSource(sourceId: String): Flow<List<AudiobookBookmark>> = flowOf(emptyList())
@@ -122,11 +78,6 @@ internal class IosNoOpReadaloudLinkRepository : ReadaloudLinkRepository {
     override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) {}
     override suspend fun countForSource(sourceId: String): Int = 0
     override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
-}
-
-internal class IosNoOpAnnotationsLibraryRepository : AnnotationsLibraryRepository {
-    override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
-    override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
 }
 
 internal class IosNoOpAppThemeStore : AppThemeStore {

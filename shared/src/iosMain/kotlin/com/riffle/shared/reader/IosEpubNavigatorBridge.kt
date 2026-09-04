@@ -40,6 +40,13 @@ interface IosEpubNavigatorBridge {
 
     /** Release Readium resources. Renamed to avoid clash with NSObject.release on the Swift side. */
     fun disposeNavigator()
+
+    /**
+     * Deliver a JSON-encoded decoration list to the Swift-side Readium navigator.
+     * [decorationsJson] is a JSON array of decoration objects; [group] is the decoration group
+     * identifier (e.g. "highlights", "bookmarks"). See [ReadiumSwiftNavigator] for the schema.
+     */
+    fun applyDecorations(decorationsJson: String, group: String)
 }
 
 /** Factory so Koin can produce one bridge instance per reader open. */

@@ -21,6 +21,10 @@ import ReadiumNavigator
     private var pageLoadCallback: (() -> Void)?
     private var tapCallback: (() -> Void)?
 
+    // Test observation properties
+    fileprivate var _lastAppliedDecorationsJson: String?
+    fileprivate var _lastAppliedGroup: String?
+
     // MARK: - IosEpubNavigatorBridge
 
     func viewController() -> UIViewController { hostViewController }
@@ -104,6 +108,53 @@ import ReadiumNavigator
             self.cachedLocatorJson = nil
         }
     }
+
+    func applyDecorations(decorationsJson: String, group: String) {
+        _lastAppliedDecorationsJson = decorationsJson
+        _lastAppliedGroup = group
+        Task { @MainActor in
+            guard let nav = epubNavigator else { return }
+            let decorations = parseDecorations(decorationsJson)
+            nav.apply(decorations: decorations, in: group)
+        }
+    }
+
+    private func parseDecorations(_ json: String) -> [Decoration] {
+        guard let data = json.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+        return array.compactMap { parseDecoration($0) }
+    }
+
+    private func parseDecoration(_ dict: [String: Any]) -> Decoration? {
+        guard let id = dict["id"] as? String,
+              let type = dict["type"] as? String,
+              let locatorDict = dict["locator"] as? [String: Any],
+              let locatorData = try? JSONSerialization.data(withJSONObject: locatorDict),
+              let locatorString = String(data: locatorData, encoding: .utf8),
+              let jsonValue = try? JSONValue(jsonString: locatorString),
+              let locator = try? Locator(json: jsonValue, warnings: nil)
+        else { return nil }
+
+        let style: Decoration.Style
+        switch type {
+        case "highlight":
+            let colorHex = dict["color"] as? String ?? "#FFFF00"
+            let alpha = (dict["alpha"] as? NSNumber)?.floatValue ?? 0.4
+            style = .highlight(tint: UIColor(hex: colorHex).withAlphaComponent(CGFloat(alpha)))
+        case "bookmark":
+            style = .highlight(tint: UIColor.systemBlue.withAlphaComponent(0.3))
+        case "noteGlyph":
+            style = .highlight(tint: UIColor.systemOrange.withAlphaComponent(0.3))
+        case "searchMark":
+            let isCurrent = dict["isCurrent"] as? Bool ?? false
+            style = .highlight(tint: (isCurrent ? UIColor.systemYellow : UIColor.systemGray).withAlphaComponent(0.5))
+        default:
+            return nil
+        }
+        return Decoration(id: id, locator: locator, style: style)
+    }
 }
 
 // MARK: - EPUBNavigatorDelegate
@@ -133,6 +184,28 @@ extension ReadiumEpubNavigatorBridge {
     }
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
+
+    var lastAppliedDecorationsJson: String? { _lastAppliedDecorationsJson }
+    var lastAppliedGroup: String? { _lastAppliedGroup }
+    @objc func simulateApplyDecorations(_ json: String, group: String) {
+        _lastAppliedDecorationsJson = json
+        _lastAppliedGroup = group
+    }
+}
+
+// MARK: - UIColor hex extension
+
+private extension UIColor {
+    convenience init(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: .init(charactersIn: "#"))
+        let scanner = Scanner(string: cleaned)
+        var rgb: UInt64 = 0
+        scanner.scanHexInt64(&rgb)
+        let red = CGFloat((rgb >> 16) & 0xFF) / 255
+        let green = CGFloat((rgb >> 8) & 0xFF) / 255
+        let blue = CGFloat(rgb & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue, alpha: 1)
+    }
 }
 
 // MARK: - ReadiumEpubNavigatorBridgeFactory
