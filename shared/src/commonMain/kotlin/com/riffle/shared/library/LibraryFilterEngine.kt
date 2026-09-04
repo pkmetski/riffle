@@ -88,8 +88,11 @@ class LibraryFilterEngine(
 
     private val ungroupedProjection: Flow<List<LibraryItem>> =
         combine(ungroupedSource, allItemsSource, searchQuery, isOffline) { ungrouped, all, query, offline ->
-            val base = if (query.isEmpty()) ungrouped
-                else all.filter { it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true) }
+            val base = if (query.isEmpty()) {
+                ungrouped
+            } else {
+                all.filter { it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true) }
+            }
             if (offline) base.filter { offlineAvailability.isAvailableOffline(it) } else base
         }
 

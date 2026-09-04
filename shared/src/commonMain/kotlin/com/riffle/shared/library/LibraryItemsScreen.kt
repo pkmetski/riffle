@@ -59,8 +59,11 @@ fun LibraryItemsScreen(
     SideEffect {
         viewModel.setScreenDimensionBucket(
             com.riffle.core.models.ScreenDimensionBucket.PhonePortrait.copy(
-                wider = if (containerWidthPx > 1400) com.riffle.core.models.ScreenDimensionBucket.SizeClass.Expanded
-                else com.riffle.core.models.ScreenDimensionBucket.SizeClass.Medium,
+                wider = if (containerWidthPx > 1400) {
+                    com.riffle.core.models.ScreenDimensionBucket.SizeClass.Expanded
+                } else {
+                    com.riffle.core.models.ScreenDimensionBucket.SizeClass.Medium
+                },
             )
         )
     }

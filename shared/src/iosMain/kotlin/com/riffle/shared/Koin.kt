@@ -38,7 +38,6 @@ import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.feature.library.HomeViewModel
-import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.shared.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAnnotationStore
@@ -54,7 +53,6 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.IosNoOpToReadRepository
 import com.riffle.shared.library.LibraryItemsViewModel
-import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 

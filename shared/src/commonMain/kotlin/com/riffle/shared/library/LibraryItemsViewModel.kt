@@ -24,11 +24,11 @@ import com.riffle.core.domain.collectReconnects
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
+import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.Series
-import com.riffle.core.models.CatalogPlaylist
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -80,12 +80,12 @@ class LibraryItemsViewModel constructor(
     private val _screenDimensionBucket = MutableStateFlow<ScreenDimensionBucket?>(null)
 
     val coverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sourceId, bucket ->
-            if (sourceId != null && bucket != null) {
-                coverGridDensityStore.scale(sourceId, libraryId, bucket)
-            } else {
-                coverGridDensityStore.scale
-            }
+        if (sourceId != null && bucket != null) {
+            coverGridDensityStore.scale(sourceId, libraryId, bucket)
+        } else {
+            coverGridDensityStore.scale
         }
+    }
         .flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 
@@ -254,8 +254,11 @@ class LibraryItemsViewModel constructor(
             .map { sources -> sources.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
             .flatMapLatest { sourceId ->
-                if (sourceId == null) flowOf(emptyList())
-                else annotationsLibraryRepository.observeAnnotatedBooks(sourceId, libraryId)
+                if (sourceId == null) {
+                    flowOf(emptyList())
+                } else {
+                    annotationsLibraryRepository.observeAnnotatedBooks(sourceId, libraryId)
+                }
             }
 
     val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
@@ -267,10 +270,13 @@ class LibraryItemsViewModel constructor(
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val p = values[0] as LibraryProjection
+
         @Suppress("UNCHECKED_CAST")
         val annotated = values[1] as List<com.riffle.core.data.AnnotatedBook>
+
         @Suppress("UNCHECKED_CAST")
         val items = values[2] as List<LibraryItem>
+
         @Suppress("UNCHECKED_CAST")
         val pls = values[3] as List<CatalogPlaylist>
         val audiobookOnly = values[4] as Boolean

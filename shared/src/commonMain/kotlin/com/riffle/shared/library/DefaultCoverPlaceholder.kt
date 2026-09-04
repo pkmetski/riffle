@@ -22,12 +22,12 @@ fun DefaultCoverPlaceholder(isAudiobook: Boolean, modifier: Modifier = Modifier)
     val glyphColor: Color
     if (isAudiobook) {
         gradientStart = if (dark) Color(0xFF1C3040) else Color(0xFFD9EFF8)
-        gradientEnd   = if (dark) Color(0xFF0F1E2A) else Color(0xFF9ECDE6)
-        glyphColor    = if (dark) Color(0xFF7DCAEC) else Color(0xFF0E5F8A)
+        gradientEnd = if (dark) Color(0xFF0F1E2A) else Color(0xFF9ECDE6)
+        glyphColor = if (dark) Color(0xFF7DCAEC) else Color(0xFF0E5F8A)
     } else {
         gradientStart = if (dark) Color(0xFF352B4A) else Color(0xFFEAE0F8)
-        gradientEnd   = if (dark) Color(0xFF1F1830) else Color(0xFFC9B5E6)
-        glyphColor    = if (dark) Color(0xFFCDB8FF) else Color(0xFF5B3FA0)
+        gradientEnd = if (dark) Color(0xFF1F1830) else Color(0xFFC9B5E6)
+        glyphColor = if (dark) Color(0xFFCDB8FF) else Color(0xFF5B3FA0)
     }
     Canvas(modifier = modifier.fillMaxSize()) {
         drawRect(
