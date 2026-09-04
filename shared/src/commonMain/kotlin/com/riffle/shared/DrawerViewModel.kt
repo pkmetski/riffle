@@ -11,6 +11,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.isReadaloud
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +19,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -41,10 +42,10 @@ class DrawerViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val visibleLibraries: StateFlow<List<Library>> = activeServer
-        .filterNotNull()
         .flatMapLatest { server ->
+            if (server == null) return@flatMapLatest flowOf(emptyList())
             combine(
-                libraryObserver.observeLibraries(),
+                libraryObserver.observeLibraries(server.id),
                 visibilityStore.hiddenLibraryIds(server.id),
             ) { libraries, hiddenIds ->
                 libraries.filter { it.id !in hiddenIds && !it.isReadaloud }
@@ -54,7 +55,10 @@ class DrawerViewModel(
 
     private val _lastActiveLibraryId = MutableStateFlow<String?>(null)
 
-    private val _redirectToLibrary = MutableSharedFlow<Library>(extraBufferCapacity = 1)
+    private val _redirectToLibrary = MutableSharedFlow<Library>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     /** Emits when the active library is hidden; caller must navigate away and call [setActiveLibrary]. */
     val redirectToLibrary: Flow<Library> = _redirectToLibrary
@@ -74,7 +78,6 @@ class DrawerViewModel(
     init {
         viewModelScope.launch {
             activeServer
-                .filterNotNull()
                 .drop(1)
                 .collect { _lastActiveLibraryId.value = null }
         }
