@@ -86,7 +86,7 @@ fun HomeScreen() {
     val installer = koinInject<LocalFilesInstallerInterface>()
     val scope = rememberCoroutineScope()
 
-    var appSection by remember { mutableStateOf(AppSection.Library) }
+    var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var installing by remember { mutableStateOf(false) }
