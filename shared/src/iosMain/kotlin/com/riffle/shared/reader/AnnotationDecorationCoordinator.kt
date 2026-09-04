@@ -1,7 +1,5 @@
 package com.riffle.shared.reader
 
-import com.riffle.core.data.annotationLocatorJson
-import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.models.Annotation
 import com.riffle.feature.reader.EpubNavigatorInterface
@@ -59,21 +57,8 @@ class AnnotationDecorationCoordinator(
     }
 
     private fun toHighlightDecorations(annotations: List<Annotation>): List<NavigatorDecoration> =
-        annotations.mapNotNull { a ->
-            if (a.type != AnnotationEntity.TYPE_HIGHLIGHT) return@mapNotNull null
-            NavigatorDecoration.Highlight(
-                id = a.id,
-                locatorJson = annotationLocatorJson(a.chapterHref, a.cfi, a.progression),
-                color = a.color.ifBlank { "#FFFF00" },
-                alpha = 0.4f,
-            )
-        }
+        annotations.mapNotNull { annotationToHighlightDecoration(it) }
 
     private fun toBookmarkDecorations(annotations: List<Annotation>): List<NavigatorDecoration> =
-        annotations.map { a ->
-            NavigatorDecoration.Bookmark(
-                id = a.id,
-                locatorJson = annotationLocatorJson(a.chapterHref, a.cfi, a.progression),
-            )
-        }
+        annotations.map { annotationToBookmarkDecoration(it) }
 }
