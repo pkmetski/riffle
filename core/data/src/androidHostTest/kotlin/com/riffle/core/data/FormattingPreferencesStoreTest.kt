@@ -23,7 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.time.LocalTime
+import com.riffle.core.domain.LocalMinuteTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FormattingPreferencesStoreTest {
@@ -133,8 +133,8 @@ class FormattingPreferencesStoreTest {
     fun `saved themeSchedule round-trips through the DataStore`() = testScope.runTest {
         val store = buildStore()
         val schedule = ThemeSchedule(
-            dayStart = LocalTime.of(6, 30),
-            nightStart = LocalTime.of(19, 45),
+            dayStart = LocalMinuteTime.of(6, 30),
+            nightStart = LocalMinuteTime.of(19, 45),
             dayTheme = ReaderTheme.Sepia,
             nightTheme = ReaderTheme.DarkDim,
         )
@@ -158,8 +158,8 @@ class FormattingPreferencesStoreTest {
     fun `legacy Auto schedule preferences load as time based Auto without losing schedule`() = testScope.runTest {
         val dataStore = buildDataStore()
         val schedule = ThemeSchedule(
-            dayStart = LocalTime.of(6, 30),
-            nightStart = LocalTime.of(19, 45),
+            dayStart = LocalMinuteTime.of(6, 30),
+            nightStart = LocalMinuteTime.of(19, 45),
             dayTheme = ReaderTheme.Sepia,
             nightTheme = ReaderTheme.DarkDim,
         )

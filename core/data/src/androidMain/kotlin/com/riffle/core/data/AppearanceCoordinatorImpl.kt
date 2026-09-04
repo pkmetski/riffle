@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.riffle.core.domain.LocalMinuteTime
 import java.time.LocalTime
 
 /**
@@ -51,7 +52,7 @@ class AppearanceCoordinatorImpl(
         systemDark,
         scheduleTick,
     ) { appTheme, prefs, sysDark, _ ->
-        val now = timeProvider.nowLocalTime()
+        val now = timeProvider.nowLocalTime().toLocalMinuteTime()
         val resolvedReader = if (prefs.theme == ReaderTheme.Auto) {
             prefs.resolveAutoReaderTheme(now, appTheme, sysDark)
         } else {
@@ -92,7 +93,7 @@ class AppearanceCoordinatorImpl(
                         awaitCancellation()
                     }
                     while (true) {
-                        val now = timeProvider.nowLocalTime()
+                        val now = timeProvider.nowLocalTime().toLocalMinuteTime()
                         val next = schedule.nextBoundaryAfter(now)
                         val delayMs = msUntilOnClockCircle(now, next)
                         delay(delayMs)
@@ -106,9 +107,11 @@ class AppearanceCoordinatorImpl(
         systemDark.value = isDark
     }
 
-    private fun msUntilOnClockCircle(now: LocalTime, next: LocalTime): Long {
-        val nowSec = now.toSecondOfDay().toLong()
-        val nextSec = next.toSecondOfDay().toLong()
-        return (((nextSec - nowSec + 24 * 3600) % (24 * 3600)) * 1000L).coerceAtLeast(1_000L)
+    private fun LocalTime.toLocalMinuteTime(): LocalMinuteTime = LocalMinuteTime(hour, minute)
+
+    private fun msUntilOnClockCircle(now: LocalMinuteTime, next: LocalMinuteTime): Long {
+        val nowMin = (now.hour * 60 + now.minute).toLong()
+        val nextMin = (next.hour * 60 + next.minute).toLong()
+        return (((nextMin - nowMin + 24 * 60) % (24 * 60)) * 60_000L).coerceAtLeast(60_000L)
     }
 }

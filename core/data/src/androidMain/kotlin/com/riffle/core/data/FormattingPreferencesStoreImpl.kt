@@ -18,7 +18,7 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.time.LocalTime
+import com.riffle.core.domain.LocalMinuteTime
 
 class FormattingPreferencesStoreImpl constructor(
     private val dataStore: DataStore<Preferences>,
@@ -173,10 +173,10 @@ internal fun String.decodeFontFamily(): ReaderFontFamily? = when (this) {
     else -> runCatching { ReaderFontFamily.valueOf(this) }.getOrNull()
 }
 
-private fun LocalTime.toMinuteOfDay(): Int = hour * 60 + minute
-private fun minuteOfDayToLocalTime(value: Int): LocalTime {
+private fun LocalMinuteTime.toMinuteOfDay(): Int = hour * 60 + minute
+private fun minuteOfDayToLocalTime(value: Int): LocalMinuteTime {
     // Clamp to the valid 24h range first so values like 1440 (24:00) don't silently
     // round-trip to 00:00 via the modulo on the next line.
     val clamped = value.coerceIn(0, 24 * 60 - 1)
-    return LocalTime.of(clamped / 60, clamped % 60)
+    return LocalMinuteTime.of(clamped / 60, clamped % 60)
 }

@@ -61,7 +61,7 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import java.time.LocalTime
+import com.riffle.core.domain.LocalMinuteTime
 import kotlin.math.roundToInt
 
 internal enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
@@ -406,9 +406,9 @@ internal fun AutoThemeControls(
 @Composable
 private fun ScheduleThemeRow(
     timeLabel: String,
-    time: LocalTime,
+    time: LocalMinuteTime,
     timeContentDescription: String,
-    onTimeChange: (LocalTime) -> Unit,
+    onTimeChange: (LocalMinuteTime) -> Unit,
     themeLabel: String,
     theme: ReaderTheme,
     themeContentDescription: String,
@@ -543,9 +543,9 @@ private fun ConcreteThemeDropdown(
 
 @Composable
 private fun TimeField(
-    time: LocalTime,
+    time: LocalMinuteTime,
     contentDescription: String,
-    onTimeChange: (LocalTime) -> Unit,
+    onTimeChange: (LocalMinuteTime) -> Unit,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val label = "%02d:%02d".format(time.hour, time.minute)
@@ -576,7 +576,7 @@ private fun TimeField(
             onDismissRequest = { showPicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    onTimeChange(LocalTime.of(state.hour, state.minute))
+                    onTimeChange(LocalMinuteTime.of(state.hour, state.minute))
                     showPicker = false
                 }) { Text(stringResource(R.string.ui_ok)) }
             },

@@ -2,26 +2,26 @@ package com.riffle.core.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.time.LocalTime
+import com.riffle.core.domain.LocalMinuteTime
 
 class FormattingPreferencesResolutionTest {
 
     @Test
     fun `concrete theme is unchanged by withResolvedTheme`() {
         val prefs = FormattingPreferences(theme = ReaderTheme.Sepia)
-        assertEquals(prefs, prefs.withResolvedTheme(LocalTime.of(12, 0)))
+        assertEquals(prefs, prefs.withResolvedTheme(LocalMinuteTime.of(12, 0)))
     }
 
     @Test
     fun `Auto resolves to day theme during day`() {
         val prefs = FormattingPreferences(theme = ReaderTheme.Auto)
-        assertEquals(ReaderTheme.Light, prefs.withResolvedTheme(LocalTime.of(12, 0)).theme)
+        assertEquals(ReaderTheme.Light, prefs.withResolvedTheme(LocalMinuteTime.of(12, 0)).theme)
     }
 
     @Test
     fun `Auto resolves to night theme during night`() {
         val prefs = FormattingPreferences(theme = ReaderTheme.Auto)
-        assertEquals(ReaderTheme.Dark, prefs.withResolvedTheme(LocalTime.of(22, 0)).theme)
+        assertEquals(ReaderTheme.Dark, prefs.withResolvedTheme(LocalMinuteTime.of(22, 0)).theme)
     }
 
     @Test
@@ -30,14 +30,14 @@ class FormattingPreferencesResolutionTest {
             theme = ReaderTheme.Auto,
             autoReaderThemeMode = AutoReaderThemeMode.Schedule,
             themeSchedule = ThemeSchedule(
-                dayStart = LocalTime.of(7, 0),
-                nightStart = LocalTime.of(21, 0),
+                dayStart = LocalMinuteTime.of(7, 0),
+                nightStart = LocalMinuteTime.of(21, 0),
                 dayTheme = ReaderTheme.Sepia,
                 nightTheme = ReaderTheme.DarkDim,
             ),
         )
-        assertEquals(ReaderTheme.DarkDim, prefs.withResolvedTheme(LocalTime.of(22, 0)).theme)
-        assertEquals(ReaderTheme.Sepia, prefs.withResolvedTheme(LocalTime.of(12, 0)).theme)
+        assertEquals(ReaderTheme.DarkDim, prefs.withResolvedTheme(LocalMinuteTime.of(22, 0)).theme)
+        assertEquals(ReaderTheme.Sepia, prefs.withResolvedTheme(LocalMinuteTime.of(12, 0)).theme)
     }
 
     @Test
@@ -59,7 +59,7 @@ class FormattingPreferencesResolutionTest {
         assertEquals(
             ReaderTheme.DarkDim,
             prefs.withResolvedTheme(
-                now = LocalTime.of(12, 0),
+                now = LocalMinuteTime.of(12, 0),
                 appTheme = AppTheme.Dark,
                 systemInDark = false,
             ).theme,
@@ -80,7 +80,7 @@ class FormattingPreferencesResolutionTest {
         assertEquals(
             ReaderTheme.DarkDim,
             prefs.withResolvedTheme(
-                now = LocalTime.of(12, 0),
+                now = LocalMinuteTime.of(12, 0),
                 appTheme = AppTheme.System,
                 systemInDark = true,
             ).theme,
@@ -88,7 +88,7 @@ class FormattingPreferencesResolutionTest {
         assertEquals(
             ReaderTheme.Sepia,
             prefs.withResolvedTheme(
-                now = LocalTime.of(12, 0),
+                now = LocalMinuteTime.of(12, 0),
                 appTheme = AppTheme.System,
                 systemInDark = false,
             ).theme,

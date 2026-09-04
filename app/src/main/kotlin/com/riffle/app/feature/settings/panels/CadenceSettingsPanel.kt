@@ -19,8 +19,8 @@ import com.riffle.app.feature.readersettings.CadenceHeroIcon
 import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.withResolvedTheme
-import java.time.LocalTime
 
 /**
  * Cadence drill-in — the sentence-highlight hands-free reading feature. See issue #403 / ADR 0047.
@@ -86,7 +86,7 @@ fun CadenceSettingsPanel(
         selected = prefs.cadenceHighlightColor,
         // Resolve Auto → concrete so the picker previews against the paper Readium is currently
         // painting, not the Light fallback the palette accessor uses when Auto slips through.
-        readerBackground = prefs.withResolvedTheme(LocalTime.now(), appTheme, systemInDark).swatchBackdropColor,
+        readerBackground = prefs.withResolvedTheme(run { val t = java.time.LocalTime.now(); LocalMinuteTime(t.hour, t.minute) }, appTheme, systemInDark).swatchBackdropColor,
         onSelectedChange = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
     )
 }

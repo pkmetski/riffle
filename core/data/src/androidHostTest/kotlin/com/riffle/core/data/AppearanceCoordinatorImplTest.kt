@@ -6,6 +6,7 @@ import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.common.TimeProvider
@@ -90,8 +91,8 @@ class AppearanceCoordinatorImplTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher)
         val schedule = ThemeSchedule(
-            dayStart = LocalTime.of(7, 0),
-            nightStart = LocalTime.of(21, 0),
+            dayStart = LocalMinuteTime.of(7, 0),
+            nightStart = LocalMinuteTime.of(21, 0),
             dayTheme = ReaderTheme.Light,
             nightTheme = ReaderTheme.Dark,
         )
@@ -144,8 +145,8 @@ class AppearanceCoordinatorImplTest {
                         darkTheme = ReaderTheme.DarkDim,
                     ),
                     themeSchedule = ThemeSchedule(
-                        dayStart = LocalTime.of(7, 0),
-                        nightStart = LocalTime.of(21, 0),
+                        dayStart = LocalMinuteTime.of(7, 0),
+                        nightStart = LocalMinuteTime.of(21, 0),
                         dayTheme = ReaderTheme.Sepia,
                         nightTheme = ReaderTheme.DarkDim,
                     ),
@@ -195,8 +196,8 @@ class AppearanceCoordinatorImplTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher)
         val schedule = ThemeSchedule(
-            dayStart = LocalTime.of(7, 0),
-            nightStart = LocalTime.of(21, 0),
+            dayStart = LocalMinuteTime.of(7, 0),
+            nightStart = LocalMinuteTime.of(21, 0),
             dayTheme = ReaderTheme.Light,
             nightTheme = ReaderTheme.Dark,
         )
@@ -228,8 +229,8 @@ class AppearanceCoordinatorImplTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher)
         val degenerate = ThemeSchedule(
-            dayStart = LocalTime.of(12, 0),
-            nightStart = LocalTime.of(12, 0),
+            dayStart = LocalMinuteTime.of(12, 0),
+            nightStart = LocalMinuteTime.of(12, 0),
             dayTheme = ReaderTheme.Sepia,
             nightTheme = ReaderTheme.Dark,
         )
