@@ -12,8 +12,9 @@ import Riffle
 
     private var trackStartOffsets: [Double] = []
     private var totalDurationSec: Double = 0
-    private var positionCallback: ((Double) -> Void)?
-    private var playingCallback: ((Bool) -> Void)?
+    // Callbacks stored as protocol objects (not closures) to avoid KotlinDouble/KotlinBoolean boxing.
+    private var positionCallback: (any IosPositionCallback)?
+    private var playingCallback: (any IosPlayingCallback)?
 
     private var isDisposed = false
 
@@ -21,12 +22,18 @@ import Riffle
 
     func preparePlayer(
         trackUrls: [String],
-        trackStartOffsetsSec: [Double],
+        trackStartOffsetsSec: KotlinDoubleArray,
         startAtSec: Double,
         totalDurationSec: Double
     ) {
         guard !isDisposed else { return }
-        self.trackStartOffsets = trackStartOffsetsSec
+
+        // Convert KotlinDoubleArray to native [Double]
+        var offsets: [Double] = []
+        for i in 0..<Int(trackStartOffsetsSec.size) {
+            offsets.append(trackStartOffsetsSec.get(index: Int32(i)))
+        }
+        self.trackStartOffsets = offsets
         self.totalDurationSec = totalDurationSec
 
         configureAudioSession()
@@ -45,7 +52,7 @@ import Riffle
         let rateObs = queuePlayer.observe(\.rate, options: [.new]) { [weak self] player, _ in
             guard let self, !self.isDisposed else { return }
             let playing = player.rate > 0
-            DispatchQueue.main.async { self.playingCallback?(playing) }
+            DispatchQueue.main.async { self.playingCallback?.onPlaying(isPlaying: playing) }
         }
         statusObservations.append(rateObs)
 
@@ -56,7 +63,7 @@ import Riffle
             queue: .main
         ) { [weak self] _ in
             guard let self, !self.isDisposed else { return }
-            self.positionCallback?(self.currentPositionSec())
+            self.positionCallback?.onPosition(positionSec: self.currentPositionSec())
         }
 
         // Seek to start position
@@ -88,7 +95,6 @@ import Riffle
         let targetOffset = trackStartOffsets[targetTrackIndex]
         let inTrackSec = (positionSec - targetOffset).clamped(to: 0...Double.greatestFiniteMagnitude)
 
-        // If the current item is already the correct track, seek directly
         let items = player.items()
         let currentIndex = currentTrackIndex()
 
@@ -96,12 +102,9 @@ import Riffle
             let cmTime = CMTime(seconds: inTrackSec, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
             player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
         } else if targetTrackIndex > currentIndex, targetTrackIndex < items.count {
-            // Advance to target track then seek
-            let targetItem = items[targetTrackIndex - currentIndex]
             let cmTime = CMTime(seconds: inTrackSec, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
             player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
                 guard let self else { return }
-                // Advance queue to target item
                 for _ in 0..<(targetTrackIndex - currentIndex) {
                     self.player?.advanceToNextItem()
                 }
@@ -126,11 +129,11 @@ import Riffle
         return (player?.rate ?? 0) > 0
     }
 
-    func setPositionCallback(callback: ((Double) -> Void)?) {
+    func setPositionCallback(callback: (any IosPositionCallback)?) {
         positionCallback = callback
     }
 
-    func setPlayingCallback(callback: ((Bool) -> Void)?) {
+    func setPlayingCallback(callback: (any IosPlayingCallback)?) {
         playingCallback = callback
     }
 
@@ -141,14 +144,13 @@ import Riffle
         positionSec: Double,
         coverUrl: String?
     ) {
-        var info: [String: Any] = [
+        let info: [String: Any] = [
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: author,
             MPMediaItemPropertyPlaybackDuration: durationSec,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: positionSec,
             MPNowPlayingInfoPropertyPlaybackRate: Double(player?.rate ?? 1)
         ]
-        // Artwork loading is asynchronous; for v1 we use a plain text placeholder
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -175,11 +177,11 @@ import Riffle
     // MARK: - Simulate helpers for tests
 
     @objc func simulatePositionUpdate(_ positionSec: Double) {
-        positionCallback?(positionSec)
+        positionCallback?.onPosition(positionSec: positionSec)
     }
 
     @objc func simulatePlayingChanged(_ playing: Bool) {
-        playingCallback?(playing)
+        playingCallback?.onPlaying(isPlaying: playing)
     }
 
     // MARK: - Private helpers

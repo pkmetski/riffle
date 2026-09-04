@@ -8,6 +8,10 @@ package com.riffle.shared.audiobook
  *
  * All callbacks are invoked on the main thread by the Swift implementation.
  * Track URLs must be fully-qualified (scheme + host + path + ?token=…).
+ *
+ * Callbacks use interface types instead of function literals to avoid Kotlin/Native
+ * boxing of primitive types (Double → KotlinDouble, Boolean → KotlinBoolean) in
+ * ObjC block parameters, which would make the Swift implementation cumbersome.
  */
 interface IosAudioPlayerBridge {
     /**
@@ -15,10 +19,14 @@ interface IosAudioPlayerBridge {
      * [trackStartOffsetsSec] gives the book-absolute start of each track in [trackUrls],
      * used by the bridge to compute book-absolute position reports.
      * [totalDurationSec] is the book's total duration, used for Now Playing.
+     *
+     * DoubleArray (not List<Double>) so the ObjC bridge exposes KotlinDoubleArray —
+     * a concrete type with primitive-indexed accessors — instead of a generic NSArray
+     * of boxed KotlinDouble objects.
      */
     fun preparePlayer(
         trackUrls: List<String>,
-        trackStartOffsetsSec: List<Double>,
+        trackStartOffsetsSec: DoubleArray,
         startAtSec: Double,
         totalDurationSec: Double,
     )
@@ -40,10 +48,10 @@ interface IosAudioPlayerBridge {
      * Periodic book-absolute position callback; invoked on the main thread
      * approximately every 0.5 s while playing.
      */
-    fun setPositionCallback(callback: ((positionSec: Double) -> Unit)?)
+    fun setPositionCallback(callback: IosPositionCallback?)
 
     /** Called whenever the playing/paused state changes. */
-    fun setPlayingCallback(callback: ((isPlaying: Boolean) -> Unit)?)
+    fun setPlayingCallback(callback: IosPlayingCallback?)
 
     /**
      * Push Now Playing / lock-screen metadata.  Call after [preparePlayer] and whenever
@@ -59,6 +67,23 @@ interface IosAudioPlayerBridge {
 
     /** Release AVPlayer resources. Safe to call multiple times. */
     fun dispose()
+}
+
+/**
+ * Callback for periodic position updates.
+ * Interface (not lambda) so Kotlin/Native emits a proper ObjC protocol with
+ * a primitive `double` parameter instead of a boxed `KotlinDouble` block parameter.
+ */
+interface IosPositionCallback {
+    fun onPosition(positionSec: Double)
+}
+
+/**
+ * Callback for play/pause state changes.
+ * Same rationale as [IosPositionCallback] — avoids KotlinBoolean boxing in ObjC blocks.
+ */
+interface IosPlayingCallback {
+    fun onPlaying(isPlaying: Boolean)
 }
 
 /** Factory so Koin can produce one bridge instance per player open. */

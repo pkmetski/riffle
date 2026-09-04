@@ -98,21 +98,25 @@ class IosAudiobookPlayerViewModel(
         val b = bridgeFactory.create()
         bridge = b
 
-        b.setPositionCallback { positionSec ->
-            val ch = timeline.chapterAt(positionSec)
-            _state.value = _state.value.copy(
-                positionSec = positionSec,
-                currentChapterTitle = ch?.title,
-                currentChapterIndex = ch?.index ?: -1,
-                canPreviousChapter = timeline.canPreviousChapter,
-                canNextChapter = timeline.canNextChapter,
-            )
-        }
-        b.setPlayingCallback { isPlaying ->
-            _state.value = _state.value.copy(isPlaying = isPlaying)
-        }
+        b.setPositionCallback(object : IosPositionCallback {
+            override fun onPosition(positionSec: Double) {
+                val ch = timeline.chapterAt(positionSec)
+                _state.value = _state.value.copy(
+                    positionSec = positionSec,
+                    currentChapterTitle = ch?.title,
+                    currentChapterIndex = ch?.index ?: -1,
+                    canPreviousChapter = timeline.canPreviousChapter,
+                    canNextChapter = timeline.canNextChapter,
+                )
+            }
+        })
+        b.setPlayingCallback(object : IosPlayingCallback {
+            override fun onPlaying(isPlaying: Boolean) {
+                _state.value = _state.value.copy(isPlaying = isPlaying)
+            }
+        })
 
-        b.preparePlayer(trackUrls, trackOffsets, startAt, session.durationSec)
+        b.preparePlayer(trackUrls, trackOffsets.toDoubleArray(), startAt, session.durationSec)
 
         val startChapter = timeline.chapterAt(startAt)
         _state.value = _state.value.copy(
