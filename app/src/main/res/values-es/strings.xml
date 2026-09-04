@@ -311,7 +311,7 @@
     <string name="ui_sleeping_in">Se detendrá en %1$s</string>
     <string name="ui_sleeping_at_end_of_chapter">Se detendrá al final del capítulo</string>
     <string name="ui_minutes_short">%1$d min</string>
-    <string name="ui_sections_count">%1$d secciones</string>
+    <string name="ui_sections_count">%1$d capítulos</string>
     <string name="ui_chapters_count">%1$d capítulos</string>
     <string name="ui_progress_listened">%1$d%% escuchado</string>
     <string name="ui_progress_read">%1$d%% leído</string>
