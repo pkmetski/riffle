@@ -163,6 +163,9 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertTrue(looksUnhelpfulTitle("item003"))
         assertTrue(looksUnhelpfulTitle("text00001"))
         assertTrue(looksUnhelpfulTitle("SECTION_012"))
+        assertTrue(looksUnhelpfulTitle("ch03"))       // 2-digit spine ID — also unhelpful
+        assertTrue(looksUnhelpfulTitle("ch06"))       // regression: showed verbatim when TOC cold
+        assertTrue(looksUnhelpfulTitle("ch10"))       // regression: showed verbatim when TOC cold
     }
 
     @Test
@@ -170,7 +173,6 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertFalse(looksUnhelpfulTitle("The Nature of Complexity"))
         assertFalse(looksUnhelpfulTitle("Introduction"))
         assertFalse(looksUnhelpfulTitle("Epilogue"))
-        assertFalse(looksUnhelpfulTitle("ch03"))       // short but no 3-digit run
         assertFalse(looksUnhelpfulTitle("Act2"))       // only one trailing digit
         assertFalse(looksUnhelpfulTitle("Part3"))
     }
@@ -181,6 +183,9 @@ class EpubReaderViewModelHighlightsSourceTest {
         // and was displayed verbatim as the chapter heading.
         assertEquals("Chapter 1", elidedChapterTitle("OEBPS/part0010.xhtml", "part0010", emptyList(), 0))
         assertEquals("Chapter 3", elidedChapterTitle("OEBPS/item003.xhtml", "item003", emptyList(), 2))
+        // Regression: 2-digit-suffix filenames (ch06, ch10) showed verbatim when TOC cache cold.
+        assertEquals("Chapter 1", elidedChapterTitle("OEBPS/ch06.xhtml", "ch06", emptyList(), 0))
+        assertEquals("Chapter 3", elidedChapterTitle("OEBPS/ch10.xhtml", "ch10", emptyList(), 2))
     }
 
     @Test
