@@ -31,7 +31,7 @@ Android corpus (≈3400 test methods) is Android-only today.
 | Cat | Files | Tests | Meaning | Vehicle to close the gap |
 |---|---:|---:|---|---|
 | **A** | 21 | 136 | Already shared `commonTest` in an iOS-targeted module | *(mostly done — but CI wiring gap, see §3)* |
-| **A?** | 1 | 6 | `commonTest` in a module with **no** iOS target (`core/dictionary`) | add iOS target OR confirm logic is consumed elsewhere on iOS |
+| **A** *(was A?)* | 1 | 6 | `core/dictionary` iOS target added; `LanguageCatalogTest` now runs on `iosSimulatorArm64` | ✅ done (#945) |
 | **B** | 220 | 2140 | `:app` pure Kotlin logic (ViewModels, mappers, resolvers, parsers) | **move production code to `feature/*/commonMain`, port test to `commonTest`** |
 | **B/D** | 31 | 464 | `:app` reader "glue" — needs per-file judgment (shared logic vs Android-WebView/Readium) | split: shared parts → `commonTest`; WebView/Readium parts → XCTest |
 | **C** | 23 | 361 | Catalog / networking layer — **module has no iOS target at all** | **BIG migration** (see §5) |
@@ -86,10 +86,10 @@ follows.
 These `commonTest` suites live in iOS-targeted modules and already give real iOS
 coverage (see Appendix A). Remaining work is only §3 (make CI run them on iOS).
 
-### A? — `core/dictionary` `LanguageCatalogTest` (6)
-`core/dictionary` has no iOS target. Either the dictionary/language-pack feature
-is not on iOS yet (report as gap), or the catalog data is consumed through another
-shared module. **Verify before batching.**
+### ~~A?~~ → A — `core/dictionary` `LanguageCatalogTest` (6) ✅ **#945 resolved**
+iOS target (`iosArm64`, `iosSimulatorArm64`) added to `core:dictionary`. `LanguageCatalogTest`
+converted from JUnit to `kotlin.test` so it runs in both JVM and iOS simulator. Dictionary /
+language-pack feature is confirmed as iOS-bound.
 
 ### B — `:app` pure logic → migrate + `commonTest` (220 files / 2140 tests)
 The main event. These are Android-only today only because the code-under-test sits
@@ -170,8 +170,7 @@ and this report tracks them).
    using the multiplatform `core/net` (Ktor) instead of `core/network` (OkHttp),
    add `iosMain`/`iosTest`, then the ~361 tests become `commonTest`. Large.
 
-2. **`core/dictionary` language packs** — no iOS target (§4 A?). Small-to-medium;
-   confirm whether the feature exists on iOS before sizing.
+2. ~~**`core/dictionary` language packs**~~ — ✅ **done** (#945): iOS target added, `LanguageCatalogTest` now `commonTest` on `iosSimulatorArm64`.
 
 3. **Stub iOS ViewModels — real feature gaps.** The following screens exist on iOS only as
    thin stub ViewModels; the full behaviour lives in `:app`. Bringing iOS to parity means
@@ -318,8 +317,13 @@ The remaining six do not meet those conditions:
 - **`CbzReaderViewModel` is Android-graphics-locked** (`android.graphics.Bitmap`/`BitmapFactory`/
   `Color`, `android.app.Application`, `java.io.File`): needs an `expect/actual` image-decode seam
   before any of its logic can move to `commonMain`.
-- `AnnotationsListViewModel` — **DONE (commit `adaecc86b`).** Relocated `:shared` →
-  `:feature:library`. Uncovered the key topology constraint below.
+- `AnnotationsListViewModel` — **DONE + device-verified (commits `adaecc86b`, `3e64a843d`).**
+  Relocated `:shared` → `:feature:library` (uncovered the topology constraint below).
+  feature:library **45 tests green on iOS+JVM**; app unit + androidTest compile;
+  `assembleDebug`/`assembleDebugAndroidTest` OK; **`AnnotationsListHeaderTest` passes on the AVD**
+  (the relocated `AnnotationsListUiState`/`AnnotatedBook`/screen render on-device). The full
+  ABS-login→create-highlight→populated-tab e2e is not runnable here (ABS login response is
+  mangled over the Tailscale DERP relay — env, not code).
 - `LibraryItemsViewModel` has the least divergence of the stubs (shared **422L** vs `:app`
   **490L**) and no hard Android imports, so it is the most tractable of the BIG set, but still
   needs relocation from `:shared` + reconciling ~68 lines of behavioural divergence + porting its
