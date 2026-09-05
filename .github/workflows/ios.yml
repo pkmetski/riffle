@@ -95,12 +95,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-  database-test:
-    name: iOS database tests (core:database)
+  commontest:
+    name: iOS shared unit tests (commonTest)
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 25
     concurrency:
-      group: ios-database-test-${{ github.ref }}
+      group: ios-commontest-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
@@ -108,14 +108,30 @@ jobs:
         with:
           java-version: '17'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      - name: Run iOS database tests
-        run: ./gradlew :core:database:iosSimulatorArm64Test :core:sync:iosSimulatorArm64Test
-      - name: Upload iOS database test reports
+      # Run every iOS-targeted module's commonTest on the iOS simulator target so shared
+      # (Kotlin Multiplatform) logic is verified on iOS, not just Android. See
+      # docs/testing/android-ios-parity-audit.md §3.
+      - name: Run iOS commonTest (all iOS-targeted modules)
+        run: |
+          ./gradlew \
+            :core:database:iosSimulatorArm64Test \
+            :core:sync:iosSimulatorArm64Test \
+            :shared:iosSimulatorArm64Test \
+            :feature:library:iosSimulatorArm64Test \
+            :feature:player:iosSimulatorArm64Test \
+            :feature:reader:iosSimulatorArm64Test \
+            :feature:source:iosSimulatorArm64Test
+      - name: Upload iOS commonTest reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-database-test-reports
+          name: ios-commontest-reports
           path: |
             core/database/build/reports/tests/
             core/sync/build/reports/tests/
+            shared/build/reports/tests/
+            feature/library/build/reports/tests/
+            feature/player/build/reports/tests/
+            feature/reader/build/reports/tests/
+            feature/source/build/reports/tests/
           if-no-files-found: ignore
