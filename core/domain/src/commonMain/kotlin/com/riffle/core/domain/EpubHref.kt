@@ -35,13 +35,16 @@ fun normalizeEpubHref(raw: String): String {
     return if (bang >= 0) {
         raw.substring(bang + 1).trimStart('/')
     } else {
-        try {
-            java.net.URI(raw).path?.trimStart('/') ?: raw
-        } catch (_: Exception) {
-            raw
-        }
+        uriPath(raw)?.trimStart('/') ?: raw
     }
 }
+
+/**
+ * The decoded path component of a URL/URI string, or `null` if it cannot be parsed or is opaque
+ * (e.g. `mailto:x`). Platform-specific because there is no KMP URL parser in the shared stdlib:
+ * the JVM delegates to `java.net.URI`, iOS to `NSURL`, preserving the historical Android behaviour.
+ */
+internal expect fun uriPath(raw: String): String?
 
 /**
  * Extracts the 0-based spine index from an EPUB CFI string.

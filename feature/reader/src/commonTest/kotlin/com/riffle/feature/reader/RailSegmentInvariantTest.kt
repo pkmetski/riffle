@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.TocEntry
 import kotlin.random.Random
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * Property test for the rail's global readability invariant. Unlike the fixture tests, this is
@@ -39,9 +39,9 @@ class RailSegmentInvariantTest {
                 .any { it.value.size > 1 }
             if (hasSameFileSections) {
                 assertTrue(
+                    segments.size <= MAX_SEGMENTS_WITH_SAME_FILE_SECTIONS,
                     "iteration $iteration: ${segments.size} segments while same-file sections " +
                         "are exposed (cap $MAX_SEGMENTS_WITH_SAME_FILE_SECTIONS)",
-                    segments.size <= MAX_SEGMENTS_WITH_SAME_FILE_SECTIONS,
                 )
             }
         }

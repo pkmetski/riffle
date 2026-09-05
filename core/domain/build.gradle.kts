@@ -20,6 +20,9 @@ kotlin {
             // Use-case classes carry @Inject so Hilt can wire them through the data/app graph.
             implementation("javax.inject:javax.inject:1")
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
         jvmTest.dependencies {
             implementation(libs.junit)
             implementation(libs.kotlinx.coroutines.test)

@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class PdfRailSegmentsTest {
 
@@ -110,7 +110,7 @@ class PdfRailSegmentsTest {
         )
         val p = pdfProgressionWithinActiveSegment(segs, activeIndex = 1,
             currentPageIndex = 19, intraPageOffset = 0.99f, totalPages = 20)
-        assertTrue("progression must be in 0..1, was $p", p in 0f..1f)
+        assertTrue(p in 0f..1f, "progression must be in 0..1, was $p")
     }
 
     @Test
@@ -152,7 +152,7 @@ class PdfRailSegmentsTest {
             currentPageIndex = zeroPage, intraPageOffset = 0f, totalPages = 300,
         )
         val cursor = weightedRailCursorPosition(active, segs, withinSeg)
-        assertTrue("cursor on page 4 must be near rail start, was $cursor", cursor < 0.05f)
+        assertTrue(cursor < 0.05f, "cursor on page 4 must be near rail start, was $cursor")
     }
 
     @Test
