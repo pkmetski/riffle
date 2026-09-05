@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import com.riffle.feature.library.LibraryTabVisibility
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

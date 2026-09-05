@@ -1,5 +1,10 @@
 package com.riffle.app.feature.library
 
+import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.AudiobookBookmarkSearchResult
+import com.riffle.feature.library.LibraryFilterEngine
+import com.riffle.feature.library.LibraryProjection
+import com.riffle.feature.library.LibrarySortMode
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookDownloadRepository

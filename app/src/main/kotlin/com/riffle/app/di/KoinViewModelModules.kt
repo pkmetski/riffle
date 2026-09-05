@@ -11,7 +11,7 @@ import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
 import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.app.feature.library.FilteredBooksViewModel
 import com.riffle.app.feature.library.LibraryItemDetailViewModel
-import com.riffle.app.feature.library.LibraryItemsViewModel
+import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
@@ -136,8 +136,9 @@ import org.koin.dsl.module
 
 private val libraryViewModelModule = module {
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         LibraryItemsViewModel(
-            savedStateHandle = get(),
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             libraryObserver = get(),
             refreshLibraryItemsUseCase = get(),
             refreshSeriesUseCase = get(),

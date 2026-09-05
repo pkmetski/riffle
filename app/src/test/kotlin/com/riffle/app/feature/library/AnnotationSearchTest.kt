@@ -1,5 +1,9 @@
 package com.riffle.app.feature.library
 
+import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.AudiobookBookmarkSearchResult
+import com.riffle.feature.library.searchAnnotations
+import com.riffle.feature.library.searchAudiobookBookmarks
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.models.LibraryItem

@@ -3,6 +3,10 @@ package com.riffle.app.feature.library
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.AudiobookBookmarkSearchResult
+import com.riffle.feature.library.searchAnnotations
+import com.riffle.feature.library.searchAudiobookBookmarks
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.LibraryObserver

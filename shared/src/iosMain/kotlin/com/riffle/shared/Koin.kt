@@ -68,7 +68,7 @@ import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
-import com.riffle.shared.library.LibraryItemsViewModel
+import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory

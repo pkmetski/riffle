@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.ToReadRepository

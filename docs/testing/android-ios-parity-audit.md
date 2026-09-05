@@ -313,10 +313,23 @@ The remaining six do not meet those conditions:
   (the relocated `AnnotationsListUiState`/`AnnotatedBook`/screen render on-device). The full
   ABS-login→create-highlight→populated-tab e2e is not runnable here (ABS login response is
   mangled over the Tailscale DERP relay — env, not code).
-- `LibraryItemsViewModel` has the least divergence of the stubs (shared **422L** vs `:app`
-  **490L**) and no hard Android imports, so it is the most tractable of the BIG set, but still
-  needs relocation from `:shared` + reconciling ~68 lines of behavioural divergence + porting its
-  74 `:app` tests + device verification.
+- `LibraryItemsViewModel` — **DONE (issue #949).** Consolidated onto one shared class at
+  `:feature:library`/`commonMain`; the `:shared` and `:app` copies are deleted, and the support
+  types it depends on (`LibraryFilterEngine`, `LibraryProjection`, `LibrarySortMode`,
+  `LibraryTabVisibility`, `AnnotationSearch*`) moved with it. `ToReadRepository` was lifted from
+  `:core:data` to `:core:domain` (typealias shim left behind, mirroring `PlaylistsRepository`) so a
+  KMP feature module can depend on the interface. The reconciliation kept the `:shared` shape
+  (`libraryId: String` + a plain `MutableStateFlow` search query, no Android `SavedStateHandle`) —
+  matching every other consolidated VM (`SeriesDetailViewModel` etc.). `LibrarySortMode` is now a
+  bare enum; the Android string-resource label mapping lives in `:app`
+  (`LibrarySortMode.labelResId`). Android reads `libraryId` from `SavedStateHandle` at the Koin call
+  site. The 74 `:app` tests were ported to `commonTest` (**72** — the two `SavedStateHandle`
+  process-death search-restore tests were retired with the seam; process-death search restoration
+  is the one intentional behaviour drop) and the former `:shared` `LibraryItemsViewModelRefreshCrashTest`
+  moved alongside. **72 + 1 tests green on both iOS (`iosSimulatorArm64Test`) and JVM.** Fixed a
+  latent crash-safety bug uncovered by running the crash test on JVM for the first time: a thrown
+  refresh dependency could surface as a swallowed `CancellationException`, leaving the offline
+  banner un-set — `runRefresh` now guards each dependency so any genuine failure is captured.
 
 ### Batch 4 (partial) — Reader rail-segments cluster (DONE)
 First category-B logic migration (#946). The whole-book chapter-rail generator and its CBZ/PDF
@@ -368,6 +381,8 @@ All rows start at their category default; flip as batches land.
 - `CollectionDetailViewModelTest` (4)
 - `FacetMatchesTest` (6)
 - `HomeViewModelStartDestinationTest` (3)
+- `LibraryItemsViewModelTest` (72)
+- `LibraryItemsViewModelRefreshCrashTest` (1)
 - `LibrarySectionItemsTest` (5)
 - `SeriesDetailViewModelTest` (4)
 - `UrlDecodeTest` (7)
@@ -393,7 +408,6 @@ All rows start at their category default; flip as batches land.
 - `AnnotationDecorationMapperTest` (7)
 - `DrawerViewModelTest` (5)
 - `LibraryItemDetailViewModelTest` (4)
-- `LibraryItemsViewModelRefreshCrashTest` (1)
 - `NormalizeAbsUrlTest` (6)
 - `ReaderNavRoutingTest` (5)
 
@@ -520,7 +534,6 @@ All rows start at their category default; flip as batches land.
 - `LibraryItemDetailViewModelTest` (59)
 - `LibraryItemDetailViewModelTocTest` (10)
 - `LibraryItemImportProgressTest` (5)
-- `LibraryItemsViewModelTest` (74)
 - `LibraryLocalizationResourceTest` (2)
 - `LibrarySectionViewModelTest` (4)
 - `LibraryTabBarAnnotationsTest` (1)

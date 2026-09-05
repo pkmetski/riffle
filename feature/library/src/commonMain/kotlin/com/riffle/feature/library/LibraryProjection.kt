@@ -1,4 +1,4 @@
-package com.riffle.shared.library
+package com.riffle.feature.library
 
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem

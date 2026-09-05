@@ -1,36 +1,35 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import androidx.lifecycle.SavedStateHandle
-import com.riffle.core.domain.AudiobookDownloadRepository
-import com.riffle.core.domain.AudiobookDownloadResult
-import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.models.Collection
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.models.EbookFormat
-import com.riffle.core.domain.EpubDownloadResult
-import com.riffle.core.domain.EpubOpenResult
-import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryFilterPreferences
 import com.riffle.core.domain.LibraryFilterPreferencesStore
+import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryRefreshResult
+import com.riffle.core.domain.LibraryRefresher
+import com.riffle.core.domain.ReadaloudLinkReconciler
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
+import com.riffle.core.domain.ToReadRepository
+import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.usecase.RefreshCollections
+import com.riffle.core.domain.usecase.RefreshLibraryItems
+import com.riffle.core.domain.usecase.RefreshSeries
+import com.riffle.core.models.Collection
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.domain.BundleAudiobookSource
-import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
-import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.PdfDownloadResult
-import com.riffle.core.domain.PdfOpenResult
-import com.riffle.core.domain.PdfRepository
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.data.ToReadRepository
-import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,22 +44,22 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    @Before
+    @BeforeTest
     fun setUp() { Dispatchers.setMain(testDispatcher) }
 
-    @After
+    @AfterTest
     fun tearDown() { Dispatchers.resetMain() }
 
     private val seriesFlow = MutableStateFlow<List<Series>>(emptyList())
@@ -219,40 +218,13 @@ class LibraryItemsViewModelTest {
         }
     }
 
-    private fun fakeEpubRepo(): EpubRepository = object : EpubRepository {
-        override suspend fun openEpub(item: LibraryItem): EpubOpenResult = EpubOpenResult.Offline
-        override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): EpubDownloadResult = EpubDownloadResult.Success
-        override suspend fun removeDownload(sourceId: String, itemId: String) {}
-        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
-        override fun isCached(sourceId: String, itemId: String): Boolean = false
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
-    }
-
-    private fun fakePdfRepo(): PdfRepository = object : PdfRepository {
-        override suspend fun openPdf(item: LibraryItem): PdfOpenResult = PdfOpenResult.Offline
-        override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): PdfDownloadResult = PdfDownloadResult.Success
-        override suspend fun removeDownload(sourceId: String, itemId: String) {}
-        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
-        override fun isCached(sourceId: String, itemId: String): Boolean = false
-        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
-    }
-
-    private fun fakeAudiobookDownloadRepo(downloadedIds: Set<String> = emptySet()): AudiobookDownloadRepository =
-        object : AudiobookDownloadRepository {
-            override fun isDownloaded(sourceId: String, itemId: String): Boolean = itemId in downloadedIds
-            override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
-            override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit): AudiobookDownloadResult =
-                AudiobookDownloadResult.Success
-            override suspend fun remove(sourceId: String, itemId: String): Long = 0L
-        }
-
     private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
         val state = MutableStateFlow(online)
         override val isOnline: StateFlow<Boolean> = state
     }
 
-    private class NoopPlaylistsRepository : com.riffle.core.data.PlaylistsRepository {
-        override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.catalog.CatalogPlaylist>())
+    private class NoopPlaylistsRepository : com.riffle.core.domain.PlaylistsRepository {
+        override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.models.CatalogPlaylist>())
         override suspend fun refresh(rootId: String) = true
         override suspend fun getPlaylist(rootId: String, playlistId: String) = null
         override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) =
@@ -282,17 +254,14 @@ class LibraryItemsViewModelTest {
     }
 
     private fun makeViewModel(
+        libraryId: String = "lib-1",
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
-        epubRepository: EpubRepository = fakeEpubRepo(),
-        pdfRepository: PdfRepository = fakePdfRepo(),
-        audiobookDownloadRepository: AudiobookDownloadRepository = fakeAudiobookDownloadRepo(),
+        offlineAvailability: LibraryItemOfflineAvailability = FakeOfflineAvailability(),
         libraryRepository: LibraryObserver = fakeRepo(),
-        refreshLibraryItemsUseCase: com.riffle.core.domain.usecase.RefreshLibraryItems =
-            com.riffle.app.testing.NoopRefreshLibraryItems(),
+        refreshLibraryItemsUseCase: RefreshLibraryItems = NoopRefreshLibraryItems(),
         sourceRepository: SourceRepository = fakeServerRepo(),
         tokenStorage: TokenStorage = fakeTokenStorage(),
         toReadRepository: ToReadRepository = FakeToReadRepository(),
-        savedStateHandle: SavedStateHandle = SavedStateHandle(mapOf("libraryId" to "lib-1")),
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
         coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore = object : com.riffle.core.domain.CoverGridDensityStore {
             override val scale = kotlinx.coroutines.flow.flowOf(1f)
@@ -312,23 +281,14 @@ class LibraryItemsViewModelTest {
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
         annotationsLibraryRepository: com.riffle.core.domain.AnnotationsLibraryRepository = fakeAnnotationsLibraryRepository(),
     ) = LibraryItemsViewModel(
-        savedStateHandle = savedStateHandle,
+        libraryId = libraryId,
         libraryObserver = libraryRepository,
         refreshLibraryItemsUseCase = refreshLibraryItemsUseCase,
-        refreshSeriesUseCase = com.riffle.app.testing.NoopRefreshSeries(),
-        refreshCollectionsUseCase = com.riffle.app.testing.NoopRefreshCollections(),
+        refreshSeriesUseCase = NoopRefreshSeries(),
+        refreshCollectionsUseCase = NoopRefreshCollections(),
         sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
-        offlineAvailability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository,
-            pdfRepository,
-            NoopCbzRepository(),
-            audiobookDownloadRepository,
-            object : BundleAudiobookSource {
-                override suspend fun localSession(sourceId: String, itemId: String) = null
-                override fun isAvailableOffline(sourceId: String, itemId: String) = false
-            },
-        ),
+        offlineAvailability = offlineAvailability,
         connectivityObserver = connectivityObserver,
         toReadRepository = toReadRepository,
         playlistsRepository = NoopPlaylistsRepository(),
@@ -585,7 +545,7 @@ class LibraryItemsViewModelTest {
     fun `seriesCoverUrls prefers offline-available member cover while offline`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Downloaded")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-Downloaded")),
         )
         backgroundScope.launch { vm.seriesCoverUrls.collect {} }
         val ser = series("Arc")
@@ -667,20 +627,11 @@ class LibraryItemsViewModelTest {
 
     // --- offline filtering ---
 
-    private fun fakeEpubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : EpubRepository {
-        override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
-        override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
-        override suspend fun removeDownload(sourceId: String, itemId: String) {}
-        override fun isDownloaded(sourceId: String, itemId: String): Boolean = itemId in downloadedIds
-        override fun isCached(sourceId: String, itemId: String): Boolean = false
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
-    }
-
     @Test
     fun `when offline ungrouped items are filtered to only downloaded`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-Dune")),
         )
         backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
@@ -698,8 +649,7 @@ class LibraryItemsViewModelTest {
         )
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
-            audiobookDownloadRepository = fakeAudiobookDownloadRepo(setOf("id-The Martian")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-The Martian")),
         )
         backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
@@ -712,7 +662,7 @@ class LibraryItemsViewModelTest {
     fun `when online no offline filter is applied to ungrouped items`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = true),
-            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+            offlineAvailability = FakeOfflineAvailability(emptySet()),
         )
         backgroundScope.launch { vm.projection.collect {} }
         itemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
@@ -738,7 +688,7 @@ class LibraryItemsViewModelTest {
     fun `when offline collections with no available offline items are hidden`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+            offlineAvailability = FakeOfflineAvailability(emptySet()),
         )
         backgroundScope.launch { vm.projection.collect {} }
         collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
@@ -754,7 +704,7 @@ class LibraryItemsViewModelTest {
     fun `when offline collections with at least one available offline item are shown`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Mistborn")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-Mistborn")),
         )
         backgroundScope.launch { vm.projection.collect {} }
         collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
@@ -770,7 +720,7 @@ class LibraryItemsViewModelTest {
     fun `when offline series with no available offline items are hidden`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+            offlineAvailability = FakeOfflineAvailability(emptySet()),
         )
         backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
@@ -786,7 +736,7 @@ class LibraryItemsViewModelTest {
     fun `when offline series with at least one available offline item are shown`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-The Way of Kings")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-The Way of Kings")),
         )
         backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
@@ -858,10 +808,10 @@ class LibraryItemsViewModelTest {
         // Regression: launchRefresh() was gated behind getActive() + token + DataStore prefs.
         // On every library switch both VMs are recreated, so the network refresh was delayed
         // by the DataStore read on every transition. launchRefresh() has no dependency on
-        // token or prefs — it only needs libraryId (from SavedStateHandle) — so it must start
+        // token or prefs — it only needs libraryId — so it must start
         // in parallel with the I/O. This assertion fails if launchRefresh() is ever moved
         // back below the prefs read.
-        val refresh = com.riffle.app.testing.NoopRefreshLibraryItems()
+        val refresh = NoopRefreshLibraryItems()
         val slowPrefs = object : LibraryFilterPreferencesStore {
             override fun preferences(sourceId: String, libraryId: String) = flow<LibraryFilterPreferences> {
                 delay(500)
@@ -880,7 +830,7 @@ class LibraryItemsViewModelTest {
         // Advance 250ms — half the 500ms prefs delay. The refresh must have fired already
         // even though prefs haven't resolved yet.
         testDispatcher.scheduler.advanceTimeBy(250)
-        assertTrue("refresh must start in parallel with prefs, not gated behind them", refresh.calls > 0)
+        assertTrue(refresh.calls > 0, "refresh must start in parallel with prefs, not gated behind them")
     }
 
     @Test
@@ -901,7 +851,7 @@ class LibraryItemsViewModelTest {
             override suspend fun setSortModeName(s: String, l: String, n: String?) = Unit
         }
         val oneBook = LibraryItem("id-1", "lib-1", "Title", "Author", null, 0f, false, false, EbookFormat.Epub)
-        val fakeObserver = com.riffle.app.testing.FakeLibraryObserver(allBooksFlow = flowOf(listOf(oneBook)))
+        val fakeObserver = FakeLibraryObserver(allBooksFlow = flowOf(listOf(oneBook)))
         val vm = makeViewModel(
             sourceRepository = fakeActiveSourceRepo(),
             libraryFilterPreferencesStore = slowPrefs,
@@ -911,7 +861,7 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         // Prefs latch is still open — prefs have NOT resolved — but Room emitted content.
         // isLoading must be false already.
-        assertFalse("isLoading must clear when Room has data, even if prefs haven't resolved", vm.isLoading.value)
+        assertFalse(vm.isLoading.value, "isLoading must clear when Room has data, even if prefs haven't resolved")
         latch.complete(Unit) // release to avoid coroutine leak
     }
 
@@ -940,7 +890,7 @@ class LibraryItemsViewModelTest {
     fun `filteredRecentlyAdded when offline filters to only downloaded items`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-Dune")),
         )
         backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
@@ -973,7 +923,7 @@ class LibraryItemsViewModelTest {
         val toRead = FakeToReadRepository(initial = setOf("id-Dune", "id-Foundation"))
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-Dune")),
             toReadRepository = toRead,
         )
         backgroundScope.launch { vm.projection.collect {} }
@@ -1014,15 +964,15 @@ class LibraryItemsViewModelTest {
     private class CountingRefreshLibraryItems(
         val refreshResult: suspend () -> LibraryRefreshResult,
         val onCall: () -> Unit = {},
-    ) : com.riffle.core.domain.usecase.RefreshLibraryItems(
-        com.riffle.app.testing.NoopLibraryRefresher,
-        object : com.riffle.core.domain.StorytellerReadaloudCacheSyncer {
+    ) : RefreshLibraryItems(
+        NoopLibraryRefresher,
+        object : StorytellerReadaloudCacheSyncer {
             override suspend fun syncStale() = Unit
         },
-        object : com.riffle.core.domain.ReadaloudLinkReconciler {
+        object : ReadaloudLinkReconciler {
             override suspend fun reconcileLinks() = Unit
         },
-        com.riffle.app.testing.TestApplicationScope(kotlinx.coroutines.GlobalScope),
+        noopApplicationScope,
     ) {
         override suspend fun invoke(libraryId: String): LibraryRefreshResult {
             onCall(); return refreshResult()
@@ -1050,9 +1000,9 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.runCurrent()
 
         assertEquals(
-            "Reconnect and ON_RESUME should join the already-running refresh, not start duplicates",
             1,
             refreshCount,
+            "Reconnect and ON_RESUME should join the already-running refresh, not start duplicates",
         )
 
         refreshGate.complete(Unit)
@@ -1088,9 +1038,9 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.runCurrent()
 
         assertEquals(
-            "A stale offline refresh failure should clear as soon as the device is online again",
             false,
             vm.isOffline.value,
+            "A stale offline refresh failure should clear as soon as the device is online again",
         )
 
         refreshGate.complete(Unit)
@@ -1202,7 +1152,7 @@ class LibraryItemsViewModelTest {
         val downloadedIds = (1..60).map { "id-Book $it" }.toSet()
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(downloadedIds),
+            offlineAvailability = FakeOfflineAvailability(downloadedIds),
         )
         backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
@@ -1277,7 +1227,7 @@ class LibraryItemsViewModelTest {
     fun `filteredAllBooks not-started filter composes with offline filter`() = runTest {
         val vm = makeViewModel(
             connectivityObserver = FakeConnectivityObserver(online = false),
-            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+            offlineAvailability = FakeOfflineAvailability(setOf("id-Dune")),
         )
         backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
@@ -1350,28 +1300,7 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(Triple("src-1", "lib-1", true)), store.notStartedWrites)
-        assertEquals(listOf(Triple("src-1", "lib-1", LibrarySortMode.AUTHOR_ASC.name)), store.sortWrites)
-    }
-
-    // --- searchQuery persistence (issue #60) ---
-
-    @Test
-    fun `searchQuery is restored from SavedStateHandle on construction`() = runTest {
-        val handle = SavedStateHandle(mapOf("libraryId" to "lib-1", "searchQuery" to "dune"))
-        val vm = makeViewModel(savedStateHandle = handle)
-        backgroundScope.launch { vm.searchQuery.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals("dune", vm.searchQuery.value)
-    }
-
-    @Test
-    fun `onSearchQueryChange writes through to SavedStateHandle`() = runTest {
-        val handle = SavedStateHandle(mapOf("libraryId" to "lib-1"))
-        val vm = makeViewModel(savedStateHandle = handle)
-        backgroundScope.launch { vm.searchQuery.collect {} }
-        vm.onSearchQueryChange("foundation")
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals("foundation", handle.get<String>("searchQuery"))
+        assertEquals(listOf(Triple<String, String, String?>("src-1", "lib-1", LibrarySortMode.AUTHOR_ASC.name)), store.sortWrites)
     }
 
     // --- continueSeriesItems ---
@@ -1393,10 +1322,10 @@ class LibraryItemsViewModelTest {
         val availableItem = item("Offline Book", "Author A")
         val unavailableItem = item("Online Only", "Author B")
         val connectivity = FakeConnectivityObserver(online = false)
-        val epubRepo = object : EpubRepository by fakeEpubRepo() {
-            override fun isCached(sourceId: String, itemId: String): Boolean = itemId == availableItem.id
-        }
-        val vm = makeViewModel(connectivityObserver = connectivity, epubRepository = epubRepo)
+        val vm = makeViewModel(
+            connectivityObserver = connectivity,
+            offlineAvailability = FakeOfflineAvailability(setOf(availableItem.id)),
+        )
         backgroundScope.launch { vm.projection.collect {} }
 
         continueSeriesFlow.value = listOf(availableItem, unavailableItem)
@@ -1541,8 +1470,7 @@ class LibraryItemsViewModelTest {
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
         // Custom AnnotationsLibraryRepository: an annotation exists on s-abs but its libraryId is
-        // "other-lib", not "lib-1" — the tab must stay hidden for this VM (which is scoped to lib-1
-        // via SavedStateHandle).
+        // "other-lib", not "lib-1" — the tab must stay hidden for this VM (which is scoped to lib-1).
         val repo = object : com.riffle.core.domain.AnnotationsLibraryRepository {
             override fun observeAnnotatedBooks(sourceId: String) = MutableStateFlow(
                 listOf(com.riffle.core.domain.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)),
@@ -1646,7 +1574,7 @@ class LibraryItemsViewModelTest {
     @Test
     fun `onScreenResumed refreshes`() = runTest {
         val toRead = FakeToReadRepository()
-        val refreshItems = com.riffle.app.testing.NoopRefreshLibraryItems()
+        val refreshItems = NoopRefreshLibraryItems()
         val vm = makeViewModel(
             toReadRepository = toRead,
             refreshLibraryItemsUseCase = refreshItems,
@@ -1716,7 +1644,7 @@ class LibraryItemsViewModelTest {
             }
         }
         val vm = makeViewModel(
-            savedStateHandle = SavedStateHandle(mapOf("libraryId" to "lib-99")),
+            libraryId = "lib-99",
             coverGridDensityStore = store,
             sourceRepository = fakeActiveSourceRepo("src-1"),
         )
@@ -1731,4 +1659,90 @@ class LibraryItemsViewModelTest {
         assertEquals(bucket, writtenBucket)
         assertEquals(1.2f, writtenValue)
     }
+}
+
+private class FakeOfflineAvailability(private val offlineIds: Set<String> = emptySet()) : LibraryItemOfflineAvailability {
+    override fun isAvailableOffline(item: LibraryItem): Boolean = item.id in offlineIds
+}
+
+private object NoopReadaloudLinkRepository : com.riffle.core.domain.ReadaloudLinkRepository {
+    override fun observeAll() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.models.ReadaloudLink>())
+    override fun observeLinkedAbsItemIds() = kotlinx.coroutines.flow.flowOf(emptySet<String>())
+    override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = null
+    override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) = emptyList<com.riffle.core.models.ReadaloudLink>()
+    override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+    override suspend fun countForSource(sourceId: String) = 0
+    override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: com.riffle.core.models.AudiobookIdentityResult) = Unit
+}
+
+private object NoopLibraryRefresher : LibraryRefresher {
+    override suspend fun refreshLibraries() = LibraryRefreshResult.Success
+    override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshItemProgress(sourceId: String, itemId: String) = LibraryRefreshResult.Success
+}
+
+private val noopApplicationScope: ApplicationScope = object : ApplicationScope {
+    private val supervisor = SupervisorJob()
+    override val coroutineScope: CoroutineScope = CoroutineScope(supervisor)
+    override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
+        coroutineScope.launch(block = block)
+    override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
+        block(coroutineScope)
+    override fun scopeOn(dispatcher: CoroutineDispatcher): CoroutineScope =
+        CoroutineScope(supervisor + dispatcher)
+}
+
+private class NoopRefreshLibraryItems : RefreshLibraryItems(
+    NoopLibraryRefresher,
+    object : StorytellerReadaloudCacheSyncer { override suspend fun syncStale() = Unit },
+    object : ReadaloudLinkReconciler { override suspend fun reconcileLinks() = Unit },
+    noopApplicationScope,
+) {
+    var calls = 0
+    override suspend fun invoke(libraryId: String): LibraryRefreshResult =
+        LibraryRefreshResult.Success.also { calls++ }
+}
+
+private class NoopRefreshSeries : RefreshSeries(NoopLibraryRefresher) {
+    var calls = 0
+    override suspend fun invoke(libraryId: String): LibraryRefreshResult =
+        LibraryRefreshResult.Success.also { calls++ }
+}
+
+private class NoopRefreshCollections : RefreshCollections(NoopLibraryRefresher) {
+    var calls = 0
+    override suspend fun invoke(libraryId: String): LibraryRefreshResult =
+        LibraryRefreshResult.Success.also { calls++ }
+}
+
+/**
+ * Minimal [LibraryObserver] stub for tests that need to control the [observeAllBooks] stream.
+ * All other methods return empty flows so callers that don't care about them compile without
+ * additional setup.
+ */
+private class FakeLibraryObserver(
+    private val allBooksFlow: Flow<List<LibraryItem>> = flowOf(emptyList()),
+    private val serverSourceItemsFlow: Flow<List<LibraryItem>> = flowOf(emptyList()),
+) : LibraryObserver {
+    override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
+    override fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> = serverSourceItemsFlow
+    override fun observeLibraries(): Flow<List<Library>> = flowOf(emptyList())
+    override fun observeLibraries(sourceId: String): Flow<List<Library>> = flowOf(emptyList())
+    override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeSeries(libraryId: String): Flow<List<Series>> = flowOf(emptyList())
+    override fun observeCollections(libraryId: String): Flow<List<Collection>> = flowOf(emptyList())
+    override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+    override suspend fun getItem(itemId: String): LibraryItem? = null
+    override fun observeItem(itemId: String): Flow<LibraryItem?> = flowOf(null)
+    override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
+    override suspend fun getLibrary(libraryId: String): Library? = null
+    override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
 }
