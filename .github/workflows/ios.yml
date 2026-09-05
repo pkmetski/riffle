@@ -45,9 +45,38 @@ jobs:
       - uses: ./.github/actions/setup-gradle
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      - name: Run iOS integration tests
+          cache-read-only: 'false'
+
+      - name: Read Kotlin version
+        id: kotlin-version
         run: |
-          # Pick the latest available iPhone simulator on this runner dynamically.
+          echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
+      - name: Cache SPM SourcePackages
+        uses: actions/cache@v4
+        with:
+          path: ~/spm-packages
+          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/derived-data
+          key: derived-data-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ steps.kotlin-version.outputs.version }}
+          restore-keys: |
+            derived-data-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
+            derived-data-${{ runner.os }}-
+
+      - name: Select and pre-boot simulator
+        run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
@@ -56,12 +85,21 @@ jobs:
               if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
                 print(d['udid']); exit()
           ")
+          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run iOS integration tests
+        run: |
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
-            -destination "platform=iOS Simulator,id=$UDID" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
+            -derivedDataPath "$HOME/derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild-test.log; exit ${PIPESTATUS[0]}
+
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v7
