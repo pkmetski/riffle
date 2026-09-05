@@ -295,6 +295,15 @@ The three done above worked only because their production class already lived in
 **`:feature:library`** (which `:app` depends on) with logic byte-identical to the Android copy.
 The remaining six do not meet those conditions:
 
+- **Module-target topology constraint (discovered via AnnotationsListViewModel, commit
+  `adaecc86b`).** `:feature:*` modules are **jvm+ios**; `:core:data` is **android+ios**. They share
+  only `ios`, so a `:feature:*` module's jvm variant cannot depend on `:core:data`. That is the
+  root reason the `:shared` VMs are duplicated: `:shared` (ios-only) reaches `:core:data`'s ios
+  target, `:app` (android) reaches its android target, and no jvm+ios feature module can host code
+  that touches `:core:data`. **Fix pattern:** pure interfaces + DTOs a shared VM needs must first be
+  moved from `:core:data` to `:core:domain`/`:core:models` (both jvm+ios; impl stays in
+  `:core:data`). AnnotationsListViewModel needed `AnnotatedBook` + `AnnotationsLibraryRepository`
+  moved to `:core:domain`. Expect the same for the other `:shared` VMs.
 - **`:app` does not depend on `:shared`.** `:shared` is the iOS aggregator module (only the iOS
   app consumes it). Five of the six shared VMs (`AnnotationsListViewModel`,
   `LibraryItemsViewModel`, `LibraryItemDetailViewModel`, `SettingsViewModel`,
@@ -309,8 +318,8 @@ The remaining six do not meet those conditions:
 - **`CbzReaderViewModel` is Android-graphics-locked** (`android.graphics.Bitmap`/`BitmapFactory`/
   `Color`, `android.app.Application`, `java.io.File`): needs an `expect/actual` image-decode seam
   before any of its logic can move to `commonMain`.
-- `AnnotationsListViewModel` is the smallest (72L, logic identical) but still needs the
-  `:shared` → `:feature:library` relocation (+ `AnnotationsListUiState`), so it is not a pure swap.
+- `AnnotationsListViewModel` — **DONE (commit `adaecc86b`).** Relocated `:shared` →
+  `:feature:library`. Uncovered the key topology constraint below.
 - `LibraryItemsViewModel` has the least divergence of the stubs (shared **422L** vs `:app`
   **490L**) and no hard Android imports, so it is the most tractable of the BIG set, but still
   needs relocation from `:shared` + reconciling ~68 lines of behavioural divergence + porting its
