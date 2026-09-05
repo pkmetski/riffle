@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.TocEntry
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class RailSegmentGeneratorTest {
 
@@ -333,7 +333,7 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `three-level nesting — part expands to chapters, chapters keep and drop same-file section anchors`() {
+    fun `three-level nesting — part expands to chapters and chapters keep and drop same-file section anchors`() {
         val sec1a = TocEntry("1a", "c01.xhtml#s1")
         val sec1b = TocEntry("1b", "c01.xhtml#s2")
         val sec2a = TocEntry("2a", "c02.xhtml#s1")
@@ -529,7 +529,7 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `flat numeric-prefix run — a single run is NOT absorbed (could be real numbered chapters)`() {
+    fun `flat numeric-prefix run — a single run is NOT absorbed — could be real numbered chapters`() {
         // A book with a single "1., 2., 3., ..." sequence at top level is more likely a
         // real numbered chapter list than a sub-run. The absorption heuristic requires at
         // least two restart cycles as proof that the numbering is subordinate.
@@ -567,8 +567,8 @@ class RailSegmentGeneratorTest {
         // siblings stay at top level. "Story B" is a bare leaf but there's now only one
         // eligible absorbable run — fails the ≥2-runs safety check — so nothing is absorbed.
         assertTrue(
-            "expected '1. Foo' to remain top-level: $segments",
             segments.any { it.title == "1. Foo" },
+            "expected '1. Foo' to remain top-level: $segments",
         )
     }
 
@@ -589,7 +589,7 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `siblings at same level are evaluated independently — one Part expands, another keeps`() {
+    fun `siblings at same level are evaluated independently — one Part expands and another keeps`() {
         // Real-world mix: a book with two Parts, only one of which has substantial chapters.
         // Pins that parent decisions don't leak: the length-fail on Part II must not stop
         // Part I from expanding, and vice versa.
@@ -649,13 +649,13 @@ class RailSegmentGeneratorTest {
         // test; we only assert Part 1 was replaced (i.e. the label "Първа част…" does not
         // appear as a top-level segment).
         assertTrue(
-            "Part 1 should have been expanded but appears in segments: $segments",
             segments.none { it.title == "Първа част. Богове и герои" },
+            "Part 1 should have been expanded but appears in segments: $segments",
         )
     }
 
     @Test
-    fun `Bulgarian-tales shape — tiny parent with tiny children NOT expanded (Детето съдия)`() {
+    fun `Bulgarian-tales shape — tiny parent with tiny children NOT expanded — Детето съдия`() {
         // Real subset of "Приказки от хиляда и една нощ" Pattern B story "Четвърта глава.
         // Детето съдия" at chapter-78.xhtml with 9 children (first same-file). Every spine
         // file in this region is 1-3 positions — flash-fiction-length sub-chapters. Ratio
@@ -679,7 +679,7 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `Bulgarian-tales shape — tiny parent with tiny children NOT expanded (Меден-Трета)`() {
+    fun `Bulgarian-tales shape — tiny parent with tiny children NOT expanded — Меден-Трета`() {
         // Same book, second bad expansion: "Трета глава" from "Медният град" at chapter-102
         // with 4 children (first same-file). Parent=1, children=[2,3,1]. Two children just
         // barely pass 2×parent=2, forming a false majority (2/3). The absolute floor is what
@@ -924,7 +924,7 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `unmatched href falls back to preceding chapter by spine order, not chapter 0`() {
+    fun `unmatched href falls back to preceding chapter by spine order and not chapter 0`() {
         // Spine has an intermezzo resource between chapter2 and chapter3 with no TOC entry.
         // Without spine awareness the chapter label would flicker to "Chapter 1" when the
         // navigator emits a locator for the intermezzo.
@@ -1081,7 +1081,7 @@ class RailSegmentGeneratorTest {
         // Adjacent segments touch exactly: bounds[i].end == bounds[i+1].start
         for (i in 0 until bounds.size - 1) {
             val endI = bounds[i].first + bounds[i].second
-            assertEquals("segment $i end != segment ${i + 1} start", bounds[i + 1].first, endI, 0f)
+            assertEquals(bounds[i + 1].first, endI, 0f, "segment $i end != segment ${i + 1} start")
         }
         // First starts at 0, last ends at total.
         assertEquals(0f, bounds.first().first, 0f)
@@ -1163,8 +1163,8 @@ class RailSegmentGeneratorTest {
                 for (p in listOf(0f, 0.001f, 0.25f, 0.5f, 0.75f, 0.999f, 1f)) {
                     val cursor = weightedRailCursorPosition(active, segs, p)
                     assertTrue(
-                        "weights=$weights active=$active p=$p cursor=$cursor not in [$left,$right]",
                         cursor in left..right,
+                        "weights=$weights active=$active p=$p cursor=$cursor not in [$left,$right]",
                     )
                 }
             }
@@ -1311,6 +1311,6 @@ class EqualWeightTimeRemainingRegressionTest {
         // real data, not a preliminary state. totalPositions must be > 0 so estimates are shown.
         assertTrue(segments.all { it.weight == 1f })
         val totalPositions = segments.fold(0f) { acc, s -> acc + s.weight }
-        assertTrue("totalPositions must be > 0 so time-remaining estimates are not suppressed", totalPositions > 0f)
+        assertTrue(totalPositions > 0f, "totalPositions must be > 0 so time-remaining estimates are not suppressed")
     }
 }

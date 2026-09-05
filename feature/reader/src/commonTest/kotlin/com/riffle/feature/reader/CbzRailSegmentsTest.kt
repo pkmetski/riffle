@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.comic.ComicBookmark
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class CbzRailSegmentsTest {
 

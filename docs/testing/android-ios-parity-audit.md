@@ -318,6 +318,29 @@ The remaining six do not meet those conditions:
   needs relocation from `:shared` + reconciling ~68 lines of behavioural divergence + porting its
   74 `:app` tests + device verification.
 
+### Batch 4 (partial) — Reader rail-segments cluster (DONE)
+First category-B logic migration (#946). The whole-book chapter-rail generator and its CBZ/PDF
+siblings were pure Kotlin trapped in `:app` only because they lived there. Moved verbatim into
+`feature/reader/commonMain` (package `com.riffle.feature.reader`):
+
+- `RailSegment`, `RailSegmentGenerator` (`buildRailSegments`, `findActiveSegmentIndex`,
+  weighting/cursor/bounds math), `CbzRailSegments`, `PdfRailSegments`.
+- The one non-common dependency, `core:domain`'s `normalizeEpubHref` (used `java.net.URI`), moved
+  from `jvmMain` to `commonMain` with the URL-path extraction isolated behind an
+  `internal expect fun uriPath` — JVM actual is byte-identical (`java.net.URI(raw).path`), iOS
+  actual uses `NSURL.URLWithString(raw)?.path`. `resolveEpubHref`/`epubCfiToSpineIndex` came along
+  for free and are now iOS-visible too.
+- `:app` keeps thin `com.riffle.app.feature.reader` shims (typealias + forwarding funcs, the
+  `AbsTargetResolver` idiom) so no consumer edited.
+
+Tests moved to `feature/reader/commonTest` and now run on **iOS + JVM** (105 executing, 0 failures
+each): `RailSegmentGeneratorTest` (79), `CbzRailSegmentsTest` (13), `PdfRailSegmentsTest` (13),
+`RailSegmentInvariantTest` (1). JUnit→`kotlin.test` (assert message args reordered to last). Six
+`RailSegmentGeneratorTest` names lost `,`/`()` (illegal in Kotlin/Native identifiers) — renamed,
+behaviour unchanged, declared via `Removed-test:` trailers. `RailCorpusTest` (2, golden real-scale
+corpus) **stays in `:app` jvmTest**: it loads JSON fixtures via `javaClass.getResourceAsStream` and
+`kotlinx.serialization`; it still pins the moved `buildRailSegments` through the shim.
+
 ## Appendix A — Full per-file matrix
 
 Status legend: ✅ covered on iOS · 🟡 partially / needs CI wiring · ❌ not covered.
@@ -356,6 +379,10 @@ All rows start at their category default; flip as batches land.
 **`feature/reader`**
 
 - `CbzReaderViewModelTest` (14)
+- `RailSegmentGeneratorTest` (79) — migrated from `:app` (#946)
+- `CbzRailSegmentsTest` (13) — migrated from `:app` (#946)
+- `PdfRailSegmentsTest` (13) — migrated from `:app` (#946)
+- `RailSegmentInvariantTest` (1) — migrated from `:app` (#946)
 
 **`feature/source`**
 
@@ -418,7 +445,6 @@ All rows start at their category default; flip as batches land.
 - `CbzArchiveSwapTest` (8)
 - `CbzPageContentTest` (6)
 - `CbzPageGestureActionTest` (4)
-- `CbzRailSegmentsTest` (13)
 - `CbzSampledDecodeTest` (6)
 - `CfiSyncContractTest` (17)
 - `ChangelogViewModelTest` (4)
@@ -518,7 +544,6 @@ All rows start at their category default; flip as batches land.
 - `PanelReportViewModelTest` (26)
 - `PanelShouldSnapTest` (1)
 - `PdfLocatorGateTest` (4)
-- `PdfRailSegmentsTest` (13)
 - `PdfReaderViewModelFormattingTest` (1)
 - `PdfTocAdapterTest` (7)
 - `PdfiumPreferencesMapperTest` (5)
@@ -533,8 +558,6 @@ All rows start at their category default; flip as batches land.
 - `ProgressFlushScopeTest` (2)
 - `PublisherFontFaceExtractorTest` (7)
 - `RailCorpusTest` (2)
-- `RailSegmentGeneratorTest` (79)
-- `RailSegmentInvariantTest` (1)
 - `ReadaloudAudioAnchorTest` (9)
 - `ReadaloudControlStateTest` (4)
 - `ReadaloudHighlightDecorationTest` (8)
