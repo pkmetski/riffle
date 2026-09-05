@@ -51,6 +51,8 @@ class KoinModuleVerificationTest {
         "com.riffle.core.sync.ProgressSweep.bookmarkLedger",
         "com.riffle.core.sync.ProgressSweep.bookmarkReconcile",
         "com.riffle.core.data.dictionary.PackDownloader.converter",
+        // Built inline from SavedStateHandle in the viewModel{} lambda (nav arg), not from get().
+        "com.riffle.feature.library.LibrarySectionViewModel.sectionType",
     )
 
     @OptIn(KoinInternalApi::class)

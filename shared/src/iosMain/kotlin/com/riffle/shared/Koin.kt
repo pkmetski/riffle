@@ -3,7 +3,6 @@ package com.riffle.shared
 import com.riffle.core.common.Clock
 import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
-import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
@@ -18,6 +17,7 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
@@ -49,6 +49,7 @@ import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
@@ -56,7 +57,6 @@ import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.downloads.DownloadsViewModel
-import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
