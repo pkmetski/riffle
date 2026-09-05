@@ -180,6 +180,7 @@ jobs:
         run: |
           ./gradlew \
             :core:sync:iosSimulatorArm64Test \
+            :core:domain:iosSimulatorArm64Test \
             :core:dictionary:iosSimulatorArm64Test \
             :core:catalog:iosSimulatorArm64Test \
             :core:catalog-komga:iosSimulatorArm64Test \
