@@ -30,7 +30,7 @@ fun CollectionDetailScreen(
     collectionName: String,
     onItemSelected: (com.riffle.core.models.LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
-    viewModel: CollectionDetailViewModel = koinViewModel(),
+    viewModel: com.riffle.feature.library.CollectionDetailViewModel = koinViewModel(),
 ) {
     val items by viewModel.items.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()

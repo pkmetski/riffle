@@ -5,7 +5,7 @@ import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
 import com.riffle.app.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
 import com.riffle.app.feature.library.BookImportManager
-import com.riffle.app.feature.library.CollectionDetailViewModel
+import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
 import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
@@ -227,8 +227,10 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         CollectionDetailViewModel(
-            savedStateHandle = get(),
+            collectionId = savedStateHandle.get<String>("collectionId") ?: "",
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             libraryObserver = get(),
             refreshCollectionsUseCase = get(),
             sourceRepository = get(),
