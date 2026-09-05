@@ -58,7 +58,7 @@ import com.riffle.core.network.NetworkUploadPart
 import kotlinx.coroutines.test.runTest
 import io.ktor.utils.io.readRemaining
 import io.ktor.utils.io.core.readBytes
-import java.io.ByteArrayInputStream
+import io.ktor.utils.io.ByteReadChannel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -147,8 +147,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = sourceBytes.size.toLong()
-                                override fun byteStream() = ByteArrayInputStream(sourceBytes)
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(sourceBytes)
                             })
                         },
                     ),
@@ -182,8 +181,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     )
@@ -213,8 +211,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -249,8 +246,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -283,8 +279,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -320,8 +315,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -353,8 +347,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -397,8 +390,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -451,8 +443,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -488,8 +479,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -528,8 +518,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -562,8 +551,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -590,8 +578,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -623,8 +610,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),
@@ -655,8 +641,7 @@ class AbsCatalogTest {
                         withStream = { block ->
                             block(object : CatalogFileStream {
                                 override val contentLength = 1L
-                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
-                                override fun close() = Unit
+                                override val channel = ByteReadChannel(byteArrayOf(1))
                             })
                         },
                     ),

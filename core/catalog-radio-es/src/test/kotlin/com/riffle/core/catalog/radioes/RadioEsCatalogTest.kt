@@ -9,7 +9,9 @@ import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.utils.io.readRemaining
 import kotlinx.coroutines.test.runTest
+import kotlinx.io.readByteArray
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -436,7 +438,7 @@ class RadioEsCatalogTest {
             itemId = "the-daily",
             trackIno = trackIno,
         ) { stream ->
-            stream.byteStream().readBytes()
+            stream.channel.readRemaining().readByteArray()
         }
         assertEquals(audioBytes.toList(), received.toList())
     }

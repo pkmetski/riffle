@@ -20,7 +20,10 @@ import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.has
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.readRemaining
 import java.util.concurrent.TimeUnit
+import kotlinx.io.readByteArray
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -136,7 +139,7 @@ class ChitankaCatalogTest {
             userAgent = "Riffle/test",
         )
         cat.withBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo") { stream ->
-            stream.byteStream().readBytes()
+            stream.channel.readRemaining().readByteArray()
         }
         val req = server.takeRequest()
         assertEquals("Riffle/test", req.getHeader("User-Agent"))
@@ -154,7 +157,7 @@ class ChitankaCatalogTest {
             userAgent = "Riffle/test",
         )
         cat.withBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo") { stream ->
-            stream.byteStream().readBytes()
+            stream.channel.readRemaining().readByteArray()
         }
         assertEquals(2, server.requestCount)
     }
@@ -176,18 +179,16 @@ class ChitankaCatalogTest {
 
         val request = async(Dispatchers.IO) {
             cat.withBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo") { stream ->
-                val input = stream.byteStream()
                 val buffer = ByteArray(64 * 1024)
-                firstRead.complete(input.read(buffer))
-                while (input.read(buffer) >= 0) {
-                    // Drain the live response.
-                }
+                val bytesRead = stream.channel.readAvailable(buffer)
+                firstRead.complete(bytesRead)
+                stream.channel.readRemaining()
             }
         }
 
         assertTrue(withTimeout(1_500) { firstRead.await() } > 0)
         assertFalse("response should still be receiving throttled bytes", request.isCompleted)
-        request.await()
+        request.join()
     }
 
     @Test

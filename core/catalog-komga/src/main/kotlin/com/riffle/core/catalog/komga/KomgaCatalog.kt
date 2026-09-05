@@ -30,10 +30,10 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.jvm.javaio.toInputStream
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.http.encodeURLParameter
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
-import java.net.URLEncoder
 
 /**
  * Komga-backed [Catalog]. One instance per configured Komga Source row. Reads over the
@@ -118,7 +118,7 @@ class KomgaCatalog(
 
     private fun booksBrowseUrl(rootId: String, sort: SortKey, page: Int, size: Int): String =
         apiUrl("books") +
-            "?library_id=${URLEncoder.encode(rootId, "UTF-8")}" +
+            "?library_id=${rootId.encodeURLParameter()}" +
             "&page=$page&size=$size" +
             "&sort=${sortParamFor(sort)}"
 
@@ -130,8 +130,8 @@ class KomgaCatalog(
     ): List<CatalogItem> {
         if (query.isBlank()) return emptyList()
         val url = apiUrl("books") +
-            "?library_id=${URLEncoder.encode(rootId, "UTF-8")}" +
-            "&search=${URLEncoder.encode(query.trim(), "UTF-8")}" +
+            "?library_id=${rootId.encodeURLParameter()}" +
+            "&search=${query.trim().encodeURLParameter()}" +
             "&page=$page&size=$pageSize"
         return fetchBookPage(url, rootId)
     }
@@ -184,11 +184,10 @@ class KomgaCatalog(
                 )
             }
             val contentLength = response.contentLength() ?: -1L
-            val channel = response.bodyAsChannel()
+            val responseChannel = response.bodyAsChannel()
             val stream = object : CatalogFileStream {
                 override val contentLength: Long = contentLength
-                override fun byteStream(): java.io.InputStream = channel.toInputStream()
-                override fun close() { /* connection lifetime managed by execute {} */ }
+                override val channel: ByteReadChannel = responseChannel
             }
             block(stream)
         }
@@ -377,7 +376,7 @@ class KomgaCatalog(
         while (true) {
             val body = http.getString(
                 apiUrl("books") +
-                    "?library_id=${URLEncoder.encode(rootId, "UTF-8")}" +
+                    "?library_id=${rootId.encodeURLParameter()}" +
                     "&size=1000&page=$bookPage",
             )
             val pageDto = KomgaJson.decodeFromString(
@@ -403,7 +402,7 @@ class KomgaCatalog(
         while (true) {
             val body = http.getString(
                 apiUrl("series") +
-                    "?library_id=${URLEncoder.encode(rootId, "UTF-8")}" +
+                    "?library_id=${rootId.encodeURLParameter()}" +
                     "&size=1000&page=$page",
             )
             val pageDto = KomgaJson.decodeFromString(
@@ -641,7 +640,7 @@ class KomgaCatalog(
         var page = 0
         while (true) {
             val url = apiUrl("readlists/$readListId/books") +
-                "?library_id=${URLEncoder.encode(libraryId, "UTF-8")}" +
+                "?library_id=${libraryId.encodeURLParameter()}" +
                 "&size=$KOMGA_MAX_PAGE_SIZE&page=$page"
             val body = http.getString(url)
             val pageDto = KomgaJson.decodeFromString(

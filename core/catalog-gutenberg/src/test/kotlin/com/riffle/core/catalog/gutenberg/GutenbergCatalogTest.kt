@@ -6,6 +6,7 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.utils.io.readAvailable
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -226,10 +227,9 @@ class GutenbergCatalogTest {
 
         val request = async(Dispatchers.IO) {
             catalog.withBytesWithRetry(server.url("/book.epub").toString(), itemId = "1342") { stream ->
-                val input = stream.byteStream()
                 val buffer = ByteArray(64 * 1024)
-                firstRead.complete(input.read(buffer))
-                while (input.read(buffer) >= 0) {
+                firstRead.complete(stream.channel.readAvailable(buffer))
+                while (stream.channel.readAvailable(buffer) >= 0) {
                     // Drain the live response.
                 }
             }
@@ -237,6 +237,6 @@ class GutenbergCatalogTest {
 
         assertTrue(withTimeout(1_500) { firstRead.await() } > 0)
         assertFalse("response should still be receiving throttled bytes", request.isCompleted)
-        request.await()
+        request.join()
     }
 }

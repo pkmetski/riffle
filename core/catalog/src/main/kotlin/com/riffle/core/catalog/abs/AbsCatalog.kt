@@ -73,7 +73,9 @@ import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkUploadMetadata
 import com.riffle.core.network.NetworkUploadPart
 import com.riffle.core.network.errorAsThrowable
+import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.jvm.javaio.toByteReadChannel
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import java.io.File
@@ -224,7 +226,7 @@ class AbsCatalog(
         val temp = File.createTempFile("riffle-upload-", ".part")
         try {
             file.withStream { stream ->
-                stream.byteStream().use { input ->
+                stream.channel.toInputStream().use { input ->
                     temp.outputStream().use { output -> input.copyTo(output) }
                 }
             }
@@ -520,8 +522,7 @@ class AbsCatalog(
                     block(
                         object : CatalogFileStream {
                             override val contentLength: Long = body.contentLength
-                            override fun byteStream(): java.io.InputStream = body.inputStream
-                            override fun close() { body.inputStream.close() }
+                            override val channel: ByteReadChannel = ByteReadChannel(body.inputStream.readBytes())
                         },
                     )
                 }
