@@ -16,7 +16,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import java.io.IOException
 
 /**
  * Thin Ktor wrapper for Komga's REST API. Stamps the `Authorization: Basic …` header on every
@@ -45,7 +44,7 @@ class KomgaHttpClient(
             header(HttpHeaders.UserAgent, userAgent)
         }
         response.status.isSuccess()
-    } catch (_: IOException) {
+    } catch (_: Exception) {
         false
     }
 
@@ -108,7 +107,7 @@ class KomgaHttpClient(
             header(HttpHeaders.Authorization, basicAuthHeader)
             header(HttpHeaders.UserAgent, userAgent)
         }.status.value
-    } catch (_: IOException) {
+    } catch (_: Exception) {
         -1
     }
 
@@ -141,7 +140,7 @@ class KomgaHttpException(
     val method: String = "?",
     val statusMessage: String = "",
     val responseBody: String = "",
-) : IOException(
+) : Exception(
     buildString {
         append("Komga HTTP ").append(code).append(' ').append(method).append(' ').append(url)
         if (statusMessage.isNotBlank()) append(" — ").append(statusMessage)

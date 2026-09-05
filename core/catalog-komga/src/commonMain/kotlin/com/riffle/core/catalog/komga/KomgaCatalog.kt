@@ -32,6 +32,8 @@ import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.http.encodeURLParameter
+import kotlin.concurrent.Volatile
+import kotlin.time.measureTimedValue
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
 
@@ -194,9 +196,8 @@ class KomgaCatalog(
     }
 
     override suspend fun connectivityCheck(): CatalogHealth {
-        val start = System.currentTimeMillis()
-        val actuator = runCatching { http.getString(rawUrl("actuator/info")) }.getOrNull()
-        val elapsed = System.currentTimeMillis() - start
+        val (actuator, elapsed) = measureTimedValue { runCatching { http.getString(rawUrl("actuator/info")) }.getOrNull() }
+        val elapsedMs = elapsed.inWholeMilliseconds
         val version = actuator?.let { parseActuatorVersion(it) }
         // Fall back to a HEAD on /api/v1/libraries when actuator is disabled/forbidden — Komga
         // gates the actuator behind ADMIN by default, so a non-admin user sees 403 there but 200
@@ -206,7 +207,7 @@ class KomgaCatalog(
         return CatalogHealth(
             isReachable = reachable,
             serverVersion = version,
-            latencyMs = elapsed,
+            latencyMs = elapsedMs,
             error = if (reachable) null else "Komga is unreachable",
         )
     }
@@ -765,7 +766,7 @@ class KomgaCatalog(
          */
         internal fun parseIsoInstant(raw: String?): Long? {
             if (raw.isNullOrBlank()) return null
-            return runCatching { java.time.Instant.parse(raw).toEpochMilli() }.getOrNull()
+            return parseIsoInstantToEpochMillis(raw)
         }
 
         /** Komga's server-side page-size cap. Requests larger than this are silently truncated. */
