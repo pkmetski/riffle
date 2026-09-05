@@ -15,9 +15,9 @@ import com.riffle.app.feature.library.LibraryItemsViewModel
 import com.riffle.app.feature.library.LibrarySectionViewModel
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
-import com.riffle.app.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
@@ -214,8 +214,10 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         SeriesDetailViewModel(
-            savedStateHandle = get(),
+            seriesId = savedStateHandle.get<String>("seriesId") ?: "",
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             libraryObserver = get(),
             refreshSeriesUseCase = get(),
             sourceRepository = get(),
