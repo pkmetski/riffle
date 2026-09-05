@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.domain.AnnotatedBook
+import com.riffle.feature.library.AnnotationsListUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
