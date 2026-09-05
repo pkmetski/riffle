@@ -116,6 +116,7 @@ jobs:
           ./gradlew \
             :core:database:iosSimulatorArm64Test \
             :core:sync:iosSimulatorArm64Test \
+            :core:dictionary:iosSimulatorArm64Test \
             :shared:iosSimulatorArm64Test \
             :feature:library:iosSimulatorArm64Test \
             :feature:player:iosSimulatorArm64Test \
@@ -129,6 +130,7 @@ jobs:
           path: |
             core/database/build/reports/tests/
             core/sync/build/reports/tests/
+            core/dictionary/build/reports/tests/
             shared/build/reports/tests/
             feature/library/build/reports/tests/
             feature/player/build/reports/tests/
