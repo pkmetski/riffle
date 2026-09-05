@@ -4,6 +4,7 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
+import io.ktor.utils.io.ByteReadChannel
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
@@ -150,8 +151,7 @@ class BookDownloadRepositoryStreamingTest {
             return block(
                 object : CatalogFileStream {
                     override val contentLength = bytes.size.toLong()
-                    override fun byteStream() = bytes.inputStream()
-                    override fun close() = Unit
+                    override val channel: ByteReadChannel = ByteReadChannel(bytes)
                 },
             )
         }

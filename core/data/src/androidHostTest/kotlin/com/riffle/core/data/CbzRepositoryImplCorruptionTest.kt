@@ -4,6 +4,7 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
+import io.ktor.utils.io.ByteReadChannel
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
@@ -175,8 +176,7 @@ class CbzRepositoryImplCorruptionTest {
                 block: suspend (CatalogFileStream) -> T,
             ): T = block(object : CatalogFileStream {
                 override val contentLength: Long get() = 10L
-                override fun byteStream(): InputStream = ByteArray(10).inputStream()
-                override fun close() {}
+                override val channel: ByteReadChannel = ByteReadChannel(ByteArray(10))
             })
             override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
         }
