@@ -120,12 +120,12 @@ jobs:
           path: core/database/build/reports/tests/
           if-no-files-found: ignore
 
-  commontest:
-    name: iOS shared unit tests (commonTest)
+  unit-test:
+    name: Unit Tests
     runs-on: macos-15
     timeout-minutes: 25
     concurrency:
-      group: ios-commontest-${{ github.ref }}
+      group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
