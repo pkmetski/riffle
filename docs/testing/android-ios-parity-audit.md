@@ -255,6 +255,22 @@ needs AVD verification (a build), not just JVM/iOS test runs. Sizing and risk ar
 above a mechanical test port; recommend proceeding one ViewModel at a time, each with an
 Android build+AVD check.
 
+### Batch 1 — ViewModel consolidation (IN PROGRESS)
+Device-verification path established: the ABS dev server returns an empty reply on
+`POST /login` from this host (Tailscale path issue — unrelated to app code), so ABS-backed
+screens can't be driven on the emulator. **Komga works** (GET Basic auth over Tailscale):
+bridge `localhost:25600 → media-server:25600` via socat + `adb reverse`, add Komga in-app,
+and its series/collections drive the shared library/detail screens on the AVD.
+
+- **`SeriesDetailViewModel` — DONE (commit `eb40fb0ed`).** App copy was byte-identical to the
+  shared class; pointed Android Koin + `SeriesDetailScreen` at the shared VM, deleted the
+  `:app` copy. Moved the failed-refresh polling regression (4 tests) into feature:library
+  `commonTest`. Verified: 33 tests green on iOS+JVM; `:app:assembleDebug` OK; **live on AVD** —
+  opened a Komga series, `SeriesDetailScreen` rendered the full issue grid via the shared VM.
+- Remaining: `CollectionDetailViewModel`, `LibrarySectionViewModel`, `CbzReaderViewModel`,
+  `AnnotationsListViewModel`, `DownloadsViewModel`, `LibraryItemDetailViewModel` (n=59),
+  `LibraryItemsViewModel` (n=74), `SettingsViewModel` (n=40).
+
 ## Appendix A — Full per-file matrix
 
 Status legend: ✅ covered on iOS · 🟡 partially / needs CI wiring · ❌ not covered.
