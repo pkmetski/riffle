@@ -77,4 +77,4 @@ suspend fun <T> HttpClient.withHttpChannelStream(
     }
 }
 
-private class RetryableChannelStatus : RuntimeException(null, null, false, false)
+private class RetryableChannelStatus : Exception()

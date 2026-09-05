@@ -1,17 +1,32 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
 }
 
-dependencies {
-    implementation(project(":core:models"))
-    implementation(project(":core:domain"))
-    implementation(project(":core:network"))
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.serialization.json)
+kotlin {
+    jvm()
+    iosArm64()
+    iosSimulatorArm64()
 
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.okhttp.mockwebserver)
-    testImplementation(libs.okhttp.tls)
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project(":core:models"))
+            implementation(project(":core:domain"))
+            api(project(":core:net"))
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+        }
+        jvmMain.dependencies {
+            implementation(project(":core:network"))
+        }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+        jvmTest.dependencies {
+            implementation(libs.junit)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okhttp.mockwebserver)
+            implementation(libs.okhttp.tls)
+        }
+    }
 }

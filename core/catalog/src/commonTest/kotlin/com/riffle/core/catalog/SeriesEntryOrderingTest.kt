@@ -1,7 +1,7 @@
 package com.riffle.core.catalog
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Contract for series ordering. If a new [SeriesCapability] implementation ships and forgets to
