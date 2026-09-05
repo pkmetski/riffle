@@ -112,10 +112,10 @@ tasks.register("checkRiffleInfraSeams") {
             // iOS DispatcherProvider implementation — maps abstract dispatcher names to platform
             // dispatchers. This IS the seam; it's the leaf that calls Dispatchers.* directly.
             "core/domain/src/iosMain/kotlin/com/riffle/core/domain/IosDispatcherProvider.kt",
-            // Catalog adapters: network/parse work pinned to Dispatchers.IO/Default.
-            "core/catalog-chitanka/src/main/kotlin/com/riffle/core/catalog/chitanka/ChitankaCatalog.kt",
-            "core/catalog-gutenberg/src/main/kotlin/com/riffle/core/catalog/gutenberg/GutenbergCatalog.kt",
-            "core/catalog-komga/src/main/kotlin/com/riffle/core/catalog/komga/KomgaCatalog.kt",
+            // Catalog adapters: network/parse work pinned to Dispatchers.IO.
+            // GutenbergCatalog and KomgaCatalog no longer use Dispatchers directly (replaced with
+            // measureTimedValue + KMP-safe APIs during KMP migration #944).
+            "core/catalog-chitanka/src/jvmMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaCatalog.kt",
             // core:data — file I/O, connectivity callbacks, sync timestamps.
             // Developer options PAT store wraps EncryptedSharedPreferences (blocking disk I/O).
             "core/data/src/androidMain/kotlin/com/riffle/core/data/developer/DeveloperOptionsRepositoryImpl.kt",
