@@ -225,6 +225,36 @@ Requirement: Android and iOS must cover the same functionality, and stay that wa
 
 ---
 
+## Progress log
+
+### Batch 0 — CI wiring + shared-test repair (DONE, commit `868a0b965`)
+- **Proved the §3 gap has teeth:** because iOS CI only ran `core:database`/`core:sync`
+  `commonTest`, every other iOS-targeted module's shared tests had never executed on
+  iOS. `shared/commonTest` had rotted since #941 (wrong-package imports for
+  `EmbeddedFigure`/`ScreenDimensionBucket`; drifted `LibraryRefresher`/`TokenStorage`
+  fakes) and did not even compile for iOS. Two tests were wrong on first-ever run
+  (`ReaderNavRoutingTest` CBZ→Reader vs actual `CbzReader`; `initialStateIsLoading`
+  running init inline on `Main.immediate`). All fixed.
+- **CI now runs** `iosSimulatorArm64Test` for `shared`, `feature:library`,
+  `feature:player`, `feature:reader`, `feature:source` (+ existing db/sync).
+- **Result:** 136 iOS `commonTest`s green locally (shared 28, feature:library 29,
+  feature:player 19, feature:reader 14, feature:source 7, core:sync 36, core:database 3).
+
+### Batches 1–4 — REFRAMED (important)
+The plan assumed these were "move a `:app` test into `commonTest`." Investigation shows
+they are **production-class consolidation**: **9 core ViewModels exist twice** — an
+Android copy in `:app/main` (wired to Compose) *and* a parallel shared copy (wired to
+iOS SwiftUI): `LibraryItemsViewModel`, `LibraryItemDetailViewModel`, `SettingsViewModel`,
+`CollectionDetailViewModel`, `SeriesDetailViewModel`, `CbzReaderViewModel`,
+`AnnotationsListViewModel`, `DownloadsViewModel`, `LibrarySectionViewModel`. The two
+implementations can (and do) drift; `:app` JVM tests cover the Android copy while
+`commonTest` covers the shared copy, so "parity" requires **consolidating each pair into
+one shared class, rewiring the Android app onto it, deleting the `:app` copy, and unifying
+the tests.** That is real refactoring with Android-UI regression risk — per CLAUDE.md it
+needs AVD verification (a build), not just JVM/iOS test runs. Sizing and risk are well
+above a mechanical test port; recommend proceeding one ViewModel at a time, each with an
+Android build+AVD check.
+
 ## Appendix A — Full per-file matrix
 
 Status legend: ✅ covered on iOS · 🟡 partially / needs CI wiring · ❌ not covered.
