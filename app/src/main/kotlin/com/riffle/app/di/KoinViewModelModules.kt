@@ -1,23 +1,24 @@
 package com.riffle.app.di
 
-import com.riffle.app.feature.annotations.AnnotationsListViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
 import com.riffle.app.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
 import com.riffle.app.feature.library.BookImportManager
-import com.riffle.app.feature.library.CollectionDetailViewModel
+import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
 import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.app.feature.library.FilteredBooksViewModel
 import com.riffle.app.feature.library.LibraryItemDetailViewModel
 import com.riffle.app.feature.library.LibraryItemsViewModel
-import com.riffle.app.feature.library.LibrarySectionViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
-import com.riffle.app.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
@@ -50,7 +51,7 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.common.Clock
 import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ReadaloudSidecarPrefetcher
@@ -195,8 +196,12 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         LibrarySectionViewModel(
-            savedStateHandle = get(),
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
+            sectionType = savedStateHandle.get<String>("sectionType")
+                ?.let { runCatching { LibrarySectionType.valueOf(it) }.getOrNull() }
+                ?: LibrarySectionType.IN_PROGRESS,
             libraryObserver = get(),
             sourceRepository = get(),
             tokenStorage = get(),
@@ -214,8 +219,10 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         SeriesDetailViewModel(
-            savedStateHandle = get(),
+            seriesId = savedStateHandle.get<String>("seriesId") ?: "",
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             libraryObserver = get(),
             refreshSeriesUseCase = get(),
             sourceRepository = get(),
@@ -225,8 +232,10 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         CollectionDetailViewModel(
-            savedStateHandle = get(),
+            collectionId = savedStateHandle.get<String>("collectionId") ?: "",
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             libraryObserver = get(),
             refreshCollectionsUseCase = get(),
             sourceRepository = get(),
@@ -607,11 +616,12 @@ private val audiobookViewModelModule = module {
 
 private val annotationsViewModelModule = module {
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         AnnotationsListViewModel(
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             sourceRepository = get(),
             repo = get(),
             tokenStorage = get(),
-            savedStateHandle = get(),
         )
     }
 }

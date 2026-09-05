@@ -1,7 +1,7 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.data.AnnotatedBook
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat

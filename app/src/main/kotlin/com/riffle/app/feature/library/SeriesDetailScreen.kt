@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.SeriesDetailViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

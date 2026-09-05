@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AnnotationStore
@@ -249,7 +249,7 @@ class LibraryItemsViewModel constructor(
     val projection: StateFlow<LibraryProjection> = filterEngine.projection
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryProjection.Empty)
 
-    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.data.AnnotatedBook>> =
+    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.domain.AnnotatedBook>> =
         sourceRepository.observeAll()
             .map { sources -> sources.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
@@ -272,7 +272,7 @@ class LibraryItemsViewModel constructor(
         val p = values[0] as LibraryProjection
 
         @Suppress("UNCHECKED_CAST")
-        val annotated = values[1] as List<com.riffle.core.data.AnnotatedBook>
+        val annotated = values[1] as List<com.riffle.core.domain.AnnotatedBook>
 
         @Suppress("UNCHECKED_CAST")
         val items = values[2] as List<LibraryItem>

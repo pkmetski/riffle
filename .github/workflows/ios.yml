@@ -108,14 +108,55 @@ jobs:
         with:
           java-version: '17'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # Dedicated iOS mirror of the "Android database tests (core:database)" job — the
+      # core:database (Room/SQLite) layer must be verified on iOS, not only Android.
       - name: Run iOS database tests
-        run: ./gradlew :core:database:iosSimulatorArm64Test :core:sync:iosSimulatorArm64Test
+        run: ./gradlew :core:database:iosSimulatorArm64Test
       - name: Upload iOS database test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ios-database-test-reports
+          path: core/database/build/reports/tests/
+          if-no-files-found: ignore
+
+  unit-test:
+    name: Unit Tests
+    runs-on: macos-15
+    timeout-minutes: 25
+    concurrency:
+      group: ios-unit-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # Run every other iOS-targeted module's commonTest on the iOS simulator target so shared
+      # (Kotlin Multiplatform) logic is verified on iOS, not just Android. (core:database has its
+      # own dedicated job above, mirroring Android.) See docs/testing/android-ios-parity-audit.md §3.
+      - name: Run iOS commonTest (all iOS-targeted modules)
+        run: |
+          ./gradlew \
+            :core:sync:iosSimulatorArm64Test \
+            :core:dictionary:iosSimulatorArm64Test \
+            :shared:iosSimulatorArm64Test \
+            :feature:library:iosSimulatorArm64Test \
+            :feature:player:iosSimulatorArm64Test \
+            :feature:reader:iosSimulatorArm64Test \
+            :feature:source:iosSimulatorArm64Test
+      - name: Upload iOS commonTest reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-commontest-reports
           path: |
-            core/database/build/reports/tests/
             core/sync/build/reports/tests/
+            core/dictionary/build/reports/tests/
+            shared/build/reports/tests/
+            feature/library/build/reports/tests/
+            feature/player/build/reports/tests/
+            feature/reader/build/reports/tests/
+            feature/source/build/reports/tests/
           if-no-files-found: ignore

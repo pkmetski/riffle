@@ -1,7 +1,7 @@
 package com.riffle.shared.library
 
-import com.riffle.core.data.AnnotatedBook
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AnnotationStore
@@ -10,7 +10,6 @@ import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.domain.EmbeddedFigure
 import com.riffle.core.domain.LibraryFilterPreferences
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
@@ -19,7 +18,6 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.ScreenDimensionBucket
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.TokenStorage
@@ -35,6 +33,7 @@ import com.riffle.core.models.EmbeddedFigure as ModelEmbeddedFigure
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ReadaloudLink
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import kotlinx.coroutines.CoroutineDispatcher
@@ -58,6 +57,7 @@ import kotlin.test.assertTrue
  * propagate to viewModelScope.launch {}, which crashes the process on iOS (no framework-level
  * CoroutineExceptionHandler unlike Android). Reverted try-catch = test fails with uncaught exception.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class LibraryItemsViewModelRefreshCrashTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -113,10 +113,11 @@ class LibraryItemsViewModelRefreshCrashTest {
     }
 
     private fun makeLibraryRefresher(): LibraryRefresher = object : LibraryRefresher {
-        override suspend fun refresh(): LibraryRefreshResult = LibraryRefreshResult.Success
+        override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
         override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
         override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
         override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
+        override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
     @Test
@@ -155,8 +156,8 @@ class LibraryItemsViewModelRefreshCrashTest {
             sourceRepository = makeSourceRepository(),
             tokenStorage = object : TokenStorage {
                 override suspend fun getToken(sourceId: String): String? = null
-                override suspend fun setToken(sourceId: String, token: String) {}
-                override suspend fun clearToken(sourceId: String) {}
+                override suspend fun saveToken(sourceId: String, token: String) {}
+                override suspend fun deleteToken(sourceId: String) {}
             },
             offlineAvailability = object : LibraryItemOfflineAvailability {
                 override fun isAvailableOffline(item: LibraryItem): Boolean = false

@@ -122,7 +122,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
-import com.riffle.app.feature.annotations.AnnotationsListViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.database.AnnotationEntity

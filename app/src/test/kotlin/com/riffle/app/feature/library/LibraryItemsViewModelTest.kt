@@ -76,10 +76,10 @@ class LibraryItemsViewModelTest {
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val annotationsFlow = MutableStateFlow<List<com.riffle.core.models.Annotation>>(emptyList())
-    private val annotatedBooksFlow = MutableStateFlow<List<com.riffle.core.data.AnnotatedBook>>(emptyList())
+    private val annotatedBooksFlow = MutableStateFlow<List<com.riffle.core.domain.AnnotatedBook>>(emptyList())
 
-    private fun fakeAnnotationsLibraryRepository(): com.riffle.core.data.AnnotationsLibraryRepository =
-        object : com.riffle.core.data.AnnotationsLibraryRepository {
+    private fun fakeAnnotationsLibraryRepository(): com.riffle.core.domain.AnnotationsLibraryRepository =
+        object : com.riffle.core.domain.AnnotationsLibraryRepository {
             override fun observeAnnotatedBooks(sourceId: String) = annotatedBooksFlow
             override fun observeAnnotatedBooks(sourceId: String, libraryId: String) =
                 annotatedBooksFlow.map { it.filter { book -> book.sourceId == sourceId } }
@@ -310,7 +310,7 @@ class LibraryItemsViewModelTest {
         libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
-        annotationsLibraryRepository: com.riffle.core.data.AnnotationsLibraryRepository = fakeAnnotationsLibraryRepository(),
+        annotationsLibraryRepository: com.riffle.core.domain.AnnotationsLibraryRepository = fakeAnnotationsLibraryRepository(),
     ) = LibraryItemsViewModel(
         savedStateHandle = savedStateHandle,
         libraryObserver = libraryRepository,
@@ -1519,7 +1519,7 @@ class LibraryItemsViewModelTest {
 
         // An annotated book on this (source, library) flips annotations on.
         annotatedBooksFlow.value = listOf(
-            com.riffle.core.data.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
+            com.riffle.core.domain.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
         )
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(true, vm.tabVisibility.value?.annotations)
@@ -1543,13 +1543,13 @@ class LibraryItemsViewModelTest {
         // Custom AnnotationsLibraryRepository: an annotation exists on s-abs but its libraryId is
         // "other-lib", not "lib-1" — the tab must stay hidden for this VM (which is scoped to lib-1
         // via SavedStateHandle).
-        val repo = object : com.riffle.core.data.AnnotationsLibraryRepository {
+        val repo = object : com.riffle.core.domain.AnnotationsLibraryRepository {
             override fun observeAnnotatedBooks(sourceId: String) = MutableStateFlow(
-                listOf(com.riffle.core.data.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)),
+                listOf(com.riffle.core.domain.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)),
             )
             override fun observeAnnotatedBooks(sourceId: String, libraryId: String) =
-                if (libraryId == "lib-1") MutableStateFlow(emptyList<com.riffle.core.data.AnnotatedBook>())
-                else MutableStateFlow(listOf(com.riffle.core.data.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)))
+                if (libraryId == "lib-1") MutableStateFlow(emptyList<com.riffle.core.domain.AnnotatedBook>())
+                else MutableStateFlow(listOf(com.riffle.core.domain.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)))
         }
         val vm = makeViewModel(sourceRepository = srcRepo, annotationsLibraryRepository = repo)
         backgroundScope.launch { vm.projection.collect {} }
@@ -1613,7 +1613,7 @@ class LibraryItemsViewModelTest {
         seriesFlow.value = listOf(series("Dune"))
         collectionsFlow.value = listOf(collection("Sci-Fi"))
         annotatedBooksFlow.value = listOf(
-            com.riffle.core.data.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
+            com.riffle.core.domain.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
         )
         val vm = makeViewModel(sourceRepository = srcRepo)
         backgroundScope.launch { vm.projection.collect {} }

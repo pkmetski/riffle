@@ -10,17 +10,39 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import kotlin.experimental.ExperimentalNativeApi
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertIs
 
-@OptIn(ExperimentalNativeApi::class)
+@OptIn(ExperimentalNativeApi::class, ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTest {
+
+    // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
+    // dispatcher so the init coroutine is *deferred* (letting us observe the Loading state) and
+    // advanced deterministically via testScheduler.advanceUntilIdle().
+    private val mainDispatcher = StandardTestDispatcher()
+
+    @BeforeTest
+    fun setUpMain() {
+        Dispatchers.setMain(mainDispatcher)
+    }
+
+    @AfterTest
+    fun tearDownMain() {
+        Dispatchers.resetMain()
+    }
 
     private val fakeItem = LibraryItem(
         id = "item1",
@@ -104,28 +126,28 @@ class LibraryItemDetailViewModelTest {
     )
 
     @Test
-    fun initialStateIsLoading() = runTest {
+    fun initialStateIsLoading() = runTest(mainDispatcher) {
         val vm = makeViewModel()
         // Loading is the synchronous initial value before the coroutine runs
         assertIs<LibraryItemDetailUiState.Loading>(vm.uiState.value)
     }
 
     @Test
-    fun stateBecomesReadyWhenItemFound() = runTest {
+    fun stateBecomesReadyWhenItemFound() = runTest(mainDispatcher) {
         val vm = makeViewModel(item = fakeItem)
         testScheduler.advanceUntilIdle()
         assertIs<LibraryItemDetailUiState.Ready>(vm.uiState.value)
     }
 
     @Test
-    fun stateBecomesErrorWhenItemNotFound() = runTest {
+    fun stateBecomesErrorWhenItemNotFound() = runTest(mainDispatcher) {
         val vm = makeViewModel(item = null, itemId = "missing")
         testScheduler.advanceUntilIdle()
         assertIs<LibraryItemDetailUiState.Error>(vm.uiState.value)
     }
 
     @Test
-    fun toggleToReadFlipsIsInToRead() = runTest {
+    fun toggleToReadFlipsIsInToRead() = runTest(mainDispatcher) {
         val vm = makeViewModel(inToRead = false)
         testScheduler.advanceUntilIdle()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready

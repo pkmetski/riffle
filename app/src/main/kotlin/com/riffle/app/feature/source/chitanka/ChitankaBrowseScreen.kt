@@ -49,7 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
-import com.riffle.app.feature.annotations.AnnotationsListViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid

@@ -37,9 +37,9 @@ class ReaderNavRoutingTest {
     }
 
     @Test
-    fun cbzItemRoutes_toReader() {
+    fun cbzItemRoutes_toCbzReader() {
         val nav = readerNavForItem(item(ebookFormat = EbookFormat.Cbz))
-        assertIs<LibraryNav.Reader>(nav)
+        assertIs<LibraryNav.CbzReader>(nav)
     }
 
     @Test
