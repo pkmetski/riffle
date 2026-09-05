@@ -20,7 +20,8 @@ import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpHeaders
-import java.net.URLEncoder
+import io.ktor.http.encodeURLParameter
+import kotlin.time.measureTimedValue
 
 /**
  * The Project Gutenberg-backed [Catalog]. Serves a single Library — Books — from the
@@ -125,7 +126,7 @@ class GutenbergCatalog(
         val url = booksUrl(
             page = page,
             facet = facet,
-            extraParams = listOf("search=${URLEncoder.encode(query.trim(), "UTF-8")}"),
+            extraParams = listOf("search=${query.trim().encodeURLParameter()}"),
         )
         val body = http.getString(url)
         return GutenbergParser.parseListing(body).items
@@ -205,12 +206,11 @@ class GutenbergCatalog(
     // ---- Connectivity -------------------------------------------------------
 
     override suspend fun connectivityCheck(): CatalogHealth {
-        val start = System.currentTimeMillis()
-        val ok = http.ping(apiBase)
+        val (ok, elapsed) = measureTimedValue { http.ping(apiBase) }
         return CatalogHealth(
             isReachable = ok,
             serverVersion = null,
-            latencyMs = System.currentTimeMillis() - start,
+            latencyMs = elapsed.inWholeMilliseconds,
             error = if (ok) null else "gutendex.com is unreachable",
         )
     }
@@ -243,10 +243,10 @@ class GutenbergCatalog(
         val key = facet?.key ?: return emptyList()
         return when {
             key.startsWith(TOPIC_PREFIX) -> {
-                listOf("topic=${URLEncoder.encode(key.removePrefix(TOPIC_PREFIX), "UTF-8")}")
+                listOf("topic=${key.removePrefix(TOPIC_PREFIX).encodeURLParameter()}")
             }
             key.startsWith(LANGUAGE_PREFIX) -> {
-                listOf("languages=${URLEncoder.encode(key.removePrefix(LANGUAGE_PREFIX), "UTF-8")}")
+                listOf("languages=${key.removePrefix(LANGUAGE_PREFIX).encodeURLParameter()}")
             }
             else -> emptyList()
         }

@@ -10,7 +10,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
-import java.io.IOException
 
 class GutenbergHttpClient(
     private val client: HttpClient,
@@ -35,7 +34,7 @@ class GutenbergHttpClient(
 
     suspend fun ping(url: String): Boolean = try {
         client.head(url) { header(HttpHeaders.UserAgent, userAgent) }.status.isSuccess()
-    } catch (_: IOException) { false }
+    } catch (_: Exception) { false }
 
     companion object {
         val DEFAULT_RETRY_DELAYS_MS: List<Long> = listOf(1_500L, 3_000L)
@@ -46,4 +45,4 @@ class GutenbergHttpException(
     val code: Int,
     val url: String,
     message: String,
-) : IOException("Gutenberg HTTP $code for $url: $message")
+) : Exception("Gutenberg HTTP $code for $url: $message")
