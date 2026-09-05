@@ -12,7 +12,8 @@ import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.app.feature.library.FilteredBooksViewModel
 import com.riffle.app.feature.library.LibraryItemDetailViewModel
 import com.riffle.app.feature.library.LibraryItemsViewModel
-import com.riffle.app.feature.library.LibrarySectionViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
 import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
@@ -195,8 +196,12 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         LibrarySectionViewModel(
-            savedStateHandle = get(),
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
+            sectionType = savedStateHandle.get<String>("sectionType")
+                ?.let { runCatching { LibrarySectionType.valueOf(it) }.getOrNull() }
+                ?: LibrarySectionType.IN_PROGRESS,
             libraryObserver = get(),
             sourceRepository = get(),
             tokenStorage = get(),

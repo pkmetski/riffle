@@ -33,7 +33,7 @@ fun LibrarySectionScreen(
     sectionType: LibrarySectionType,
     onItemSelected: (LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
-    viewModel: LibrarySectionViewModel = koinViewModel(),
+    viewModel: com.riffle.feature.library.LibrarySectionViewModel = koinViewModel(),
 ) {
     val items by viewModel.items.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
