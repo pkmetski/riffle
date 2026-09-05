@@ -12,7 +12,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
-import java.io.IOException
+
 
 /**
  * Thin Ktor wrapper for Chitanka/Gramofonche HTML fetches.
@@ -58,7 +58,7 @@ class ChitankaHttpClient(
     /** True when [url] responds 2xx to a HEAD request. Used by [connectivityCheck]. */
     suspend fun ping(url: String): Boolean = try {
         client.head(url) { header(HttpHeaders.UserAgent, userAgent) }.status.isSuccess()
-    } catch (_: IOException) { false }
+    } catch (_: Exception) { false }
 
     /**
      * Content-Length reported by the origin on a HEAD, or `null` on non-2xx / network error.
@@ -68,7 +68,7 @@ class ChitankaHttpClient(
     suspend fun headContentLength(url: String): Long? = try {
         val r = client.head(url) { header(HttpHeaders.UserAgent, userAgent) }
         if (!r.status.isSuccess()) null else r.contentLength()
-    } catch (_: IOException) { null }
+    } catch (_: Exception) { null }
 
     /**
      * Derives the exact duration of an MP3 at [url] in seconds by:
@@ -104,7 +104,7 @@ class ChitankaHttpClient(
                 val audioBytes = head.totalBytes - audioOffset
                 if (audioBytes <= 0) null else audioBytes.toDouble() * 8.0 / frame.meta.bitrateBps
             }
-        } catch (_: IOException) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -123,7 +123,7 @@ class ChitankaHttpClient(
                 ?: response.contentLength()
                 ?: return null
             RangeReply(response.readRawBytes(), total)
-        } catch (_: IOException) { null }
+        } catch (_: Exception) { null }
     }
 
     companion object {
@@ -271,4 +271,4 @@ class ChitankaHttpException(
     val code: Int,
     val url: String,
     message: String,
-) : IOException("Chitanka HTTP $code for $url: $message")
+) : Exception("Chitanka HTTP $code for $url: $message")

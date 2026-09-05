@@ -32,7 +32,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import java.net.URLEncoder
+import io.ktor.http.encodeURLParameter
 
 /**
  * The Chitanka-backed [Catalog]. Serves two Libraries — Books (chitanka.info) and Audiobooks
@@ -176,7 +176,7 @@ class ChitankaCatalog(
         if (query.isBlank()) return emptyList()
         return when (rootId) {
             ROOT_BOOKS -> {
-                val url = "${ChitankaScraper.BASE}/search?q=" + URLEncoder.encode(query, "UTF-8")
+                val url = "${ChitankaScraper.BASE}/search?q=" + query.encodeURLParameter()
                 val html = http.getString(url)
                 ChitankaScraper.parseSearchResults(html).items
                     .map { it.toCatalogItem(rootId) }
@@ -381,7 +381,7 @@ class ChitankaCatalog(
         val pairs = coroutineScope {
             CYRILLIC_LETTERS.map { letter ->
                 async(Dispatchers.IO) {
-                    val encoded = URLEncoder.encode(letter, "UTF-8")
+                    val encoded = letter.encodeURLParameter()
                     val html = runCatching {
                         http.getString("${ChitankaScraper.BASE}/series/alpha/$encoded")
                     }.getOrNull() ?: return@async emptyList()

@@ -22,10 +22,10 @@ import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.common.Clock
-import com.riffle.core.common.SystemClock
+import com.riffle.core.common.platformSystemClock
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
-import java.net.URLEncoder
+import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -33,7 +33,7 @@ class RadioEsCatalog(
     private val http: RadioEsHttpClient,
     private val bytesClient: HttpClient,
     private val apiBase: String = RadioEsParser.BASE,
-    private val clock: Clock = SystemClock,
+    private val clock: Clock = platformSystemClock,
 ) : Catalog,
     AudiobookMediaCapability,
     DownloadsCapability,
@@ -139,7 +139,7 @@ class RadioEsCatalog(
             val slug = facet.key.removePrefix("country:")
             val countryName = cachedCountryNameBySlug?.get(slug)
                 ?: slug.split("-").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-            val encoded = URLEncoder.encode(countryName, "UTF-8")
+            val encoded = countryName.encodeURLParameter()
             val url = "$apiBase/stations/search?query=$encoded&count=$pageSize&offset=$offset"
             val body = http.getString(url)
             return RadioEsParser.parseStations(body).stations
@@ -179,7 +179,7 @@ class RadioEsCatalog(
         pageSize: Int,
     ): List<CatalogItem> {
         if (query.isBlank()) return emptyList()
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+        val encoded = query.trim().encodeURLParameter()
         val offset = page * pageSize
         return when (rootId) {
             ROOT_PODCASTS -> {

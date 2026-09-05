@@ -10,7 +10,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
-import java.io.IOException
+
 
 class RadioEsHttpClient(
     private val client: HttpClient,
@@ -39,7 +39,7 @@ class RadioEsHttpClient(
 
     suspend fun ping(url: String): Boolean = try {
         client.head(url) { header(HttpHeaders.UserAgent, userAgent) }.status.isSuccess()
-    } catch (_: IOException) { false }
+    } catch (_: Exception) { false }
 
     companion object {
         val DEFAULT_RETRY_DELAYS_MS: List<Long> = listOf(1_500L, 3_000L)
@@ -50,4 +50,4 @@ class RadioEsHttpException(
     val code: Int,
     val url: String,
     message: String,
-) : IOException("RadioEs HTTP $code for $url: $message")
+) : Exception("RadioEs HTTP $code for $url: $message")

@@ -1,16 +1,25 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.multiplatform)
 }
 
-dependencies {
-    implementation(project(":core:catalog"))
-    implementation(project(":core:domain"))
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.jsoup)
-    implementation(libs.ktor.client.core)
+kotlin {
+    jvm()
+    iosArm64()
+    iosSimulatorArm64()
 
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.okhttp.mockwebserver)
-    testImplementation(libs.ktor.client.okhttp)
+    sourceSets {
+        jvmMain.dependencies {
+            implementation(project(":core:catalog"))
+            implementation(project(":core:domain"))
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.jsoup)
+            api(libs.ktor.client.core)
+        }
+        jvmTest.dependencies {
+            implementation(libs.junit)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okhttp.mockwebserver)
+            implementation(libs.ktor.client.okhttp)
+        }
+    }
 }
