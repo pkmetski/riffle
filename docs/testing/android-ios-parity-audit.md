@@ -173,7 +173,21 @@ and this report tracks them).
 2. **`core/dictionary` language packs** — no iOS target (§4 A?). Small-to-medium;
    confirm whether the feature exists on iOS before sizing.
 
-3. *(To be appended as further BIG migrations surface during batch execution.)*
+3. **Stub iOS ViewModels — real feature gaps.** The following screens exist on iOS only as
+   thin stub ViewModels; the full behaviour lives in `:app`. Bringing iOS to parity means
+   porting the Android implementation into a shared module (with `expect/actual` seams where it
+   touches Android APIs), then unifying the tests. Sizes are `:app` vs shared stub:
+   - `CbzReaderViewModel` — 896L vs 85L, **Android-graphics-locked** (needs image-decode
+     `expect/actual`). Largest/hardest.
+   - `LibraryItemDetailViewModel` — 1120L vs 102L.
+   - `SettingsViewModel` — 561L vs 44L (one `android.content.Context` seam).
+   - `DownloadsViewModel` — 229L vs 85L.
+   - `LibraryItemsViewModel` — 490L vs 422L (moderate divergence; most tractable).
+   Plus two cross-module relocations with no stub gap but a placement problem (`:shared` is not
+   on `:app`'s classpath): `AnnotationsListViewModel` (72L, logic identical) → move to
+   `:feature:library`; and the reconciliation for `LibraryItemsViewModel` above.
+
+4. *(To be appended as further BIG migrations surface during batch execution.)*
 
 Small migrations (single pure class moves) are **not** listed here — they are done
 inline as part of category-B batches.
@@ -267,9 +281,40 @@ and its series/collections drive the shared library/detail screens on the AVD.
   `:app` copy. Moved the failed-refresh polling regression (4 tests) into feature:library
   `commonTest`. Verified: 33 tests green on iOS+JVM; `:app:assembleDebug` OK; **live on AVD** —
   opened a Komga series, `SeriesDetailScreen` rendered the full issue grid via the shared VM.
-- Remaining: `CollectionDetailViewModel`, `LibrarySectionViewModel`, `CbzReaderViewModel`,
-  `AnnotationsListViewModel`, `DownloadsViewModel`, `LibraryItemDetailViewModel` (n=59),
-  `LibraryItemsViewModel` (n=74), `SettingsViewModel` (n=40).
+- **`CollectionDetailViewModel` — DONE (commit `e593c8478`).** Byte-identical to shared;
+  swapped Android Koin + screen onto it, deleted `:app` copy, ported all 8 tests (offline
+  filtering, connectivity refilter, polling) into feature:library `commonTest`. 41 tests green
+  on iOS+JVM; `:app:compileDebugKotlin` OK.
+- **`LibrarySectionViewModel` — DONE (commit `d670c6aa2`).** Byte-identical to shared; swapped
+  Koin (libraryId + sectionType enum from SavedStateHandle) + screen, deleted `:app` copy. The
+  `:app` test was redundant (tested the `librarySectionItems` helper already covered by
+  `LibrarySectionItemsTest`), removed with `Removed-test:` trailers. Build green.
+
+#### The other 6 VMs are BIG migrations (see §5) — they do NOT consolidate with a swap
+The three done above worked only because their production class already lived in
+**`:feature:library`** (which `:app` depends on) with logic byte-identical to the Android copy.
+The remaining six do not meet those conditions:
+
+- **`:app` does not depend on `:shared`.** `:shared` is the iOS aggregator module (only the iOS
+  app consumes it). Five of the six shared VMs (`AnnotationsListViewModel`,
+  `LibraryItemsViewModel`, `LibraryItemDetailViewModel`, `SettingsViewModel`,
+  `DownloadsViewModel`) live in `:shared`, so `:app` cannot reference them. Consolidating any of
+  them requires first **relocating the class (+ its UiState/support types) into a `:feature:*`
+  module**, then updating `shared/iosMain/Koin.kt` and any `iosApp` Swift references.
+- **The shared copies are stubs, not full implementations.** iOS is missing real functionality:
+  `LibraryItemDetailViewModel` shared **102L** vs `:app` **1120L**; `SettingsViewModel` **44L**
+  vs **561L**; `DownloadsViewModel` **85L** vs **229L**; `CbzReaderViewModel` (in
+  `:feature:reader`) **85L** stub vs `:app` **896L**. Consolidation here means **porting the full
+  Android implementation into `commonMain`**, not deleting a duplicate.
+- **`CbzReaderViewModel` is Android-graphics-locked** (`android.graphics.Bitmap`/`BitmapFactory`/
+  `Color`, `android.app.Application`, `java.io.File`): needs an `expect/actual` image-decode seam
+  before any of its logic can move to `commonMain`.
+- `AnnotationsListViewModel` is the smallest (72L, logic identical) but still needs the
+  `:shared` → `:feature:library` relocation (+ `AnnotationsListUiState`), so it is not a pure swap.
+- `LibraryItemsViewModel` has the least divergence of the stubs (shared **422L** vs `:app`
+  **490L**) and no hard Android imports, so it is the most tractable of the BIG set, but still
+  needs relocation from `:shared` + reconciling ~68 lines of behavioural divergence + porting its
+  74 `:app` tests + device verification.
 
 ## Appendix A — Full per-file matrix
 
