@@ -11,6 +11,7 @@ import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.models.ReadaloudLink
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Collections
@@ -100,7 +101,7 @@ class CrossEpubIndexBuilderService(
         val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
         return runCatching {
             catalog.withFileStream(itemId, BookFormat.Epub) { stream ->
-                cacheStore.save(sourceId, itemId, stream.byteStream())
+                cacheStore.save(sourceId, itemId, stream.channel.toInputStream())
             }
         }.getOrNull()
     }

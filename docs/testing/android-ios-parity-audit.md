@@ -157,18 +157,7 @@ migration. Per project owner: report them; port the tests but keep them
 no iOS target, so the tests cannot even compile for iOS yet — they stay in place
 and this report tracks them).
 
-1. **Web-source catalog + networking layer** — `core/catalog`,
-   `core/catalog-abs` (ABS lives in `core/catalog`), `core/catalog-komga`,
-   `core/catalog-gutenberg`, `core/catalog-chitanka`, `core/catalog-radio-es`,
-   `core/network`. **361 tests.** None of these modules declare an iOS target; they
-   depend on OkHttp (`core/network` is the JVM-only HTTP shim, per ADR 0049).
-   *Impact on iOS:* browsing, searching, importing, and downloading from ABS,
-   Komga, Gutenberg, Chitanka, and Radio-ES — and all the progress-sync / playlist
-   / collection API behaviour those catalogs implement — is not verifiable (and
-   likely not fully functional) on iOS.
-   *Migration shape:* re-home catalog implementations into an iOS-targeted module
-   using the multiplatform `core/net` (Ktor) instead of `core/network` (OkHttp),
-   add `iosMain`/`iosTest`, then the ~361 tests become `commonTest`. Large.
+1. ~~**Web-source catalog + networking layer**~~ — ✅ **done** (#944): `core/catalog`, `core/catalog-komga`, `core/catalog-gutenberg`, `core/catalog-chitanka`, `core/catalog-radio-es` converted to `kotlin.multiplatform` with `iosArm64` + `iosSimulatorArm64` targets. `CatalogFileStream` now uses KMP-friendly `ByteReadChannel`; JVM-only APIs (OkHttp, `java.io.InputStream`, `java.net.URLEncoder`, `java.util.Base64`, `java.time.Instant`) replaced with Ktor/KMP equivalents or expect/actual. JVM tests stay `jvmTest`; `iosSimulatorArm64Test` wired in CI. `core/network` (OkHttp shim) remains JVM-only.
 
 2. ~~**`core/dictionary` language packs**~~ — ✅ **done** (#945): iOS target added, `LanguageCatalogTest` now `commonTest` on `iosSimulatorArm64`.
 
@@ -651,7 +640,7 @@ All rows start at their category default; flip as batches land.
 - `RendererCapabilityTest` (10)
 - `ReturnNavigatorTest` (5)
 
-### C-catalog/net BIG migration  — 23 files / 361 tests
+### C-catalog/net BIG migration  — 23 files / 361 tests — ✅ done (#944)
 
 
 **`core/catalog`**

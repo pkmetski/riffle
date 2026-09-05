@@ -28,6 +28,8 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.jvm.javaio.toByteReadChannel
 import java.io.File
 import java.io.FileInputStream
 
@@ -128,14 +130,16 @@ class LocalFilesCatalog(
             )
         }
         val length = f.length()
-        return FileInputStream(f).use { stream ->
+        val input = FileInputStream(f)
+        return try {
             block(
                 object : CatalogFileStream {
                     override val contentLength: Long = length
-                    override fun byteStream(): java.io.InputStream = stream
-                    override fun close() { stream.close() }
+                    override val channel: ByteReadChannel = input.toByteReadChannel()
                 },
             )
+        } finally {
+            input.close()
         }
     }
 

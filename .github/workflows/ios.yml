@@ -27,7 +27,9 @@ jobs:
             :core:database:ktlintIosMainSourceSetCheck \
             :core:net:ktlintIosMainSourceSetCheck \
             :core:data:ktlintIosMainSourceSetCheck \
-            :core:logging:ktlintIosMainSourceSetCheck
+            :core:logging:ktlintIosMainSourceSetCheck \
+            :core:common:ktlintIosMainSourceSetCheck \
+            :core:catalog-komga:ktlintIosMainSourceSetCheck
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: SwiftLint (iosApp/)
@@ -179,6 +181,11 @@ jobs:
           ./gradlew \
             :core:sync:iosSimulatorArm64Test \
             :core:dictionary:iosSimulatorArm64Test \
+            :core:catalog:iosSimulatorArm64Test \
+            :core:catalog-komga:iosSimulatorArm64Test \
+            :core:catalog-gutenberg:iosSimulatorArm64Test \
+            :core:catalog-radio-es:iosSimulatorArm64Test \
+            :core:catalog-chitanka:iosSimulatorArm64Test \
             :shared:iosSimulatorArm64Test \
             :feature:library:iosSimulatorArm64Test \
             :feature:player:iosSimulatorArm64Test \
@@ -192,6 +199,11 @@ jobs:
           path: |
             core/sync/build/reports/tests/
             core/dictionary/build/reports/tests/
+            core/catalog/build/reports/tests/
+            core/catalog-komga/build/reports/tests/
+            core/catalog-gutenberg/build/reports/tests/
+            core/catalog-radio-es/build/reports/tests/
+            core/catalog-chitanka/build/reports/tests/
             shared/build/reports/tests/
             feature/library/build/reports/tests/
             feature/player/build/reports/tests/

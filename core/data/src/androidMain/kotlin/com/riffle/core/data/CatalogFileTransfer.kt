@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.domain.LocalStore
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import java.io.File
 
 /**
@@ -20,10 +21,11 @@ internal object CatalogFileTransfer {
         target: LocalStore,
         onProgress: ((downloaded: Long, total: Long) -> Unit)? = null,
     ): File = catalog.withFileStream(itemId, format, handleHint) { stream ->
+        val rawInput = stream.channel.toInputStream()
         val input = if (onProgress == null) {
-            stream.byteStream()
+            rawInput
         } else {
-            CumulativeDownloadProgress(stream.contentLength, onProgress).track(stream.byteStream())
+            CumulativeDownloadProgress(stream.contentLength, onProgress).track(rawInput)
         }
         target.save(sourceId, itemId, input)
     }
@@ -54,7 +56,7 @@ internal object CatalogFileTransfer {
         val temp = File.createTempFile("riffle-metadata-", suffix)
         return try {
             catalog.withFileStream(itemId, format, handleHint) { stream ->
-                stream.byteStream().use { input ->
+                stream.channel.toInputStream().use { input ->
                     temp.outputStream().use { output -> input.copyTo(output) }
                 }
                 temp
