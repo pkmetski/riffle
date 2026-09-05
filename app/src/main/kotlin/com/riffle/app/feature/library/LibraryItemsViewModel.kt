@@ -22,7 +22,7 @@ import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.models.Series
 import com.riffle.core.catalog.CatalogPlaylist
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.SourceRepository
@@ -286,7 +286,7 @@ class LibraryItemsViewModel constructor(
     // Books with at least one live highlight in THIS library — the same query the Annotations tab
     // content uses (AnnotationsListViewModel), so tab visibility can't disagree with what the tab
     // would render.
-    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.data.AnnotatedBook>> =
+    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.domain.AnnotatedBook>> =
         sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
@@ -319,7 +319,7 @@ class LibraryItemsViewModel constructor(
         @Suppress("UNCHECKED_CAST")
         val p = values[0] as LibraryProjection
         @Suppress("UNCHECKED_CAST")
-        val annotated = values[1] as List<com.riffle.core.data.AnnotatedBook>
+        val annotated = values[1] as List<com.riffle.core.domain.AnnotatedBook>
         @Suppress("UNCHECKED_CAST")
         val items = values[2] as List<LibraryItem>
         @Suppress("UNCHECKED_CAST")

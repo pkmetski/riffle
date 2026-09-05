@@ -1,6 +1,6 @@
 package com.riffle.app.di
 
-import com.riffle.app.feature.annotations.AnnotationsListViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
 import com.riffle.app.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
@@ -51,7 +51,7 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.common.Clock
 import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ReadaloudSidecarPrefetcher
@@ -616,11 +616,12 @@ private val audiobookViewModelModule = module {
 
 private val annotationsViewModelModule = module {
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         AnnotationsListViewModel(
+            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
             sourceRepository = get(),
             repo = get(),
             tokenStorage = get(),
-            savedStateHandle = get(),
         )
     }
 }

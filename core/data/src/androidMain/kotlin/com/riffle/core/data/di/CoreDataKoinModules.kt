@@ -18,7 +18,7 @@ import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationSweep
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl

@@ -3,7 +3,7 @@ package com.riffle.shared
 import com.riffle.core.common.Clock
 import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
@@ -56,7 +56,7 @@ import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.downloads.DownloadsViewModel
-import com.riffle.shared.library.AnnotationsListViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore

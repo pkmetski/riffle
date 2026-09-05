@@ -2,6 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine

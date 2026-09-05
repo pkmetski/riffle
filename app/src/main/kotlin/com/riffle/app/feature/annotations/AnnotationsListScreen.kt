@@ -39,7 +39,8 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.app.ui.fadingScrollbar
-import com.riffle.core.data.AnnotatedBook
+import com.riffle.core.domain.AnnotatedBook
+import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.app.ui.source.asAuthHeader
 
 @Composable

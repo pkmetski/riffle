@@ -1,7 +1,7 @@
 package com.riffle.shared.library
 
-import com.riffle.core.data.AnnotatedBook
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AnnotationStore

@@ -3,7 +3,7 @@ package com.riffle.app.feature.library
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
@@ -51,7 +51,7 @@ class LibraryTabVisibilityObserver constructor(
             .distinctUntilChanged()
 
         // Same query the Annotations tab content uses
-        // ([com.riffle.app.feature.annotations.AnnotationsListViewModel]) so tab visibility can't
+        // ([com.riffle.feature.library.AnnotationsListViewModel]) so tab visibility can't
         // disagree with what the tab would render.
         val hasAnnotations = activeSourceId.flatMapLatest { sourceId ->
             if (sourceId == null) flowOf(false)

@@ -1,4 +1,4 @@
-package com.riffle.core.data
+package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
 
