@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AudiobookCacheRepository
+import com.riffle.core.domain.JvmAudiobookCacheRepository
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
@@ -18,7 +18,7 @@ class AudiobookCacheRepositoryImpl constructor(
     private val trackDownloader: AudiobookTrackDownloader,
     private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
-) : AudiobookCacheRepository {
+) : JvmAudiobookCacheRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
 

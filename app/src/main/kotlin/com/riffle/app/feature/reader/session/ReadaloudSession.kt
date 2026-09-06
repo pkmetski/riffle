@@ -24,7 +24,7 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePlanner
@@ -73,7 +73,7 @@ class ReadaloudSession constructor(
      */
     private val snapshotLocator: () -> Locator?,
     private val playerCoordinator: PlayerController,
-    private val readaloudAudioRepository: ReadaloudAudioRepository,
+    private val readaloudAudioRepository: JvmReadaloudAudioRepository,
     private val streamingSessionFactory: ReadaloudStreamingSessionFactory,
     private val storytellerSyncController: StorytellerPositionSyncController,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,

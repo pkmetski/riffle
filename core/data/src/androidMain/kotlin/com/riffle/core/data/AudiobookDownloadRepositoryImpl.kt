@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.JvmAudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
@@ -45,7 +45,7 @@ class AudiobookDownloadRepositoryImpl constructor(
     private val downloadsDir: File,
     private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents,
-) : AudiobookDownloadRepository {
+) : JvmAudiobookDownloadRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
 

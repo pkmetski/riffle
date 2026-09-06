@@ -11,7 +11,7 @@ import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
-import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkRepository
@@ -46,7 +46,7 @@ class ReaderSessionLifecycle constructor(
     private val openPublication: suspend (File) -> Publication?,
     private val cfiStringToLocator: suspend (String) -> Locator?,
     private val libraryObserver: LibraryObserver,
-    private val epubRepository: EpubRepository,
+    private val epubRepository: JvmEpubRepository,
     private val sourceRepository: SourceRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val audioIdentityResolver: AudioIdentityResolver,

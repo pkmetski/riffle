@@ -138,6 +138,8 @@ import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.JvmAudiobookCacheRepository
+import com.riffle.core.domain.JvmAudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
@@ -159,6 +161,10 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmCbzRepository
+import com.riffle.core.domain.JvmEpubRepository
+import com.riffle.core.domain.JvmPdfRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
 import com.riffle.core.domain.HighlightColorPreferencesStore
@@ -697,7 +703,7 @@ private val coreDataRepositoriesModule = module {
     single<PublicationMetricsRepository> { PublicationMetricsRepositoryImpl(get(), get()) }
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(get(), get()) }
 
-    single<EpubRepository> {
+    single<JvmEpubRepository> {
         EpubRepositoryImpl(
             catalogRegistry = get(),
             cacheStore = get(named(EPUB_CACHE_STORE)),
@@ -708,8 +714,9 @@ private val coreDataRepositoriesModule = module {
             contentCacheAccessStore = get(),
         )
     }
+    single<EpubRepository> { get<JvmEpubRepository>() }
 
-    single<PdfRepository> {
+    single<JvmPdfRepository> {
         PdfRepositoryImpl(
             catalogRegistry = get(),
             cacheStore = get(named(PDF_CACHE_STORE)),
@@ -720,8 +727,9 @@ private val coreDataRepositoriesModule = module {
             contentCacheAccessStore = get(),
         )
     }
+    single<PdfRepository> { get<JvmPdfRepository>() }
 
-    single<CbzRepository> {
+    single<JvmCbzRepository> {
         CbzRepositoryImpl(
             catalogRegistry = get(),
             cacheStore = get(named(CBZ_CACHE_STORE)),
@@ -733,6 +741,7 @@ private val coreDataRepositoriesModule = module {
             contentCacheAccessStore = get(),
         )
     }
+    single<CbzRepository> { get<JvmCbzRepository>() }
 
     single<LibraryItemOfflineAvailability> {
         LibraryItemOfflineAvailabilityImpl(
@@ -795,7 +804,7 @@ private val coreDataCatalogModule = module {
 private val coreDataStreamingAudioModule = module {
     single<AudiobookRepository> { AudiobookRepositoryImpl(get(), get()) }
     single { com.riffle.core.data.AudiobookTrackDownloader(get(named(STREAMING_HTTP_CLIENT)), get()) }
-    single<AudiobookDownloadRepository> {
+    single<JvmAudiobookDownloadRepository> {
         AudiobookDownloadRepositoryImpl(
             audiobookRepository = get(),
             trackDownloader = get(),
@@ -805,7 +814,8 @@ private val coreDataStreamingAudioModule = module {
             localAvailabilityEvents = get(),
         )
     }
-    single<AudiobookCacheRepository> {
+    single<AudiobookDownloadRepository> { get<JvmAudiobookDownloadRepository>() }
+    single<JvmAudiobookCacheRepository> {
         AudiobookCacheRepositoryImpl(
             cacheDir = get(named(AUDIOBOOK_CACHE_DIR)),
             trackDownloader = get(),
@@ -813,6 +823,7 @@ private val coreDataStreamingAudioModule = module {
             localAvailabilityEvents = get(),
         )
     }
+    single<AudiobookCacheRepository> { get<JvmAudiobookCacheRepository>() }
     single<ReadaloudLinkRepository> { ReadaloudLinkRepositoryImpl(get()) }
 
     // ReadaloudReviewRepositoryImpl implements ReadaloudReviewRepository and ReadaloudReviewMutator
@@ -870,7 +881,7 @@ private val coreDataStreamingAudioModule = module {
         )
     }
 
-    single<ReadaloudAudioRepository> {
+    single<JvmReadaloudAudioRepository> {
         ReadaloudAudioRepositoryImpl(
             downloader = get(),
             bundleProbe = get(),
@@ -881,10 +892,11 @@ private val coreDataStreamingAudioModule = module {
             dispatchers = get(),
         )
     }
+    single<ReadaloudAudioRepository> { get<JvmReadaloudAudioRepository>() }
 
     single<BundleAudiobookSource> {
         val readaloudLinkRepository = get<ReadaloudLinkRepository>()
-        val readaloudAudioRepository = get<ReadaloudAudioRepository>()
+        val readaloudAudioRepository = get<JvmReadaloudAudioRepository>()
         val applicationScope = get<ApplicationScope>()
         StorytellerBundleAudiobookSource(
             readaloudLinkRepository = readaloudLinkRepository,

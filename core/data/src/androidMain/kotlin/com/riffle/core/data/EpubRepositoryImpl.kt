@@ -4,7 +4,7 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
-import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
@@ -24,7 +24,7 @@ class EpubRepositoryImpl(
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
-) : EpubRepository {
+) : JvmEpubRepository {
 
     /**
      * Single-flight guard: at most one network fetch may be in flight per (sourceId, itemId).

@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -21,7 +21,7 @@ open class ReadaloudAudioRepositoryImpl(
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val dispatchers: DispatcherProvider,
-) : ReadaloudAudioRepository {
+) : JvmReadaloudAudioRepository {
 
     // Process-level cache: keyed by (sourceId, itemId, file.lastModified()) so a re-downloaded bundle
     // gets a fresh parse while repeated opens of the same bundle return instantly (~0ms vs ~1.8s).

@@ -15,7 +15,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.PdfOpenResult
-import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
@@ -51,7 +51,7 @@ class PdfReaderViewModel constructor(
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
-    private val pdfRepository: PdfRepository,
+    private val pdfRepository: JvmPdfRepository,
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
