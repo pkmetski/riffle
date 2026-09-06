@@ -70,7 +70,3 @@ interface CbzRepository {
     suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource?
 }
 
-/** JVM extension of [CbzRepository] adding [java.io.File]-returning methods for Android/JVM hosts. */
-interface JvmCbzRepository : CbzRepository {
-    suspend fun awaitCachedFile(item: LibraryItem): java.io.File?
-}

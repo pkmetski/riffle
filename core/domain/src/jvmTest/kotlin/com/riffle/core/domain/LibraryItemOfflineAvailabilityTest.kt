@@ -154,6 +154,7 @@ class LibraryItemOfflineAvailabilityTest {
         override suspend fun supportsStreaming(sourceId: String) = false
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?) = error("unused")
         override suspend fun awaitCachedSource(item: LibraryItem): com.riffle.core.domain.CbzLocalSource? = null
+        override suspend fun awaitCachedFile(item: LibraryItem): java.io.File? = null
     }
 
     private fun cachingAvailability(
@@ -264,6 +265,7 @@ class LibraryItemOfflineAvailabilityTest {
         override suspend fun supportsStreaming(sourceId: String) = false
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?) = error("unused")
         override suspend fun awaitCachedSource(item: LibraryItem): com.riffle.core.domain.CbzLocalSource? = null
+        override suspend fun awaitCachedFile(item: LibraryItem): java.io.File? = null
     }
 
     private class FakeAudiobookDownloadRepository(
