@@ -6,6 +6,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.models.Source
@@ -41,7 +42,7 @@ class PdfRepositoryTest {
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePdfPositionStore
-    private lateinit var repo: PdfRepository
+    private lateinit var repo: JvmPdfRepository
 
     private val pdfBytes = "%PDF-1.4 fake pdf content\n%%EOF".toByteArray()
 
@@ -289,7 +290,7 @@ class PdfRepositoryTest {
         serverType = ServerType.AUDIOBOOKSHELF,
     )
 
-    private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): PdfRepository =
+    private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): JvmPdfRepository =
         PdfRepositoryImpl(
             catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
             cacheStore = cacheStore,

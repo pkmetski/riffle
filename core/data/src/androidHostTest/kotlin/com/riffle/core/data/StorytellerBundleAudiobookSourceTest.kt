@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.data.testing.TestApplicationScope
 import com.riffle.core.domain.MediaOverlayClip
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
@@ -43,7 +44,7 @@ class StorytellerBundleAudiobookSourceTest {
     private class FakeAudio(
         private val bundle: File?,
         private val track: ReadaloudTrack?,
-    ) : ReadaloudAudioRepository {
+    ) : JvmReadaloudAudioRepository {
         override fun isAudioAvailable(sourceId: String, itemId: String) = bundle != null
         override fun bundleFile(sourceId: String, itemId: String) = bundle
         override suspend fun readTrack(sourceId: String, itemId: String) = track
