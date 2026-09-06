@@ -1,7 +1,6 @@
 package com.riffle.core.domain.usecase
 
 import com.riffle.core.domain.LibraryMutator
-import javax.inject.Inject
 
 /** Persist new readingProgress for the active Server's copy of an item. */
 open class UpdateReadingProgress constructor(
