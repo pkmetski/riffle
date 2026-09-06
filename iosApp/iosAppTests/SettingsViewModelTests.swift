@@ -22,23 +22,29 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testAnnotationSyncSubtitleSyncedCarriesIdentity() {
         let subtitle = AnnotationSyncSubtitle.Synced(identity: "alice@example.com")
-        XCTAssertTrue(subtitle is AnnotationSyncSubtitle.Synced)
-        let synced = subtitle as! AnnotationSyncSubtitle.Synced
+        guard let synced = subtitle as? AnnotationSyncSubtitle.Synced else {
+            XCTFail("Expected Synced but got \(subtitle)")
+            return
+        }
         XCTAssertEqual(synced.identity, "alice@example.com")
     }
 
     func testAnnotationSyncSubtitleBooksPendingOfflineCarriesCount() {
         let subtitle = AnnotationSyncSubtitle.BooksPendingOffline(count: 3)
-        XCTAssertTrue(subtitle is AnnotationSyncSubtitle.BooksPendingOffline)
-        let pending = subtitle as! AnnotationSyncSubtitle.BooksPendingOffline
+        guard let pending = subtitle as? AnnotationSyncSubtitle.BooksPendingOffline else {
+            XCTFail("Expected BooksPendingOffline but got \(subtitle)")
+            return
+        }
         XCTAssertEqual(pending.count, 3)
     }
 
-    func testAnnotationSyncSubtitleServerErrorCarriesCode() {
-        let subtitle = AnnotationSyncSubtitle.ServerError(code: 503)
-        XCTAssertTrue(subtitle is AnnotationSyncSubtitle.ServerError)
-        let error = subtitle as! AnnotationSyncSubtitle.ServerError
-        XCTAssertEqual(error.code, 503)
+    func testAnnotationSyncSubtitleHttpErrorCarriesCode() {
+        let subtitle = AnnotationSyncSubtitle.HttpError(code: 503)
+        guard let httpError = subtitle as? AnnotationSyncSubtitle.HttpError else {
+            XCTFail("Expected HttpError but got \(subtitle)")
+            return
+        }
+        XCTAssertEqual(httpError.code, 503)
     }
 
     // MARK: AnnotationSyncKind derivation (scenarios 6.3)
