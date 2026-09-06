@@ -17,12 +17,16 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
+import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.FormattingPreferencesStore
@@ -31,13 +35,21 @@ import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudPreferencesStore
+import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
+import com.riffle.core.domain.VolumeKeyPreferencesStore
+import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.domain.usecase.RefreshLibraryItems
@@ -58,6 +70,8 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
+import com.riffle.feature.settings.AppVersion
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.library.IosNoOpAppThemeStore
@@ -78,20 +92,6 @@ import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
-import com.riffle.core.domain.AnnotationSyncConfigStore
-import com.riffle.core.domain.AppUpdatePreferencesStore
-import com.riffle.core.domain.AppUpdateRepository
-import com.riffle.core.domain.CrashReportRepository
-import com.riffle.core.domain.LibraryOrderPreferencesStore
-import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.ReadaloudPreferencesStore
-import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.VolumeKeyPreferencesStore
-import com.riffle.core.domain.WakeLockPreferencesStore
-import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
-import com.riffle.core.domain.developer.DeveloperOptionsRepository
-import com.riffle.feature.settings.AppVersion
-import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
 import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
@@ -108,8 +108,8 @@ import com.riffle.shared.settings.IosNoOpReadaloudPreferencesStore
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import com.riffle.shared.settings.IosNoOpVolumeKeyPreferencesStore
 import com.riffle.shared.settings.IosNoOpWakeLockPreferencesStore
-import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
+import org.koin.dsl.module
 
 private fun iosLibraryModule(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
