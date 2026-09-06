@@ -1,4 +1,4 @@
-package com.riffle.app.feature.downloads
+package com.riffle.feature.downloads
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +7,7 @@ import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredMediaType
@@ -54,7 +55,7 @@ class DownloadsViewModel constructor(
     private val libraryObserver: LibraryObserver,
     private val sourceRepository: SourceRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,
-    private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
+    private val sidecarStore: ReadaloudSidecarDownloads,
     private val contentCacheSettingsStore: ContentCacheSettingsStore,
 ) : ViewModel() {
 
@@ -148,7 +149,7 @@ class DownloadsViewModel constructor(
             mediaType.toLocalMediaType()
         }
 
-    private suspend fun com.riffle.core.data.ReadaloudSidecarStore.CachedSidecar.toLocalArtifact(): LocalArtifact? {
+    private suspend fun ReadaloudSidecarDownloads.CachedSidecar.toLocalArtifact(): LocalArtifact? {
         val displayRef = linkedSourceRef(storytellerSourceId, storytellerBookId) ?: return null
         return LocalArtifact(
             displaySourceId = displayRef.sourceId,

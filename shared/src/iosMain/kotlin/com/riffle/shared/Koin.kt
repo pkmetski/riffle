@@ -21,6 +21,7 @@ import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
@@ -34,6 +35,7 @@ import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.usecase.RefreshCollections
@@ -49,6 +51,7 @@ import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.HomeViewModel
@@ -57,16 +60,17 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
-import com.riffle.shared.downloads.DownloadsViewModel
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
+import com.riffle.shared.library.IosNoOpContentCacheSettingsStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpDownloadsRepository
 import com.riffle.shared.library.IosNoOpFormattingPreferencesStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
+import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.reader.IosCbzDownloader
@@ -141,7 +145,18 @@ private fun iosLibraryModule(
     single<AppThemeStore> { IosNoOpAppThemeStore() }
     single<FormattingPreferencesStore> { IosNoOpFormattingPreferencesStore() }
     single<DownloadsRepository> { IosNoOpDownloadsRepository() }
-    single { DownloadsViewModel(get()) }
+    single<ContentCacheSettingsStore> { IosNoOpContentCacheSettingsStore() }
+    single<ReadaloudSidecarDownloads> { IosNoOpReadaloudSidecarDownloads }
+    single {
+        DownloadsViewModel(
+            downloadsRepository = get(),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            readaloudLinkRepository = get(),
+            sidecarStore = get(),
+            contentCacheSettingsStore = get(),
+        )
+    }
     single { SettingsViewModel(get(), get(), get()) }
     single<Clock> { IosSystemClock }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }

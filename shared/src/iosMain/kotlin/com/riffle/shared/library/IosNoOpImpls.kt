@@ -4,6 +4,8 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.FormattingPreferences
@@ -12,6 +14,7 @@ import com.riffle.core.domain.LibraryFilterPreferences
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.models.AudiobookBookmark
@@ -89,6 +92,17 @@ internal class IosNoOpFormattingPreferencesStore : FormattingPreferencesStore {
     override val preferences: Flow<FormattingPreferences> = flowOf(FormattingPreferences())
     override suspend fun update(preferences: FormattingPreferences) {}
     override suspend fun setCadencePlatformSupported(supported: Boolean) {}
+}
+
+internal class IosNoOpContentCacheSettingsStore : ContentCacheSettingsStore {
+    override val autoClear: Flow<ContentCacheAutoClear> = flowOf(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR)
+    override suspend fun setAutoClear(value: ContentCacheAutoClear) {}
+}
+
+internal object IosNoOpReadaloudSidecarDownloads : ReadaloudSidecarDownloads {
+    override fun listCached() = emptyList<ReadaloudSidecarDownloads.CachedSidecar>()
+    override fun clearAll() {}
+    override fun remove(storytellerSourceId: String, storytellerBookId: String) {}
 }
 
 internal class IosNoOpDownloadsRepository : DownloadsRepository {

@@ -1,5 +1,9 @@
 package com.riffle.app.feature.downloads
 
+import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.downloads.LocalItemUi
+import com.riffle.feature.downloads.LocalMediaType
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box

@@ -28,6 +28,7 @@ kotlin {
             implementation(project(":core:data"))
             implementation(project(":core:logging"))
             implementation(project(":core:net"))
+            implementation(project(":feature:downloads"))
             implementation(project(":feature:library"))
             implementation(project(":feature:reader"))
             implementation(libs.compose.runtime)
