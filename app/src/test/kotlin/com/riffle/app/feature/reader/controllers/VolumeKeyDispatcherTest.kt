@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.controllers
 
-import com.riffle.app.feature.reader.VolumeNavEvent
-import com.riffle.app.feature.reader.VolumeNavigationController
+import com.riffle.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf

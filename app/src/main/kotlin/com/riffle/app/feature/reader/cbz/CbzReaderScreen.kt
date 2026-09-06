@@ -80,6 +80,8 @@ import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicPageSource
+import com.riffle.feature.reader.CbzReaderState
+import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelFitTransform

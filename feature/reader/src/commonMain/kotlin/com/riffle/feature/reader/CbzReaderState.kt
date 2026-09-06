@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.comic.ComicPageSource
 

@@ -1,15 +1,15 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.comic.ComicPageSource
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 /**
- * Unit tests for the pure state-transition functions extracted from [CbzReaderViewModel.swapToLocalArchive].
- * The ViewModel extends AndroidViewModel and cannot be instantiated in JVM tests; the functions are
- * extracted so the key behaviors can be pinned without an Android dependency.
+ * Unit tests for the pure state-transition functions extracted from
+ * [CbzReaderViewModel.swapToLocalArchive]. Kept as top-level functions so the key behaviours can be
+ * pinned on JVM + iOS without instantiating the ViewModel.
  */
 class CbzArchiveSwapTest {
 
@@ -36,26 +36,26 @@ class CbzArchiveSwapTest {
         val current = readyState(thumbnailSource = fakeSource())
         val newSource = fakeSource()
         val result = computeArchiveSwapState(current, actualPageCount = 10, newSource = newSource)
-        assertNull("thumbnailSource must be null after archive swap", result.thumbnailSource)
+        assertNull(result.thumbnailSource, "thumbnailSource must be null after archive swap")
     }
 
     @Test fun `imageSource is replaced with the new source`() {
         val current = readyState()
         val newSource = fakeSource()
         val result = computeArchiveSwapState(current, actualPageCount = 10, newSource = newSource)
-        assertSame("imageSource must be the new archive source", newSource, result.imageSource)
+        assertSame(newSource, result.imageSource, "imageSource must be the new archive source")
     }
 
     @Test fun `pageCount is updated to actualPageCount when positive`() {
         val current = readyState(pageCount = 15)
         val result = computeArchiveSwapState(current, actualPageCount = 12, newSource = fakeSource())
-        assertEquals("pageCount must use actualPageCount when > 0", 12, result.pageCount)
+        assertEquals(12, result.pageCount, "pageCount must use actualPageCount when > 0")
     }
 
     @Test fun `pageCount falls back to current when actualPageCount is zero`() {
         val current = readyState(pageCount = 15)
         val result = computeArchiveSwapState(current, actualPageCount = 0, newSource = fakeSource())
-        assertEquals("pageCount must keep current value when actualPageCount is 0", 15, result.pageCount)
+        assertEquals(15, result.pageCount, "pageCount must keep current value when actualPageCount is 0")
     }
 
     // --- clampPageForSwap ---
@@ -72,7 +72,7 @@ class CbzArchiveSwapTest {
         assertEquals(9, clampPageForSwap(currentPage = 12, actualPageCount = 10))
     }
 
-    @Test fun `returns null when actualPageCount is zero (no clamping, keep streaming count)`() {
+    @Test fun `returns null when actualPageCount is zero - keep streaming count`() {
         assertNull(clampPageForSwap(currentPage = 99, actualPageCount = 0))
     }
 }

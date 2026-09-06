@@ -1,10 +1,10 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader
 
-import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.PanelOverflowBehavior
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ComicFormattingOverridesMergeTest {
 
