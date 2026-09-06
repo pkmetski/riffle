@@ -357,6 +357,10 @@ class CbzReaderViewModel constructor(
         _currentPage.value = resumeIndex
         lastSavedPage = resumeIndex
         _currentPanelIndex.value = 0
+        // Seed the page count now so railCursorPosition scales against the real total during the
+        // whole streaming phase; there are no ComicInfo bookmarks until the local swap, so the rail
+        // is a single segment until then.
+        _pageCount.value = result.pageCount
 
         // The streaming source (built by the repository) read-aheads the next pages so a
         // page turn is served from its byte cache instead of a cold synchronous download.
@@ -693,6 +697,9 @@ class CbzReaderViewModel constructor(
         panelResolveJob?.cancel()
         currentSource?.close()
         currentSource = null
+        // Release the streaming thumbnail source too — it's a separate source from currentSource
+        // and its own backing (read-ahead scope, if any) must be cancelled on teardown.
+        (_state.value as? CbzReaderState.Ready)?.thumbnailSource?.close()
     }
 
     /**

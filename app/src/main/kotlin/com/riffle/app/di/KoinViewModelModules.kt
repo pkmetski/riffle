@@ -576,7 +576,7 @@ private val readerViewModelModule = module {
     viewModel {
         val handle = get<androidx.lifecycle.SavedStateHandle>()
         CbzReaderViewModel(
-            itemId = handle.get<String>("itemId") ?: "",
+            itemId = checkNotNull(handle.get<String>("itemId")) { "CbzReaderViewModel requires an itemId nav argument" },
             libraryObserver = get(),
             cbzRepository = get(),
             readingSessionRepository = get(),
