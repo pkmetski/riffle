@@ -23,7 +23,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import com.riffle.core.domain.StoredMediaType
+import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.downloads.LocalItemUi
+import com.riffle.feature.downloads.LocalMediaType
 import org.koin.compose.koinInject
 
 @Composable
@@ -52,11 +54,6 @@ fun DownloadsScreen(onBack: () -> Unit) {
             modifier = Modifier.padding(bottom = 16.dp),
         )
 
-        if (state.isLoading) {
-            BasicText("Loading…")
-            return@Column
-        }
-
         if (state.downloadedItems.isEmpty() && state.cachedItems.isEmpty()) {
             BasicText("No downloaded or cached items.")
             return@Column
@@ -71,7 +68,7 @@ fun DownloadsScreen(onBack: () -> Unit) {
             state.downloadedItems.forEach { item ->
                 DownloadRow(
                     item = item,
-                    onRemove = { viewModel.removeDownload(item.sourceId, item.itemId) },
+                    onRemove = { viewModel.removeDownloadedItem(item) },
                 )
             }
             BasicText(
@@ -92,7 +89,7 @@ fun DownloadsScreen(onBack: () -> Unit) {
             state.cachedItems.forEach { item ->
                 DownloadRow(
                     item = item,
-                    onRemove = { viewModel.removeCached(item.sourceId, item.itemId) },
+                    onRemove = { viewModel.removeCachedItem(item) },
                 )
             }
             BasicText(
@@ -107,16 +104,16 @@ fun DownloadsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun DownloadRow(item: LocalItemUiState, onRemove: () -> Unit) {
+private fun DownloadRow(item: LocalItemUi, onRemove: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            BasicText(item.itemId, style = TextStyle(fontSize = 14.sp))
+            BasicText(item.item.title, style = TextStyle(fontSize = 14.sp))
             BasicText(
-                "${item.mediaType.label()} · ${formatBytes(item.sizeBytes)}",
+                "${item.mediaTypes.label()} · ${formatBytes(item.sizeBytes)}",
                 style = TextStyle(fontSize = 12.sp),
             )
         }
@@ -129,11 +126,14 @@ private fun DownloadRow(item: LocalItemUiState, onRemove: () -> Unit) {
     }
 }
 
-private fun StoredMediaType.label(): String = when (this) {
-    StoredMediaType.Epub -> "EPUB"
-    StoredMediaType.Pdf -> "PDF"
-    StoredMediaType.Cbz -> "CBZ"
-    StoredMediaType.Audiobook -> "Audiobook"
+private fun Set<LocalMediaType>.label(): String = joinToString(" + ") { it.label() }
+
+private fun LocalMediaType.label(): String = when (this) {
+    LocalMediaType.Epub -> "EPUB"
+    LocalMediaType.Pdf -> "PDF"
+    LocalMediaType.Comic -> "Comic"
+    LocalMediaType.Audiobook -> "Audiobook"
+    LocalMediaType.Readaloud -> "Readaloud"
 }
 
 private fun formatBytes(bytes: Long): String = when {

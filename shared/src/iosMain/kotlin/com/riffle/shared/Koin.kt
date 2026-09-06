@@ -57,7 +57,11 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
-import com.riffle.shared.downloads.DownloadsViewModel
+import com.riffle.core.domain.ContentCacheSettingsStore
+import com.riffle.core.domain.ReadaloudSidecarDownloads
+import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.shared.library.IosNoOpContentCacheSettingsStore
+import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
@@ -141,7 +145,18 @@ private fun iosLibraryModule(
     single<AppThemeStore> { IosNoOpAppThemeStore() }
     single<FormattingPreferencesStore> { IosNoOpFormattingPreferencesStore() }
     single<DownloadsRepository> { IosNoOpDownloadsRepository() }
-    single { DownloadsViewModel(get()) }
+    single<ContentCacheSettingsStore> { IosNoOpContentCacheSettingsStore() }
+    single<ReadaloudSidecarDownloads> { IosNoOpReadaloudSidecarDownloads }
+    single {
+        DownloadsViewModel(
+            downloadsRepository = get(),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            readaloudLinkRepository = get(),
+            sidecarStore = get(),
+            contentCacheSettingsStore = get(),
+        )
+    }
     single { SettingsViewModel(get(), get(), get()) }
     single<Clock> { IosSystemClock }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }

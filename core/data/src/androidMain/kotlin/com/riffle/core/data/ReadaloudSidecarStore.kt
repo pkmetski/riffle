@@ -3,6 +3,7 @@ package com.riffle.core.data
 import android.content.Context
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudSidecarCache
+import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +46,7 @@ class ReadaloudSidecarStore private constructor(
     // App-scoped: a prepare started on the details screen must survive into the reader (and vice versa),
     // so it can't hang off a ViewModel scope. SupervisorJob so one book's failure doesn't cancel others.
     private val scope: CoroutineScope,
-) : ReadaloudSidecarPrefetcher, ReadaloudSidecarCache {
+) : ReadaloudSidecarPrefetcher, ReadaloudSidecarCache, ReadaloudSidecarDownloads {
 
     constructor(
         context: Context,
@@ -179,27 +180,24 @@ class ReadaloudSidecarStore private constructor(
         _states.value = _states.value + (key(sourceId, bookId) to state)
     }
 
-    /** A prepared sidecar on disk — surfaced in the Downloads screen so the user can see/clear it. */
-    data class CachedSidecar(val storytellerSourceId: String, val storytellerBookId: String, val sizeBytes: Long)
-
     /** All cached sidecars. The filename is `<storytellerSourceId><KEY_SEPARATOR><storytellerBookId>.<SIDECAR_EXTENSION>`;
      *  the book id is numeric (no [KEY_SEPARATOR]), so the last separator splits it from the (UUID) server id. */
-    fun listCached(): List<CachedSidecar> =
+    override fun listCached(): List<ReadaloudSidecarDownloads.CachedSidecar> =
         dir().listFiles().orEmpty().filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }.mapNotNull { f ->
             val name = f.nameWithoutExtension
             val sourceId = name.substringBeforeLast(KEY_SEPARATOR, "")
             val bookId = name.substringAfterLast(KEY_SEPARATOR, "")
-            if (sourceId.isEmpty() || bookId.isEmpty()) null else CachedSidecar(sourceId, bookId, f.length())
+            if (sourceId.isEmpty() || bookId.isEmpty()) null else ReadaloudSidecarDownloads.CachedSidecar(sourceId, bookId, f.length())
         }
 
     /** Delete one prepared sidecar (it'll be re-prepared on the next open if still needed). */
-    fun remove(storytellerSourceId: String, storytellerBookId: String) {
+    override fun remove(storytellerSourceId: String, storytellerBookId: String) {
         fileFor(storytellerSourceId, storytellerBookId).delete()
         _states.value = _states.value - key(storytellerSourceId, storytellerBookId)
     }
 
     /** Delete every prepared sidecar. */
-    fun clearAll() {
+    override fun clearAll() {
         dir().listFiles().orEmpty().forEach { it.delete() }
         _states.value = emptyMap()
     }

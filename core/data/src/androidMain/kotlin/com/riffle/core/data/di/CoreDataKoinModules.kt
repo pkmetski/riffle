@@ -853,6 +853,7 @@ private val coreDataStreamingAudioModule = module {
     }
     single<ReadaloudSidecarPrefetcher> { get<ReadaloudSidecarStore>() }
     single<ReadaloudSidecarCache> { get<ReadaloudSidecarStore>() }
+    single<com.riffle.core.domain.ReadaloudSidecarDownloads> { get<ReadaloudSidecarStore>() }
 
     single {
         val ctx = androidContext()
