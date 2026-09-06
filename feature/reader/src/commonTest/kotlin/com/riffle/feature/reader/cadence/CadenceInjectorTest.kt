@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader.cadence
+package com.riffle.feature.reader.cadence
 
 import com.riffle.core.domain.SentenceQuote
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class CadenceInjectorTest {
 
@@ -44,7 +44,7 @@ class CadenceInjectorTest {
         // inner quotes with backslashes. The parser must undo that wrapping before parsing JSON.
         val raw = "\"{\\\"supported\\\":true,\\\"quotes\\\":{\\\"c.xhtml#cd-0\\\":{\\\"before\\\":\\\"\\\",\\\"highlight\\\":\\\"Hi.\\\",\\\"after\\\":\\\"\\\"}},\\\"chapterHrefs\\\":{\\\"c.xhtml#cd-0\\\":\\\"c.xhtml\\\"}}\""
         val out = CadenceInjector.parse(raw)
-        assertTrue("wrapped literal must parse, was $out", out is CadenceInjector.Result.Ready)
+        assertTrue(out is CadenceInjector.Result.Ready, "wrapped literal must parse, was $out")
         val r = out as CadenceInjector.Result.Ready
         assertEquals("Hi.", r.quotes["c.xhtml#cd-0"]?.highlight)
     }

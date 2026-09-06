@@ -1,10 +1,10 @@
-package com.riffle.app.feature.reader.cadence
+package com.riffle.feature.reader.cadence
 
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class DomSentenceSourceTest {
 
@@ -29,7 +29,7 @@ class DomSentenceSourceTest {
     }
 
     @Test
-    fun `supplyEmpty completes both maps as empty (Intl-Segmenter-missing WebView)`() = runTest {
+    fun `supplyEmpty completes both maps as empty - Intl-Segmenter-missing WebView`() = runTest {
         // Regression: when the WebView reports no `Intl.Segmenter` support, DomSentenceSource must
         // NOT hang — Cadence's session build calls supplyEmpty() and the top-bar icon simply
         // never appears. If this ever suspended, the reader would stall waiting for Cadence.
@@ -40,7 +40,7 @@ class DomSentenceSourceTest {
     }
 
     @Test
-    fun `second supplyResult call is ignored (idempotent per-book build)`() = runTest {
+    fun `second supplyResult call is ignored - idempotent per-book build`() = runTest {
         val source = DomSentenceSource()
         val first = mapOf("c#cd-0" to SentenceQuote(before = "", highlight = "A", after = ""))
         source.supplyResult(first, mapOf("c#cd-0" to "c"))

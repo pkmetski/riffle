@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader.cadence
+package com.riffle.feature.reader.cadence
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * String-level assertions on the JS Cadence injects into the reader WebView. We can't execute
@@ -16,7 +16,7 @@ class CadenceDomScriptTest {
     @Test
     fun `FEATURE_DETECT_JS probes Intl-Segmenter and only Intl-Segmenter`() {
         val js = CadenceDomScript.FEATURE_DETECT_JS
-        assertTrue("FEATURE_DETECT_JS must reference Intl.Segmenter", js.contains("Intl.Segmenter") || js.contains("Intl && window.Intl.Segmenter"))
+        assertTrue(js.contains("Intl.Segmenter") || js.contains("Intl && window.Intl.Segmenter"), "FEATURE_DETECT_JS must reference Intl.Segmenter")
         // Guard against accidentally probing a different global (`Intl.DateTimeFormat` etc.).
         // Regression: if this ever went to a false-positive gate, the top-bar toggle would appear
         // on WebViews where Cadence silently fails.
@@ -36,7 +36,7 @@ class CadenceDomScriptTest {
     fun `tokeniseChapterJs escapes single quotes in chapter href`() {
         val js = CadenceDomScript.tokeniseChapterJs("we're.xhtml", null)
         // Un-escaped quotes would break the JS parse — the escape must convert ' to \\'.
-        assertTrue("escaped ' expected in $js", js.contains("we\\'re.xhtml"))
+        assertTrue(js.contains("we\\'re.xhtml"), "escaped ' expected in $js")
     }
 
     @Test
@@ -76,13 +76,13 @@ class CadenceDomScriptTest {
         // as a string literal, DefaultRendererBridge.cadenceStartSpanId's JSONObject parse will
         // throw and every Start returns null → back to "starts on cd-0 of merged history".
         val js = CadenceDomScript.cadenceStartSpanIdJs()
-        assertTrue("must return JSON stringified payload", js.contains("JSON.stringify(dbg)"))
-        assertTrue("payload must carry an id key", js.contains("dbg.id"))
-        assertTrue("payload must carry a rule tag for logcat diagnostics", js.contains("dbg.rule"))
+        assertTrue(js.contains("JSON.stringify(dbg)"), "must return JSON stringified payload")
+        assertTrue(js.contains("dbg.id"), "payload must carry an id key")
+        assertTrue(js.contains("dbg.rule"), "payload must carry a rule tag for logcat diagnostics")
     }
 
     @Test
-    fun `cadenceStartSpanIdJs queries headings first, then falls back to visible sentence`() {
+    fun `cadenceStartSpanIdJs queries headings first - then falls back to visible sentence`() {
         // The start position is section-aware: rule (1) picks the first h1..h6 visible in the
         // viewport (document order), rule (2) picks the nearest preceding heading if none is
         // visible, rule (3) falls back to the first .riffle-cd visible in the viewport via the
@@ -91,15 +91,15 @@ class CadenceDomScriptTest {
         val js = CadenceDomScript.cadenceStartSpanIdJs()
         // Semantic HTML and ARIA — the two most-universal heading conventions must both be
         // covered. Semantic-only would miss books that render titles via ARIA on a <p>.
-        assertTrue("must enumerate semantic HTML headings", js.contains("'h1'") && js.contains("'h6'"))
-        assertTrue("must enumerate ARIA heading role", js.contains("[role=\"heading\"]"))
+        assertTrue(js.contains("'h1'") && js.contains("'h6'"), "must enumerate semantic HTML headings")
+        assertTrue(js.contains("[role=\"heading\"]"), "must enumerate ARIA heading role")
         // EPUB 3 structural semantics — many publisher toolchains omit h1..h6 and rely on
         // `epub:type` alone (see book "Philosophy of Software Design 2nd ed" which has zero
         // h1..h6 in its DOM).
-        assertTrue("must recognise epub:type=chapter", js.contains("epub\\\\:type~=\"chapter\""))
-        assertTrue("must recognise epub:type=title", js.contains("epub\\\\:type~=\"title\""))
-        assertTrue("must use elementsFromPoint (plural) as the rule 3 fallback", js.contains("elementsFromPoint"))
-        assertTrue("must identify .riffle-cd ancestors", js.contains("'riffle-cd'"))
+        assertTrue(js.contains("epub\\\\:type~=\"chapter\""), "must recognise epub:type=chapter")
+        assertTrue(js.contains("epub\\\\:type~=\"title\""), "must recognise epub:type=title")
+        assertTrue(js.contains("elementsFromPoint"), "must use elementsFromPoint (plural) as the rule 3 fallback")
+        assertTrue(js.contains("'riffle-cd'"), "must identify .riffle-cd ancestors")
     }
 
     @Test
@@ -121,10 +121,10 @@ class CadenceDomScriptTest {
         // (font-size / font-weight / numbered-section text) regresses, the resolver's Rules 1+2
         // won't fire on that class of books and Cadence starts on cd-N-of-random-viewport-top.
         val js = CadenceDomScript.tokeniseChapterJs("chapter1.xhtml", "en")
-        assertTrue("must tag heading-like parents", js.contains("'riffle-heading'"))
-        assertTrue("must sample font-size against body baseline", js.contains("baselineFontSize"))
-        assertTrue("must consider font-weight for bold heading paragraphs", js.contains("fontWeight"))
-        assertTrue("must detect numbered-section text pattern", js.contains("SECTION_NUMBER_RE"))
+        assertTrue(js.contains("'riffle-heading'"), "must tag heading-like parents")
+        assertTrue(js.contains("baselineFontSize"), "must sample font-size against body baseline")
+        assertTrue(js.contains("fontWeight"), "must consider font-weight for bold heading paragraphs")
+        assertTrue(js.contains("SECTION_NUMBER_RE"), "must detect numbered-section text pattern")
     }
 
     @Test
@@ -132,7 +132,7 @@ class CadenceDomScriptTest {
         // Pair with `tokeniseChapterJs tags heading-like parents`. If the resolver drops this
         // selector, the tokeniser's marker is dead weight and obfuscated-markup books regress.
         val js = CadenceDomScript.cadenceStartSpanIdJs()
-        assertTrue("must include the .riffle-heading marker in HEADING_SELECTOR", js.contains(".riffle-heading"))
+        assertTrue(js.contains(".riffle-heading"), "must include the .riffle-heading marker in HEADING_SELECTOR")
     }
 
     @Test
@@ -147,8 +147,8 @@ class CadenceDomScriptTest {
         // Kotlin build a chapter-authoritative ref.
         val js = CadenceDomScript.tokeniseChapterJs("chapter1.xhtml", "en")
         assertTrue(
-            "must stamp chapterHref onto documentElement",
             js.contains("setAttribute('data-riffle-chapter', chapterHref)"),
+            "must stamp chapterHref onto documentElement",
         )
     }
 
@@ -158,12 +158,12 @@ class CadenceDomScriptTest {
         // Kotlin parser falls back to bare-id output and the "wrong chapter" bug returns.
         val js = CadenceDomScript.cadenceStartSpanIdJs()
         assertTrue(
-            "must read the tokeniser-stamped chapter attribute back",
             js.contains("getAttribute('data-riffle-chapter')"),
+            "must read the tokeniser-stamped chapter attribute back",
         )
         assertTrue(
-            "must include the chapter field in the dbg payload",
             js.contains("chapter: chapter"),
+            "must include the chapter field in the dbg payload",
         )
     }
 
@@ -194,6 +194,6 @@ class CadenceDomScriptTest {
         // JS exception that leaves the reader in an inconsistent state.
         val js = CadenceDomScript.tokeniseChapterJs("chapter1.xhtml", "en")
         assertTrue(js.contains("catch"))
-        assertFalse("try-catch must not swallow silently — must return error field", !js.contains("supported: false"))
+        assertFalse(!js.contains("supported: false"), "try-catch must not swallow silently — must return error field")
     }
 }

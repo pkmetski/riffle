@@ -225,7 +225,7 @@ internal interface RendererBridge {
      * Run Cadence's DOM tokenisation script for [chapterHref] in the paged/vertical WebView and
      * return the raw JSON string it produces. See
      * [com.riffle.app.feature.reader.cadence.CadenceDomScript.tokeniseChapterJs] for the payload
-     * shape and [com.riffle.app.feature.reader.cadence.CadenceInjector.parse] for how the reader
+     * shape and [com.riffle.feature.reader.cadence.CadenceInjector.parse] for how the reader
      * consumes it. Null when the fragment is gone.
      */
     suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String?

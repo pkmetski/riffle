@@ -12,6 +12,7 @@ kotlin {
             api(project(":core:domain"))
             api(project(":core:models"))
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
