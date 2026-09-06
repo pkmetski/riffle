@@ -354,6 +354,57 @@ behaviour unchanged, declared via `Removed-test:` trailers. `RailCorpusTest` (2,
 corpus) **stays in `:app` jvmTest**: it loads JSON fixtures via `javaClass.getResourceAsStream` and
 `kotlinx.serialization`; it still pins the moved `buildRailSegments` through the shim.
 
+### Batch 5 (partial) — Cadence reader-glue cluster (DONE, #947)
+First category **B/D** triage batch. The Cadence sub-package (`com.riffle.app.feature.reader.cadence`)
+is the reader's word-cadence auto-follow: it produces the JS injected into the reader WebView,
+parses the JSON the WebView returns, and drives a `WpmTicker` from the tokenised sentence map. Per
+the §4 B/D rule, the JS-*producing* Kotlin and the JSON-*parsing* Kotlin are portable — the iOS
+reader injects the identical JS into its Readium-Swift/WebKit navigator — so the whole cluster moved
+to `feature/reader/commonMain` (package `com.riffle.feature.reader.cadence`), verified on **iOS + JVM**:
+
+- `CadenceController` (drives `WpmTicker`, pure coroutines + `core:domain`), `DomSentenceSource`
+  (`SentenceSource` handle, pure `CompletableDeferred`), `CadenceDomScript` (the injected JS strings +
+  `parseCadenceStartId`), `CadenceInjector` (WebView-JSON → typed maps), and the
+  `resolveCadenceStartRef` free function (extracted from `EpubReaderViewModel.kt`) → new
+  `CadenceStartRefResolver.kt`. `CadenceUi.kt` (a Compose Composable) stays in `:app`.
+- **Two JVM-only glue points isolated during the move:** `CadenceInjector.parse` and
+  `CadenceDomScript.parseCadenceStartId` used `org.json.JSONObject`; both were rewritten with
+  `kotlinx.serialization.json` (KMP-native, added to `feature/reader` `commonMain`). Parse behaviour
+  is pinned by `CadenceInjectorTest` (6) + `CadenceDomScriptTest` (18) — same asserts, both platforms.
+  The one diagnostic `android.util.Log.d(...)` line inside `parseCadenceStartId` (wrapped in
+  `runCatching`, not test-covered) was dropped — `feature/reader`'s JVM target has no Android SDK and
+  the log was diagnostic-only.
+- `:app` keeps thin `com.riffle.app.feature.reader.cadence` shims (typealias/forwarder). Consumers of
+  `CadenceInjector.Result` (nested type, which an object-typealias doesn't re-export) were repointed to
+  the new package in `EpubReaderScreen.kt`.
+
+Tests moved to `feature/reader/commonTest` (JUnit→`kotlin.test`, message args reordered last): 48
+tests total, **0 failures on iOS + JVM** — `CadenceControllerTest` (13), `CadenceDomScriptTest` (18),
+`CadenceInjectorTest` (6), `CadenceStartRefResolverTest` (8), `DomSentenceSourceTest` (3). Seven test
+names carried `,`/`()` (illegal in Kotlin/Native identifiers) — renamed (behaviour unchanged),
+declared via `Removed-test:` trailers.
+
+#### B/D triage roadmap — remaining 26 files
+First-pass classification from the production-class dependency scan (Android/Readium imports in the
+class-under-test). Each remaining cluster is its own follow-up PR under #947; verify the exact
+placement with a code read before moving, as several NOFILE rows test logic defined inside a larger
+Android class (e.g. `ContinuousReaderView`) that must be extracted first.
+
+- **Shared → `commonTest` (pure Kotlin / JS-string / DOM-math, no Android in the class-under-test):**
+  `ReaderWebViewScripts` (43), `FigureTapScript` (12), `EmphasisDomInjector` (2), `HighlightsDomPatch`
+  (13), `RendererCapability` (10), `ReturnNavigator` (5), `ContinuousPositionTracker` (76),
+  `ContinuousScriptInjector` (9), `ContinuousDecorationController` (13), `ContinuousModeLocator` (12).
+- **Shared with a small `expect/actual`/interface seam (1–2 Android imports to isolate, à la #946's
+  `uriPath`):** `ContinuousStyleInjector` (97, mostly JS strings), `ContinuousHighlightRenderer` (26).
+- **Readium/Presenter-coupled → assess seam vs iOS XCTest:** `ReadiumHighlightRenderer` (14),
+  `ReadiumPresenter` (5), `ContinuousPresenter` (18), `FakeReaderPresenter` (16),
+  `FragmentConfigurationMapper` (6), `ReadiumVersionPin` (1).
+- **Android-WebView/Fragment glue → iOS XCTest + scenario doc:** `ChapterWebViewBinder` (6),
+  `ChapterWebViewPageOwnership` (1), `ReaderFragmentCommitVariant` (2),
+  `ContinuousAnnotationFocusReflowRace` (11), `ContinuousCrossReferenceTap` (5),
+  `ContinuousPlayFromHere` (5), `ContinuousResumeTouchWiring` (2),
+  `CadenceController`/`Cadence*` — done above; `CadenceInjector`/`CadenceDomScript` done above.
+
 ## Appendix A — Full per-file matrix
 
 Status legend: ✅ covered on iOS · 🟡 partially / needs CI wiring · ❌ not covered.
@@ -398,6 +449,11 @@ All rows start at their category default; flip as batches land.
 - `CbzRailSegmentsTest` (13) — migrated from `:app` (#946)
 - `PdfRailSegmentsTest` (13) — migrated from `:app` (#946)
 - `RailSegmentInvariantTest` (1) — migrated from `:app` (#946)
+- `CadenceControllerTest` (13) — migrated from `:app` (#947)
+- `CadenceDomScriptTest` (18) — migrated from `:app` (#947)
+- `CadenceInjectorTest` (6) — migrated from `:app` (#947)
+- `CadenceStartRefResolverTest` (8) — migrated from `:app` (#947)
+- `DomSentenceSourceTest` (3) — migrated from `:app` (#947)
 
 **`feature/source`**
 
@@ -644,10 +700,10 @@ All rows start at their category default; flip as batches land.
 
 **`app`**
 
-- `CadenceControllerTest` (13)
-- `CadenceDomScriptTest` (18)
-- `CadenceInjectorTest` (6)
-- `CadenceStartRefResolverTest` (8)
+- `CadenceControllerTest` (13) — ✅ migrated to feature:reader commonTest (#947)
+- `CadenceDomScriptTest` (18) — ✅ migrated to feature:reader commonTest (#947)
+- `CadenceInjectorTest` (6) — ✅ migrated to feature:reader commonTest (#947)
+- `CadenceStartRefResolverTest` (8) — ✅ migrated to feature:reader commonTest (#947)
 - `ChapterWebViewBinderTest` (6)
 - `ChapterWebViewPageOwnershipTest` (1)
 - `ContinuousAnnotationFocusReflowRaceTest` (11)
@@ -661,7 +717,7 @@ All rows start at their category default; flip as batches land.
 - `ContinuousResumeTouchWiringTest` (2)
 - `ContinuousScriptInjectorTest` (9)
 - `ContinuousStyleInjectorTest` (97)
-- `DomSentenceSourceTest` (3)
+- `DomSentenceSourceTest` (3) — ✅ migrated to feature:reader commonTest (#947)
 - `EmphasisDomInjectorTest` (2)
 - `FakeReaderPresenterTest` (16)
 - `FigureTapScriptTest` (12)

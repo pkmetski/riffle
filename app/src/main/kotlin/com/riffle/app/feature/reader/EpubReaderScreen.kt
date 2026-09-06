@@ -603,16 +603,16 @@ fun EpubReaderScreen(
                                     ) { rawJson ->
                                         android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous tokenise rawLen=${rawJson?.length}")
                                         when (
-                                            val parsed = com.riffle.app.feature.reader.cadence
+                                            val parsed = com.riffle.feature.reader.cadence
                                                 .CadenceInjector.parse(rawJson)
                                         ) {
-                                            is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
+                                            is com.riffle.feature.reader.cadence.CadenceInjector.Result.Ready -> {
                                                 android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous READY quotes=${parsed.quotes.size}")
                                                 viewModel.onCadenceChapterTokenised(
                                                     parsed.quotes, parsed.chapterHrefs,
                                                 )
                                             }
-                                            com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
+                                            com.riffle.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
                                                 // Per-chapter parse failure — don't hide the icon.
                                                 android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous UNSUPPORTED — parse rejected this chapter's JSON")
                                             }
@@ -1933,13 +1933,13 @@ private fun EpubNavigatorView(
                             val rawJson = rendererBridge.evaluateCadenceTokenise(hrefForCadence, localeTag)
                             android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "tokenise rawLen=${rawJson?.length} head=${rawJson?.take(120)}")
                             when (
-                                val parsed = com.riffle.app.feature.reader.cadence.CadenceInjector.parse(rawJson)
+                                val parsed = com.riffle.feature.reader.cadence.CadenceInjector.parse(rawJson)
                             ) {
-                                is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
+                                is com.riffle.feature.reader.cadence.CadenceInjector.Result.Ready -> {
                                     android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "READY quotes=${parsed.quotes.size} hrefs=${parsed.chapterHrefs.size}")
                                     onCadenceChapterTokenised.invoke(parsed.quotes, parsed.chapterHrefs)
                                 }
-                                com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
+                                com.riffle.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
                                     // Per-chapter tokenisation failure — NOT a platform-support issue.
                                     // Leave the icon visible; the ticker will simply have nothing to
                                     // advance through until the user turns to a chapter that tokenises.

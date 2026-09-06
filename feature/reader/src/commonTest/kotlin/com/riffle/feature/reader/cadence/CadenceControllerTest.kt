@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.cadence
+package com.riffle.feature.reader.cadence
 
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
@@ -9,14 +9,15 @@ import com.riffle.core.domain.sentence.FragmentRef
 import com.riffle.core.domain.sentence.SentenceSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CadenceControllerTest {
@@ -29,7 +30,7 @@ class CadenceControllerTest {
     }
 
     private fun runController(
-        block: suspend kotlinx.coroutines.test.TestScope.(CadenceController) -> Unit,
+        block: suspend TestScope.(CadenceController) -> Unit,
     ) = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val controller = CadenceController(dispatcher)
@@ -98,7 +99,7 @@ class CadenceControllerTest {
     }
 
     @Test
-    fun `pauseFor(ReadaloudStarted) freezes cadence`() = runController { c ->
+    fun `pauseFor ReadaloudStarted freezes cadence`() = runController { c ->
         c.bind(FakeSource(listOf("c#s0" to "one two three four five six seven eight")))
         c.dispatch(CadenceEvent.Start)
         runCurrent()
@@ -108,7 +109,7 @@ class CadenceControllerTest {
     }
 
     @Test
-    fun `onExhausted fires when ticker drains this source, state stays Running for auto-advance`() = runController { c ->
+    fun `onExhausted fires when ticker drains this source - state stays Running for auto-advance`() = runController { c ->
         // Regression: state does NOT flip to Idle on chapter exhaustion — the caller navigates to
         // the next chapter and rebinds, and the [Running] state persists so ticking resumes
         // without a user tap. If this flipped back to Idle, chapter boundaries would stall
@@ -182,7 +183,7 @@ class CadenceControllerTest {
             "c#s2" to "third sentence extra",
         )))
         runCurrent()
-        assertEquals("Cadence must resume where it left off, not reset to cd-0", "c#s1", c.currentFragment.value)
+        assertEquals("c#s1", c.currentFragment.value, "Cadence must resume where it left off, not reset to cd-0")
     }
 
     @Test

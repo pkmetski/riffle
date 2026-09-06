@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Unit tests for [resolveCadenceStartRef] — Cadence's page-top start-position resolver.
@@ -14,7 +14,7 @@ import org.junit.Test
  * where the user actually is. Cadence would highlight that sentence, and Readium's decoration
  * engine would auto-scroll to reveal it — the "Cadence starts on a previous page" bug.
  *
- * If any assertion here flips, verify the fix in [EpubReaderViewModel.onCadencePageTopResolved]
+ * If any assertion here flips, verify the fix in `EpubReaderViewModel.onCadencePageTopResolved`
  * hasn't been reverted before touching the tests.
  */
 class CadenceStartRefResolverTest {
@@ -35,7 +35,7 @@ class CadenceStartRefResolverTest {
     }
 
     @Test
-    fun `null probe falls back to first cd of the current chapter, not cd-0 of the merged history`() {
+    fun `null probe falls back to first cd of the current chapter - not cd-0 of the merged history`() {
         // The bug: without this fallback the ticker starts at ch2.xhtml#cd-0 (cd-0 of the
         // merged history), which is on an earlier chapter. Assert we land on THIS chapter's
         // first fragment instead.
@@ -113,7 +113,7 @@ class CadenceStartRefResolverTest {
     }
 
     @Test
-    fun `full-ref probe not in knownRefs falls back using the probed chapter, not the stale Kotlin href`() {
+    fun `full-ref probe not in knownRefs falls back using the probed chapter - not the stale Kotlin href`() {
         // Regression (code-review finding 2026-07-07): when the guard rejects a candidate that
         // was built from the JS-provided chapter, the fallback used to re-query chapterHrefs by
         // the Kotlin [href] — the SAME lagging Readium locator whose lag the chapter-stamp was
