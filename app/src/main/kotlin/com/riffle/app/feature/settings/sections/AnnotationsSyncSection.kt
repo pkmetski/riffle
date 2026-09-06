@@ -9,9 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.AnnotationSyncBadge
-import com.riffle.app.feature.settings.AnnotationSyncRowState
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.app.feature.settings.resolve
+import com.riffle.feature.settings.AnnotationSyncRowState
 
 /**
  * WebDAV annotation-sync section — collapsed to a single drill-in row that leads to the dedicated
@@ -39,7 +40,7 @@ internal fun AnnotationsSyncSection(
         },
         supportingContent = {
             Text(
-                text = row.sub,
+                text = row.sub.resolve(),
                 color = when (row.subTone) {
                     AnnotationSyncRowState.Tone.Error -> MaterialTheme.colorScheme.error
                     AnnotationSyncRowState.Tone.Pending -> MaterialTheme.colorScheme.tertiary

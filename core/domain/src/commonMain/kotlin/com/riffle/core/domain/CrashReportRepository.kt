@@ -1,6 +1,5 @@
 package com.riffle.core.domain
 
-import java.io.File
 import com.riffle.core.models.CrashReport
 
 interface CrashReportRepository {
@@ -8,10 +7,10 @@ interface CrashReportRepository {
     fun listCrashReports(): List<CrashReport>
 
     /**
-     * Files backing each [CrashReport] in [ids], in the same order. Used by the Settings
-     * "Share" affordance to build an ACTION_SEND_MULTIPLE intent. Missing ids are skipped.
+     * File paths backing each [CrashReport] in [ids], in the same order. Used by the Settings
+     * "Share" affordance. Missing ids are skipped. Returns empty on platforms without crash files.
      */
-    fun resolveReportFiles(ids: List<String>): List<File>
+    fun resolveReportFilePaths(ids: List<String>): List<String>
 
     /** Removes every recorded crash. */
     fun clearAllCrashReports()

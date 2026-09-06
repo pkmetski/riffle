@@ -1,5 +1,6 @@
 package com.riffle.app.feature.settings
 
+import com.riffle.feature.settings.DeveloperOptionsTapCounter
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

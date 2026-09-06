@@ -21,7 +21,14 @@ class CrashReportRepositoryImpl constructor(
             .map { CrashReport(id = it.nameWithoutExtension, content = it.readText(), timestampMillis = it.lastModified()) }
     }
 
-    override fun resolveReportFiles(ids: List<String>): List<File> =
+    override fun resolveReportFilePaths(ids: List<String>): List<String> =
+        ids.mapNotNull { id ->
+            val f = File(reportDir, "$id.$EXT")
+            f.takeIf { it.isFile }?.absolutePath
+        }
+
+    /** Android-only: resolves crash report ids to [File] objects for ACTION_SEND_MULTIPLE intents. */
+    fun resolveReportFiles(ids: List<String>): List<File> =
         ids.mapNotNull { id ->
             val f = File(reportDir, "$id.$EXT")
             f.takeIf { it.isFile }

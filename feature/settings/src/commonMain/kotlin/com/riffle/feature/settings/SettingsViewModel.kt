@@ -1,79 +1,65 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.R
-import com.riffle.app.BuildConfig
-import com.riffle.app.feature.annotationsync.AnnotationSyncKind
-import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
+import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
+import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
+import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.LocalFilesFolderDao
+import com.riffle.core.database.LocalFilesFolderEntity
+import com.riffle.core.domain.AnnotationSyncConfig
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
-import com.riffle.core.domain.UpdateCheckResult
-import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
-import com.riffle.core.domain.comic.ComicFormattingPreferences
-import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
-import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.orderLibraries
-import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.models.Source
-import com.riffle.core.models.ServerType
-import com.riffle.core.sync.AnnotationSyncStatusStore
-import com.riffle.core.sync.CycleOutcome
-import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
-import com.riffle.core.data.localfiles.LocalFilesFolderRepository
-import com.riffle.core.data.localfiles.LocalFilesScanner
-import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
-import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.LocalFilesFolderDao
-import com.riffle.core.database.LocalFilesFolderEntity
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.UpdateCheckResult
+import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
-import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.comic.ComicFormattingPreferences
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.orderLibraries
+import com.riffle.core.models.CrashReport
+import com.riffle.core.models.HighlightColor
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** UI state for the at-a-glance "WebDAV" row in Settings (ADR 0043). */
-data class AnnotationSyncRowState(
-    val badge: Badge,
-    val headline: String,
-    val sub: String,
-    val subTone: Tone,
-) {
-    enum class Badge { Local, Synced, Pending, Error }
-    enum class Tone { Normal, Pending, Error }
-}
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModel constructor(
-    private val context: Context,
+    private val appVersion: AppVersion,
     private val crashReportRepository: CrashReportRepository,
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val sourceRepository: SourceRepository,
@@ -90,13 +76,12 @@ class SettingsViewModel constructor(
     private val appUpdatePreferencesStore: AppUpdatePreferencesStore,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val localFilesFolderDao: LocalFilesFolderDao,
-    private val localFilesFolderRepository: LocalFilesFolderRepository,
-    private val localFilesScanner: LocalFilesScanner,
-    private val localFilesSourceInstaller: LocalFilesSourceInstaller,
-    private val localFilesFolderHealthChecker: LocalFilesFolderHealthChecker,
+    private val localFilesFolderRepository: LocalFilesFolderRepositoryInterface,
+    private val localFilesScanner: LocalFilesScannerInterface,
+    private val localFilesFolderHealthChecker: LocalFilesFolderHealthCheckerInterface,
     private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
     private val developerOptionsRepository: com.riffle.core.domain.developer.DeveloperOptionsRepository,
-    annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
+    annotationSyncConfigStore: AnnotationSyncConfigStore,
     annotationSyncStatusStore: AnnotationSyncStatusStore,
     annotationDao: AnnotationDao,
 ) : ViewModel() {
@@ -115,7 +100,7 @@ class SettingsViewModel constructor(
     )
 
     private fun deriveRow(
-        config: com.riffle.core.domain.AnnotationSyncConfig?,
+        config: AnnotationSyncConfig?,
         outcome: CycleOutcome,
         pendingCount: Int,
     ): AnnotationSyncRowState {
@@ -131,26 +116,7 @@ class SettingsViewModel constructor(
             AnnotationSyncKind.Pending -> AnnotationSyncRowState.Tone.Pending
             AnnotationSyncKind.Error -> AnnotationSyncRowState.Tone.Error
         }
-        val identity = config?.let { "${it.username}@${shortHost(it.baseUrl)}" }
-        // NeverRun outranks a positive pending count so the row keeps saying
-        // "Waiting for first sync…" for a freshly-configured install — matching pre-refactor
-        // behavior. The kind is still Pending either way, so the badge stays in sync with the
-        // banner via [deriveAnnotationSyncKind].
-        val sub = when {
-            config == null -> context.getString(R.string.ui_webdav_not_configured_status)
-            outcome is CycleOutcome.NeverRun -> context.getString(R.string.ui_waiting_for_first_sync)
-            outcome is CycleOutcome.Failed.Auth -> context.getString(R.string.ui_webdav_auth_failed_reenter)
-            outcome is CycleOutcome.Failed.Tls -> context.getString(R.string.ui_webdav_tls_check_url)
-            outcome is CycleOutcome.Failed.Server ->
-                context.getString(R.string.ui_source_http_retry_short, outcome.code)
-            outcome is CycleOutcome.Failed.Unknown -> context.getString(R.string.ui_sync_failed_retry_short)
-            outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
-                context.getString(R.string.ui_books_pending_sync_online, pendingCount)
-            outcome is CycleOutcome.Failed.Network -> context.getString(R.string.ui_offline_sync_when_connected)
-            pendingCount > 0 -> context.getString(R.string.ui_books_pending_sync_online, pendingCount)
-            else -> context.getString(R.string.ui_synced_identity, identity)
-        }
-        return AnnotationSyncRowState(badge, "WebDAV", sub, subTone)
+        return AnnotationSyncRowState(badge, "WebDAV", deriveSubtitle(config, outcome, pendingCount), subTone)
     }
 
     private val _crashReports = MutableStateFlow(crashReportRepository.listCrashReports())
@@ -166,14 +132,15 @@ class SettingsViewModel constructor(
         _crashReports.value = emptyList()
     }
 
-    /** Files backing the currently-listed reports — used by the Settings "Share" button to
-     *  build an ACTION_SEND_MULTIPLE intent. Kept in the VM so the screen doesn't have to
-     *  hold the repository. */
-    fun crashReportFiles(): List<java.io.File> =
-        crashReportRepository.resolveReportFiles(_crashReports.value.map { it.id })
+    /**
+     * File paths backing the currently-listed reports — used by the Settings "Share" button to
+     * build a share intent. The UI layer converts paths to platform file types as needed.
+     */
+    fun crashReportFilePaths(): List<String> =
+        crashReportRepository.resolveReportFilePaths(_crashReports.value.map { it.id })
 
     /** The currently installed app version, shown as the update row's subtitle. */
-    val installedVersionName: String = BuildConfig.VERSION_NAME
+    val installedVersionName: String = appVersion.name
 
     val autoUpdateEnabled: StateFlow<Boolean> = appUpdatePreferencesStore.autoUpdateEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
@@ -181,7 +148,6 @@ class SettingsViewModel constructor(
     fun setAutoUpdateEnabled(value: Boolean) {
         viewModelScope.launch { appUpdatePreferencesStore.setAutoUpdateEnabled(value) }
     }
-
 
     private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
@@ -195,7 +161,7 @@ class SettingsViewModel constructor(
         }
         _appUpdateState.value = AppUpdateUiState.Checking
         viewModelScope.launch {
-            _appUpdateState.value = when (val result = appUpdateRepository.checkForUpdate(BuildConfig.VERSION_CODE)) {
+            _appUpdateState.value = when (val result = appUpdateRepository.checkForUpdate(appVersion.code)) {
                 is UpdateCheckResult.UpToDate -> AppUpdateUiState.UpToDate
                 is UpdateCheckResult.Failed -> AppUpdateUiState.Failed(result.message)
                 is UpdateCheckResult.UpdateAvailable ->
@@ -258,30 +224,19 @@ class SettingsViewModel constructor(
     val servers: StateFlow<List<Source>> = sourceRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * The singleton LocalFiles Source row if one has been installed (there is at most one per
-     * device — multi-folder lives inside it). Null before the first Add-Source LocalFiles pass.
-     */
     val localFilesSource: StateFlow<Source?> = servers
-        .map { list -> list.firstOrNull { it.type == com.riffle.core.models.SourceType.LOCAL_FILES } }
+        .map { list -> list.firstOrNull { it.type == SourceType.LOCAL_FILES } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /**
-     * Installed singleton web-source rows (Chitanka, Gutenberg, and any future web source with
-     * `WebSourceDescriptor.isSingleton == true` and no bespoke settings UI). Excludes ABS
-     * (multi-server) and LocalFiles (has its own folder-picker row [localFilesSource]). Each entry
-     * renders through the generic `SingletonWebSourceRow` — no per-source Kotlin surface here.
-     */
     val singletonWebSources: StateFlow<List<Source>> = servers
         .map { list ->
             list.filter { source ->
                 val descriptor = com.riffle.core.domain.WebSourceDescriptors.forType(source.type)
-                descriptor?.isSingleton == true && source.type != com.riffle.core.models.SourceType.LOCAL_FILES
+                descriptor?.isSingleton == true && source.type != SourceType.LOCAL_FILES
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Configured folder rows under the LocalFiles Source, reactive. Empty when no source yet. */
     val localFilesFolders: StateFlow<List<LocalFilesFolderEntity>> = localFilesSource
         .flatMapLatest { source ->
             if (source == null) MutableStateFlow(emptyList())
@@ -289,16 +244,6 @@ class SettingsViewModel constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * (treeUri → isHealthy) for every configured LocalFiles folder. Unhealthy folders had their
-     * persistable URI grant revoked by the user in system Settings; already-copied bytes stay
-     * readable, but rescanning and picking up new files needs a re-pick.
-     *
-     * Re-derives when the folder set changes OR when [refreshLocalFilesFolderHealth] is called —
-     * the Settings screen pokes it on Lifecycle.ON_RESUME so returning from system Settings picks
-     * up freshly-revoked grants without any user gesture. Without that trigger the map would go
-     * stale (the DB folder set didn't change; only the OS grant list did).
-     */
     private val folderHealthRefreshTicks = MutableStateFlow(0L)
     val localFilesFolderHealth: StateFlow<Map<String, Boolean>> = combine(
         localFilesFolders,
@@ -312,12 +257,10 @@ class SettingsViewModel constructor(
         folderHealthRefreshTicks.value = folderHealthRefreshTicks.value + 1L
     }
 
-    /** Ids of the configured Storyteller services, feeding the per-server readaloud summaries. */
     private val storytellerServerIds: StateFlow<List<String>> = servers
         .map { list -> list.filter { it.serverType == ServerType.STORYTELLER_SERVICE }.map { it.id } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Readaloud-matches counts (unmatched / suggested / partially matched / matched) per server. */
     val readaloudSummaries: StateFlow<Map<String, ReadaloudMatchSummary>> = storytellerServerIds
         .flatMapLatest { ids ->
             if (ids.isEmpty()) {
@@ -346,8 +289,6 @@ class SettingsViewModel constructor(
 
     init {
         viewModelScope.launch {
-            // Re-attempt whenever the server list changes or connectivity flips.
-            // See NavigationDrawerViewModel for why we don't gate on isOnline=true.
             combine(servers, connectivityObserver.isOnline) { srvs, _ -> srvs }
                 .collect { srvs ->
                     srvs.forEach { server ->
@@ -360,18 +301,10 @@ class SettingsViewModel constructor(
         }
     }
 
-    // Every browsable source contributes to the per-source library editor. Storyteller stays
-    // excluded (Settings-only, never browsable per ADR 0032) — its expansion shows a
-    // readaloud-matches summary instead of a library list.
     private val browsableSources: StateFlow<List<Source>> = servers
         .map { list -> list.filter { it.serverType != ServerType.STORYTELLER_SERVICE } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * Library visibility+order items keyed by source id, for every browsable source (ABS, Local
-     * Files, Chitanka, …). Libraries are read from the local DB per source, so a source need not
-     * be active to manage its libraries.
-     */
     val libraryUiItemsBySource: StateFlow<Map<String, List<LibraryUiItem>>> = browsableSources
         .flatMapLatest { list ->
             if (list.isEmpty()) {
@@ -456,8 +389,6 @@ class SettingsViewModel constructor(
             val removing = current.firstOrNull { it.id == sourceId } ?: return@launch
             sourceRepository.remove(sourceId)
             if (removing.isActive) {
-                // Promote the next browsable server. A Storyteller Source is never browsable
-                // (ADR 0032) and can never be active, so skip it when choosing the successor.
                 val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER_SERVICE }
                 if (next != null) {
                     sourceRepository.setActive(next.id)
@@ -475,22 +406,12 @@ class SettingsViewModel constructor(
         }
     }
 
-    /** Persist a new full ordering of [sourceId]'s libraries after a drag-reorder in Settings. */
     fun setLibraryOrder(sourceId: String, orderedLibraryIds: List<String>) {
         viewModelScope.launch { orderStore.setLibraryOrder(sourceId, orderedLibraryIds) }
     }
 
-    private fun shortHost(rawUrl: String): String =
-        runCatching { java.net.URI(rawUrl).host ?: rawUrl }.getOrDefault(rawUrl)
-
     // region LocalFiles folder management
 
-    /**
-     * Remove one configured LocalFiles folder from the singleton LocalFiles Source. Releases the
-     * SAF grant, deletes the folder row, then runs a scan so the sweep-stale pass hard-deletes
-     * every file that lived only in this folder (identity-hashed rows shared with another folder
-     * survive automatically). Callers confirm via a dialog.
-     */
     fun removeLocalFolder(treeUri: String) {
         val source = localFilesSource.value ?: return
         viewModelScope.launch {
@@ -499,10 +420,6 @@ class SettingsViewModel constructor(
         }
     }
 
-    /**
-     * Remove the entire LocalFiles Source (all folders, all copied-in files). Wired through the
-     * standard [removeServer] path so the cascade — DB, tokens, files-on-disk — stays uniform.
-     */
     fun removeLocalFilesSource() {
         localFilesSource.value?.id?.let { removeServer(it) }
     }
@@ -534,28 +451,4 @@ class SettingsViewModel constructor(
     }
 
     // endregion
-}
-
-/** Counts shown in a Storyteller service's expanded "Readaloud matches" summary (gradient order). */
-data class ReadaloudMatchSummary(
-    val unmatchedCount: Int,
-    val suggestedCount: Int,
-    val partiallyMatchedCount: Int,
-    val matchedCount: Int,
-)
-
-/** Drives the "App version" settings row: an inline status that the user advances by tapping. */
-sealed interface AppUpdateUiState {
-    /** No check run yet (or it was reset). */
-    data object Idle : AppUpdateUiState
-    data object Checking : AppUpdateUiState
-    data object UpToDate : AppUpdateUiState
-    data class UpdateAvailable(
-        val versionName: String,
-        val update: com.riffle.core.domain.AvailableUpdate,
-    ) : AppUpdateUiState
-    data class Downloading(val percent: Int) : AppUpdateUiState
-    /** APK downloaded; the system installer has been launched. */
-    data object Installing : AppUpdateUiState
-    data class Failed(val message: String) : AppUpdateUiState
 }

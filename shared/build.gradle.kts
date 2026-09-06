@@ -31,6 +31,7 @@ kotlin {
             implementation(project(":feature:downloads"))
             implementation(project(":feature:library"))
             implementation(project(":feature:reader"))
+            implementation(project(":feature:settings"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)

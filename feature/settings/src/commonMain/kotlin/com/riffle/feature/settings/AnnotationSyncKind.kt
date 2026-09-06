@@ -1,18 +1,12 @@
-package com.riffle.app.feature.annotationsync
+package com.riffle.feature.settings
 
-import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.domain.AnnotationSyncConfig
+import com.riffle.core.sync.CycleOutcome
 
 /**
- * Single source of truth for the WebDAV sync "kind" (Local / Synced / Pending / Error) rendered by
- * the main Settings row ([com.riffle.app.feature.settings.SettingsViewModel.annotationSyncRow]) and
- * the AddServer WebDAV banner
- * ([com.riffle.app.feature.server.AddSourceViewModel.webdavBanner]).
- *
- * Both surfaces observe the same singleton [com.riffle.core.sync.AnnotationSyncStatusStore] and the
- * same pending-book count, and both call this function to decide their badge/kind — so the two
- * views cannot contradict each other. Adding a new rule (e.g. degrading Success → Pending while
- * books are unsynced) is done here so both places pick it up.
+ * Single source of truth for the WebDAV sync "kind" rendered by the Settings row and the
+ * AddServer WebDAV banner. Both surfaces observe the same singleton [com.riffle.core.sync.AnnotationSyncStatusStore]
+ * and the same pending-book count, and both call this function — so the two views cannot contradict each other.
  */
 enum class AnnotationSyncKind { Local, Synced, Pending, Error }
 

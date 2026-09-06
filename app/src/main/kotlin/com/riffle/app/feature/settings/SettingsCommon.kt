@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.settings.AnnotationSyncRowState
 
 /**
  * The colored header + divider pair that opens every top-level section on the Settings screen.

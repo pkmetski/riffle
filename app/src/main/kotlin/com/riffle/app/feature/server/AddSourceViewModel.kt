@@ -9,8 +9,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
-import com.riffle.app.feature.annotationsync.AnnotationSyncKind
-import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
+import com.riffle.feature.settings.AnnotationSyncKind
+import com.riffle.feature.settings.deriveAnnotationSyncKind
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.domain.ReadaloudLinkReconciler

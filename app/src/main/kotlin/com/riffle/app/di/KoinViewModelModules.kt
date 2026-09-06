@@ -1,6 +1,7 @@
 package com.riffle.app.di
 
 import com.riffle.feature.library.AnnotationsListViewModel
+import com.riffle.app.BuildConfig
 import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
@@ -29,7 +30,8 @@ import com.riffle.app.feature.server.AddSourceViewModel
 import com.riffle.app.feature.server.SelectLibrariesViewModel
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
-import com.riffle.app.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.AppVersion
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.app.feature.settings.debug.DebugLogViewModel
 import com.riffle.app.feature.settings.dictionary.DictionaryPacksViewModel
@@ -60,8 +62,11 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
+import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
+import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.data.localfiles.LocalFilesScanner
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
@@ -300,9 +305,29 @@ private val navigationViewModelModule = module {
 }
 
 private val settingsViewModelModule = module {
+    single<AppVersion> { AppVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE) }
+    single<LocalFilesScannerInterface> {
+        val scanner = get<LocalFilesScanner>()
+        object : LocalFilesScannerInterface {
+            override suspend fun scan(sourceId: String) { scanner.scan(sourceId) }
+        }
+    }
+    single<LocalFilesFolderRepositoryInterface> {
+        val folderRepo = get<LocalFilesFolderRepository>()
+        object : LocalFilesFolderRepositoryInterface {
+            override suspend fun removeFolder(sourceId: String, treeUri: String) =
+                folderRepo.removeFolder(sourceId, treeUri)
+        }
+    }
+    single<LocalFilesFolderHealthCheckerInterface> {
+        val healthChecker = get<LocalFilesFolderHealthChecker>()
+        object : LocalFilesFolderHealthCheckerInterface {
+            override fun healthFor(treeUris: Collection<String>) = healthChecker.healthFor(treeUris)
+        }
+    }
     viewModel {
         SettingsViewModel(
-            context = androidContext(),
+            appVersion = get(),
             crashReportRepository = get(),
             formattingPreferencesStore = get(),
             sourceRepository = get(),
@@ -321,7 +346,6 @@ private val settingsViewModelModule = module {
             localFilesFolderDao = get(),
             localFilesFolderRepository = get(),
             localFilesScanner = get(),
-            localFilesSourceInstaller = get(),
             localFilesFolderHealthChecker = get(),
             comicFormattingPreferencesStore = get(),
             developerOptionsRepository = get(),

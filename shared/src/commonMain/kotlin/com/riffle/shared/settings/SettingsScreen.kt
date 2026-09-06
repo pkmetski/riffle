@@ -20,12 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.AppTheme
+import com.riffle.feature.settings.SettingsViewModel
 import org.koin.compose.koinInject
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val viewModel = koinInject<SettingsViewModel>()
-    val state by viewModel.uiState.collectAsState()
+    val appTheme by viewModel.appTheme.collectAsState()
+    val servers by viewModel.servers.collectAsState()
 
     Column(
         modifier = Modifier
@@ -50,15 +52,15 @@ fun SettingsScreen(onBack: () -> Unit) {
 
         // Sources section
         SectionHeader("Sources")
-        if (state.sources.isEmpty()) {
+        if (servers.isEmpty()) {
             SettingsRow("No sources configured")
         } else {
-            state.sources.forEach { source ->
+            servers.forEach { source ->
                 SettingsRow(
                     label = source.serverType.label,
                     subtitle = source.url.authority(),
                     trailing = "Remove",
-                    onTrailingClick = { viewModel.removeSource(source.id) },
+                    onTrailingClick = { viewModel.removeServer(source.id) },
                 )
             }
         }
@@ -67,7 +69,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         SectionHeader("Appearance")
         SettingsRow(
             label = "App Theme",
-            subtitle = state.appTheme.label(),
+            subtitle = appTheme.label(),
         )
         Row(
             modifier = Modifier
@@ -79,7 +81,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     text = theme.label(),
                     style = TextStyle(
                         fontSize = 13.sp,
-                        color = if (state.appTheme == theme) Color(0xFF1565C0) else Color.DarkGray,
+                        color = if (appTheme == theme) Color(0xFF1565C0) else Color.DarkGray,
                     ),
                     modifier = Modifier
                         .clickable { viewModel.setAppTheme(theme) }
