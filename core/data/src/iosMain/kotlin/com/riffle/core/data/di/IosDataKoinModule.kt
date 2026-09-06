@@ -13,8 +13,10 @@ import com.riffle.core.data.localfiles.IosFolderWalker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.IosLocalFilesSourceInstaller
+import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.comic.panel.ColorPageDecoder
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.TokenStorage
@@ -33,4 +35,5 @@ val iosDataModule = module {
     single { IosLocalFilesFolderRepository(get(), get(), get()) }
     single<LocalFilesInstallerInterface> { IosLocalFilesSourceInstaller(get(), get(), get()) }
     single<DeviceIdStore> { IosDeviceIdStoreImpl() }
+    single<ColorPageDecoder> { IosColorPageDecoder() }
 }

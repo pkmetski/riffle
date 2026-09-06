@@ -30,9 +30,11 @@ import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.resolveComicBackgroundTheme
+import com.riffle.core.domain.comic.panel.ColorPageDecoder
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelEngine
+import com.riffle.core.domain.comic.panel.comicSeamEnergySampler
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOverflowTransform
 import com.riffle.core.domain.comic.panel.PanelRegion
@@ -41,11 +43,7 @@ import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.usecase.UpdateReadingProgress
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Color
 import java.io.File
-import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,6 +86,7 @@ class CbzReaderViewModel constructor(
     private val bookComicFormattingPreferencesStore: BookComicFormattingPreferencesStore,
     private val developerOptionsRepository: DeveloperOptionsRepository,
     private val appearanceCoordinator: AppearanceCoordinator,
+    private val colorPageDecoder: ColorPageDecoder,
     val panelReportRepository: PanelReportRepository,
 ) : AndroidViewModel(application) {
 
@@ -163,12 +162,8 @@ class CbzReaderViewModel constructor(
         _viewportSize.value = w to h
     }
 
-    /** Low-resolution page bitmap sampler for SMART_SPLIT seam detection. */
+    /** Low-resolution page colour-image sampler for SMART_SPLIT seam detection. */
     private val _energySampler = MutableStateFlow<EnergySamplerState>(EnergySamplerState.Resolved(null))
-    // Strong reference to the bitmap captured by the current sampler lambda so it can be
-    // explicitly recycled on page change or ViewModel teardown. API-25 allocates bitmaps in
-    // native memory outside the GC heap, so waiting for GC to collect them causes OOM.
-    @Volatile private var energySamplerBitmap: Bitmap? = null
 
     private val _currentPagePanels = MutableStateFlow<PagePanels?>(null)
     /**
@@ -589,11 +584,6 @@ class CbzReaderViewModel constructor(
         // Cancel any prior in-flight resolve/prefetch so a stale coroutine can't clobber
         // `_currentPagePanels` with an older page's result under rapid navigation.
         panelResolveJob?.cancel()
-        // Recycle before replacing — sampler lambda holds a strong bitmap ref; once the state
-        // no longer exposes it, the combine in effectivePanels can't call it, so the recycle
-        // is safe.
-        energySamplerBitmap?.let { if (!it.isRecycled) it.recycle() }
-        energySamplerBitmap = null
         // Pending only when a seam decode will actually follow (SMART_SPLIT); otherwise mark
         // resolved immediately so effectivePanels never holds waiting for a decode that will
         // never run.
@@ -632,12 +622,10 @@ class CbzReaderViewModel constructor(
                 if (archiveClosed || _currentPage.value != pageIndex) {
                     // Page moved on while we scanned — this result belongs to a page that is no
                     // longer current; publishing it would release the new page's hold with a
-                    // stale seam and clobber the tracked bitmap.
-                    computed?.second?.let { if (!it.isRecycled) it.recycle() }
+                    // stale seam.
                     return@launch
                 }
-                energySamplerBitmap = computed?.second
-                _energySampler.value = EnergySamplerState.Resolved(computed?.first)
+                _energySampler.value = EnergySamplerState.Resolved(computed)
             }
             // Prefetch the next two pages.
             withContext(Dispatchers.Default) {
@@ -716,101 +704,25 @@ class CbzReaderViewModel constructor(
         panelResolveJob?.cancel()
         archive?.close()
         archive = null
-        energySamplerBitmap?.let { if (!it.isRecycled) it.recycle() }
-        energySamplerBitmap = null
     }
 
     /**
-     * Returns the seam-energy sampler and the low-res bitmap it reads, or null when the page
-     * can't be decoded. The CALLER owns the bitmap: register it in [energySamplerBitmap] when
-     * the page is still current, or recycle it immediately when it's stale — this function must
-     * not touch the field itself, or a stale compute could clobber the tracked bitmap.
+     * Returns the SMART_SPLIT seam-energy sampler for [pageIndex], or null when the page can't be
+     * decoded. The android.graphics decode now lives behind [ColorPageDecoder] (Android:
+     * BitmapFactory; iOS: CoreGraphics) and the pixel-gradient math in
+     * [comicSeamEnergySampler] — both shared in commonMain — so there is no `Bitmap` to hold or
+     * recycle: the decoder returns a heap-allocated colour image the sampler closes over, which the
+     * GC reclaims once the page changes.
      */
     private fun computeEnergySampler(
         pageIndex: Int,
         imageWidth: Int,
         imageHeight: Int,
-    ): Pair<(PanelRegion, Boolean) -> FloatArray, Bitmap>? {
+    ): ((panel: PanelRegion, splitHorizontally: Boolean) -> FloatArray)? {
         val source = (_state.value as? CbzReaderState.Ready)?.imageSource ?: return null
-        // Bounds-only pass.
-        val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        try { source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, boundsOpts) } }
-        catch (_: Throwable) { return null }
-        val sampleSize = run {
-            val target = 300
-            var s = 1
-            while (maxOf(boundsOpts.outWidth, boundsOpts.outHeight) / (s * 2) >= target) s *= 2
-            s
-        }
-        val bitmap = try {
-            source.openStream(pageIndex).use { stream ->
-                BitmapFactory.decodeStream(stream, null, BitmapFactory.Options().apply { inSampleSize = sampleSize })
-            }
-        } catch (_: Throwable) { null } ?: return null
-
-        val scaleX = bitmap.width.toFloat() / imageWidth
-        val scaleY = bitmap.height.toFloat() / imageHeight
-        // The split axis is decided by PanelOverflowTransform (max zoom gain), not here — the
-        // sampler just computes energies along whichever axis the transform asks for.
-        val sampler: (PanelRegion, Boolean) -> FloatArray = { panel, splitHorizontally ->
-            if (splitHorizontally) columnEnergies(bitmap, panel, scaleX, scaleY)
-            else rowEnergies(bitmap, panel, scaleX, scaleY)
-        }
-        return sampler to bitmap
-    }
-
-    private fun columnEnergies(
-        bitmap: Bitmap,
-        panel: PanelRegion,
-        scaleX: Float,
-        scaleY: Float,
-    ): FloatArray {
-        val bmpX = (panel.x * scaleX).toInt().coerceIn(0, bitmap.width - 1)
-        val bmpW = (panel.width * scaleX).toInt().coerceAtLeast(1).coerceAtMost(bitmap.width - bmpX)
-        val bmpY = (panel.y * scaleY).toInt().coerceIn(0, bitmap.height - 1)
-        val bmpH = (panel.height * scaleY).toInt().coerceAtLeast(1).coerceAtMost(bitmap.height - bmpY)
-        if (bmpW == 0 || bmpH < 2) return FloatArray(bmpW)
-        val pixels = IntArray(bmpW * bmpH)
-        bitmap.getPixels(pixels, 0, bmpW, bmpX, bmpY, bmpW, bmpH)
-        return FloatArray(bmpW) { col ->
-            var energy = 0f
-            for (row in 0 until bmpH - 1) {
-                val p1 = pixels[row * bmpW + col]
-                val p2 = pixels[(row + 1) * bmpW + col]
-                val dr = Color.red(p1) - Color.red(p2)
-                val dg = Color.green(p1) - Color.green(p2)
-                val db = Color.blue(p1) - Color.blue(p2)
-                energy += sqrt((dr * dr + dg * dg + db * db).toFloat())
-            }
-            energy
-        }
-    }
-
-    private fun rowEnergies(
-        bitmap: Bitmap,
-        panel: PanelRegion,
-        scaleX: Float,
-        scaleY: Float,
-    ): FloatArray {
-        val bmpX = (panel.x * scaleX).toInt().coerceIn(0, bitmap.width - 1)
-        val bmpW = (panel.width * scaleX).toInt().coerceAtLeast(1).coerceAtMost(bitmap.width - bmpX)
-        val bmpY = (panel.y * scaleY).toInt().coerceIn(0, bitmap.height - 1)
-        val bmpH = (panel.height * scaleY).toInt().coerceAtLeast(1).coerceAtMost(bitmap.height - bmpY)
-        if (bmpH == 0 || bmpW < 2) return FloatArray(bmpH)
-        val pixels = IntArray(bmpW * bmpH)
-        bitmap.getPixels(pixels, 0, bmpW, bmpX, bmpY, bmpW, bmpH)
-        return FloatArray(bmpH) { row ->
-            var energy = 0f
-            for (col in 0 until bmpW - 1) {
-                val p1 = pixels[row * bmpW + col]
-                val p2 = pixels[row * bmpW + col + 1]
-                val dr = Color.red(p1) - Color.red(p2)
-                val dg = Color.green(p1) - Color.green(p2)
-                val db = Color.blue(p1) - Color.blue(p2)
-                energy += sqrt((dr * dr + dg * dg + db * db).toFloat())
-            }
-            energy
-        }
+        val bytes = runCatching { source.imageBytes(pageIndex) }.getOrNull() ?: return null
+        val image = colorPageDecoder.decode(bytes, targetLongEdge = 300) ?: return null
+        return comicSeamEnergySampler(image, imageWidth, imageHeight)
     }
 }
 

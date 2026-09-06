@@ -592,6 +592,7 @@ private val readerViewModelModule = module {
             bookComicFormattingPreferencesStore = get(),
             developerOptionsRepository = get(),
             appearanceCoordinator = get(),
+            colorPageDecoder = get(),
             panelReportRepository = get(),
         )
     }
