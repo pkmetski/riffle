@@ -16,6 +16,8 @@ import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.CbzDownloadResult
+import com.riffle.core.domain.CbzLocalSource
+import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
@@ -101,6 +103,7 @@ internal class IosNoOpPdfRepository : PdfRepository {
 }
 
 internal class IosNoOpCbzRepository : CbzRepository {
+    override suspend fun openCbz(item: LibraryItem): CbzOpenResult = CbzOpenResult.Offline
     override suspend fun downloadCbz(item: LibraryItem, onProgress: (Long, Long) -> Unit): CbzDownloadResult =
         CbzDownloadResult.AlreadyDownloaded
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -110,6 +113,7 @@ internal class IosNoOpCbzRepository : CbzRepository {
     override suspend fun supportsStreaming(sourceId: String): Boolean = false
     override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray =
         ByteArray(0)
+    override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
 }
 
 internal class IosNoOpReadaloudAudioRepository : ReadaloudAudioRepository {

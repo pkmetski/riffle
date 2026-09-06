@@ -19,4 +19,5 @@ internal class NoopCbzRepository(
     override suspend fun supportsStreaming(sourceId: String): Boolean = false
     override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray = error("unused in test")
     override suspend fun awaitCachedSource(item: com.riffle.core.models.LibraryItem): com.riffle.core.domain.CbzLocalSource? = null
+    override suspend fun awaitCachedFile(item: com.riffle.core.models.LibraryItem): java.io.File? = null
 }
