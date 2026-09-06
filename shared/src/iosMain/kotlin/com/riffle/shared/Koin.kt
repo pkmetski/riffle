@@ -106,15 +106,11 @@ import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosNoOpAppearanceCoordinator
 import com.riffle.shared.reader.IosNoOpBookComicFormattingPreferencesStore
-import com.riffle.shared.reader.IosNoOpComicFormattingPreferencesStore
-import com.riffle.shared.reader.IosNoOpDeveloperOptionsRepository
 import com.riffle.shared.reader.IosNoOpLibraryMutator
 import com.riffle.shared.reader.IosNoOpPanelMaskService
 import com.riffle.shared.reader.IosNoOpPanelReportRepository
 import com.riffle.shared.reader.IosNoOpPanelViewPreferencesStore
 import com.riffle.shared.reader.IosNoOpReadingSessionRepository
-import com.riffle.shared.reader.IosNoOpVolumeKeyPreferencesStore
-import com.riffle.shared.reader.IosNoOpWakeLockPreferencesStore
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
@@ -174,13 +170,9 @@ private fun iosLibraryModule(
     single<ReadingSessionRepository> { IosNoOpReadingSessionRepository }
     single<LibraryMutator> { IosNoOpLibraryMutator }
     single { UpdateReadingProgress(get()) }
-    single<WakeLockPreferencesStore> { IosNoOpWakeLockPreferencesStore }
-    single<VolumeKeyPreferencesStore> { IosNoOpVolumeKeyPreferencesStore }
     single<PanelMaskService> { IosNoOpPanelMaskService }
     single<PanelViewPreferencesStore> { IosNoOpPanelViewPreferencesStore }
-    single<ComicFormattingPreferencesStore> { IosNoOpComicFormattingPreferencesStore }
     single<BookComicFormattingPreferencesStore> { IosNoOpBookComicFormattingPreferencesStore }
-    single<DeveloperOptionsRepository> { IosNoOpDeveloperOptionsRepository }
     single<AppearanceCoordinator> { IosNoOpAppearanceCoordinator }
     single<PanelReportRepository> { IosNoOpPanelReportRepository }
     single { VolumeNavigationController() }

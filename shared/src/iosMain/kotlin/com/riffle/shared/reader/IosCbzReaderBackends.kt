@@ -8,16 +8,12 @@ import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.domain.VolumeKeyPreferencesStore
-import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
 import com.riffle.core.domain.appearance.ResolvedAppearance
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
-import com.riffle.core.domain.comic.ComicFormattingPreferences
-import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
@@ -25,7 +21,6 @@ import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
-import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.models.SessionPayload
@@ -164,18 +159,6 @@ internal object IosNoOpLibraryMutator : LibraryMutator {
     override suspend fun deleteItem(sourceId: String, itemId: String) {}
 }
 
-internal object IosNoOpWakeLockPreferencesStore : WakeLockPreferencesStore {
-    override val keepScreenOn: Flow<Boolean> = flowOf(true)
-    override suspend fun setKeepScreenOn(value: Boolean) {}
-}
-
-internal object IosNoOpVolumeKeyPreferencesStore : VolumeKeyPreferencesStore {
-    override val volumeKeyNavigationEnabled: Flow<Boolean> = flowOf(true)
-    override val invertVolumeKeys: Flow<Boolean> = flowOf(false)
-    override suspend fun setVolumeKeyNavigationEnabled(value: Boolean) {}
-    override suspend fun setInvertVolumeKeys(value: Boolean) {}
-}
-
 internal object IosNoOpPanelMaskService : PanelMaskService {
     override suspend fun generateMask(
         pageIndex: Int,
@@ -190,24 +173,12 @@ internal object IosNoOpPanelViewPreferencesStore : PanelViewPreferencesStore {
     override suspend fun setPanelViewOn(bookId: String, on: Boolean) {}
 }
 
-internal object IosNoOpComicFormattingPreferencesStore : ComicFormattingPreferencesStore {
-    override val preferences: Flow<ComicFormattingPreferences> = flowOf(ComicFormattingPreferences())
-    override suspend fun update(prefs: ComicFormattingPreferences) {}
-}
-
 internal object IosNoOpBookComicFormattingPreferencesStore : BookComicFormattingPreferencesStore {
     override fun overrides(bookId: String): Flow<BookComicFormattingOverrides> =
         flowOf(BookComicFormattingOverrides())
 
     override suspend fun save(bookId: String, overrides: BookComicFormattingOverrides) {}
     override suspend fun reset(bookId: String) {}
-}
-
-internal object IosNoOpDeveloperOptionsRepository : DeveloperOptionsRepository {
-    override val developerModeEnabled: Flow<Boolean> = flowOf(false)
-    override suspend fun setDeveloperModeEnabled(enabled: Boolean) {}
-    override suspend fun getGithubPat(): String? = null
-    override suspend fun setGithubPat(pat: String?) {}
 }
 
 internal object IosNoOpAppearanceCoordinator : AppearanceCoordinator {
