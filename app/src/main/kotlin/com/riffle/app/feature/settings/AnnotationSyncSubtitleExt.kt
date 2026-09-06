@@ -15,7 +15,7 @@ internal fun AnnotationSyncSubtitle.resolve(): String = when (this) {
         stringResource(R.string.ui_webdav_auth_failed_reenter)
     is AnnotationSyncSubtitle.TlsError ->
         stringResource(R.string.ui_webdav_tls_check_url)
-    is AnnotationSyncSubtitle.ServerError ->
+    is AnnotationSyncSubtitle.HttpError ->
         stringResource(R.string.ui_source_http_retry_short, code)
     is AnnotationSyncSubtitle.SyncFailed ->
         stringResource(R.string.ui_sync_failed_retry_short)

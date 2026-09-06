@@ -32,7 +32,7 @@ sealed class AnnotationSyncSubtitle {
     data object TlsError : AnnotationSyncSubtitle()
 
     /** Last cycle ended with an HTTP server error. */
-    data class ServerError(val code: Int) : AnnotationSyncSubtitle()
+    data class HttpError(val code: Int) : AnnotationSyncSubtitle()
 
     /** Last cycle ended with an unknown/generic failure. */
     data object SyncFailed : AnnotationSyncSubtitle()
@@ -60,7 +60,7 @@ internal fun deriveSubtitle(
         outcome is CycleOutcome.NeverRun -> AnnotationSyncSubtitle.WaitingForFirstSync
         outcome is CycleOutcome.Failed.Auth -> AnnotationSyncSubtitle.AuthFailed
         outcome is CycleOutcome.Failed.Tls -> AnnotationSyncSubtitle.TlsError
-        outcome is CycleOutcome.Failed.Server -> AnnotationSyncSubtitle.ServerError(outcome.code)
+        outcome is CycleOutcome.Failed.Server -> AnnotationSyncSubtitle.HttpError(outcome.code)
         outcome is CycleOutcome.Failed.Unknown -> AnnotationSyncSubtitle.SyncFailed
         outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
             AnnotationSyncSubtitle.BooksPendingOffline(pendingCount)
