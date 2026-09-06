@@ -3,6 +3,7 @@ package com.riffle.app.feature.library
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.TocRepository
@@ -34,7 +35,7 @@ class ExtractEpubTocUseCaseCacheTest {
     private fun makeUseCase(
         tocRepo: TocRepository,
         metricsRepo: PublicationMetricsRepository,
-        epubRepo: EpubRepository = mockk(), // never called on full cache hit
+        epubRepo: JvmEpubRepository = mockk(), // never called on full cache hit
     ) = ExtractEpubTocUseCase(
         epubRepository = epubRepo,
         publicationOpener = mockk<PublicationOpener>(),
@@ -88,7 +89,7 @@ class ExtractEpubTocUseCaseCacheTest {
         coEvery { metricsRepo.get("src-1", "item-1") } returns
             PublicationMetrics(ebookFileIno = inode, totalPositions = 100, epubVersion = null)
 
-        val epubRepo = mockk<EpubRepository>()
+        val epubRepo = mockk<JvmEpubRepository>()
         // openEpub fails (file not cached) — extraction falls through but epub wasn't accessible
         coEvery { epubRepo.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("unavailable"))

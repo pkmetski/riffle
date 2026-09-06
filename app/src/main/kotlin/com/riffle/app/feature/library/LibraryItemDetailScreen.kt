@@ -101,7 +101,16 @@ import com.riffle.app.ui.isTabletLayout
 import com.riffle.app.ui.source.asAuthHeader
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.BookImportState
+import com.riffle.feature.library.ChaptersState
+import com.riffle.feature.library.DetailCapabilities
+import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.FacetType
+import com.riffle.feature.library.LibraryItemDetailUiState
+import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.library.TocState
+import com.riffle.feature.library.UploadDestination
+import com.riffle.feature.library.UploadPreflight
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 

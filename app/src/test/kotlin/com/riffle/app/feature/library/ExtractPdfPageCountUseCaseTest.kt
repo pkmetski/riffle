@@ -1,6 +1,7 @@
 package com.riffle.app.feature.library
 
 import android.net.Uri
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.PublicationMetrics
@@ -31,7 +32,7 @@ import org.readium.r2.streamer.PublicationOpener
 
 class ExtractPdfPageCountUseCaseTest {
 
-    private val pdfRepository = mockk<PdfRepository>()
+    private val pdfRepository = mockk<JvmPdfRepository>()
     private val metricsRepository = mockk<PublicationMetricsRepository>()
     private val publicationOpener = mockk<PublicationOpener>()
     private val assetRetriever = mockk<AssetRetriever>()

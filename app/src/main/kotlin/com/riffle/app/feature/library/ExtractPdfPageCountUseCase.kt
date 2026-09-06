@@ -1,7 +1,7 @@
 package com.riffle.app.feature.library
 
 import com.riffle.core.domain.PdfOpenResult
-import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.models.LibraryItem
@@ -12,7 +12,7 @@ import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
 
 class ExtractPdfPageCountUseCase constructor(
-    private val pdfRepository: PdfRepository,
+    private val pdfRepository: JvmPdfRepository,
     private val publicationOpener: PublicationOpener,
     private val assetRetriever: AssetRetriever,
     private val publicationMetricsRepository: PublicationMetricsRepository,

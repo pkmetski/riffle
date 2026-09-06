@@ -22,6 +22,9 @@ import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.JvmAudiobookCacheRepository
+import com.riffle.core.domain.JvmAudiobookDownloadRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
@@ -405,7 +408,7 @@ class SleepTimerTest {
         override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) {}
     }
 
-    private object NoDownloadRepo : AudiobookDownloadRepository {
+    private object NoDownloadRepo : JvmAudiobookDownloadRepository {
         override fun isDownloaded(sourceId: String, itemId: String) = false
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(
@@ -421,7 +424,7 @@ class SleepTimerTest {
         override fun isAvailableOffline(sourceId: String, itemId: String) = false
     }
 
-    private object NoCacheRepo : com.riffle.core.domain.AudiobookCacheRepository {
+    private object NoCacheRepo : JvmAudiobookCacheRepository {
         override fun isCached(sourceId: String, itemId: String) = false
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun awaitCachedAudiobook(sourceId: String, itemId: String, session: AudiobookSession) = Unit
@@ -523,7 +526,7 @@ class SleepTimerTest {
         override suspend fun countForSource(sourceId: String): Int = 0
     }
 
-    private object FakeAudioRepo : ReadaloudAudioRepository {
+    private object FakeAudioRepo : JvmReadaloudAudioRepository {
         override fun isAudioAvailable(sourceId: String, itemId: String) = false
         override fun bundleFile(sourceId: String, itemId: String): File? = null
         override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = null

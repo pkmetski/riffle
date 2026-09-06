@@ -4,6 +4,7 @@ import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
+import com.riffle.core.domain.JvmCbzRepository
 import com.riffle.core.models.LibraryItem
 import java.util.Collections
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +18,7 @@ class NetworkComicPageSourceTest {
 
     private val fakeBytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
 
-    private val fakeRepo = object : CbzRepository {
+    private val fakeRepo = object : JvmCbzRepository {
         var requestedSourceId: String? = null
         var requestedItemId: String? = null
         var requestedPageIndex: Int = -1
@@ -39,6 +40,7 @@ class NetworkComicPageSourceTest {
             return fakeBytes
         }
         override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
+        override suspend fun awaitCachedFile(item: LibraryItem): java.io.File? = null
     }
 
     private val noopDispatcher = StandardTestDispatcher()
@@ -90,7 +92,7 @@ class NetworkComicPageSourceTest {
 
     // --- Read-ahead (streaming-phase page-turn latency fix) ---
 
-    private class RecordingRepo(base: CbzRepository, private val bytes: ByteArray) : CbzRepository by base {
+    private class RecordingRepo(base: JvmCbzRepository, private val bytes: ByteArray) : JvmCbzRepository by base {
         val fetchedIndices: MutableList<Int> = Collections.synchronizedList(mutableListOf())
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
             fetchedIndices.add(pageIndex)

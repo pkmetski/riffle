@@ -69,3 +69,4 @@ interface CbzRepository {
      */
     suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource?
 }
+

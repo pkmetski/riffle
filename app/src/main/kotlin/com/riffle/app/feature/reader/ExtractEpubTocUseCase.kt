@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.EpubOpenResult
-import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.TocRepository
@@ -61,7 +61,7 @@ internal fun countEpubPositionsFromArchive(
 }
 
 class ExtractEpubTocUseCase constructor(
-    private val epubRepository: EpubRepository,
+    private val epubRepository: JvmEpubRepository,
     private val publicationOpener: PublicationOpener,
     private val assetRetriever: AssetRetriever,
     private val tocRepository: TocRepository,

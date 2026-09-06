@@ -12,7 +12,7 @@ import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.domain.AudiobookCacheRepository
+import com.riffle.core.domain.JvmAudiobookCacheRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
@@ -49,8 +49,8 @@ class AudiobookPlayerViewModel constructor(
     navPlaylistLibraryId: String?,
     navStartAtSec: Float,
     private val audiobookRepository: AudiobookRepository,
-    private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
-    private val audiobookCacheRepository: AudiobookCacheRepository,
+    private val audiobookDownloadRepository: com.riffle.core.domain.JvmAudiobookDownloadRepository,
+    private val audiobookCacheRepository: JvmAudiobookCacheRepository,
     private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
     private val libraryObserver: LibraryObserver,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
@@ -62,7 +62,7 @@ class AudiobookPlayerViewModel constructor(
     private val listeningPreferencesStore: ListeningPreferencesStore,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
-    private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
+    private val readaloudAudioRepository: com.riffle.core.domain.JvmReadaloudAudioRepository,
     private val nowPlayingStore: NowPlayingStore,
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
     private val openReconcileTargets: com.riffle.core.sync.OpenReconcileTargets,

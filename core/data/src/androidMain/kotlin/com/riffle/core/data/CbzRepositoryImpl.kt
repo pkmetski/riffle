@@ -7,7 +7,7 @@ import com.riffle.core.data.comic.NetworkComicPageSource
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
-import com.riffle.core.domain.CbzRepository
+import com.riffle.core.domain.JvmCbzRepository
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
@@ -39,7 +39,7 @@ class CbzRepositoryImpl(
     private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
-) : CbzRepository {
+) : JvmCbzRepository {
 
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
         val local = resolveLocalFile(item.sourceId, item.id)
@@ -175,7 +175,7 @@ class CbzRepositoryImpl(
         }
     }
 
-    private suspend fun awaitCachedFile(item: LibraryItem): File? {
+    override suspend fun awaitCachedFile(item: LibraryItem): File? {
         val existing = resolveLocalFile(item.sourceId, item.id)
         if (existing != null) {
             if (existing.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))

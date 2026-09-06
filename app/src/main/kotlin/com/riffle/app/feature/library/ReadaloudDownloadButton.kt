@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
+import com.riffle.feature.library.DownloadState
 
 private val CircleSize = 40.dp
 private val BadgeSize = 22.dp

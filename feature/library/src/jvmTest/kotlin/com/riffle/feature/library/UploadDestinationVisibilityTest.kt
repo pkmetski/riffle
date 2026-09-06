@@ -1,9 +1,9 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import com.riffle.core.models.SourceType
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class UploadDestinationVisibilityTest {
     @Test

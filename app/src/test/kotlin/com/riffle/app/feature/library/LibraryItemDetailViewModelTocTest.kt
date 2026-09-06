@@ -1,23 +1,26 @@
 package com.riffle.app.feature.library
 
-import androidx.lifecycle.SavedStateHandle
-import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.models.EbookFormat
-import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.Collection
-import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.Series
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.TocEntry
-import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.feature.library.ChaptersState
+import com.riffle.feature.library.EpubDetails
+import com.riffle.feature.library.EpubTocExtractor
+import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.TocState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -65,6 +68,7 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun getItem(itemId: String): LibraryItem? = item
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(item)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override fun observeItem(sourceId: String, itemId: String): Flow<LibraryItem?> = MutableStateFlow(item)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
@@ -108,7 +112,7 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
     }
 
-    private class FakeEpubRepo : EpubRepository {
+    private class FakeEpubRepo : JvmEpubRepository {
         override suspend fun openEpub(item: LibraryItem): com.riffle.core.domain.EpubOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): com.riffle.core.domain.EpubDownloadResult = com.riffle.core.domain.EpubDownloadResult.Success
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -117,7 +121,7 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
-    private class FakePdfRepo : PdfRepository {
+    private class FakePdfRepo : JvmPdfRepository {
         override suspend fun openPdf(item: LibraryItem): com.riffle.core.domain.PdfOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): com.riffle.core.domain.PdfDownloadResult = com.riffle.core.domain.PdfDownloadResult.Success
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -133,32 +137,33 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun touchOpenTimestamp(itemId: String) {}
     }
 
-    private fun noOpExtractUseCase(): ExtractEpubTocUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+    private fun noOpExtractUseCase(): EpubTocExtractor = mockk<EpubTocExtractor>().also { uc ->
         coEvery { uc.extractDetails(any<LibraryItem>()) } returns
-            ExtractEpubTocUseCase.Details(emptyList(), null)
+            EpubDetails(emptyList(), null)
     }
 
-    private fun noOpFetchUseCase(): FetchAudiobookChaptersUseCase = mockk<FetchAudiobookChaptersUseCase>().also { uc ->
+    private fun noOpFetchUseCase(): com.riffle.feature.library.FetchAudiobookChaptersUseCase = mockk<com.riffle.feature.library.FetchAudiobookChaptersUseCase>().also { uc ->
         coEvery { uc(any<LibraryItem>()) } returns emptyList<AudiobookChapter>()
     }
 
     private fun makeVm(
         item: LibraryItem?,
-        extractEpubTocUseCase: ExtractEpubTocUseCase = noOpExtractUseCase(),
+        epubTocExtractor: EpubTocExtractor = noOpExtractUseCase(),
         ebookCfiTranslatorFactory: com.riffle.core.domain.EbookCfiTranslatorFactory = mockk(relaxed = true),
         audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore = mockk(relaxed = true),
-        extractPdfPageCountUseCase: ExtractPdfPageCountUseCase =
-            mockk<ExtractPdfPageCountUseCase>().also { uc ->
-                coEvery { uc(any<LibraryItem>()) } returns null
+        pdfPageCountExtractor: PdfPageCountExtractor =
+            mockk<PdfPageCountExtractor>().also { uc ->
+                coEvery { uc.extract(any<LibraryItem>()) } returns null
             },
-        fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = noOpFetchUseCase(),
+        fetchAudiobookChaptersUseCase: com.riffle.feature.library.FetchAudiobookChaptersUseCase = noOpFetchUseCase(),
         readingSpeedStore: com.riffle.core.domain.ReadingSpeedStore =
             object : com.riffle.core.domain.ReadingSpeedStore {
                 override val speedSecPerPosition = flowOf(63.0)
                 override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
             },
     ) = LibraryItemDetailViewModel(
-        savedStateHandle = SavedStateHandle(mapOf("itemId" to (item?.id ?: "item-1"))),
+        itemId = item?.id ?: "item-1",
+        sourceId = null,
         libraryObserver = fakeRepo(item),
         recordItemOpened = com.riffle.app.testing.NoopRecordItemOpened(),
         updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
@@ -180,7 +185,7 @@ class LibraryItemDetailViewModelTocTest {
             override val changes = kotlinx.coroutines.flow.MutableSharedFlow<com.riffle.core.domain.StoredItemRef>()
             override fun notifyChanged(sourceId: String, itemId: String) = Unit
         },
-        readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
+        readaloudOfflineDownloader = object : com.riffle.feature.library.ReadaloudOfflineDownloader {
             override suspend fun download(storytellerSourceId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
         },
         connectivityObserver = FakeConnectivityObserver(),
@@ -190,8 +195,8 @@ class LibraryItemDetailViewModelTocTest {
             override fun enqueueBuild(link: com.riffle.core.models.ReadaloudLink) {}
         },
         sidecarPrefetcher = { _, _ -> },
-        extractEpubTocUseCase = extractEpubTocUseCase,
-        extractPdfPageCountUseCase = extractPdfPageCountUseCase,
+        epubTocExtractor = epubTocExtractor,
+        pdfPageCountExtractor = pdfPageCountExtractor,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
@@ -199,10 +204,12 @@ class LibraryItemDetailViewModelTocTest {
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         },
         libraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
-        saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
-        copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
+        saveLocalFileMetadataOverride = io.mockk.mockk(relaxed = true),
+        copyCoverImage = io.mockk.mockk(relaxed = true),
         readingSpeedStore = readingSpeedStore,
-        webSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(mockk(relaxed = true)),
+        webSourceLibraryItemUpserter = object : com.riffle.feature.library.WebSourceLibraryItemUpserter {
+            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) {}
+        },
     )
 
     private val epubItem = LibraryItem(
@@ -245,12 +252,12 @@ class LibraryItemDetailViewModelTocTest {
     @Test
     fun `tocState transitions to Ready with entries for EPUB item`() = runTest {
         val entries = listOf(TocEntry("Chapter 1", "ch1.html"), TocEntry("Chapter 2", "ch2.html"))
-        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+        val extractUseCase = mockk<EpubTocExtractor>().also { uc ->
             coEvery { uc.extractDetails(any<LibraryItem>()) } returns
-                ExtractEpubTocUseCase.Details(entries, totalPositions = 120)
+                EpubDetails(entries, totalPositions = 120)
         }
 
-        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        val vm = makeVm(item = epubItem, epubTocExtractor = extractUseCase)
         backgroundScope.launch { vm.tocState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -267,13 +274,13 @@ class LibraryItemDetailViewModelTocTest {
                 speed.value = newSecPerPosition
             }
         }
-        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { useCase ->
+        val extractUseCase = mockk<EpubTocExtractor>().also { useCase ->
             coEvery { useCase.extractDetails(epubItem) } returns
-                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = 120)
+                EpubDetails(emptyList(), totalPositions = 120)
         }
         val vm = makeVm(
             item = epubItem,
-            extractEpubTocUseCase = extractUseCase,
+            epubTocExtractor = extractUseCase,
             readingSpeedStore = speedStore,
         )
         backgroundScope.launch { vm.estimatedTotalReadingTimeSec.collect {} }
@@ -288,11 +295,11 @@ class LibraryItemDetailViewModelTocTest {
 
     @Test
     fun `estimatedTotalReadingTimeSec is null when totalPositions is unknown`() = runTest {
-        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { useCase ->
+        val extractUseCase = mockk<EpubTocExtractor>().also { useCase ->
             coEvery { useCase.extractDetails(epubItem) } returns
-                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null)
+                EpubDetails(emptyList(), totalPositions = null)
         }
-        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        val vm = makeVm(item = epubItem, epubTocExtractor = extractUseCase)
         backgroundScope.launch { vm.estimatedTotalReadingTimeSec.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -305,7 +312,7 @@ class LibraryItemDetailViewModelTocTest {
             AudiobookChapter(index = 0, startSec = 0.0, endSec = 300.0, title = "Prologue"),
             AudiobookChapter(index = 1, startSec = 300.0, endSec = 900.0, title = "Chapter 1"),
         )
-        val fetchUseCase = mockk<FetchAudiobookChaptersUseCase>().also { uc ->
+        val fetchUseCase = mockk<com.riffle.feature.library.FetchAudiobookChaptersUseCase>().also { uc ->
             coEvery { uc(any<LibraryItem>()) } returns chapters
         }
 
@@ -318,9 +325,9 @@ class LibraryItemDetailViewModelTocTest {
 
     @Test
     fun `tocState stays Loading for non-EPUB items`() = runTest {
-        val extractUseCase = mockk<ExtractEpubTocUseCase>()
+        val extractUseCase = mockk<EpubTocExtractor>()
 
-        val vm = makeVm(item = audioOnlyItem, extractEpubTocUseCase = extractUseCase)
+        val vm = makeVm(item = audioOnlyItem, epubTocExtractor = extractUseCase)
         backgroundScope.launch { vm.tocState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -330,7 +337,7 @@ class LibraryItemDetailViewModelTocTest {
 
     @Test
     fun `chaptersState stays Loading for EPUB-only items`() = runTest {
-        val fetchUseCase = mockk<FetchAudiobookChaptersUseCase>()
+        val fetchUseCase = mockk<com.riffle.feature.library.FetchAudiobookChaptersUseCase>()
 
         val vm = makeVm(item = epubItem, fetchAudiobookChaptersUseCase = fetchUseCase)
         backgroundScope.launch { vm.chaptersState.collect {} }
@@ -342,26 +349,26 @@ class LibraryItemDetailViewModelTocTest {
 
     @Test
     fun `pdf page count is extracted for PDF item`() = runTest {
-        val extractUseCase = mockk<ExtractPdfPageCountUseCase>().also { uc ->
-            coEvery { uc(pdfItem) } returns 321
+        val extractUseCase = mockk<PdfPageCountExtractor>().also { uc ->
+            coEvery { uc.extract(pdfItem) } returns 321
         }
 
-        val vm = makeVm(item = pdfItem, extractPdfPageCountUseCase = extractUseCase)
+        val vm = makeVm(item = pdfItem, pdfPageCountExtractor = extractUseCase)
         backgroundScope.launch { vm.pdfPageCount.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(321, vm.pdfPageCount.value)
-        coVerify(exactly = 1) { extractUseCase(pdfItem) }
+        coVerify(exactly = 1) { extractUseCase.extract(pdfItem) }
     }
 
     @Test
     fun `epubVersion is exposed after extractDetails completes`() = runTest {
-        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+        val extractUseCase = mockk<EpubTocExtractor>().also { uc ->
             coEvery { uc.extractDetails(any<LibraryItem>()) } returns
-                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null, epubVersion = "3.0")
+                EpubDetails(emptyList(), totalPositions = null, epubVersion = "3.0")
         }
 
-        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        val vm = makeVm(item = epubItem, epubTocExtractor = extractUseCase)
         backgroundScope.launch { vm.epubVersion.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -372,12 +379,12 @@ class LibraryItemDetailViewModelTocTest {
     fun `epubVersion sentinel empty string is converted to null before UI exposure`() = runTest {
         // The "" sentinel means "extracted, but <package> had no version attribute". The ViewModel
         // must convert it to null so the UI shows plain "EPUB" rather than "EPUB ".
-        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+        val extractUseCase = mockk<EpubTocExtractor>().also { uc ->
             coEvery { uc.extractDetails(any<LibraryItem>()) } returns
-                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null, epubVersion = "")
+                EpubDetails(emptyList(), totalPositions = null, epubVersion = "")
         }
 
-        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        val vm = makeVm(item = epubItem, epubTocExtractor = extractUseCase)
         backgroundScope.launch { vm.epubVersion.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -389,17 +396,17 @@ class LibraryItemDetailViewModelTocTest {
         val combinedItem = epubItem.copy(id = "item-combined", hasAudio = true)
         val entries = listOf(TocEntry("Chapter 1", "ch1.html"))
         val chapters = listOf(AudiobookChapter(index = 0, startSec = 0.0, endSec = 600.0, title = "Chapter 1"))
-        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+        val extractUseCase = mockk<EpubTocExtractor>().also { uc ->
             coEvery { uc.extractDetails(any<LibraryItem>()) } returns
-                ExtractEpubTocUseCase.Details(entries, totalPositions = 120)
+                EpubDetails(entries, totalPositions = 120)
         }
-        val fetchUseCase = mockk<FetchAudiobookChaptersUseCase>().also { uc ->
+        val fetchUseCase = mockk<com.riffle.feature.library.FetchAudiobookChaptersUseCase>().also { uc ->
             coEvery { uc(any<LibraryItem>()) } returns chapters
         }
 
         val vm = makeVm(
             item = combinedItem,
-            extractEpubTocUseCase = extractUseCase,
+            epubTocExtractor = extractUseCase,
             fetchAudiobookChaptersUseCase = fetchUseCase,
         )
         backgroundScope.launch { vm.tocState.collect {} }

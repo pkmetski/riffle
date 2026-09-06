@@ -10,7 +10,7 @@ import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
-import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import java.io.File
@@ -23,7 +23,7 @@ class PdfRepositoryImpl(
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
-) : PdfRepository {
+) : JvmPdfRepository {
 
     override suspend fun openPdf(item: LibraryItem): PdfOpenResult {
         // Resolve the item's OWN source, not the active one. See EpubRepositoryImpl.openEpub

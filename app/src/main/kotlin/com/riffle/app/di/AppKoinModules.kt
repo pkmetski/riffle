@@ -81,6 +81,14 @@ import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.CoverImageCopier
+import com.riffle.feature.library.EpubDetails
+import com.riffle.feature.library.EpubTocExtractor
+import com.riffle.feature.library.LocalFileMetadataOverrideSaver
+import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.WebSourceLibraryItemUpserter
+import com.riffle.feature.library.FetchAudiobookChaptersUseCase as SharedFetchAudiobookChaptersUseCase
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.usecase.RecordItemOpened
@@ -177,7 +185,7 @@ val appKoinModule: Module = module {
 
     single<ReadaloudOfflineDownloader> {
         ReadaloudOfflineDownloaderImpl(androidContext(), get(), get())
-    }
+    } bind com.riffle.feature.library.ReadaloudOfflineDownloader::class
 
     // ---- WebDAV banner ticker ----------------------------------------------------------------
 
@@ -321,8 +329,8 @@ val appKoinModule: Module = module {
 
     // ---- Download/Import managers -----------------------------------------------------------
 
-    single { DownloadManager(scope = get(named("downloadScope"))) }
-    single { BookImportManager(scope = get(named("downloadScope"))) }
+    single { DownloadManager(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.DownloadManager::class
+    single { BookImportManager(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.BookImportManager::class
 
     // ---- AssistedFactory replacements -------------------------------------------------------
 
@@ -453,6 +461,47 @@ val appKoinModule: Module = module {
     single { ExtractEpubTocUseCase(epubRepository = get(), publicationOpener = get(), assetRetriever = get(), tocRepository = get(), publicationMetricsRepository = get(), dispatchers = get()) }
     single { ExtractPdfPageCountUseCase(pdfRepository = get(), publicationOpener = get(), assetRetriever = get(), publicationMetricsRepository = get()) }
     single { FetchAudiobookChaptersUseCase(chapterCacheRepository = get()) }
+    single<SharedFetchAudiobookChaptersUseCase> { SharedFetchAudiobookChaptersUseCase(chapterCacheRepository = get()) }
     single { SaveLocalFileMetadataOverrideUseCase(overrideDao = get()) }
     single { CopyCoverImageUseCase(context = androidContext()) }
+
+    // feature.library interface adapters — bridge existing implementations to the shared interfaces
+    single<EpubTocExtractor> {
+        val uc = get<ExtractEpubTocUseCase>()
+        object : EpubTocExtractor {
+            override suspend fun extract(item: LibraryItem) = uc(item)
+            override suspend fun extractDetails(item: LibraryItem): EpubDetails {
+                val d = uc.extractDetails(item)
+                return EpubDetails(d.tocEntries, d.totalPositions, d.epubVersion)
+            }
+        }
+    }
+    single<PdfPageCountExtractor> {
+        val uc = get<ExtractPdfPageCountUseCase>()
+        object : PdfPageCountExtractor {
+            override suspend fun extract(item: LibraryItem) = uc(item)
+        }
+    }
+    single<LocalFileMetadataOverrideSaver> {
+        val uc = get<SaveLocalFileMetadataOverrideUseCase>()
+        object : LocalFileMetadataOverrideSaver {
+            override suspend fun invoke(sourceId: String, sourceItemId: String, title: String?, author: String?, seriesName: String?, seriesIndex: Double?, coverUrl: String?) {
+                uc(sourceId, sourceItemId, title, author, seriesName, seriesIndex, coverUrl)
+            }
+        }
+    }
+    single<CoverImageCopier> {
+        val uc = get<CopyCoverImageUseCase>()
+        object : CoverImageCopier {
+            override suspend fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? =
+                uc(sourceId, sourceItemId, contentUriString)
+        }
+    }
+    single<WebSourceLibraryItemUpserter> {
+        val upserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>()
+        object : WebSourceLibraryItemUpserter {
+            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) =
+                upserter.upsert(sourceId, item)
+        }
+    }
 }

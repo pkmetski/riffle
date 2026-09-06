@@ -17,6 +17,8 @@ import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
@@ -404,7 +406,7 @@ class ReadaloudSessionTest {
     /**
      * Fake [EpubRepository] that records [saveReadingPosition] calls.
      */
-    private class FakeEpubRepository : EpubRepository {
+    private class FakeEpubRepository : JvmEpubRepository {
         val savedPositions = mutableListOf<Pair<String, String>>()
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {
             savedPositions.add(itemId to cfi)
@@ -552,7 +554,7 @@ class ReadaloudSessionTest {
     private class FakeReadaloudAudioRepository(
         private val bundleFileVal: java.io.File? = null,
         private val downloadResult: AudioDownloadResult = AudioDownloadResult.Success,
-    ) : ReadaloudAudioRepository {
+    ) : JvmReadaloudAudioRepository {
         val downloadCalls = mutableListOf<Pair<String, String>>()
         var probeSizeBytesResult: Long? = 500L
 
@@ -575,7 +577,7 @@ class ReadaloudSessionTest {
     private fun makeSessionForOpenClose(
         scope: CoroutineScope,
         playerController: FakePlayerController = FakePlayerController(),
-        audioRepository: ReadaloudAudioRepository = mockk(relaxed = true),
+        audioRepository: JvmReadaloudAudioRepository = mockk(relaxed = true),
         progressFlushScope: ProgressFlushScope = mockk(relaxed = true),
         readaloudResumeStore: ReadaloudResumeStore = mockk(relaxed = true),
         snapshotLocator: () -> Locator? = { null },
@@ -960,7 +962,7 @@ class ReadaloudSessionTest {
     private fun makeSessionForBind(
         scope: CoroutineScope,
         playerController: FakePlayerController = FakePlayerController(),
-        audioRepository: ReadaloudAudioRepository = mockk(relaxed = true),
+        audioRepository: JvmReadaloudAudioRepository = mockk(relaxed = true),
         readaloudResumeStore: ReadaloudResumeStore = mockk(relaxed = true),
         snapshotLocator: () -> Locator? = { null },
     ): ReadaloudSession = ReadaloudSession(

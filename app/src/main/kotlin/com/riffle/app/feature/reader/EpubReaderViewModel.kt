@@ -3960,8 +3960,8 @@ class EpubReaderViewModel constructor(
 
     fun enqueuePackDownload(entry: com.riffle.core.dictionary.LanguageCatalogEntry) {
         downloadManager.start(com.riffle.app.feature.settings.dictionary.DictionaryPacksViewModel.downloadKey(entry.languageTag)) { onProgress ->
-            if (packDownloader.download(entry, onProgress)) com.riffle.app.feature.library.DownloadState.Downloaded
-            else com.riffle.app.feature.library.DownloadState.NotDownloaded
+            if (packDownloader.download(entry, onProgress)) com.riffle.feature.library.DownloadState.Downloaded
+            else com.riffle.feature.library.DownloadState.NotDownloaded
         }
     }
 }

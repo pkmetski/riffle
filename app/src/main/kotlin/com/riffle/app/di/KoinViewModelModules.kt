@@ -11,7 +11,6 @@ import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
 import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.app.feature.library.FilteredBooksViewModel
-import com.riffle.app.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
@@ -26,6 +25,12 @@ import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.app.feature.reader.PdfReaderViewModel
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader
+import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.library.EpubTocExtractor
+import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.CoverImageCopier
+import com.riffle.feature.library.LocalFileMetadataOverrideSaver
+import com.riffle.feature.library.FetchAudiobookChaptersUseCase as SharedFetchAudiobookChaptersUseCase
 import com.riffle.app.feature.server.AddSourceViewModel
 import com.riffle.app.feature.server.SelectLibrariesViewModel
 import com.riffle.feature.source.SourceSetupViewModel
@@ -60,7 +65,6 @@ import com.riffle.core.data.ReadaloudSidecarPrefetcher
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
-import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
@@ -68,7 +72,6 @@ import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
-import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
@@ -164,8 +167,10 @@ private val libraryViewModelModule = module {
         )
     }
     viewModel {
+        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
         LibraryItemDetailViewModel(
-            savedStateHandle = get(),
+            itemId = savedStateHandle.get<String>("itemId") ?: "",
+            sourceId = savedStateHandle.get<String>("sourceId")?.takeIf { it.isNotBlank() },
             libraryObserver = get(),
             recordItemOpened = get(),
             updateReadingProgressUseCase = get(),
@@ -190,9 +195,9 @@ private val libraryViewModelModule = module {
             bookImportManager = get(),
             crossEpubIndexBuildTrigger = get(),
             sidecarPrefetcher = get(),
-            extractEpubTocUseCase = get(),
-            extractPdfPageCountUseCase = get(),
-            fetchAudiobookChaptersUseCase = get(),
+            epubTocExtractor = get(),
+            pdfPageCountExtractor = get(),
+            fetchAudiobookChaptersUseCase = get<SharedFetchAudiobookChaptersUseCase>(),
             catalogRegistry = get(),
             libraryRefresher = get(),
             saveLocalFileMetadataOverride = get(),

@@ -11,6 +11,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":core:domain"))
             api(project(":core:models"))
+            api(project(":core:catalog"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.koin.core)
             implementation(libs.androidx.lifecycle.viewmodel)

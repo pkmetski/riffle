@@ -8,6 +8,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.ReadingPositionStore
@@ -52,7 +53,7 @@ class EpubRepositoryTest {
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePositionStore
-    private lateinit var repo: EpubRepository
+    private lateinit var repo: JvmEpubRepository
 
     private val epubBytes = "PK fake epub content".toByteArray()
 
@@ -432,7 +433,7 @@ class EpubRepositoryTest {
         serverType = ServerType.AUDIOBOOKSHELF,
     )
 
-    private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): EpubRepository =
+    private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): JvmEpubRepository =
         EpubRepositoryImpl(
             catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
             cacheStore = cacheStore,

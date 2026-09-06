@@ -2,44 +2,7 @@ package com.riffle.core.domain
 
 import java.io.File
 
-sealed interface AudioDownloadResult {
-    data object Success : AudioDownloadResult
-    data object NoBundle : AudioDownloadResult
-    data class NetworkError(val cause: Throwable) : AudioDownloadResult
-}
-
-/**
- * Manages the Readaloud audio bundle (the Storyteller synced EPUB — ADR 0027) for the reader: its
- * local presence, its parsed Media Overlay [ReadaloudTrack], download (with progress) into the
- * permanent Downloads area, and removal. The auto-cached area is OS-managed; Riffle keeps no
- * cache-size cap (ADR 0028).
- */
-interface ReadaloudAudioRepository {
-    // The bundle lives on the Storyteller Service; [sourceId] is that Server (ADR 0029) — which on
-    // the ABS item-detail screen is NOT the active Server.
-
-    /** True when the synced bundle is present locally (Downloads or Cache). */
-    fun isAudioAvailable(sourceId: String, itemId: String): Boolean
-
-    /** The local synced-bundle file, or null if not present. */
-    fun bundleFile(sourceId: String, itemId: String): File?
-
-    /** Parses the Media Overlay timeline out of the local bundle, or null if no bundle / no overlays. */
+interface JvmReadaloudAudioRepository : ReadaloudAudioRepository {
     suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack?
-
-    /** The download size in bytes (server Content-Length), or null if it can't be probed. */
-    suspend fun probeSizeBytes(sourceId: String, itemId: String): Long?
-
-    /**
-     * Downloads the synced bundle into permanent Downloads with resume + progress, from the
-     * Storyteller [sourceId] the bundle lives on. Keyed by [bookId] (the Storyteller book id).
-     */
-    suspend fun downloadAudio(
-        sourceId: String,
-        bookId: String,
-        onProgress: (downloaded: Long, total: Long) -> Unit,
-    ): AudioDownloadResult
-
-    /** Removes the downloaded bundle; returns the number of bytes freed. */
-    suspend fun removeAudio(sourceId: String, itemId: String): Long
+    fun bundleFile(sourceId: String, itemId: String): File?
 }

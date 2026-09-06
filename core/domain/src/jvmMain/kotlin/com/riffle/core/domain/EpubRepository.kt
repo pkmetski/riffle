@@ -13,24 +13,7 @@ sealed class EpubOpenResult {
     data object Offline : EpubOpenResult()
 }
 
-sealed class EpubDownloadResult {
-    data object Success : EpubDownloadResult()
-    data object AlreadyDownloaded : EpubDownloadResult()
-    data class NetworkError(val cause: Throwable) : EpubDownloadResult()
-}
-
-interface EpubRepository {
+interface JvmEpubRepository : EpubRepository {
     suspend fun openEpub(item: LibraryItem): EpubOpenResult
     suspend fun openEpubForMetadata(item: LibraryItem): EpubOpenResult = openEpub(item)
-    suspend fun downloadEpub(
-        item: LibraryItem,
-        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
-    ): EpubDownloadResult
-    suspend fun removeDownload(sourceId: String, itemId: String)
-    fun isDownloaded(sourceId: String, itemId: String): Boolean
-    fun isCached(sourceId: String, itemId: String): Boolean
-    suspend fun saveReadingPosition(itemId: String, cfi: String)
-    /** Returns the complete persisted Readium Locator JSON, when a position exists. */
-    suspend fun loadLastPosition(sourceId: String, itemId: String): String? = null
-    suspend fun loadLastPositionHref(sourceId: String, itemId: String): String? = null
 }

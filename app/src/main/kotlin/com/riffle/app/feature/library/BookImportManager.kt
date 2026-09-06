@@ -8,6 +8,7 @@ import com.riffle.core.catalog.CatalogImportResult
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
+import com.riffle.feature.library.BookImportState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,20 +16,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
-
-sealed interface BookImportState {
-    data object Idle : BookImportState
-
-    data class InProgress(
-        val phase: CatalogImportPhase,
-        val completedFiles: Int = 0,
-        val totalFiles: Int = 0,
-    ) : BookImportState
-
-    data object Completed : BookImportState
-
-    data class Failed(val message: String) : BookImportState
-}
 
 @StringRes
 internal fun bookImportSnackbarMessage(state: BookImportState): Int? =
@@ -38,13 +25,13 @@ internal fun bookImportSnackbarMessage(state: BookImportState): Int? =
 class BookImportManager constructor(
     private val scope: CoroutineScope,
     private val logger: Logger = NoopLogger,
-) {
+) : com.riffle.feature.library.BookImportManager {
     private val _states = MutableStateFlow<Map<String, BookImportState>>(emptyMap())
-    val states: StateFlow<Map<String, BookImportState>> = _states
+    override val states: StateFlow<Map<String, BookImportState>> = _states
     private val activeKeys = mutableSetOf<String>()
     private val claimedItemIds = ConcurrentHashMap.newKeySet<String>()
 
-    fun start(
+    override fun start(
         key: String,
         work: suspend (onProgress: (CatalogImportProgress) -> Unit, claimItem: (String) -> Boolean) -> CatalogImportResult,
     ) {
