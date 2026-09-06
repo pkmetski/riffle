@@ -131,7 +131,14 @@ When a named constant exists for a value (e.g. `AnnotationEntity.TYPE_BOOKMARK =
 
 ## iOS/Android multi-platform parity
 
-Every new feature and every bug fix must be implemented on **both Android and iOS**. This is not optional and applies equally to fixes in `androidMain`, `commonMain`, and `iosMain`.
+**Every change — new features, bug fixes, tests, refactors, UI tweaks, and behaviour adjustments — must be implemented on both Android and iOS.** There are no exceptions based on perceived scope or platform origin. A fix introduced in `androidMain` still requires the equivalent in `iosMain` (or `commonMain` if the logic can be shared). A test added for Android still requires a matching iOS scenario. This rule is not optional and applies equally to fixes in `androidMain`, `commonMain`, and `iosMain`.
+
+The following rationalisations are wrong and will result in the PR being sent back:
+
+- "It's just a one-liner on Android." → One-liners regress on iOS too. Implement it there.
+- "The bug only manifests on Android." → Verify it doesn't exist on iOS; document findings either way.
+- "I'll do the iOS side in a follow-up." → No. Both platforms ship together or neither ships.
+- "The logic is in `commonMain` so iOS is covered." → Only if iOS actually exercises that code path. Verify it and add a test.
 
 ### Code reuse comes first
 
@@ -144,7 +151,7 @@ When an Android implementation is being moved or a new feature is being added, c
 
 ### Tests must mirror both platforms
 
-For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test. This means:
+For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test — no exceptions. If an Android test is added without an iOS counterpart, the PR will be sent back. This means:
 
 1. Identify the relevant Android test classes (harness tests in `app/src/androidTest`, unit tests in `**/test`).
 2. Create (or extend) the matching `docs/testing/ios-scenarios/<N>-<feature>.md` scenario doc.
@@ -152,12 +159,16 @@ For every Android harness/integration/unit test that covers the changed behaviou
 
 The iOS XCTest suite runs in CI (`iOS integration tests` job). A PR that adds Android tests without the corresponding iOS coverage will be sent back.
 
-### Minimum checklist for every multi-platform PR
+Likewise, if an iOS test is added, the equivalent Android coverage must also be present or already exist.
+
+### Minimum checklist for every PR (features, fixes, tests, refactors)
 
 - [ ] Feature/fix logic lives in `commonMain` (or has a documented reason it cannot).
 - [ ] Android harness tests (and/or JVM unit tests) pass: `make harness-test` / `./gradlew test jvmTest`.
+- [ ] iOS implementation present — even for changes that originated on Android.
 - [ ] iOS XCTest scenarios listed in `docs/testing/ios-scenarios/` and implemented in `iosApp/iosAppTests/`.
 - [ ] `xcodebuild test` passes on iOS simulator.
+- [ ] If a change cannot be made on iOS (genuine platform constraint), this is documented in the PR body with a justification and a follow-up issue opened.
 
 ## Agent skills
 
