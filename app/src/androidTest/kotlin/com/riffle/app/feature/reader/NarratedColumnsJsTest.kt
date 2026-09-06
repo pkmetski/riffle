@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.reader.ColumnSnap
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Test

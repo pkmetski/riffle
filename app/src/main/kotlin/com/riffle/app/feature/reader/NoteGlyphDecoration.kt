@@ -4,11 +4,11 @@ package com.riffle.app.feature.reader
 
 import android.os.Parcel
 import android.os.Parcelable
+import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
+import com.riffle.feature.reader.NOTE_GLYPH_FOCUS_ID_JS_KEY
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.html.HtmlDecorationTemplate
 
-internal const val NOTE_GLYPH_DECORATION_GROUP = "annotation-notes"
-internal const val NOTE_GLYPH_FOCUS_ID_JS_KEY = "__riffleFocusAnnotationId"
 internal const val NOTE_GLYPH_VIEWPORT_INSET_PX = 12
 
 /**
@@ -17,7 +17,7 @@ internal const val NOTE_GLYPH_VIEWPORT_INSET_PX = 12
  * behind that work and consumes the one-shot focus id left by [ColumnSnap.snapToTargetColumnJs].
  */
 internal fun noteGlyphFocusAfterApplyJs(): String {
-    val group = org.json.JSONObject.quote(NOTE_GLYPH_DECORATION_GROUP)
+    val group = kotlinx.serialization.json.JsonPrimitive(NOTE_GLYPH_DECORATION_GROUP).toString()
     return """
         (function(){
           var frames = 0;

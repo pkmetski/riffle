@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.reader.ColumnSnap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
