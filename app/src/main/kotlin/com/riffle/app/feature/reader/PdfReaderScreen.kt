@@ -2,6 +2,8 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.VolumeNavEvent
+
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast

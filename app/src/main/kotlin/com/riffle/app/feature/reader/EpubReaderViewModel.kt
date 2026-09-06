@@ -2,6 +2,8 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.VolumeNavEvent
+
 import com.riffle.core.domain.epubCfiToSpineIndex
 import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.feature.reader.resolveCadenceStartRef

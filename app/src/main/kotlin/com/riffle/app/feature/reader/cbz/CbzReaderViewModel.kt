@@ -6,7 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.reader.ReaderStateHolder
 import com.riffle.app.feature.reader.RailSegment
-import com.riffle.app.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.feature.reader.buildCbzRailSegments
 import com.riffle.app.feature.reader.cbzRailCursorPosition

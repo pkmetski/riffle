@@ -72,7 +72,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import androidx.compose.ui.graphics.asImageBitmap
 import com.riffle.app.feature.reader.ChapterMapOverlay
-import com.riffle.app.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
 import com.riffle.app.feature.readersettings.palette
 import com.riffle.app.feature.reader.readerThemeLabelColor
