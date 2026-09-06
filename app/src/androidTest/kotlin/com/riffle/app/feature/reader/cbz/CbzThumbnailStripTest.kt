@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.core.domain.comic.ComicPageSource
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
@@ -81,9 +82,9 @@ class CbzThumbnailStripTest {
         composeTestRule.waitForIdle()
 
         assertEquals(
-            "openStream must not be called when cache is pre-populated",
+            "image decode must not be called when cache is pre-populated",
             0,
-            source.openStreamCallCount,
+            source.imageBytesCallCount,
         )
     }
 
@@ -122,9 +123,9 @@ class CbzThumbnailStripTest {
         composeTestRule.waitForIdle()
 
         assertEquals(
-            "openStream must not be called after toggle when cache is still populated",
+            "image decode must not be called after toggle when cache is still populated",
             0,
-            source.openStreamCallCount,
+            source.imageBytesCallCount,
         )
         assertTrue("Cache must still hold all entries after toggle", cache.size() == 5)
     }
@@ -215,23 +216,23 @@ class CbzThumbnailStripTest {
  * and the AsyncImage never renders. The tagged `Box` behind it stays composed, which
  * is all the test needs to assert click routing.
  */
-private class FakeCbzImageSource(override val pageCount: Int) : CbzImageSource {
+private class FakeCbzImageSource(override val pageCount: Int) : ComicPageSource {
     override fun imageBytes(pageIndex: Int): ByteArray = ByteArray(0)
-    override fun openStream(pageIndex: Int): java.io.InputStream = ByteArray(0).inputStream()
+    override fun mediaType(pageIndex: Int): String = "image/png"
 }
 
 private class CountingCbzImageSource(
     private val bytes: ByteArray,
     override val pageCount: Int,
-) : CbzImageSource {
-    private val _openStreamCallCount = AtomicInteger(0)
-    val openStreamCallCount: Int get() = _openStreamCallCount.get()
+) : ComicPageSource {
+    private val _imageBytesCallCount = AtomicInteger(0)
+    val imageBytesCallCount: Int get() = _imageBytesCallCount.get()
 
-    override fun imageBytes(pageIndex: Int) = bytes
-    override fun openStream(pageIndex: Int): java.io.InputStream {
-        _openStreamCallCount.incrementAndGet()
-        return bytes.inputStream()
+    override fun imageBytes(pageIndex: Int): ByteArray {
+        _imageBytesCallCount.incrementAndGet()
+        return bytes
     }
+    override fun mediaType(pageIndex: Int): String = "image/png"
 }
 
 private fun validPngBytes(): ByteArray {

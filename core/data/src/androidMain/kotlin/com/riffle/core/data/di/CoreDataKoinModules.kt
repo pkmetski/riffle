@@ -96,6 +96,7 @@ import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
+import com.riffle.core.data.comic.panel.AndroidColorPageDecoder
 import com.riffle.core.data.comic.panel.AndroidPageImageDecoder
 import com.riffle.core.data.comic.panel.AndroidPanelMaskServiceImpl
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
@@ -202,6 +203,7 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.comic.panel.ColorPageDecoder
 import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PanelDetectionConfig
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
@@ -726,6 +728,7 @@ private val coreDataRepositoriesModule = module {
             downloadsStore = get(named(CBZ_DOWNLOADS_STORE)),
             positionStore = get(),
             sourceRepository = get(),
+            dispatchers = get(),
             localAvailabilityEvents = get(),
             contentCacheAccessStore = get(),
         )
@@ -1129,6 +1132,7 @@ private val coreDataPanelModule = module {
     single(named(DS_PANEL_VIEW)) { androidContext().panelViewPreferencesDataStore }
 
     single<PageImageDecoder> { AndroidPageImageDecoder() }
+    single<ColorPageDecoder> { AndroidColorPageDecoder() }
     single<PanelMaskService> { AndroidPanelMaskServiceImpl(get(), get(), get()) }
     single<PanelViewPreferencesStore> { com.riffle.core.data.PanelViewPreferencesStoreImpl(get(named(DS_PANEL_VIEW))) }
     single<BookComicFormattingPreferencesStore> { com.riffle.core.data.BookComicFormattingPreferencesStoreImpl(get()) }

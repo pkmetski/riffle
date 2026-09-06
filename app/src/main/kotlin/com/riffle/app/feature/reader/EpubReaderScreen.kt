@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.VolumeNavEvent
+
 import android.content.res.Configuration
 import android.view.View
 import android.view.WindowManager

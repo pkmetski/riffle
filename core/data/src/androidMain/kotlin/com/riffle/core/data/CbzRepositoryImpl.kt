@@ -3,21 +3,28 @@ package com.riffle.core.data
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CbzPageStreamCapability
+import com.riffle.core.data.comic.NetworkComicPageSource
 import com.riffle.core.domain.CbzDownloadResult
+import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.comic.CbzArchive
+import com.riffle.core.domain.comic.ComicArchivePageSource
+import com.riffle.core.domain.comic.ComicBookmark
 import java.io.File
 import java.io.IOException
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
+import kotlinx.coroutines.withContext
 
 /**
  * Mirrors [PdfRepositoryImpl]. Validates local files by opening their ZIP central directory
@@ -29,6 +36,7 @@ class CbzRepositoryImpl(
     private val downloadsStore: LocalStore,
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
+    private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
 ) : CbzRepository {
@@ -37,9 +45,8 @@ class CbzRepositoryImpl(
         val local = resolveLocalFile(item.sourceId, item.id)
         if (local != null) {
             if (local.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))
-            val activeSource = sourceRepository.getActive()
-            val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
-            return CbzOpenResult.Success(cbzFile = local.file, lastPosition = lastPosition)
+            val lastPosition = loadLastPosition(item.id)
+            return openLocal(local.file, lastPosition)
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return CbzOpenResult.NetworkError(IllegalStateException("No catalog for item"))
@@ -53,9 +60,19 @@ class CbzRepositoryImpl(
             if (pageCount <= 0) return CbzOpenResult.NetworkError(
                 IllegalStateException("Server returned zero page count for ${item.id}")
             )
-            val activeSource = sourceRepository.getActive()
-            val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
-            return CbzOpenResult.Streaming(pageCount = pageCount, lastPosition = lastPosition)
+            val lastPosition = loadLastPosition(item.id)
+            return CbzOpenResult.Streaming(
+                imageSource = NetworkComicPageSource(
+                    sourceId = item.sourceId, itemId = item.id, count = pageCount,
+                    repository = this, readAheadCount = 2, ioDispatcher = dispatchers.io,
+                ),
+                thumbnailSource = NetworkComicPageSource(
+                    sourceId = item.sourceId, itemId = item.id, count = pageCount,
+                    repository = this, thumbnailWidth = 300, ioDispatcher = dispatchers.io,
+                ),
+                pageCount = pageCount,
+                lastPosition = lastPosition,
+            )
         }
         return try {
             val cbzFile = CatalogFileTransfer.acquire(
@@ -64,13 +81,31 @@ class CbzRepositoryImpl(
             )
             contentCacheAccessStore.markAccessed(contentCacheKey(item))
             localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
-            val activeSource = sourceRepository.getActive()
-            val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
-            CbzOpenResult.Success(cbzFile = cbzFile, lastPosition = lastPosition)
+            openLocal(cbzFile, loadLastPosition(item.id))
         } catch (t: Throwable) {
             CbzOpenResult.NetworkError(t)
         }
     }
+
+    private suspend fun loadLastPosition(itemId: String): String? =
+        sourceRepository.getActive()?.let { positionStore.load(it.id, itemId) }
+
+    /** Opens [file] as a local archive on the IO dispatcher, reading its ComicInfo bookmarks. */
+    private suspend fun openLocal(file: File, lastPosition: String?): CbzOpenResult =
+        withContext(dispatchers.io) {
+            try {
+                val archive = CbzArchive(file)
+                val bookmarks: List<ComicBookmark> = archive.readComicInfo() ?: emptyList()
+                CbzOpenResult.Success(
+                    imageSource = ComicArchivePageSource(archive),
+                    pageCount = archive.pageCount,
+                    lastPosition = lastPosition,
+                    bookmarks = bookmarks,
+                )
+            } catch (t: Throwable) {
+                CbzOpenResult.NetworkError(t)
+            }
+        }
 
     override suspend fun downloadCbz(
         item: LibraryItem,
@@ -124,7 +159,23 @@ class CbzRepositoryImpl(
         return cap.fetchCbzPageImage(itemId, pageIndex, maxWidth)
     }
 
-    override suspend fun awaitCachedFile(item: LibraryItem): File? {
+    override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? {
+        val file = awaitCachedFile(item) ?: return null
+        return withContext(dispatchers.io) {
+            try {
+                val archive = CbzArchive(file)
+                CbzLocalSource(
+                    imageSource = ComicArchivePageSource(archive),
+                    pageCount = archive.pageCount,
+                    bookmarks = archive.readComicInfo() ?: emptyList(),
+                )
+            } catch (_: Throwable) {
+                null
+            }
+        }
+    }
+
+    private suspend fun awaitCachedFile(item: LibraryItem): File? {
         val existing = resolveLocalFile(item.sourceId, item.id)
         if (existing != null) {
             if (existing.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))

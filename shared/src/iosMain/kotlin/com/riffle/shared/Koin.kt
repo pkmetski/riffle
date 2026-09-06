@@ -24,6 +24,7 @@ import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.CrashReportRepository
@@ -34,6 +35,7 @@ import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRefresher
@@ -44,16 +46,23 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
+import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.comic.panel.PanelMaskService
+import com.riffle.core.domain.comic.panel.PanelReportRepository
+import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.logging.iosLoggingModule
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
@@ -70,6 +79,10 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
+import com.riffle.feature.reader.CbzReaderViewModel
+import com.riffle.feature.reader.ReaderStateHolder
+import com.riffle.feature.reader.VolumeKeyDispatcher
+import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
@@ -88,8 +101,16 @@ import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
 import com.riffle.shared.reader.IosCbzDownloader
+import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
+import com.riffle.shared.reader.IosNoOpAppearanceCoordinator
+import com.riffle.shared.reader.IosNoOpBookComicFormattingPreferencesStore
+import com.riffle.shared.reader.IosNoOpLibraryMutator
+import com.riffle.shared.reader.IosNoOpPanelMaskService
+import com.riffle.shared.reader.IosNoOpPanelReportRepository
+import com.riffle.shared.reader.IosNoOpPanelViewPreferencesStore
+import com.riffle.shared.reader.IosNoOpReadingSessionRepository
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
@@ -145,6 +166,41 @@ private fun iosLibraryModule(
 
     // CBZ reader
     single { IosCbzDownloader(get(), get(), get()) }
+    single<CbzRepository> { IosCbzRepository(get(), get(), get(), get()) }
+    single<ReadingSessionRepository> { IosNoOpReadingSessionRepository }
+    single<LibraryMutator> { IosNoOpLibraryMutator }
+    single { UpdateReadingProgress(get()) }
+    single<PanelMaskService> { IosNoOpPanelMaskService }
+    single<PanelViewPreferencesStore> { IosNoOpPanelViewPreferencesStore }
+    single<BookComicFormattingPreferencesStore> { IosNoOpBookComicFormattingPreferencesStore }
+    single<AppearanceCoordinator> { IosNoOpAppearanceCoordinator }
+    single<PanelReportRepository> { IosNoOpPanelReportRepository }
+    single { VolumeNavigationController() }
+    single { VolumeKeyDispatcher(get(), get()) }
+    single { ReaderStateHolder() }
+    factory { params ->
+        CbzReaderViewModel(
+            itemId = params.get(),
+            libraryObserver = get(),
+            cbzRepository = get(),
+            readingSessionRepository = get(),
+            updateReadingProgressUseCase = get(),
+            wakeLockPreferencesStore = get(),
+            volumeNavigationController = get(),
+            volumeKeyDispatcher = get(),
+            readerStateHolder = get(),
+            panelEngine = get(),
+            panelMaskService = get(),
+            panelViewPreferencesStore = get(),
+            comicFormattingPreferencesStore = get(),
+            bookComicFormattingPreferencesStore = get(),
+            developerOptionsRepository = get(),
+            appearanceCoordinator = get(),
+            colorPageDecoder = get(),
+            dispatchers = get(),
+            panelReportRepository = get(),
+        )
+    }
 
     // Audiobook player
     single<AbsPlaybackApi> { get<AbsApiClient>() }

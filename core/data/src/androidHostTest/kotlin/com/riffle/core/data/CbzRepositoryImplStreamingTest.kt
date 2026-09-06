@@ -132,6 +132,7 @@ class CbzRepositoryImplStreamingTest {
             downloadsStore,
             emptyPositionStore,
             noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         cacheStore.save("src1", "item1", "cache".byteInputStream())
         downloadsStore.save("src1", "item1", "download".byteInputStream())
@@ -151,6 +152,7 @@ class CbzRepositoryImplStreamingTest {
             downloadsStore,
             emptyPositionStore,
             noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         cacheStore.save("src1", "item1", "cache".byteInputStream())
 
@@ -165,6 +167,7 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("src1", streamingCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         assertTrue(repo.supportsStreaming("src1"))
     }
@@ -173,6 +176,7 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("src1", basicCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         assertFalse(repo.supportsStreaming("src1"))
     }
@@ -181,6 +185,7 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("other", streamingCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         assertFalse(repo.supportsStreaming("src1"))
     }
@@ -189,6 +194,7 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("src1", streamingCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         val result = repo.openCbz(fakeItem("src1"))
         assertTrue("Expected Streaming but got $result", result is CbzOpenResult.Streaming)
@@ -200,6 +206,7 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("src1", basicCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         val result = repo.openCbz(fakeItem("src1"))
         assertTrue("Expected NetworkError but got $result", result is CbzOpenResult.NetworkError)
@@ -209,6 +216,7 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("src1", streamingCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         val bytes = repo.fetchStreamingPageImage("src1", "item1", 3)
         assertArrayEquals(streamingCatalog.imageBytes, bytes)
@@ -220,8 +228,9 @@ class CbzRepositoryImplStreamingTest {
         val repo = CbzRepositoryImpl(
             registryFor("other", streamingCatalog),
             emptyStore, emptyStore, emptyPositionStore, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
-        val result = repo.awaitCachedFile(fakeItem("src1"))
+        val result = repo.awaitCachedSource(fakeItem("src1"))
         assertNull(result)
     }
 }

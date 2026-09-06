@@ -1,21 +1,19 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.core.data.comic
 
 import com.riffle.core.domain.CbzDownloadResult
+import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
-import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
-import java.io.File
 import java.util.Collections
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class NetworkImageSourceTest {
+class NetworkComicPageSourceTest {
 
     private val fakeBytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
 
@@ -23,6 +21,7 @@ class NetworkImageSourceTest {
         var requestedSourceId: String? = null
         var requestedItemId: String? = null
         var requestedPageIndex: Int = -1
+        var requestedMaxWidth: Int? = null
 
         override suspend fun openCbz(item: LibraryItem): CbzOpenResult = CbzOpenResult.Offline
         override suspend fun downloadCbz(item: LibraryItem, onProgress: (Long, Long) -> Unit): CbzDownloadResult =
@@ -32,7 +31,6 @@ class NetworkImageSourceTest {
         override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
         override suspend fun supportsStreaming(sourceId: String): Boolean = true
-        var requestedMaxWidth: Int? = null
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
             requestedSourceId = sourceId
             requestedItemId = itemId
@@ -40,16 +38,18 @@ class NetworkImageSourceTest {
             requestedMaxWidth = maxWidth
             return fakeBytes
         }
-        override suspend fun awaitCachedFile(item: LibraryItem): File? = null
+        override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
     }
 
+    private val noopDispatcher = StandardTestDispatcher()
+
     @Test fun `pageCount returns the count passed at construction`() {
-        val source = NetworkImageSource("src", "item", 42, fakeRepo)
+        val source = NetworkComicPageSource("src", "item", 42, fakeRepo, ioDispatcher = noopDispatcher)
         assertEquals(42, source.pageCount)
     }
 
     @Test fun `imageBytes delegates to repository with correct args`() {
-        val source = NetworkImageSource("src1", "item7", 10, fakeRepo)
+        val source = NetworkComicPageSource("src1", "item7", 10, fakeRepo, ioDispatcher = noopDispatcher)
         val result = source.imageBytes(3)
         assertArrayEquals(fakeBytes, result)
         assertEquals("src1", fakeRepo.requestedSourceId)
@@ -57,23 +57,21 @@ class NetworkImageSourceTest {
         assertEquals(3, fakeRepo.requestedPageIndex)
     }
 
-    @Test fun `openStream wraps imageBytes in a ByteArrayInputStream`() {
-        val source = NetworkImageSource("src", "item", 5, fakeRepo)
-        val stream = source.openStream(0)
-        val read = stream.readBytes()
-        assertArrayEquals(fakeBytes, read)
-    }
-
     @Test fun `thumbnailWidth is forwarded as maxWidth to repository`() {
-        val source = NetworkImageSource("src", "item", 10, fakeRepo, thumbnailWidth = 300)
+        val source = NetworkComicPageSource("src", "item", 10, fakeRepo, thumbnailWidth = 300, ioDispatcher = noopDispatcher)
         source.imageBytes(2)
         assertEquals(300, fakeRepo.requestedMaxWidth)
     }
 
     @Test fun `null thumbnailWidth passes null maxWidth to repository`() {
-        val source = NetworkImageSource("src", "item", 10, fakeRepo, thumbnailWidth = null)
+        val source = NetworkComicPageSource("src", "item", 10, fakeRepo, thumbnailWidth = null, ioDispatcher = noopDispatcher)
         source.imageBytes(2)
         assertEquals(null, fakeRepo.requestedMaxWidth)
+    }
+
+    @Test fun `streaming source reports a decode retry budget above one`() {
+        val source = NetworkComicPageSource("src", "item", 10, fakeRepo, ioDispatcher = noopDispatcher)
+        org.junit.Assert.assertTrue("network source must retry transient decode failures", source.decodeRetries > 1)
     }
 
     @Test fun `byte cache prevents second network request for same pageIndex`() {
@@ -84,7 +82,7 @@ class NetworkImageSourceTest {
                 return fakeBytes
             }
         }
-        val source = NetworkImageSource("src", "item", 10, countingRepo)
+        val source = NetworkComicPageSource("src", "item", 10, countingRepo, ioDispatcher = noopDispatcher)
         source.imageBytes(5)
         source.imageBytes(5) // same index — should hit cache
         assertEquals("expected only 1 network call due to byte cache", 1, callCount)
@@ -100,27 +98,25 @@ class NetworkImageSourceTest {
         }
     }
 
-    private fun TestScope.readAheadSource(repo: CbzRepository, pageCount: Int, readAheadCount: Int = 2) =
-        NetworkImageSource(
-            "src", "item", pageCount, repo,
-            readAheadScope = this,
-            readAheadCount = readAheadCount,
-            readAheadDispatcher = StandardTestDispatcher(testScheduler),
-        )
-
     @Test fun `accessing a page prefetches the next readAheadCount pages`() = runTest {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
-        val source = readAheadSource(repo, pageCount = 10)
+        val source = NetworkComicPageSource(
+            "src", "item", 10, repo, readAheadCount = 2,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
         source.imageBytes(4)
-        advanceUntilIdle()
+        testScheduler.advanceUntilIdle()
         assertEquals(listOf(4, 5, 6), repo.fetchedIndices.sorted())
     }
 
     @Test fun `prefetched page is served from cache without a new network request`() = runTest {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
-        val source = readAheadSource(repo, pageCount = 10)
+        val source = NetworkComicPageSource(
+            "src", "item", 10, repo, readAheadCount = 2,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
         source.imageBytes(4)
-        advanceUntilIdle()
+        testScheduler.advanceUntilIdle()
         repo.fetchedIndices.clear()
         source.imageBytes(5) // the page turn the user waits on — must be a cache hit
         assertEquals("page 5 must not be re-fetched after read-ahead", emptyList<Int>(), repo.fetchedIndices.filter { it == 5 })
@@ -128,25 +124,31 @@ class NetworkImageSourceTest {
 
     @Test fun `read-ahead stops at the last page`() = runTest {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
-        val source = readAheadSource(repo, pageCount = 10)
+        val source = NetworkComicPageSource(
+            "src", "item", 10, repo, readAheadCount = 2,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
         source.imageBytes(9)
-        advanceUntilIdle()
+        testScheduler.advanceUntilIdle()
         assertEquals(listOf(9), repo.fetchedIndices.toList())
     }
 
     @Test fun `read-ahead is off by default`() {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
-        val source = NetworkImageSource("src", "item", 10, repo)
+        val source = NetworkComicPageSource("src", "item", 10, repo, ioDispatcher = noopDispatcher)
         source.imageBytes(4)
         assertEquals(listOf(4), repo.fetchedIndices.toList())
     }
 
     @Test fun `read-ahead does not duplicate an in-flight prefetch`() = runTest {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
-        val source = readAheadSource(repo, pageCount = 10)
+        val source = NetworkComicPageSource(
+            "src", "item", 10, repo, readAheadCount = 2,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
         source.imageBytes(4)
         source.imageBytes(4) // second access before the scheduler runs — must not re-enqueue 5/6
-        advanceUntilIdle()
+        testScheduler.advanceUntilIdle()
         assertEquals(listOf(4, 5, 6), repo.fetchedIndices.sorted())
     }
 
@@ -164,11 +166,8 @@ class NetworkImageSourceTest {
                 return fakeBytes
             }
         }
-        val source = NetworkImageSource(
-            "src", "item", 10, gatedRepo,
-            readAheadScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO),
-            readAheadCount = 2,
-            readAheadDispatcher = kotlinx.coroutines.Dispatchers.IO,
+        val source = NetworkComicPageSource(
+            "src", "item", 10, gatedRepo, readAheadCount = 2, ioDispatcher = Dispatchers.IO,
         )
         source.imageBytes(4) // schedules read-ahead of 5 and 6
         org.junit.Assert.assertTrue(
@@ -186,9 +185,12 @@ class NetworkImageSourceTest {
 
     @Test fun `cache retains current page alongside read-ahead entries`() = runTest {
         val repo = RecordingRepo(fakeRepo, fakeBytes)
-        val source = readAheadSource(repo, pageCount = 20)
-        source.imageBytes(4) // decodeSampledBitmap bounds pass
-        advanceUntilIdle() // read-ahead of 5 and 6 completes
+        val source = NetworkComicPageSource(
+            "src", "item", 20, repo, readAheadCount = 2,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
+        source.imageBytes(4) // decode bounds pass
+        testScheduler.advanceUntilIdle() // read-ahead of 5 and 6 completes
         repo.fetchedIndices.clear()
         source.imageBytes(4) // decode pass — must still be cached after read-ahead insertions
         assertEquals(emptyList<Int>(), repo.fetchedIndices.toList())

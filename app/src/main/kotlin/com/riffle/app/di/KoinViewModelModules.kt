@@ -24,7 +24,7 @@ import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.app.feature.reader.PdfReaderViewModel
-import com.riffle.app.feature.reader.cbz.CbzReaderViewModel
+import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader
 import com.riffle.app.feature.server.AddSourceViewModel
 import com.riffle.app.feature.server.SelectLibrariesViewModel
@@ -574,9 +574,9 @@ private val readerViewModelModule = module {
         )
     }
     viewModel {
+        val handle = get<androidx.lifecycle.SavedStateHandle>()
         CbzReaderViewModel(
-            application = androidApplication(),
-            savedStateHandle = get(),
+            itemId = checkNotNull(handle.get<String>("itemId")) { "CbzReaderViewModel requires an itemId nav argument" },
             libraryObserver = get(),
             cbzRepository = get(),
             readingSessionRepository = get(),
@@ -592,6 +592,8 @@ private val readerViewModelModule = module {
             bookComicFormattingPreferencesStore = get(),
             developerOptionsRepository = get(),
             appearanceCoordinator = get(),
+            colorPageDecoder = get(),
+            dispatchers = get(),
             panelReportRepository = get(),
         )
     }

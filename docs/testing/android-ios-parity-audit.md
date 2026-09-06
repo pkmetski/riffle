@@ -303,9 +303,17 @@ The remaining six do not meet those conditions:
   vs **561L**; `DownloadsViewModel` **85L** vs **229L**; `CbzReaderViewModel` (in
   `:feature:reader`) **85L** stub vs `:app` **896L**. Consolidation here means **porting the full
   Android implementation into `commonMain`**, not deleting a duplicate.
-- **`CbzReaderViewModel` is Android-graphics-locked** (`android.graphics.Bitmap`/`BitmapFactory`/
-  `Color`, `android.app.Application`, `java.io.File`): needs an `expect/actual` image-decode seam
-  before any of its logic can move to `commonMain`.
+- **`CbzReaderViewModel` — DONE (#953).** Was Android-graphics-locked (`android.graphics.Bitmap`/
+  `BitmapFactory`/`Color`, `android.app.Application`, `java.io.File`). Now fully consolidated into
+  `:feature:reader/commonMain` as a plain `ViewModel`: image decode goes through the shared
+  `ColorPageDecoder`/`PageImageDecoder` seams (Android `BitmapFactory`, iOS CoreGraphics); the
+  pixel-energy SMART_SPLIT math is `commonMain`; `CbzRepository`/`ComicArchive` I/O is behind
+  `ComicPageSource` (no `File` in the VM); the locator uses `kotlinx.serialization`; volume/reader
+  collaborators + `AppearanceCoordinator`/`UpdateReadingProgress` were lifted to `commonMain`. iOS
+  runs the same VM (Koin factory) with `IosCbzRepository` + no-op stores, plus a real
+  `PanelEngine` (CoreGraphics decoder + in-memory store). Pure-logic tests run on JVM + iOS;
+  existing `ComicsReaderTests.swift` still covers the iOS reader UI. Not yet device-verified
+  (build/install gated).
 - `AnnotationsListViewModel` — **DONE + device-verified (commits `adaecc86b`, `3e64a843d`).**
   Relocated `:shared` → `:feature:library` (uncovered the topology constraint below).
   feature:library **45 tests green on iOS+JVM**; app unit + androidTest compile;

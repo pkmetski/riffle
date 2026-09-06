@@ -9,7 +9,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,11 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.network.KomgaCbzApi
+import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -33,86 +33,39 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSData
-import platform.Foundation.NSUserDefaults
 import platform.Foundation.create
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageView
 import platform.UIKit.UIViewContentMode
 
+/**
+ * iOS comic (CBZ) reader. Hosts the shared [CbzReaderViewModel] — the VM opens the book (resolving
+ * source/credentials and streaming or downloading pages via the injected iOS CbzRepository) and
+ * exposes [CbzReaderState]; this screen renders the current page and drives page turns.
+ */
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
-    val cbzApi = koinInject<KomgaCbzApi>()
-    val cbzDownloader = koinInject<IosCbzDownloader>()
-    val sourceRepository = koinInject<SourceRepository>()
-    val tokenStorage = koinInject<TokenStorage>()
+    val vm = koinInject<CbzReaderViewModel> { parametersOf(item.id) }
 
-    var imageSource by remember { mutableStateOf<ComicImageSource?>(null) }
-    var loadError by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(item.id) {
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val source = sourceRepository.getById(item.sourceId)
-                    ?: sourceRepository.getActive()
-                    ?: run { loadError = "Source unavailable"; return@runCatching }
-                val token = tokenStorage.getToken(source.id)
-                    ?: run { loadError = "No credentials"; return@runCatching }
-
-                val src: ComicImageSource = if (item.ebookFileIno != null) {
-                    val bytes = cbzDownloader.downloadBytes(item)
-                        ?: run { loadError = "Download failed"; return@runCatching }
-                    IosCbzArchive(bytes)
-                } else {
-                    val count = cbzApi.fetchCbzPageCount(
-                        baseUrl = source.url.value,
-                        bookId = item.id,
-                        token = token,
-                        insecureAllowed = source.insecureConnectionAllowed,
-                    )
-                    IosKomgaCbzImageSource(
-                        api = cbzApi,
-                        baseUrl = source.url.value,
-                        bookId = item.id,
-                        token = token,
-                        insecureAllowed = source.insecureConnectionAllowed,
-                        pageCount = count,
-                    )
-                }
-                imageSource = src
-            }.onFailure { loadError = "Failed to open book: ${it.message}" }
-        }
+    DisposableEffect(vm) {
+        vm.onReaderResumed()
+        onDispose { vm.onReaderClosed() }
     }
 
+    val state by vm.state.collectAsState()
+
     Box(Modifier.fillMaxSize()) {
-        when {
-            loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText(loadError ?: "Error")
+        when (val s = state) {
+            is CbzReaderState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                BasicText(s.message)
             }
-            imageSource == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CbzReaderState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BasicText("Opening…")
             }
-            else -> {
-                val src = imageSource!!
-                val savedPage = NSUserDefaults.standardUserDefaults
-                    .integerForKey(positionKey(item)).toInt().coerceIn(0, src.pageCount - 1)
-                val vm = remember(item.id, src) {
-                    CbzReaderViewModel(
-                        imageSource = src,
-                        panelEngine = IosNoOpPanelEngine,
-                        bookId = item.id,
-                        onPositionChanged = { pageIndex ->
-                            NSUserDefaults.standardUserDefaults
-                                .setInteger(pageIndex.toLong(), forKey = positionKey(item))
-                        },
-                    )
-                }
-                LaunchedEffect(vm) {
-                    if (savedPage > 0) vm.gotoPage(savedPage)
-                }
-                CbzPager(vm = vm, imageSource = src)
-            }
+            is CbzReaderState.Ready -> CbzPager(vm = vm, imageSource = s.imageSource, pageCount = s.pageCount)
         }
 
         Box(
@@ -133,15 +86,13 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-private fun CbzPager(vm: CbzReaderViewModel, imageSource: ComicImageSource) {
-    val pagerState = rememberPagerState(
-        initialPage = vm.currentPage.value,
-        pageCount = { vm.pageCount },
-    )
+private fun CbzPager(vm: CbzReaderViewModel, imageSource: ComicImageSource, pageCount: Int) {
+    val currentPage by vm.currentPage.collectAsState()
+    val pagerState = rememberPagerState(initialPage = currentPage, pageCount = { pageCount })
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            vm.gotoPage(page)
+            vm.jumpToPage(page)
         }
     }
 
@@ -187,5 +138,3 @@ private fun ComicPageView(imageSource: ComicImageSource, pageIndex: Int) {
         }
     }
 }
-
-private fun positionKey(item: LibraryItem) = "cbz_pos_${item.sourceId}_${item.id}"

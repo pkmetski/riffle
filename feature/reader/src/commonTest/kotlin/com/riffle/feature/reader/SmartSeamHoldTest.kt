@@ -1,12 +1,12 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelSource
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Pins [shouldHoldForSmartSeam]: while the SMART_SPLIT seam decode is in flight, effectivePanels

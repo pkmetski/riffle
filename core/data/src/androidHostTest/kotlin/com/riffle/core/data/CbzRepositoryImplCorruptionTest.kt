@@ -121,6 +121,7 @@ class CbzRepositoryImplCorruptionTest {
         val corruptCache = storeFor(truncatedZip())
         val repo = CbzRepositoryImpl(
             registryFor(streamingCatalog), corruptCache, emptyStore, noPosition, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         val result = repo.openCbz(fakeItem())
         assertTrue("expected Streaming but got $result", result is CbzOpenResult.Streaming)
@@ -130,6 +131,7 @@ class CbzRepositoryImplCorruptionTest {
         val corruptCache = storeFor(truncatedZip())
         val repo = CbzRepositoryImpl(
             registryFor(streamingCatalog), corruptCache, emptyStore, noPosition, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         repo.openCbz(fakeItem())
         assertTrue("corrupt cache file must be deleted", corruptCache.deleted)
@@ -139,6 +141,7 @@ class CbzRepositoryImplCorruptionTest {
         val corruptDownload = storeFor(truncatedZip())
         val repo = CbzRepositoryImpl(
             registryFor(streamingCatalog), emptyStore, corruptDownload, noPosition, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         repo.openCbz(fakeItem())
         assertTrue("corrupt downloads file must be deleted", corruptDownload.deleted)
@@ -148,6 +151,7 @@ class CbzRepositoryImplCorruptionTest {
         val goodCache = storeFor(validZip())
         val repo = CbzRepositoryImpl(
             registryFor(streamingCatalog), goodCache, emptyStore, noPosition, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
         val result = repo.openCbz(fakeItem())
         assertTrue("expected Success but got $result", result is CbzOpenResult.Success)
@@ -182,8 +186,9 @@ class CbzRepositoryImplCorruptionTest {
         }
         val repo = CbzRepositoryImpl(
             registryFor(failingCatalog), failingCacheStore, emptyStore, noPosition, noActiveSource,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
-        val result = repo.awaitCachedFile(fakeItem())
+        val result = repo.awaitCachedSource(fakeItem())
         assertNull("should return null on failure", result)
         assertTrue("partial cache file must be deleted on failure", deleted)
     }
