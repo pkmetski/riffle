@@ -129,6 +129,7 @@ dependencies {
     implementation(project(":feature:library"))
     implementation(project(":feature:reader"))
     implementation(project(":feature:player"))
+    implementation(project(":feature:settings"))
     implementation(project(":feature:source"))
     implementation(project(":core:sources"))
     implementation(project(":core:sync"))

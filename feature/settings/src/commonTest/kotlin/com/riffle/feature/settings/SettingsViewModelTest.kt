@@ -1,55 +1,63 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
-import android.content.Context
-import com.riffle.app.R
-import com.riffle.core.sync.AnnotationSyncStatusStore
-import com.riffle.core.sync.CycleOutcome
+import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
+import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.database.BookHighlightSummary
+import com.riffle.core.database.DirtySourceItem
+import com.riffle.core.database.LocalFilesFolderDao
+import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
-import com.riffle.core.models.HighlightColor
-import com.riffle.core.domain.ReadaloudPreferences
-import com.riffle.core.domain.ReadaloudPreferencesStore
-import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.models.Collection
+import com.riffle.core.domain.AppUpdatePreferencesStore
+import com.riffle.core.domain.AppUpdateRepository
+import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.PendingSource
-import java.io.IOException
-import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryOrderPreferencesStore
+import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.ReadaloudPreferences
+import com.riffle.core.domain.ReadaloudPreferencesStore
+import com.riffle.core.domain.ReadaloudReviewRepository
+import com.riffle.core.domain.ReleaseInfo
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.UpdateCheckResult
+import com.riffle.core.domain.UpdateDownloadState
+import com.riffle.core.domain.VolumeKeyPreferencesStore
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
-import com.riffle.core.models.Library
-import com.riffle.core.models.LibraryItem
-import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryOrderPreferencesStore
-import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
-import com.riffle.core.domain.ReadaloudReviewRepository
+import com.riffle.core.domain.UnmatchedReadaloud
+import com.riffle.core.models.Collection
+import com.riffle.core.models.CrashReport
+import com.riffle.core.models.HighlightColor
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.domain.UnmatchedReadaloud
-import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.VolumeKeyPreferencesStore
-import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -59,21 +67,22 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @BeforeTest fun setUp() { Dispatchers.setMain(testDispatcher) }
+    @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     // --- helpers ---
 
@@ -150,8 +159,8 @@ class SettingsViewModelTest {
     private fun fakeServerRepo(): SourceRepository = object : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = serversFlow
         override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-            CommitSourceResult.Failure(IOException())
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): com.riffle.core.domain.CommitSourceResult =
+            com.riffle.core.domain.CommitSourceResult.Failure(Exception("unused"))
         override suspend fun setActive(sourceId: String) {
             serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
@@ -206,33 +215,35 @@ class SettingsViewModelTest {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
     }
 
-    // LocalFiles dependencies are unused by these settings tests — they still need to satisfy the
-    // constructor's non-null parameters, so route them through relaxed mockk mocks.
-    private val fakeLocalFilesFolderDao = io.mockk.mockk<com.riffle.core.database.LocalFilesFolderDao>(relaxed = true).also {
-        io.mockk.every { it.observeForSource(any()) } returns flowOf(emptyList())
+    private val noOpLocalFilesFolderDao = object : LocalFilesFolderDao {
+        override fun observeForSource(sourceId: String): Flow<List<LocalFilesFolderEntity>> = flowOf(emptyList())
+        override suspend fun upsert(entity: LocalFilesFolderEntity) {}
+        override suspend fun delete(sourceId: String, treeUri: String) {}
+        override suspend fun forSource(sourceId: String): List<LocalFilesFolderEntity> = emptyList()
+        override suspend fun getByLibraryId(sourceId: String, libraryId: String): LocalFilesFolderEntity? = null
     }
-    private val fakeLocalFilesFolderRepository =
-        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesFolderRepository>(relaxed = true)
-    private val fakeLocalFilesScanner =
-        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesScanner>(relaxed = true)
-    private val fakeLocalFilesSourceInstaller =
-        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesSourceInstaller>(relaxed = true)
-    private val fakeLocalFilesFolderHealthChecker =
-        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker>(relaxed = true).also {
-            io.mockk.every { it.healthFor(any()) } returns emptyMap()
-        }
 
-    private val fakeAppUpdateRepo = object : com.riffle.core.domain.AppUpdateRepository {
-        override suspend fun checkForUpdate(currentVersionCode: Int) =
-            com.riffle.core.domain.UpdateCheckResult.UpToDate
-        override fun downloadAndInstall(update: com.riffle.core.domain.AvailableUpdate):
-            Flow<com.riffle.core.domain.UpdateDownloadState> = kotlinx.coroutines.flow.emptyFlow()
+    private val noOpLocalFilesFolderRepository = object : LocalFilesFolderRepositoryInterface {
+        override suspend fun removeFolder(sourceId: String, treeUri: String) {}
+    }
+
+    private val noOpLocalFilesScanner = object : LocalFilesScannerInterface {
+        override suspend fun scan(sourceId: String) {}
+    }
+
+    private val noOpLocalFilesFolderHealthChecker = object : LocalFilesFolderHealthCheckerInterface {
+        override fun healthFor(treeUris: kotlin.collections.Collection<String>): Map<String, Boolean> = emptyMap()
+    }
+
+    private val fakeAppUpdateRepo = object : AppUpdateRepository {
+        override suspend fun checkForUpdate(currentVersionCode: Int) = UpdateCheckResult.UpToDate
+        override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> = emptyFlow()
         override fun sweepStaleApks() = Unit
-        override suspend fun listReleasesSince(sinceVersionCode: Int): List<com.riffle.core.domain.ReleaseInfo> = emptyList()
+        override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> = emptyList()
     }
 
     private val autoUpdateEnabledFlow = MutableStateFlow(true)
-    private val fakeAppUpdatePreferencesStore = object : com.riffle.core.domain.AppUpdatePreferencesStore {
+    private val fakeAppUpdatePreferencesStore = object : AppUpdatePreferencesStore {
         override val autoUpdateEnabled: Flow<Boolean> = autoUpdateEnabledFlow
         override val ignoredVersionCode: Flow<Int> = MutableStateFlow(0)
         override suspend fun setAutoUpdateEnabled(value: Boolean) { autoUpdateEnabledFlow.value = value }
@@ -240,8 +251,9 @@ class SettingsViewModelTest {
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
+
     private val fakeDeveloperOptionsRepository = object : com.riffle.core.domain.developer.DeveloperOptionsRepository {
-        override val developerModeEnabled = kotlinx.coroutines.flow.MutableStateFlow(false)
+        override val developerModeEnabled = MutableStateFlow(false)
         override suspend fun setDeveloperModeEnabled(enabled: Boolean) = Unit
         override suspend fun getGithubPat(): String? = null
         override suspend fun setGithubPat(pat: String?) = Unit
@@ -250,45 +262,19 @@ class SettingsViewModelTest {
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
         override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
             reviewsFlow.map { it[storytellerSourceId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
-        override suspend fun searchAbsItems(absSourceId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
+        override suspend fun searchAbsItems(absSourceId: String, query: String, filter: AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
-
-    private fun fakeContext(): Context {
-        val context = io.mockk.mockk<Context>()
-        io.mockk.every { context.getString(R.string.ui_webdav_not_configured_status) } returns
-            "Not configured · available for Komga sources"
-        io.mockk.every { context.getString(R.string.ui_waiting_for_first_sync) } returns
-            "Waiting for first sync…"
-        io.mockk.every { context.getString(R.string.ui_webdav_auth_failed_reenter) } returns
-            "Authentication failed · tap to re-enter credentials"
-        io.mockk.every { context.getString(R.string.ui_webdav_tls_check_url) } returns
-            "TLS error · tap to check server URL"
-        io.mockk.every { context.getString(R.string.ui_source_http_retry_short, any()) } answers
-            { "Source error (HTTP ${firstFormatArg(invocation.args[1])}) · will retry automatically" }
-        io.mockk.every { context.getString(R.string.ui_sync_failed_retry_short) } returns
-            "Sync failed · will retry automatically"
-        io.mockk.every { context.getString(R.string.ui_books_pending_sync_online, any()) } answers
-            { "${firstFormatArg(invocation.args[1])} book(s) pending · will sync when online" }
-        io.mockk.every { context.getString(R.string.ui_offline_sync_when_connected) } returns
-            "Offline · will sync when connected"
-        io.mockk.every { context.getString(R.string.ui_synced_identity, any()) } answers
-            { "Synced · ${firstFormatArg(invocation.args[1])}" }
-        return context
-    }
-
-    private fun firstFormatArg(arg: Any?): Any? =
-        (arg as? Array<*>)?.firstOrNull() ?: arg
 
     private fun makeViewModel(
         reports: List<CrashReport> = emptyList(),
         annotationSyncStatusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
         annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
     ) = SettingsViewModel(
-        context = fakeContext(),
+        appVersion = AppVersion("1.0.0-test", 1),
         crashReportRepository = object : CrashReportRepository {
             private val current = reports.toMutableList()
             override fun listCrashReports(): List<CrashReport> = current.toList()
-            override fun resolveReportFiles(ids: List<String>) = emptyList<java.io.File>()
+            override fun resolveReportFilePaths(ids: List<String>) = emptyList<String>()
             override fun clearAllCrashReports() { current.clear() }
         },
         formattingPreferencesStore = noOpFormattingStore,
@@ -312,11 +298,10 @@ class SettingsViewModelTest {
         },
         annotationSyncStatusStore = annotationSyncStatusStore,
         annotationDao = annotationDao,
-        localFilesFolderDao = fakeLocalFilesFolderDao,
-        localFilesFolderRepository = fakeLocalFilesFolderRepository,
-        localFilesScanner = fakeLocalFilesScanner,
-        localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
-        localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
+        localFilesFolderDao = noOpLocalFilesFolderDao,
+        localFilesFolderRepository = noOpLocalFilesFolderRepository,
+        localFilesScanner = noOpLocalFilesScanner,
+        localFilesFolderHealthChecker = noOpLocalFilesFolderHealthChecker,
         comicFormattingPreferencesStore = noOpComicFormattingStore,
         developerOptionsRepository = fakeDeveloperOptionsRepository,
     )
@@ -329,11 +314,7 @@ class SettingsViewModelTest {
         override suspend fun getById(id: String): AnnotationEntity? = null
         override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
         override suspend fun findImageForFigure(
-            sourceId: String,
-            itemId: String,
-            chapterHref: String,
-            imageHref: String?,
-            imageSvg: String?,
+            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
         ): AnnotationEntity? = null
         override suspend fun upsert(entity: AnnotationEntity) {}
         override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
@@ -348,24 +329,12 @@ class SettingsViewModelTest {
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
         override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
         override suspend fun backfillNullOriginFontFamily(
-            sourceId: String,
-            itemId: String,
-            fontFamily: String,
-            updatedAt: Long,
-            deviceId: String,
+            sourceId: String, itemId: String, fontFamily: String, updatedAt: Long, deviceId: String,
         ): Int = 0
-
         override suspend fun healSentinelOriginFontFamily(
-            sourceId: String,
-            itemId: String,
-            sentinel: String,
-            fontFamily: String,
-            updatedAt: Long,
-            deviceId: String,
+            sourceId: String, itemId: String, sentinel: String, fontFamily: String, updatedAt: Long, deviceId: String,
         ): Int = 0
-
-        override fun observeBooksWithHighlights(sourceId: String) =
-            flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+        override fun observeBooksWithHighlights(sourceId: String) = flowOf(emptyList<BookHighlightSummary>())
         override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
     }
 
@@ -380,10 +349,10 @@ class SettingsViewModelTest {
         statusStore: AnnotationSyncStatusStore,
         annotationDao: AnnotationDao,
     ) = SettingsViewModel(
-        context = fakeContext(),
+        appVersion = AppVersion("1.0.0-test", 1),
         crashReportRepository = object : CrashReportRepository {
             override fun listCrashReports(): List<CrashReport> = emptyList()
-            override fun resolveReportFiles(ids: List<String>) = emptyList<java.io.File>()
+            override fun resolveReportFilePaths(ids: List<String>) = emptyList<String>()
             override fun clearAllCrashReports() = Unit
         },
         formattingPreferencesStore = noOpFormattingStore,
@@ -403,11 +372,10 @@ class SettingsViewModelTest {
         annotationSyncConfigStore = configStore,
         annotationSyncStatusStore = statusStore,
         annotationDao = annotationDao,
-        localFilesFolderDao = fakeLocalFilesFolderDao,
-        localFilesFolderRepository = fakeLocalFilesFolderRepository,
-        localFilesScanner = fakeLocalFilesScanner,
-        localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
-        localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
+        localFilesFolderDao = noOpLocalFilesFolderDao,
+        localFilesFolderRepository = noOpLocalFilesFolderRepository,
+        localFilesScanner = noOpLocalFilesScanner,
+        localFilesFolderHealthChecker = noOpLocalFilesFolderHealthChecker,
         comicFormattingPreferencesStore = noOpComicFormattingStore,
         developerOptionsRepository = fakeDeveloperOptionsRepository,
     )
@@ -469,8 +437,6 @@ class SettingsViewModelTest {
 
     @Test
     fun `removeServer active server promotes the next browsable server, never a Storyteller`() = runTest {
-        // ADR 0032: a Storyteller Source can never become the active browsable Source, so removing
-        // the active ABS server must skip the Storyteller and promote the next ABS server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
             server("st-1", serverType = ServerType.STORYTELLER_SERVICE),
@@ -561,7 +527,7 @@ class SettingsViewModelTest {
     fun `libraryUiItems switchEnabled is false for the sole visible library`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
-        hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))  // only lib-1 is visible
+        hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))
         val vm = makeViewModel()
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -569,15 +535,14 @@ class SettingsViewModelTest {
         val items = vm.libraryUiItemsBySource.value["srv-1"].orEmpty()
         val lib1Item = items.first { it.library.id == "lib-1" }
         val lib2Item = items.first { it.library.id == "lib-2" }
-        assertFalse("lib-1 is the sole visible library, its switch must be disabled", lib1Item.switchEnabled)
-        assertTrue("lib-2 is hidden, its switch must be enabled (to allow un-hiding)", lib2Item.switchEnabled)
+        assertFalse(lib1Item.switchEnabled, "lib-1 is the sole visible library, its switch must be disabled")
+        assertTrue(lib2Item.switchEnabled, "lib-2 is hidden, its switch must be enabled (to allow un-hiding)")
     }
 
     @Test
     fun `libraryUiItems switchEnabled is true for all libraries when multiple are visible`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
-        // nothing hidden — both visible
         val vm = makeViewModel()
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -588,9 +553,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `libraryUiItemsBySource populated for a Local Files source`() = runTest {
-        serversFlow.value = listOf(
-            server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES),
-        )
+        serversFlow.value = listOf(server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES))
         librariesFlow.value = listOf(library("folder-a"), library("folder-b"))
         val vm = makeViewModel()
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
@@ -602,9 +565,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `libraryUiItemsBySource populated for a Chitanka source`() = runTest {
-        serversFlow.value = listOf(
-            server("ch-1", type = com.riffle.core.models.SourceType.CHITANKA),
-        )
+        serversFlow.value = listOf(server("ch-1", type = com.riffle.core.models.SourceType.CHITANKA))
         librariesFlow.value = listOf(library("books"), library("gramofonche"))
         val vm = makeViewModel()
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
@@ -616,9 +577,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `libraryUiItemsBySource applies saved order for a Local Files source`() = runTest {
-        serversFlow.value = listOf(
-            server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES),
-        )
+        serversFlow.value = listOf(server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES))
         librariesFlow.value = listOf(library("a"), library("b"), library("c"))
         orderFlow.value = mapOf("lf-1" to listOf("c", "a", "b"))
         val vm = makeViewModel()
@@ -633,31 +592,23 @@ class SettingsViewModelTest {
 
     @Test
     fun `libraryUiItemsBySource omits Storyteller services`() = runTest {
-        serversFlow.value = listOf(
-            server("st-1", serverType = ServerType.STORYTELLER_SERVICE),
-        )
+        serversFlow.value = listOf(server("st-1", serverType = ServerType.STORYTELLER_SERVICE))
         librariesFlow.value = listOf(library("lib-1"))
         val vm = makeViewModel()
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Storyteller is Settings-only (ADR 0032) and never appears in the drawer, so we don't
-        // surface its libraries in the reorder/visibility editor either.
         assertNull(vm.libraryUiItemsBySource.value["st-1"])
     }
 
     @Test
     fun `libraryUiItemsBySource exposes libraries for a non-active ABS server`() = runTest {
-        serversFlow.value = listOf(
-            server("srv-active", active = true),
-            server("srv-other", active = false),
-        )
+        serversFlow.value = listOf(server("srv-active", active = true), server("srv-other", active = false))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         val vm = makeViewModel()
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // The non-active server still has manageable library items — no activation required.
         val items = vm.libraryUiItemsBySource.value["srv-other"].orEmpty()
         assertEquals(2, items.size)
     }
@@ -671,7 +622,6 @@ class SettingsViewModelTest {
             "st-1" to ReadaloudReview(
                 pending = listOf(pending("b1")),
                 unmatched = listOf(unmatched("b2"), unmatched("b3")),
-                // b4/b5 fully matched; b6 missing its ebook → partially matched.
                 confirmed = listOf(confirmed("b4"), confirmed("b5"), confirmed("b6", hasEbook = false)),
             )
         )
@@ -853,14 +803,14 @@ class SettingsViewModelTest {
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Local, row.badge)
         assertEquals("WebDAV", row.headline)
-        assertTrue(row.sub.startsWith("Not configured"))
+        assertIs<AnnotationSyncSubtitle.NotConfigured>(row.sub)
         assertEquals(AnnotationSyncRowState.Tone.Normal, row.subTone)
     }
 
     @Test
     fun `annotationSyncRow is Pending when configured + NeverRun + no pending (not prematurely Synced)`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
-        val status = AnnotationSyncStatusStore() // NeverRun by default
+        val status = AnnotationSyncStatusStore()
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingBookCount = 0),
@@ -871,18 +821,14 @@ class SettingsViewModelTest {
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
         assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
-        // Should NOT show the Synced badge before any cycle has completed.
     }
 
-    // Regression: NeverRun must win over a positive pending count in the sub-text — a
-    // freshly-installed device with un-pushed local highlights should say "Waiting for first
-    // sync…", not "N book(s) pending · will sync when online". Introduced when the row's
-    // when-branches were re-ordered around the shared kind derivation; without this test a
-    // future refactor could re-invert the ordering and no assertion would flip.
+    // Regression: NeverRun must win over a positive pending count — a freshly-installed device
+    // should show WaitingForFirstSync, not BooksPendingOffline.
     @Test
-    fun `annotationSyncRow shows Waiting for first sync when NeverRun even with pending books`() = runTest {
+    fun `annotationSyncRow shows WaitingForFirstSync when NeverRun even with pending books`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
-        val status = AnnotationSyncStatusStore() // NeverRun
+        val status = AnnotationSyncStatusStore()
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingBookCount = 3),
@@ -892,7 +838,7 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
-        assertTrue("sub should be 'Waiting for first sync…', got: ${row.sub}", row.sub.contains("Waiting for first sync"))
+        assertIs<AnnotationSyncSubtitle.WaitingForFirstSync>(row.sub)
     }
 
     @Test
@@ -908,8 +854,8 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Synced, row.badge)
-        assertTrue(row.sub.contains("Synced"))
-        assertTrue(row.sub.contains("alice"))
+        val synced = assertIs<AnnotationSyncSubtitle.Synced>(row.sub)
+        assertTrue(synced.identity?.contains("alice") == true)
     }
 
     @Test
@@ -925,7 +871,7 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
-        assertTrue(row.sub.contains("2 book"))
+        assertEquals(AnnotationSyncSubtitle.BooksPendingOffline(2), row.sub)
         assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
     }
 
@@ -942,12 +888,12 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Error, row.badge)
-        assertTrue(row.sub.contains("Authentication failed"))
+        assertIs<AnnotationSyncSubtitle.AuthFailed>(row.sub)
         assertEquals(AnnotationSyncRowState.Tone.Error, row.subTone)
     }
 
     @Test
-    fun `annotationSyncRow is Error with Tls copy when Tls failure`() = runTest {
+    fun `annotationSyncRow is Error with TlsError sub when Tls failure`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Tls(1_000L, "cert untrusted")) }
         val vm = newSettingsViewModel(
@@ -959,15 +905,12 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Error, row.badge)
-        assertTrue(row.sub.contains("TLS error"))
+        assertIs<AnnotationSyncSubtitle.TlsError>(row.sub)
     }
 
-    // Regression: the WebDAV row copy is "$N book(s) pending" and N must reflect *books*, not
-    // dirty annotation rows. Wired through AnnotationDao.observePendingBookCountAcrossAll, which
-    // counts distinct (sourceId, itemId). This test pins the wording; AnnotationDaoTest pins the
-    // SQL. Together they prevent the "8 highlights on 1 book showing as '8 books pending'" bug.
+    // Regression: the WebDAV row subtitle is BooksPendingOffline(N books), not N highlights.
     @Test
-    fun `annotationSyncRow reads book count into 'N book(s) pending' copy`() = runTest {
+    fun `annotationSyncRow reads book count into BooksPendingOffline subtitle`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Success(1_000L)) }
         val vm = newSettingsViewModel(
@@ -979,7 +922,7 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
-        assertTrue("sub should read '3 book(s) pending' — got: ${row.sub}", row.sub.contains("3 book(s) pending"))
+        assertEquals(AnnotationSyncSubtitle.BooksPendingOffline(3), row.sub)
     }
 
     @Test
@@ -995,7 +938,7 @@ class SettingsViewModelTest {
 
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
-        assertTrue("sub should mention Offline", row.sub.contains("Offline"))
+        assertIs<AnnotationSyncSubtitle.Offline>(row.sub)
         assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
     }
 
@@ -1004,7 +947,6 @@ class SettingsViewModelTest {
     @Test
     fun `setAutoUpdateEnabled persists to store`() = runTest {
         val vm = makeViewModel()
-        // Subscribe so the WhileSubscribed StateFlow starts collecting.
         backgroundScope.launch { vm.autoUpdateEnabled.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -1014,5 +956,4 @@ class SettingsViewModelTest {
         assertFalse(vm.autoUpdateEnabled.value)
         assertFalse(autoUpdateEnabledFlow.value)
     }
-
 }

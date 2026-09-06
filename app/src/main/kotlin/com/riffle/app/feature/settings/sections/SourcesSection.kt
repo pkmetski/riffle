@@ -35,8 +35,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.settings.ExpandableSourceRow
-import com.riffle.app.feature.settings.LibraryUiItem
-import com.riffle.app.feature.settings.ReadaloudMatchSummary
+import com.riffle.feature.settings.LibraryUiItem
+import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.app.feature.settings.ReorderableLibraryList
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.idsWithSwap

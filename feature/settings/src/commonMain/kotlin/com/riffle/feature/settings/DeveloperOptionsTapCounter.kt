@@ -1,4 +1,4 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
 /** Counts version-row taps and fires [onUnlock] every [requiredTaps] taps. */
 class DeveloperOptionsTapCounter(

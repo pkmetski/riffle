@@ -29,10 +29,11 @@ import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge
-import com.riffle.app.feature.settings.AnnotationSyncRowState
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
-import com.riffle.app.feature.settings.SettingsViewModel
+import com.riffle.app.feature.settings.resolve
+import com.riffle.feature.settings.AnnotationSyncRowState
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.disabledListItemColors
 
 /**
@@ -84,7 +85,7 @@ fun AnnotationsSyncSettingsScreen(
                 headlineContent = { Text(stringResource(R.string.ui_configure_webdav)) },
                 supportingContent = {
                     Text(
-                        text = row.sub,
+                        text = row.sub.resolve(),
                         color = when (row.subTone) {
                             AnnotationSyncRowState.Tone.Error -> MaterialTheme.colorScheme.error
                             AnnotationSyncRowState.Tone.Pending -> MaterialTheme.colorScheme.tertiary

@@ -66,6 +66,7 @@ import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpContentCacheSettingsStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpDownloadsRepository
+import com.riffle.shared.library.IosNoOpContentCacheSettingsStore
 import com.riffle.shared.library.IosNoOpFormattingPreferencesStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
@@ -78,7 +79,38 @@ import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
-import com.riffle.shared.settings.SettingsViewModel
+import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
+import com.riffle.core.domain.ContentCacheSettingsStore
+import com.riffle.core.domain.ReadaloudSidecarDownloads
+import com.riffle.core.domain.AppUpdateRepository
+import com.riffle.core.domain.CrashReportRepository
+import com.riffle.core.domain.LibraryOrderPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.ReadaloudPreferencesStore
+import com.riffle.core.domain.ReadaloudReviewRepository
+import com.riffle.core.domain.VolumeKeyPreferencesStore
+import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
+import com.riffle.feature.settings.AppVersion
+import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
+import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
+import com.riffle.shared.settings.IosNoOpAppUpdateRepository
+import com.riffle.shared.settings.IosNoOpComicFormattingPreferencesStore
+import com.riffle.shared.settings.IosNoOpCrashReportRepository
+import com.riffle.shared.settings.IosNoOpDeveloperOptionsRepository
+import com.riffle.shared.settings.IosNoOpLibraryOrderPreferencesStore
+import com.riffle.shared.settings.IosNoOpListeningPreferencesStore
+import com.riffle.shared.settings.IosNoOpLocalFilesFolderDao
+import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
+import com.riffle.shared.settings.IosNoOpLocalFilesFolderRepository
+import com.riffle.shared.settings.IosNoOpLocalFilesScannerInterface
+import com.riffle.shared.settings.IosNoOpReadaloudPreferencesStore
+import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
+import com.riffle.shared.settings.IosNoOpVolumeKeyPreferencesStore
+import com.riffle.shared.settings.IosNoOpWakeLockPreferencesStore
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
@@ -157,7 +189,48 @@ private fun iosLibraryModule(
             contentCacheSettingsStore = get(),
         )
     }
-    single { SettingsViewModel(get(), get(), get()) }
+    single<CrashReportRepository> { IosNoOpCrashReportRepository }
+    single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
+    single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
+    single<WakeLockPreferencesStore> { IosNoOpWakeLockPreferencesStore() }
+    single<VolumeKeyPreferencesStore> { IosNoOpVolumeKeyPreferencesStore() }
+    single<ListeningPreferencesStore> { IosNoOpListeningPreferencesStore() }
+    single<LibraryOrderPreferencesStore> { IosNoOpLibraryOrderPreferencesStore() }
+    single<ReadaloudPreferencesStore> { IosNoOpReadaloudPreferencesStore() }
+    single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
+    single<DeveloperOptionsRepository> { IosNoOpDeveloperOptionsRepository() }
+    single<AnnotationSyncConfigStore> { IosNoOpAnnotationSyncConfigStore }
+    single { com.riffle.core.sync.AnnotationSyncStatusStore() }
+    single<ComicFormattingPreferencesStore> { IosNoOpComicFormattingPreferencesStore() }
+    single {
+        SettingsViewModel(
+            appVersion = AppVersion(name = "iOS", code = 0),
+            crashReportRepository = get(),
+            formattingPreferencesStore = get(),
+            sourceRepository = get(),
+            libraryObserver = get(),
+            visibilityStore = get(),
+            orderStore = get(),
+            wakeLockPreferencesStore = get(),
+            volumeKeyPreferencesStore = get(),
+            listeningPreferencesStore = get(),
+            appThemeStore = get(),
+            readaloudReviewRepository = get(),
+            connectivityObserver = get(),
+            appUpdateRepository = get(),
+            appUpdatePreferencesStore = get(),
+            readaloudPreferencesStore = get(),
+            localFilesFolderDao = IosNoOpLocalFilesFolderDao,
+            localFilesFolderRepository = IosNoOpLocalFilesFolderRepository,
+            localFilesScanner = IosNoOpLocalFilesScannerInterface,
+            localFilesFolderHealthChecker = IosNoOpLocalFilesFolderHealthChecker,
+            comicFormattingPreferencesStore = get(),
+            developerOptionsRepository = get(),
+            annotationSyncConfigStore = get(),
+            annotationSyncStatusStore = get(),
+            annotationDao = get(),
+        )
+    }
     single<Clock> { IosSystemClock }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
     single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }

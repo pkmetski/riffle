@@ -37,7 +37,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.settings.SettingsSectionHeader
-import com.riffle.app.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,7 +85,7 @@ fun DeveloperOptionsScreen(
             DiagnosticsSection(
                 crashReports = crashReports,
                 expandedCrashes = expandedCrashes,
-                crashReportFiles = viewModel::crashReportFiles,
+                crashReportFiles = { viewModel.crashReportFilePaths().map { java.io.File(it) } },
                 onClearCrashReports = viewModel::clearCrashReports,
                 onNavigateToDebugLogs = onNavigateToDebugLogs,
             )

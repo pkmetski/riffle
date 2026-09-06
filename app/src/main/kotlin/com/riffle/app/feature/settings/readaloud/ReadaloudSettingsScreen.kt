@@ -47,7 +47,7 @@ import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.withResolvedTheme
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
-import com.riffle.app.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.StorytellerBadge
 import com.riffle.app.feature.settings.disabledListItemColors
 import com.riffle.core.models.HighlightColor

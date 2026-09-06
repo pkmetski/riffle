@@ -9,7 +9,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.riffle.app.feature.settings.SettingsScreen
-import com.riffle.app.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.app.feature.settings.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.app.feature.settings.debug.DebugLogScreen

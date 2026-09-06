@@ -1,4 +1,4 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
 import com.riffle.core.models.Library
 
