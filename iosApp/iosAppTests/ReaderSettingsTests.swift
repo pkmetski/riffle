@@ -4,43 +4,27 @@ import Riffle
 // Covers scenarios from docs/testing/ios-scenarios/12-reader-settings.md
 final class ReaderSettingsTests: XCTestCase {
 
-    // Scenario 12.1 — Reader settings sheet tabs (Formatting + Display, no Behavior).
-    func testReaderSettingsSheetShowsTwoTabs() throws {
-        throw XCTSkip("UI-only; verified manually via Xcode build — sheet shows Formatting and Display tabs only")
+    // Scenario 12.4 — AutoReaderThemeMode default is Schedule (not AppTheme), so the schedule
+    // editor is shown by default when Auto is selected. If this changes, the Display section
+    // renders incorrectly (shows App-theme sub-row instead of Day-starts-at editor).
+    func testAutoReaderThemeModeDefaultIsSchedule() {
+        let prefs = FormattingPreferences()
+        XCTAssertEqual(prefs.autoReaderThemeMode, AutoReaderThemeMode.schedule)
     }
 
-    // Scenario 12.2 — Schedule editor visible when host is editable.
-    func testScheduleEditorVisibleWhenEditable() throws {
-        throw XCTSkip("UI-only; verified manually — 'Day starts at' editor shown in Settings → Display when editable")
+    // Scenario 12.2 / 12.3 — ReaderTheme enum values exist: Auto is required for the schedule
+    // editor branch; Light and Dark are required for app-theme-based auto-switching.
+    func testReaderThemeValuesExist() {
+        XCTAssertNotNil(ReaderTheme.auto)
+        XCTAssertNotNil(ReaderTheme.light)
+        XCTAssertNotNil(ReaderTheme.dark)
+        XCTAssertNotNil(ReaderTheme.sepia)
     }
 
-    // Scenario 12.3 — Read-only summary in reader host.
-    func testReadOnlySummaryInReaderHost() throws {
-        throw XCTSkip("UI-only; verified manually — 'Edit Auto in Settings → Display' note shown from within the reader")
-    }
-
-    // Scenario 12.4 — App theme Auto mode hides schedule editor.
-    func testAppThemeAutoModeHidesScheduleEditor() throws {
-        throw XCTSkip("UI-only; verified manually — schedule editor absent when Auto mode is 'App theme'")
-    }
-
-    // Scenario 12.5 / 12.6 — PDF capabilities hide font and typography controls.
-    func testPdfCapsHidesFontAndReadingModeControls() throws {
-        throw XCTSkip("UI-only; verified manually via Xcode build on PDF reader settings sheet")
-    }
-
-    // Scenario 12.7 — EPUB capabilities show full controls.
-    func testEpubCapsShowsAllControls() throws {
-        throw XCTSkip("UI-only; verified manually via Xcode build on EPUB reader settings sheet")
-    }
-
-    // Scenario 12.8 — Behavior section row height consistency.
-    func testBehaviorSectionRowHeightConsistent() throws {
-        throw XCTSkip("UI-only; verified manually — no row in reader Behavior section is clipped or overflowing")
-    }
-
-    // Scenario 12.9 — Readaloud play drops reader into immersive mode.
-    func testReadaloudPlayEntersImmersiveMode() throws {
-        throw XCTSkip("UI-only; iOS uses safe-area insets for immersive behaviour; verified manually via Xcode build")
+    // Scenario 12.6 — Colored chapter map is on by default. If this regresses to false,
+    // the chapter rail always renders in neutral grey even when the user hasn't changed the setting.
+    func testColoredChapterMapDefaultIsTrue() {
+        let prefs = FormattingPreferences()
+        XCTAssertTrue(prefs.coloredChapterMap)
     }
 }
