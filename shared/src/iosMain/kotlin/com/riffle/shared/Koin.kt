@@ -108,8 +108,8 @@ import com.riffle.shared.settings.IosNoOpReadaloudPreferencesStore
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import com.riffle.shared.settings.IosNoOpVolumeKeyPreferencesStore
 import com.riffle.shared.settings.IosNoOpWakeLockPreferencesStore
-import org.koin.core.context.startKoin as koinStartKoin
 import org.koin.dsl.module
+import org.koin.core.context.startKoin as koinStartKoin
 
 private fun iosLibraryModule(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,

@@ -1,10 +1,7 @@
 package com.riffle.shared.settings
 
-import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
-import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
-import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
-import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
+import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
@@ -24,6 +21,9 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
+import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
+import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.models.CrashReport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,7 +86,11 @@ internal class IosNoOpReadaloudPreferencesStore : ReadaloudPreferencesStore {
 internal object IosNoOpReadaloudReviewRepository : ReadaloudReviewRepository {
     override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
         flowOf(ReadaloudReview(pending = emptyList(), unmatched = emptyList(), confirmed = emptyList()))
-    override suspend fun searchAbsItems(absSourceId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<com.riffle.core.domain.AbsPickerItem> = emptyList()
+    override suspend fun searchAbsItems(
+        absSourceId: String,
+        query: String,
+        filter: com.riffle.core.domain.AbsFormatFilter,
+    ): List<com.riffle.core.domain.AbsPickerItem> = emptyList()
 }
 
 internal class IosNoOpDeveloperOptionsRepository : DeveloperOptionsRepository {
