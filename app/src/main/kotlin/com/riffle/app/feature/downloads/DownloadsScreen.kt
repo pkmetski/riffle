@@ -5,7 +5,6 @@ import com.riffle.feature.downloads.LocalItemUi
 import com.riffle.feature.downloads.LocalMediaType
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -206,9 +205,10 @@ private fun CacheSettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column {
                 Text(
                     text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n),
+                    modifier = Modifier.padding(bottom = 4.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
