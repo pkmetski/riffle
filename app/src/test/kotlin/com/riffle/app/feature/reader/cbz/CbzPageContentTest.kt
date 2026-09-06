@@ -1,7 +1,6 @@
 package com.riffle.app.feature.reader.cbz
 
-import com.riffle.core.domain.comic.ComicArchive
-import java.io.InputStream
+import com.riffle.core.domain.comic.ComicPageSource
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -39,36 +38,26 @@ class CbzPageContentTest {
 
     // --- retry budget per source ---
 
-    private class FakeArchive : ComicArchive {
+    /** Local archive-backed source: deterministic decode, no retries. */
+    private class LocalPageSource : ComicPageSource {
         override val pageCount = 1
         override fun imageBytes(pageIndex: Int): ByteArray = ByteArray(0)
-        override fun openStream(pageIndex: Int): InputStream = ByteArray(0).inputStream()
         override fun mediaType(pageIndex: Int): String = "image/jpeg"
-        override fun close() {}
+    }
+
+    /** Network-streaming source: transient failures warrant retries. */
+    private class StreamingPageSource : ComicPageSource {
+        override val pageCount = 1
+        override fun imageBytes(pageIndex: Int): ByteArray = ByteArray(0)
+        override fun mediaType(pageIndex: Int): String = "image/jpeg"
+        override val decodeRetries = 3
     }
 
     @Test fun `local archive decodes never retry - failure is deterministic`() {
-        assertEquals(1, decodeAttemptsFor(ArchiveImageSource(FakeArchive())))
+        assertEquals(1, decodeAttemptsFor(LocalPageSource()))
     }
 
     @Test fun `streaming decodes retry - network failure is transient`() {
-        val source = NetworkImageSource("s", "i", 1, repository = FailingCbzRepository)
-        assertEquals(3, decodeAttemptsFor(source))
+        assertEquals(3, decodeAttemptsFor(StreamingPageSource()))
     }
-}
-
-private object FailingCbzRepository : com.riffle.core.domain.CbzRepository {
-    override suspend fun openCbz(item: com.riffle.core.models.LibraryItem) = error("unused")
-    override suspend fun downloadCbz(
-        item: com.riffle.core.models.LibraryItem,
-        onProgress: (Long, Long) -> Unit,
-    ) = error("unused")
-    override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
-    override fun isDownloaded(sourceId: String, itemId: String) = false
-    override fun isCached(sourceId: String, itemId: String) = false
-    override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
-    override suspend fun supportsStreaming(sourceId: String) = true
-    override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray =
-        error("unused")
-    override suspend fun awaitCachedFile(item: com.riffle.core.models.LibraryItem): java.io.File? = null
 }

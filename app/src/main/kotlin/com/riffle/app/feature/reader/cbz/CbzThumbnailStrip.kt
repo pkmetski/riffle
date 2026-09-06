@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.size.Size as CoilSize
+import com.riffle.core.domain.comic.ComicPageSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -42,7 +43,7 @@ internal const val MAX_THUMB_DIMENSION = 256
 internal fun CbzThumbnailStrip(
     currentPage: Int,
     pageCount: Int,
-    imageSource: CbzImageSource,
+    imageSource: ComicPageSource,
     onSeek: (Int) -> Unit,
     thumbnailCache: LruCache<Int, Bitmap>? = null,
 ) {
@@ -90,7 +91,7 @@ internal fun CbzThumbnailStrip(
 
 @Composable
 private fun CbzThumbnail(
-    imageSource: CbzImageSource,
+    imageSource: ComicPageSource,
     pageIndex: Int,
     isCurrent: Boolean,
     onClick: () -> Unit,

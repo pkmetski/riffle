@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.cbz
 
-import java.io.InputStream
+import com.riffle.core.domain.comic.ComicPageSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -13,16 +13,16 @@ import org.junit.Test
  */
 class CbzArchiveSwapTest {
 
-    private fun fakeSource(count: Int = 10): CbzImageSource = object : CbzImageSource {
+    private fun fakeSource(count: Int = 10): ComicPageSource = object : ComicPageSource {
         override val pageCount: Int = count
         override fun imageBytes(pageIndex: Int): ByteArray = ByteArray(0)
-        override fun openStream(pageIndex: Int): InputStream = ByteArray(0).inputStream()
+        override fun mediaType(pageIndex: Int): String = "image/jpeg"
     }
 
     private fun readyState(
         pageCount: Int = 10,
-        imageSource: CbzImageSource = fakeSource(pageCount),
-        thumbnailSource: CbzImageSource? = fakeSource(pageCount),
+        imageSource: ComicPageSource = fakeSource(pageCount),
+        thumbnailSource: ComicPageSource? = fakeSource(pageCount),
     ) = CbzReaderState.Ready(
         title = "Comic",
         pageCount = pageCount,

@@ -728,6 +728,7 @@ private val coreDataRepositoriesModule = module {
             downloadsStore = get(named(CBZ_DOWNLOADS_STORE)),
             positionStore = get(),
             sourceRepository = get(),
+            dispatchers = get(),
             localAvailabilityEvents = get(),
             contentCacheAccessStore = get(),
         )

@@ -12,6 +12,7 @@ import com.riffle.app.feature.reader.buildCbzRailSegments
 import com.riffle.app.feature.reader.cbzRailCursorPosition
 import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.findActiveCbzSegmentIndex
+import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
@@ -24,8 +25,8 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
-import com.riffle.core.domain.comic.CbzArchive
-import com.riffle.core.domain.comic.ComicArchive
+import com.riffle.core.domain.comic.ComicBookmark
+import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
@@ -43,7 +44,6 @@ import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.usecase.UpdateReadingProgress
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,7 +92,7 @@ class CbzReaderViewModel constructor(
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
-    private var archive: ComicArchive? = null
+    private var currentSource: ComicPageSource? = null
     private var lastSavedPage: Int = -1
     private var closeSyncDone: Boolean = false
     var bookId: String = itemId
@@ -291,7 +291,9 @@ class CbzReaderViewModel constructor(
             _bookComicOverrides.value = existingOverrides
         }
         when (val result = cbzRepository.openCbz(item)) {
-            is CbzOpenResult.Success -> loadArchive(result.cbzFile, result.lastPosition, item.title)
+            is CbzOpenResult.Success -> loadOpened(
+                result.imageSource, result.pageCount, result.bookmarks, result.lastPosition, item.title,
+            )
             is CbzOpenResult.Streaming -> loadStreaming(result, item)
             is CbzOpenResult.NetworkError -> _state.value = CbzReaderState.Error(
                 result.cause.message ?: "Network error"
@@ -300,23 +302,19 @@ class CbzReaderViewModel constructor(
         }
     }
 
-    private suspend fun loadArchive(file: File, lastPosition: String?, title: String) {
-        val (opened, pageCount) = try {
-            withContext(Dispatchers.IO) {
-                val a = CbzArchive(file)
-                a to a.pageCount
-            }
-        } catch (t: Throwable) {
-            _state.value = CbzReaderState.Error(t.message ?: "Failed to open comic archive")
-            return
-        }
+    private suspend fun loadOpened(
+        source: ComicPageSource,
+        pageCount: Int,
+        bookmarks: List<ComicBookmark>,
+        lastPosition: String?,
+        title: String,
+    ) {
         if (pageCount == 0) {
             _state.value = CbzReaderState.Error("Comic has no pages")
-            opened.close()
+            source.close()
             return
         }
-        archive = opened
-        val bookmarks = withContext(Dispatchers.IO) { opened.readComicInfo() ?: emptyList() }
+        currentSource = source
         _railSegments.value = buildCbzRailSegments(bookmarks, pageCount)
         _pageCount.value = pageCount
         val resumeIndex = lastPosition
@@ -334,12 +332,12 @@ class CbzReaderViewModel constructor(
 
         panelBook = panelEngine.forBook(
             bookId = bookId,
-            imageBytes = { pageIndex -> opened.imageBytes(pageIndex) },
+            imageBytes = { pageIndex -> source.imageBytes(pageIndex) },
         )
         _state.value = CbzReaderState.Ready(
             title = title,
             pageCount = pageCount,
-            imageSource = ArchiveImageSource(opened),
+            imageSource = source,
         )
         val payload = lastPosition?.takeIf { it.isNotEmpty() }?.let {
             SessionPayload(ebookLocation = it, ebookProgress = 0f)
@@ -362,14 +360,10 @@ class CbzReaderViewModel constructor(
         lastSavedPage = resumeIndex
         _currentPanelIndex.value = 0
 
-        // Read-ahead so a streaming-phase page turn is served from the byte cache instead of a
-        // cold synchronous download racing the background full-file download for bandwidth.
-        val networkSource = NetworkImageSource(
-            item.sourceId, item.id, result.pageCount, cbzRepository,
-            readAheadScope = viewModelScope, readAheadCount = 2,
-            readAheadDispatcher = Dispatchers.IO,
-        )
-        val thumbnailSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository, thumbnailWidth = 300)
+        // The streaming source (built by the repository) read-aheads the next pages so a
+        // page turn is served from its byte cache instead of a cold synchronous download.
+        val networkSource = result.imageSource
+        currentSource = networkSource
         panelBook = panelEngine.forBook(
             bookId = bookId,
             imageBytes = { pageIndex -> networkSource.imageBytes(pageIndex) },
@@ -378,7 +372,7 @@ class CbzReaderViewModel constructor(
             title = item.title,
             pageCount = result.pageCount,
             imageSource = networkSource,
-            thumbnailSource = thumbnailSource,
+            thumbnailSource = result.thumbnailSource,
         )
 
         val payload = result.lastPosition?.takeIf { it.isNotEmpty() }?.let {
@@ -389,46 +383,41 @@ class CbzReaderViewModel constructor(
 
         // Background: download the full file and swap to the local archive once ready.
         viewModelScope.launch {
-            val file = withContext(Dispatchers.IO) { cbzRepository.awaitCachedFile(item) } ?: return@launch
-            swapToLocalArchive(file, item.title)
+            val local = cbzRepository.awaitCachedSource(item) ?: return@launch
+            swapToLocalArchive(local, item.title)
         }
     }
 
-    private suspend fun swapToLocalArchive(file: File, title: String) {
-        val (newArchive, actualPageCount) = try {
-            withContext(Dispatchers.IO) {
-                val a = CbzArchive(file)
-                a to a.pageCount
-            }
-        } catch (_: Throwable) {
-            return  // Keep streaming; archive open failed (corrupt download, etc.)
-        }
+    private fun swapToLocalArchive(local: CbzLocalSource, title: String) {
+        val newSource = local.imageSource
+        val actualPageCount = local.pageCount
         if (archiveClosed) {
-            newArchive.close()
+            newSource.close()
             return
         }
         val current = _state.value as? CbzReaderState.Ready
         if (current == null) {
-            newArchive.close()
+            newSource.close()
             return
         }
-        // Close any prior archive (shouldn't exist for the streaming path, but guard anyway).
-        archive?.close()
-        archive = newArchive
-        val swapPageCount = actualPageCount.takeIf { it > 0 } ?: (_state.value as? CbzReaderState.Ready)?.pageCount ?: 1
-        val swapBookmarks = withContext(Dispatchers.IO) { newArchive.readComicInfo() ?: emptyList() }
-        _railSegments.value = buildCbzRailSegments(swapBookmarks, swapPageCount)
+        // Release the streaming source (cancels its read-ahead scope) + its thumbnail source
+        // before swapping to the local archive.
+        currentSource?.close()
+        current.thumbnailSource?.close()
+        currentSource = newSource
+        val swapPageCount = actualPageCount.takeIf { it > 0 } ?: current.pageCount
+        _railSegments.value = buildCbzRailSegments(local.bookmarks, swapPageCount)
         _pageCount.value = swapPageCount
         panelBook = panelEngine.forBook(
             bookId = bookId,
-            imageBytes = { pageIndex -> newArchive.imageBytes(pageIndex) },
+            imageBytes = { pageIndex -> newSource.imageBytes(pageIndex) },
         )
         // If the server-reported page count differed from the actual archive, clamp current page.
         clampPageForSwap(_currentPage.value, actualPageCount)?.let { clamped ->
             _currentPage.value = clamped
             lastSavedPage = clamped
         }
-        _state.value = computeArchiveSwapState(current, actualPageCount, ArchiveImageSource(newArchive))
+        _state.value = computeArchiveSwapState(current, actualPageCount, newSource)
         onCurrentPageChanged(_currentPage.value)
     }
 
@@ -702,8 +691,8 @@ class CbzReaderViewModel constructor(
         // served on the next open.
         archiveClosed = true
         panelResolveJob?.cancel()
-        archive?.close()
-        archive = null
+        currentSource?.close()
+        currentSource = null
     }
 
     /**
@@ -733,7 +722,7 @@ class CbzReaderViewModel constructor(
 internal fun computeArchiveSwapState(
     current: CbzReaderState.Ready,
     actualPageCount: Int,
-    newSource: CbzImageSource,
+    newSource: ComicPageSource,
 ): CbzReaderState.Ready {
     val effectivePageCount = if (actualPageCount > 0) actualPageCount else current.pageCount
     return current.copy(

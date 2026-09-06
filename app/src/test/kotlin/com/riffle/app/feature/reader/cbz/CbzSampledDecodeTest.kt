@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.cbz
 
+import com.riffle.core.domain.comic.ComicPageSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,28 +51,25 @@ class CbzSampledDecodeTest {
         }
     }
 
-    // Regression for the BMP OOM fix: decodeSampledBitmap must catch OutOfMemoryError on each
-    // attempt and retry with a doubled inSampleSize until sampleSize > 64 (7 iterations:
-    // 1,2,4,8,16,32,64), then return null — never propagating the OOM to the caller.
-    //
-    // Simulates a BMP image: the bounds pass (inJustDecodeBounds) OOMs too, so the retry loop
-    // starts at sampleSize=1. Total openStream calls = 1 (bounds pass OOM) + 7 (retry loop) = 8.
-    // openStream throws before BitmapFactory is invoked to avoid the Android JVM stub.
+    // Regression for the BMP OOM fix: decodeSampledBitmap must swallow an OutOfMemoryError and
+    // return null rather than propagating it to the caller. The page bytes are now fetched exactly
+    // once (no per-attempt re-fetch); the sample-size retry loop then runs against that byte array.
+    // Simulate a page whose byte fetch OOMs so the assertion is independent of BitmapFactory (which
+    // is stubbed in JVM unit tests); the per-sample-size retry loop is exercised on-device.
     @Test
-    fun decode_retries_all_sample_sizes_and_returns_null_when_always_oom() {
-        var callCount = 0
-        val alwaysOomSource = object : CbzImageSource {
+    fun decode_swallows_oom_and_returns_null_fetching_bytes_once() {
+        var fetchCount = 0
+        val alwaysOomSource = object : ComicPageSource {
             override val pageCount = 1
-            override fun imageBytes(pageIndex: Int): ByteArray = ByteArray(0)
-            override fun openStream(pageIndex: Int): java.io.InputStream {
-                callCount++
+            override fun imageBytes(pageIndex: Int): ByteArray {
+                fetchCount++
                 throw OutOfMemoryError("simulated OOM")
             }
+            override fun mediaType(pageIndex: Int): String = "image/jpeg"
         }
         val result = runCatching { decodeSampledBitmap(alwaysOomSource, 0, 4096) }
         assertTrue("decodeSampledBitmap must not propagate OutOfMemoryError", result.isSuccess)
         assertEquals(null, result.getOrNull())
-        // 1 bounds-pass OOM + 7 retry attempts (sampleSize 1,2,4,8,16,32,64) = 8 total
-        assertEquals("bounds pass + retry loop must account for all openStream calls", 8, callCount)
+        assertEquals("page bytes must be fetched exactly once", 1, fetchCount)
     }
 }

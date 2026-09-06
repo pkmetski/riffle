@@ -89,6 +89,7 @@ class BookDownloadRepositoryStreamingTest {
             store("cbz-downloads", ".cbz"),
             positionStore,
             sourceRepository,
+            com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         val result = repository.downloadCbz(item(EbookFormat.Cbz)) { downloaded, total ->

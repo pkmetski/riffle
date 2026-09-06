@@ -79,6 +79,7 @@ import com.riffle.app.feature.reader.readerThemeLabelColor
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelFitTransform
@@ -439,7 +440,7 @@ private fun CbzPager(
 
 @Composable
 private fun CbzPage(
-    source: CbzImageSource,
+    source: ComicPageSource,
     pageIndex: Int,
     onTapZone: (TapZone) -> Unit,
 ) {
@@ -850,8 +851,7 @@ internal fun cbzPageContent(
  * where the bytes come over the network. A local archive decode fails deterministically
  * (corrupt page), so retrying just delays the error state.
  */
-internal fun decodeAttemptsFor(source: CbzImageSource): Int =
-    if (source is NetworkImageSource) 3 else 1
+internal fun decodeAttemptsFor(source: ComicPageSource): Int = source.decodeRetries
 
 /**
  * Runs [decode] until it yields a bitmap, retrying a failure (null) up to [attempts] total
@@ -883,16 +883,20 @@ internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): 
     return sampleSize
 }
 
-internal fun decodeSampledBitmap(source: CbzImageSource, pageIndex: Int, maxDimension: Int): Bitmap? {
-    // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
-    // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
-    // data internally), so catch that and fall back to starting at 1.
+internal fun decodeSampledBitmap(source: ComicPageSource, pageIndex: Int, maxDimension: Int): Bitmap? {
+    // Fetch the page bytes once (a network fetch during streaming, a zip read locally) and decode
+    // from the byte array — bounds pass then sampled pass — so we never double-fetch.
+    val bytes = try {
+        source.imageBytes(pageIndex)
+    } catch (_: Throwable) {
+        return null
+    }
     // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
     // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
     // data internally), so catch that and fall back to starting at 1.
     val startSampleSize = try {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, opts) }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
         calculateInSampleSize(opts.outWidth, opts.outHeight, maxDimension)
     } catch (_: Throwable) {
         1
@@ -901,7 +905,7 @@ internal fun decodeSampledBitmap(source: CbzImageSource, pageIndex: Int, maxDime
     while (sampleSize <= 64) {
         val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
         val bitmap = try {
-            source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, opts) }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
         } catch (_: OutOfMemoryError) {
             null
         }
