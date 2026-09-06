@@ -1,6 +1,5 @@
 package com.riffle.shared.library
 
-import com.riffle.feature.library.LibraryItemsViewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
+import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf

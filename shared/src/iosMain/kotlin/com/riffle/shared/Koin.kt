@@ -52,6 +52,7 @@ import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
@@ -68,7 +69,6 @@ import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.LibraryItemDetailViewModel
-import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
