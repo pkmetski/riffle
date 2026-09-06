@@ -78,6 +78,25 @@ coverage that could silently break on iOS without CI noticing.
 is the cheapest, highest-leverage parity win and it protects every batch that
 follows.
 
+**Update 2026-09-06:** the `unit-test` job now runs `iosSimulatorArm64Test` for all
+iOS-targeted modules with a `commonTest`. Two were missing from the task list —
+`:feature:settings` (40 tests) and `:feature:downloads` (2 tests) — and
+`feature/settings`' commonTest did not even compile for Kotlin/Native (three backtick
+test names contained `,`/`()`, illegal in K/N identifiers; renamed mechanically).
+Both modules now pass on `iosSimulatorArm64`.
+
+### 3b. Phantom Android coverage: `core/data/src/androidTest` (found 2026-09-06)
+
+`core/data` uses the `com.android.kotlin.multiplatform.library` plugin, whose test
+source sets are `androidHostTest` / `androidDeviceTest`. The legacy
+`core/data/src/androidTest` directory (`AnnotationSyncControllerIntegrationTest`, 7
+tests; `LocalDirectoryTargetTest`, 13 tests) is **not a recognized source set** —
+verified via `:core:data:tasks --all`: no task compiles it. These 20 instrumentation
+tests (annotation-file I/O and sync-controller integration) have silently never run.
+Reviving them requires enabling a device-test compilation (`withDeviceTest {}`),
+moving the directory to `src/androidDeviceTest`, and a CI job to execute it — or
+rewriting them against Robolectric/host abstractions in `androidHostTest`.
+
 ---
 
 ## 4. Category detail
@@ -413,7 +432,30 @@ Android class (e.g. `ContinuousReaderView`) that must be extracted first.
   `ContinuousPlayFromHere` (5), `ContinuousResumeTouchWiring` (2),
   `CadenceController`/`Cadence*` — done above; `CadenceInjector`/`CadenceDomScript` done above.
 
-## Appendix A — Full per-file matrix
+### 2026-09-06 — Full re-audit: CI closure, reverse ports, iOS test quality
+
+- **CI wiring finished (§3):** `:feature:settings` and `:feature:downloads` added to the
+  `unit-test` job; `feature/settings` commonTest needed three test renames to compile for
+  Kotlin/Native (`,`/`()` illegal in K/N identifiers). 42 tests now green on `iosSimulatorArm64`.
+- **Phantom Android coverage found (§3b):** `core/data/src/androidTest` (20 tests) is not
+  compiled by any Gradle task; needs device-test wiring or an `androidHostTest` rewrite.
+- **Reverse parity (iOS → Android) closed.** iOS is otherwise a strict subset; the only
+  iOS-only assertions were ported back:
+  - `RiffleDatabaseSchemaTablesTest` (`core/database/jvmTest`) — Room `sqlite_master` table
+    set pinned exactly, mirroring `IosRiffleDatabaseSchemaTest.allDaoTablesExistAfterSchemaCreate`
+    / `noSpuriousTablesAreCreated`.
+  - `AndroidEpubNavigatorCloseTest` (`app/test`) — post-`close()` emissions must not reach
+    consumers, mirroring `EpubReaderTests.testClearingCallbacksStopsFiring`.
+  - `HighlightCssRgbaTest` (`app/test`) — ARGB→CSS `rgba()` channel extraction per
+    `HighlightColor` token, mirroring `AnnotationTests.testHexColorRed/Green/Blue`.
+- **iOS suite quality (audit result):** of 103 XCTest funcs, ~48 are trivial (constant echoes,
+  non-nil checks on non-optionals, `XCTSkip` placeholders that always report green, no-assertion
+  "doesn't crash" tests) and 11 XCUITests self-skip without a live server. Only ~30 assert real
+  behaviour, and most duplicate Kotlin tests that already run on iOS via `commonTest`.
+  Known-bad test: `IosRiffleDatabaseSchemaTest.migrateV1ToV2CreatesLocalFilesTables` is
+  self-defeating (driver already at v2 + `CREATE TABLE IF NOT EXISTS` — passes even if the
+  migration body is deleted). Dead fixture: `AutoFollowJsTests.twoAdjacentHtml` (the
+  anti-bounce scenario was never implemented; Android has it plus 3 column-snap tests iOS lacks).
 
 Status legend: ✅ covered on iOS · 🟡 partially / needs CI wiring · ❌ not covered.
 All rows start at their category default; flip as batches land.
