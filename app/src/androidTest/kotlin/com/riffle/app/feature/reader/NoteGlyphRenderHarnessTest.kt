@@ -3,6 +3,8 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
+import com.riffle.feature.reader.NOTE_GLYPH_FOCUS_ID_JS_KEY
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule

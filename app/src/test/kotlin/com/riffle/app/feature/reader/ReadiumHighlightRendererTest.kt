@@ -2,6 +2,8 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
+import com.riffle.feature.reader.NOTE_GLYPH_FOCUS_ID_JS_KEY
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
