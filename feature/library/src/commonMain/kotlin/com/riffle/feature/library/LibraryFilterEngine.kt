@@ -1,4 +1,4 @@
-package com.riffle.shared.library
+package com.riffle.feature.library
 
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
@@ -23,6 +23,7 @@ private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<
         LibrarySortMode.AUTHOR_ASC -> items.sortedWith(
             compareBy<LibraryItem> { it.author.lowercase() }.then(byTitle),
         )
+        // Real timestamps first, then largest addedAt first, tie-break by title.
         LibrarySortMode.ADDED_DESC -> items.sortedWith(
             compareByDescending<LibraryItem> { (it.addedAt ?: 0L) > 0L }
                 .thenByDescending { it.addedAt ?: 0L }
@@ -33,6 +34,7 @@ private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<
                 .thenBy { it.addedAt ?: Long.MAX_VALUE }
                 .then(byTitle),
         )
+        // Items with any lastOpenedAt first (most recent open first); never-opened tail sorted by title.
         LibrarySortMode.RECENTLY_OPENED -> items.sortedWith(
             compareByDescending<LibraryItem> { it.lastOpenedAt != null }
                 .thenByDescending { it.lastOpenedAt ?: 0L }
@@ -45,7 +47,9 @@ private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<
  * Combines a library's source flows + UI filters into a single [LibraryProjection].
  *
  * Source flows are passed in (not observed from the repository here) so that the ViewModel's
- * existing `stateIn(WhileSubscribed)` caches are reused instead of duplicating cursors.
+ * existing `stateIn(WhileSubscribed)` caches are reused instead of duplicating Room cursors.
+ * [libraryObserver] is only kept for the per-group offline filter, which needs to observe each
+ * series'/collection's items to decide whether to drop empty groups when offline.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryFilterEngine(
@@ -67,6 +71,7 @@ class LibraryFilterEngine(
     searchQuery: Flow<String>,
     notStartedFilterActive: Flow<Boolean>,
     librarySortMode: Flow<LibrarySortMode>,
+    /** Off-Main dispatcher for the projection graph — production passes DispatcherProvider.default. */
     private val computeDispatcher: kotlinx.coroutines.CoroutineDispatcher,
 ) {
 
@@ -86,6 +91,9 @@ class LibraryFilterEngine(
             filterCollectionsOffline(queryFiltered, offline)
         }
 
+    // When a query is active, search all items (including those in series/collections) so that
+    // books are findable by title/author regardless of grouping.
+    // When offline, only items available locally (downloaded or cached) are shown.
     private val ungroupedProjection: Flow<List<LibraryItem>> =
         combine(ungroupedSource, allItemsSource, searchQuery, isOffline) { ungrouped, all, query, offline ->
             val base = if (query.isEmpty()) {

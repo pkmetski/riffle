@@ -3,6 +3,8 @@ package com.riffle.app.feature.library
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.feature.library.LibraryItemsViewModel
+import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.LibraryObserver

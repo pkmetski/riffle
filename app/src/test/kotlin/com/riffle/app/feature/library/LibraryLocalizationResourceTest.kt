@@ -2,6 +2,7 @@ package com.riffle.app.feature.library
 
 import com.riffle.app.R
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySortMode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

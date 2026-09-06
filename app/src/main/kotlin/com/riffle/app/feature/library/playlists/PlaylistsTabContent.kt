@@ -30,7 +30,7 @@ import com.riffle.core.catalog.CatalogPlaylist
 
 /**
  * Playlists tab body. Shown only on ABS audiobook roots (gated by
- * [com.riffle.app.feature.library.LibraryItemsViewModel.tabVisibility]). The "To Read"
+ * [com.riffle.feature.library.LibraryItemsViewModel.tabVisibility]). The "To Read"
  * playlist is already filtered out by [com.riffle.core.data.PlaylistsRepository], so this
  * composable renders whatever it receives verbatim.
  */

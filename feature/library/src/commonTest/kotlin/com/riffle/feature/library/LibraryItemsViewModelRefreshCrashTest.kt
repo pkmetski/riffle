@@ -1,9 +1,9 @@
-package com.riffle.shared.library
+package com.riffle.feature.library
 
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
-import com.riffle.core.data.PlaylistsRepository
-import com.riffle.core.data.ToReadRepository
+import com.riffle.core.domain.PlaylistsRepository
+import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
@@ -47,7 +47,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -225,12 +225,17 @@ class LibraryItemsViewModelRefreshCrashTest {
             dispatchers = makeDispatcherProvider(),
         )
 
-        // Advance until the refresh coroutine launched in init has completed.
-        advanceUntilIdle()
+        // Run the refresh coroutine launched in init to completion. We use runCurrent() rather than
+        // advanceUntilIdle() because a failed refresh (refreshFailed=true while online) starts an
+        // unbounded retry-poll loop in init; runCurrent drains the immediate work and parks that loop
+        // at its first delay instead of advancing virtual time forever.
+        // Keep the WhileSubscribed(isOffline) flow hot so its value reflects the computed state.
+        backgroundScope.launch { vm.isOffline.collect {} }
+        runCurrent()
 
-        // If the try-catch in runRefresh() is removed, the exception from toReadRepository.refresh()
-        // escapes viewModelScope.launch {}, causing this runTest to fail with an uncaught exception.
-        // With the fix, the exception is absorbed and isOffline reflects the failure state.
+        // If runRefresh() does not absorb the exception from toReadRepository.refresh(), it escapes
+        // viewModelScope.launch {}, crashing the process on iOS (no framework CoroutineExceptionHandler).
+        // With the fix, the exception is absorbed as a failed refresh and isOffline reflects it.
         assertTrue(vm.isOffline.value, "expected isOffline=true when refresh throws (refreshFailed=true, online=true)")
     }
 }
