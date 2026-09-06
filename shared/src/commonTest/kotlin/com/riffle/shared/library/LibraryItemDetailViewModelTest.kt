@@ -1,15 +1,22 @@
 package com.riffle.shared.library
 
-import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SyncNamespace
+import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
+import com.riffle.core.models.Source
+import com.riffle.feature.library.FetchAudiobookChaptersUseCase
+import com.riffle.feature.library.LibraryItemDetailUiState
+import com.riffle.feature.library.LibraryItemDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -92,16 +99,17 @@ class LibraryItemDetailViewModelTest {
     }
 
     private fun makeSourceRepository() = object : SourceRepository {
-        override fun observeAll(): Flow<List<com.riffle.core.models.Source>> = flowOf(emptyList())
-        override suspend fun getActive(): com.riffle.core.models.Source? = null
+        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
+        override suspend fun getActive(): Source? = null
         override suspend fun commit(
-            pending: com.riffle.core.domain.PendingSource,
+            pending: PendingSource,
             hiddenLibraryIds: Set<String>,
-        ): com.riffle.core.domain.CommitSourceResult =
-            com.riffle.core.domain.CommitSourceResult.Failure(UnsupportedOperationException())
+        ): CommitSourceResult =
+            CommitSourceResult.Failure(UnsupportedOperationException())
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
         override suspend fun getSourceVersion(sourceId: String): String? = null
+        override suspend fun ensureSyncNamespace(sourceId: String): SyncNamespace = SyncNamespace.LocalOnly("test")
     }
 
     private fun makeTokenStorage() = object : TokenStorage {
@@ -119,10 +127,38 @@ class LibraryItemDetailViewModelTest {
         itemId = itemId,
         sourceId = sourceId,
         libraryObserver = makeLibraryObserver(item),
+        recordItemOpened = IosNoOpRecordItemOpened(),
+        updateReadingProgressUseCase = IosNoOpUpdateReadingProgress(),
+        markReadAcrossDimensions = IosNoOpMarkReadAcrossDimensions(),
         sourceRepository = makeSourceRepository(),
         tokenStorage = makeTokenStorage(),
+        epubRepository = IosNoOpEpubRepository(),
+        ebookCfiTranslatorFactory = IosNoOpEbookCfiTranslatorFactory,
+        audiobookPositionStore = IosNoOpAudiobookPositionStore(),
+        pdfRepository = IosNoOpPdfRepository(),
+        cbzRepository = IosNoOpCbzRepository(),
         toReadRepository = makeToReadRepository(inToRead),
+        playlistsRepository = IosNoOpPlaylistsRepository(),
+        readaloudLinkRepository = IosNoOpReadaloudLinkRepository(),
+        readaloudAudioRepository = IosNoOpReadaloudAudioRepository(),
+        audiobookDownloadRepository = IosNoOpAudiobookDownloadRepository(),
+        audiobookCacheRepository = IosNoOpAudiobookCacheRepository(),
+        localAvailabilityEvents = IosNoOpLocalAvailabilityEvents(),
+        readaloudOfflineDownloader = IosNoOpReadaloudOfflineDownloader,
         connectivityObserver = makeConnectivityObserver(),
+        downloadManager = IosNoOpDownloadManager(),
+        bookImportManager = IosNoOpBookImportManager(),
+        crossEpubIndexBuildTrigger = IosNoOpCrossEpubIndexBuildTrigger,
+        sidecarPrefetcher = IosNoOpReadaloudSidecarPrefetcher,
+        epubTocExtractor = IosNoOpEpubTocExtractor(),
+        pdfPageCountExtractor = IosNoOpPdfPageCountExtractor,
+        fetchAudiobookChaptersUseCase = FetchAudiobookChaptersUseCase(IosNoOpAudiobookChapterCacheRepository()),
+        catalogRegistry = IosNoOpCatalogRegistry,
+        libraryRefresher = IosNoOpLibraryRefresher(),
+        saveLocalFileMetadataOverride = IosNoOpLocalFileMetadataOverrideSaver,
+        copyCoverImage = IosNoOpCoverImageCopier,
+        readingSpeedStore = IosNoOpReadingSpeedStore(),
+        webSourceLibraryItemUpserter = IosNoOpWebSourceLibraryItemUpserter,
     )
 
     @Test

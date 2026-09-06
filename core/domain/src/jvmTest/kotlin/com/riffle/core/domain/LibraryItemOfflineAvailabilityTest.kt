@@ -137,7 +137,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     // --- Memoization (page-turn filesystem-sweep regression, see class KDoc) ---
 
-    private class CountingCbzRepository : CbzRepository {
+    private class CountingCbzRepository : JvmCbzRepository {
         var isDownloadedCalls = 0
         override fun isDownloaded(sourceId: String, itemId: String): Boolean {
             isDownloadedCalls++
@@ -221,7 +221,7 @@ class LibraryItemOfflineAvailabilityTest {
     private class FakeEpubRepository(
         private val downloaded: Boolean = false,
         private val cached: Boolean = false,
-    ) : EpubRepository {
+    ) : JvmEpubRepository {
         override fun isDownloaded(sourceId: String, itemId: String) = downloaded
         override fun isCached(sourceId: String, itemId: String) = cached
         override suspend fun openEpub(item: LibraryItem) = error("unused")
@@ -236,7 +236,7 @@ class LibraryItemOfflineAvailabilityTest {
     private class FakePdfRepository(
         private val downloaded: Boolean = false,
         private val cached: Boolean = false,
-    ) : PdfRepository {
+    ) : JvmPdfRepository {
         override fun isDownloaded(sourceId: String, itemId: String) = downloaded
         override fun isCached(sourceId: String, itemId: String) = cached
         override suspend fun openPdf(item: LibraryItem) = error("unused")
@@ -251,7 +251,7 @@ class LibraryItemOfflineAvailabilityTest {
     private class FakeCbzRepository(
         private val downloaded: Boolean = false,
         private val cached: Boolean = false,
-    ) : CbzRepository {
+    ) : JvmCbzRepository {
         override fun isDownloaded(sourceId: String, itemId: String) = downloaded
         override fun isCached(sourceId: String, itemId: String) = cached
         override suspend fun openCbz(item: LibraryItem) = error("unused")
@@ -268,7 +268,7 @@ class LibraryItemOfflineAvailabilityTest {
 
     private class FakeAudiobookDownloadRepository(
         private val downloaded: Boolean = false,
-    ) : AudiobookDownloadRepository {
+    ) : JvmAudiobookDownloadRepository {
         override fun isDownloaded(sourceId: String, itemId: String) = downloaded
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(

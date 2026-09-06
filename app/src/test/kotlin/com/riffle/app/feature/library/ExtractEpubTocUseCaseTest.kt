@@ -5,6 +5,7 @@ import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.app.feature.reader.countEpubPositionsFromArchive
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.TocRepository
@@ -45,7 +46,7 @@ import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 
 class ExtractEpubTocUseCaseTest {
-    private val epubRepository = mockk<EpubRepository>()
+    private val epubRepository = mockk<JvmEpubRepository>()
     private val publicationOpener = mockk<PublicationOpener>()
     private val assetRetriever = mockk<AssetRetriever>()
     private val tocRepository = mockk<TocRepository>()

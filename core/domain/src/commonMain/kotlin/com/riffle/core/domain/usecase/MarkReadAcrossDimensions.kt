@@ -4,7 +4,6 @@ import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SourceRepository
-import javax.inject.Inject
 
 /**
  * Mark a book read or unread across **every** ABS item coupled by the same readaloud bundle — the

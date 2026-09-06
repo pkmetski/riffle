@@ -21,6 +21,9 @@ import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.JvmAudiobookCacheRepository
+import com.riffle.core.domain.JvmAudiobookDownloadRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
@@ -153,7 +156,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         playlistsRepository: com.riffle.core.domain.PlaylistsRepository = NoopPlaylistsRepository,
         savedState: Map<String, Any?> = mapOf("itemId" to itemId),
         handoffState: AudiobookHandoffState = AudiobookHandoffState(),
-        cacheRepository: com.riffle.core.domain.AudiobookCacheRepository = NoCacheRepo,
+        cacheRepository: JvmAudiobookCacheRepository = NoCacheRepo,
         sessionOverride: AudiobookSession? = null,
     ): AudiobookPlayerViewModel {
         val session = sessionOverride ?: AudiobookSession(
@@ -717,7 +720,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         }
     }
 
-    private object NoDownloadRepo : AudiobookDownloadRepository {
+    private object NoDownloadRepo : JvmAudiobookDownloadRepository {
         override fun isDownloaded(sourceId: String, itemId: String) = false
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(
@@ -733,7 +736,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         override fun isAvailableOffline(sourceId: String, itemId: String) = false
     }
 
-    private object NoCacheRepo : com.riffle.core.domain.AudiobookCacheRepository {
+    private object NoCacheRepo : JvmAudiobookCacheRepository {
         override fun isCached(sourceId: String, itemId: String) = false
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun awaitCachedAudiobook(sourceId: String, itemId: String, session: AudiobookSession) = Unit
@@ -854,7 +857,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         override suspend fun countForSource(sourceId: String): Int = 0
     }
 
-    private object FakeAudioRepo : ReadaloudAudioRepository {
+    private object FakeAudioRepo : JvmReadaloudAudioRepository {
         override fun isAudioAvailable(sourceId: String, itemId: String) = false
         override fun bundleFile(sourceId: String, itemId: String): File? = null
         override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = null
@@ -1016,7 +1019,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             serverCurrentTimeSec = 0.0,
             serverLastUpdate = 0L,
         )
-        val trackingCacheRepo = object : com.riffle.core.domain.AudiobookCacheRepository {
+        val trackingCacheRepo = object : JvmAudiobookCacheRepository {
             override fun isCached(sourceId: String, itemId: String) = false
             override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
             override suspend fun awaitCachedAudiobook(sourceId: String, itemId: String, session: AudiobookSession) {

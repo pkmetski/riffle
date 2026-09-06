@@ -1,16 +1,16 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import com.riffle.core.domain.AudioDownloadResult
-import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
-import org.junit.Assert.assertEquals
-import org.junit.Test
 import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class LibraryItemDetailReadaloudDownloadTest {
 
     // Documents the repository contract the VM uses (both downloadAudio overloads, keyed by id).
-    private class FakeAudioRepo(private var present: Boolean) : ReadaloudAudioRepository {
+    private class FakeAudioRepo(private var present: Boolean) : JvmReadaloudAudioRepository {
         var lastDownloadBookId: String? = null
         var lastDownloadServerId: String? = null
         var lastRemoveBookId: String? = null

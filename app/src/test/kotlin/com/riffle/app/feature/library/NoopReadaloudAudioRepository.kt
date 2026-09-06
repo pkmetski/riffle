@@ -1,11 +1,11 @@
 package com.riffle.app.feature.library
 
 import com.riffle.core.domain.AudioDownloadResult
-import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.JvmReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
 import java.io.File
 
-internal object NoopReadaloudAudioRepository : ReadaloudAudioRepository {
+internal object NoopReadaloudAudioRepository : JvmReadaloudAudioRepository {
     override fun isAudioAvailable(sourceId: String, itemId: String): Boolean = false
     override fun bundleFile(sourceId: String, itemId: String): File? = null
     override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = null

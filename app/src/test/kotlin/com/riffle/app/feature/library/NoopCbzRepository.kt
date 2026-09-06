@@ -1,12 +1,12 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.domain.CbzRepository
+import com.riffle.core.domain.JvmCbzRepository
 
 /** Shared test double for ViewModel tests that don't exercise the CBZ path. */
 internal class NoopCbzRepository(
     private val downloaded: Boolean = false,
     private val cached: Boolean = false,
-) : CbzRepository {
+) : JvmCbzRepository {
     override fun isDownloaded(sourceId: String, itemId: String) = downloaded
     override fun isCached(sourceId: String, itemId: String) = cached
     override suspend fun openCbz(item: com.riffle.core.models.LibraryItem) = error("unused in test")

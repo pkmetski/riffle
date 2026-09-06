@@ -1,12 +1,24 @@
 package com.riffle.app.feature.library
 
-import androidx.lifecycle.SavedStateHandle
-import com.riffle.app.feature.library.LibraryItemDetailUiState.Ready
-import com.riffle.app.feature.reader.ExtractEpubTocUseCase
+import com.riffle.feature.library.DetailCapabilities
+import com.riffle.feature.library.DownloadState
+import com.riffle.feature.library.EpubDetails
+import com.riffle.feature.library.EpubTocExtractor
+import com.riffle.feature.library.LibraryItemDetailUiState
+import com.riffle.feature.library.LibraryItemDetailUiState.Ready
+import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.library.LocalFileMetadataOverrideSaver
+import com.riffle.feature.library.CoverImageCopier
+import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.UploadDestination
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.JvmAudiobookCacheRepository
+import com.riffle.core.domain.JvmAudiobookDownloadRepository
+import com.riffle.core.domain.JvmEpubRepository
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.CommitSourceResult
@@ -152,7 +164,7 @@ class LibraryItemDetailViewModelTest {
         // When set, downloadEpub suspends on this gate before completing — models an in-flight
         // download so a test can observe InProgress and then release it.
         private val gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
-    ) : EpubRepository {
+    ) : JvmEpubRepository {
         private var downloaded = initialDownloaded
         private val cached = cachedIds.toMutableSet()
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = throw UnsupportedOperationException()
@@ -184,7 +196,7 @@ class LibraryItemDetailViewModelTest {
     private class FakePdfRepository(
         private val initialDownloaded: Boolean = false,
         cachedIds: Set<String> = emptySet(),
-    ) : PdfRepository {
+    ) : JvmPdfRepository {
         private var downloaded = initialDownloaded
         private val cached = cachedIds.toMutableSet()
         override suspend fun openPdf(item: LibraryItem): PdfOpenResult = throw UnsupportedOperationException()
@@ -205,7 +217,7 @@ class LibraryItemDetailViewModelTest {
     private class FakeAudiobookDownloadRepository(
         private val initialDownloaded: Boolean = false,
         private val gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
-    ) : AudiobookDownloadRepository {
+    ) : JvmAudiobookDownloadRepository {
         private var downloaded = initialDownloaded
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
@@ -226,7 +238,7 @@ class LibraryItemDetailViewModelTest {
 
     private class FakeAudiobookCacheRepository(
         cachedIds: Set<String> = emptySet(),
-    ) : AudiobookCacheRepository {
+    ) : JvmAudiobookCacheRepository {
         private val cached = cachedIds.toMutableSet()
         override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
@@ -340,30 +352,26 @@ class LibraryItemDetailViewModelTest {
         audiobookCacheRepository: AudiobookCacheRepository = NoopAudiobookCacheRepository,
         localAvailabilityEvents: LocalAvailabilityEvents = FakeLocalAvailabilityEvents(),
         crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
-        extractEpubTocUseCase: ExtractEpubTocUseCase = io.mockk.mockk<ExtractEpubTocUseCase>().also { uc ->
+        epubTocExtractor: EpubTocExtractor = io.mockk.mockk<EpubTocExtractor>().also { uc ->
             io.mockk.coEvery { uc.extractDetails(any<com.riffle.core.models.LibraryItem>()) } returns
-                ExtractEpubTocUseCase.Details(emptyList(), null)
+                EpubDetails(emptyList(), null)
         },
-        extractPdfPageCountUseCase: ExtractPdfPageCountUseCase =
-            io.mockk.mockk<ExtractPdfPageCountUseCase>().also { uc ->
-                io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns null
+        pdfPageCountExtractor: PdfPageCountExtractor =
+            io.mockk.mockk<PdfPageCountExtractor>().also { uc ->
+                io.mockk.coEvery { uc.extract(any<com.riffle.core.models.LibraryItem>()) } returns null
             },
-        fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = io.mockk.mockk<FetchAudiobookChaptersUseCase>().also { uc ->
+        fetchAudiobookChaptersUseCase: com.riffle.feature.library.FetchAudiobookChaptersUseCase = io.mockk.mockk<com.riffle.feature.library.FetchAudiobookChaptersUseCase>().also { uc ->
             io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
         },
         catalogRegistryOverride: com.riffle.core.catalog.CatalogRegistry = detailFakeCatalogRegistry(),
         libraryRefresher: com.riffle.core.domain.LibraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
-        saveOverride: com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
-        copyCoverImageFn: com.riffle.core.data.localfiles.CopyCoverImageUseCase = com.riffle.app.testing.noopCopyCoverImage(),
-        webSourceLibraryItemUpserter: WebSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(NoopLibraryItemDao),
+        saveLocalFileMetadataOverride: LocalFileMetadataOverrideSaver = io.mockk.mockk(relaxed = true),
+        copyCoverImage: CoverImageCopier = io.mockk.mockk(relaxed = true),
+        webSourceLibraryItemUpserter: com.riffle.feature.library.WebSourceLibraryItemUpserter = noopWebSourceUpserter(),
         sourceId: String? = null,
     ) = LibraryItemDetailViewModel(
-        savedStateHandle = SavedStateHandle(
-            buildMap {
-                put("itemId", itemId)
-                if (sourceId != null) put("sourceId", sourceId)
-            }
-        ),
+        itemId = itemId,
+        sourceId = sourceId,
         libraryObserver = repo,
         recordItemOpened = com.riffle.app.testing.NoopRecordItemOpened(),
         updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
@@ -387,7 +395,7 @@ class LibraryItemDetailViewModelTest {
         audiobookDownloadRepository = audiobookDownloadRepository,
         audiobookCacheRepository = audiobookCacheRepository,
         localAvailabilityEvents = localAvailabilityEvents,
-        readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
+        readaloudOfflineDownloader = object : com.riffle.feature.library.ReadaloudOfflineDownloader {
             // Not streaming-eligible in these tests → null routes to the bundle download path.
             override suspend fun download(storytellerSourceId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
         },
@@ -396,19 +404,40 @@ class LibraryItemDetailViewModelTest {
         bookImportManager = bookImportManager,
         crossEpubIndexBuildTrigger = crossEpubIndexBuildTrigger,
         sidecarPrefetcher = { _, _ -> },
-        extractEpubTocUseCase = extractEpubTocUseCase,
-        extractPdfPageCountUseCase = extractPdfPageCountUseCase,
+        epubTocExtractor = epubTocExtractor,
+        pdfPageCountExtractor = pdfPageCountExtractor,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = catalogRegistryOverride,
         libraryRefresher = libraryRefresher,
-        saveLocalFileMetadataOverride = saveOverride,
-        copyCoverImage = copyCoverImageFn,
+        saveLocalFileMetadataOverride = saveLocalFileMetadataOverride,
+        copyCoverImage = copyCoverImage,
         readingSpeedStore = object : com.riffle.core.domain.ReadingSpeedStore {
             override val speedSecPerPosition = flowOf(63.0)
             override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
         },
         webSourceLibraryItemUpserter = webSourceLibraryItemUpserter,
     )
+
+    private fun adaptingSaveLocalFileMetadataOverride(dao: com.riffle.core.database.LocalFileMetadataOverrideDao): LocalFileMetadataOverrideSaver {
+        val concrete = com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase(dao)
+        return object : LocalFileMetadataOverrideSaver {
+            override suspend fun invoke(sourceId: String, sourceItemId: String, title: String?, author: String?, seriesName: String?, seriesIndex: Double?, coverUrl: String?) =
+                concrete(sourceId, sourceItemId, title, author, seriesName, seriesIndex, coverUrl)
+        }
+    }
+
+    private fun noopWebSourceUpserter(): com.riffle.feature.library.WebSourceLibraryItemUpserter =
+        object : com.riffle.feature.library.WebSourceLibraryItemUpserter {
+            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) {}
+        }
+
+    private fun adaptingWebSourceLibraryItemUpserter(dao: LibraryItemDao): com.riffle.feature.library.WebSourceLibraryItemUpserter {
+        val concrete = com.riffle.core.data.websource.WebSourceLibraryItemUpserter(dao)
+        return object : com.riffle.feature.library.WebSourceLibraryItemUpserter {
+            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) =
+                concrete.upsert(sourceId, item)
+        }
+    }
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.
     // Returning null keeps the fake tiny.
@@ -1465,7 +1494,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             fakeRepo(item),
             catalogRegistryOverride = localFilesCatalogRegistry(scannerCoverUrl),
-            saveOverride = com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase(recordingDao),
+            saveLocalFileMetadataOverride = adaptingSaveLocalFileMetadataOverride(recordingDao),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -1489,7 +1518,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             fakeRepo(item),
             catalogRegistryOverride = localFilesCatalogRegistry(scannerCoverUrl),
-            saveOverride = com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase(recordingDao),
+            saveLocalFileMetadataOverride = adaptingSaveLocalFileMetadataOverride(recordingDao),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -1517,7 +1546,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             fakeRepo(item),
             catalogRegistryOverride = localFilesCatalogRegistry(),
-            saveOverride = com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase(recordingDao),
+            saveLocalFileMetadataOverride = adaptingSaveLocalFileMetadataOverride(recordingDao),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -1613,7 +1642,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             repo = fakeRepo(knownItem),
             catalogRegistryOverride = registry,
-            webSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(dao),
+            webSourceLibraryItemUpserter = adaptingWebSourceLibraryItemUpserter(dao),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -1667,7 +1696,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             repo = fakeRepo(knownItem),
             catalogRegistryOverride = registry,
-            webSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(dao),
+            webSourceLibraryItemUpserter = adaptingWebSourceLibraryItemUpserter(dao),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()

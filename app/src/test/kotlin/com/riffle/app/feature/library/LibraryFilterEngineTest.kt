@@ -11,6 +11,9 @@ import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.BundleAudiobookSource
+import com.riffle.core.domain.JvmAudiobookDownloadRepository
+import com.riffle.core.domain.JvmEpubRepository
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
@@ -118,7 +121,7 @@ class LibraryFilterEngineTest {
         override suspend fun delete(id: String, now: Long) = error("unused")
     }
 
-    private fun epubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : EpubRepository {
+    private fun epubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : JvmEpubRepository {
         override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -127,7 +130,7 @@ class LibraryFilterEngineTest {
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
-    private fun fakePdfRepo(): PdfRepository = object : PdfRepository {
+    private fun fakePdfRepo(): PdfRepository = object : JvmPdfRepository {
         override suspend fun openPdf(item: LibraryItem) = PdfOpenResult.Offline
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit) = PdfDownloadResult.Success
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -136,7 +139,7 @@ class LibraryFilterEngineTest {
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
-    private fun fakeAudiobookDownloadRepo(): AudiobookDownloadRepository = object : AudiobookDownloadRepository {
+    private fun fakeAudiobookDownloadRepo(): AudiobookDownloadRepository = object : JvmAudiobookDownloadRepository {
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit) = AudiobookDownloadResult.Success
@@ -213,7 +216,7 @@ class LibraryFilterEngineTest {
     @Test
     fun `offline availability sweep runs on the compute dispatcher, never the collector thread`() = runTest {
         val sweepThreads = java.util.Collections.synchronizedSet(mutableSetOf<String>())
-        val recordingEpubRepo = object : EpubRepository {
+        val recordingEpubRepo = object : JvmEpubRepository {
             override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
             override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
             override suspend fun removeDownload(sourceId: String, itemId: String) {}

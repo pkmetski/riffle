@@ -2,7 +2,7 @@ package com.riffle.app.feature.settings.dictionary
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.riffle.app.feature.library.DownloadManager
-import com.riffle.app.feature.library.DownloadState
+import com.riffle.feature.library.DownloadState
 import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.InstalledPack

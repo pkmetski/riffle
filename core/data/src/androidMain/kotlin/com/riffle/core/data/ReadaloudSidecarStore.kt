@@ -4,6 +4,7 @@ import android.content.Context
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ReadaloudSidecarDownloads
+import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.CoroutineScope
@@ -30,14 +31,6 @@ import java.io.File
  * an explicit full-bundle download. A downloaded bundle supersedes it (the bundle already has the
  * sidecar content + audio), so callers prefer the bundle when present.
  */
-/**
- * Narrow seam for "start preparing this book's sidecar" — lets callers (e.g. the details screen) kick
- * off a prefetch without depending on the whole [ReadaloudSidecarStore] (and keeps them unit-testable).
- */
-fun interface ReadaloudSidecarPrefetcher {
-    fun prepare(storytellerSourceId: String, storytellerBookId: String)
-}
-
 class ReadaloudSidecarStore private constructor(
     private val cacheRootDir: () -> File,
     private val fetcher: StorytellerSidecarFetcher,

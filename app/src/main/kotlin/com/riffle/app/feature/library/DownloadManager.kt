@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import com.riffle.feature.library.DownloadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,9 +16,9 @@ import kotlinx.coroutines.launch
  */
 class DownloadManager constructor(
     private val scope: CoroutineScope,
-) {
+) : com.riffle.feature.library.DownloadManager {
     private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
-    val states: StateFlow<Map<String, DownloadState>> = _states
+    override val states: StateFlow<Map<String, DownloadState>> = _states
     private val lock = Any()
     private val silentKeys = mutableSetOf<String>()
     private val jobs = mutableMapOf<String, Job>()
@@ -27,13 +28,13 @@ class DownloadManager constructor(
      * progress (idempotent — a duplicate tap is a no-op). [work] receives a progress callback and
      * returns the terminal [DownloadState].
      */
-    fun start(key: String, work: suspend (onProgress: (Long, Long) -> Unit) -> DownloadState) {
+    override fun start(key: String, work: suspend (onProgress: (Long, Long) -> Unit) -> DownloadState) {
         if (_states.value[key] is DownloadState.InProgress) return
         set(key, DownloadState.InProgress())
         val job = scope.launch {
             val terminal = try {
                 work { downloaded, total ->
-                    set(key, DownloadState.InProgress(downloadPercent(downloaded, total)))
+                    set(key, DownloadState.InProgress(if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else null))
                 }
             } catch (e: Throwable) {
                 // A repo that lets something escape must not leave the key stuck on a spinner.
@@ -52,7 +53,7 @@ class DownloadManager constructor(
      * state stable until the terminal state arrives. Cached-to-downloaded promotion should not look
      * like a fresh download.
      */
-    fun startWithoutProgress(
+    override fun startWithoutProgress(
         key: String,
         stateWhileRunning: DownloadState,
         work: suspend () -> DownloadState,
@@ -80,13 +81,13 @@ class DownloadManager constructor(
     }
 
     /** Cancels an in-flight download for [key] and clears its state. */
-    fun cancel(key: String) {
+    override fun cancel(key: String) {
         synchronized(lock) { jobs.remove(key) }?.cancel()
         _states.update { it - key }
     }
 
     /** Drops any tracked state for [key], e.g. after the user removes the download. */
-    fun clear(key: String) {
+    override fun clear(key: String) {
         _states.update { it - key }
     }
 

@@ -8,12 +8,12 @@ import com.riffle.core.domain.DispatcherProvider
  * A narrow seam over [ReadaloudStreamingSessionFactory] + [StreamingAudioDownloader] so the
  * book-details ViewModel stays unit-testable.
  */
-interface ReadaloudOfflineDownloader {
+interface ReadaloudOfflineDownloader : com.riffle.feature.library.ReadaloudOfflineDownloader {
     /**
      * Eager-downloads the book's streamed audio for offline. Returns true/false on success/failure,
      * or **null** when the book isn't streaming-eligible (the caller falls back to the bundle download).
      */
-    suspend fun download(
+    override suspend fun download(
         storytellerSourceId: String,
         storytellerBookId: String,
         onProgress: (Float) -> Unit,

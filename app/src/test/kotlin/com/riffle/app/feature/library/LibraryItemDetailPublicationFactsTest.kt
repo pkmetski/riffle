@@ -4,22 +4,10 @@ import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
 import com.riffle.core.models.EbookFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LibraryItemDetailPublicationFactsTest {
-
-    @Test
-    fun `personalized estimate multiplies Readium positions by historical speed`() {
-        assertEquals(7_560L, estimatedReadingTimeSec(totalPositions = 120, secPerPosition = 63.0))
-    }
-
-    @Test
-    fun `invalid estimate inputs do not surface a misleading duration`() {
-        assertNull(estimatedReadingTimeSec(totalPositions = 0, secPerPosition = 63.0))
-        assertNull(estimatedReadingTimeSec(totalPositions = 120, secPerPosition = Double.NaN))
-    }
 
     @Test
     fun `fresh epub shows estimated total reading time`() {
@@ -85,12 +73,6 @@ class LibraryItemDetailPublicationFactsTest {
     @Test
     fun `invalid fixed-page progress falls back to total page count`() {
         assertEquals("321 pages", publicationPageCountText(pageCount = 321, readingProgress = Float.NaN))
-    }
-
-    @Test
-    fun `zero or negative speed produces no estimate`() {
-        assertNull(estimatedReadingTimeSec(totalPositions = 120, secPerPosition = 0.0))
-        assertNull(estimatedReadingTimeSec(totalPositions = 120, secPerPosition = -1.0))
     }
 
     @Test

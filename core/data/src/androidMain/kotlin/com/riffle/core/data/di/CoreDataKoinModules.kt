@@ -77,7 +77,7 @@ import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
-import com.riffle.core.data.ReadaloudSidecarPrefetcher
+import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl

@@ -11,6 +11,7 @@ import com.riffle.core.models.AudiobookIdentityResult
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ListeningPreferencesStore
@@ -82,7 +83,7 @@ class ReaderSessionLifecycleTest {
 
     private class FakeEpubRepository(
         private val outcome: EpubOpenResult,
-    ) : EpubRepository {
+    ) : JvmEpubRepository {
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = outcome
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) =
             error("not needed")
@@ -239,7 +240,7 @@ class ReaderSessionLifecycleTest {
     private class RecordingEpubRepository(
         private val outcome: EpubOpenResult,
         private val onOpen: (() -> Unit)? = null,
-    ) : EpubRepository {
+    ) : JvmEpubRepository {
         var openCalls = 0
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult {
             openCalls++
@@ -260,7 +261,7 @@ class ReaderSessionLifecycleTest {
             items = mapOf(("srv-abs" to "item-1") to ebookItem),
             activeItems = mapOf("item-1" to ebookItem),
         ),
-        epubRepository: EpubRepository = FakeEpubRepository(
+        epubRepository: JvmEpubRepository = FakeEpubRepository(
             EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
         ),
         sourceRepository: SourceRepository = FakeServerRepository(activeServer),

@@ -2,7 +2,6 @@ package com.riffle.core.domain.usecase
 
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.ReadingSessionRepository
-import javax.inject.Inject
 
 /**
  * Bump the active-Server item's local `lastOpenedAt` AND best-effort push it to ABS via the

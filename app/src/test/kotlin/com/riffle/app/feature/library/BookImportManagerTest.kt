@@ -3,6 +3,7 @@ package com.riffle.app.feature.library
 import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportResult
+import com.riffle.feature.library.BookImportState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
