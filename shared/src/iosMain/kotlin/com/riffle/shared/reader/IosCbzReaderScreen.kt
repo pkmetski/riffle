@@ -22,6 +22,7 @@ import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.comic.ComicImageSource
+import com.riffle.core.domain.comic.panel.PanelEngine
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.KomgaCbzApi
 import com.riffle.feature.reader.CbzReaderViewModel
@@ -47,6 +48,7 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val cbzDownloader = koinInject<IosCbzDownloader>()
     val sourceRepository = koinInject<SourceRepository>()
     val tokenStorage = koinInject<TokenStorage>()
+    val panelEngine = koinInject<PanelEngine>()
 
     var imageSource by remember { mutableStateOf<ComicImageSource?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -100,7 +102,7 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 val vm = remember(item.id, src) {
                     CbzReaderViewModel(
                         imageSource = src,
-                        panelEngine = IosNoOpPanelEngine,
+                        panelEngine = panelEngine,
                         bookId = item.id,
                         onPositionChanged = { pageIndex ->
                             NSUserDefaults.standardUserDefaults
