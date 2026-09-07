@@ -86,6 +86,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import coil3.compose.AsyncImage
@@ -1617,6 +1618,9 @@ private fun ReadingProgressIndicator(progress: Float, listened: Boolean = false)
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier.fillMaxWidth(),
+            strokeCap = StrokeCap.Butt,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
