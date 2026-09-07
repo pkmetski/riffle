@@ -2,13 +2,13 @@ package com.riffle.core.data
 
 import android.content.Context
 import com.riffle.core.domain.AnnotationFileRef
-import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
+import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
 import java.io.File
 
 /**
@@ -25,9 +25,12 @@ import java.io.File
  * tests and offline-only configurations.
  */
 class LocalDirectoryTarget(
-    private val context: Context,
+    private val filesDir: File,
     private val logger: Logger,
 ) : AnnotationSyncTarget {
+
+    /** Production entry point — resolves the app's internal files directory from [context]. */
+    constructor(context: Context, logger: Logger) : this(context.filesDir, logger)
 
     @Volatile private var legacyAbsMigrated: Boolean = false
 
@@ -45,7 +48,7 @@ class LocalDirectoryTarget(
      */
     private fun migrateLegacyAbsDirs() {
         if (legacyAbsMigrated) return
-        val root = File(context.filesDir, ROOT)
+        val root = File(filesDir, ROOT)
         if (!root.exists()) {
             legacyAbsMigrated = true
             return
@@ -219,7 +222,7 @@ class LocalDirectoryTarget(
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
         migrateLegacyAbsDirs()
         return try {
-            val root = File(context.filesDir, ROOT)
+            val root = File(filesDir, ROOT)
             if (!root.exists()) return emptyList()
             root.listFiles { f -> f.isDirectory }?.map { nsDir ->
                 var annotations = 0
@@ -262,7 +265,7 @@ class LocalDirectoryTarget(
     }
 
     private fun namespaceDir(namespace: String): File =
-        File(context.filesDir, "$ROOT/$namespace")
+        File(filesDir, "$ROOT/$namespace")
 
     private fun bookDir(namespace: String, itemId: String): File =
         File(namespaceDir(namespace), itemId)

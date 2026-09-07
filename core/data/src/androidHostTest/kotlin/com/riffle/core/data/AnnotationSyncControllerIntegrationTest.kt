@@ -1,60 +1,53 @@
 package com.riffle.core.data
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.logging.RecordingLogger
+import com.riffle.core.sync.AnnotationSyncStatusStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 import java.io.File
+import java.nio.file.Files
 
 /**
  * Integration tests for [AnnotationSyncController].
  *
  * Verifies the three sync lifecycle events (syncOnOpen, scheduleDebounce, syncOnClose)
- * and debounce timer mechanics using real LocalDirectoryTarget and mocked dependencies
- * (AnnotationStore, DeviceIdStore).
+ * and debounce timer mechanics using a real [LocalDirectoryTarget] (real file I/O against
+ * a temp directory) and mocked dependencies (AnnotationDao, DeviceIdStore).
  *
- * Timing-sensitive tests use Thread.sleep() to wait for debounce timers.
+ * Timing-sensitive tests advance the test scheduler's virtual clock (the controller's
+ * scope is the test's [TestScope]) to step past the 1s debounce window deterministically.
  */
-@RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class AnnotationSyncControllerIntegrationTest {
 
     private lateinit var target: LocalDirectoryTarget
     private lateinit var annotationDao: AnnotationDao
     private lateinit var deviceIdStore: DeviceIdStore
     private lateinit var mergeService: AnnotationMergeService
-    private lateinit var scope: CoroutineScope
-    private lateinit var controller: AnnotationSyncController
     private lateinit var filesDir: File
 
     @Before
     fun setup() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        target = LocalDirectoryTarget(context, RecordingLogger())
-        filesDir = context.filesDir
-
-        // Clean up any previous test data
-        val annotationSyncDir = File(filesDir, "annotation-sync")
-        if (annotationSyncDir.exists()) {
-            annotationSyncDir.deleteRecursively()
-        }
+        filesDir = Files.createTempDirectory("annotation-sync-controller-test").toFile()
+        target = LocalDirectoryTarget(filesDir, RecordingLogger())
 
         // Mock AnnotationDao
         annotationDao = mockk(relaxed = true)
@@ -65,34 +58,67 @@ class AnnotationSyncControllerIntegrationTest {
 
         // Use real AnnotationMergeService (pure logic, no external state)
         mergeService = AnnotationMergeService()
-
-        // Coroutine scope for the controller
-        scope = CoroutineScope(Dispatchers.Main.immediate)
-
-        // Create the controller
-        controller = AnnotationSyncController(
-            targetProvider = { target },
-            mergeService = mergeService,
-            annotationDao = annotationDao,
-            deviceIdStore = deviceIdStore,
-            deviceLabelResolver = IntegrationStubLabelResolver,
-            scope = scope,
-            statusStore = AnnotationSyncStatusStore(),
-            sweepEnqueuer = AnnotationSweepEnqueuer { /* no-op */ },
-            nowIso = { "2026-01-01T00:00:00Z" },
-        )
     }
+
+    @After
+    fun tearDown() {
+        filesDir.deleteRecursively()
+    }
+
+    /** Build the controller against the test's scope so debounce delays advance with virtual time. */
+    private fun TestScope.newController(
+        targetProvider: () -> LocalDirectoryTarget? = { target },
+    ) = AnnotationSyncController(
+        targetProvider = targetProvider,
+        mergeService = mergeService,
+        annotationDao = annotationDao,
+        deviceIdStore = deviceIdStore,
+        deviceLabelResolver = IntegrationStubLabelResolver,
+        scope = this,
+        statusStore = AnnotationSyncStatusStore(),
+        sweepEnqueuer = AnnotationSweepEnqueuer { /* no-op */ },
+        nowIso = { "2026-01-01T00:00:00Z" },
+        // Pin the clock near the fixtures' riffle:updatedAt values (1000/2000) so the ADR 0045
+        // stale-orphan guard (ignore never-seen rows older than the 90-day tombstone TTL against
+        // "now") doesn't discard them the way the real wall clock would.
+        clock = { 5_000L },
+    )
+
+    private fun pushedAnnotation(
+        id: String,
+        sourceId: String,
+        itemId: String,
+        cfi: String = "epubcfi(/6/4[chap01]!/4/2/16)",
+        color: String = "yellow",
+        textSnippet: String = "test",
+        chapterHref: String = "chap01.xhtml",
+        createdAt: Long = 1000L,
+    ) = AnnotationEntity(
+        id = id,
+        sourceId = sourceId,
+        itemId = itemId,
+        type = AnnotationEntity.TYPE_HIGHLIGHT,
+        cfi = cfi,
+        color = color,
+        note = null,
+        textSnippet = textSnippet,
+        chapterHref = chapterHref,
+        createdAt = createdAt,
+        updatedAt = createdAt,
+        originDeviceId = "device-test",
+        lastModifiedByDeviceId = "device-test",
+    )
 
     /**
      * Test 1: syncOnOpen merges device files.
      *
      * Setup: Write two mock device files to LocalDirectoryTarget.
-     * Call controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId).
+     * Call controller.syncOnOpen(sourceId, namespace = sourceId, itemId = itemId).
      * Verify: Controller merged annotations and attempted to upsert to AnnotationDao.
      */
     @Test
     fun syncOnOpen_mergesDeviceFiles() = runTest {
-        val serverId = "server1"
+        val sourceId = "source1"
         val itemId = "item1"
 
         // Create two device files with mock annotations
@@ -130,11 +156,11 @@ class AnnotationSyncControllerIntegrationTest {
             }
         ]"""
 
-        target.write(serverId, itemId, "annotations-device-a.jsonld", device1Json)
-        target.write(serverId, itemId, "annotations-device-b.jsonld", device2Json)
+        target.write(sourceId, itemId, "annotations-device-a.jsonld", device1Json)
+        target.write(sourceId, itemId, "annotations-device-b.jsonld", device2Json)
 
         // Call syncOnOpen
-        controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
+        newController().syncOnOpen(sourceId, namespace = sourceId, itemId = itemId)
 
         // Verify that AnnotationDao.upsertAll was called with both annotations in one batch
         val upsertSlot1 = slot<List<AnnotationEntity>>()
@@ -145,170 +171,130 @@ class AnnotationSyncControllerIntegrationTest {
     /**
      * Test 2: scheduleDebounce starts timer.
      *
-     * Schedule debounce, wait < 1s, file should not exist yet.
-     * Wait > 1s total, file should exist (pushPending fired).
+     * Schedule debounce, advance < 1s, file should not exist yet.
+     * Advance > 1s total, file should exist (pushPending fired).
      */
     @Test
     fun scheduleDebounce_startsTimerAndPushesAfterDelay() = runTest {
-        val serverId = "server2"
+        val sourceId = "source2"
         val itemId = "item2"
 
-        // Mock getForItem to return a single test annotation
-        coEvery { annotationDao.getForItem(serverId, itemId) } returns listOf(
-            AnnotationEntity(
-                id = "test-ann-001",
-                serverId = serverId,
-                itemId = itemId,
-                type = AnnotationEntity.TYPE_HIGHLIGHT,
-                cfi = "epubcfi(/6/4[chap01]!/4/2/16)",
-                color = "yellow",
-                note = null,
-                textSnippet = "test",
-                chapterHref = "chap01.xhtml",
-                createdAt = 1000L,
-                updatedAt = 1000L,
-                originDeviceId = "device-test",
-                lastModifiedByDeviceId = "device-test",
-            )
+        // The push path reads every row (incl. tombstones) for the book.
+        coEvery { annotationDao.getAllForItemIncludingDeleted(sourceId, itemId) } returns listOf(
+            pushedAnnotation(id = "test-ann-001", sourceId = sourceId, itemId = itemId),
         )
 
         // Schedule debounce
-        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
+        newController().scheduleDebounce(sourceId, namespace = sourceId, itemId = itemId)
 
-        // Wait < 1s (debounce should not have fired yet)
-        Thread.sleep(500)
+        // Advance < 1s (debounce should not have fired yet)
+        advanceTimeBy(500)
         val deviceFile = File(
             filesDir,
-            "annotation-sync/$serverId/$itemId/annotations-device-test.jsonld"
+            "annotation-sync/$sourceId/$itemId/annotations-device-test.jsonld",
         )
         assertFalse(
             "File should not exist before debounce delay",
-            deviceFile.exists()
+            deviceFile.exists(),
         )
 
-        // Wait > 1s more (debounce should have fired by now)
-        Thread.sleep(600)
+        // Advance > 1s more (debounce should have fired by now)
+        advanceTimeBy(600)
         assertTrue(
             "File should exist after debounce delay",
-            deviceFile.exists()
+            deviceFile.exists(),
         )
     }
 
     /**
      * Test 3: debounce restarts on multiple edits.
      *
-     * Schedule, wait 500ms, schedule again (restart).
-     * Wait another 500ms (still < 1s from restart).
+     * Schedule, advance 500ms, schedule again (restart).
+     * Advance another 500ms (still < 1s from restart).
      * File should not exist.
-     * Wait 600ms more, file should exist.
+     * Advance 600ms more, file should exist.
      */
     @Test
     fun scheduleDebounce_restartsOnMultipleEdits() = runTest {
-        val serverId = "server3"
+        val sourceId = "source3"
         val itemId = "item3"
 
-        // Mock getForItem
-        coEvery { annotationDao.getForItem(serverId, itemId) } returns listOf(
-            AnnotationEntity(
-                id = "test-ann-003",
-                serverId = serverId,
-                itemId = itemId,
-                type = AnnotationEntity.TYPE_HIGHLIGHT,
-                cfi = "epubcfi(/6/4[chap01]!/4/2/16)",
-                color = "yellow",
-                note = null,
-                textSnippet = "test",
-                chapterHref = "chap01.xhtml",
-                createdAt = 1000L,
-                updatedAt = 1000L,
-                originDeviceId = "device-test",
-                lastModifiedByDeviceId = "device-test",
-            )
+        coEvery { annotationDao.getAllForItemIncludingDeleted(sourceId, itemId) } returns listOf(
+            pushedAnnotation(id = "test-ann-003", sourceId = sourceId, itemId = itemId),
         )
 
         val deviceFile = File(
             filesDir,
-            "annotation-sync/$serverId/$itemId/annotations-device-test.jsonld"
+            "annotation-sync/$sourceId/$itemId/annotations-device-test.jsonld",
         )
 
+        val controller = newController()
+
         // First schedule
-        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
-        Thread.sleep(500)
+        controller.scheduleDebounce(sourceId, namespace = sourceId, itemId = itemId)
+        advanceTimeBy(500)
         assertFalse("File should not exist after 500ms", deviceFile.exists())
 
         // Second schedule (restarts the timer)
-        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
-        Thread.sleep(500)
+        controller.scheduleDebounce(sourceId, namespace = sourceId, itemId = itemId)
+        advanceTimeBy(500)
         assertFalse(
             "File should not exist 500ms after restart (total 1000ms from first schedule)",
-            deviceFile.exists()
+            deviceFile.exists(),
         )
 
         // Wait for the restarted timer to complete
-        Thread.sleep(600)
+        advanceTimeBy(600)
         assertTrue(
             "File should exist after 600ms more (1100ms from restart)",
-            deviceFile.exists()
+            deviceFile.exists(),
         )
     }
 
     /**
      * Test 4: syncOnClose cancels debounce and pushes immediately.
      *
-     * Schedule debounce, wait 200ms.
+     * Schedule debounce, advance 200ms.
      * Call syncOnClose.
      * Verify: debounce was cancelled (no file from the scheduled debounce).
      * Verify: file written immediately from syncOnClose.
      */
     @Test
     fun syncOnClose_cancelsDebouncePushesImmediately() = runTest {
-        val serverId = "server4"
+        val sourceId = "source4"
         val itemId = "item4"
 
-        // Mock getForItem
-        coEvery { annotationDao.getForItem(serverId, itemId) } returns listOf(
-            AnnotationEntity(
-                id = "test-ann-004",
-                serverId = serverId,
-                itemId = itemId,
-                type = AnnotationEntity.TYPE_HIGHLIGHT,
-                cfi = "epubcfi(/6/4[chap01]!/4/2/16)",
-                color = "yellow",
-                note = null,
-                textSnippet = "test",
-                chapterHref = "chap01.xhtml",
-                createdAt = 1000L,
-                updatedAt = 1000L,
-                originDeviceId = "device-test",
-                lastModifiedByDeviceId = "device-test",
-            )
+        coEvery { annotationDao.getAllForItemIncludingDeleted(sourceId, itemId) } returns listOf(
+            pushedAnnotation(id = "test-ann-004", sourceId = sourceId, itemId = itemId),
         )
 
         val deviceFile = File(
             filesDir,
-            "annotation-sync/$serverId/$itemId/annotations-device-test.jsonld"
+            "annotation-sync/$sourceId/$itemId/annotations-device-test.jsonld",
         )
 
+        val controller = newController()
+
         // Schedule debounce (would fire after 1s)
-        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
-        Thread.sleep(200)
+        controller.scheduleDebounce(sourceId, namespace = sourceId, itemId = itemId)
+        advanceTimeBy(200)
 
         // Call syncOnClose
-        controller.syncOnClose(serverId, namespace = serverId, itemId = itemId)
+        controller.syncOnClose(sourceId, namespace = sourceId, itemId = itemId)
 
         // File should now exist (from syncOnClose's pushPending)
         assertTrue(
             "File should exist immediately after syncOnClose",
-            deviceFile.exists()
+            deviceFile.exists(),
         )
 
-        // Wait for the original debounce to have fired (1s total)
-        // The file should still only have one write (from syncOnClose)
+        // Advance past the original debounce deadline (1s total).
+        // The file should still only have one write (from syncOnClose).
         // This is a best-effort check; the critical fact is the file exists.
-        Thread.sleep(1000)
+        advanceTimeBy(1000)
         assertTrue(
             "File should still exist after debounce timeout",
-            deviceFile.exists()
+            deviceFile.exists(),
         )
     }
 
@@ -321,25 +307,18 @@ class AnnotationSyncControllerIntegrationTest {
      */
     @Test
     fun nullTarget_gracefullyNoop() = runTest {
-        val nullTargetController = AnnotationSyncController(
-            targetProvider = { null },
-            mergeService = mergeService,
-            annotationDao = annotationDao,
-            deviceIdStore = deviceIdStore,
-            deviceLabelResolver = IntegrationStubLabelResolver,
-            scope = scope,
-            statusStore = AnnotationSyncStatusStore(),
-            sweepEnqueuer = AnnotationSweepEnqueuer { /* no-op */ },
-            nowIso = { "2026-01-01T00:00:00Z" },
-        )
+        val nullTargetController = newController(targetProvider = { null })
 
-        val serverId = "server5"
+        val sourceId = "source5"
         val itemId = "item5"
 
         // These should not throw or perform any I/O
-        nullTargetController.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
-        nullTargetController.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
-        nullTargetController.syncOnClose(serverId, namespace = serverId, itemId = itemId)
+        nullTargetController.syncOnOpen(sourceId, namespace = sourceId, itemId = itemId)
+        nullTargetController.scheduleDebounce(sourceId, namespace = sourceId, itemId = itemId)
+        nullTargetController.syncOnClose(sourceId, namespace = sourceId, itemId = itemId)
+
+        // Advance past the debounce window — even then nothing must fire.
+        advanceTimeBy(2000)
 
         // Verify AnnotationDao was never called (either the batch or singular path)
         coVerify(exactly = 0) { annotationDao.upsertAll(any()) }
@@ -349,7 +328,7 @@ class AnnotationSyncControllerIntegrationTest {
         val annotationSyncDir = File(filesDir, "annotation-sync")
         assertFalse(
             "No files should be created when target is null",
-            annotationSyncDir.exists()
+            annotationSyncDir.exists(),
         )
     }
 
@@ -362,7 +341,7 @@ class AnnotationSyncControllerIntegrationTest {
      */
     @Test
     fun syncOnOpen_skipCorruptFilesMergeValid() = runTest {
-        val serverId = "server6"
+        val sourceId = "source6"
         val itemId = "item6"
 
         // Valid device file
@@ -386,11 +365,11 @@ class AnnotationSyncControllerIntegrationTest {
         // Corrupt device file (invalid JSON)
         val corruptJson = """{ "malformed json without closing"""
 
-        target.write(serverId, itemId, "annotations-device-a.jsonld", validJson)
-        target.write(serverId, itemId, "annotations-device-b.jsonld", corruptJson)
+        target.write(sourceId, itemId, "annotations-device-a.jsonld", validJson)
+        target.write(sourceId, itemId, "annotations-device-b.jsonld", corruptJson)
 
         // Call syncOnOpen
-        controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
+        newController().syncOnOpen(sourceId, namespace = sourceId, itemId = itemId)
 
         // Verify only one annotation was upserted in a single batch (from device-a, skipping device-b)
         val upsertSlot = slot<List<AnnotationEntity>>()
@@ -407,61 +386,43 @@ class AnnotationSyncControllerIntegrationTest {
      */
     @Test
     fun scheduleDebounce_multipleBooks_independentTimers() = runTest {
-        val serverA = "serverA"
+        val sourceA = "sourceA"
         val itemA = "itemA"
-        val serverB = "serverB"
+        val sourceB = "sourceB"
         val itemB = "itemB"
 
-        // Mock getForItem for both books
-        coEvery { annotationDao.getForItem(serverA, itemA) } returns listOf(
-            AnnotationEntity(
-                id = "ann-a",
-                serverId = serverA,
-                itemId = itemA,
-                type = AnnotationEntity.TYPE_HIGHLIGHT,
-                cfi = "epubcfi(/6/4[chap01]!/4/2/16)",
-                color = "yellow",
-                note = null,
-                textSnippet = "test-a",
-                chapterHref = "chap01.xhtml",
-                createdAt = 1000L,
-                updatedAt = 1000L,
-                originDeviceId = "device-test",
-                lastModifiedByDeviceId = "device-test",
-            )
+        coEvery { annotationDao.getAllForItemIncludingDeleted(sourceA, itemA) } returns listOf(
+            pushedAnnotation(id = "ann-a", sourceId = sourceA, itemId = itemA, textSnippet = "test-a"),
         )
 
-        coEvery { annotationDao.getForItem(serverB, itemB) } returns listOf(
-            AnnotationEntity(
+        coEvery { annotationDao.getAllForItemIncludingDeleted(sourceB, itemB) } returns listOf(
+            pushedAnnotation(
                 id = "ann-b",
-                serverId = serverB,
+                sourceId = sourceB,
                 itemId = itemB,
-                type = AnnotationEntity.TYPE_HIGHLIGHT,
                 cfi = "epubcfi(/6/4[chap02]!/4/2/16)",
                 color = "green",
-                note = null,
                 textSnippet = "test-b",
                 chapterHref = "chap02.xhtml",
                 createdAt = 2000L,
-                updatedAt = 2000L,
-                originDeviceId = "device-test",
-                lastModifiedByDeviceId = "device-test",
-            )
+            ),
         )
 
-        val fileA = File(filesDir, "annotation-sync/$serverA/$itemA/annotations-device-test.jsonld")
-        val fileB = File(filesDir, "annotation-sync/$serverB/$itemB/annotations-device-test.jsonld")
+        val fileA = File(filesDir, "annotation-sync/$sourceA/$itemA/annotations-device-test.jsonld")
+        val fileB = File(filesDir, "annotation-sync/$sourceB/$itemB/annotations-device-test.jsonld")
 
-        // Schedule debounce for book A
-        controller.scheduleDebounce(serverA, namespace = serverA, itemId = itemA)
-        Thread.sleep(200)
+        val controller = newController()
 
-        // Schedule debounce for book B
-        controller.scheduleDebounce(serverB, namespace = serverB, itemId = itemB)
-        Thread.sleep(200)
+        // Schedule debounce for book A (fires at t=1000 if not cancelled)
+        controller.scheduleDebounce(sourceA, namespace = sourceA, itemId = itemA)
+        advanceTimeBy(200)
+
+        // Schedule debounce for book B (scheduled at t=200, fires at t=1200)
+        controller.scheduleDebounce(sourceB, namespace = sourceB, itemId = itemB)
+        advanceTimeBy(200)
 
         // Cancel debounce for book A via syncOnClose
-        controller.syncOnClose(serverA, namespace = serverA, itemId = itemA)
+        controller.syncOnClose(sourceA, namespace = sourceA, itemId = itemA)
 
         // File A should exist now
         assertTrue("File A should exist after syncOnClose", fileA.exists())
@@ -469,8 +430,8 @@ class AnnotationSyncControllerIntegrationTest {
         // File B should not exist yet (debounce still running)
         assertFalse("File B should not exist yet (debounce at 400ms total)", fileB.exists())
 
-        // Wait for book B's debounce to complete
-        Thread.sleep(700)
+        // Advance until book B's debounce completes (fires at t=1200; virtual clock is at 400)
+        advanceTimeBy(900)
         assertTrue("File B should exist after debounce completes", fileB.exists())
     }
 }
