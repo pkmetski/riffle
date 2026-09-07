@@ -144,8 +144,12 @@ object EpubAssembler {
     }
 
     /** Stable manifest id for a resource path (chapters carry their own ids). */
+    // A short hash of the full path disambiguates resources that sanitize to the same slug (e.g.
+    // "images/a-b.jpg" vs "images/a_b.jpg") — a manifest with duplicate item ids is an invalid OPF.
+    // Stable per path, so the cover <meta> and the <item> for the same path always agree.
     private fun manifestId(path: String): String =
-        "res-" + path.map { if (it.isLetterOrDigit()) it else '_' }.joinToString("")
+        "res-" + path.map { if (it.isLetterOrDigit()) it else '_' }.joinToString("") +
+            "-" + path.hashCode().toUInt().toString(16)
 
     private fun String.xmlEscape(): String = this
         .replace("&", "&amp;")
@@ -154,19 +158,4 @@ object EpubAssembler {
         .replace("\"", "&quot;")
         .replace("'", "&apos;")
 
-    /** Resolve an EPUB manifest media-type from a resource path's extension. */
-    fun mediaTypeForPath(path: String): String = when (path.substringAfterLast('.').lowercase()) {
-        "css" -> "text/css"
-        "jpg", "jpeg" -> "image/jpeg"
-        "png" -> "image/png"
-        "gif" -> "image/gif"
-        "svg" -> "image/svg+xml"
-        "webp" -> "image/webp"
-        "ttf" -> "font/ttf"
-        "otf" -> "font/otf"
-        "woff" -> "font/woff"
-        "woff2" -> "font/woff2"
-        "xhtml", "html", "htm" -> "application/xhtml+xml"
-        else -> "application/octet-stream"
-    }
 }

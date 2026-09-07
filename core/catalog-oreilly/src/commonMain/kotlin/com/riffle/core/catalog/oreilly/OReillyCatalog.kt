@@ -303,7 +303,7 @@ class OReillyCatalog internal constructor(
             val result = runCatching { pacer.execute { api.getContent(api.fileContentUrl(itemId, fullPath)) } }
             val body = result.getOrNull()
             val throttled = (result.exceptionOrNull() as? OReillyHttpException)?.code == 403 ||
-                (body != null && isTruncatedSample(body.length.toLong(), expectedSize))
+                (body != null && isTruncatedBody(body, expectedSize))
             if (body != null && !throttled) return body
             if (attempt >= maxContentRetries) {
                 throw OReillyException(
@@ -399,14 +399,16 @@ class OReillyCatalog internal constructor(
             }.awaitAll()
         }.toMap()
 
+        // All-or-nothing: if any chapter's Kaltura entry can't be resolved, fail the whole session
+        // rather than play a book with a silent hole and a timeline that no longer matches the toc
+        // (getAudiobookChapters is toc-derived). A partial audiobook is worse than a clear failure.
         var offset = 0.0
         val tracks = mutableListOf<CatalogAudioTrack>()
         val chapters = mutableListOf<CatalogAudiobookChapter>()
-        toc.forEach { entry ->
+        toc.forEachIndexed { index, entry ->
             val entryId = entryIdByRef[entry.referenceId].orEmpty()
-            if (entryId.isBlank()) return@forEach // unresolved chapter: skip rather than break playback
+            if (entryId.isBlank()) return null
             val duration = entry.duration.toDouble()
-            val index = tracks.size
             tracks += CatalogAudioTrack(
                 ino = entry.referenceId,
                 index = index,
@@ -525,6 +527,14 @@ class OReillyCatalog internal constructor(
          */
         internal fun isTruncatedSample(fetchedLen: Long, expectedSize: Long): Boolean =
             expectedSize >= TRUNCATION_MIN_BYTES && fetchedLen < expectedSize / 2
+
+        /**
+         * Truncation check for a fetched chapter [body] against its byte-denominated [expectedSize].
+         * MUST measure UTF-8 bytes — `String.length` counts UTF-16 code units, which undercounts
+         * multibyte (e.g. CJK) chapters and would falsely flag a full chapter as a DRM sample.
+         */
+        internal fun isTruncatedBody(body: String, expectedSize: Long): Boolean =
+            isTruncatedSample(body.encodeToByteArray().size.toLong(), expectedSize)
     }
 }
 

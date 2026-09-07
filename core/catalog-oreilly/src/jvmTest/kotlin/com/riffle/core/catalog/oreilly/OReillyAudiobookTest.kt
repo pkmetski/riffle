@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -26,6 +27,10 @@ class OReillyAudiobookTest {
 
     private val itemId = "9781663721174"
 
+    // When true, chapter 2's videoclip resolves to a blank Kaltura entry id (simulating a failed
+    // resolve) so the all-or-nothing assembly can be exercised.
+    private var breakSecondClip = false
+
     // Routes by path so the concurrent per-chapter videoclips fetches resolve correctly.
     private val dispatcher = object : Dispatcher() {
         override fun dispatch(request: RecordedRequest): MockResponse {
@@ -42,7 +47,8 @@ class OReillyAudiobookTest {
                 path.startsWith("/api/v1/videoclips/$itemId-a00001/") ->
                     """{"reference_id":"$itemId-a00001","kaltura_entry_id":"1_aaa"}"""
                 path.startsWith("/api/v1/videoclips/$itemId-a00002/") ->
-                    """{"reference_id":"$itemId-a00002","kaltura_entry_id":"1_bbb"}"""
+                    if (breakSecondClip) """{"reference_id":"$itemId-a00002","kaltura_entry_id":""}"""
+                    else """{"reference_id":"$itemId-a00002","kaltura_entry_id":"1_bbb"}"""
                 else -> return MockResponse().setResponseCode(404).setBody("""{"message":"Not Found"}""")
             }
             return MockResponse().setResponseCode(200).setBody(body)
@@ -93,6 +99,13 @@ class OReillyAudiobookTest {
         assertEquals(0.0, stream.chapters[0].startSec, 0.001)
         assertEquals(400.0, stream.chapters[0].endSec, 0.001)
         assertEquals(1000.0, stream.chapters[1].endSec, 0.001)
+    }
+
+    @Test
+    fun `an unresolved chapter fails the whole session so tracks never diverge from the toc`() = runBlocking {
+        breakSecondClip = true
+        assertTrue(catalog.getTracks(itemId).isEmpty())
+        assertNull(catalog.openAudiobook(itemId, deviceLabel = "test"))
     }
 
     @Test

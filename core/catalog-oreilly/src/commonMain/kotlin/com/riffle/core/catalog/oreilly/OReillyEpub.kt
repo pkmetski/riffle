@@ -70,22 +70,6 @@ internal object OReillyEpub {
     fun relativeTo(chapterFullPath: String, assetFullPath: String): String =
         relPrefixFor(chapterFullPath) + assetFullPath
 
-    /** Local packaged path for a remote asset URL, keyed by index to avoid collisions. */
-    fun localImagePath(url: String, index: Int): String {
-        val ext = url.substringBefore('?').substringAfterLast('.', "").lowercase()
-            .takeIf { it.length in 1..5 && it.all { c -> c.isLetterOrDigit() } } ?: "img"
-        return "images/img$index.$ext"
-    }
-
-    /** Rewrite absolute asset URLs in [html] to their packaged relative paths. */
-    fun rewriteAssetUrls(html: String, urlToLocal: Map<String, String>): String {
-        var out = html
-        for ((remote, local) in urlToLocal) {
-            out = out.replace(remote, local)
-        }
-        return out
-    }
-
     private fun String.xmlText(): String =
         replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 

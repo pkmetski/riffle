@@ -27,4 +27,15 @@ class OReillyTruncationTest {
     fun `unknown declared size (0) is never flagged`() {
         assertFalse(OReillyCatalog.isTruncatedSample(fetchedLen = 1976, expectedSize = 0))
     }
+
+    @Test
+    fun `a full multibyte chapter is measured in UTF-8 bytes, not UTF-16 chars`() {
+        // 21000 CJK chars encode to ~63000 UTF-8 bytes (3 bytes each). Measured in bytes it clears the
+        // declared size; measured as String.length (chars) it would fall under expectedSize/2 and be
+        // falsely flagged as a truncated DRM sample. isTruncatedBody must use the byte count.
+        val fullChapter = "第".repeat(21000)
+        assertFalse(OReillyCatalog.isTruncatedBody(fullChapter, expectedSize = 63000))
+        // Guard the intent: the raw char count really would have tripped the check.
+        assertTrue(OReillyCatalog.isTruncatedSample(fullChapter.length.toLong(), expectedSize = 63000))
+    }
 }
