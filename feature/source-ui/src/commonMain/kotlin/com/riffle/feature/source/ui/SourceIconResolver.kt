@@ -10,6 +10,7 @@ import com.riffle.feature.source.ui.generated.resources.ic_source_chitanka
 import com.riffle.feature.source.ui.generated.resources.ic_source_gutenberg
 import com.riffle.feature.source.ui.generated.resources.ic_source_komga
 import com.riffle.feature.source.ui.generated.resources.ic_source_local_files
+import com.riffle.feature.source.ui.generated.resources.ic_source_oreilly
 import com.riffle.feature.source.ui.generated.resources.ic_source_radio_es
 import com.riffle.feature.source.ui.generated.resources.ic_source_storyteller
 import org.jetbrains.compose.resources.DrawableResource

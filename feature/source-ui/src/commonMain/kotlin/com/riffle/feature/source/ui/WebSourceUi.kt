@@ -8,6 +8,9 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.source_audiobookshelf_name
 import com.riffle.feature.source.ui.generated.resources.source_chitanka_name
+import com.riffle.feature.source.ui.generated.resources.source_oreilly_name
+import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_picker_blurb
+import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_subtitle
 import com.riffle.feature.source.ui.generated.resources.source_komga_name
 import com.riffle.feature.source.ui.generated.resources.source_project_gutenberg_name
 import com.riffle.feature.source.ui.generated.resources.source_radio_es_name
