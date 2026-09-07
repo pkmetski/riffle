@@ -142,6 +142,41 @@ class ChitankaScraperTest {
     }
 
     @Test
+    fun `search results page deduplicates book-section and text-section entries for the same slug`() {
+        // Chitanka search pages have two sections for the same book: a /book/ cover card (no
+        // authors) and a /text/ entry (with authors). Before this fix, parseSearchResults added
+        // both, so the same book appeared twice — one entry missing the author. The text-section
+        // entry is canonical; the book-section entry is only used for cover enrichment.
+        val html = fixture("chitanka-search.html")
+        val res = ChitankaScraper.parseSearchResults(html)
+
+        assertEquals(
+            "expected exactly 3 items (one per book), not 6 — duplicates must be suppressed",
+            3,
+            res.items.size,
+        )
+        // All surviving entries must be the /text/ variants (with authors, not the /book/ entries).
+        assertTrue(
+            "all items should have /text/ URLs, not /book/",
+            res.items.all { it.url.contains("/text/") },
+        )
+        // Authors must be present — the book-section entries (authors = emptyList()) must have
+        // been suppressed in favour of the text-section entries.
+        assertTrue(
+            "all items must carry at least one author",
+            res.items.all { it.authors.isNotEmpty() },
+        )
+        // Cover from section 1 must be forwarded to the text entry via slugCoverMap.
+        val abuHasan = res.items.find { it.url.contains("abu-hasan") }
+        assertNotNull("abu-hasan must be in results", abuHasan)
+        assertNotNull("abu-hasan text entry must inherit the cover from the book-section card", abuHasan!!.coverUrl)
+        // Default-cover books should yield null (the sentinel is still filtered).
+        val noCover = res.items.find { it.url.contains("kniga-bez-korica") }
+        assertNotNull("kniga-bez-korica must be in results", noCover)
+        assertNull("default-cover book must yield null coverUrl", noCover!!.coverUrl)
+    }
+
+    @Test
     fun `empty html yields empty listing and null next page`() {
         val res = ChitankaScraper.parseSearchResults("<html><body></body></html>")
         assertTrue(res.items.isEmpty())
