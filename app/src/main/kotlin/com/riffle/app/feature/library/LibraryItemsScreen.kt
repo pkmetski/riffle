@@ -41,6 +41,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.Icons
@@ -740,6 +741,9 @@ fun BookCoverTile(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .height(3.dp),
+                    strokeCap = StrokeCap.Butt,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
             }
             if (hasReadaloudLink) {
@@ -1382,6 +1386,9 @@ internal fun LibraryItemCard(
                     LinearProgressIndicator(
                         progress = { item.readingProgress },
                         modifier = Modifier.fillMaxWidth(),
+                        strokeCap = StrokeCap.Butt,
+                        gapSize = 0.dp,
+                        drawStopIndicator = {},
                     )
                     Text(
                         text = "${(item.readingProgress * 100).toInt()}%",
