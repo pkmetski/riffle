@@ -8,10 +8,8 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.source_audiobookshelf_name
 import com.riffle.feature.source.ui.generated.resources.source_chitanka_name
-import com.riffle.feature.source.ui.generated.resources.source_oreilly_name
-import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_picker_blurb
-import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_subtitle
 import com.riffle.feature.source.ui.generated.resources.source_komga_name
+import com.riffle.feature.source.ui.generated.resources.source_oreilly_name
 import com.riffle.feature.source.ui.generated.resources.source_project_gutenberg_name
 import com.riffle.feature.source.ui.generated.resources.source_radio_es_name
 import com.riffle.feature.source.ui.generated.resources.ui_add_audiobookshelf
@@ -33,6 +31,8 @@ import com.riffle.feature.source.ui.generated.resources.ui_source_komga_help_tex
 import com.riffle.feature.source.ui.generated.resources.ui_source_komga_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_local_files_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_local_files_subtitle
+import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_picker_blurb
+import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_subtitle
 import com.riffle.feature.source.ui.generated.resources.ui_source_radio_es_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_storyteller_help_text
 import com.riffle.feature.source.ui.generated.resources.ui_source_url
