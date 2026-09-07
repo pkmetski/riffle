@@ -266,10 +266,18 @@ final class AutoFollowJsTests: XCTestCase {
         let config = WKWebViewConfiguration()
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: width, height: height), configuration: config)
         webView.scrollView.isScrollEnabled = true
+        // Safe-area insets shift the committed scroll offset (scrollTop=2578 settles at 2611),
+        // and a late adjustment can reset the scroll to 0 mid-test — pin the viewport instead.
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
 
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: height))
         let host = UIViewController()
-        host.view = webView
+        // Keep the webview at its fixed frame: making it the root view lets UIKit resize it to
+        // the device's screen bounds, so the CSS viewport (and column layout) silently varies by
+        // simulator model — 390pt fixtures pass on iPhone 16 (393pt screen) and fail on wider
+        // devices. A non-autoresizing subview keeps the viewport at exactly width×height.
+        webView.autoresizingMask = []
+        host.view.addSubview(webView)
         window.rootViewController = host
         window.isHidden = false
         window.makeKeyAndVisible()
@@ -281,6 +289,22 @@ final class AutoFollowJsTests: XCTestCase {
         webView.loadHTMLString(html, baseURL: nil)
         wait(for: [exp], timeout: 30)
         _ = nav // keep alive
+
+        // WKWebView finalizes its content size a few frames after didFinish; interacting before
+        // that can be undone by a scroll reset to 0. Wait until the document height is stable.
+        var previousHeight = -1
+        var stableFor = 0
+        for _ in 0..<100 {
+            let height = evalInt(webView: webView, script: "document.scrollingElement.scrollHeight") ?? -1
+            if height == previousHeight && height > 0 {
+                stableFor += 1
+                if stableFor >= 5 { break }
+            } else {
+                stableFor = 0
+                previousHeight = height
+            }
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+        }
         return webView
     }
 

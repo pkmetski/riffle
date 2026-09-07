@@ -272,16 +272,19 @@
 /* Begin PBXShellScriptBuildPhase section */
 		B1000041 /* KMP Embed Framework */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = ();
 			inputFileListPaths = ();
 			inputPaths = ();
 			name = "KMP Embed Framework";
 			outputFileListPaths = ();
-			outputPaths = ();
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/Riffle.framework/Riffle",
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n# Copy the freshly linked framework into BUILT_PRODUCTS_DIR. Xcode's build system only\n# tracks nodes it owns: linking straight from shared/build/bin means Ld never notices the\n# gradle-side relink and ships the previous build's Kotlin (one-build-behind staleness).\ncase \"$SDK_NAME\" in\n  iphonesimulator*) KOTLIN_FRAMEWORK_DIR=\"$SRCROOT/../shared/build/bin/iosSimulatorArm64/debugFramework\" ;;\n  *) KOTLIN_FRAMEWORK_DIR=\"$SRCROOT/../shared/build/bin/iosArm64/debugFramework\" ;;\nesac\nrsync -a --delete \"$KOTLIN_FRAMEWORK_DIR/Riffle.framework\" \"$BUILT_PRODUCTS_DIR/\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
