@@ -195,7 +195,8 @@ jobs:
             :feature:source:iosSimulatorArm64Test \
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
-            :feature:downloads:iosSimulatorArm64Test
+            :feature:downloads:iosSimulatorArm64Test \
+            :core:logging:iosSimulatorArm64Test
       - name: Upload iOS commonTest reports
         if: always()
         uses: actions/upload-artifact@v7

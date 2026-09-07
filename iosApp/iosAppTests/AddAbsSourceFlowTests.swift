@@ -56,6 +56,20 @@ final class AddAbsSourceFlowTests: XCTestCase {
         }
     }
 
+    /// Regression for the 2026-09-07 Chitanka-install crash (IosLogger routed messages through
+    /// NSLog varargs, which segfaults on Kotlin/Native): installing a zero-config catalog source
+    /// must complete with the app alive.
+    func testChitankaInstallDoesNotCrash() throws {
+        guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
+            throw XCTSkip("A source is already configured — install test requires a pristine install")
+        }
+        app.staticTexts["Chitanka"].tap()
+        // Install writes the source + libraries and redirects to the library home.
+        let burger = app.staticTexts["☰"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 30), "Chitanka install must land on the library home")
+        XCTAssertTrue(app.state == .runningForeground, "App must survive Chitanka install")
+    }
+
     func testAddAbsSourceEndToEnd() throws {
         guard Self.serverReachable() else {
             throw XCTSkip("ABS test server \(Self.serverUrl) unreachable — e2e add flow needs a live server")

@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -196,7 +197,11 @@ fun AddSourceScreen(
                             label = { Text(urlLabel) },
                             placeholder = { Text(urlPlaceholder) },
                             modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Uri,
+                                capitalization = KeyboardCapitalization.None,
+                                autoCorrectEnabled = false,
+                            ),
                             singleLine = true,
                         )
                     }
@@ -206,6 +211,13 @@ fun AddSourceScreen(
                     onValueChange = { viewModel.username = it },
                     label = { Text(stringResource(Res.string.ui_username)) },
                     modifier = Modifier.fillMaxWidth(),
+                    // The iOS keyboard defaults to sentence capitalization + autocorrect, which
+                    // silently turns "test2" into "Test2" and makes valid credentials 401.
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrectEnabled = false,
+                    ),
                     singleLine = true,
                 )
                 OutlinedTextField(
