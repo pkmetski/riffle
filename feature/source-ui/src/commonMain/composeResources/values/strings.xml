@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Source-onboarding copy, shared by Android (:app) and iOS (:shared) through Compose Multiplatform
+  resources. Values are copied verbatim from app/src/main/res/values/strings.xml — the :app copies
+  remain for the surfaces that have not moved into this module yet, so any edit here must be
+  mirrored there (and vice versa) until the last :app consumer is gone.
+-->
+<resources>
+    <string name="ui_add_source">Add source</string>
+    <string name="ui_back">Back</string>
+    <string name="ui_coming_soon">Coming soon</string>
+    <string name="source_audiobookshelf_name">Audiobookshelf</string>
+    <string name="ui_local_files">Local files</string>
+    <string name="source_chitanka_name">Chitanka</string>
+    <string name="source_project_gutenberg_name">Project Gutenberg</string>
+    <string name="source_komga_name">Komga</string>
+    <string name="source_radio_es_name">radio.es</string>
+    <string name="ui_source_local_files_subtitle">on this device</string>
+    <string name="ui_source_chitanka_subtitle">Bulgarian public library</string>
+    <string name="ui_source_gutenberg_subtitle">Public-domain ebooks</string>
+    <string name="ui_source_abs_picker_blurb">Stream ebooks and audiobooks from your Audiobookshelf server.</string>
+    <string name="ui_source_local_files_picker_blurb">Read EPUBs and PDFs from a folder on this device.</string>
+    <string name="ui_source_chitanka_picker_blurb">Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).</string>
+    <string name="ui_source_gutenberg_picker_blurb">Browse tens of thousands of free public-domain ebooks.</string>
+    <string name="ui_source_komga_picker_blurb">Stream comics, manga and ebooks from your Komga server.</string>
+    <string name="ui_source_radio_es_picker_blurb">Browse and listen to podcasts from the radio.es directory.</string>
+    <string name="ui_add_audiobookshelf">Add Audiobookshelf</string>
+    <string name="ui_edit_audiobookshelf">Edit Audiobookshelf</string>
+    <string name="ui_source_url">Source URL</string>
+    <string name="ui_source_abs_help_text">Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices.</string>
+    <string name="ui_remove_source">Remove source</string>
+    <string name="ui_add_storyteller">Add Storyteller</string>
+    <string name="ui_edit_storyteller">Edit Storyteller</string>
+    <string name="ui_source_storyteller_help_text">Storyteller hosts aligned ebook + audiobook &quot;readalouds.&quot; Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader.</string>
+    <string name="ui_remove_storyteller">Remove Storyteller</string>
+    <string name="ui_add_komga">Add Komga</string>
+    <string name="ui_edit_komga">Edit Komga</string>
+    <string name="ui_source_komga_help_text">Browse and read your Komga library (comics, manga and ebooks) from any Komga server.</string>
+    <string name="ui_edit_webdav">Edit WebDAV</string>
+    <string name="ui_add_webdav">Add WebDAV</string>
+    <string name="ui_webdav_url">WebDAV URL</string>
+    <string name="ui_save">Save</string>
+    <string name="ui_connect">Connect</string>
+    <string name="ui_webdav_add_source_help_text">Sync highlights, notes, and bookmarks between your devices via a WebDAV server. Available for Komga sources.</string>
+    <string name="ui_choose_scheme">Choose scheme</string>
+    <string name="ui_username">Username</string>
+    <string name="ui_password">Password</string>
+    <string name="ui_disable_sync">Disable sync</string>
+    <string name="ui_synced_via_webdav">Synced via WebDAV</string>
+    <string name="ui_pending_will_retry_automatically">Pending — will retry automatically</string>
+    <string name="ui_sync_error">Sync error</string>
+    <string name="ui_last_sync_value">Last sync: %1$s</string>
+    <string name="ui_insecure_connection">Insecure connection</string>
+    <string name="ui_untrusted_certificate">Untrusted certificate</string>
+    <string name="ui_insecure_http_description">This server uses HTTP. Your credentials will be sent without encryption. Proceed only if you trust this network.</string>
+    <string name="ui_untrusted_certificate_description">The server\'s TLS certificate cannot be verified. Connecting may expose your credentials. Proceed only if you trust this server.</string>
+    <string name="ui_connect_anyway">Connect anyway</string>
+    <string name="ui_cancel">Cancel</string>
+    <string name="ui_select_libraries">Select libraries</string>
+    <string name="ui_this_source_doesn_t_expose_any_book_libraries">This source doesn\'t expose any book libraries.</string>
+    <string name="ui_go_back">Go back</string>
+    <string name="ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings">Choose which libraries to show in Riffle. You can change this later in Settings.</string>
+    <string name="ui_select_at_least_one_library">Select at least one library</string>
+    <string name="ui_continue">Continue</string>
+    <string name="error_enter_valid_url">Enter a valid URL (e.g. https://abs.example.com)</string>
+    <string name="error_parse_webdav_url">Could not parse URL — it should look like https://example.com/dav/path</string>
+    <string name="error_auth_failed_check_credentials">Authentication failed — check your username and password.</string>
+    <string name="error_couldnt_reach_server">Couldn\'t reach the server: %1$s</string>
+    <string name="error_tls">TLS error: %1$s</string>
+    <string name="error_source_http">Source returned HTTP %1$d.</string>
+    <string name="error_couldnt_save_source">Couldn\'t save source: %1$s</string>
+    <string name="error_connection_failed">Connection failed: %1$s</string>
+    <string name="error_connected_library_load_failed">Connected, but couldn\'t load libraries: %1$s</string>
+    <string name="ui_webdav_auth_failed_prescription">Authentication failed — your credentials may have expired. Re-enter them below; sync will retry once saved.</string>
+    <string name="ui_webdav_tls_failed_prescription">TLS error — the server\'s certificate could not be verified. Update the URL below; sync will retry once saved.</string>
+    <string name="ui_source_http_retry">Source returned HTTP %1$d. Will retry automatically.</string>
+    <string name="ui_sync_failed_retry">Sync failed. Will retry automatically.</string>
+    <string name="ui_couldnt_reach_server_retry">Couldn\'t reach the server. Will retry automatically when connectivity returns.</string>
+    <string name="ui_books_pending_sync_shortly">%1$d book(s) pending · will sync shortly.</string>
+    <string name="ui_books_pending_waiting_first_sync">%1$d book(s) pending · waiting for first sync.</string>
+    <string name="ui_never">Never</string>
+    <string name="ui_just_now">just now</string>
+    <string name="ui_minutes_ago">%1$d min ago</string>
+    <string name="ui_hours_ago">%1$d h ago</string>
+    <string name="ui_days_ago">%1$d d ago</string>
+    <string name="source_oreilly_name">O\'Reilly</string>
+    <string name="ui_source_oreilly_subtitle">learning.oreilly.com</string>
+    <string name="ui_source_oreilly_picker_blurb">Browse and read ebooks and audiobooks from your O\'Reilly account.</string>
+</resources>

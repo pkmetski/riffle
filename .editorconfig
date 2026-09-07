@@ -27,3 +27,15 @@ ktlint_standard_statement-wrapping = disabled
 ktlint_standard_wrapping = disabled
 ktlint_standard_multiline-expression-wrapping = disabled
 ktlint_standard_brace-style = disabled
+
+# Compose Multiplatform UI in the shared source-onboarding module. `@Composable` functions are
+# PascalCase by Compose convention, which ktlint's function-naming rule flags; this is the rule's
+# own opt-out rather than a per-function @Suppress on every screen.
+[feature/source-ui/**/*.kt]
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# Compose Multiplatform writes its generated `Res` resource accessors into build/generated and
+# registers that directory as a Kotlin source root, so ktlint's per-source-set tasks pick them up.
+# They are machine-generated and not ours to format.
+[**/build/generated/**/*.kt]
+ktlint = disabled

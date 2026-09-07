@@ -52,11 +52,18 @@ import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
 import com.riffle.app.feature.reader.session.ReadaloudSession
 import com.riffle.app.feature.reader.session.ReaderSessionLifecycle
-import com.riffle.app.feature.server.AddSourceViewModel
+import com.riffle.feature.source.ui.AddSourceViewModel
+import com.riffle.feature.source.ui.ComposeResourceSourceUiStrings
+import com.riffle.feature.source.ui.DevSourceDefaults
+import com.riffle.feature.source.ui.ProgressSyncTrigger
+import com.riffle.feature.source.ui.SourceUiStrings
+import com.riffle.app.sync.WebDavTargetConnectionTester
+import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.app.feature.update.isDevVersionName
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.playback.NowPlayingStore
 import com.riffle.app.sync.AnnotationSweepEnqueuerImpl
+import com.riffle.app.sync.ProgressSyncScheduler
 import com.riffle.app.update.AndroidApkInstaller
 import com.riffle.core.common.Clock
 import com.riffle.core.common.RandomProvider
@@ -196,6 +203,31 @@ val appKoinModule: Module = module {
                 delay(60_000L)
             }
         }
+    }
+
+    // ---- Shared source-onboarding seams (:feature:source-ui) ---------------------------------
+    // The Add-Source screens moved to an android+ios Compose module, so the three things their
+    // ViewModels used to reach for directly on Android are bound here instead:
+    //   * localized copy — Compose Multiplatform resources from :feature:source-ui
+    //   * the WebDAV probe — WebDavAnnotationSyncTargetFactory lives in core/sources' jvmMain and
+    //     is not visible from an android+ios commonMain
+    //   * the progress sweep kick — WorkManager, Android-only
+    //   * BuildConfig dev prefill — Android-only
+    single<SourceUiStrings> { ComposeResourceSourceUiStrings }
+
+    single<WebdavConnectionTester> { WebDavTargetConnectionTester(get()) }
+
+    single<ProgressSyncTrigger> {
+        val context = androidContext()
+        ProgressSyncTrigger { ProgressSyncScheduler.sweepNow(context) }
+    }
+
+    single {
+        DevSourceDefaults(
+            url = com.riffle.app.BuildConfig.DEV_SERVER_URL,
+            username = com.riffle.app.BuildConfig.DEV_USERNAME,
+            password = com.riffle.app.BuildConfig.DEV_PASSWORD,
+        )
     }
 
     // ---- Playback navigation ----------------------------------------------------------------

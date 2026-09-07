@@ -31,6 +31,9 @@ kotlin {
             implementation(project(":core:domain"))
             implementation(project(":core:models"))
             implementation(project(":core:database-api"))
+            // SingletonWebSourceInstaller (commonMain since the Add-Source picker went shared)
+            // logs through the typed Logger channels.
+            implementation(project(":core:logging"))
         }
         androidMain.dependencies {
             implementation(project(":core:dictionary"))

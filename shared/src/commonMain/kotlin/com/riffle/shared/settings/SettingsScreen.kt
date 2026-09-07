@@ -3,9 +3,11 @@ package com.riffle.shared.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -23,8 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.AppTheme
 import com.riffle.feature.settings.SettingsViewModel
-import com.riffle.shared.AddAbsSourceScreen
-import com.riffle.shared.AddSourceOption
+import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.shared.source.SourceOnboardingHost
 import org.koin.compose.koinInject
 
 @Composable
@@ -32,20 +35,15 @@ fun SettingsScreen(onBack: () -> Unit) {
     val viewModel = koinInject<SettingsViewModel>()
     val appTheme by viewModel.appTheme.collectAsState()
     val servers by viewModel.servers.collectAsState()
-    var addingAbs by remember { mutableStateOf(false) }
+    var addingSource by remember { mutableStateOf(false) }
 
-    if (addingAbs) {
-        Column(Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { addingAbs = false }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-            ) {
-                BasicText("← Settings", style = TextStyle(fontSize = 15.sp, color = Color(0xFF1565C0)))
-            }
-            AddAbsSourceScreen(onSourceAdded = { addingAbs = false })
-        }
+    if (addingSource) {
+        // The real Add-Source flow, shared with Android (:feature:source-ui). Its own top-app-bar
+        // back arrow returns to Settings, so no extra header row is needed here.
+        SourceOnboardingHost(
+            onFinished = { addingSource = false },
+            onCancelled = { addingSource = false },
+        )
         return
     }
 
@@ -81,13 +79,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     subtitle = source.url.authority(),
                     trailing = "Remove",
                     onTrailingClick = { viewModel.removeServer(source.id) },
+                    leading = { SourceIcon(source = source, size = 28.dp) },
                 )
             }
         }
         SettingsRow(
-            label = AddSourceOption.Audiobookshelf.label,
+            label = "Add source",
             trailing = "Add",
-            onTrailingClick = { addingAbs = true },
+            onTrailingClick = { addingSource = true },
         )
 
         // Appearance section
@@ -135,12 +134,18 @@ private fun SettingsRow(
     subtitle: String? = null,
     trailing: String? = null,
     onTrailingClick: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(12.dp))
+        }
         Column(Modifier.weight(1f)) {
             BasicText(label, style = TextStyle(fontSize = 14.sp))
             if (subtitle != null) {

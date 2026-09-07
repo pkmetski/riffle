@@ -32,7 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.koin.androidx.compose.koinViewModel
-import com.riffle.app.feature.server.AddSourceBackend
+import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.settings.SettingsNavEvent
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.panels.AutoScrollSettingsPanel

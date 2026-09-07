@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.core.models.SourceType
 
 @OptIn(ExperimentalMaterial3Api::class)

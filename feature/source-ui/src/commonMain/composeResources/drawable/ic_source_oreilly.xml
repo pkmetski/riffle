@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Offline fallback / monogram for the O'Reilly (learning.oreilly.com) source icon.
+  Shown when Coil has not yet fetched the remote favicon.
+  O'Reilly red (#D3002D) rounded square + white "O" mark.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <!-- Red rounded-square background -->
+    <path
+        android:pathData="M5,0 L35,0 Q40,0 40,5 L40,35 Q40,40 35,40 L5,40 Q0,40 0,35 L0,5 Q0,0 5,0 Z"
+        android:fillColor="#D3002D" />
+    <!-- White ring "O" -->
+    <path
+        android:pathData="M20,9 A11,11 0 1 0 20,31 A11,11 0 1 0 20,9 Z M20,15 A5,5 0 1 1 20,25 A5,5 0 1 1 20,15 Z"
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd" />
+</vector>

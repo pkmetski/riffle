@@ -142,7 +142,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
 import com.riffle.app.ui.DefaultCoverPlaceholder
-import com.riffle.app.ui.source.asAuthHeader
+import com.riffle.feature.source.ui.asAuthHeader
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.feature.library.LibrarySectionType

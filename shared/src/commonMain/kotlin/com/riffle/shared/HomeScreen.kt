@@ -2,7 +2,6 @@ package com.riffle.shared
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +19,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -29,8 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.riffle.core.data.localfiles.FolderPickerInterface
-import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
@@ -48,7 +44,7 @@ import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
 import com.riffle.shared.settings.SettingsScreen
-import kotlinx.coroutines.launch
+import com.riffle.shared.source.SourceOnboardingHost
 import org.koin.compose.koinInject
 
 /**
@@ -85,15 +81,10 @@ internal fun readerNavForItem(item: LibraryItem): LibraryNav? = when {
 fun HomeScreen() {
     val viewModel = koinInject<HomeViewModel>()
     val drawerViewModel = koinInject<DrawerViewModel>()
-    val folderPicker = koinInject<FolderPickerInterface>()
-    val installer = koinInject<LocalFilesInstallerInterface>()
-    val scope = rememberCoroutineScope()
 
     var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
-    var installing by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
     var activeLibraryId by remember { mutableStateOf<String?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
 
@@ -130,70 +121,14 @@ fun HomeScreen() {
             AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (val dest = destination) {
                     null -> BasicText("Loading…")
-                    is HomeViewModel.StartDestination.AddSource -> {
-                        var addingAbs by remember { mutableStateOf(false) }
-                        if (addingAbs) {
-                            Column {
-                                BasicText(
-                                    text = "← Back",
-                                    modifier = Modifier
-                                        .clickable { addingAbs = false }
-                                        .padding(12.dp),
-                                )
-                                AddAbsSourceScreen(
-                                    onSourceAdded = {
-                                        addingAbs = false
-                                        refreshKey++
-                                    },
-                                )
-                            }
-                        } else {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                            ) {
-                                BasicText("Add a source to get started")
-                                if (installing) {
-                                    BasicText("Scanning folder…")
-                                } else {
-                                    availableAddSourceOptions().forEach { option ->
-                                        when (option) {
-                                            AddSourceOption.Audiobookshelf -> BasicText(
-                                                text = option.label,
-                                                modifier = Modifier
-                                                    .clickable { addingAbs = true }
-                                                    .padding(12.dp),
-                                            )
-                                            AddSourceOption.LocalFiles -> BasicText(
-                                                text = option.label,
-                                                modifier = Modifier
-                                                    .clickable {
-                                                        folderPicker.pickFolder { uri ->
-                                                            if (uri == null) return@pickFolder
-                                                            installing = true
-                                                            message = null
-                                                            scope.launch {
-                                                                val result = runCatching { installer.installFolder(uri) }
-                                                                installing = false
-                                                                message = result.fold(
-                                                                    onSuccess = { "Added ${it.added} books" },
-                                                                    onFailure = { "Error: ${it.message}" },
-                                                                )
-                                                                if (result.isSuccess) {
-                                                                    refreshKey++
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    .padding(12.dp),
-                                            )
-                                        }
-                                    }
-                                    message?.let { BasicText(it) }
-                                }
-                            }
-                        }
-                    }
+                    is HomeViewModel.StartDestination.AddSource ->
+                        // The real Add-Source picker (shared with Android via :feature:source-ui).
+                        // There is nothing behind this destination to go "back" to, so cancelling
+                        // just re-renders the picker.
+                        SourceOnboardingHost(
+                            onFinished = { refreshKey++ },
+                            onCancelled = { refreshKey++ },
+                        )
                     is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
                     is HomeViewModel.StartDestination.Library -> {
                         LaunchedEffect(dest.libraryId) {

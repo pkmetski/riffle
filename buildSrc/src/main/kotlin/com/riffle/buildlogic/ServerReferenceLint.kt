@@ -50,6 +50,10 @@ object ServerReferenceLint {
         "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/komga/KomgaSourceAdapter.kt",
         // WebDAV's ServerError is an HTTP result, not the Source/Service taxonomy.
         "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/webdav/WebDavAnnotationSyncTarget.kt",
+        // Android's adapter from the jvmMain-only WebDAV target onto the shared
+        // WebdavConnectionTester seam. Same rationale: it consumes the grandfathered
+        // TestConnectionResult.ServerError HTTP branch and maps it to WebdavTestOutcome.HttpError.
+        "app/src/main/kotlin/com/riffle/app/sync/WebDavTargetConnectionTester.kt",
         // Credentialed-authenticator layer (ADR 0053 Phase 7) — the ABS and Komga authenticators
         // set `serverType` on the installed Source; the abstract Authenticator carries the field
         // through. Same rationale as SourceRepositoryImpl / AbsApiClient.

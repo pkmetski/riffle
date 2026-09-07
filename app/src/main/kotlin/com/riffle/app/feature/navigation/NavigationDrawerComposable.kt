@@ -55,9 +55,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.app.BuildConfig
-import com.riffle.app.ui.source.SourceIcon
-import com.riffle.app.ui.source.localizedSourceDisplayName as localizedDescriptorDisplayName
-import com.riffle.app.ui.source.localizedSourceSubtitle as localizedDescriptorSubtitle
+import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
+import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
