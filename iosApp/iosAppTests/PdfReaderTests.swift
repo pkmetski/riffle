@@ -21,7 +21,7 @@ final class PdfReaderTests: XCTestCase {
 
     /// 06-B.1 — Tapping a PDF item opens the PDF reader screen.
     func testPdfReaderOpensFromLibrary() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — PDF reader test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
@@ -46,7 +46,7 @@ final class PdfReaderTests: XCTestCase {
 
     /// 06-G.1 — Tapping back from the PDF reader returns to the library.
     func testPdfReaderBackNavigationReturnsToLibrary() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — PDF reader test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)

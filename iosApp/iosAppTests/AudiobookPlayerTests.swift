@@ -21,7 +21,7 @@ final class AudiobookPlayerTests: XCTestCase {
 
     /// 04-A.1 — Tapping a listenable item opens the audiobook player screen.
     func testAudiobookPlayerOpensFromLibrary() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — audiobook player test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
@@ -49,7 +49,7 @@ final class AudiobookPlayerTests: XCTestCase {
 
     /// 04-C.1 — Player screen shows play/pause control and chapter navigation.
     func testAudiobookPlayerControlsVisible() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — audiobook player test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
@@ -80,7 +80,7 @@ final class AudiobookPlayerTests: XCTestCase {
 
     /// 04-G.1 — Tapping '← Back' from the player returns to the library.
     func testAudiobookPlayerBackNavigationReturnsToLibrary() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — audiobook player test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)

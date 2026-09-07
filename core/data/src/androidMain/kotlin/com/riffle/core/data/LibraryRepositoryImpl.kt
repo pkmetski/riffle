@@ -413,32 +413,7 @@ class LibraryRepositoryImpl constructor(
 
     private fun LibraryEntity.toDomain() = Library(id = id, name = name, mediaType = mediaType, isUnsupported = isUnsupported)
 
-    private fun LibraryItemEntity.toDomain() = LibraryItem(
-        id = id,
-        sourceId = sourceId,
-        libraryId = libraryId,
-        title = title,
-        author = author,
-        coverUrl = coverUrl,
-        readingProgress = readingProgress,
-        isCached = false,
-        isDownloaded = false,
-        ebookFormat = EbookFormat.from(ebookFormat),
-        ebookFileIno = ebookFileIno,
-        hasAudio = hasAudio,
-        audioDurationSec = audioDurationSec,
-        description = description,
-        seriesName = if (seriesName != null && !seriesSequence.isNullOrBlank()) "$seriesName #$seriesSequence" else seriesName,
-        publishedYear = publishedYear,
-        genres = genres.split(",").filter { it.isNotEmpty() },
-        publisher = publisher,
-        language = language,
-        lastOpenedAt = lastOpenedAt,
-        addedAt = addedAt,
-        isbn = isbn,
-        asin = asin,
-        pageCount = pageCount,
-    )
+    private fun LibraryItemEntity.toDomain() = toDomainLibraryItem()
 
     private fun SeriesEntity.toDomain() = Series(
         id = id,

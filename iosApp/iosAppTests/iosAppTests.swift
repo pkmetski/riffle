@@ -22,7 +22,7 @@ final class IosAppTests: XCTestCase {
     /// 1.1 — Library home renders the section grid after launch.
     func testLibraryHomeSectionGridVisible() throws {
         // If no source is configured, the app shows the setup screen — skip.
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — library home test requires a connected server")
         }
         if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
@@ -45,7 +45,7 @@ final class IosAppTests: XCTestCase {
     /// 1.3 + 1.4 — Tapping "See all" navigates to the section screen; back returns to library home.
     func testSeeAllNavigatesToSectionScreenAndBackReturns() throws {
         // If no source is configured, skip.
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — section navigation test requires a connected server")
         }
         if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
@@ -82,7 +82,7 @@ final class IosAppTests: XCTestCase {
 
     /// 4.1 + 4.2 — Tapping a series tile navigates to series detail; back returns to library.
     func testSeriesTileNavigatesToDetailAndBackReturns() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — series detail test requires a connected server")
         }
         if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
@@ -125,7 +125,7 @@ final class IosAppTests: XCTestCase {
 
     /// 4.3 + 4.4 — Tapping a collection tile navigates to collection detail; back returns to library.
     func testCollectionTileNavigatesToDetailAndBackReturns() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — collection detail test requires a connected server")
         }
         if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {

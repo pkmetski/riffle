@@ -8,7 +8,7 @@ import app.cash.sqldelight.db.SqlSchema
 internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     // Tracks the iOS schema version independently of the Android Room schema version.
     // Bumped only when the iOS-side DDL changes; Android Room migrations are irrelevant here.
-    override val version: Long = 2L
+    override val version: Long = 3L
 
     override fun create(driver: SqlDriver): QueryResult.Value<Unit> {
         (DDL + LOCAL_FILES_DDL).forEach { driver.execute(null, it, 0) }
@@ -23,6 +23,12 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     ): QueryResult.Value<Unit> {
         if (oldVersion < 2L) {
             LOCAL_FILES_DDL.forEach { driver.execute(null, it, 0) }
+        }
+        if (oldVersion < 3L) {
+            // v1/v2 shipped series/collections tables whose shape never matched the DAO writes
+            // (a fabricated NOT NULL sourceId column, missing coverUrl/bookCount) — every insert
+            // failed, so the tables are guaranteed empty and can be rebuilt in place.
+            SERIES_COLLECTIONS_REBUILD_DDL.forEach { driver.execute(null, it, 0) }
         }
         return QueryResult.Value(Unit)
     }
@@ -81,12 +87,14 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
         "CREATE INDEX IF NOT EXISTS index_library_items_sourceId ON library_items(sourceId)",
 
         // Needed for observeUngroupedByLibraryId subquery filter
+        // Mirrors Room's SeriesEntity one-for-one (id PK, no sourceId column — the delete graph
+        // resolves ownership through series_items.sourceId, same as Android's SourceDao).
         """CREATE TABLE IF NOT EXISTS series (
-            id TEXT NOT NULL,
-            sourceId TEXT NOT NULL,
+            id TEXT NOT NULL PRIMARY KEY,
             libraryId TEXT NOT NULL,
             name TEXT NOT NULL,
-            PRIMARY KEY (sourceId, id)
+            coverUrl TEXT,
+            bookCount INTEGER NOT NULL DEFAULT 0
         )""",
         """CREATE TABLE IF NOT EXISTS series_items (
             seriesId TEXT NOT NULL,
@@ -97,12 +105,12 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
         )""",
 
         // Needed for observeUngroupedByLibraryId subquery filter
+        // Mirrors Room's CollectionEntity one-for-one (id PK, no sourceId column).
         """CREATE TABLE IF NOT EXISTS collections (
-            id TEXT NOT NULL,
-            sourceId TEXT NOT NULL,
+            id TEXT NOT NULL PRIMARY KEY,
             libraryId TEXT NOT NULL,
             name TEXT NOT NULL,
-            PRIMARY KEY (sourceId, id)
+            bookCount INTEGER NOT NULL DEFAULT 0
         )""",
         """CREATE TABLE IF NOT EXISTS collection_items (
             collectionId TEXT NOT NULL,
@@ -214,5 +222,24 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
         )""",
         "CREATE INDEX IF NOT EXISTS index_local_files_file_folders_sourceId ON local_files_file_folders(sourceId)",
         "CREATE INDEX IF NOT EXISTS index_local_files_file_folders_folder ON local_files_file_folders(sourceId, folderTreeUri)",
+    )
+
+    // v2 -> v3: rebuild series/collections with the Room-entity shape (see migrate()).
+    private val SERIES_COLLECTIONS_REBUILD_DDL = listOf(
+        "DROP TABLE IF EXISTS series",
+        """CREATE TABLE IF NOT EXISTS series (
+            id TEXT NOT NULL PRIMARY KEY,
+            libraryId TEXT NOT NULL,
+            name TEXT NOT NULL,
+            coverUrl TEXT,
+            bookCount INTEGER NOT NULL DEFAULT 0
+        )""",
+        "DROP TABLE IF EXISTS collections",
+        """CREATE TABLE IF NOT EXISTS collections (
+            id TEXT NOT NULL PRIMARY KEY,
+            libraryId TEXT NOT NULL,
+            name TEXT NOT NULL,
+            bookCount INTEGER NOT NULL DEFAULT 0
+        )""",
     )
 }

@@ -160,7 +160,7 @@ class IosRiffleDatabaseSchemaTest {
     fun seriesTableHasRequiredColumns() {
         val cols = tableColumns("series")
         assertTrue(
-            cols.containsAll(listOf("id", "sourceId", "libraryId", "name")),
+            cols.containsAll(listOf("id", "libraryId", "name", "coverUrl", "bookCount")),
             "series columns: $cols"
         )
     }
@@ -178,7 +178,7 @@ class IosRiffleDatabaseSchemaTest {
     fun collectionsTableHasRequiredColumns() {
         val cols = tableColumns("collections")
         assertTrue(
-            cols.containsAll(listOf("id", "sourceId", "libraryId", "name")),
+            cols.containsAll(listOf("id", "libraryId", "name", "bookCount")),
             "collections columns: $cols"
         )
     }
@@ -293,6 +293,55 @@ class IosRiffleDatabaseSchemaTest {
         assertTrue("local_files_folders" in tables, "local_files_folders must exist after v1→v2 migration")
         assertTrue("local_files_files" in tables, "local_files_files must exist after v1→v2 migration")
         assertTrue("local_files_file_folders" in tables, "local_files_file_folders must exist after v1→v2 migration")
+    }
+
+    // ── Migration: v2 → v3 ───────────────────────────────────────────────────
+
+    @Test
+    fun migrateV2ToV3RebuildsSeriesAndCollectionsToEntityShape() {
+        // Put the tables back into the broken v2 shape (fabricated NOT NULL sourceId, missing
+        // coverUrl/bookCount — every DAO insert failed against it), then verify migrate(2, 3)
+        // rebuilds them one-for-one with Room's SeriesEntity/CollectionEntity. Fails if the
+        // migration body is deleted.
+        driver.execute(null, "DROP TABLE series", 0)
+        driver.execute(
+            null,
+            "CREATE TABLE series (id TEXT NOT NULL, sourceId TEXT NOT NULL, libraryId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (sourceId, id))",
+            0,
+        )
+        driver.execute(null, "DROP TABLE collections", 0)
+        driver.execute(
+            null,
+            "CREATE TABLE collections (id TEXT NOT NULL, sourceId TEXT NOT NULL, libraryId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (sourceId, id))",
+            0,
+        )
+
+        IosRiffleDatabaseSchema.migrate(driver, 2L, 3L)
+
+        val seriesCols = tableColumns("series")
+        assertTrue(
+            seriesCols.containsAll(listOf("id", "libraryId", "name", "coverUrl", "bookCount")),
+            "series columns after v2→v3: $seriesCols",
+        )
+        assertTrue("sourceId" !in seriesCols, "series must not carry the fabricated sourceId column")
+        val collectionCols = tableColumns("collections")
+        assertTrue(
+            collectionCols.containsAll(listOf("id", "libraryId", "name", "bookCount")),
+            "collections columns after v2→v3: $collectionCols",
+        )
+        assertTrue("sourceId" !in collectionCols, "collections must not carry the fabricated sourceId column")
+
+        // The IosSeriesDao/IosCollectionDao writes must now succeed against the rebuilt tables.
+        driver.execute(
+            null,
+            "INSERT OR REPLACE INTO series (id, libraryId, name, coverUrl, bookCount) VALUES ('s1', 'lib1', 'Series', NULL, 2)",
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT OR REPLACE INTO collections (id, libraryId, name, bookCount) VALUES ('c1', 'lib1', 'Collection', 3)",
+            0,
+        )
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

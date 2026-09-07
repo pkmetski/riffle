@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,6 +62,13 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
 ) {
+    // Android triggers the server refresh from the screen's lifecycle RESUME; the iOS shell has
+    // no lifecycle owner, so trigger it on entering composition. Without this, library items are
+    // never fetched from the server — a freshly added source rendered an empty library forever.
+    LaunchedEffect(libraryId) {
+        viewModel.onScreenResumed()
+    }
+
     val containerWidthPx = LocalWindowInfo.current.containerSize.width
     SideEffect {
         viewModel.setScreenDimensionBucket(

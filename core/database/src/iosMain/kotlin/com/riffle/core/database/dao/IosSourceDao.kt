@@ -108,7 +108,7 @@ internal class IosSourceDao(
     override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
 
     override suspend fun deleteSeriesForSource(id: String) {
-        driver.execute(null, "DELETE FROM series WHERE sourceId = ?", 1) { bindString(0, id) }
+        driver.execute(null, "DELETE FROM series WHERE id IN (SELECT seriesId FROM series_items WHERE sourceId = ?)", 1) { bindString(0, id) }
     }
 
     override suspend fun deleteSeriesItemsForSource(id: String) {
@@ -116,7 +116,7 @@ internal class IosSourceDao(
     }
 
     override suspend fun deleteCollectionsForSource(id: String) {
-        driver.execute(null, "DELETE FROM collections WHERE sourceId = ?", 1) { bindString(0, id) }
+        driver.execute(null, "DELETE FROM collections WHERE id IN (SELECT collectionId FROM collection_items WHERE sourceId = ?)", 1) { bindString(0, id) }
     }
 
     override suspend fun deleteCollectionItemsForSource(id: String) {
