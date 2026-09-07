@@ -20,6 +20,21 @@
 		B1005020 /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1006010 /* PdfReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1006020 /* PdfReaderTests.swift */; };
 		B1007010 /* ComicsReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1007020 /* ComicsReaderTests.swift */; };
+		B1009010 /* LocalFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1009020 /* LocalFilesTests.swift */; };
+		B1008010 /* AnnotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008020 /* AnnotationTests.swift */; };
+		B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008021 /* AudiobookPlayerViewModelTests.swift */; };
+		B1008012 /* AutoFollowJsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008022 /* AutoFollowJsTests.swift */; };
+		B1008013 /* EpubReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008023 /* EpubReaderTests.swift */; };
+		B1008014 /* LibraryCoverGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008024 /* LibraryCoverGridTests.swift */; };
+		B1008015 /* OfflineAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008025 /* OfflineAvailabilityTests.swift */; };
+		B1008016 /* ReaderHighlightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008026 /* ReaderHighlightsTests.swift */; };
+		B1008017 /* ReaderSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008027 /* ReaderSettingsTests.swift */; };
+		B1008018 /* SettingsRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008028 /* SettingsRowsTests.swift */; };
+		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
+		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
+		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
+		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
+		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +50,18 @@
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
 		B1007020 /* ComicsReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicsReaderTests.swift; sourceTree = "<group>"; };
+		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
+		B1008000 /* iosAppUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1008020 /* AnnotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTests.swift; sourceTree = "<group>"; };
+		B1008021 /* AudiobookPlayerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerViewModelTests.swift; sourceTree = "<group>"; };
+		B1008022 /* AutoFollowJsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowJsTests.swift; sourceTree = "<group>"; };
+		B1008023 /* EpubReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubReaderTests.swift; sourceTree = "<group>"; };
+		B1008024 /* LibraryCoverGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCoverGridTests.swift; sourceTree = "<group>"; };
+		B1008025 /* OfflineAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineAvailabilityTests.swift; sourceTree = "<group>"; };
+		B1008026 /* ReaderHighlightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlightsTests.swift; sourceTree = "<group>"; };
+		B1008027 /* ReaderSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSettingsTests.swift; sourceTree = "<group>"; };
+		B1008028 /* SettingsRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRowsTests.swift; sourceTree = "<group>"; };
+		B1008029 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -65,6 +92,7 @@
 			children = (
 				B1000001 /* iosApp.app */,
 				B1001001 /* iosAppTests.xctest */,
+				B1008000 /* iosAppUnitTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,6 +104,17 @@
 				B1004020 /* AudiobookPlayerTests.swift */,
 				B1006020 /* PdfReaderTests.swift */,
 				B1007020 /* ComicsReaderTests.swift */,
+				B1009020 /* LocalFilesTests.swift */,
+				B1008020 /* AnnotationTests.swift */,
+				B1008021 /* AudiobookPlayerViewModelTests.swift */,
+				B1008022 /* AutoFollowJsTests.swift */,
+				B1008023 /* EpubReaderTests.swift */,
+				B1008024 /* LibraryCoverGridTests.swift */,
+				B1008025 /* OfflineAvailabilityTests.swift */,
+				B1008026 /* ReaderHighlightsTests.swift */,
+				B1008027 /* ReaderSettingsTests.swift */,
+				B1008028 /* SettingsRowsTests.swift */,
+				B1008029 /* SettingsViewModelTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -117,7 +156,59 @@
 			productReference = B1001001 /* iosAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		B1008005 /* iosAppUnitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1008050;
+			buildPhases = (
+				B1008040 /* Sources */,
+				B1008041 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = (
+				B1008060 /* PBXTargetDependency */,
+			);
+			packageProductDependencies = (
+				B1008001 /* ReadiumShared */,
+				B1008002 /* ReadiumStreamer */,
+				B1008003 /* ReadiumNavigator */,
+			);
+			name = iosAppUnitTests;
+			productName = iosAppUnitTests;
+			productReference = B1008000 /* iosAppUnitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		B1008061 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B1000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B1000005;
+			remoteInfo = Riffle;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		B1008060 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B1000005 /* iosApp */;
+			targetProxy = B1008061 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B1008041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1008030 /* ReadiumShared in Frameworks */,
+				B1008031 /* ReadiumStreamer in Frameworks */,
+				B1008032 /* ReadiumNavigator in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXProject section */
 		B1000000 /* Project object */ = {
@@ -133,6 +224,9 @@
 					B1001005 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = B1000005;
+					};
+					B1008005 = {
+						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
@@ -154,6 +248,7 @@
 			targets = (
 				B1000005 /* iosApp */,
 				B1001005 /* iosAppTests */,
+				B1008005 /* iosAppUnitTests */,
 			);
 		};
 /* End PBXProject section */
@@ -219,6 +314,25 @@
 				B1004010 /* AudiobookPlayerTests.swift in Sources */,
 				B1006010 /* PdfReaderTests.swift in Sources */,
 				B1007010 /* ComicsReaderTests.swift in Sources */,
+				B1009010 /* LocalFilesTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1008040 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1008010 /* AnnotationTests.swift in Sources */,
+				B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */,
+				B1008012 /* AutoFollowJsTests.swift in Sources */,
+				B1008013 /* EpubReaderTests.swift in Sources */,
+				B1008014 /* LibraryCoverGridTests.swift in Sources */,
+				B1008015 /* OfflineAvailabilityTests.swift in Sources */,
+				B1008016 /* ReaderHighlightsTests.swift in Sources */,
+				B1008017 /* ReaderSettingsTests.swift in Sources */,
+				B1008018 /* SettingsRowsTests.swift in Sources */,
+				B1008019 /* SettingsViewModelTests.swift in Sources */,
+				B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -393,6 +507,52 @@
 			};
 			name = Release;
 		};
+		B1008072 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework",
+					"$(SRCROOT)/../shared/build/bin/iosArm64/debugFramework",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				OTHER_LDFLAGS = "-lsqlite3";
+				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosAppUnitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B1008073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/releaseFramework",
+					"$(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				OTHER_LDFLAGS = "-lsqlite3";
+				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosAppUnitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -418,6 +578,21 @@
 			productName = ReadiumStreamer;
 		};
 		B1002003 /* ReadiumNavigator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumNavigator;
+		};
+		B1008001 /* ReadiumShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumShared;
+		};
+		B1008002 /* ReadiumStreamer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumStreamer;
+		};
+		B1008003 /* ReadiumNavigator */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */;
 			productName = ReadiumNavigator;
@@ -448,6 +623,15 @@
 			buildConfigurations = (
 				B1001072 /* Debug */,
 				B1001073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1008050 /* Build configuration list for PBXNativeTarget "iosAppUnitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1008072 /* Debug */,
+				B1008073 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

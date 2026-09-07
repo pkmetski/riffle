@@ -9,17 +9,6 @@ final class SettingsViewModelTests: XCTestCase {
 
     // MARK: AnnotationSyncSubtitle sealed class (scenarios 6.3)
 
-    func testAnnotationSyncSubtitleNotConfiguredIsDistinctType() {
-        let subtitle = AnnotationSyncSubtitle.NotConfigured()
-        XCTAssertTrue(subtitle is AnnotationSyncSubtitle.NotConfigured)
-        XCTAssertFalse(subtitle is AnnotationSyncSubtitle.WaitingForFirstSync)
-    }
-
-    func testAnnotationSyncSubtitleWaitingForFirstSyncIsDistinctType() {
-        let subtitle = AnnotationSyncSubtitle.WaitingForFirstSync()
-        XCTAssertTrue(subtitle is AnnotationSyncSubtitle.WaitingForFirstSync)
-    }
-
     func testAnnotationSyncSubtitleSyncedCarriesIdentity() {
         let subtitle = AnnotationSyncSubtitle.Synced(identity: "alice@example.com")
         guard let synced = subtitle as? AnnotationSyncSubtitle.Synced else {
@@ -52,7 +41,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testDeriveAnnotationSyncKindLocalWhenUnconfigured() {
         let kind = AnnotationSyncKindKt.deriveAnnotationSyncKind(
             config: nil,
-            outcome: CycleOutcome.neverRun,
+            outcome: CycleOutcome.NeverRun(),
             pendingBookCount: 0
         )
         XCTAssertEqual(kind, AnnotationSyncKind.local)
@@ -60,25 +49,15 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testDeriveAnnotationSyncKindPendingWhenNeverRunAndConfigured() {
         let config = AnnotationSyncConfig(
-            url: "https://dav.example.com",
+            baseUrl: "https://dav.example.com",
             username: "user",
-            encryptedPassword: "pw",
-            deviceId: "d1",
-            deviceName: "iPhone"
+            password: "pw"
         )
         let kind = AnnotationSyncKindKt.deriveAnnotationSyncKind(
             config: config,
-            outcome: CycleOutcome.neverRun,
+            outcome: CycleOutcome.NeverRun(),
             pendingBookCount: 0
         )
         XCTAssertEqual(kind, AnnotationSyncKind.pending)
-    }
-
-    // MARK: AppVersion data class (scenario 6.1)
-
-    func testAppVersionHoldsNameAndCode() {
-        let version = AppVersion(name: "1.2.3", code: 42)
-        XCTAssertEqual(version.name, "1.2.3")
-        XCTAssertEqual(version.code, 42)
     }
 }

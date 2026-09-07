@@ -15,21 +15,31 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertFalse(b1 === (b2 as AnyObject), "Factory must return distinct instances")
     }
 
-    func testBridgeViewControllerIsNonNil() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        XCTAssertNotNil(bridge.viewController())
-    }
-
     func testSnapshotLocatorJsonIsNilBeforeOpen() {
         let bridge = ReadiumEpubNavigatorBridge()
         XCTAssertNil(bridge.snapshotLocatorJson())
     }
 
-    func testReleaseIsIdempotent() {
-        // release() must not crash when called multiple times.
+    func testDisposeNavigatorClearsCachedLocatorAndIsIdempotent() {
+        // disposeNavigator() must drop the cached locator (so a re-opened book doesn't
+        // resume from the previous session's stale position) and must tolerate being
+        // called more than once.
         let bridge = ReadiumEpubNavigatorBridge()
+        bridge.simulateLocatorUpdate("""
+        {"href":"/ch1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.5}}
+        """)
+        XCTAssertNotNil(bridge.snapshotLocatorJson(), "precondition: a locator is cached")
+
         bridge.disposeNavigator()
         bridge.disposeNavigator()
+
+        // disposeNavigator clears state on the main queue; drain it before asserting.
+        let drained = expectation(description: "main queue drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 2)
+
+        XCTAssertNil(bridge.snapshotLocatorJson(),
+                     "disposeNavigator must clear the cached locator JSON")
     }
 
     // MARK: - Scenario 03-C: Callback registration

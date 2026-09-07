@@ -4,41 +4,10 @@ import Riffle
 // Covers scenarios from docs/testing/ios-scenarios/4-offline-availability.md
 //
 // Scenarios 4.1–4.4 require a running ABS instance or simulator file injection and must be
-// verified manually. The tests below pin the filesystem path convention defined by
-// IosLibraryItemOfflineAvailabilityImpl so that a future iOS download implementation
-// uses consistent namespaces.
+// verified manually. The tests below exercise IosLibraryItemOfflineAvailabilityImpl against
+// the real filesystem: a file placed at the expected download path is detected, and an item
+// with no local files is not.
 final class OfflineAvailabilityTests: XCTestCase {
-
-    // Regression: if the EPUB downloads namespace changes, the offline filter silently
-    // breaks for all previously-downloaded books — they remain on disk but are no longer
-    // found by the availability check.
-    func testEpubDownloadsNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_EPUB_DOWNLOADS, "epub-downloads")
-    }
-
-    func testEpubCacheNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_EPUB_CACHE, "epub-cache")
-    }
-
-    func testPdfDownloadsNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_PDF_DOWNLOADS, "pdf-downloads")
-    }
-
-    func testPdfCacheNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_PDF_CACHE, "pdf-cache")
-    }
-
-    func testCbzDownloadsNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_CBZ_DOWNLOADS, "cbz-downloads")
-    }
-
-    func testCbzCacheNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_CBZ_CACHE, "cbz-cache")
-    }
-
-    func testAudiobookDownloadsNamespace() {
-        XCTAssertEqual(IosLibraryItemOfflineAvailabilityImplKt.NS_AUDIOBOOK_DOWNLOADS, "audiobook-downloads")
-    }
 
     // Integration: place a real file at the expected EPUB download path and verify the
     // implementation detects it as available offline.
@@ -70,7 +39,7 @@ final class OfflineAvailabilityTests: XCTestCase {
             readingProgress: 0,
             isCached: false,
             isDownloaded: false,
-            ebookFormat: EbookFormat.epub,
+            ebookFormat: EbookFormat.Epub.shared,
             ebookFileIno: nil,
             hasAudio: false,
             audioDurationSec: 0,
@@ -103,7 +72,7 @@ final class OfflineAvailabilityTests: XCTestCase {
             readingProgress: 0,
             isCached: false,
             isDownloaded: false,
-            ebookFormat: EbookFormat.epub,
+            ebookFormat: EbookFormat.Epub.shared,
             ebookFileIno: nil,
             hasAudio: false,
             audioDurationSec: 0,

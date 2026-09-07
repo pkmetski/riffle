@@ -1,5 +1,6 @@
 import XCTest
-@testable import iosApp
+import Riffle
+import ReadiumNavigator
 
 // Covers scenarios from docs/testing/ios-scenarios/07-annotations.md
 
@@ -7,17 +8,11 @@ final class AnnotationTests: XCTestCase {
 
     // MARK: - Scenario 07-A: applyDecorations reaches the bridge
 
-    func testSimulateApplyDecorationsRecordsJsonAndGroup() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        let json = "[{\"id\":\"h1\",\"type\":\"highlight\"}]"
-        bridge.simulateApplyDecorations(json, group: "highlights")
-        XCTAssertEqual(bridge.lastAppliedGroup, "highlights")
-        XCTAssertEqual(bridge.lastAppliedDecorationsJson, json)
-    }
-
-    // MARK: - Scenario 07-B: applyDecorations records all decoration types
-
     func testApplyHighlightDecorationsRecordsJson() {
+        // applyDecorations records the JSON/group it was handed before it hops to the main actor
+        // to hand the parsed decorations to Readium. The coordinator reads that record back to
+        // decide whether a group needs re-applying, so a call that silently fails to record
+        // makes the reader re-apply (or skip) decorations for the wrong group.
         let bridge = ReadiumEpubNavigatorBridge()
         let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.5)
         let json = "[{\"id\":\"h1\",\"type\":\"highlight\",\"locator\":\(locator),\"color\":\"#FFFF00\",\"alpha\":0.4}]"
@@ -26,12 +21,38 @@ final class AnnotationTests: XCTestCase {
         XCTAssertEqual(bridge.lastAppliedDecorationsJson, json)
     }
 
-    func testApplyBookmarkDecorationsRecordsJson() {
+    // MARK: - Scenario 07-B: parseDecorations handles all four decoration types
+
+    func testAllFourDecorationTypesParse() {
+        // Every type the AnnotationDecorationCoordinator emits must survive parsing. A type that
+        // falls through to `default` is dropped silently: the annotation stays in the database and
+        // in the annotations list but never renders in the reader.
         let bridge = ReadiumEpubNavigatorBridge()
-        let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.3)
-        let json = "[{\"id\":\"b1\",\"type\":\"bookmark\",\"locator\":\(locator)}]"
-        bridge.applyDecorations(decorationsJson: json, group: "bookmarks")
-        XCTAssertEqual(bridge.lastAppliedGroup, "bookmarks")
+        let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.5)
+        let cases: [(type: String, extras: String)] = [
+            ("highlight", ",\"color\":\"#FFFF00\",\"alpha\":0.4"),
+            ("bookmark", ""),
+            ("noteGlyph", ""),
+            ("searchMark", ",\"isCurrent\":true"),
+        ]
+        for (index, testCase) in cases.enumerated() {
+            let id = "d\(index)"
+            let json = "[{\"id\":\"\(id)\",\"type\":\"\(testCase.type)\",\"locator\":\(locator)\(testCase.extras)}]"
+            let decorations = bridge.parseDecorations(json)
+            XCTAssertEqual(decorations.count, 1,
+                           "decoration type '\(testCase.type)' must parse to exactly one Decoration")
+            XCTAssertEqual(decorations.first?.id, id,
+                           "decoration type '\(testCase.type)' must keep its id so Readium can replace it")
+        }
+    }
+
+    func testDecorationWithoutLocatorIsDropped() {
+        // The locator is what positions the decoration; a decoration entry missing it must be
+        // dropped rather than rendered at an arbitrary position.
+        let bridge = ReadiumEpubNavigatorBridge()
+        let json = "[{\"id\":\"h1\",\"type\":\"highlight\"}]"
+        XCTAssertTrue(bridge.parseDecorations(json).isEmpty,
+                      "a decoration with no locator must be dropped")
     }
 
     func testApplyEmptyListRecordsEmptyJson() {
@@ -70,18 +91,36 @@ final class AnnotationTests: XCTestCase {
         XCTAssertEqual(blue, 1.0, accuracy: 0.01)
     }
 
-    // MARK: - Scenario 07-D: Malformed JSON does not crash
+    // MARK: - Scenario 07-D: Malformed JSON parses to zero decorations (and does not crash)
 
-    func testMalformedJsonDoesNotCrash() {
+    func testValidJsonParsesToDecorations() {
+        // Positive control for the malformed-JSON cases below: a well-formed decoration
+        // list parses to exactly one Decoration, proving the parser is not just always-empty.
         let bridge = ReadiumEpubNavigatorBridge()
-        bridge.applyDecorations(decorationsJson: "not valid json", group: "highlights")
-        XCTAssertNotNil(bridge.lastAppliedDecorationsJson)
+        let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.5)
+        let json = "[{\"id\":\"h1\",\"type\":\"highlight\",\"locator\":\(locator),\"color\":\"#FFFF00\",\"alpha\":0.4}]"
+        XCTAssertEqual(bridge.parseDecorations(json).count, 1,
+                       "a valid highlight decoration must parse to exactly one Decoration")
     }
 
-    func testNullJsonDoesNotCrash() {
+    func testMalformedJsonParsesToZeroDecorations() {
         let bridge = ReadiumEpubNavigatorBridge()
-        bridge.applyDecorations(decorationsJson: "null", group: "bookmarks")
-        XCTAssertNotNil(bridge.lastAppliedDecorationsJson)
+        XCTAssertTrue(bridge.parseDecorations("not valid json").isEmpty,
+                      "malformed JSON must yield zero decorations, not crash or apply garbage")
+    }
+
+    func testNullJsonParsesToZeroDecorations() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        XCTAssertTrue(bridge.parseDecorations("null").isEmpty,
+                      "JSON null must yield zero decorations")
+    }
+
+    func testDecorationWithUnknownTypeIsDropped() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.5)
+        let json = "[{\"id\":\"x1\",\"type\":\"sparkles\",\"locator\":\(locator)}]"
+        XCTAssertTrue(bridge.parseDecorations(json).isEmpty,
+                      "an unknown decoration type must be dropped rather than crash")
     }
 
     // MARK: - Helpers

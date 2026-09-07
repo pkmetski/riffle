@@ -51,3 +51,12 @@ via the iOS Koin module, replacing the previous no-op bindings.
 **Expected:**
 - The Playlists tab is empty (no playlists shown) — non-ABS sources return `true` from `refresh`
   with an empty list, so the tab renders but is blank rather than erroring.
+
+## Test coverage
+
+Scenarios 2.1–2.5 require a live ABS instance and are verified manually on a simulator.
+The reserved-name sentinels (`TO_READ_PLAYLIST_NAME`, `RESERVED_PLAYLIST_NAMES`) that both
+`IosToReadRepositoryImpl` and `IosPlaylistsRepositoryImpl` filter on live in shared Kotlin
+(`core/data` / `core/domain`) and are exercised by `PlaylistsRepositoryTest`
+(`core/data/src/androidHostTest`). The former `PlaylistsToReadTests.swift` XCTest file only
+re-asserted those Kotlin constants from Swift (constant echoes) and was removed.

@@ -30,4 +30,10 @@
 
 ## iOS XCTest Coverage
 
-See `iosApp/iosAppTests/SettingsViewModelTests.swift` for implementation of all scenarios above using the shared KMP SettingsViewModel via Koin DI.
+See `iosApp/iosAppTests/SettingsViewModelTests.swift` (iosAppUnitTests) for the Swift-side
+tests of the sealed `AnnotationSyncSubtitle` payloads and the `deriveAnnotationSyncKind`
+helper. Three former tests (`testAnnotationSyncSubtitleNotConfiguredIsDistinctType`,
+`testAnnotationSyncSubtitleWaitingForFirstSyncIsDistinctType`, `testAppVersionHoldsNameAndCode`)
+merely re-asserted type identity / constructor echoes and were removed; the underlying
+behaviour is pinned by `SettingsViewModelTest` (`feature/settings` commonTest), which runs on
+the iOS simulator target in CI.

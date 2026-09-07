@@ -48,3 +48,11 @@ and Room persistence wired by this issue.
 
 **Expected:**
 - Series and collection tiles are visible immediately (served from local DB, before any refresh).
+
+## Test coverage
+
+Scenarios 4.1–4.4 require a live ABS instance and are verified manually on a simulator.
+The source-type routing (`SourceType.ABS` enters the real collections/series path; all other
+types return Success immediately) is pinned by `SourceTypeTest` (`core/models/src/jvmTest`).
+The former `CollectionsSeriesRefreshTests.swift` XCTest file only re-asserted the `SourceType`
+classification (duplicating `SourceTypeTest`) and was removed.

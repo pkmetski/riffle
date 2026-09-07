@@ -10,7 +10,7 @@ final class ReaderHighlightsTests: XCTestCase {
     // from the same HighlightColor enum, so if the enum is missing or renamed the note-only branch
     // silently falls back to an incorrect colour.
     func testDefaultHighlightColorIsYellow() {
-        XCTAssertEqual(FormattingPreferences().cadenceHighlightColor, HighlightColor.yellow)
+        XCTAssertEqual(FormattingPreferences.companion.defaults().cadenceHighlightColor, HighlightColor.yellow)
     }
 
     // Scenario 13.1–13.7 — HighlightColor token strings are the exact values persisted in

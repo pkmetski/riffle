@@ -24,10 +24,16 @@ Covers `IosLibraryRefresherImpl` routes for ABS, Komga, Chitanka, Gutenberg, and
 - Trigger a library refresh.
 - **Expected**: two libraries appear — "Podcasts" and "Radio".
 
-## XCTest coverage
+## Test coverage
 
-Implemented in `iosApp/iosAppTests/LibraryRefreshTests.swift`.
+- The Komga scenario (1.1) requires a live or mock Komga server and is covered at the
+  JVM level by `KomgaLibraryApiClientTest`.
+- The `SourceType` classification (`isUnboundedCatalog` / `isWebSource`) that drives the
+  `IosLibraryRefresherImpl` routing is pinned by `SourceTypeTest`
+  (`core/models/src/jvmTest`).
+- The static-root scenarios (1.2–1.4) end-to-end (libraries actually appearing after a
+  refresh) are a GAP on iOS — they need a driven simulator with a configured source and
+  are verified manually for now.
 
-The Komga scenario (1.1) requires a live or mock Komga server and is covered at the
-JVM level by `KomgaLibraryApiClientTest`. The static-root scenarios (1.2–1.4) are verified
-by `LibraryRefreshStaticRootsTest` which exercises the shared KMP layer directly.
+The former `LibraryRefreshTests.swift` XCTest file only re-asserted the `SourceType`
+enum classification (duplicating `SourceTypeTest`) and was removed.

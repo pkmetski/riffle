@@ -3,13 +3,11 @@ package com.riffle.core.database
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
-import platform.Foundation.NSTemporaryDirectory
+import co.touchlab.sqliter.DatabaseFileContext
 import platform.Foundation.NSUUID
-import platform.posix.remove
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -22,28 +20,23 @@ import kotlin.test.assertTrue
  */
 class IosRiffleDatabaseSchemaTest {
 
-    private lateinit var dbPath: String
+    private lateinit var dbName: String
     private lateinit var driver: SqlDriver
 
     @BeforeTest
     fun setUp() {
-        dbPath = "${NSTemporaryDirectory()}riffle-schema-test-${NSUUID().UUIDString}.db"
-        driver = NativeSqliteDriver(IosRiffleDatabaseSchema, dbPath)
+        // A bare filename, exactly as production passes it (`openRiffleDatabase("riffle.db")` in
+        // IosDatabaseKoinModule). SQLiter treats the argument as a NAME and resolves it against
+        // its own base path; handing it a full path throws
+        // "File … contains a path separator" out of DatabaseConfiguration's checkFilename.
+        dbName = "riffle-schema-test-${NSUUID().UUIDString}.db"
+        driver = NativeSqliteDriver(IosRiffleDatabaseSchema, dbName)
     }
 
     @AfterTest
     fun tearDown() {
         driver.close()
-        remove(dbPath)
-        remove("$dbPath-shm")
-        remove("$dbPath-wal")
-    }
-
-    // ── Schema version ────────────────────────────────────────────────────────
-
-    @Test
-    fun schemaVersionIsTwo() {
-        assertEquals(2L, IosRiffleDatabaseSchema.version)
+        DatabaseFileContext.deleteDatabase(dbName)
     }
 
     // ── Table: sources ────────────────────────────────────────────────────────
@@ -51,10 +44,15 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun sourcesTableHasAllRequiredColumns() {
         val cols = tableColumns("sources")
-        assertTrue(cols.containsAll(listOf(
-            "id", "url", "isActive", "insecureConnectionAllowed",
-            "username", "serverType", "absUserId", "type",
-        )), "sources columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "id", "url", "isActive", "insecureConnectionAllowed",
+                    "username", "serverType", "absUserId", "type",
+                )
+            ),
+            "sources columns: $cols"
+        )
     }
 
     // ── Table: libraries ─────────────────────────────────────────────────────
@@ -62,9 +60,14 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun librariesTableHasAllRequiredColumns() {
         val cols = tableColumns("libraries")
-        assertTrue(cols.containsAll(listOf(
-            "id", "name", "mediaType", "sourceId", "isUnsupported",
-        )), "libraries columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "id", "name", "mediaType", "sourceId", "isUnsupported",
+                )
+            ),
+            "libraries columns: $cols"
+        )
     }
 
     // ── Table: library_items ─────────────────────────────────────────────────
@@ -72,13 +75,18 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun libraryItemsTableHasAllRequiredColumns() {
         val cols = tableColumns("library_items")
-        assertTrue(cols.containsAll(listOf(
-            "sourceId", "id", "libraryId", "title", "author", "coverUrl",
-            "readingProgress", "ebookFileIno", "ebookFormat", "hasAudio",
-            "audioDurationSec", "description", "seriesName", "seriesSequence",
-            "publishedYear", "genres", "publisher", "language", "lastOpenedAt",
-            "addedAt", "isbn", "asin", "finishedAt", "pageCount",
-        )), "library_items columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "sourceId", "id", "libraryId", "title", "author", "coverUrl",
+                    "readingProgress", "ebookFileIno", "ebookFormat", "hasAudio",
+                    "audioDurationSec", "description", "seriesName", "seriesSequence",
+                    "publishedYear", "genres", "publisher", "language", "lastOpenedAt",
+                    "addedAt", "isbn", "asin", "finishedAt", "pageCount",
+                )
+            ),
+            "library_items columns: $cols"
+        )
     }
 
     // ── Table: toc_cache ─────────────────────────────────────────────────────
@@ -86,9 +94,14 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun tocCacheTableHasAllRequiredColumns() {
         val cols = tableColumns("toc_cache")
-        assertTrue(cols.containsAll(listOf(
-            "sourceId", "itemId", "ebookFileIno", "entriesJson", "cachedAt",
-        )), "toc_cache columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "sourceId", "itemId", "ebookFileIno", "entriesJson", "cachedAt",
+                )
+            ),
+            "toc_cache columns: $cols"
+        )
     }
 
     // ── Table: playlists ─────────────────────────────────────────────────────
@@ -96,17 +109,27 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun playlistsTableHasAllRequiredColumns() {
         val cols = tableColumns("playlists")
-        assertTrue(cols.containsAll(listOf(
-            "id", "sourceId", "rootId", "name", "bookCount",
-        )), "playlists columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "id", "sourceId", "rootId", "name", "bookCount",
+                )
+            ),
+            "playlists columns: $cols"
+        )
     }
 
     @Test
     fun playlistItemsTableHasAllRequiredColumns() {
         val cols = tableColumns("playlist_items")
-        assertTrue(cols.containsAll(listOf(
-            "playlistId", "sourceId", "itemId", "orderIndex",
-        )), "playlist_items columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "playlistId", "sourceId", "itemId", "orderIndex",
+                )
+            ),
+            "playlist_items columns: $cols"
+        )
     }
 
     // ── Table: annotations ───────────────────────────────────────────────────
@@ -114,14 +137,19 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun annotationsTableHasAllRequiredColumns() {
         val cols = tableColumns("annotations")
-        assertTrue(cols.containsAll(listOf(
-            "id", "sourceId", "itemId", "type", "cfi", "color", "note",
-            "textSnippet", "textBefore", "textAfter", "chapterHref", "spineIndex",
-            "progression", "bookmarkTitle", "createdAt", "updatedAt",
-            "originDeviceId", "lastModifiedByDeviceId", "deleted", "lastSyncedAt",
-            "embeddedFigures", "imageHref", "imageSvg", "imageBytes",
-            "originFontFamily", "emphasisStyles", "textSnippetHtml", "fragmentAnchor",
-        )), "annotations columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "id", "sourceId", "itemId", "type", "cfi", "color", "note",
+                    "textSnippet", "textBefore", "textAfter", "chapterHref", "spineIndex",
+                    "progression", "bookmarkTitle", "createdAt", "updatedAt",
+                    "originDeviceId", "lastModifiedByDeviceId", "deleted", "lastSyncedAt",
+                    "embeddedFigures", "imageHref", "imageSvg", "imageBytes",
+                    "originFontFamily", "emphasisStyles", "textSnippetHtml", "fragmentAnchor",
+                )
+            ),
+            "annotations columns: $cols"
+        )
     }
 
     // ── Tables: series / series_items / collections / collection_items ────────
@@ -131,39 +159,37 @@ class IosRiffleDatabaseSchemaTest {
     @Test
     fun seriesTableHasRequiredColumns() {
         val cols = tableColumns("series")
-        assertTrue(cols.containsAll(listOf("id", "sourceId", "libraryId", "name")),
-            "series columns: $cols")
+        assertTrue(
+            cols.containsAll(listOf("id", "sourceId", "libraryId", "name")),
+            "series columns: $cols"
+        )
     }
 
     @Test
     fun seriesItemsTableHasRequiredColumns() {
         val cols = tableColumns("series_items")
-        assertTrue(cols.containsAll(listOf("seriesId", "sourceId", "itemId", "sequenceOrder")),
-            "series_items columns: $cols")
+        assertTrue(
+            cols.containsAll(listOf("seriesId", "sourceId", "itemId", "sequenceOrder")),
+            "series_items columns: $cols"
+        )
     }
 
     @Test
     fun collectionsTableHasRequiredColumns() {
         val cols = tableColumns("collections")
-        assertTrue(cols.containsAll(listOf("id", "sourceId", "libraryId", "name")),
-            "collections columns: $cols")
+        assertTrue(
+            cols.containsAll(listOf("id", "sourceId", "libraryId", "name")),
+            "collections columns: $cols"
+        )
     }
 
     @Test
     fun collectionItemsTableHasRequiredColumns() {
         val cols = tableColumns("collection_items")
-        assertTrue(cols.containsAll(listOf("collectionId", "sourceId", "itemId")),
-            "collection_items columns: $cols")
-    }
-
-    // ── Migration continuity ─────────────────────────────────────────────────
-
-    @Test
-    fun migrateFromCurrentVersionToCurrentVersionIsNoOp() {
-        // Should not throw. When the schema version matches the driver's on-disk version,
-        // NativeSqliteDriver does not call migrate() at all; calling it explicitly here
-        // verifies the implementation is safe regardless.
-        IosRiffleDatabaseSchema.migrate(driver, 2L, 2L)
+        assertTrue(
+            cols.containsAll(listOf("collectionId", "sourceId", "itemId")),
+            "collection_items columns: $cols"
+        )
     }
 
     @Test
@@ -194,40 +220,73 @@ class IosRiffleDatabaseSchemaTest {
     }
 
     // ── Tables: local_files_* ─────────────────────────────────────────────────
+    //
+    // The expected column lists mirror the constructor properties of the entities in
+    // core:database-api one-for-one (LocalFilesFolderEntity, LocalFilesFileEntity,
+    // LocalFilesFileFolderEntity). Those are what the iOS DAOs bind by name, so a column the
+    // entity declares but the DDL omits is a runtime crash on a fresh install.
 
     @Test
     fun localFilesFoldersTableHasAllRequiredColumns() {
         val cols = tableColumns("local_files_folders")
-        assertTrue(cols.containsAll(listOf(
-            "id", "sourceId", "treeUri", "displayName", "libraryId",
-        )), "local_files_folders columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "sourceId", "treeUri", "displayName", "addedAtEpochMs", "libraryId",
+                )
+            ),
+            "local_files_folders columns: $cols"
+        )
     }
 
     @Test
     fun localFilesFilesTableHasAllRequiredColumns() {
         val cols = tableColumns("local_files_files")
-        assertTrue(cols.containsAll(listOf(
-            "id", "sourceId", "path", "identityHash", "displayName",
-            "format", "sizeBytes", "lastModifiedMs", "lastSeenMs",
-        )), "local_files_files columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "sourceId", "sourceItemId", "originalUri", "copiedPath", "coverPath",
+                    "format", "sizeBytes", "mtimeEpochMs", "lastSeenAtEpochMs", "displayName",
+                )
+            ),
+            "local_files_files columns: $cols"
+        )
     }
 
     @Test
     fun localFilesFileFoldersTableHasAllRequiredColumns() {
         val cols = tableColumns("local_files_file_folders")
-        assertTrue(cols.containsAll(listOf(
-            "fileId", "folderId", "libraryItemId", "lastScannedMs",
-        )), "local_files_file_folders columns: $cols")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "sourceId", "sourceItemId", "folderTreeUri", "lastSeenAtEpochMs",
+                )
+            ),
+            "local_files_file_folders columns: $cols"
+        )
     }
 
     // ── Migration: v1 → v2 ───────────────────────────────────────────────────
 
     @Test
     fun migrateV1ToV2CreatesLocalFilesTables() {
-        // The driver is already at v2 (created in setUp via NativeSqliteDriver with the schema).
-        // Calling migrate(1L, 2L) explicitly verifies that the migration DDL runs without error
-        // and that the resulting tables have the expected shape. CREATE TABLE IF NOT EXISTS
-        // makes this safe to run on an already-v2 schema.
+        // The driver created in setUp is already at v2 and the migration DDL uses
+        // CREATE TABLE IF NOT EXISTS, so simply calling migrate() on the fresh database would
+        // pass even if the migration body were deleted. Drop the local_files_* tables first to
+        // put the database into a genuine v1 shape, then verify migrate(1, 2) recreates them.
+        val localFilesTables = listOf(
+            "local_files_file_folders",
+            "local_files_files",
+            "local_files_folders",
+        )
+        localFilesTables.forEach { table ->
+            driver.execute(null, "DROP TABLE $table", 0)
+        }
+        val beforeMigration = allTableNames()
+        localFilesTables.forEach { table ->
+            assertTrue(table !in beforeMigration, "$table must be absent before the v1→v2 migration runs")
+        }
+
         IosRiffleDatabaseSchema.migrate(driver, 1L, 2L)
 
         val tables = allTableNames()

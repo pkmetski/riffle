@@ -119,7 +119,9 @@ import ReadiumNavigator
         }
     }
 
-    private func parseDecorations(_ json: String) -> [Decoration] {
+    // Internal (not private) so the unit-test target, which compiles this file directly,
+    // can assert that malformed decoration JSON parses to zero decorations.
+    func parseDecorations(_ json: String) -> [Decoration] {
         guard let data = json.data(using: .utf8),
               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return []
@@ -187,15 +189,12 @@ extension ReadiumEpubNavigatorBridge {
 
     var lastAppliedDecorationsJson: String? { _lastAppliedDecorationsJson }
     var lastAppliedGroup: String? { _lastAppliedGroup }
-    @objc func simulateApplyDecorations(_ json: String, group: String) {
-        _lastAppliedDecorationsJson = json
-        _lastAppliedGroup = group
-    }
 }
 
 // MARK: - UIColor hex extension
 
-private extension UIColor {
+// Internal (not private) so the unit-test target can verify hex → RGB conversion.
+extension UIColor {
     convenience init(hex: String) {
         let cleaned = hex.trimmingCharacters(in: .init(charactersIn: "#"))
         let scanner = Scanner(string: cleaned)

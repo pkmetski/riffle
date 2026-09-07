@@ -18,35 +18,44 @@ An EPUB book is present in the test library. The `ReadiumEpubNavigatorBridge` is
 
 ## Scenario 07-A: applyDecorations reaches the bridge
 
-**What:** Calling `simulateApplyDecorations(_:group:)` records the JSON and group for later assertion.
+**What:** The real `applyDecorations(decorationsJson:group:)` records the JSON and group it was
+handed before hopping to the main actor to hand the parsed decorations to Readium. The coordinator
+reads that record back to decide whether a group needs re-applying.
 
 **XCTest target:** `iosApp/iosAppTests/AnnotationTests.swift`
 
 ```swift
-let bridge = ReadiumEpubNavigatorBridge()
-bridge.simulateApplyDecorations("[{\"id\":\"h1\",\"type\":\"highlight\"}]", group: "highlights")
+bridge.applyDecorations(decorationsJson: highlightJson, group: "highlights")
 XCTAssertEqual(bridge.lastAppliedGroup, "highlights")
-XCTAssertNotNil(bridge.lastAppliedDecorationsJson)
+XCTAssertEqual(bridge.lastAppliedDecorationsJson, highlightJson)
 ```
+
+Covered by `AnnotationTests.testApplyHighlightDecorationsRecordsJson` and
+`testApplyEmptyListRecordsEmptyJson`. The former `testSimulateApplyDecorationsRecordsJsonAndGroup`
+asserted only that the test-only `simulateApplyDecorations` seam echoed its own arguments back —
+a tautology that could not fail — so both the test and the now-unused seam were removed.
 
 ---
 
-## Scenario 07-B: parseDecoration handles all four types
+## Scenario 07-B: parseDecorations handles all four types
 
-**What:** All four decoration types (`highlight`, `bookmark`, `noteGlyph`, `searchMark`) produce
-non-nil decorations when the locator JSON is valid.
+**What:** All four decoration types the `AnnotationDecorationCoordinator` emits (`highlight`,
+`bookmark`, `noteGlyph`, `searchMark`) parse to exactly one `Decoration`, keeping the id Readium
+needs to replace it. A type that falls through to `default` is dropped silently: the annotation
+stays in the database and in the annotations list but never renders in the reader. A decoration
+missing its `locator` must likewise be dropped rather than rendered at an arbitrary position.
 
 ```swift
-// highlight
-let highlightJson = "[{\"id\":\"h1\",\"type\":\"highlight\",\"locator\":{\"href\":\"ch1.xhtml\",\"type\":\"application/xhtml+xml\",\"locations\":{\"cfi\":\"/4/2\",\"progression\":0.5}},\"color\":\"#FFFF00\",\"alpha\":0.4}]"
-bridge.applyDecorations(decorationsJson: highlightJson, group: "highlights")
-// Assert bridge.lastAppliedDecorationsJson == highlightJson (recorded before async apply)
-
-// bookmark
-let bookmarkJson = "[{\"id\":\"b1\",\"type\":\"bookmark\",\"locator\":{\"href\":\"ch1.xhtml\",\"type\":\"application/xhtml+xml\",\"locations\":{\"cfi\":\"/4/2\",\"progression\":0.3}}}]"
-bridge.applyDecorations(decorationsJson: bookmarkJson, group: "bookmarks")
-XCTAssertEqual(bridge.lastAppliedGroup, "bookmarks")
+for type in ["highlight", "bookmark", "noteGlyph", "searchMark"] {
+    let decorations = bridge.parseDecorations(json(forType: type, id: "d1"))
+    XCTAssertEqual(decorations.count, 1)
+    XCTAssertEqual(decorations.first?.id, "d1")
+}
+XCTAssertTrue(bridge.parseDecorations("[{\"id\":\"h1\",\"type\":\"highlight\"}]").isEmpty)
 ```
+
+Covered by `AnnotationTests.testAllFourDecorationTypesParse` and
+`testDecorationWithoutLocatorIsDropped`.
 
 ---
 
@@ -68,11 +77,17 @@ XCTAssertEqual(b, 0.0, accuracy: 0.01)
 
 ## Scenario 07-D: Malformed decoration JSON produces empty apply
 
-**What:** Passing `"not-json"` or `"null"` to `applyDecorations` must not crash and must record
-the raw JSON (the parsing failure is silent — empty array is applied to the navigator).
+**What:** Malformed decoration JSON must parse to zero decorations (so nothing bogus is applied
+to the navigator), while a well-formed decoration list parses to the expected count — the
+positive control that proves the parser is not simply always-empty.
 
 ```swift
-bridge.applyDecorations(decorationsJson: "not valid json", group: "highlights")
-// Should not crash; bridge records the string
-XCTAssertNotNil(bridge.lastAppliedDecorationsJson)
+XCTAssertEqual(bridge.parseDecorations(validHighlightJson).count, 1)   // positive control
+XCTAssertTrue(bridge.parseDecorations("not valid json").isEmpty)
+XCTAssertTrue(bridge.parseDecorations("null").isEmpty)
+XCTAssertTrue(bridge.parseDecorations(unknownTypeJson).isEmpty)        // unknown type dropped
 ```
+
+Covered by `AnnotationTests.testValidJsonParsesToDecorations`,
+`testMalformedJsonParsesToZeroDecorations`, `testNullJsonParsesToZeroDecorations`, and
+`testDecorationWithUnknownTypeIsDropped`.

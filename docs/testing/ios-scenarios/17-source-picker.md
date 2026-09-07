@@ -37,7 +37,9 @@
 **Given** the Riffle KMP framework is imported.
 **Then** `SourceType.abs`, `SourceType.gutenberg`, `SourceType.localFiles`, and `SourceType.chitanka` enum entries are accessible and non-nil.
 
-**Coverage:** `SourcePickerTests.testSourceTypeValuesExist` (XCTest)
+**Coverage:** `SourceTypeTest` (`core/models/src/jvmTest`) pins the enum values and their
+classification. The former `SourcePickerTests.testSourceTypeValuesExist` XCTest merely
+re-asserted the same constants from Swift and was removed.
 
 ## 17.6 Catalog grid zoom adapts to screen width
 
@@ -45,6 +47,18 @@
 **When** the user pinch-zooms.
 **Then** the grid zooms within the permitted bounds and does not exceed the viewport width.
 
-**Coverage:** `UnboundedCatalogGridZoomTest`
+**Coverage:** `UnboundedCatalogGridZoomTest` (Android).
 
-**iOS gap:** WKWebView zoom behaviour on iOS; verified manually via Xcode build on the catalog grid screen.
+**iOS coverage:** GAP (deferred) — WKWebView pinch-zoom cannot be asserted without an XCUITest
+driving real pinch gestures on a configured web source; verified manually. The former
+`SourcePickerTests.testCatalogGridZoomWithinBounds` unconditional-skip placeholder was removed.
+
+## iOS coverage note (17.1–17.4)
+
+The picker UI is shared Compose Multiplatform, exercised on Android by
+`SourceTypePickerScreenTest`. On iOS these four scenarios are a GAP (deferred): XCTest cannot
+drive Compose UI without accessibility identifiers exposed to XCUITest. The former
+`SourcePickerTests` unconditional-skip placeholders (`testAllSourceTypeCardsDisplayed`,
+`testGutenbergCardTapInvokesGutenbergType`, `testAbsCardTapInvokesAbsType`,
+`testLocalFilesCardTapInvokesLocalFilesType`) were removed; verified manually until an
+XCUITest with proper accessibility handles is added.
