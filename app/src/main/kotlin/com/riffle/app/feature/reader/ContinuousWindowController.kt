@@ -708,6 +708,18 @@ internal class ContinuousWindowController(
     }
 
     private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?) {
+        val target = href.substringBefore('#')
+        val fragment = href.substringAfter('#', "")
+        val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
+            allChapters.map { it.link.href.toString() }, href,
+        )
+        if (targetIndex < 0) return
+        val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
+        // Server-resume refires (skipIfUserAlreadyInteracted=true): if the user already touched
+        // before this navigateTo was called, skip entirely — before any state mutation — so no
+        // gesture floor, boundary detent, or inWindowNavSupersededByTouch flag is disturbed.
+        // Applies to both in-window (snap-back) and cross-window (full WebView teardown) paths.
+        if (skipIfUserAlreadyInteracted && inWindowNavSupersededByTouch) return
         backwardNavigationIntent = false
         backwardShiftConsumedForTouchGesture = false
         // Programmatic navigation overrides any gesture-scoped scroll floor: a leftover
@@ -721,23 +733,11 @@ internal class ContinuousWindowController(
         backwardFlingFloorY = 0
         gestureStartFlingFloorY = 0
         boundaryDetentArmed = false
-        val target = href.substringBefore('#')
-        val fragment = href.substringAfter('#', "")
-        val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
-            allChapters.map { it.link.href.toString() }, href,
-        )
-        if (targetIndex < 0) return
-        val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
             // The posted landing can execute SECONDS later when the main thread is busy with
             // WebView measure storms (observed 1.8 s on an emulator). If the user has touched
             // the reader in the meantime, they've superseded the navigation — landing anyway
             // yanks the viewport back to a stale target from under their scroll.
-            //
-            // For server-resume refires (skipIfUserAlreadyInteracted=true): if the user already
-            // touched before this navigateTo was called, skip entirely — do NOT reset the flag,
-            // which would allow a stale channel item to snap the viewport back.
-            if (skipIfUserAlreadyInteracted && inWindowNavSupersededByTouch) return
             inWindowNavSupersededByTouch = false
             port.post {
                 if (inWindowNavSupersededByTouch) return@post

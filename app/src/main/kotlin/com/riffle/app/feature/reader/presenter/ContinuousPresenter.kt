@@ -111,6 +111,7 @@ internal class ContinuousPresenter : ReaderPresenter {
                 href = target.href,
                 progression = target.progression,
                 alignToTop = options.alignToTop,
+                skipIfUserAlreadyInteracted = options.skipIfUserAlreadyInteracted,
             )
             is NavigationTarget.ToLocatorJson -> {
                 // Reader-side Locator JSON is `{href, locations: {progression, fragments[]}}` —
