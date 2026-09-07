@@ -10,7 +10,6 @@ import com.riffle.core.domain.OReillyWebSourceDescriptor
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.Library
-import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.channels.Channel
@@ -55,7 +54,8 @@ class OReillyLoginViewModel(
                 libraries = OReillyWebSourceDescriptor.defaultLibraries.map {
                     Library(id = it.id, name = it.name, mediaType = it.mediaType, isUnsupported = false)
                 },
-                serverType = ServerType.AUDIOBOOKSHELF, // filler; O'Reilly has no ServerType axis
+                // serverType is a legacy compatibility axis O'Reilly has no place on; PendingSource
+                // defaults it (the Source/Service taxonomy, ADR 0049, replaces it — no new refs here).
                 sourceType = SourceType.OREILLY,
             )
             state = when (repository.commit(pending, hiddenLibraryIds = emptySet())) {

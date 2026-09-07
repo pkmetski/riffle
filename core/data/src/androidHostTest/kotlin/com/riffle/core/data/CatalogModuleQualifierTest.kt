@@ -50,6 +50,12 @@ class CatalogModuleQualifierTest {
             val typeName = segment.takeWhile { it.isLetterOrDigit() || it == '_' }
             val type = runCatching { SourceType.valueOf(typeName) }.getOrNull() ?: continue
             if (!type.isUnboundedCatalog) continue
+            // O'Reilly is a documented exception: its content endpoints are Accept-header sensitive,
+            // and the webSource client's ContentNegotiation appends `application/json` to every
+            // Accept, making `/files/{path}` return a ~1KB JSON preview instead of the full chapter
+            // HTML. It therefore MUST use the streaming client (no ContentNegotiation) and forgoes the
+            // shared disk cache. See the OReillyCatalogFactory registration in CoreDataKoinModules.kt.
+            if (type == SourceType.OREILLY) continue
             val hasHttpClientParam = segment.contains("httpClient") || segment.contains("sharedHttpClient")
             if (!hasHttpClientParam) continue
             // Koin module uses named(WEB_SOURCE_HTTP_CLIENT) constant or the literal "webSourceHttpClient"
