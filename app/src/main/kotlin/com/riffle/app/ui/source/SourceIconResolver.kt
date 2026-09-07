@@ -64,6 +64,7 @@ object SourceIconResolver {
             SourceType.GUTENBERG -> R.drawable.ic_source_gutenberg
             SourceType.KOMGA -> R.drawable.ic_source_komga
             SourceType.RADIO_ES -> R.drawable.ic_source_radio_es
+            SourceType.OREILLY -> R.drawable.ic_source_oreilly
             SourceType.ABS -> when (serverType) {
                 ServerType.AUDIOBOOKSHELF -> R.drawable.ic_source_audiobookshelf
                 ServerType.STORYTELLER_SERVICE -> R.drawable.ic_source_storyteller

@@ -3,6 +3,7 @@ package com.riffle.feature.source
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.models.SourceType
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +23,21 @@ import kotlinx.coroutines.flow.stateIn
  */
 class SourceTypePickerViewModel constructor(
     sourceRepository: SourceRepository,
+    developerOptions: DeveloperOptionsRepository,
 ) : ViewModel() {
+
+    /**
+     * Whether Developer Options are unlocked. The picker uses this to reveal
+     * `requiresDeveloperMode` source cards (O'Reilly). Add-time gate only — see the descriptor
+     * flag doc. Wired against the cross-platform [DeveloperOptionsRepository] interface so the
+     * gate works on any platform that supplies an implementation.
+     */
+    val developerModeEnabled: StateFlow<Boolean> = developerOptions.developerModeEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
 
     /**
      * Default to `SourceType.values()` (every singleton card hidden) so a returning user who

@@ -50,6 +50,8 @@ import com.riffle.app.feature.source.gutenberg.friendlyErrorMessage as gutenberg
 import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
 import com.riffle.app.feature.source.radioes.AddRadioEsViewModel
 import com.riffle.app.feature.source.radioes.RadioEsBrowseViewModel
+import com.riffle.app.feature.source.oreilly.OReillyBrowseViewModel
+import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel
 import com.riffle.app.feature.source.websource.WebSourceLibraryViewModel
 import com.riffle.app.feature.update.ChangelogViewModel
 import com.riffle.app.feature.update.StartupUpdateViewModel
@@ -420,7 +422,7 @@ private val serverViewModelModule = module {
             repository = get(),
         )
     }
-    viewModel { SourceTypePickerViewModel(sourceRepository = get()) }
+    viewModel { SourceTypePickerViewModel(sourceRepository = get(), developerOptions = get()) }
 }
 
 private val sourceViewModelModule = module {
@@ -463,6 +465,19 @@ private val sourceViewModelModule = module {
     viewModel { AddRadioEsViewModel(installer = get()) }
     viewModel {
         RadioEsBrowseViewModel(
+            savedStateHandle = get(),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+        )
+    }
+    viewModel { OReillyLoginViewModel(repository = get()) }
+    viewModel {
+        OReillyBrowseViewModel(
             savedStateHandle = get(),
             sourceRepository = get(),
             catalogRegistry = get(),

@@ -625,4 +625,11 @@
     <string name="ui_reading_time_estimated_total_remaining">прибл. %1$s общо · остава %2$s</string>
     <string name="ui_pages">%1$d стр.</string>
     <string name="ui_pages_of_read">%1$d от %2$d стр. прочетени</string>
+    <string name="ui_source_oreilly_picker_blurb">Разглеждайте и четете електронни и аудиокниги от акаунта си в O\'Reilly.</string>
+    <string name="ui_search_oreilly">Търсене в O\'Reilly…</string>
+    <string name="ui_preparing_book_progress">Подготовка на книгата… %1$d / %2$d</string>
+    <string name="ui_oreilly_sign_in_title">Вход в O\'Reilly</string>
+    <string name="ui_oreilly_signing_in">Влизане…</string>
+    <string name="ui_oreilly_signing_in_sub">Защита на сесията ви в O\'Reilly на това устройство</string>
+    <string name="ui_oreilly_sign_in_failed">Сесията ви в O\'Reilly не беше запазена. Опитайте да влезете отново.</string>
 </resources>

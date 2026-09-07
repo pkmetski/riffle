@@ -96,6 +96,10 @@ fun AddSourceScreen(
     val submitLabel = descriptorCopy
         ?.let { if (isEditing) it.submitLabelEdit else it.submitLabelAdd }
         ?: stringResource(if (isEditing) R.string.ui_save else R.string.ui_connect)
+    // Fixed-host credentialed sources (O'Reilly) have no user-entered URL: the ViewModel stamps
+    // the host and the URL row is suppressed. WebDAV (descriptor == null) and every hasNetworkHost
+    // source keep the row.
+    val showUrlField = descriptor?.hasNetworkHost != false
 
     viewModel.insecureWarning?.let { type ->
         InsecureConnectionDialog(
@@ -152,38 +156,40 @@ fun AddSourceScreen(
                 if (backend == AddSourceBackend.Webdav) {
                     webdavBanner?.let { WebdavStatusCard(it) }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    var schemeExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { schemeExpanded = true }) {
-                            Text(viewModel.scheme)
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.ui_choose_scheme))
-                        }
-                        DropdownMenu(
-                            expanded = schemeExpanded,
-                            onDismissRequest = { schemeExpanded = false },
-                        ) {
-                            listOf("https://", "http://").forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option) },
-                                    onClick = {
-                                        viewModel.updateScheme(option)
-                                        schemeExpanded = false
-                                    },
-                                )
+                if (showUrlField) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        var schemeExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { schemeExpanded = true }) {
+                                Text(viewModel.scheme)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.ui_choose_scheme))
+                            }
+                            DropdownMenu(
+                                expanded = schemeExpanded,
+                                onDismissRequest = { schemeExpanded = false },
+                            ) {
+                                listOf("https://", "http://").forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = {
+                                            viewModel.updateScheme(option)
+                                            schemeExpanded = false
+                                        },
+                                    )
+                                }
                             }
                         }
+                        Spacer(Modifier.width(8.dp))
+                        OutlinedTextField(
+                            value = viewModel.host,
+                            onValueChange = { viewModel.updateHost(it) },
+                            label = { Text(urlLabel) },
+                            placeholder = { Text(urlPlaceholder) },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            singleLine = true,
+                        )
                     }
-                    Spacer(Modifier.width(8.dp))
-                    OutlinedTextField(
-                        value = viewModel.host,
-                        onValueChange = { viewModel.updateHost(it) },
-                        label = { Text(urlLabel) },
-                        placeholder = { Text(urlPlaceholder) },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        singleLine = true,
-                    )
                 }
                 OutlinedTextField(
                     value = viewModel.username,
@@ -210,7 +216,7 @@ fun AddSourceScreen(
                     Button(
                         onClick = viewModel::onConnect,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = viewModel.host.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
+                        enabled = (!showUrlField || viewModel.host.isNotBlank()) && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
                     ) {
                         Text(submitLabel)
                     }

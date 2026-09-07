@@ -43,6 +43,7 @@ kotlin {
             implementation(project(":core:catalog-gutenberg"))
             implementation(project(":core:catalog-radio-es"))
             implementation(project(":core:catalog-komga"))
+            implementation(project(":core:catalog-oreilly"))
             implementation(project(":core:logging"))
             implementation(libs.androidx.work.runtime.ktx)
             implementation(libs.androidx.lifecycle.process)

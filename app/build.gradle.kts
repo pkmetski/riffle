@@ -145,6 +145,7 @@ dependencies {
     implementation(project(":core:catalog-gutenberg"))
     implementation(project(":core:catalog-radio-es"))
     implementation(project(":core:catalog-komga"))
+    implementation(project(":core:catalog-oreilly"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.webkit)

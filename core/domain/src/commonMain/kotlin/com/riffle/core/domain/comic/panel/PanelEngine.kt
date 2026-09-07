@@ -1,7 +1,7 @@
 package com.riffle.core.domain.comic.panel
 
 /**
- * The public API surface for panel detection (ADR 0063). All app code that drives
+ * The public API surface for panel detection (ADR 0064). All app code that drives
  * panel detection must go through this interface — no direct references to
  * [PanelOrchestrator], [PanelDetector], or [PanelMaskBinarizer].
  *

@@ -1,0 +1,541 @@
+package com.riffle.core.catalog.oreilly
+
+import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogAudioFingerprint
+import com.riffle.core.catalog.CatalogAudioTrack
+import com.riffle.core.catalog.CatalogAudiobookChapter
+import com.riffle.core.catalog.CatalogAudiobookStream
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileRetryPolicy
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogEbookDetails
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.EbookDetailsCapability
+import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.models.TocEntry
+import kotlin.math.ceil
+import com.riffle.core.catalog.oreilly.epub.EpubAssembler
+import com.riffle.core.catalog.oreilly.epub.EpubChapter
+import com.riffle.core.catalog.oreilly.epub.EpubResource
+import com.riffle.core.catalog.oreilly.epub.SynthesizedBook
+import com.riffle.core.catalog.withCatalogFileStream
+import com.riffle.core.common.Clock
+import com.riffle.core.common.platformSystemClock
+import com.riffle.core.models.SourceType
+import io.ktor.client.HttpClient
+import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+
+/**
+ * O'Reilly (`learning.oreilly.com`) catalog. Browses/searches the Learning API, streams audiobooks
+ * directly (chaptered), and — for ebooks — **scrapes and synthesizes an EPUB in memory** on
+ * [withFileStream], which is the download/read byte source. Nothing is written to disk here; the
+ * repository's Cache/Download tier persists the bytes just as it does for any network Source.
+ */
+class OReillyCatalog internal constructor(
+    private val api: OReillyApi,
+    private val bytesClient: HttpClient,
+    // Full cookie header (orm-jwt + session cookies) harvested from the WebView login; used for
+    // authenticated audio-track streaming as well as the API calls the [api] makes.
+    private val cookieHeader: String,
+    private val clock: Clock = platformSystemClock,
+    /**
+     * Max content/asset requests in flight at once. Concurrency hides per-request latency (the
+     * dominant cost on high-RTT links) without raising the *rate*. Aligned with OkHttp's default
+     * per-host cap (5).
+     */
+    private val maxConcurrency: Int = 5,
+    /**
+     * Minimum spacing between request *starts* (a global rate cap ≈ 1000/this per second). Bounds how
+     * aggressive synthesis looks to O'Reilly's bulk-abuse guard, independently of [maxConcurrency].
+     */
+    private val minRequestIntervalMs: Long = 120L,
+    /** Backoff retries when a chapter comes back 403 or truncated (a throttled DRM sample). */
+    private val maxContentRetries: Int = 4,
+    /** Base for exponential backoff between retries (1s, 2s, 4s, …). */
+    private val backoffBaseMs: Long = 1000L,
+    /** Reports chapter-fetch progress during synthesis (done, total) for the reader's loading UI. */
+    private val onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    /** Called when synthesis finishes or fails, to clear the progress UI. */
+    private val onProgressDone: () -> Unit = {},
+) : Catalog,
+    AudiobookMediaCapability,
+    ReadCapability,
+    DownloadsCapability,
+    ToReadListCapability,
+    EbookDetailsCapability {
+
+    override val sourceType: SourceType = SourceType.OREILLY
+
+    override suspend fun listRoots(): List<CatalogRoot> = listOf(
+        CatalogRoot(id = OReillyRoots.BOOKS, name = "Books", mediaType = "book"),
+        CatalogRoot(id = OReillyRoots.AUDIOBOOKS, name = "Audiobooks", mediaType = "audiobook"),
+    )
+
+    override suspend fun browse(
+        rootId: String,
+        sort: SortKey,
+        page: Int,
+        pageSize: Int,
+        facet: FacetSelection?,
+    ): List<CatalogItem> =
+        OReillyParser.parseSearch(api.getJson(api.browseUrl(rootId, page, pageSize)), rootId)
+
+    override suspend fun search(
+        rootId: String,
+        query: String,
+        page: Int,
+        pageSize: Int,
+    ): List<CatalogItem> {
+        if (query.isBlank()) return emptyList()
+        return OReillyParser.parseSearch(api.getJson(api.searchUrl(query, rootId, page, pageSize)), rootId)
+    }
+
+    override suspend fun getItem(itemId: String): CatalogItem? {
+        val body = runCatching { api.getJson(api.bookDetailUrl(itemId)) }.getOrNull() ?: return null
+        // NOTE: O'Reilly's book-detail metadata (`/epubs/{urn}/`) carries NO author — authors only
+        // appear in the search listing — so this returns a blank author. The web-source gate fills it
+        // back in from the browse listing it already holds (WebSourceItemGate.openItem), which is free;
+        // recovering it here would cost an extra search request per detail open (see the bot-detection
+        // hardening doc). The ABS-upload path is covered by [withFallbackAuthor].
+        return OReillyParser.bookDetailToCatalogItem(
+            id = itemId,
+            detail = OReillyParser.parseBookDetail(body),
+            coverUrl = api.coverUrl(itemId),
+        )
+    }
+
+    /**
+     * Cheap TOC + reading-length estimate from metadata only — the spine (chapter order + titles)
+     * and the file list (per-file `file_size`). Computes Readium-equivalent positions
+     * (ceil(size / 1024) per chapter) so the estimate matches what opening the synthesized EPUB would
+     * yield, WITHOUT downloading any chapter content. Keeps the detail screen instant for O'Reilly.
+     */
+    override suspend fun ebookDetails(itemId: String): CatalogEbookDetails? {
+        val spine = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+            .results.mapNotNull { s -> s.fullPath?.let { p -> p to (s.title ?: "") } }
+        if (spine.isEmpty()) return null
+        val sizeByPath = fetchAllFiles(itemId).associate { it.fullPath to it.fileSize }
+        val totalPositions = spine.sumOf { (path, _) ->
+            ceil((sizeByPath[path] ?: 0L).toDouble() / 1024.0).toInt().coerceAtLeast(1)
+        }
+        val toc = spine.map { (path, title) -> TocEntry(title = title.ifBlank { path }, href = path) }
+        return CatalogEbookDetails(
+            totalPositions = totalPositions.takeIf { it > 0 },
+            tocEntries = toc,
+            epubVersion = "3.0",
+        )
+    }
+
+    // ---- Ebook: scrape + synthesize (verified against the live v2 epubs API) -----------------
+
+    override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle =
+        throw OReillyException("O'Reilly ebooks are synthesized in memory — use withFileStream")
+
+    override suspend fun <T> withFileStream(
+        itemId: String,
+        format: BookFormat,
+        handleHint: String?,
+        block: suspend (CatalogFileStream) -> T,
+    ): T {
+        if (format != BookFormat.Epub) {
+            throw OReillyException("Only EPUB synthesis is supported for O'Reilly ebooks; got $format")
+        }
+        val bytes = synthesizeEpub(itemId)
+        val stream = object : CatalogFileStream {
+            override val contentLength: Long = bytes.size.toLong()
+            override val channel: ByteReadChannel = ByteReadChannel(bytes)
+        }
+        return block(stream)
+    }
+
+    /**
+     * Reconstruct a self-contained EPUB from the v2 content API: metadata + ordered spine + the full
+     * file list, fetching each chapter's XHTML and every packaged asset (images/css/fonts). Absolute
+     * asset URLs in chapter bodies (`/api/v2/epubs/{urn}/files/…`) are rewritten to paths relative to
+     * each chapter's packaged location; stylesheets are linked into each chapter head.
+     *
+     * Chapter/asset content is fetched via [OReillyApi.getContent]/[OReillyApi.getBytes], which use
+     * `?download=false` + an HTML `Accept` — that combination returns the FULL chapter; fetching a
+     * file as a plain "download" (or with an `application/json` Accept) yields only a ~2KB DRM sample.
+     *
+     * O'Reilly applies anti-abuse throttling to rapid bulk content access. To stay under it:
+     *  (1) each fetch is paced by [pacingDelayMs];
+     *  (2) a `403` or a *truncated* chapter (throttled sample) triggers exponential backoff + retry;
+     *  (3) truncation is detected deterministically by comparing the fetched length to the file's
+     *      real `file_size` from the file list — a chapter far smaller than its declared size is a
+     *      sample, not real content;
+     *  (4) if a chapter still can't be fetched in full after [maxContentRetries], synthesis ABORTS
+     *      (throws) so a partial/sample EPUB is never cached — a later retry can succeed cleanly.
+     * Missing *assets* (images/css) are non-fatal and skipped; missing *chapters* are fatal.
+     */
+    internal suspend fun synthesizeEpub(itemId: String): ByteArray {
+        val detail = OReillyParser.parseBookDetail(api.getJson(api.bookDetailUrl(itemId)))
+        val spine = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+            .results.mapNotNull { it.fullPath?.let { p -> p to (it.title ?: "") } }
+        val files = fetchAllFiles(itemId)
+        val sizeByPath = files.associate { it.fullPath to it.fileSize }
+
+        val absPrefix = api.baseUrl().trimEnd('/') + api.filesPrefix(itemId) // full URL prefix
+        val pathPrefix = api.filesPrefix(itemId)                             // path-only prefix
+        val cssFullPaths = files.filter { it.kind == "stylesheet" }.map { it.fullPath }
+
+        // Assets to package: every non-chapter file at its own full_path. Exclude the book's ORIGINAL
+        // package document / navigation / ncx — EpubAssembler generates its own `content.opf` and
+        // `nav.xhtml`, so re-packaging the originals produces duplicate zip entries (Readium: "invalid
+        // CEN header (duplicate entry)"). Also skip anything colliding with a chapter path, and dedupe.
+        val chapterPaths = spine.map { it.first }.toSet()
+        val reservedPaths = setOf("content.opf", "nav.xhtml")
+        val assetFiles = files.filter { f ->
+            f.kind != "chapter" && f.fullPath.isNotBlank() &&
+                f.fullPath !in chapterPaths && f.fullPath !in reservedPaths &&
+                f.mediaType != "application/oebps-package+xml" &&
+                f.mediaType != "application/x-dtbncx+xml"
+        }.distinctBy { it.fullPath }
+
+        // Dedupe repeated spine paths (a duplicate zip entry would fail Readium's parser).
+        val distinctSpine = spine.distinctBy { it.first }
+
+        // Fetch concurrently: a bounded pool ([maxConcurrency]) hides per-request latency — the
+        // dominant cost — while a global rate cap ([minRequestIntervalMs] between request starts) keeps
+        // us under O'Reilly's bulk-abuse guard. Progress spans both phases so the reader's
+        // "Preparing book… N/M" advances throughout.
+        val total = assetFiles.size + distinctSpine.size
+        val pacer = RequestPacer(maxConcurrency, minRequestIntervalMs) { clock.nowMs() }
+        val progressMutex = Mutex()
+        var done = 0
+        onProgress(0, total)
+        suspend fun tick() {
+            val d = progressMutex.withLock { done += 1; done }
+            onProgress(d, total)
+        }
+        try {
+            return coroutineScope {
+                val assetJobs = assetFiles.map { f ->
+                    async {
+                        val bytes = fetchAssetBytes(itemId, f.fullPath, pacer) // non-fatal
+                        tick()
+                        bytes?.let { EpubResource(f.fullPath, it, f.mediaType) }
+                    }
+                }
+                val chapterJobs = distinctSpine.mapIndexed { index, (fullPath, title) ->
+                    async {
+                        // Fatal on failure (throws) → coroutineScope cancels siblings and aborts, so a
+                        // partial/sample book is never assembled or cached.
+                        val raw = fetchChapterContent(itemId, fullPath, sizeByPath[fullPath] ?: 0L, pacer)
+                        tick()
+                        val t = title.ifBlank { "Chapter ${index + 1}" }
+                        val relPrefix = OReillyEpub.relPrefixFor(fullPath)
+                        val rewritten = raw.replace(absPrefix, relPrefix).replace(pathPrefix, relPrefix)
+                        val cssHrefs = cssFullPaths.map { OReillyEpub.relativeTo(fullPath, it) }
+                        EpubChapter(
+                            id = OReillyEpub.chapterId(index),
+                            relativePath = fullPath,
+                            title = t,
+                            xhtml = OReillyEpub.wrapChapter(t, rewritten, cssHrefs),
+                        )
+                    }
+                }
+                val resources = assetJobs.awaitAll().filterNotNull()
+                val chapters = chapterJobs.awaitAll() // in spine order
+                if (chapters.isEmpty()) throw OReillyException("No chapters resolved for O'Reilly $itemId")
+                EpubAssembler.assemble(
+                    SynthesizedBook(
+                        identifier = "urn:orm:book:${detail.identifier.ifBlank { itemId }}",
+                        title = detail.title.ifBlank { itemId },
+                        authors = emptyList(), // v2 metadata carries no authors; not needed to read
+                        language = detail.language ?: "en",
+                        publisher = null,
+                        chapters = chapters,
+                        resources = resources,
+                        coverPath = null,
+                    ),
+                )
+            }
+        } finally {
+            onProgressDone()
+        }
+    }
+
+    /** Fetch every packaged file, following the API's pagination `next` cursor. */
+    private suspend fun fetchAllFiles(itemId: String): List<OReillyFileMeta> {
+        val all = ArrayList<OReillyFileMeta>()
+        var offset = 0
+        val limit = 300
+        while (true) {
+            val page = OReillyParser.parseFiles(api.getJson(api.filesUrl(itemId, limit, offset)))
+            all += page.results
+            if (page.next.isNullOrBlank() || page.results.isEmpty()) break
+            offset += page.results.size
+        }
+        return all
+    }
+
+    /**
+     * Fetch one chapter's HTML, pacing the request and retrying with exponential backoff on a `403`
+     * or a truncated (throttled-sample) response. Throws [OReillyException] if a full copy can't be
+     * obtained within [maxContentRetries] — the caller aborts synthesis so a partial book is never
+     * cached.
+     */
+    private suspend fun fetchChapterContent(
+        itemId: String,
+        fullPath: String,
+        expectedSize: Long,
+        pacer: RequestPacer,
+    ): String {
+        var attempt = 0
+        while (true) {
+            val result = runCatching { pacer.execute { api.getContent(api.fileContentUrl(itemId, fullPath)) } }
+            val body = result.getOrNull()
+            val throttled = (result.exceptionOrNull() as? OReillyHttpException)?.code == 403 ||
+                (body != null && isTruncatedBody(body, expectedSize))
+            if (body != null && !throttled) return body
+            if (attempt >= maxContentRetries) {
+                throw OReillyException(
+                    "O'Reilly chapter '$fullPath' unavailable after ${maxContentRetries + 1} attempts " +
+                        "(rate-limited or truncated). Aborting synthesis so no partial book is cached.",
+                )
+            }
+            delay(backoffBaseMs shl attempt) // 1s, 2s, 4s, … (no pool permit held during backoff)
+            attempt++
+        }
+    }
+
+    /**
+     * Fetch one packaged asset (image/css/font), paced, with a single backoff retry on `403`.
+     * Assets are non-fatal: returns null on failure so synthesis proceeds with a degraded book
+     * rather than aborting over one missing image.
+     */
+    private suspend fun fetchAssetBytes(itemId: String, fullPath: String, pacer: RequestPacer): ByteArray? {
+        repeat(2) { attempt ->
+            val result = runCatching { pacer.execute { api.getBytes(api.fileContentUrl(itemId, fullPath)) } }
+            result.getOrNull()?.let { return it }
+            val is403 = (result.exceptionOrNull() as? OReillyHttpException)?.code == 403
+            if (!is403 || attempt == 1) return null
+            delay(backoffBaseMs)
+        }
+        return null
+    }
+
+    /**
+     * Bounds concurrent requests to [maxConcurrency] and spaces request *starts* by [minIntervalMs]
+     * (a global rate cap). Concurrency hides per-request latency; the rate cap bounds abuse-guard
+     * exposure — the two are independent. A retry's backoff happens outside [execute], so it never
+     * holds a permit while merely waiting.
+     */
+    private class RequestPacer(
+        maxConcurrency: Int,
+        private val minIntervalMs: Long,
+        private val nowMs: () -> Long,
+    ) {
+        private val permits = Semaphore(maxConcurrency)
+        private val gate = Mutex()
+        private var nextAllowedMs = 0L
+
+        suspend fun <T> execute(block: suspend () -> T): T = permits.withPermit {
+            val waitMs = gate.withLock {
+                val now = nowMs()
+                val start = maxOf(now, nextAllowedMs)
+                nextAllowedMs = start + minIntervalMs
+                start - now
+            }
+            if (waitMs > 0) delay(waitMs)
+            block()
+        }
+    }
+
+
+    // ---- Audiobook (AudiobookMediaCapability) -------------------------------
+    // O'Reilly audiobooks are Kaltura-hosted "videos" (verified live 2026-09). One playback session
+    // is assembled from: videotocs (ordered chapter list + durations) → videoclips (per-chapter
+    // kaltura_entry_id) → kaltura_config (partner_id) + kaltura_session (KS) → a Kaltura HLS URL per
+    // chapter. The KS expires ~1h after minting, so URLs are baked at openAudiobook time; a listening
+    // session longer than an hour may need reopening. Media3 plays the AAC-in-HLS flavor natively.
+
+    override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> =
+        loadAudiobookTracks(itemId)?.tracks ?: emptyList()
+
+    /**
+     * Resolves the full track list for [itemId]: chapter order + durations from `videotocs`, each
+     * chapter's Kaltura entry id from `videoclips` (fetched concurrently, bounded by [maxConcurrency]),
+     * and a Kaltura HLS URL per chapter carrying a freshly-minted KS. Returns `null` when the item has
+     * no audiobook (empty toc) or the Kaltura config/session can't be obtained.
+     */
+    private suspend fun loadAudiobookTracks(itemId: String): AudiobookAssembly? {
+        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(itemId))).toc
+            .filter { it.referenceId.isNotBlank() }
+        if (toc.isEmpty()) return null
+
+        val partnerId = OReillyParser.parseKalturaConfig(api.getJson(api.kalturaConfigUrl())).partnerId
+        val ks = OReillyParser.parseKalturaSession(api.getJson(api.kalturaSessionUrl())).session
+        if (partnerId.isBlank() || ks.isBlank()) return null
+
+        val gate = Semaphore(maxConcurrency)
+        val entryIdByRef = coroutineScope {
+            toc.map { entry ->
+                async {
+                    entry.referenceId to gate.withPermit {
+                        runCatching {
+                            OReillyParser.parseVideoClip(api.getJson(api.videoClipUrl(entry.referenceId)))
+                                .kalturaEntryId
+                        }.getOrDefault("")
+                    }
+                }
+            }.awaitAll()
+        }.toMap()
+
+        // All-or-nothing: if any chapter's Kaltura entry can't be resolved, fail the whole session
+        // rather than play a book with a silent hole and a timeline that no longer matches the toc
+        // (getAudiobookChapters is toc-derived). A partial audiobook is worse than a clear failure.
+        var offset = 0.0
+        val tracks = mutableListOf<CatalogAudioTrack>()
+        val chapters = mutableListOf<CatalogAudiobookChapter>()
+        toc.forEachIndexed { index, entry ->
+            val entryId = entryIdByRef[entry.referenceId].orEmpty()
+            if (entryId.isBlank()) return null
+            val duration = entry.duration.toDouble()
+            tracks += CatalogAudioTrack(
+                ino = entry.referenceId,
+                index = index,
+                startOffsetSec = offset,
+                durationSec = duration,
+                contentUrl = OReillyApi.kalturaHlsUrl(partnerId, entryId, ks),
+                mimeType = OReillyApi.HLS_MIME,
+            )
+            chapters += CatalogAudiobookChapter(
+                index = index,
+                startSec = offset,
+                endSec = offset + duration,
+                title = entry.title.ifBlank { "Chapter ${index + 1}" },
+            )
+            offset += duration
+        }
+        return if (tracks.isEmpty()) null else AudiobookAssembly(tracks, chapters, totalDurationSec = offset)
+    }
+
+    private class AudiobookAssembly(
+        val tracks: List<CatalogAudioTrack>,
+        val chapters: List<CatalogAudiobookChapter>,
+        val totalDurationSec: Double,
+    )
+
+    override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? {
+        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(itemId))).toc
+            .filter { it.referenceId.isNotBlank() }
+        if (toc.isEmpty()) return null
+        val durations = toc.map { it.duration.toDouble() }
+        return CatalogAudioFingerprint(
+            itemId = itemId,
+            fileSizeBytes = 0L, // streaming-only; identity relies on durations
+            totalDurationSec = durations.sum(),
+            trackDurations = durations,
+        )
+    }
+
+    override fun buildStreamUrl(itemId: String, trackIno: String): String = trackIno
+
+    override suspend fun <T> withTrackStream(
+        itemId: String,
+        trackIno: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T = bytesClient.withCatalogFileStream(
+        handle = CatalogFileHandle.Stream(
+            url = trackIno,
+            headers = mapOf("Cookie" to cookieHeader),
+            format = BookFormat.Audiobook,
+        ),
+        retryPolicy = CatalogFileRetryPolicy(statusCodes = setOf(429, 503), delaysMs = listOf(500L, 1000L, 2000L)),
+        httpFailure = { failure -> OReillyException("Failed to stream O'Reilly track: ${failure.code}") },
+        block = block,
+    )
+
+    override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
+        val assembly = loadAudiobookTracks(itemId) ?: return null
+        return CatalogAudiobookStream(
+            trackUrls = assembly.tracks.map { it.contentUrl },
+            tracks = assembly.tracks,
+            chapters = assembly.chapters,
+            totalDurationSec = assembly.totalDurationSec,
+            // O'Reilly audiobook progress isn't wired back to the server yet — start at 0 and let the
+            // app's own position store drive resume. (No last-writer-wins peer for O'Reilly audio.)
+            serverCurrentTimeSec = 0.0,
+            serverLastUpdate = 0L,
+        )
+    }
+
+    override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
+        // Cheap: chapter titles + durations come straight from videotocs, no Kaltura session needed.
+        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(itemId))).toc
+            .filter { it.referenceId.isNotBlank() }
+        var offset = 0.0
+        return toc.mapIndexed { index, entry ->
+            val duration = entry.duration.toDouble()
+            val chapter = CatalogAudiobookChapter(
+                index = index,
+                startSec = offset,
+                endSec = offset + duration,
+                title = entry.title.ifBlank { "Chapter ${index + 1}" },
+            )
+            offset += duration
+            chapter
+        }
+    }
+
+    // ---- Connectivity -------------------------------------------------------
+
+    override suspend fun connectivityCheck(): CatalogHealth {
+        val start = clock.nowMs()
+        val ok = api.ping()
+        return CatalogHealth(
+            isReachable = ok,
+            serverVersion = null,
+            latencyMs = clock.nowMs() - start,
+            error = if (ok) null else "learning.oreilly.com is unreachable or the session expired",
+        )
+    }
+
+    companion object {
+        const val ROOT_BOOKS = OReillyRoots.BOOKS
+        const val ROOT_AUDIOBOOKS = OReillyRoots.AUDIOBOOKS
+
+        /**
+         * Files whose declared size is at least this are subject to the truncation check. The DRM
+         * sample is ~2KB; real chapters are 10KB+. Below this we can't reliably tell a sample from a
+         * genuinely short section (front matter), so we accept it as-is.
+         */
+        internal const val TRUNCATION_MIN_BYTES = 8000L
+
+        /**
+         * A chapter is a throttled DRM sample when its fetched size is far below the file's declared
+         * `file_size`. Only applied to files large enough to distinguish (front matter is
+         * legitimately small and matches its declared size, so it never false-positives).
+         */
+        internal fun isTruncatedSample(fetchedLen: Long, expectedSize: Long): Boolean =
+            expectedSize >= TRUNCATION_MIN_BYTES && fetchedLen < expectedSize / 2
+
+        /**
+         * Truncation check for a fetched chapter [body] against its byte-denominated [expectedSize].
+         * MUST measure UTF-8 bytes — `String.length` counts UTF-16 code units, which undercounts
+         * multibyte (e.g. CJK) chapters and would falsely flag a full chapter as a DRM sample.
+         */
+        internal fun isTruncatedBody(body: String, expectedSize: Long): Boolean =
+            isTruncatedSample(body.encodeToByteArray().size.toLong(), expectedSize)
+    }
+}
+
+internal class OReillyException(message: String) : RuntimeException(message)

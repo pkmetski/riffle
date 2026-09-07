@@ -18,6 +18,8 @@ import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.app.feature.server.SourceTypePickerScreen
 import com.riffle.feature.source.SourceTypePickerViewModel
+import com.riffle.app.feature.source.oreilly.OReillyBrowseScreen
+import com.riffle.app.feature.source.oreilly.OReillyLoginScreen
 import com.riffle.app.feature.source.chitanka.AddChitankaScreen
 import com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen
 import com.riffle.app.feature.source.gutenberg.AddGutenbergScreen
@@ -47,6 +49,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             ?.destination?.route == SETTINGS
         val pickerViewModel: SourceTypePickerViewModel = koinViewModel()
         val installedTypes by pickerViewModel.installedTypes.collectAsState()
+        val developerModeEnabled by pickerViewModel.developerModeEnabled.collectAsState()
         SourceTypePickerScreen(
             windowSizeClass = windowSizeClass,
             onNavigateBack = {
@@ -61,6 +64,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
                 }
             },
             installedTypes = installedTypes,
+            developerModeEnabled = developerModeEnabled,
         )
     }
     composable(
@@ -168,6 +172,48 @@ internal fun NavGraphBuilder.sourceNavGraph(
             },
             onAnnotatedBookClick = { sourceId, itemId ->
                 navController.navigate(annotationsBookClickRoute(sourceId, itemId))
+            },
+        )
+    }
+    composable(
+        route = OREILLY_BROWSE,
+        arguments = listOf(
+            navArgument("libraryId") { type = NavType.StringType },
+            navArgument("libraryName") { type = NavType.StringType },
+        ),
+    ) { backStackEntry ->
+        val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
+        val libraryName = backStackEntry.arguments?.getString("libraryName")
+            ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
+        OReillyBrowseScreen(
+            libraryId = libraryId,
+            libraryName = libraryName,
+            windowSizeClass = windowSizeClass,
+            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onSectionSeeMore = { sectionType ->
+                navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
+            },
+            onOpenDetail = { itemId ->
+                val encodedId = URLEncoder.encode(itemId, "UTF-8")
+                navController.navigate("library_item_detail/$encodedId")
+            },
+            onAnnotatedBookClick = { sourceId, itemId ->
+                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
+            },
+        )
+    }
+    composable(ADD_OREILLY) { backStackEntry ->
+        val cameFromSettings = navController.previousBackStackEntry
+            ?.destination?.route == SETTINGS
+        OReillyLoginScreen(
+            windowSizeClass = windowSizeClass,
+            onDone = {
+                if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                else navController.navigateAsRootIfTop(backStackEntry, HOME)
+            },
+            onNavigateBack = {
+                if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
         )
     }

@@ -90,6 +90,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -97,6 +98,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -197,6 +199,9 @@ fun EpubReaderScreen(
     viewModel: EpubReaderViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    // Optional "Preparing book… N/M" during a Source that must build the book before opening
+    // (O'Reilly synthesis). Null for every Source that opens instantly → plain spinner.
+    val bookPreparation by koinInject<com.riffle.core.domain.BookPreparationProgress>().state.collectAsState()
     // Raw user-picked prefs — feeds the FormattingPanel chip selection (so Auto stays
     // highlighted even though the page renders in the resolved palette).
     val pickedPrefs by viewModel.formattingPreferences.collectAsState()
@@ -397,11 +402,19 @@ fun EpubReaderScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when (val s = state) {
                 ReaderState.Loading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .testTag("reader_loading"),
-                    )
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.testTag("reader_loading"))
+                        bookPreparation?.let { p ->
+                            Text(
+                                text = stringResource(R.string.ui_preparing_book_progress, p.done, p.total),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 16.dp),
+                            )
+                        }
+                    }
                 }
                 // Prefs haven't propagated to effectiveFormattingPreferences yet — keep
                 // the spinner up rather than constructing the Readium navigator with the

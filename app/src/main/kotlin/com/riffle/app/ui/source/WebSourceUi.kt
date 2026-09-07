@@ -25,6 +25,7 @@ internal fun sourceDisplayNameRes(type: SourceType): Int = when (type) {
     SourceType.GUTENBERG -> R.string.source_project_gutenberg_name
     SourceType.KOMGA -> R.string.source_komga_name
     SourceType.RADIO_ES -> R.string.source_radio_es_name
+    SourceType.OREILLY -> R.string.source_oreilly_name
 }
 
 @StringRes
@@ -32,6 +33,7 @@ internal fun sourceSubtitleRes(type: SourceType): Int? = when (type) {
     SourceType.LOCAL_FILES -> R.string.ui_source_local_files_subtitle
     SourceType.CHITANKA -> R.string.ui_source_chitanka_subtitle
     SourceType.GUTENBERG -> R.string.ui_source_gutenberg_subtitle
+    SourceType.OREILLY -> R.string.ui_source_oreilly_subtitle
     SourceType.ABS,
     SourceType.KOMGA,
     SourceType.RADIO_ES,
@@ -46,6 +48,7 @@ internal fun sourcePickerBlurbRes(type: SourceType): Int = when (type) {
     SourceType.GUTENBERG -> R.string.ui_source_gutenberg_picker_blurb
     SourceType.KOMGA -> R.string.ui_source_komga_picker_blurb
     SourceType.RADIO_ES -> R.string.ui_source_radio_es_picker_blurb
+    SourceType.OREILLY -> R.string.ui_source_oreilly_picker_blurb
 }
 
 internal fun addSourceFormResources(type: SourceType, serverType: ServerType): AddSourceFormResources? =
@@ -73,6 +76,8 @@ internal fun addSourceFormResources(type: SourceType, serverType: ServerType): A
             helpText = R.string.ui_source_komga_help_text,
             removeLabel = R.string.ui_remove_source,
         )
+        // O'Reilly authenticates via a WebView login screen, not the shared credential form.
+        SourceType.OREILLY,
         SourceType.LOCAL_FILES,
         SourceType.CHITANKA,
         SourceType.GUTENBERG,

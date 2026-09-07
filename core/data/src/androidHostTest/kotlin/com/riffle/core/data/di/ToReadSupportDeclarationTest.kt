@@ -8,6 +8,7 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.catalog.komga.KomgaCatalog
 import com.riffle.core.catalog.radioes.RadioEsCatalog
+import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.data.localfiles.LocalFilesCatalog
 import com.riffle.core.models.SourceType
 import com.riffle.core.domain.ToReadSupport
@@ -47,6 +48,7 @@ class ToReadSupportDeclarationTest {
         SourceType.GUTENBERG to GutenbergCatalog::class,
         SourceType.KOMGA to KomgaCatalog::class,
         SourceType.RADIO_ES to RadioEsCatalog::class,
+        SourceType.OREILLY to OReillyCatalog::class,
     )
 
     @Test
