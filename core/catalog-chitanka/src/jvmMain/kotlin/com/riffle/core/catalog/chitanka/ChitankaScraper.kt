@@ -59,9 +59,14 @@ internal object ChitankaScraper {
         val doc: Document = Jsoup.parse(html)
         val items = mutableListOf<ChitankaBookSummary>()
         val slugCoverMap = mutableMapOf<String, String>()
+        // Keyed by slug; entries added to items only if section 2 has no matching text result.
+        // Avoids duplicates on search pages where Chitanka returns /book/ covers and /text/ entries
+        // for the same book simultaneously — the /text/ entries carry authors and are canonical.
+        val bookItemsBySlug = mutableMapOf<String, ChitankaBookSummary>()
 
-        // 1) "Книги" section: article.book-media inside div.booklist. Add books directly and
-        // build a slug→cover map used to enrich sibling text results.
+        // 1) "Книги" section: article.book-media inside div.booklist. Build a slug→cover map to
+        // enrich sibling text results, and stash each entry by slug. Do NOT add to items yet —
+        // when a matching text result exists in section 2 it is canonical (it carries authors).
         doc.select("div.booklist article.book-media").forEach { el ->
             val bookLink = el.selectFirst("a.booklink") ?: return@forEach
             val href = bookLink.attr("href")
@@ -71,7 +76,7 @@ internal object ChitankaScraper {
             val coverUrl = if (!imgSrc.isNullOrEmpty() && !isChitankaDefaultCover(imgSrc)) toAbsolute(imgSrc) else null
             val slug = href.replace(Regex("^/book/\\d+-"), "")
             if (title.isNotEmpty() && href.isNotEmpty()) {
-                items += ChitankaBookSummary(
+                bookItemsBySlug[slug] = ChitankaBookSummary(
                     site = ChitankaSite.CHITANKA,
                     url = url,
                     title = title,
@@ -84,6 +89,7 @@ internal object ChitankaScraper {
         }
 
         // 2) Text results: <li class="title …"> inside ul.superlist.fa-ul.
+        val coveredSlugs = mutableSetOf<String>()
         doc.select("ul.superlist.fa-ul li.title").forEach { el ->
             val titleEl = el.selectFirst("a.textlink") ?: return@forEach
             val title = titleEl.text().trim()
@@ -106,7 +112,14 @@ internal object ChitankaScraper {
                     coverUrl = coverUrl,
                     format = "epub",
                 )
+                coveredSlugs += textSlug
             }
+        }
+
+        // Any book-section entry with no matching text result still needs to be surfaced
+        // (e.g. browse/category pages where only section 1 matches).
+        bookItemsBySlug.forEach { (slug, summary) ->
+            if (slug !in coveredSlugs) items += summary
         }
 
         // 3) Fallback for genre/category pages: article.book-media at top level with no superlist.

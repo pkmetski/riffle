@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head><meta charset="UTF-8"><title>Търсене</title></head>
+<body>
+<!-- Section 1: "Книги" cover cards — /book/ URLs, no author text -->
+<div class="booklist">
+  <article class="book-media">
+    <a class="booklink" href="/book/44723-abu-hasan">
+      <img itemprop="image" src="https://chitanka.info/img/44723.120.jpg" alt="Абу Хасан">
+      <span itemprop="name">Абу Хасан</span>
+    </a>
+  </article>
+  <article class="book-media">
+    <a class="booklink" href="/book/1234-vtora-kniga">
+      <img itemprop="image" src="https://chitanka.info/img/1234.120.jpg" alt="Втора книга">
+      <span itemprop="name">Втора книга</span>
+    </a>
+  </article>
+  <!-- Book with default cover — should yield null coverUrl -->
+  <article class="book-media">
+    <a class="booklink" href="/book/9999-kniga-bez-korica">
+      <img itemprop="image" src="https://chitanka.info/thumb/book-cover/00/0.120.png" alt="">
+      <span itemprop="name">Книга без корица</span>
+    </a>
+  </article>
+</div>
+
+<!-- Section 2: Text results — /text/ URLs, with authors -->
+<ul class="superlist fa-ul">
+  <li class="title">
+    <a class="textlink" href="/text/44723-abu-hasan">Абу Хасан</a>
+    <dl class="dl-horizontal">
+      <dt>Автор:</dt>
+      <dd class="tauthor"><a itemprop="name">Народна творба</a></dd>
+    </dl>
+  </li>
+  <li class="title">
+    <a class="textlink" href="/text/1234-vtora-kniga">Втора книга</a>
+    <dl class="dl-horizontal">
+      <dt>Автор:</dt>
+      <dd class="tauthor"><a itemprop="name">Тестов Автор</a></dd>
+    </dl>
+  </li>
+  <li class="title">
+    <a class="textlink" href="/text/9999-kniga-bez-korica">Книга без корица</a>
+    <dl class="dl-horizontal">
+      <dt>Автор:</dt>
+      <dd class="tauthor"><a itemprop="name">Трети Писател</a></dd>
+    </dl>
+  </li>
+</ul>
+</body>
+</html>
