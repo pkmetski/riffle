@@ -29,6 +29,7 @@ import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -78,6 +79,17 @@ class LibraryItemsViewModel constructor(
 
     private val _activeSourceId = MutableStateFlow<String?>(null)
     private val _screenDimensionBucket = MutableStateFlow<ScreenDimensionBucket?>(null)
+
+    val activeSource: StateFlow<Source?> = sourceRepository.observeAll()
+        .flatMapLatest { sources ->
+            if (sources.isEmpty()) return@flatMapLatest flowOf(null)
+            combine(sources.map { source ->
+                libraryObserver.observeLibraries(source.id).map { libs ->
+                    source.takeIf { libs.any { it.id == libraryId } }
+                }
+            }) { results -> results.firstNotNullOfOrNull { it } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
     val coverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sourceId, bucket ->

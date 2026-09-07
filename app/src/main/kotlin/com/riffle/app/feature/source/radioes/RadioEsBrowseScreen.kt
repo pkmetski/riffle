@@ -2,6 +2,7 @@ package com.riffle.app.feature.source.radioes
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
+import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.core.models.SourceType
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -97,8 +100,11 @@ fun RadioEsBrowseScreen(
             TopAppBar(
                 title = { Text(libraryName) },
                 navigationIcon = {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.ui_open_drawer))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.ui_open_drawer))
+                        }
+                        SourceTypeIcon(type = SourceType.RADIO_ES, size = 24.dp, modifier = Modifier.padding(end = 4.dp))
                     }
                 },
                 actions = {
