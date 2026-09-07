@@ -136,6 +136,8 @@ import com.riffle.core.models.Collection
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
+import com.riffle.core.models.Source
+import com.riffle.app.ui.source.SourceIcon
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
@@ -205,6 +207,7 @@ fun LibraryItemsScreen(
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
+    val activeSource by viewModel.activeSource.collectAsState()
     // Positional scoping (no custom `key`) — this composable's saved state is keyed by its call
     // site, so the previous "library_selected_tab_v2" keyed value from older builds cannot be
     // resurrected here (different key namespace), resetting everyone to Home on first launch
@@ -300,6 +303,7 @@ fun LibraryItemsScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onOpenDrawer = onOpenDrawer,
+                source = activeSource,
             )
         },
         bottomBar = {
@@ -1160,6 +1164,7 @@ internal fun LibrarySearchHeader(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onOpenDrawer: () -> Unit,
+    source: Source? = null,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     // Claim initial focus on an invisible focusable element so the BasicTextField below never
@@ -1210,6 +1215,13 @@ internal fun LibrarySearchHeader(
                 },
             ) {
                 Icon(Icons.Default.Menu, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_open_menu))
+            }
+            if (source != null) {
+                SourceIcon(
+                    source = source,
+                    size = 24.dp,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
             }
             Text(
                 text = libraryName.uppercase(),
