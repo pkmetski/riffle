@@ -432,6 +432,24 @@ Android class (e.g. `ContinuousReaderView`) that must be extracted first.
   `ContinuousPlayFromHere` (5), `ContinuousResumeTouchWiring` (2),
   `CadenceController`/`Cadence*` — done above; `CadenceInjector`/`CadenceDomScript` done above.
 
+### 2026-09-07 — Source-onboarding consolidation + the e2e test that made iOS function
+
+- **Shared UI proven:** new `:feature:source-ui` (androidTarget+ios, Compose Multiplatform
+  resources) renders the real picker/add/select-libraries screens on BOTH platforms; the iOS
+  BasicText skeleton for this surface is deleted. Pattern to repeat per surface (library,
+  settings, downloads, detail).
+- **iOS test suite made real:** new `iosAppUnitTests` Xcode target (10 Swift test files had
+  never compiled); 8 trivial files deleted; `core:database` iosTest source set was orphaned and
+  never ran — wired in, which exposed fabricated schema assertions.
+- **The e2e payoff:** `AddAbsSourceFlowTests` (add-ABS flow against the live test server)
+  bubbled up and fixed four production defects that made iOS non-functional: missing refresh
+  trigger on library open, no-op `refreshLibraryItems`, `flowOf(emptyList())` library observers,
+  and a series/collections schema (fabricated `sourceId`, missing `coverUrl`/`bookCount`) that
+  rejected every write and, via `refreshFailed` → offline filter, blanked the whole library.
+  iOS schema v2→v3 rebuilds those tables; entity→domain item mapping extracted to `commonMain`.
+- Restored the #908 regression (add-ABS flow) and added `NSAllowsArbitraryLoads` for parity
+  with Android's cleartext policy.
+
 ### 2026-09-06 — Full re-audit: CI closure, reverse ports, iOS test quality
 
 - **CI wiring finished (§3):** `:feature:settings` and `:feature:downloads` added to the

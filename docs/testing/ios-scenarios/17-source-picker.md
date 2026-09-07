@@ -56,9 +56,23 @@ driving real pinch gestures on a configured web source; verified manually. The f
 ## iOS coverage note (17.1–17.4)
 
 The picker UI is shared Compose Multiplatform, exercised on Android by
-`SourceTypePickerScreenTest`. On iOS these four scenarios are a GAP (deferred): XCTest cannot
-drive Compose UI without accessibility identifiers exposed to XCUITest. The former
-`SourcePickerTests` unconditional-skip placeholders (`testAllSourceTypeCardsDisplayed`,
-`testGutenbergCardTapInvokesGutenbergType`, `testAbsCardTapInvokesAbsType`,
-`testLocalFilesCardTapInvokesLocalFilesType`) were removed; verified manually until an
-XCUITest with proper accessibility handles is added.
+`SourceTypePickerScreenTest`. XCUITest CAN drive it: Compose exposes card labels as static
+texts, form fields become text fields on focus, and buttons carry combined value+description
+labels — see `AddAbsSourceFlowTests.swift` for the working query patterns. The former
+`SourcePickerTests` unconditional-skip placeholders were removed.
+
+## 17.7 — Add an Audiobookshelf source end-to-end (e2e)
+
+**Given** a pristine install and a reachable ABS server.
+**When** the user taps the Audiobookshelf card, switches the scheme to http://, enters
+host/username/password, taps Connect, acknowledges the insecure-connection warning, and taps
+Continue on the select-libraries step.
+**Then** the source is committed, library items are fetched from the server, the library home
+renders section headers with items, and the drawer lists the source.
+
+**Coverage:** Android — `AddSourceViewModelTest` + `SourceTypePickerScreenTest` (harness).
+**iOS coverage:** `AddAbsSourceFlowTests.testAddAbsSourceEndToEnd` (XCUITest, runs against the
+ABS test server; self-skips only when the server is unreachable or a source already exists).
+This test caught four real defects on first run: no refresh trigger on the iOS library screen,
+a no-op `refreshLibraryItems`, stubbed `flowOf(emptyList())` library observers, and a
+series/collections schema that rejected every DAO write.
