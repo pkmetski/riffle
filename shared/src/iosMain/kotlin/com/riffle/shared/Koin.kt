@@ -231,7 +231,7 @@ private fun iosLibraryModule(
     // iOS renders the same SourceTypePicker / AddSource / SelectLibraries screens as Android.
     single<WebSourceRegistry> { WebSourceRegistry(WebSourceDescriptors.all) }
     single { SingletonWebSourceInstaller(get(), get(), get(), get()) }
-    single { SourceTypePickerViewModel(sourceRepository = get()) }
+    single { SourceTypePickerViewModel(sourceRepository = get(), developerOptions = get()) }
     single { SourceSetupViewModel() }
     single<SourceUiStrings> { ComposeResourceSourceUiStrings }
     // core:sources' AbsSourceAdapter is already multiplatform (commonMain) and covers both
