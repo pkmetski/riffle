@@ -68,6 +68,49 @@ interface SeriesDao {
     """)
     fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
+    @Query("""
+        SELECT li.* FROM library_items li
+        WHERE li.readingProgress < 0.99
+          AND EXISTS (
+              SELECT 1 FROM series_items si
+              WHERE si.sourceId = li.sourceId
+                AND si.itemId = li.id
+                AND si.seriesId IN (
+                    SELECT DISTINCT si2.seriesId
+                    FROM series_items si2
+                    INNER JOIN library_items li2 ON li2.sourceId = si2.sourceId AND li2.id = si2.itemId
+                    WHERE li2.readingProgress >= 0.99
+                )
+                AND si.seriesId NOT IN (
+                    SELECT DISTINCT si5.seriesId
+                    FROM series_items si5
+                    INNER JOIN library_items li5 ON li5.sourceId = si5.sourceId AND li5.id = si5.itemId
+                    WHERE li5.readingProgress >= 0.05
+                      AND li5.readingProgress < 0.99
+                )
+                AND si.sequenceOrder = (
+                    SELECT MIN(si3.sequenceOrder)
+                    FROM series_items si3
+                    INNER JOIN library_items li3 ON li3.sourceId = si3.sourceId AND li3.id = si3.itemId
+                    WHERE si3.seriesId = si.seriesId
+                      AND li3.readingProgress < 0.99
+                )
+          )
+        ORDER BY COALESCE(
+            (
+                SELECT MAX(li4.lastOpenedAt)
+                FROM series_items si4
+                INNER JOIN library_items li4 ON li4.sourceId = si4.sourceId AND li4.id = si4.itemId
+                WHERE si4.seriesId IN (
+                    SELECT si_self.seriesId FROM series_items si_self
+                    WHERE si_self.sourceId = li.sourceId AND si_self.itemId = li.id
+                )
+                  AND li4.readingProgress >= 0.99
+            ), 0
+        ) DESC
+    """)
+    fun observeContinueSeriesAllSources(): Flow<List<LibraryItemEntity>>
+
     /**
      * The id of the series an item belongs to, if any. Used by the Library Item Detail Screen to
      * make the series line tap through to the existing Series detail (an item carries only its

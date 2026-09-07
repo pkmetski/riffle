@@ -522,6 +522,8 @@ fun BookSectionGrid(
     linkedItemIds: Set<String> = emptySet(),
     showSeriesBadge: Boolean = false,
     onItemLongPress: ((LibraryItem) -> Unit)? = null,
+    tokenMap: Map<String, String> = emptyMap(),
+    sourceBadgeProvider: ((LibraryItem) -> String?)? = null,
 ) {
     val minCell = shelfCoverMinCellSize()
     val spacing = 8.dp
@@ -541,14 +543,16 @@ fun BookSectionGrid(
                 SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
             } else {
                 val item = preview[index]
+                val resolvedToken = tokenMap[item.sourceId] ?: token
                 Box {
                     BookCoverTile(
                         item = item,
-                        token = token,
+                        token = resolvedToken,
                         onClick = { onItemSelected(item) },
                         onLongClick = if (onItemLongPress != null) { { longPressedItem = item } } else null,
                         hasReadaloudLink = item.id in linkedItemIds,
                         seriesNameBadge = if (showSeriesBadge) item.seriesName else null,
+                        sourceBadge = sourceBadgeProvider?.invoke(item),
                     )
                     if (onItemLongPress != null) {
                         DropdownMenu(
@@ -698,6 +702,7 @@ fun BookCoverTile(
     onLongClick: (() -> Unit)? = null,
     hasReadaloudLink: Boolean = false,
     seriesNameBadge: String? = null,
+    sourceBadge: String? = null,
 ) {
     val alpha = if (!item.isPlayable) 0.38f else 1f
     // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
@@ -783,6 +788,23 @@ fun BookCoverTile(
                         color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (sourceBadge != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 7.dp, end = 4.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = sourceBadge,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        maxLines = 1,
                     )
                 }
             }

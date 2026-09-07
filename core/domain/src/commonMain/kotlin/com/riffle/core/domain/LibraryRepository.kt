@@ -34,6 +34,13 @@ interface LibraryObserver {
     /** All items owned by a specific Source, across every library. Used to check ownership
      *  across server sources when filtering web-source catalogs. */
     fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+
+    /** In-progress items across ALL configured Sources and libraries. Drives the [Bookshelf] screen. */
+    fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
+
+    /** Continue-series items across ALL configured Sources and libraries. Drives the [Bookshelf] screen. */
+    fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
+
     fun observeSeries(libraryId: String): Flow<List<Series>>
     fun observeCollections(libraryId: String): Flow<List<Collection>>
     fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>>

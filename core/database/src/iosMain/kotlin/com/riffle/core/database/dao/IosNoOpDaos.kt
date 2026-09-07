@@ -58,6 +58,7 @@ internal object IosNoOpSeriesDao : SeriesDao {
     override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> = emptyFlow()
     override fun observeItemsBySeriesId(sourceId: String, seriesId: String): Flow<List<LibraryItemEntity>> = emptyFlow()
     override fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = emptyFlow()
+    override fun observeContinueSeriesAllSources(): Flow<List<LibraryItemEntity>> = emptyFlow()
     override suspend fun findSeriesIdForItem(sourceId: String, itemId: String): String? = null
     override suspend fun upsertAll(series: List<SeriesEntity>) = Unit
     override suspend fun upsertAllItems(items: List<SeriesItemEntity>) = Unit

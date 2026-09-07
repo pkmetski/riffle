@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +41,7 @@ import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.SeriesDetailScreen
+import com.riffle.shared.library.BookshelfScreen
 import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
@@ -51,7 +53,7 @@ import org.koin.compose.koinInject
  * Top-level section — mirrors Android's nav graph routes (Library/Settings/Downloads).
  * Tapping Settings or Downloads in the drawer closes it and navigates here, exactly as on Android.
  */
-private enum class AppSection { Library, Settings, Downloads }
+private enum class AppSection { Library, Settings, Downloads, Bookshelf }
 
 internal sealed interface LibraryNav {
     data object Items : LibraryNav
@@ -118,6 +120,10 @@ fun HomeScreen() {
             AppSection.Downloads -> DownloadsScreen(
                 onBack = { appSection = AppSection.Library },
             )
+            AppSection.Bookshelf -> BookshelfScreen(
+                onOpenDrawer = { drawerOpen = true },
+                onBack = { appSection = AppSection.Library },
+            )
             AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (val dest = destination) {
                     null -> BasicText("Loading…")
@@ -144,8 +150,8 @@ fun HomeScreen() {
             }
         }
 
-        // Drawer overlay — only shown over Library (same behaviour as Android ModalNavigationDrawer)
-        if (drawerOpen && appSection == AppSection.Library) {
+        // Drawer overlay — shown over Library and Bookshelf (same behaviour as Android ModalNavigationDrawer)
+        if (drawerOpen && (appSection == AppSection.Library || appSection == AppSection.Bookshelf)) {
             // Scrim
             Box(
                 Modifier
@@ -166,6 +172,11 @@ fun HomeScreen() {
                     allServers = allServers,
                     visibleLibraries = visibleLibraries,
                     activeLibraryId = activeLibraryId,
+                    isBookshelfActive = appSection == AppSection.Bookshelf,
+                    onNavigateToBookshelf = {
+                        drawerOpen = false
+                        appSection = AppSection.Bookshelf
+                    },
                     onServerSelected = { source ->
                         drawerOpen = false
                         drawerViewModel.setActiveServer(source.id)
@@ -201,6 +212,8 @@ private fun DrawerSheetContent(
     allServers: List<Source>,
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
+    isBookshelfActive: Boolean = false,
+    onNavigateToBookshelf: () -> Unit = {},
     onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -209,6 +222,24 @@ private fun DrawerSheetContent(
     var switcherExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxHeight()) {
+        // Bookshelf entry — pinned at the top, above the source switcher
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (isBookshelfActive) Color(0xFFE8E8E8) else Color.Transparent)
+                .clickable { onNavigateToBookshelf() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText("Bookshelf", style = TextStyle(fontSize = 15.sp))
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0xFFDDDDDD)),
+        )
+
         // Server header
         Column(
             modifier = Modifier

@@ -702,7 +702,7 @@ private val coreDataRepositoriesModule = module {
     single<LocalAvailabilityEvents> { LocalAvailabilityEventsImpl() }
     single<TocRepository> { TocRepositoryImpl(get(), get()) }
     single<PublicationMetricsRepository> { PublicationMetricsRepositoryImpl(get(), get()) }
-    single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(get(), get()) }
+    single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(get(), get(), get()) }
 
     single<JvmEpubRepository> {
         EpubRepositoryImpl(

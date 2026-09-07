@@ -38,6 +38,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -80,6 +83,8 @@ fun RiffleNavigationDrawer(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
+    onBookshelfSelected: () -> Unit = {},
+    isBookshelfActive: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val sheetBody: @Composable () -> Unit = {
@@ -94,6 +99,8 @@ fun RiffleNavigationDrawer(
             onLibrarySelected = onLibrarySelected,
             onDownloadsSelected = onDownloadsSelected,
             onSettingsSelected = onSettingsSelected,
+            onBookshelfSelected = onBookshelfSelected,
+            isBookshelfActive = isBookshelfActive,
         )
     }
 
@@ -132,8 +139,28 @@ private fun DrawerSheetContent(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
+    onBookshelfSelected: () -> Unit = {},
+    isBookshelfActive: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
+        val context = LocalContext.current
+        val launcherBitmap = remember {
+            android.graphics.BitmapFactory.decodeResource(context.resources, com.riffle.app.R.mipmap.ic_launcher_round)
+        }
+        NavigationDrawerItem(
+            label = { Text("Bookshelf") },
+            icon = {
+                Icon(
+                    painter = BitmapPainter(launcherBitmap.asImageBitmap()),
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(24.dp),
+                )
+            },
+            selected = isBookshelfActive,
+            onClick = onBookshelfSelected,
+        )
+        HorizontalDivider()
         DrawerHeader(
             activeServer = activeServer,
             allServers = allServers,
@@ -148,7 +175,7 @@ private fun DrawerSheetContent(
             visibleLibraries.forEach { library ->
                 NavigationDrawerItem(
                     label = { Text(library.name) },
-                    selected = library.id == activeLibraryId,
+                    selected = !isBookshelfActive && library.id == activeLibraryId,
                     onClick = { onLibrarySelected(library) },
                 )
             }

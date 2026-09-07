@@ -29,4 +29,10 @@ interface AnnotationsLibraryRepository {
      * library the book belongs to, so it can't be attributed to [libraryId].
      */
     fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>>
+
+    /**
+     * Books with at least one live highlight across ALL configured Sources, sorted most-recently-
+     * annotated first. Drives the Annotations tab on the [Bookshelf] screen.
+     */
+    fun observeAnnotatedBooksAllSources(): Flow<List<AnnotatedBook>> = kotlinx.coroutines.flow.flowOf(emptyList())
 }

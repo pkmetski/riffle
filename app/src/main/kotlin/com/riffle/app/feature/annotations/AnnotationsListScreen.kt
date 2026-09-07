@@ -48,6 +48,7 @@ fun AnnotationsListScreen(
     state: AnnotationsListUiState,
     onBookClick: (sourceId: String, itemId: String) -> Unit,
     token: String = "",
+    tokenMap: Map<String, String> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     // Rendered as a Library Tab Bar tab (see LibraryItemsScreen), so the enclosing screen
@@ -86,7 +87,7 @@ fun AnnotationsListScreen(
                         Box(modifier = Modifier.padding(4.dp)) {
                             AnnotatedBookCoverTile(
                                 book = book,
-                                token = token,
+                                token = tokenMap[book.sourceId] ?: token,
                                 onClick = { onBookClick(book.sourceId, book.itemId) },
                             )
                         }
