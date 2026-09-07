@@ -2166,7 +2166,7 @@ private fun EpubNavigatorView(
             if (!isContinuous) snapshotFlow { fragmentRef.value }.filterNotNull().first()
             readerPresenter.navigateTo(
                 NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
-                NavigationOptions(landAtStartWhenNoTarget = false),
+                NavigationOptions(landAtStartWhenNoTarget = false, skipIfUserAlreadyInteracted = true),
             )
         }
     }

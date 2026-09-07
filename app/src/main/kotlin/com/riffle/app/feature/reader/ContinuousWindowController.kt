@@ -679,8 +679,8 @@ internal class ContinuousWindowController(
         webViews.forEach { wv -> wv.reinjectAndRemeasure(styleJs) }
     }
 
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
-        navigateTo(href, progression, alignToTop, focusAnnotationId = null)
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean) {
+        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = skipIfUserAlreadyInteracted, focusAnnotationId = null)
     }
 
     override fun isTargetInWindow(href: String): Boolean =
@@ -704,6 +704,10 @@ internal class ContinuousWindowController(
      * open-time `focusAnnotationId` path in [openWindowAt].
      */
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
+        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = false, focusAnnotationId = focusAnnotationId)
+    }
+
+    private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?) {
         backwardNavigationIntent = false
         backwardShiftConsumedForTouchGesture = false
         // Programmatic navigation overrides any gesture-scoped scroll floor: a leftover
@@ -729,6 +733,11 @@ internal class ContinuousWindowController(
             // WebView measure storms (observed 1.8 s on an emulator). If the user has touched
             // the reader in the meantime, they've superseded the navigation — landing anyway
             // yanks the viewport back to a stale target from under their scroll.
+            //
+            // For server-resume refires (skipIfUserAlreadyInteracted=true): if the user already
+            // touched before this navigateTo was called, skip entirely — do NOT reset the flag,
+            // which would allow a stale channel item to snap the viewport back.
+            if (skipIfUserAlreadyInteracted && inWindowNavSupersededByTouch) return
             inWindowNavSupersededByTouch = false
             port.post {
                 if (inWindowNavSupersededByTouch) return@post
