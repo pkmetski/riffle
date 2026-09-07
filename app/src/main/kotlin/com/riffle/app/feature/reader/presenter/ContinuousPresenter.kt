@@ -111,6 +111,7 @@ internal class ContinuousPresenter : ReaderPresenter {
                 href = target.href,
                 progression = target.progression,
                 alignToTop = options.alignToTop,
+                skipIfUserAlreadyInteracted = options.skipIfUserAlreadyInteracted,
             )
             is NavigationTarget.ToLocatorJson -> {
                 // Reader-side Locator JSON is `{href, locations: {progression, fragments[]}}` —
@@ -126,7 +127,7 @@ internal class ContinuousPresenter : ReaderPresenter {
                     ?.optString(0)
                     ?.takeIf { it.isNotEmpty() }
                 val fullHref = if (anchor != null) "$href#$anchor" else href
-                view.navigateTo(fullHref, progression, alignToTop = options.alignToTop)
+                view.navigateTo(fullHref, progression, alignToTop = options.alignToTop, skipIfUserAlreadyInteracted = options.skipIfUserAlreadyInteracted)
             }
         }
     }

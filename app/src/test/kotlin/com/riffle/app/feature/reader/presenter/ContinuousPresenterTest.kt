@@ -25,12 +25,12 @@ import org.junit.Test
 class ContinuousPresenterTest {
 
     private class FakeView : ContinuousNavigationView {
-        data class NavCall(val href: String, val progression: Float, val alignToTop: Boolean)
+        data class NavCall(val href: String, val progression: Float, val alignToTop: Boolean, val skipIfUserAlreadyInteracted: Boolean = false)
         val navCalls: MutableList<NavCall> = mutableListOf()
         val pageCalls: MutableList<Boolean> = mutableListOf()
         val domPatches: MutableList<HighlightsDomPatch> = mutableListOf()
-        override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
-            navCalls += NavCall(href, progression, alignToTop)
+        override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean) {
+            navCalls += NavCall(href, progression, alignToTop, skipIfUserAlreadyInteracted)
         }
         override fun scrollByPage(forward: Boolean) {
             pageCalls += forward
@@ -283,6 +283,57 @@ class ContinuousPresenterTest {
         // No exception, no observable effect when the view isn't bound yet — mirrors the
         // navigate/scrollByPage safety contract elsewhere on the presenter.
         presenter.applyHighlightDomPatch(HighlightsDomPatch.Remove("ann-1"))
+    }
+
+    // ---- skipIfUserAlreadyInteracted regression guard ------------------------------------
+    //
+    // Root cause: serverLocatorEvents collector calls navigateTo AFTER onUserInteracted() fires
+    // ACTION_DOWN (setting inWindowNavSupersededByTouch=true). The old code reset the guard
+    // unconditionally in navigateTo, allowing a stale resume-restore channel item to scroll
+    // the viewport back to the saved position while the user was actively scrolling.
+    // The fix: skipIfUserAlreadyInteracted=true is threaded from NavigationOptions all the way
+    // to ContinuousWindowController, which skips the nav (without resetting the guard) when
+    // the user has already touched.
+
+    @Test
+    fun `navigateTo ToLocatorJson passes skipIfUserAlreadyInteracted=false by default`() = runTest {
+        val presenter = ContinuousPresenter()
+        val view = FakeView()
+        presenter.attach(view)
+
+        presenter.navigateTo(
+            NavigationTarget.ToLocatorJson("""{"href":"ch01.xhtml","locations":{"progression":0.5}}"""),
+            NavigationOptions(landAtStartWhenNoTarget = false),
+        )
+
+        assertEquals(1, view.navCalls.size)
+        assertEquals(false, view.navCalls[0].skipIfUserAlreadyInteracted)
+    }
+
+    @Test
+    fun `navigateTo ToLocatorJson threads skipIfUserAlreadyInteracted=true to the view`() = runTest {
+        // Regression for the "just-opened book backward scroll snaps back" bug:
+        // serverLocatorEvents collector passes skipIfUserAlreadyInteracted=true so that a stale
+        // resume-restore channel item, consumed after the user has touched the reader, does NOT
+        // reset inWindowNavSupersededByTouch and snap the viewport back.
+        val presenter = ContinuousPresenter()
+        val view = FakeView()
+        presenter.attach(view)
+
+        presenter.navigateTo(
+            NavigationTarget.ToLocatorJson("""{"href":"ch01.xhtml","locations":{"progression":0.5}}"""),
+            NavigationOptions(landAtStartWhenNoTarget = false, skipIfUserAlreadyInteracted = true),
+        )
+
+        assertEquals(1, view.navCalls.size)
+        // The flag must reach the view unchanged so ContinuousWindowController can honour it.
+        assertEquals(true, view.navCalls[0].skipIfUserAlreadyInteracted)
+    }
+
+    @Test
+    fun `NavigationOptions skipIfUserAlreadyInteracted defaults to false`() {
+        // TOC taps, bookmark jumps, annotation nav: must NOT be suppressed by a prior touch.
+        assertEquals(false, NavigationOptions().skipIfUserAlreadyInteracted)
     }
 
     @Test

@@ -9,7 +9,7 @@ import com.riffle.core.domain.FormattingPreferences
  * actually needs.
  */
 internal interface ContinuousNavigationView {
-    fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false)
+    fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false, skipIfUserAlreadyInteracted: Boolean = false)
 
     /**
      * Annotation-precise navigate: when [focusAnnotationId] is non-null the landing anchors on

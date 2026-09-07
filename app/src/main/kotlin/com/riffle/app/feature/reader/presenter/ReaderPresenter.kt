@@ -281,6 +281,15 @@ internal data class NavigationOptions(
     val alignToTop: Boolean = false,
     /** Annotation id whose already-resolved decoration Range should anchor a Readium jump. */
     val focusAnnotationId: String? = null,
+    /**
+     * Continuous-only. When `true`, an in-window landing scroll is skipped if the user has already
+     * touched the reader surface (i.e. [ContinuousWindowController.inWindowNavSupersededByTouch]
+     * is set). Pass `true` for server-resume refires so a stale channel item arriving after
+     * [com.riffle.app.feature.reader.session.ResumeRestorer.onUserInteracted] does not snap the
+     * viewport back to the saved position while the user is actively scrolling.
+     * Default `false` so TOC, bookmark, and annotation jumps are never suppressed.
+     */
+    val skipIfUserAlreadyInteracted: Boolean = false,
 )
 
 internal sealed class NavigationTarget {

@@ -679,8 +679,8 @@ internal class ContinuousWindowController(
         webViews.forEach { wv -> wv.reinjectAndRemeasure(styleJs) }
     }
 
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
-        navigateTo(href, progression, alignToTop, focusAnnotationId = null)
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean) {
+        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = skipIfUserAlreadyInteracted, focusAnnotationId = null)
     }
 
     override fun isTargetInWindow(href: String): Boolean =
@@ -704,6 +704,22 @@ internal class ContinuousWindowController(
      * open-time `focusAnnotationId` path in [openWindowAt].
      */
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
+        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = false, focusAnnotationId = focusAnnotationId)
+    }
+
+    private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?) {
+        val target = href.substringBefore('#')
+        val fragment = href.substringAfter('#', "")
+        val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
+            allChapters.map { it.link.href.toString() }, href,
+        )
+        if (targetIndex < 0) return
+        val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
+        // Server-resume refires (skipIfUserAlreadyInteracted=true): if the user already touched
+        // before this navigateTo was called, skip entirely — before any state mutation — so no
+        // gesture floor, boundary detent, or inWindowNavSupersededByTouch flag is disturbed.
+        // Applies to both in-window (snap-back) and cross-window (full WebView teardown) paths.
+        if (skipIfUserAlreadyInteracted && inWindowNavSupersededByTouch) return
         backwardNavigationIntent = false
         backwardShiftConsumedForTouchGesture = false
         // Programmatic navigation overrides any gesture-scoped scroll floor: a leftover
@@ -717,13 +733,6 @@ internal class ContinuousWindowController(
         backwardFlingFloorY = 0
         gestureStartFlingFloorY = 0
         boundaryDetentArmed = false
-        val target = href.substringBefore('#')
-        val fragment = href.substringAfter('#', "")
-        val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
-            allChapters.map { it.link.href.toString() }, href,
-        )
-        if (targetIndex < 0) return
-        val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
             // The posted landing can execute SECONDS later when the main thread is busy with
             // WebView measure storms (observed 1.8 s on an emulator). If the user has touched
