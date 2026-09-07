@@ -9,7 +9,7 @@ object PanelEngineVersion {
 /**
  * Full configuration for the on-device panel detection engine. All tunable thresholds
  * and algorithm parameters live here so they can be serialised from a remote definitions
- * file and updated independently of the app binary (ADR 0063).
+ * file and updated independently of the app binary (ADR 0064).
  *
  * Defaults reproduce the behaviour of the original hardcoded constants.
  */

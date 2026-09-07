@@ -1,4 +1,4 @@
-# ADR 0063 — Panel Detection Engine Extraction and Live Definitions
+# ADR 0064 — Panel Detection Engine Extraction and Live Definitions
 
 **Date:** 2026-08-21
 **Status:** Accepted
