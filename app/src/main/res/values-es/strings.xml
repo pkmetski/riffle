@@ -625,4 +625,11 @@
     <string name="ui_reading_time_estimated_total_remaining">%1$s estimado total · %2$s restante</string>
     <string name="ui_pages">%1$d páginas</string>
     <string name="ui_pages_of_read">%1$d de %2$d páginas leídas</string>
+    <string name="ui_source_oreilly_picker_blurb">Explora y lee libros y audiolibros de tu cuenta de O\'Reilly.</string>
+    <string name="ui_search_oreilly">Buscar en O\'Reilly…</string>
+    <string name="ui_preparing_book_progress">Preparando el libro… %1$d / %2$d</string>
+    <string name="ui_oreilly_sign_in_title">Inicia sesión en O\'Reilly</string>
+    <string name="ui_oreilly_signing_in">Iniciando sesión…</string>
+    <string name="ui_oreilly_signing_in_sub">Asegurando tu sesión de O\'Reilly en este dispositivo</string>
+    <string name="ui_oreilly_sign_in_failed">No se pudo guardar tu sesión de O\'Reilly. Inténtalo de nuevo.</string>
 </resources>
