@@ -1,13 +1,13 @@
 package com.riffle.shared.library
 
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.ToReadRepository
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library

@@ -131,38 +131,66 @@ fun HomeScreen() {
                 when (val dest = destination) {
                     null -> BasicText("Loading…")
                     is HomeViewModel.StartDestination.AddSource -> {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            BasicText("Add a source to get started")
-                            if (installing) {
-                                BasicText("Scanning folder…")
-                            } else {
+                        var addingAbs by remember { mutableStateOf(false) }
+                        if (addingAbs) {
+                            Column {
                                 BasicText(
-                                    text = "Add Local Files",
+                                    text = "← Back",
                                     modifier = Modifier
-                                        .clickable {
-                                            folderPicker.pickFolder { uri ->
-                                                if (uri == null) return@pickFolder
-                                                installing = true
-                                                message = null
-                                                scope.launch {
-                                                    val result = runCatching { installer.installFolder(uri) }
-                                                    installing = false
-                                                    message = result.fold(
-                                                        onSuccess = { "Added ${it.added} books" },
-                                                        onFailure = { "Error: ${it.message}" },
-                                                    )
-                                                    if (result.isSuccess) {
-                                                        refreshKey++
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        .clickable { addingAbs = false }
                                         .padding(12.dp),
                                 )
-                                message?.let { BasicText(it) }
+                                AddAbsSourceScreen(
+                                    onSourceAdded = {
+                                        addingAbs = false
+                                        refreshKey++
+                                    },
+                                )
+                            }
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                BasicText("Add a source to get started")
+                                if (installing) {
+                                    BasicText("Scanning folder…")
+                                } else {
+                                    availableAddSourceOptions().forEach { option ->
+                                        when (option) {
+                                            AddSourceOption.Audiobookshelf -> BasicText(
+                                                text = option.label,
+                                                modifier = Modifier
+                                                    .clickable { addingAbs = true }
+                                                    .padding(12.dp),
+                                            )
+                                            AddSourceOption.LocalFiles -> BasicText(
+                                                text = option.label,
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        folderPicker.pickFolder { uri ->
+                                                            if (uri == null) return@pickFolder
+                                                            installing = true
+                                                            message = null
+                                                            scope.launch {
+                                                                val result = runCatching { installer.installFolder(uri) }
+                                                                installing = false
+                                                                message = result.fold(
+                                                                    onSuccess = { "Added ${it.added} books" },
+                                                                    onFailure = { "Error: ${it.message}" },
+                                                                )
+                                                                if (result.isSuccess) {
+                                                                    refreshKey++
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(12.dp),
+                                            )
+                                        }
+                                    }
+                                    message?.let { BasicText(it) }
+                                }
                             }
                         }
                     }

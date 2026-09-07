@@ -2,7 +2,6 @@ package com.riffle.shared.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
-import com.riffle.feature.reader.NavigatorDecoration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
