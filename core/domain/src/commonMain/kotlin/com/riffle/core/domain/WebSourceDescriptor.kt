@@ -74,6 +74,15 @@ interface WebSourceDescriptor {
     /** True when only one instance can be installed per device (Chitanka, Gutenberg, LocalFiles). */
     val isSingleton: Boolean get() = true
 
+    /**
+     * True when this source's "Add source" picker card is hidden unless [Developer Options] are
+     * unlocked. Reusable, general gate — read against the cross-platform `DeveloperOptionsRepository`
+     * flag by `sourceTypeCards(installedTypes, developerModeEnabled)`. The gate is **add-time only**:
+     * once installed the source behaves like any other and is unaffected by the flag. Default `false`
+     * (every existing source ships in the picker unconditionally); O'Reilly overrides to `true`.
+     */
+    val requiresDeveloperMode: Boolean get() = false
+
     /** True when the source authenticates as a user — drawer renders username/host. */
     val hasCredentials: Boolean get() = false
 
@@ -239,6 +248,7 @@ object WebSourceDescriptors {
         GutenbergWebSourceDescriptor,
         KomgaWebSourceDescriptor,
         RadioEsWebSourceDescriptor,
+        OReillyWebSourceDescriptor,
     )
 
     fun forType(type: SourceType): WebSourceDescriptor? =
@@ -477,4 +487,49 @@ object RadioEsWebSourceDescriptor : WebSourceDescriptor {
 
     override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
         "https://www.radio.es/assets/fav/favicon-48x48.png"
+}
+
+// O'Reilly authenticates via an in-app **WebView login** (not username/password): Akamai blocks
+// scripted logins, and many O'Reilly accounts are SSO-only, so the only robust path is signing in
+// on O'Reilly's real page inside a WebView and harvesting the `orm-jwt` session cookie. Hence
+// `hasCredentials = false` (no shared credential form) and a dedicated [addRoute] to the WebView
+// login screen. Singleton, fixed host, unbounded catalog. `requiresDeveloperMode = true` hides its
+// picker card until Developer Options are unlocked (add-time only).
+object OReillyWebSourceDescriptor : WebSourceDescriptor {
+    override val type = SourceType.OREILLY
+    override val displayName = "O'Reilly"
+    override val toReadSupport = ToReadSupport.LocalOnly
+    override val isSingleton = true
+    override val hasCredentials = false
+    override val hasNetworkHost = false
+    override val requiresDeveloperMode = true
+    override val subtitle = "learning.oreilly.com"
+    override val supportingHosts = "learning.oreilly.com"
+    override val addRoute = "add_oreilly"
+    override val browseRoutePrefix = "oreilly_browse"
+    override val urlPlaceholder = OREILLY_BASE_URL
+    override val pickerOrder = 6
+    override val pickerBlurb = "Browse and read ebooks and audiobooks from your O'Reilly account."
+    override val defaultLibraries = listOf(
+        // ids mirror OReillyCatalog.ROOT_BOOKS / ROOT_AUDIOBOOKS; duplicated here so :core:domain
+        // doesn't depend on :core:catalog-oreilly. A test in :core:data asserts they match.
+        DefaultLibrary(id = "books", name = "Books", mediaType = "book"),
+        DefaultLibrary(id = "audiobooks", name = "Audiobooks", mediaType = "audiobook"),
+    )
+
+    override fun syncNamespaceFor(source: Source): SyncNamespace =
+        SyncNamespace.LocalOnly("O'Reilly has no per-user sync target Riffle writes back to; annotations stay on this device.")
+
+    // Fixed favicon (host is hardcoded), paired with the bundled monogram fallback.
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
+        "$OREILLY_BASE_URL/favicon.ico"
+
+    const val OREILLY_BASE_URL = "https://learning.oreilly.com"
+
+    /**
+     * Real O'Reilly login page loaded in the WebView. Uses the `learning.oreilly.com` host (which
+     * connects cleanly on the emulator, unlike `www.oreilly.com`); it redirects through the
+     * identity flow (SSO/2FA followed normally) and lands authenticated with the `orm-jwt` cookie.
+     */
+    const val OREILLY_LOGIN_URL = "https://learning.oreilly.com/login/"
 }

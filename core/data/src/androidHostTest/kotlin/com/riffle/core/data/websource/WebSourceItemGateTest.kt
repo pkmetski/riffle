@@ -24,6 +24,7 @@ import com.riffle.core.logging.RecordingLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -240,6 +241,39 @@ class WebSourceItemGateTest {
         clock.advance(60_000L)
         gate.openItem(sourceId, sampleItem(), catalog)
         assertEquals("Second open should refetch, not serve Fresh from the cover-less row", 2, catalog.getItemCalls)
+    }
+
+    @Test fun `fetched item with blank author inherits the browse listing author`() = runTest {
+        // O'Reilly's book-detail metadata carries no author, so getItem returns a blank one; the
+        // gate must preserve the author the browse listing already carried, or the detail screen
+        // (and any later ABS upload reading the upserted row) is left authorless.
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+        val observer = FakeLibraryObserver(items = mutableMapOf())
+        val catalog = RecordingCatalog(item = sampleItem().copy(author = "")) // detail drops author
+        val upserter = relaxedUpserter()
+        val captured = slot<CatalogItem>()
+        coEvery { upserter.upsert(any(), capture(captured)) } returns Unit
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
+
+        gate.openItem(sourceId, sampleItem(), catalog) // listing author = "Автор"
+
+        assertEquals("Автор", captured.captured.author)
+    }
+
+    @Test fun `fetched item keeps its own author over the listing`() = runTest {
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+        val observer = FakeLibraryObserver(items = mutableMapOf())
+        val catalog = RecordingCatalog(item = sampleItem().copy(author = "Detail Author"))
+        val upserter = relaxedUpserter()
+        val captured = slot<CatalogItem>()
+        coEvery { upserter.upsert(any(), capture(captured)) } returns Unit
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
+
+        gate.openItem(sourceId, sampleItem(), catalog) // listing author = "Автор"
+
+        assertEquals("Detail Author", captured.captured.author)
     }
 
     @Test fun `catalog returns null with existing row returns Stale`() = runTest {

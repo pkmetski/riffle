@@ -18,15 +18,22 @@ class SourceTypePickerViewModelTest {
 
     @Test
     fun `initial value hides all singleton types before first emission`() {
-        val vm = SourceTypePickerViewModel(FakeSourceRepository(emptyList()))
+        val vm = SourceTypePickerViewModel(FakeSourceRepository(emptyList()), FakeDeveloperOptionsRepository())
         assertEquals(SourceType.values().toSet(), vm.installedTypes.value)
+    }
+
+    @Test
+    fun `developer mode flows through from the repository`() = runTest {
+        val devRepo = FakeDeveloperOptionsRepository(enabled = true)
+        val vm = SourceTypePickerViewModel(FakeSourceRepository(emptyList()), devRepo)
+        assertTrue(vm.developerModeEnabled.first { it })
     }
 
     @Test
     fun `installed types reflects single source from repository`() = runTest {
         val sources = listOf(fakeSource(SourceType.ABS))
         val repo = FakeSourceRepository(sources)
-        val vm = SourceTypePickerViewModel(repo)
+        val vm = SourceTypePickerViewModel(repo, FakeDeveloperOptionsRepository())
         repo.emit(sources)
         val types = vm.installedTypes.first { it != SourceType.values().toSet() }
         assertEquals(setOf(SourceType.ABS), types)
@@ -35,7 +42,7 @@ class SourceTypePickerViewModelTest {
     @Test
     fun `empty repository emits empty set after first emission`() = runTest {
         val repo = FakeSourceRepository(emptyList())
-        val vm = SourceTypePickerViewModel(repo)
+        val vm = SourceTypePickerViewModel(repo, FakeDeveloperOptionsRepository())
         repo.emit(emptyList())
         val types = vm.installedTypes.first { it != SourceType.values().toSet() }
         assertTrue(types.isEmpty())
@@ -45,7 +52,7 @@ class SourceTypePickerViewModelTest {
     fun `multiple sources produce set of their types`() = runTest {
         val sources = listOf(fakeSource(SourceType.ABS), fakeSource(SourceType.CHITANKA))
         val repo = FakeSourceRepository(sources)
-        val vm = SourceTypePickerViewModel(repo)
+        val vm = SourceTypePickerViewModel(repo, FakeDeveloperOptionsRepository())
         repo.emit(sources)
         val types = vm.installedTypes.first { it != SourceType.values().toSet() }
         assertEquals(setOf(SourceType.ABS, SourceType.CHITANKA), types)
@@ -110,4 +117,13 @@ private class FakeSourceRepository(
     override suspend fun setActive(sourceId: String) = Unit
     override suspend fun remove(sourceId: String) = Unit
     override suspend fun getSourceVersion(sourceId: String): String? = null
+}
+
+private class FakeDeveloperOptionsRepository(
+    enabled: Boolean = false,
+) : com.riffle.core.domain.developer.DeveloperOptionsRepository {
+    override val developerModeEnabled: Flow<Boolean> = MutableStateFlow(enabled)
+    override suspend fun setDeveloperModeEnabled(enabled: Boolean) = Unit
+    override suspend fun getGithubPat(): String? = null
+    override suspend fun setGithubPat(pat: String?) = Unit
 }

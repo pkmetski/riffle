@@ -79,7 +79,7 @@ class WebSourceItemGate constructor(
             return Outcome.Fresh
         }
         return try {
-            val fetched = catalog.getItem(itemId)
+            val fetched = catalog.getItem(itemId)?.withListingAuthorFallback(listing)
             if (fetched != null) {
                 upserter.upsert(sourceId, fetched)
                 // Missing cover = incomplete fetch. Chitanka/gramofonche/Gutendex items almost
@@ -125,6 +125,17 @@ class WebSourceItemGate constructor(
             Outcome.Failed(cause)
         }
     }
+
+    /**
+     * Some sources' [Catalog.getItem] returns richer per-item detail that nonetheless drops a field
+     * the browse listing carried — notably O'Reilly, whose book-detail metadata has no author while
+     * the search listing does. Preserve the listing's author when the fetched item lacks one, so the
+     * detail screen (and any later ABS upload that reads the upserted Room row) isn't left authorless.
+     * Zero extra network cost — the [listing] is already in hand. No-op for sources whose `getItem`
+     * populates the author.
+     */
+    private fun CatalogItem.withListingAuthorFallback(listing: CatalogItem): CatalogItem =
+        if (author.isBlank() && listing.author.isNotBlank()) copy(author = listing.author) else this
 
     companion object {
         /** 24 hours. */

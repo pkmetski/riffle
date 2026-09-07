@@ -18,6 +18,7 @@ import com.riffle.core.catalog.CatalogImportRequest
 import com.riffle.core.catalog.CatalogImportResult
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.EbookDetailsCapability
 import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.LiveStreamCapability
@@ -349,7 +350,7 @@ class LibraryItemDetailViewModel constructor(
         val key = importKey(item, destination, library)
         bookImportManager.start(key) { onProgress, claimItem ->
             val sourceCatalog = catalogRegistry.forSourceId(item.sourceId)
-            val sourceItem = sourceCatalog?.getItem(item.id)
+            val sourceItem = sourceCatalog?.getItem(item.id)?.let { fetched -> withFallbackAuthor(fetched, item.author) }
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId) as? BookImportCapability
             if (sourceCatalog == null || sourceItem == null || destinationCatalog == null) {
                 return@start CatalogImportResult.Failed(IllegalStateException("This item cannot be uploaded"))
@@ -629,10 +630,24 @@ class LibraryItemDetailViewModel constructor(
                 if (item.ebookFormat == EbookFormat.Epub) {
                     launch {
                         _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
-                        val details = epubTocExtractor.extractDetails(item)
-                        _tocState.value = TocState.Ready(details.tocEntries)
-                        _epubTotalPositions.value = details.totalPositions
-                        _epubVersion.value = details.epubVersion?.ifEmpty { null }
+                        // Prefer a Source that can supply TOC + estimate from metadata without opening
+                        // the book (EbookDetailsCapability) — avoids downloading/synthesizing the whole
+                        // book just to render the detail screen. Falls back to the open-the-EPUB path
+                        // for every Source that doesn't implement it (unchanged behavior).
+                        val cheap = runCatching {
+                            (catalogRegistry.forSourceId(item.sourceId) as? EbookDetailsCapability)
+                                ?.ebookDetails(item.id)
+                        }.getOrNull()
+                        if (cheap != null) {
+                            _tocState.value = TocState.Ready(cheap.tocEntries)
+                            _epubTotalPositions.value = cheap.totalPositions
+                            _epubVersion.value = cheap.epubVersion?.ifEmpty { null }
+                        } else {
+                            val details = epubTocExtractor.extractDetails(item)
+                            _tocState.value = TocState.Ready(details.tocEntries)
+                            _epubTotalPositions.value = details.totalPositions
+                            _epubVersion.value = details.epubVersion?.ifEmpty { null }
+                        }
                     }
                 }
                 if (item.ebookFormat == EbookFormat.Pdf) {
@@ -925,21 +940,27 @@ class LibraryItemDetailViewModel constructor(
     private suspend fun downloadEbook(
         item: LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit,
-    ): DownloadState = when (item.ebookFormat) {
-        EbookFormat.Epub -> when (epubRepository.downloadEpub(item, onProgress)) {
-            EpubDownloadResult.Success, EpubDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
-            is EpubDownloadResult.NetworkError -> DownloadState.NotDownloaded
+    ): DownloadState {
+        val ok: Boolean = when (item.ebookFormat) {
+            EbookFormat.Epub -> when (epubRepository.downloadEpub(item, onProgress)) {
+                EpubDownloadResult.Success, EpubDownloadResult.AlreadyDownloaded -> true
+                is EpubDownloadResult.NetworkError -> false
+            }
+            EbookFormat.Pdf -> when (pdfRepository.downloadPdf(item, onProgress)) {
+                PdfDownloadResult.Success, PdfDownloadResult.AlreadyDownloaded -> true
+                is PdfDownloadResult.NetworkError -> false
+            }
+            EbookFormat.Cbz -> when (cbzRepository.downloadCbz(item, onProgress)) {
+                com.riffle.core.domain.CbzDownloadResult.Success,
+                com.riffle.core.domain.CbzDownloadResult.AlreadyDownloaded -> true
+                is com.riffle.core.domain.CbzDownloadResult.NetworkError -> false
+            }
+            else -> return DownloadState.NotDownloaded
         }
-        EbookFormat.Pdf -> when (pdfRepository.downloadPdf(item, onProgress)) {
-            PdfDownloadResult.Success, PdfDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
-            is PdfDownloadResult.NetworkError -> DownloadState.NotDownloaded
-        }
-        EbookFormat.Cbz -> when (cbzRepository.downloadCbz(item, onProgress)) {
-            CbzDownloadResult.Success,
-            CbzDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
-            is CbzDownloadResult.NetworkError -> DownloadState.NotDownloaded
-        }
-        else -> DownloadState.NotDownloaded
+        // Surface failures the same way audiobook downloads do (previously ebook failures were
+        // silent — nothing showed when a download couldn't complete).
+        if (!ok) _snackbarEvents.tryEmit("Couldn't download book")
+        return if (ok) DownloadState.Downloaded else DownloadState.NotDownloaded
     }
 
     private suspend fun downloadAudiobook(
@@ -983,3 +1004,21 @@ class LibraryItemDetailViewModel constructor(
     private fun isCachedOrDownloadedForFormat(item: LibraryItem): Boolean =
         isCachedForFormat(item) || isDownloadedForFormat(item)
 }
+
+/**
+ * Preserve an author already known from the library listing when a source's [Catalog.getItem]
+ * can't recover it. Some web-source detail endpoints (e.g. O'Reilly's book metadata) carry no
+ * author at all — it only appears in the browse/search listing that seeded the stored library
+ * item — so a re-fetch at upload time returns a blank author and would otherwise overwrite the
+ * one we already have. Generic and harmless: sources that do populate the author are untouched,
+ * and a genuinely-unknown author (both blank) stays blank.
+ */
+internal fun withFallbackAuthor(
+    fetched: com.riffle.core.catalog.CatalogItem,
+    storedAuthor: String,
+): com.riffle.core.catalog.CatalogItem =
+    if (fetched.author.isBlank() && storedAuthor.isNotBlank()) {
+        fetched.copy(author = storedAuthor)
+    } else {
+        fetched
+    }

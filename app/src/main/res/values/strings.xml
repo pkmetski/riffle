@@ -589,6 +589,15 @@
     <string name="ui_source_radio_es_subtitle">Podcast directory</string>
     <string name="ui_source_komga_picker_blurb">Stream comics, manga and ebooks from your Komga server.</string>
     <string name="ui_source_komga_help_text">Browse and read your Komga library (comics, manga and ebooks) from any Komga server.</string>
+    <string name="source_oreilly_name" translatable="false">O\'Reilly</string>
+    <string name="ui_source_oreilly_subtitle" translatable="false">learning.oreilly.com</string>
+    <string name="ui_source_oreilly_picker_blurb">Browse and read ebooks and audiobooks from your O\'Reilly account.</string>
+    <string name="ui_search_oreilly">Search O\'Reilly…</string>
+    <string name="ui_preparing_book_progress">Preparing book… %1$d / %2$d</string>
+    <string name="ui_oreilly_sign_in_title">Sign in to O\'Reilly</string>
+    <string name="ui_oreilly_signing_in">Signing you in…</string>
+    <string name="ui_oreilly_signing_in_sub">Securing your O\'Reilly session on this device</string>
+    <string name="ui_oreilly_sign_in_failed">Couldn\'t save your O\'Reilly session. Please try signing in again.</string>
     <string name="ui_source_local_files_picker_blurb">Read EPUBs and PDFs from a folder on this device.</string>
     <string name="ui_source_local_files_subtitle">on this device</string>
     <string name="ui_source_storyteller_help_text">Storyteller hosts aligned ebook + audiobook &quot;readalouds.&quot; Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader.</string>

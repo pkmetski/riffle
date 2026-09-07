@@ -2,6 +2,8 @@ package com.riffle.app.feature.server
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,14 +57,21 @@ data class SourceTypeCard(
  * entry and hides `descriptor.isSingleton` cards whose type is already in [installedTypes].
  * ADR 0053: adding a new source needs a descriptor object with `pickerOrder` + `pickerBlurb`
  * set; no edit required here.
+ *
+ * [developerModeEnabled] gates `descriptor.requiresDeveloperMode` cards (O'Reilly): they render
+ * only when dev mode is unlocked. Add-time gate only — a source already installed while dev mode
+ * was on is unaffected by this flag afterward. Default `false` so callers that don't thread the
+ * flag never surface a dev-gated card by accident.
  */
 internal fun sourceTypeCards(
     installedTypes: Set<SourceType> = emptySet(),
+    developerModeEnabled: Boolean = false,
 ): List<SourceTypeCard> =
     WebSourceDescriptors.all
         .sortedBy { it.pickerOrder }
         .mapNotNull { descriptor ->
             if (descriptor.isSingleton && descriptor.type in installedTypes) return@mapNotNull null
+            if (descriptor.requiresDeveloperMode && !developerModeEnabled) return@mapNotNull null
             SourceTypeCard(
                 type = descriptor.type,
                 titleRes = sourceDisplayNameRes(descriptor.type),
@@ -81,6 +90,7 @@ fun SourceTypePickerScreen(
     onNavigateBack: () -> Unit,
     onPick: (SourceType) -> Unit,
     installedTypes: Set<SourceType> = emptySet(),
+    developerModeEnabled: Boolean = false,
 ) {
     Scaffold(
         topBar = {
@@ -99,10 +109,16 @@ fun SourceTypePickerScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                sourceTypeCards(installedTypes = installedTypes).forEach { card ->
+                sourceTypeCards(
+                    installedTypes = installedTypes,
+                    developerModeEnabled = developerModeEnabled,
+                ).forEach { card ->
                     SourceTypeCardRow(card = card, onClick = { onPick(card.type) })
                 }
             }

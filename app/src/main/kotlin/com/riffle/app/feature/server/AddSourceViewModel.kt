@@ -170,6 +170,12 @@ class AddSourceViewModel constructor(
     private suspend fun initFromRoute() {
         when (backend) {
             is AddSourceBackend.Credentialed -> {
+                // Fixed-host credentialed sources (O'Reilly) have no user-entered URL — stamp the
+                // descriptor's base host so `url` resolves and the URL field can be suppressed.
+                val descriptor = com.riffle.core.domain.WebSourceDescriptors.forType((backend as AddSourceBackend.Credentialed).sourceType)
+                if (descriptor?.hasNetworkHost == false) {
+                    applyUrl(descriptor.urlPlaceholder.orEmpty())
+                }
                 val id = editingServerId ?: return
                 val server = repository.getById(id) ?: return
                 applyUrl(server.url.value)

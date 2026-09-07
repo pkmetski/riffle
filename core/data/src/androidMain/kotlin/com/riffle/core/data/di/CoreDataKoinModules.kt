@@ -6,6 +6,7 @@ import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.catalog.abs.AbsCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
+import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.common.EncryptedKeyValueStore
@@ -757,6 +758,8 @@ private val coreDataRepositoriesModule = module {
 }
 
 private val coreDataCatalogModule = module {
+    // Shared, optional book-preparation progress (O'Reilly synthesis feeds it; the reader shows it).
+    single { com.riffle.core.domain.BookPreparationProgress() }
     single<Map<SourceType, CatalogFactory>>(named(CATALOG_FACTORIES_BY_SOURCE_TYPE)) {
         mapOf(
             SourceType.LOCAL_FILES to LocalFilesCatalogFactory(
@@ -795,6 +798,22 @@ private val coreDataCatalogModule = module {
                 tokenStorage = get(),
                 bytesClient = get<JvmHttpClientPool>().fileTransferClient(),
                 userAgent = "Riffle/dev (Android) komga-source",
+            ),
+            SourceType.OREILLY to OReillyCatalogFactory(
+                // MUST be a client WITHOUT ContentNegotiation: the web-source client's
+                // ContentNegotiation silently appends `application/json` to every Accept header,
+                // which makes O'Reilly's `/files/{path}` return a ~1KB JSON *preview* instead of the
+                // full chapter HTML. The streaming client sends the Accept header verbatim.
+                httpClient = get(named(STREAMING_HTTP_CLIENT)),
+                // Live WebView cookie jar (the user logged in through a WebView). O'Reilly's content
+                // endpoints need the complete, current cookie string; a stored snapshot goes stale
+                // (orm-jwt rotates) and a partial cookie yields DRM samples. Read it live, as the web
+                // reader does.
+                cookieProvider = {
+                    android.webkit.CookieManager.getInstance()
+                        .getCookie(com.riffle.core.domain.OReillyWebSourceDescriptor.OREILLY_BASE_URL)
+                },
+                bookPreparationProgress = get(),
             ),
         )
     }
