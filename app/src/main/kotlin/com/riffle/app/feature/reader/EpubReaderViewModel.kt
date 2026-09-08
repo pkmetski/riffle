@@ -892,6 +892,10 @@ class EpubReaderViewModel constructor(
     val currentSearchIndex: StateFlow<Int> = search.currentSearchIndex
     val searchNavigationEvents: Flow<Locator> = search.searchNavigationEvents
 
+    /** True when the open publication is a lazy (per-chapter streaming) O'Reilly book.
+     *  Lazy publications have no search service — use this to show a "Download to search" hint. */
+    val isLazyPublication: Boolean get() = lazyContainer != null
+
     // ---- Readaloud (ADR 0027) ----------------------------------------------------------------
 
     // isStorytellerService and readerServerId now live on [lifecycle] (issue #376). The single
