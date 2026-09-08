@@ -3878,6 +3878,7 @@ class EpubReaderViewModel constructor(
             scope = viewModelScope,
         )
         lazyContainer = container
+        container.startBackgroundPrefetch()
         _isLazyPublication.value = true
         val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(container)
         val lastPosition = readingPositionStore.load(sourceId, itemId)

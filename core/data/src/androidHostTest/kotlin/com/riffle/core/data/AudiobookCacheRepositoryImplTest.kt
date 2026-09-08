@@ -43,6 +43,8 @@ class AudiobookCacheRepositoryImplTest {
             trackDownloader,
             com.riffle.core.domain.DefaultDispatcherProvider,
             localAvailabilityEvents,
+            minInterTrackDelayMs = 0L,
+            maxInterTrackDelayMs = 0L,
         )
     }
 

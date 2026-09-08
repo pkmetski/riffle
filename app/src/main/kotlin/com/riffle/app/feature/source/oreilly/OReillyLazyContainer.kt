@@ -94,6 +94,29 @@ class OReillyLazyContainer(
         }
     }
 
+    /**
+     * Slowly caches every uncached chapter in spine order, running in [scope] (typically the
+     * reader's ViewModel scope, so the job is cancelled when the user leaves the reader). Fetches
+     * are paced at [minDelayMs]–[maxDelayMs] to stay well below anti-abuse thresholds. Already-
+     * cached chapters are skipped instantly; chapters that fail individually are skipped rather
+     * than aborting the whole run. Assets are not prefetched — they are cached on first read.
+     */
+    fun startBackgroundPrefetch(minDelayMs: Long = 1_500L, maxDelayMs: Long = 4_000L) {
+        scope.launch {
+            for (item in pub.spine) {
+                val cacheFile = cacheFileFor(cacheDir, pub.bookId, item.fullPath)
+                if (!cacheFile.exists()) {
+                    kotlinx.coroutines.delay(minDelayMs + kotlin.random.Random.nextLong(maxDelayMs - minDelayMs + 1))
+                    runCatching {
+                        val html = fetchChapter(pub.bookId, item.fullPath, item.declaredByteSize)
+                        val xhtml = buildChapterXhtml(pub, item, html)
+                        writeCacheFile(cacheFile, xhtml.encodeToByteArray())
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         /**
          * Strips the `https://readium_package/` origin that Readium prepends to sub-resource

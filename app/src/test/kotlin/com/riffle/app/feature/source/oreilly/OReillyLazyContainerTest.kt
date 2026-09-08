@@ -2,6 +2,9 @@ package com.riffle.app.feature.source.oreilly
 
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.catalog.LazySpineItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -155,5 +158,37 @@ class OReillyLazyContainerTest {
             "xhtml/ch01.html",
             OReillyLazyContainer.extractRelativePath("/xhtml/ch01.html"),
         )
+    }
+
+    // ---- startBackgroundPrefetch --------------------------------------------
+
+    @Test
+    fun `startBackgroundPrefetch fetches and caches every uncached chapter`() = runBlocking {
+        val cacheDir = tmp.newFolder()
+        val pub = makePub("xhtml/ch01.xhtml", "xhtml/ch02.xhtml", "xhtml/ch03.xhtml")
+        val fetched = mutableListOf<String>()
+        val container = OReillyLazyContainer(
+            pub = pub,
+            cacheDir = cacheDir,
+            fetchChapter = { _, path, _ -> fetched += path; "<p>content of $path</p>" },
+            fetchAsset = { _, _ -> null },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            // android.net.Uri is unavailable in JVM unit tests; stub out the URL factory so
+            // the container init doesn't crash. startBackgroundPrefetch iterates pub.spine
+            // directly and doesn't use the URL map, so this is safe for this test.
+            urlFactory = { null },
+        )
+
+        // Pre-cache ch02 to verify it's skipped.
+        val ch02Cache = OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch02.xhtml")
+        OReillyLazyContainer.writeCacheFile(ch02Cache, "<pre-cached>ch02</pre-cached>".encodeToByteArray())
+
+        container.startBackgroundPrefetch(minDelayMs = 0L, maxDelayMs = 0L)
+
+        // All three chapters must be cached on disk; only ch01 and ch03 were fetched from network.
+        assertEquals(listOf("xhtml/ch01.xhtml", "xhtml/ch03.xhtml"), fetched)
+        assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch01.xhtml").exists())
+        assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch02.xhtml").exists())
+        assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch03.xhtml").exists())
     }
 }
