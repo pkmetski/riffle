@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
@@ -56,6 +55,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.app.BuildConfig
+import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
@@ -143,7 +143,7 @@ private fun DrawerSheetContent(
     Column(modifier = Modifier.fillMaxHeight()) {
         NavigationDrawerItem(
             label = { Text("Bookshelf") },
-            icon = { Icon(Icons.Filled.Home, contentDescription = null) },
+            icon = { RiffleAppIcon(size = 24.dp) },
             selected = isBookshelfActive,
             onClick = onBookshelfSelected,
         )
