@@ -92,6 +92,7 @@ class SeriesIntegrationTest {
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
         override suspend fun findSeriesIdForItem(sourceId: String, itemId: String): String? = null
         override fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeContinueSeriesAllSources(): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun upsertAll(series: List<SeriesEntity>) { upsertedSeries.addAll(series) }
         override suspend fun upsertAllItems(items: List<SeriesItemEntity>) { upsertedItems.addAll(items) }
         override suspend fun deleteByLibraryId(libraryId: String) {}
@@ -135,6 +136,7 @@ class SeriesIntegrationTest {
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
         override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+        override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     private class FakeCollectionDao : CollectionDao {

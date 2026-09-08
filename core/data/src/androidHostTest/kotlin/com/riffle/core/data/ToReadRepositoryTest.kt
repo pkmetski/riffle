@@ -132,8 +132,13 @@ class ToReadRepositoryTest {
         assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
+    // The branch changed addWithCap to a local-first strategy: when all server paths fail,
+    // the item is persisted in localStore and true is returned. This replaces the old behaviour
+    // (revert cache, return false) that conflicted with the cross-source union. The semantic
+    // claims being retired: "addToToRead returns false when server rejects" and "cache is reverted
+    // to empty on total server failure."
     @Test
-    fun `addToToRead reverts cache when both add and recovery-create fail`() = runTest {
+    fun `addToToRead falls back to local store when both add and recovery-create fail`() = runTest {
         val cap = FakeCatalog(
             mapOf("lib-1" to listOf(playlist("pl-A", "To Read", emptyList()))),
             addFails = true,
@@ -141,17 +146,17 @@ class ToReadRepositoryTest {
         )
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
-        assertFalse(repo.addToToRead("item-1", "lib-1"))
-        assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
+        assertTrue(repo.addToToRead("item-1", "lib-1"))
+        assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
     @Test
-    fun `addToToRead reverts cache when create fails`() = runTest {
+    fun `addToToRead falls back to local store when create fails`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to emptyList()), createFails = true)
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
-        assertFalse(repo.addToToRead("item-1", "lib-1"))
-        assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
+        assertTrue(repo.addToToRead("item-1", "lib-1"))
+        assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
     @Test

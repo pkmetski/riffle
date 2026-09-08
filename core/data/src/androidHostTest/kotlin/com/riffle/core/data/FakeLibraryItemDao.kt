@@ -178,6 +178,12 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> =
         MutableStateFlow(roomData.values.flatMap { it.value }.filter { it.sourceId == sourceId })
 
+    override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(
+            roomData.values.flatMap { it.value }
+                .filter { it.readingProgress > 0f && it.readingProgress < 0.99f }
+        )
+
     /** Test helper: inject items for a given source into the fake, keyed by their libraryId. */
     fun emit(sourceId: String, items: List<LibraryItemEntity>) {
         items.groupBy { it.libraryId }.forEach { (libraryId, group) ->

@@ -222,6 +222,7 @@ class ServerRepositoryTest {
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
         override fun observeBySource(sourceId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeInProgressAllSources() = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
     }
 
     // Constructs the refactored SourceRepositoryImpl. Since `authenticate` is no longer part of
