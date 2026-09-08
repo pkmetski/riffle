@@ -4,9 +4,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -66,7 +63,7 @@ fun BookshelfScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RiffleAppIcon(size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                         Text(
-                            text = "BOOKSHELF",
+                            text = "RIFFLE",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -176,19 +173,22 @@ private fun ToReadTabContent(
     innerPadding: PaddingValues,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
-    if (items.isEmpty()) return
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(coverGridMinCellSize()),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
+    LazyColumn(
         modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentPadding = PaddingValues(bottom = 16.dp),
     ) {
-        items(items, key = { "${it.sourceId}_${it.id}" }) { item ->
-            BookCoverTile(
-                item = item,
-                token = authTokenMap[item.sourceId] ?: "",
-                onClick = { onItemSelected(item) },
-                sourceBadge = sourceBadgeMap[item.sourceId],
-            )
+        if (items.isNotEmpty()) {
+            item(key = "header_to_read") { SectionHeader("To Read") }
+            item(key = "grid_to_read") {
+                BookSectionGrid(
+                    items = items,
+                    token = "",
+                    tokenMap = authTokenMap,
+                    onItemSelected = onItemSelected,
+                    onSeeMore = null,
+                    sourceBadgeProvider = { sourceBadgeMap[it.sourceId] },
+                )
+            }
         }
     }
 }

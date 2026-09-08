@@ -233,7 +233,7 @@ private fun DrawerHeader(
             },
             headlineContent = {
                 if (isBookshelfActive) {
-                    AutoShrinkingSingleLineText(text = "Bookshelf")
+                    AutoShrinkingSingleLineText(text = "Riffle")
                 } else {
                     val name = activeServer?.let { localizedSourceDisplayName(it) }
                         ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
@@ -283,7 +283,7 @@ private fun DrawerHeader(
         ) {
             // Bookshelf entry pinned at top of the switcher.
             DropdownMenuItem(
-                text = { AutoShrinkingSingleLineText(text = "Bookshelf") },
+                text = { AutoShrinkingSingleLineText(text = "Riffle") },
                 leadingIcon = { RiffleAppIcon(size = 24.dp) },
                 trailingIcon = {
                     if (isBookshelfActive) {
