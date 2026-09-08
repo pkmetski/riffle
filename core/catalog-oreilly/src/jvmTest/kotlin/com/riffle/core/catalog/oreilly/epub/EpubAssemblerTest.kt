@@ -3,6 +3,7 @@ package com.riffle.core.catalog.oreilly.epub
 import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.catalog.oreilly.OReillyApi
 import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.core.readBytes
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -178,6 +179,73 @@ class EpubAssemblerTest {
             }
 
             assertTrue("contentLength must be > 0 for progress reporting", observedContentLength > 0L)
+            client.close()
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `withFileStream with multiple concurrent chapters produces a valid readable ZIP`() = runBlocking {
+        // Regression for the writeMutex gap: pipe.writeFully was outside the lock, allowing
+        // concurrent chapter jobs to interleave their bytes. The ZIP must be parseable and
+        // every expected entry must be present at the offsets the central directory records.
+        val server = okhttp3.mockwebserver.MockWebServer()
+        server.start()
+        try {
+            val itemId = "9781098100001"
+            val chapters = listOf("xhtml/ch01.xhtml", "xhtml/ch02.xhtml", "xhtml/ch03.xhtml")
+            val bodies = chapters.mapIndexed { i, _ -> "<div id=\"sbo-rt-content\"><p>Chapter ${i + 1} content</p></div>" }
+            val spineJson = chapters.mapIndexed { i, p ->
+                """{"reference_id":"$itemId-/$p","title":"Chapter ${i + 1}"}"""
+            }.joinToString(",")
+            val filesJson = chapters.mapIndexed { i, p ->
+                """{"full_path":"$p","media_type":"application/xhtml+xml","kind":"chapter","file_size":${bodies[i].length}}"""
+            }.joinToString(",")
+
+            server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+                override fun dispatch(req: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
+                    val path = req.path.orEmpty()
+                    val json = when {
+                        path.contains("/spine/") -> """{"count":${chapters.size},"next":null,"results":[$spineJson]}"""
+                        path.contains("/files/") && path.contains("?download=false") -> {
+                            val idx = chapters.indexOfFirst { path.contains(it) }
+                            if (idx >= 0) bodies[idx] else ""
+                        }
+                        path.contains("/files/") -> """{"count":${chapters.size},"next":null,"results":[$filesJson]}"""
+                        else -> """{"identifier":"$itemId","title":"Multi","language":"en"}"""
+                    }
+                    return okhttp3.mockwebserver.MockResponse().setResponseCode(200).setBody(json)
+                }
+            }
+
+            val client = io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp)
+            val api = OReillyApi(client, cookieHeader = "orm-jwt=x", baseUrl = server.url("/").toString().trimEnd('/'))
+            val catalog = OReillyCatalog(
+                api = api, bytesClient = client, cookieHeader = "orm-jwt=x",
+                minRequestIntervalMs = 0L, maxRequestIntervalMs = 0L,
+            )
+
+            val zipBytes = catalog.withFileStream(itemId, com.riffle.core.catalog.BookFormat.Epub, null) { stream ->
+                stream.channel.readRemaining().readBytes()
+            }
+
+            // Parse with ZipInputStream — if bytes were interleaved the stream throws or misses entries.
+            val entryNames = mutableListOf<String>()
+            ZipInputStream(ByteArrayInputStream(zipBytes)).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    entryNames += entry.name
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                }
+            }
+
+            assertTrue("ZIP must contain mimetype entry", "mimetype" in entryNames)
+            assertTrue("ZIP must contain content.opf", entryNames.any { it.endsWith("content.opf") })
+            assertTrue("ZIP must contain all 3 chapters",
+                chapters.all { path -> entryNames.any { it.endsWith(path) } })
+
             client.close()
         } finally {
             server.shutdown()

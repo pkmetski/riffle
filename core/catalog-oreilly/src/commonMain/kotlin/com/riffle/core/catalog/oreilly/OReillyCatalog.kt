@@ -40,6 +40,7 @@ import io.ktor.client.HttpClient
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -97,6 +98,15 @@ class OReillyCatalog internal constructor(
 
     override val sourceType: SourceType = SourceType.OREILLY
 
+    // Shared pacer for the lazy-reading path (fetchChapterForLazy / fetchAssetForLazy).
+    // One pacer instance shared across all calls so concurrent lazy fetches are rate-limited
+    // by the same interval guard as the batch synthesis path.
+    private val lazyPacer = RequestPacer(
+        maxConcurrency = 1,
+        minIntervalMs = minRequestIntervalMs,
+        maxIntervalMs = maxRequestIntervalMs,
+    ) { clock.nowMs() }
+
     override suspend fun listRoots(): List<CatalogRoot> = listOf(
         CatalogRoot(id = OReillyRoots.BOOKS, name = "Books", mediaType = "book"),
         CatalogRoot(id = OReillyRoots.AUDIOBOOKS, name = "Audiobooks", mediaType = "audiobook"),
@@ -142,7 +152,7 @@ class OReillyCatalog internal constructor(
      * yield, WITHOUT downloading any chapter content. Keeps the detail screen instant for O'Reilly.
      */
     override suspend fun ebookDetails(itemId: String): CatalogEbookDetails? {
-        val spine = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+        val spine = fetchAllSpine(itemId)
             .results.mapNotNull { s -> s.fullPath?.let { p -> p to (s.title ?: "") } }
         if (spine.isEmpty()) return null
         val sizeByPath = fetchAllFiles(itemId).associate { it.fullPath to it.fileSize }
@@ -169,7 +179,7 @@ class OReillyCatalog internal constructor(
             OReillyParser.parseBookDetail(api.getJson(api.bookDetailUrl(itemId)))
         }.getOrNull() ?: return null
 
-        val spineItems = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+        val spineItems = fetchAllSpine(itemId)
             .results.mapNotNull { s -> s.fullPath?.let { path -> path to (s.title ?: "") } }
         if (spineItems.isEmpty()) return null
 
@@ -215,20 +225,14 @@ class OReillyCatalog internal constructor(
      * as [withFileStream] but with a single-request pacer (each lazy chapter fetch is independent).
      * Returns null after exhausting retries so the caller can surface a per-chapter error.
      */
-    override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long): String? {
-        val pacer = RequestPacer(maxConcurrency = 1, minIntervalMs = 0L) { clock.nowMs() }
-        return runCatching {
-            fetchChapterContent(itemId, fullPath, expectedByteSize, pacer)
-        }.getOrNull()
-    }
+    override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long): String? =
+        runCatching { fetchChapterContent(itemId, fullPath, expectedByteSize, lazyPacer) }.getOrNull()
 
     /**
      * Fetch one binary asset for the lazy-reading path (non-fatal — returns null on failure).
      */
-    override suspend fun fetchAssetForLazy(itemId: String, fullPath: String): ByteArray? {
-        val pacer = RequestPacer(maxConcurrency = 1, minIntervalMs = 0L) { clock.nowMs() }
-        return fetchAssetBytes(itemId, fullPath, pacer)
-    }
+    override suspend fun fetchAssetForLazy(itemId: String, fullPath: String): ByteArray? =
+        fetchAssetBytes(itemId, fullPath, lazyPacer)
 
     // ---- Ebook: scrape + synthesize (verified against the live v2 epubs API) -----------------
 
@@ -247,7 +251,7 @@ class OReillyCatalog internal constructor(
 
         // Phase 1 (fast): fetch metadata from the API — JSON calls only, no content yet.
         val detail = OReillyParser.parseBookDetail(api.getJson(api.bookDetailUrl(itemId)))
-        val spine = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+        val spine = fetchAllSpine(itemId)
             .results.mapNotNull { it.fullPath?.let { p -> p to (it.title ?: "") } }
         val files = fetchAllFiles(itemId)
         val sizeByPath = files.associate { it.fullPath to it.fileSize }
@@ -287,10 +291,12 @@ class OReillyCatalog internal constructor(
                     val writer = EpubZipWriter.streamWriter()
                     val writeMutex = Mutex()
 
-                    // Serialize writes so concurrent chapter/asset jobs don't interleave bytes.
+                    // Serialize both the central-directory record AND the pipe write under one lock
+                    // so concurrent chapter/asset jobs can't interleave their bytes in the channel.
                     suspend fun writeEntry(entry: EpubZipEntry) {
-                        val bytes = writeMutex.withLock { writer.writeEntry(entry) }
-                        pipe.writeFully(bytes)
+                        writeMutex.withLock {
+                            pipe.writeFully(writer.writeEntry(entry))
+                        }
                     }
 
                     // (a) Preamble entries: no network needed, write immediately so the consumer
@@ -368,9 +374,11 @@ class OReillyCatalog internal constructor(
                     writeEntry(EpubZipEntry("OEBPS/nav.xhtml", EpubAssembler.navXhtml(book).encodeToByteArray()))
 
                     // (d) Central directory + EOCD.
-                    val trailer = writeMutex.withLock { writer.close() }
-                    pipe.writeFully(trailer)
+                    writeMutex.withLock { pipe.writeFully(writer.close()) }
                     pipe.close()
+                } catch (e: CancellationException) {
+                    pipe.cancel(e)
+                    throw e
                 } catch (e: Exception) {
                     pipe.cancel(e)
                 } finally {
@@ -406,7 +414,7 @@ class OReillyCatalog internal constructor(
      */
     internal suspend fun synthesizeEpub(itemId: String): ByteArray {
         val detail = OReillyParser.parseBookDetail(api.getJson(api.bookDetailUrl(itemId)))
-        val spine = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+        val spine = fetchAllSpine(itemId)
             .results.mapNotNull { it.fullPath?.let { p -> p to (it.title ?: "") } }
         val files = fetchAllFiles(itemId)
         val sizeByPath = files.associate { it.fullPath to it.fileSize }
@@ -484,6 +492,17 @@ class OReillyCatalog internal constructor(
     }
 
     /** Fetch every packaged file, following the API's pagination `next` cursor. */
+    private suspend fun fetchAllSpine(itemId: String): OReillySpineResponse {
+        val all = ArrayList<OReillySpineItem>()
+        var url: String? = api.spineUrl(itemId)
+        while (url != null) {
+            val page = OReillyParser.parseSpine(api.getJson(url))
+            all += page.results
+            url = if (page.next.isNullOrBlank() || page.results.isEmpty()) null else page.next
+        }
+        return OReillySpineResponse(count = all.size, next = null, results = all)
+    }
+
     private suspend fun fetchAllFiles(itemId: String): List<OReillyFileMeta> {
         val all = ArrayList<OReillyFileMeta>()
         var offset = 0
@@ -618,8 +637,11 @@ class OReillyCatalog internal constructor(
             .filter { it.referenceId.isNotBlank() }
         if (toc.isEmpty()) return null
 
-        val partnerId = OReillyParser.parseKalturaConfig(api.getJson(api.kalturaConfigUrl())).partnerId
-        val ks = OReillyParser.parseKalturaSession(api.getJson(api.kalturaSessionUrl())).session
+        val (partnerId, ks) = coroutineScope {
+            val partnerIdD = async { OReillyParser.parseKalturaConfig(api.getJson(api.kalturaConfigUrl())).partnerId }
+            val ksD = async { OReillyParser.parseKalturaSession(api.getJson(api.kalturaSessionUrl())).session }
+            partnerIdD.await() to ksD.await()
+        }
         if (partnerId.isBlank() || ks.isBlank()) return null
 
         val gate = Semaphore(maxConcurrency)
@@ -777,8 +799,24 @@ class OReillyCatalog internal constructor(
          * MUST measure UTF-8 bytes — `String.length` counts UTF-16 code units, which undercounts
          * multibyte (e.g. CJK) chapters and would falsely flag a full chapter as a DRM sample.
          */
-        internal fun isTruncatedBody(body: String, expectedSize: Long): Boolean =
-            isTruncatedSample(body.encodeToByteArray().size.toLong(), expectedSize)
+        internal fun isTruncatedBody(body: String, expectedSize: Long): Boolean {
+            // Count UTF-8 bytes without materialising a full byte-array copy: each BMP code point
+            // outside ASCII contributes 2 (U+0080..U+07FF) or 3 (U+0800..U+FFFF) bytes; a
+            // surrogate pair (two Char values) encodes a supplementary code point as 4 bytes.
+            var byteLen = 0L
+            var i = 0
+            while (i < body.length) {
+                val c = body[i].code
+                byteLen += when {
+                    c < 0x80 -> 1
+                    c < 0x800 -> 2
+                    c in 0xD800..0xDBFF -> { i++; 4 } // high surrogate — low follows
+                    else -> 3
+                }
+                i++
+            }
+            return isTruncatedSample(byteLen, expectedSize)
+        }
     }
 }
 
