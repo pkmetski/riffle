@@ -47,19 +47,24 @@ class BookshelfViewModel constructor(
     val toRead: StateFlow<List<LibraryItem>> =
         sourceRepository.observeAll().flatMapLatest { sources ->
             if (sources.isEmpty()) return@flatMapLatest flowOf(emptyList())
-            val allLibrariesFlow = combine(
-                sources.map { libraryObserver.observeLibraries(it.id) },
-            ) { arrays -> arrays.flatMap { it } }
-            allLibrariesFlow.flatMapLatest { libraries ->
-                if (libraries.isEmpty()) return@flatMapLatest flowOf(emptyList())
-                val perLibrary = libraries.map { library ->
-                    combine(
-                        toReadRepository.observeToReadItemIds(library.id),
-                        libraryObserver.observeLibraryItems(library.id),
-                    ) { ids, items -> items.filter { it.id in ids } }
-                }
-                combine(perLibrary) { arrays -> arrays.flatMap { it } }
+            // Preserve (sourceId, library) pairs so items are queried against their own source's
+            // DB rows, not the active source's rows. observeLibraryItems() always scopes to the
+            // active source and returns nothing for non-active-source libraries.
+            val perSourceLibs = sources.map { source ->
+                libraryObserver.observeLibraries(source.id)
+                    .map { libs -> libs.map { source.id to it } }
             }
+            combine(perSourceLibs) { arrays -> arrays.flatMap { it } }
+                .flatMapLatest { sourceLibraryPairs ->
+                    if (sourceLibraryPairs.isEmpty()) return@flatMapLatest flowOf(emptyList())
+                    val perLibrary = sourceLibraryPairs.map { (sourceId, library) ->
+                        combine(
+                            toReadRepository.observeToReadItemIds(library.id),
+                            libraryObserver.observeLibraryItemsForSource(sourceId, library.id),
+                        ) { ids, items -> items.filter { it.id in ids } }
+                    }
+                    combine(perLibrary) { arrays -> arrays.flatMap { it } }
+                }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val annotations: StateFlow<List<AnnotatedBook>> =

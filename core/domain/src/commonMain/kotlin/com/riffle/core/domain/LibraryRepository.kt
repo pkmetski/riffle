@@ -25,6 +25,12 @@ interface LibraryObserver {
     fun observeLibraries(sourceId: String): Flow<List<Library>>
 
     fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>>
+
+    /** Library items scoped to a specific Source — for cross-source callers like [Bookshelf] that
+     *  must query items owned by non-active Sources. The unscoped [observeLibraryItems] always uses
+     *  the active Source's id and returns nothing for non-active Source libraries. */
+    fun observeLibraryItemsForSource(sourceId: String, libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+
     fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>>
