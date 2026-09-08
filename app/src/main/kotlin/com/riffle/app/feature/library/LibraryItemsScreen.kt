@@ -137,7 +137,7 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-import com.riffle.app.ui.source.SourceIcon
+import com.riffle.feature.source.ui.SourceIcon
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max

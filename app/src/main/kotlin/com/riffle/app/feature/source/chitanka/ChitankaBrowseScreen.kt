@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
-import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.models.SourceType
 import androidx.compose.material3.CircularProgressIndicator
