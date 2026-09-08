@@ -24,6 +24,7 @@ import io.ktor.http.encodeURLQueryComponent
 internal class OReillyApi(
     private val client: HttpClient,
     private val cookieHeader: String,
+    private val userAgent: String = DEFAULT_USER_AGENT,
     private val baseUrl: String = DEFAULT_BASE_URL,
 ) {
     private val base = baseUrl.trimEnd('/')
@@ -62,7 +63,7 @@ internal class OReillyApi(
     private suspend fun authorizedGet(url: String, accept: String): HttpResponse = client.get(absolute(url)) {
         header("Cookie", cookieHeader)
         header("Accept", accept)
-        header("User-Agent", USER_AGENT)
+        header("User-Agent", userAgent)
     }
 
     private fun absolute(url: String): String =
@@ -132,7 +133,7 @@ internal class OReillyApi(
 
     companion object {
         const val DEFAULT_BASE_URL = "https://learning.oreilly.com"
-        private const val USER_AGENT =
+        const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
         private const val ACCEPT_JSON = "application/json"
         private const val ACCEPT_HTML = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"

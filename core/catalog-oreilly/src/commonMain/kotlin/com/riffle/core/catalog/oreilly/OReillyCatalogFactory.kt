@@ -24,6 +24,7 @@ import io.ktor.client.HttpClient
 class OReillyCatalogFactory(
     private val httpClient: HttpClient,
     private val cookieProvider: () -> String?,
+    private val userAgentProvider: () -> String? = { null },
     private val bookPreparationProgress: BookPreparationProgress? = null,
     private val baseUrl: String = OReillyApi.DEFAULT_BASE_URL,
 ) : CatalogFactory {
@@ -32,7 +33,13 @@ class OReillyCatalogFactory(
 
     override suspend fun create(source: Source): Catalog? {
         val cookieHeader = cookieProvider()?.takeIf { it.isNotBlank() } ?: return null
-        val api = OReillyApi(client = httpClient, cookieHeader = cookieHeader, baseUrl = source.url.value.ifBlank { baseUrl })
+        val ua = userAgentProvider()?.takeIf { it.isNotBlank() } ?: OReillyApi.DEFAULT_USER_AGENT
+        val api = OReillyApi(
+            client = httpClient,
+            cookieHeader = cookieHeader,
+            userAgent = ua,
+            baseUrl = source.url.value.ifBlank { baseUrl },
+        )
         return OReillyCatalog(
             api = api,
             bytesClient = httpClient,

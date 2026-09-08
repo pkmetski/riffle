@@ -813,6 +813,9 @@ private val coreDataCatalogModule = module {
                     android.webkit.CookieManager.getInstance()
                         .getCookie(com.riffle.core.domain.OReillyWebSourceDescriptor.OREILLY_BASE_URL)
                 },
+                userAgentProvider = {
+                    android.webkit.WebSettings.getDefaultUserAgent(androidContext())
+                },
                 bookPreparationProgress = get(),
             ),
         )

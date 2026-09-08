@@ -22,6 +22,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.okhttp.mockwebserver)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.mock)
         }
     }
 }
