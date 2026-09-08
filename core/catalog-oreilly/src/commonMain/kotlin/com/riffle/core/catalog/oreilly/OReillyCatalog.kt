@@ -489,6 +489,7 @@ class OReillyCatalog internal constructor(
         // (getAudiobookChapters is toc-derived). A partial audiobook is worse than a clear failure.
         var offset = 0.0
         val tracks = mutableListOf<CatalogAudioTrack>()
+        val downloadUrls = mutableListOf<String>()
         val chapters = mutableListOf<CatalogAudiobookChapter>()
         toc.forEachIndexed { index, entry ->
             val entryId = entryIdByRef[entry.referenceId].orEmpty()
@@ -502,6 +503,9 @@ class OReillyCatalog internal constructor(
                 contentUrl = OReillyApi.kalturaHlsUrl(partnerId, entryId, ks),
                 mimeType = OReillyApi.HLS_MIME,
             )
+            // HLS manifests cannot be byte-downloaded; the format/url redirect returns a signed MP4
+            // that AudiobookTrackDownloader can stream to disk (verified live 2026-09).
+            downloadUrls += OReillyApi.kalturaDownloadUrl(partnerId, entryId, ks)
             chapters += CatalogAudiobookChapter(
                 index = index,
                 startSec = offset,
@@ -510,11 +514,13 @@ class OReillyCatalog internal constructor(
             )
             offset += duration
         }
-        return if (tracks.isEmpty()) null else AudiobookAssembly(tracks, chapters, totalDurationSec = offset)
+        return if (tracks.isEmpty()) null
+        else AudiobookAssembly(tracks, downloadUrls, chapters, totalDurationSec = offset)
     }
 
     private class AudiobookAssembly(
         val tracks: List<CatalogAudioTrack>,
+        val downloadTrackUrls: List<String>,
         val chapters: List<CatalogAudiobookChapter>,
         val totalDurationSec: Double,
     )
@@ -553,6 +559,7 @@ class OReillyCatalog internal constructor(
         val assembly = loadAudiobookTracks(itemId) ?: return null
         return CatalogAudiobookStream(
             trackUrls = assembly.tracks.map { it.contentUrl },
+            downloadTrackUrls = assembly.downloadTrackUrls,
             tracks = assembly.tracks,
             chapters = assembly.chapters,
             totalDurationSec = assembly.totalDurationSec,

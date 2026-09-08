@@ -90,8 +90,13 @@ class AudiobookDownloadRepositoryImpl constructor(
         val progress = CumulativeDownloadProgress(wholeAudiobookBytes ?: 0L, onProgress)
 
         val dir = itemDir(sourceId, itemId).apply { mkdirs() }
+        // Sources whose streaming format can't be byte-downloaded (e.g. O'Reilly HLS) set
+        // downloadTrackUrls; substitute those so the track downloader receives real file URLs.
+        val downloadSession = session.downloadTrackUrls
+            ?.let { session.copy(trackUrls = it) }
+            ?: session
         try {
-            val manifestTracks = trackDownloader.download(session, dir, progress)
+            val manifestTracks = trackDownloader.download(downloadSession, dir, progress)
             val manifest = AudiobookDownloadManifest(
                 durationSec = session.timeline.durationSec,
                 tracks = manifestTracks.sortedBy { it.index },

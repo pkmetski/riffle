@@ -109,6 +109,23 @@ class OReillyAudiobookTest {
     }
 
     @Test
+    fun `openAudiobook populates downloadTrackUrls with format-url MP4 paths`() = runBlocking {
+        val stream = catalog.openAudiobook(itemId, deviceLabel = "test")!!
+
+        val dlUrls = stream.downloadTrackUrls
+        assertEquals(2, dlUrls?.size)
+        assertEquals(
+            "https://cdnapisec.kaltura.com/p/1926081/sp/192608100/playManifest/entryId/1_aaa" +
+                "/format/url/protocol/https?ks=KS123",
+            dlUrls?.get(0),
+        )
+        assertTrue(dlUrls?.get(1)?.contains("entryId/1_bbb") == true)
+        assertTrue(dlUrls?.get(1)?.contains("format/url") == true)
+        // HLS stream URLs are still present for the player.
+        assertTrue(stream.trackUrls[0].contains("format/applehttp"))
+    }
+
+    @Test
     fun `getAudiobookChapters comes from the toc without a Kaltura session`() = runBlocking {
         val chapters = catalog.getAudiobookChapters(itemId)
         assertEquals(listOf("Introduction", "Chapter 2"), chapters.map { it.title })

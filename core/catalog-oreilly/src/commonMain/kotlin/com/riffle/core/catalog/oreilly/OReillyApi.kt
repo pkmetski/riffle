@@ -193,6 +193,17 @@ internal class OReillyApi(
         fun kalturaHlsUrl(partnerId: String, entryId: String, ks: String): String =
             "$KALTURA_CDN/p/$partnerId/sp/${partnerId}00/playManifest/entryId/$entryId" +
                 "/format/applehttp/protocol/https/a.m3u8?ks=$ks"
+
+        /**
+         * Kaltura direct-download URL for one audiobook chapter. Returns an HTTP 302 to a
+         * CloudFront-signed `.mp4` (audio-only) that can be byte-streamed to disk. Use this for
+         * offline download/cache; use [kalturaHlsUrl] for live streaming (Media3 handles HLS
+         * natively but can't byte-download a manifest). Verified live 2026-09: redirects to
+         * `cfvod.kaltura.com` with a signed URL, `Content-Type: video/mp4`, `Content-Length` set.
+         */
+        fun kalturaDownloadUrl(partnerId: String, entryId: String, ks: String): String =
+            "$KALTURA_CDN/p/$partnerId/sp/${partnerId}00/playManifest/entryId/$entryId" +
+                "/format/url/protocol/https?ks=$ks"
     }
 
     private fun HttpStatusCode.isSuccess(): Boolean = value in 200..299

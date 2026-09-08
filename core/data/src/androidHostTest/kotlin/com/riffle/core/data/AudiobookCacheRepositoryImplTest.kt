@@ -242,4 +242,35 @@ class AudiobookCacheRepositoryImplTest {
         assertFalse(r.isCached("srv", "it"))
         assertNull(r.localSession("srv", "it"))
     }
+
+    @Test
+    fun `awaitCachedAudiobook uses downloadTrackUrls when set`() = runTest {
+        // Sources like O'Reilly provide HLS stream URLs in trackUrls (for the player) and direct
+        // MP4 download URLs in downloadTrackUrls (for offline cache). Cache must use the latter.
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setBody("mp4-audio-cache"))
+            val hlsUrl = server.url("/hls-will-not-be-fetched.m3u8").toString()
+            val mp4Url = server.url("/track.mp4").toString()
+            val session = AudiobookSession(
+                trackUrls = listOf(hlsUrl),
+                downloadTrackUrls = listOf(mp4Url),
+                tracks = listOf(AudiobookTrackSpan(0, 0.0, 60.0)),
+                timeline = AudiobookTimeline(60.0, emptyList()),
+                serverCurrentTimeSec = 0.0,
+            )
+            val root = tmp.newFolder()
+            val r = repo(root)
+
+            r.awaitCachedAudiobook("srv", "it", session)
+
+            assertTrue(r.isCached("srv", "it"))
+            val requested = server.takeRequest()
+            assertTrue(requested.path?.endsWith("track.mp4") == true)
+            assertEquals(1, server.requestCount)
+        } finally {
+            server.shutdown()
+        }
+    }
 }

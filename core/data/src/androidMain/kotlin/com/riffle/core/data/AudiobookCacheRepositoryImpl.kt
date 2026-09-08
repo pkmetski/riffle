@@ -58,10 +58,15 @@ class AudiobookCacheRepositoryImpl constructor(
     ) = withContext(dispatchers.io) {
         if (isCached(sourceId, itemId)) return@withContext
         val dir = itemDir(sourceId, itemId).apply { mkdirs() }
+        // Sources whose streaming format can't be byte-downloaded (e.g. O'Reilly HLS) set
+        // downloadTrackUrls; substitute those so the track downloader receives real file URLs.
+        val downloadSession = session.downloadTrackUrls
+            ?.let { session.copy(trackUrls = it) }
+            ?: session
         try {
             val noop: (Long, Long) -> Unit = { _, _ -> }
             val progress = CumulativeDownloadProgress(0L, noop)
-            val manifestTracks = trackDownloader.download(session, dir, progress)
+            val manifestTracks = trackDownloader.download(downloadSession, dir, progress)
             val manifest = AudiobookDownloadManifest(
                 durationSec = session.timeline.durationSec,
                 tracks = manifestTracks.sortedBy { it.index },

@@ -36,6 +36,7 @@ class AudiobookRepositoryImpl constructor(
         )
         return AudiobookSession(
             trackUrls = stream.trackUrls,
+            downloadTrackUrls = stream.downloadTrackUrls,
             tracks = spans,
             timeline = timeline,
             serverCurrentTimeSec = stream.serverCurrentTimeSec,
