@@ -232,6 +232,7 @@ class LibraryItemOfflineAvailabilityTest {
         ) = error("unused")
         override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
         override suspend fun saveReadingPosition(itemId: String, cfi: String) = error("unused")
+        override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
     }
 
     private class FakePdfRepository(
