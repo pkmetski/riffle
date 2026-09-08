@@ -68,6 +68,11 @@ class OReillyCatalog internal constructor(
      * aggressive synthesis looks to O'Reilly's bulk-abuse guard, independently of [maxConcurrency].
      */
     private val minRequestIntervalMs: Long = 120L,
+    /**
+     * Maximum spacing between request *starts*. Randomizing in [[minRequestIntervalMs],
+     * [maxRequestIntervalMs]] adds jitter so bulk synthesis doesn't sustain a flat machine-clock rate.
+     */
+    private val maxRequestIntervalMs: Long = 400L,
     /** Backoff retries when a chapter comes back 403 or truncated (a throttled DRM sample). */
     private val maxContentRetries: Int = 4,
     /** Base for exponential backoff between retries (1s, 2s, 4s, …). */
@@ -288,7 +293,7 @@ class OReillyCatalog internal constructor(
         // us under O'Reilly's bulk-abuse guard. Progress spans both phases so the reader's
         // "Preparing book… N/M" advances throughout.
         val total = assetFiles.size + distinctSpine.size
-        val pacer = RequestPacer(maxConcurrency, minRequestIntervalMs) { clock.nowMs() }
+        val pacer = RequestPacer(maxConcurrency, minRequestIntervalMs, maxRequestIntervalMs) { clock.nowMs() }
         val progressMutex = Mutex()
         var done = 0
         onProgress(0, total)
@@ -405,14 +410,15 @@ class OReillyCatalog internal constructor(
     }
 
     /**
-     * Bounds concurrent requests to [maxConcurrency] and spaces request *starts* by [minIntervalMs]
-     * (a global rate cap). Concurrency hides per-request latency; the rate cap bounds abuse-guard
-     * exposure — the two are independent. A retry's backoff happens outside [execute], so it never
-     * holds a permit while merely waiting.
+     * Bounds concurrent requests to [maxConcurrency] and spaces request *starts* by a jittered
+     * interval in [[minIntervalMs], [maxIntervalMs]] (a global rate cap). Concurrency hides
+     * per-request latency; the rate cap bounds abuse-guard exposure — the two are independent.
+     * A retry's backoff happens outside [execute], so it never holds a permit while merely waiting.
      */
     internal class RequestPacer(
         maxConcurrency: Int,
         private val minIntervalMs: Long,
+        private val maxIntervalMs: Long = minIntervalMs,
         private val nowMs: () -> Long,
     ) {
         private val permits = Semaphore(maxConcurrency)
@@ -423,11 +429,18 @@ class OReillyCatalog internal constructor(
             val waitMs = gate.withLock {
                 val now = nowMs()
                 val start = maxOf(now, nextAllowedMs)
-                nextAllowedMs = start + minIntervalMs
+                nextAllowedMs = start + randomInterval(minIntervalMs, maxIntervalMs)
                 start - now
             }
             if (waitMs > 0) delay(waitMs)
             block()
+        }
+
+        companion object {
+            internal fun randomInterval(minMs: Long, maxMs: Long): Long {
+                if (minMs >= maxMs) return minMs
+                return minMs + kotlin.random.Random.nextLong(maxMs - minMs + 1)
+            }
         }
     }
 
