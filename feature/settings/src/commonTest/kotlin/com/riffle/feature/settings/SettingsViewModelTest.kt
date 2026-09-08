@@ -383,7 +383,7 @@ class SettingsViewModelTest {
     // --- crash report list tests ---
 
     @Test
-    fun `crashReports surfaces every report from the repository, newest first`() {
+    fun `crashReports surfaces every report from the repository - newest first`() {
         val older = CrashReport(id = "100", content = "older crash", timestampMillis = 1_000L)
         val newer = CrashReport(id = "200", content = "newer crash", timestampMillis = 2_000L)
         val vm = makeViewModel(listOf(newer, older))
@@ -436,7 +436,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `removeServer active server promotes the next browsable server, never a Storyteller`() = runTest {
+    fun `removeServer active server promotes the next browsable server - never a Storyteller`() = runTest {
         serversFlow.value = listOf(
             server("abs-1", active = true),
             server("st-1", serverType = ServerType.STORYTELLER_SERVICE),
@@ -808,7 +808,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `annotationSyncRow is Pending when configured + NeverRun + no pending (not prematurely Synced)`() = runTest {
+    fun `annotationSyncRow is Pending when configured + NeverRun + no pending - not prematurely Synced`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
         val status = AnnotationSyncStatusStore()
         val vm = newSettingsViewModel(

@@ -31,8 +31,8 @@ import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase as SharedFetchAudiobookChaptersUseCase
-import com.riffle.app.feature.server.AddSourceViewModel
-import com.riffle.app.feature.server.SelectLibrariesViewModel
+import com.riffle.feature.source.ui.AddSourceViewModel
+import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.settings.AppVersion
@@ -399,27 +399,29 @@ private val settingsViewModelModule = module {
 private val serverViewModelModule = module {
     viewModel {
         AddSourceViewModel(
-            context = androidContext(),
             repository = get(),
             authenticators = get(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)),
             webdavConfigStore = get(),
-            webdavTargetFactory = get(),
+            webdavConnectionTester = get(),
             webdavStatusStore = get(),
             sweepEnqueuer = get(),
+            progressSyncTrigger = get(),
             storytellerSyncer = get(),
             readaloudMatcher = get(),
             tokenStorage = get(),
             clock = get(),
             annotationDao = get(),
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
+            strings = get(),
+            devDefaults = get(),
             savedStateHandle = get(),
         )
     }
     viewModel { SourceSetupViewModel() }
     viewModel {
         SelectLibrariesViewModel(
-            context = androidContext(),
             repository = get(),
+            strings = get(),
         )
     }
     viewModel { SourceTypePickerViewModel(sourceRepository = get(), developerOptions = get()) }

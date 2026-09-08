@@ -99,7 +99,7 @@ import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
-import com.riffle.app.ui.source.asAuthHeader
+import com.riffle.feature.source.ui.asAuthHeader
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.BookImportState

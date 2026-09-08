@@ -38,3 +38,6 @@ docs/superpowers/
 
 # Xcode per-user workspace state
 *.xcuserstate
+
+# Xcode per-user state (scheme order, breakpoints)
+xcuserdata/

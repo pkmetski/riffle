@@ -40,9 +40,9 @@ import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.app.feature.settings.ReorderableLibraryList
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.idsWithSwap
-import com.riffle.app.ui.source.SourceIcon
-import com.riffle.app.ui.source.localizedSourceDisplayName
-import com.riffle.app.ui.source.localizedSourceSubtitle
+import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.feature.source.ui.localizedSourceDisplayName
+import com.riffle.feature.source.ui.localizedSourceSubtitle
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source

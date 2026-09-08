@@ -57,3 +57,13 @@ Covers `IosLibraryItemOfflineAvailabilityImpl` wired into `LibraryItemsScreen` o
 
 **Expected:**
 - No badge is rendered on the tile.
+
+## Test coverage
+
+`OfflineAvailabilityTests.swift` (iosAppUnitTests) exercises
+`IosLibraryItemOfflineAvailabilityImpl` against the real simulator filesystem:
+`testDetectsEpubDownloadFile` places a file at the expected `epub-downloads/<sourceId>/<itemId>.epub`
+path and asserts the item is reported available offline; `testNoFilesReturnsFalse` asserts an
+item with no local files is not. The seven former `*Namespace` XCTests only re-asserted the
+Kotlin namespace string constants (constant echoes) and were removed — the integration tests
+above fail if the namespace convention changes.

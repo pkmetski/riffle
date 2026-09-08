@@ -21,7 +21,7 @@ final class ComicsReaderTests: XCTestCase {
 
     /// 06-C.1 — Tapping a CBZ item opens the comics reader screen.
     func testComicsReaderOpensFromLibrary() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — comics reader test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
@@ -46,7 +46,7 @@ final class ComicsReaderTests: XCTestCase {
 
     /// 06-G.1 — Tapping back from the comics reader returns to the library.
     func testComicsReaderBackNavigationReturnsToLibrary() throws {
-        if app.staticTexts["Add a source to get started"].waitForExistence(timeout: 5) {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
             throw XCTSkip("No source configured — comics reader test requires a connected server")
         }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)

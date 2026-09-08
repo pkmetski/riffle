@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
-import com.riffle.app.ui.source.SOURCE_ICON_TEST_TAG
+import com.riffle.feature.source.ui.SOURCE_ICON_TEST_TAG
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.settings.sections.SingletonWebSourceRow
 import com.riffle.core.domain.ChitankaWebSourceDescriptor

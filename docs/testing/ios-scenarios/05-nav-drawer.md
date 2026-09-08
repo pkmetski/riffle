@@ -30,7 +30,10 @@
 **When** the user taps the hamburger icon (☰) in the top bar.
 **Then** the drawer panel slides in from the left and the scrim appears.
 
-**Coverage:** `NavDrawerTests.testBurgerTapOpensDrawer`
+**Coverage:** GAP (deferred) — drawer open/close state lives in HomeScreen Compose UI, which XCTest
+cannot drive without an XCUITest accessibility handle on the burger button. The former
+`NavDrawerTests.testBurgerTapOpensDrawer` was an unconditional `XCTSkip` placeholder and was
+removed; verified manually until an XCUITest with proper accessibility identifiers is added.
 
 ## 5.5 Scrim tap closes the drawer
 
@@ -38,4 +41,5 @@
 **When** the user taps the scrim (area outside the panel).
 **Then** the drawer closes.
 
-**Coverage:** `NavDrawerTests.testScrimTapClosesDrawer`
+**Coverage:** GAP (deferred) — same reason as 5.4; the former
+`NavDrawerTests.testScrimTapClosesDrawer` unconditional-skip placeholder was removed.

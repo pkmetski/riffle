@@ -1,8 +1,8 @@
 package com.riffle.core.database
 
-import java.nio.file.Files
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

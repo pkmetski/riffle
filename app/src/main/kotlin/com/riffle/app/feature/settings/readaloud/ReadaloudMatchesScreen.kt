@@ -64,7 +64,7 @@ import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.UnmatchedReadaloud
-import com.riffle.app.ui.source.asAuthHeader
+import com.riffle.feature.source.ui.asAuthHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

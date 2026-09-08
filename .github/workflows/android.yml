@@ -65,7 +65,10 @@ jobs:
       # KMP modules (core:common/models/domain/sources/net) have no `test` lifecycle
       # task — their JVM tests only run via `jvmTest`. `./gradlew test` alone silently
       # skipped all of them from the KMP conversion (#644) onward.
-      - run: ./gradlew test jvmTest -PversionName=0.0.0-ci
+      # :feature:source-ui is android+ios (no jvm target), so neither `test` nor `jvmTest`
+      # matches it — its ported AddSourceViewModel/SourceIconResolver/... suites only run
+      # via testAndroidHostTest. Name it explicitly or they silently never run.
+      - run: ./gradlew test jvmTest :feature:source-ui:testAndroidHostTest -PversionName=0.0.0-ci
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7

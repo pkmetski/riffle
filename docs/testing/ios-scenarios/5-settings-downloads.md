@@ -50,9 +50,17 @@ implemented in `shared/src/commonMain/kotlin/com/riffle/shared/settings/` and `.
 - Tap a library to navigate back to the Library section. Reopen the drawer.
 - **Expected**: Settings row is no longer highlighted; the selected library row is highlighted.
 
-## XCTest coverage
+## Test coverage
 
-Implemented in `iosApp/iosAppTests/SettingsDownloadsTests.swift`.
+The Settings/Downloads screens and their view models are shared Compose Multiplatform code,
+covered by `SettingsViewModelTest` and the shared-module commonTest suites (which also run on
+the iOS simulator target in CI). The former `SettingsDownloadsTests.swift` XCTest file was
+removed: its two enum-echo tests could not fail, and its three drawer-navigation tests were
+unconditional `XCTSkip` placeholders.
+
+Scenarios 5.1, 5.3, 5.4, and 5.7 (drawer-driven navigation and highlight) are a GAP (deferred)
+on iOS: XCTest cannot drive the Compose drawer without accessibility identifiers exposed to
+XCUITest; verified manually for now.
 
 Scenarios 5.5 and 5.6 require a non-empty `DownloadsRepository`; on iOS the current
 `IosNoOpDownloadsRepository` always returns empty lists. These scenarios are verified

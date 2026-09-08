@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,6 +62,13 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
 ) {
+    // Android triggers the server refresh from the screen's lifecycle RESUME; the iOS shell has
+    // no lifecycle owner, so trigger it on entering composition. Without this, library items are
+    // never fetched from the server — a freshly added source rendered an empty library forever.
+    LaunchedEffect(libraryId) {
+        viewModel.onScreenResumed()
+    }
+
     val containerWidthPx = LocalWindowInfo.current.containerSize.width
     SideEffect {
         viewModel.setScreenDimensionBucket(
@@ -79,81 +87,81 @@ fun LibraryItemsScreen(
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
-    LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer)
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        if (isLoading) {
-            item {
-                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    BasicText("Loading…")
-                }
-            }
-        } else {
-            if (projection.inProgress.isNotEmpty()) {
-                item { SectionHeader("In Progress") { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) } }
+        LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer)
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            if (isLoading) {
                 item {
-                    HorizontalBookRow(
-                        items = projection.inProgress.take(10),
-                        onItemClick = onItemSelected,
-                    )
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        BasicText("Loading…")
+                    }
                 }
-            }
-            if (projection.continueSeries.isNotEmpty()) {
-                item { SectionHeader("Continue Series") { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) } }
-                item {
-                    HorizontalBookRow(
-                        items = projection.continueSeries.take(10),
-                        onItemClick = onItemSelected,
-                    )
+            } else {
+                if (projection.inProgress.isNotEmpty()) {
+                    item { SectionHeader("In Progress") { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) } }
+                    item {
+                        HorizontalBookRow(
+                            items = projection.inProgress.take(10),
+                            onItemClick = onItemSelected,
+                        )
+                    }
                 }
-            }
-            if (projection.recentlyAdded.isNotEmpty()) {
-                item { SectionHeader("Recently Added") { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) } }
-                item {
-                    HorizontalBookRow(
-                        items = projection.recentlyAdded.take(10),
-                        onItemClick = onItemSelected,
-                    )
+                if (projection.continueSeries.isNotEmpty()) {
+                    item { SectionHeader("Continue Series") { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) } }
+                    item {
+                        HorizontalBookRow(
+                            items = projection.continueSeries.take(10),
+                            onItemClick = onItemSelected,
+                        )
+                    }
                 }
-            }
-            if (projection.finished.isNotEmpty()) {
-                item { SectionHeader("Finished") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
-                item {
-                    HorizontalBookRow(
-                        items = projection.finished.take(10),
-                        onItemClick = onItemSelected,
-                    )
+                if (projection.recentlyAdded.isNotEmpty()) {
+                    item { SectionHeader("Recently Added") { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) } }
+                    item {
+                        HorizontalBookRow(
+                            items = projection.recentlyAdded.take(10),
+                            onItemClick = onItemSelected,
+                        )
+                    }
                 }
-            }
-            if (projection.series.isNotEmpty()) {
-                item { SectionHeader("Series", onSeeAll = null) }
-                item {
-                    SeriesRow(
-                        series = projection.series.take(10),
-                        onSeriesClick = onSeriesSelected,
-                    )
+                if (projection.finished.isNotEmpty()) {
+                    item { SectionHeader("Finished") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
+                    item {
+                        HorizontalBookRow(
+                            items = projection.finished.take(10),
+                            onItemClick = onItemSelected,
+                        )
+                    }
                 }
-            }
-            if (projection.collections.isNotEmpty()) {
-                item { SectionHeader("Collections", onSeeAll = null) }
-                item {
-                    CollectionRow(
-                        collections = projection.collections.take(10),
-                        onCollectionClick = onCollectionSelected,
-                    )
+                if (projection.series.isNotEmpty()) {
+                    item { SectionHeader("Series", onSeeAll = null) }
+                    item {
+                        SeriesRow(
+                            series = projection.series.take(10),
+                            onSeriesClick = onSeriesSelected,
+                        )
+                    }
                 }
-            }
-            if (projection.allBooks.isNotEmpty()) {
-                item { SectionHeader("All Books", onSeeAll = null) }
-                item {
-                    BookGrid(
-                        items = projection.allBooks,
-                        coversAreSquare = coversAreSquare,
-                        onItemClick = onItemSelected,
-                    )
+                if (projection.collections.isNotEmpty()) {
+                    item { SectionHeader("Collections", onSeeAll = null) }
+                    item {
+                        CollectionRow(
+                            collections = projection.collections.take(10),
+                            onCollectionClick = onCollectionSelected,
+                        )
+                    }
+                }
+                if (projection.allBooks.isNotEmpty()) {
+                    item { SectionHeader("All Books", onSeeAll = null) }
+                    item {
+                        BookGrid(
+                            items = projection.allBooks,
+                            coversAreSquare = coversAreSquare,
+                            onItemClick = onItemSelected,
+                        )
+                    }
                 }
             }
         }
-    }
     } // Column
 }
 

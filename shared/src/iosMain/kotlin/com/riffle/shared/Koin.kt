@@ -1,5 +1,6 @@
 package com.riffle.shared
 
+import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.Clock
 import com.riffle.core.common.IosSystemClock
@@ -17,7 +18,9 @@ import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
+import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppThemeStore
@@ -63,6 +66,8 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.WebSourceDescriptors
+import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
@@ -78,6 +83,7 @@ import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.logging.iosLoggingModule
+import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
@@ -85,7 +91,11 @@ import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
+import com.riffle.core.network.StorytellerApi
+import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.core.sources.SourceAdapter
+import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
@@ -109,6 +119,16 @@ import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.source.SourceSetupViewModel
+import com.riffle.feature.source.SourceTypePickerViewModel
+import com.riffle.feature.source.ui.AddSourceViewModel
+import com.riffle.feature.source.ui.ComposeResourceSourceUiStrings
+import com.riffle.feature.source.ui.DevSourceDefaults
+import com.riffle.feature.source.ui.ProgressSyncTrigger
+import com.riffle.feature.source.ui.SelectLibrariesViewModel
+import com.riffle.feature.source.ui.SourceUiStrings
+import com.riffle.feature.source.ui.WebdavConnectionTester
+import com.riffle.feature.source.ui.WebdavTestOutcome
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
 import com.riffle.shared.library.IosNoOpAppThemeStore
@@ -177,6 +197,10 @@ import com.riffle.shared.settings.IosNoOpReadaloudPreferencesStore
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import com.riffle.shared.settings.IosNoOpVolumeKeyPreferencesStore
 import com.riffle.shared.settings.IosNoOpWakeLockPreferencesStore
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.core.context.startKoin as koinStartKoin
 
@@ -195,14 +219,67 @@ private fun iosLibraryModule(
 
     single<DispatcherProvider> { IosDispatcherProvider }
     single<SourceRepository> { IosSourceRepositoryImpl(get(), get(), get()) }
-    single<LibraryObserver> { IosLibraryObserverImpl(get(), get()) }
-    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get()) }
+    single<LibraryObserver> { IosLibraryObserverImpl(get(), get(), get(), get(), get()) }
+    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { DrawerViewModel(get(), get(), get(), get()) }
-    single { AddAbsSourceViewModel(get(), get(), get()) }
+
+    // ---- Source onboarding (shared Compose screens from :feature:source-ui) -------------------
+    // iOS renders the same SourceTypePicker / AddSource / SelectLibraries screens as Android.
+    single<WebSourceRegistry> { WebSourceRegistry(WebSourceDescriptors.all) }
+    single { SingletonWebSourceInstaller(get(), get(), get(), get()) }
+    single { SourceTypePickerViewModel(sourceRepository = get(), developerOptions = get()) }
+    single { SourceSetupViewModel() }
+    single<SourceUiStrings> { ComposeResourceSourceUiStrings }
+    // core:sources' AbsSourceAdapter is already multiplatform (commonMain) and covers both
+    // Audiobookshelf and Storyteller. Komga's adapter is jvmMain-only, which is why
+    // `iosSupportedSourceTypes()` keeps the other credentialed cards disabled on iOS.
+    single { StorytellerApiClient(get()) }
+    single<StorytellerApi> { get<StorytellerApiClient>() }
+    single { AbsSourceAdapter(get(), get(), get()) }
+    single<Map<SourceType, SourceAdapter>> {
+        mapOf(SourceType.ABS to get<AbsSourceAdapter>())
+    }
+    // The WebDAV annotation-sync sidecar is Android-only (its target factory lives in
+    // core/sources' jvmMain). No iOS surface navigates to the WebDAV form; this binding exists
+    // so the shared AddSourceViewModel graph resolves, and reports the unparseable-URL outcome
+    // if it is ever reached.
+    single<WebdavConnectionTester> { WebdavConnectionTester { WebdavTestOutcome.UnparseableUrl } }
+    single<AnnotationSweepEnqueuer> { AnnotationSweepEnqueuer { } }
+    single<ProgressSyncTrigger> { ProgressSyncTrigger { } }
+    single { DevSourceDefaults.Empty }
+    single<Flow<Unit>>(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)) {
+        flow {
+            while (true) {
+                emit(Unit)
+                delay(60_000L)
+            }
+        }
+    }
+    factory { params ->
+        AddSourceViewModel(
+            repository = get(),
+            authenticators = get(),
+            webdavConfigStore = get(),
+            webdavConnectionTester = get(),
+            webdavStatusStore = get(),
+            sweepEnqueuer = get(),
+            progressSyncTrigger = get(),
+            storytellerSyncer = get(),
+            readaloudMatcher = get(),
+            tokenStorage = get(),
+            clock = get(),
+            annotationDao = get(),
+            bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
+            strings = get(),
+            devDefaults = get(),
+            savedStateHandle = SavedStateHandle(mapOf("type" to params.get<String>())),
+        )
+    }
+    factory { SelectLibrariesViewModel(repository = get(), strings = get()) }
 
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }

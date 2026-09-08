@@ -25,8 +25,15 @@ kotlin {
         }
     }
     jvm()
-    iosArm64()
-    iosSimulatorArm64()
+
+    // The iOS test executables link SQLDelight's NativeSqliteDriver, whose sqliter cinterop
+    // references the system SQLite symbols. The app gets these from iosApp's
+    // `OTHER_LDFLAGS = -lsqlite3`; the Kotlin/Native test binary has no Xcode build settings,
+    // so it needs the flag declared here or `linkDebugTestIos*` fails with a wall of
+    // "Undefined symbols: _sqlite3_bind_blob…". A library target's only binaries are its test
+    // executables, so `binaries.all` is scoped to exactly those.
+    iosArm64 { binaries.all { linkerOpts("-lsqlite3") } }
+    iosSimulatorArm64 { binaries.all { linkerOpts("-lsqlite3") } }
 
     sourceSets {
         // Intermediate source set for Android + JVM targets only.
@@ -42,6 +49,13 @@ kotlin {
         iosMain.get().dependsOn(commonMain.get())
         iosArm64Main.get().dependsOn(iosMain.get())
         iosSimulatorArm64Main.get().dependsOn(iosMain.get())
+
+        // Same story for the test graph: without these, `iosTest` is an orphan source set that
+        // is never compiled by any target, so `IosRiffleDatabaseSchemaTest` silently never ran
+        // (`:core:database:iosSimulatorArm64Test` reported only the commonTest classes).
+        iosTest.get().dependsOn(commonTest.get())
+        iosArm64Test.get().dependsOn(iosTest.get())
+        iosSimulatorArm64Test.get().dependsOn(iosTest.get())
 
         commonMain.dependencies {
             api(project(":core:database-api"))

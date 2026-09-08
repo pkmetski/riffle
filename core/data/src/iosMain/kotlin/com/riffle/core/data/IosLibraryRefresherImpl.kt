@@ -5,6 +5,8 @@ import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
@@ -17,6 +19,8 @@ import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.NetworkResult
+import platform.Foundation.NSDate
+import platform.Foundation.timeIntervalSince1970
 
 class IosLibraryRefresherImpl(
     private val sourceRepository: SourceRepository,
@@ -26,6 +30,7 @@ class IosLibraryRefresherImpl(
     private val komgaLibraryApi: KomgaLibraryApi,
     private val seriesDao: SeriesDao,
     private val collectionDao: CollectionDao,
+    private val libraryItemDao: LibraryItemDao,
 ) : LibraryRefresher {
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
@@ -99,8 +104,59 @@ class IosLibraryRefresherImpl(
         }
     }
 
-    override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult =
-        LibraryRefreshResult.Success
+    override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        // Only ABS syncs items into the local mirror on iOS today. Unbounded catalogues are
+        // network-only by design (ADR 0051), Local Files rows are owned by the installer, and
+        // Komga is not yet enabled on iOS — none of those may be wiped by a replace-all.
+        if (source.type != SourceType.ABS) return LibraryRefreshResult.Success
+        val token = tokenStorage.getToken(source.id) ?: return LibraryRefreshResult.NoActiveServer
+        val result = absLibraryApi.getLibraryItems(
+            baseUrl = source.url.value,
+            libraryId = libraryId,
+            token = token,
+            insecureAllowed = source.insecureConnectionAllowed,
+        )
+        return when (result) {
+            is NetworkResult.Success -> {
+                val lastOpenedAtById = libraryItemDao.getLastOpenedAtMap(source.id, libraryId)
+                    .associate { it.id to it.lastOpenedAt }
+                val nowMs = (NSDate().timeIntervalSince1970 * 1000).toLong()
+                val entities = result.value.map { item ->
+                    LibraryItemEntity(
+                        sourceId = source.id,
+                        id = item.id,
+                        libraryId = item.libraryId,
+                        title = item.title,
+                        author = item.author,
+                        coverUrl = AbsCoverUrl.of(source.url.value, item.id, item.updatedAt),
+                        // Initial seed for newly inserted rows only — replaceAllForLibrary's
+                        // updateMetadata path preserves the locally tracked value for existing rows.
+                        readingProgress = item.readingProgress ?: 0f,
+                        ebookFileIno = item.ebookFileIno,
+                        ebookFormat = item.ebookFormat.toStorageString(),
+                        hasAudio = item.hasAudio,
+                        audioDurationSec = item.audioDurationSec,
+                        description = item.description,
+                        seriesName = item.seriesName,
+                        publishedYear = item.publishedYear,
+                        genres = item.genres.joinToString(","),
+                        publisher = item.publisher,
+                        language = item.language,
+                        lastOpenedAt = lastOpenedAtById[item.id],
+                        addedAt = item.addedAt ?: nowMs,
+                        isbn = item.isbn,
+                        asin = item.asin,
+                    )
+                }
+                libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
+                LibraryRefreshResult.Success
+            }
+            is NetworkResult.Offline -> LibraryRefreshResult.NetworkError(result.cause)
+            is NetworkResult.Unknown -> LibraryRefreshResult.NetworkError(result.cause)
+            else -> LibraryRefreshResult.NetworkError(Exception("Request failed: $result"))
+        }
+    }
 
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer

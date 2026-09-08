@@ -20,7 +20,6 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 private val absUrl = SourceUrl.parse("http://abs.local:13378")!!
 private val absSource = Source(

@@ -1,6 +1,6 @@
 # iOS Scenario 06 — Comics (CBZ) Reader
 
-Corresponds to Android harness tests: `CbzReaderTest`.
+Corresponds to Android harness tests: `CbzThumbnailStripTest`.
 
 ## Prerequisites
 

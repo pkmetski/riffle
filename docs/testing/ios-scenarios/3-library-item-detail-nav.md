@@ -66,3 +66,12 @@ Covers `LibraryItemDetailScreen` and `LibraryItemDetailViewModel` in `commonMain
 
 **Expected:**
 - The `Item not found` message is shown, with a `← Back` link.
+
+## Test coverage
+
+Scenarios 3.1–3.7 require a live ABS instance and are verified manually on a simulator.
+The `LibraryItemDetailUiState` sealed hierarchy (Loading / Ready / Error) and the ViewModel
+behaviour behind these scenarios live in shared commonMain and are exercised by
+`LibraryItemDetailViewModelTest` (`shared/src/commonTest`), which runs on the iOS simulator
+target in CI. The former `LibraryItemDetailNavTests.swift` XCTest file only re-asserted that
+the sealed cases and constructor parameters exist (constructor echoes) and was removed.

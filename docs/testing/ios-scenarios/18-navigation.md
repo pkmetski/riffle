@@ -38,7 +38,10 @@
 
 **Coverage:** `NavigateAsRootTest.settingsBackDoubleTapOnlyPopsSettings`
 
-**iOS gap:** SwiftUI `NavigationStack` manages back-stack differently; the blank-screen root cause (empty NavHost) does not apply. iOS navigation uses path arrays; the home view is always the root. Verified via `NavigationTests.testHomeIsAlwaysRootOfStack`.
+**iOS gap:** SwiftUI `NavigationStack` manages back-stack differently; the blank-screen root cause (empty NavHost) does not apply. iOS navigation uses path arrays; the home view is always the root. This is a structural guarantee of the platform, not a runtime behaviour — there is no
+meaningful runtime assertion to make. The former `NavigationTests.swift` file (whose only test
+re-asserted the `ServerType.storytellerService` enum constant, duplicating
+`DrawerViewModelTest` in commonTest) was removed.
 
 ## 18.5 Root-switching navigation does not stack duplicate home entries
 

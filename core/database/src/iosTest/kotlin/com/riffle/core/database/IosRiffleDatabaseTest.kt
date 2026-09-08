@@ -1,18 +1,21 @@
 package com.riffle.core.database
 
+import co.touchlab.sqliter.DatabaseFileContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
-import platform.posix.remove
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class IosRiffleDatabaseTest {
     @Test
     fun nativeSqliteDriverCreatesDatabaseAndPreservesFlowQueriesOnIos() = runTest {
-        val path = "${NSTemporaryDirectory()}riffle-sqldelight-${NSUUID().UUIDString}.db"
-        val database = openRiffleDatabase(path)
+        // A bare filename, exactly as production passes it (`openRiffleDatabase("riffle.db")` in
+        // IosDatabaseKoinModule). SQLiter treats the argument as a NAME and resolves it against
+        // its own base path; handing it a full path throws
+        // "File … contains a path separator" out of DatabaseConfiguration's checkFilename.
+        val name = "riffle-sqldelight-${NSUUID().UUIDString}.db"
+        val database = openRiffleDatabase(name)
         val source = SourceEntity(
             id = "source-1",
             url = "https://example.test",
@@ -28,9 +31,7 @@ class IosRiffleDatabaseTest {
             assertEquals(listOf(source), database.sourceDao().observeAll().first())
         } finally {
             database.close()
-            remove(path)
-            remove("$path-shm")
-            remove("$path-wal")
+            DatabaseFileContext.deleteDatabase(name)
         }
     }
 }

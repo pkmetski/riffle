@@ -10,16 +10,16 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
     // MARK: SleepTimerMode.formatCountdown (scenarios 5.1–5.2)
 
     func testFormatCountdownOneMinuteThirtySeconds() {
-        let mode = SleepTimerMode.CountDown(remainingMs: 90_000)
+        let mode = SleepTimerModeCountDown(remainingMs: 90_000)
         XCTAssertEqual(SleepTimerModeKt.formatCountdown(mode), "1:30")
     }
 
     func testFormatCountdownNoneReturnsEmpty() {
-        XCTAssertEqual(SleepTimerModeKt.formatCountdown(SleepTimerMode.None()), "")
+        XCTAssertEqual(SleepTimerModeKt.formatCountdown(SleepTimerModeNone.shared), "")
     }
 
     func testFormatCountdownEndOfChapterReturnsEmpty() {
-        XCTAssertEqual(SleepTimerModeKt.formatCountdown(SleepTimerMode.EndOfChapter()), "")
+        XCTAssertEqual(SleepTimerModeKt.formatCountdown(SleepTimerModeEndOfChapter.shared), "")
     }
 
     // MARK: formatCompactDuration (scenarios 5.3–5.4)
@@ -102,10 +102,10 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
 
     func testNowPlayingStoreSetAndClear() {
         let store = NowPlayingStore()
-        store.set(value: NowPlaying.Audiobook(itemId: "book-1"))
+        store.set(value: NowPlayingAudiobook(itemId: "book-1"))
         XCTAssertEqual(store.current?.itemId, "book-1")
 
-        store.clearIf { $0.itemId == "book-1" }
+        store.clearIf { KotlinBoolean(bool: $0.itemId == "book-1") }
         XCTAssertNil(store.current)
     }
 

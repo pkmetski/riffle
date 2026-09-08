@@ -1,8 +1,6 @@
 package com.riffle.app.feature.server
 
 import androidx.activity.ComponentActivity
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -11,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.SourceType
+import com.riffle.feature.source.ui.SourceTypePickerScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -21,7 +20,6 @@ import org.junit.runner.RunWith
  * single `onPick(SourceType)` callback; card taps identify by [SourceType]. Locks the "cards are
  * displayed and clickable" contract.
  */
-@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @RunWith(AndroidJUnit4::class)
 class SourceTypePickerScreenTest {
 
@@ -74,9 +72,10 @@ class SourceTypePickerScreenTest {
         installedTypes: Set<SourceType> = emptySet(),
     ) {
         composeRule.setContent {
-            val wsc = calculateWindowSizeClass(composeRule.activity)
             SourceTypePickerScreen(
-                windowSizeClass = wsc,
+                // Compact/Medium widths pass through unchanged; the picker's own layout is
+                // width-independent, so the phone (non-Expanded) case is what these assert.
+                isExpandedWidth = false,
                 onNavigateBack = {},
                 onPick = onPick,
                 installedTypes = installedTypes,

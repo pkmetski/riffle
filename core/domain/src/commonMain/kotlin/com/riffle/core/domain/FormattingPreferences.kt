@@ -53,6 +53,15 @@ data class FormattingPreferences(
         val DEFAULT_AUTO_READER_THEME_MODE: AutoReaderThemeMode = AutoReaderThemeMode.Schedule
         val DEFAULT_FONT_FAMILY: ReaderFontFamily = ReaderFontFamily.Original
         val DEFAULT_ORIENTATION: ReaderOrientation = ReaderOrientation.Horizontal
+
+        /**
+         * The all-defaults instance, i.e. what a reader sees before touching any setting.
+         *
+         * Exists for callers that cannot use Kotlin default arguments — notably Swift, since
+         * Kotlin/Native does not export default parameter values to the Obj-C/Swift API, so
+         * `FormattingPreferences()` is unavailable there.
+         */
+        fun defaults(): FormattingPreferences = FormattingPreferences()
     }
 }
 

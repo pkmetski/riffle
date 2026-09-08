@@ -13,23 +13,27 @@ final class LocalFilesTests: XCTestCase {
     // MARK: - Scenario B: Cancel the picker
 
     func testCancelFolderPickerReturnsToAddSourceButton() throws {
-        let addButton = app.buttons["Add Local Files"]
+        // First launch with no sources lands on the shared source-type picker.
+        guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
+            throw XCTSkip("A source is already configured — cancel-flow test requires a pristine install")
+        }
+        let localFilesCard = app.staticTexts["Local files"]
         XCTAssertTrue(
-            addButton.waitForExistence(timeout: 5),
-            "Add Local Files button should be visible on first launch with no sources"
+            localFilesCard.waitForExistence(timeout: 5),
+            "Local files card should be visible in the source picker"
         )
 
-        addButton.tap()
+        localFilesCard.tap()
 
         // The iOS document picker appears with a Cancel button.
         let cancelButton = app.buttons["Cancel"]
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Picker Cancel button should appear")
         cancelButton.tap()
 
-        // After cancellation the Add Local Files button should be visible again.
+        // After cancellation the source picker is visible again.
         XCTAssertTrue(
-            addButton.waitForExistence(timeout: 5),
-            "Add Local Files button should reappear after cancel"
+            localFilesCard.waitForExistence(timeout: 5),
+            "Local files card should reappear after cancel"
         )
     }
 

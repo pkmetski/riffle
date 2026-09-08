@@ -2,6 +2,7 @@ package com.riffle.app.navigation
 
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -13,13 +14,15 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
-import com.riffle.app.feature.server.AddSourceScreen
-import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.feature.source.SourceSetupViewModel
-import com.riffle.app.feature.server.SourceTypePickerScreen
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.app.feature.source.oreilly.OReillyBrowseScreen
 import com.riffle.app.feature.source.oreilly.OReillyLoginScreen
+import com.riffle.feature.source.ui.AddSourceScreen
+import com.riffle.feature.source.ui.AddSourceViewModel
+import com.riffle.feature.source.ui.SelectLibrariesScreen
+import com.riffle.feature.source.ui.SelectLibrariesViewModel
+import com.riffle.feature.source.ui.SourceTypePickerScreen
 import com.riffle.app.feature.source.chitanka.AddChitankaScreen
 import com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen
 import com.riffle.app.feature.source.gutenberg.AddGutenbergScreen
@@ -38,6 +41,9 @@ internal fun NavGraphBuilder.sourceNavGraph(
     drawerState: DrawerState,
     scope: CoroutineScope,
 ) {
+    // The shared source-onboarding screens take a plain boolean instead of Android's
+    // WindowSizeClass (which has no iOS equivalent) — see :feature:source-ui.
+    val isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
     // The Source Type picker lives at NavHost level (not inside SOURCE_SETUP_GRAPH) so
     // that entering the setup graph directly for Storyteller/WebDAV/edit paths does NOT
     // implicitly push the picker as the graph's start destination onto the back stack.
@@ -51,7 +57,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
         val installedTypes by pickerViewModel.installedTypes.collectAsState()
         val developerModeEnabled by pickerViewModel.developerModeEnabled.collectAsState()
         SourceTypePickerScreen(
-            windowSizeClass = windowSizeClass,
+            isExpandedWidth = isExpandedWidth,
             onNavigateBack = {
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
@@ -272,7 +278,8 @@ internal fun NavGraphBuilder.sourceNavGraph(
             val cameFromSettings = navController.previousBackStackEntry
                 ?.destination?.route in setOf(SETTINGS, READALOUD_SETTINGS, ANNOTATIONS_SYNC_SETTINGS, CHANGELOG)
             AddSourceScreen(
-                windowSizeClass = windowSizeClass,
+                isExpandedWidth = isExpandedWidth,
+                viewModel = koinViewModel<AddSourceViewModel>(),
                 onNavigateBack = {
                     if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                     else navController.navigateAsRootIfTop(backStackEntry, HOME)
@@ -298,7 +305,8 @@ internal fun NavGraphBuilder.sourceNavGraph(
             } else {
                 SelectLibrariesScreen(
                     pending = pending,
-                    windowSizeClass = windowSizeClass,
+                    isExpandedWidth = isExpandedWidth,
+                    viewModel = koinViewModel<SelectLibrariesViewModel>(),
                     onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onContinueComplete = {
                         navController.navigateAsRootIfTop(backStackEntry, HOME)

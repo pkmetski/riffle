@@ -1,7 +1,7 @@
 # Scenario 08: Auto-Follow JS (Readaloud page tracking)
 
 **Android reference:** `AutoFollowJsTest.kt` (12 tests)  
-**iOS implementation:** `AutoFollowJsTests.swift` (7 scenarios)  
+**iOS implementation:** `AutoFollowJsTests.swift` (12 scenarios — full parity)  
 **KMP source:** `feature/reader/src/commonMain/kotlin/com/riffle/feature/reader/ColumnSnap.kt`  
 **Method:** `ColumnSnap.autoFollowSnapJs(text:)`
 
@@ -39,8 +39,7 @@ Its implementation is **identical** across Android (Android WebView) and iOS (WK
 - Load a tall document; scroll so both adjacent sentences A and B are inside the middle half.
 - Evaluate `autoFollowSnapJs(A)`, then `autoFollowSnapJs(B)`, then `autoFollowSnapJs(A)` again.
 - Assert `window.scrollY` deviation is ≤ 8 px for all three calls.
-- **iOS:** deferred — requires multiple sequential WKWebView.evaluateJavaScript calls and
-  precise viewport pre-positioning. Gap recorded; covered by Android `AutoFollowJsTest`.
+- **iOS:** `testScrollModeDoesNotBounceBetweenAdjacentVisibleSentences`
 
 ### 08-C: Scroll mode never scrolls horizontally
 - Load a tall document. Evaluate `autoFollowSnapJs(targetText)`.
@@ -55,19 +54,18 @@ Its implementation is **identical** across Android (Android WebView) and iOS (WK
 ### 08-E: Paginated snaps a visible sentence to its grid-aligned column
 - Load a short document. Set `scrollLeft = 10` (off-grid). Evaluate `autoFollowSnapJs(onPageText)`.
 - Assert result = `"on"` and `scrollX == 0`.
-- **iOS:** deferred — requires setting initial `scrollLeft` via a JS call before the probe.
-  Gap recorded; covered by Android `AutoFollowJsTest`.
+- **iOS:** `testPaginatedSnapsAVisibleSentenceToItsGridAlignedColumn`
 
 ### 08-F: Paginated follows symmetrically (forward OR back)
 - Load a short document. Set `scrollLeft = 40`. Evaluate `autoFollowSnapJs(onPageText)`.
 - Assert result = `"on"` and `scrollX == 0`.
-- **iOS:** deferred — covered by Android test.
+- **iOS:** `testPaginatedFollowsToTheSentencesColumnSymmetrically`
 
 ### 08-G: Paginated snaps to the column containing the sentence
 - Load a short document with off-page sentence at `left:5000px`.
 - Evaluate `autoFollowSnapJs(offRightText)`.
 - Assert result = `"on"` and `scrollX % innerWidth == 0` (on the column grid).
-- **iOS:** deferred — snap to a column far off-screen requires precise layout measurement.
+- **iOS:** `testPaginatedSnapsToTheColumnContainingTheSentence`
 
 ### 08-H: Returns `"off"` for text not on the page
 - Evaluate `autoFollowSnapJs("Zzz nonexistent sentence text")`.
@@ -106,10 +104,9 @@ replacing `org.json.JSONObject.quote()` with `kotlinx.serialization.json.JsonPri
 `Riffle` framework as `ColumnSnap.shared`. iOS tests call
 `ColumnSnap.shared.autoFollowSnapJs(text:)` and inject the result into a `WKWebView`.
 
-### Deferred scenarios
+### Full parity
 
-Scenarios 08-E, 08-F, 08-G, 08-B require pre-positioning the scroll via JS before the probe
-and then asserting exact scroll values. The iOS XCTest infrastructure supports this but the
-column-grid math depends on `window.innerWidth` which in WKWebView headless tests may not
-match an exact pixel multiple. These are covered by the Android instrumented tests; iOS
-coverage is deferred until there is a real device in CI.
+Scenarios 08-B, 08-E, 08-F, and 08-G were ported from the Android instrumented tests in the
+iOS test-suite cleanup: they pre-position the scroll via `document.scrollingElement`
+JS calls before evaluating the probe, exactly like the Android bodies, and assert scroll
+values coerced through Double (WKWebView may return fractional pixels).
