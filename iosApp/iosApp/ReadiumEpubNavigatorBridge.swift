@@ -97,6 +97,35 @@ import ReadiumNavigator
         tapCallback = callback
     }
 
+    func openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: any IosLazyChapterFetcher) {
+        Task { @MainActor in
+            do {
+                let (pub, _) = try OReillyPublicationBuilder.build(shapeJson: shapeJson, fetcher: fetcher)
+                self.publication = pub
+
+                var initialLocator: Locator?
+                if let json = locatorJson,
+                   let jsonValue = try? JSONValue(jsonString: json) {
+                    initialLocator = try? Locator(json: jsonValue, warnings: nil)
+                }
+
+                let navigator = try EPUBNavigatorViewController(
+                    publication: pub,
+                    initialLocation: initialLocator
+                )
+                navigator.delegate = self
+                self.epubNavigator = navigator
+                self.hostViewController.addChild(navigator)
+                navigator.view.frame = self.hostViewController.view.bounds
+                navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                self.hostViewController.view.addSubview(navigator.view)
+                navigator.didMove(toParent: self.hostViewController)
+            } catch {
+                // Ignore open errors — reader shows blank state
+            }
+        }
+    }
+
     func disposeNavigator() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }

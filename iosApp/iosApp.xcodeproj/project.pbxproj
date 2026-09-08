@@ -33,6 +33,11 @@
 		B1008018 /* SettingsRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008028 /* SettingsRowsTests.swift */; };
 		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
 		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
+		B1010020 /* OReillyLazyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1010030 /* OReillyLazyContainer.swift */; };
+		B1011020 /* OReillyPublicationBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1011030 /* OReillyPublicationBuilder.swift */; };
+		B101001A /* OReillyLazyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1010030 /* OReillyLazyContainer.swift */; };
+		B101101A /* OReillyPublicationBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1011030 /* OReillyPublicationBuilder.swift */; };
+		B1012010 /* OReillyLazyPublicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1012020 /* OReillyLazyPublicationTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
 		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
@@ -47,6 +52,9 @@
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
 		B1002030 /* ReadiumEpubNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadiumEpubNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1003030 /* IosAudioPlayerBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosAudioPlayerBridgeImpl.swift; sourceTree = "<group>"; };
+		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
+		B1011030 /* OReillyPublicationBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyPublicationBuilder.swift; sourceTree = "<group>"; };
+		B1012020 /* OReillyLazyPublicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyPublicationTests.swift; sourceTree = "<group>"; };
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
@@ -85,6 +93,8 @@
 				B1002030 /* ReadiumEpubNavigatorBridge.swift */,
 				B1003030 /* IosAudioPlayerBridgeImpl.swift */,
 				B1005030 /* PdfKitNavigatorBridge.swift */,
+				B1010030 /* OReillyLazyContainer.swift */,
+				B1011030 /* OReillyPublicationBuilder.swift */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -118,6 +128,7 @@
 				B1008027 /* ReaderSettingsTests.swift */,
 				B1008028 /* SettingsRowsTests.swift */,
 				B1008029 /* SettingsViewModelTests.swift */,
+				B1012020 /* OReillyLazyPublicationTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -309,6 +320,8 @@
 				B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */,
 				B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */,
 				B1005020 /* PdfKitNavigatorBridge.swift in Sources */,
+				B1010020 /* OReillyLazyContainer.swift in Sources */,
+				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,6 +353,9 @@
 				B1008018 /* SettingsRowsTests.swift in Sources */,
 				B1008019 /* SettingsViewModelTests.swift in Sources */,
 				B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */,
+				B101001A /* OReillyLazyContainer.swift in Sources */,
+				B101101A /* OReillyPublicationBuilder.swift in Sources */,
+				B1012010 /* OReillyLazyPublicationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

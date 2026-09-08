@@ -78,6 +78,8 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor3)
+            // O'Reilly lazy-loading helpers (OReillyEpub.buildChapterXhtml) for IosLazyChapterFetcherImpl.
+            implementation(project(":core:catalog-oreilly"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

@@ -214,13 +214,8 @@ class OReillyLazyContainer(
             }
         }
 
-        fun buildChapterXhtml(pub: LazyPublicationShape, item: LazySpineItem, rawHtml: String): String {
-            val rewritten = rawHtml
-                .replace(pub.absoluteFilesPrefix, OReillyEpub.relPrefixFor(item.fullPath))
-                .replace(pub.pathFilesPrefix, OReillyEpub.relPrefixFor(item.fullPath))
-            val cssHrefs = pub.cssFullPaths.map { OReillyEpub.relativeTo(item.fullPath, it) }
-            return OReillyEpub.wrapChapter(item.title, rewritten, cssHrefs)
-        }
+        fun buildChapterXhtml(pub: LazyPublicationShape, item: LazySpineItem, rawHtml: String): String =
+            OReillyEpub.buildChapterXhtml(pub, item, rawHtml)
     }
 }
 
