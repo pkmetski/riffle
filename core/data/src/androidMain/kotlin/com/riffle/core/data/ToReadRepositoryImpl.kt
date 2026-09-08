@@ -168,8 +168,17 @@ class ToReadRepositoryImpl constructor(
     }
 
     private suspend fun removeWithCap(cap: PlaylistsCapability, libraryItemId: String, libraryId: String): Boolean {
-        val before = cache.value[libraryId] ?: return true
-        if (libraryItemId !in before.itemIds) return true
+        val before = cache.value[libraryId] ?: run {
+            // No cache entry — item may still be in the local-store fallback; clean it up.
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
+        if (libraryItemId !in before.itemIds) {
+            // Not in server cache. Clean up any local-store entry (e.g. added via fallback while
+            // cap was unavailable but cache was later populated without the item).
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
         val playlistId = before.playlistId
         if (playlistId == null) {
             // Item was added via local-store fallback (no server playlist) — remove locally.
@@ -189,12 +198,13 @@ class ToReadRepositoryImpl constructor(
             logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) failed: $it" }
             false
         }
+        // Always remove from the local store regardless of server outcome. observeToReadItemIds
+        // unions cache + localStore, so skipping this leaves items added via the fallback path
+        // permanently visible even after the server successfully removes them.
+        localStore.remove(libraryId, libraryItemId)
         if (!ok) {
-            // Server rejected; keep the optimistic remove and remove from local store too.
-            logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) server failed, removing locally" }
-            localStore.remove(libraryId, libraryItemId)
-            return true
+            logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) server failed, keeping optimistic remove" }
         }
-        return ok
+        return true
     }
 }

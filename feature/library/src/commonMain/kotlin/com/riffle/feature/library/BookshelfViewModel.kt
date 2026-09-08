@@ -18,13 +18,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BookshelfViewModel constructor(
@@ -82,24 +83,28 @@ class BookshelfViewModel constructor(
 
     init {
         // Refresh tokens and To Read lists whenever the source list changes.
+        // collectLatest cancels the previous block (and all its children) whenever a new emission
+        // arrives, preventing coroutine accumulation across source-list changes.
         viewModelScope.launch {
-            sourceRepository.observeAll().collect { sources ->
+            sourceRepository.observeAll().collectLatest { sources ->
                 authTokenMap = coroutineScope {
                     sources.associate { source ->
                         val token = async { tokenStorage.getToken(source.id) ?: "" }
                         source.id to token.await()
                     }
                 }
-                // Bookshelf is cross-source: refresh To Read for every ABS source, not just the
-                // active one. refreshForSource targets a specific source's catalog directly so it
-                // works regardless of which source is globally active. Non-ABS sources use a local
-                // DataStore that needs no refresh — refreshForSource returns true immediately.
-                val absSources = sources.filter { it.type == SourceType.ABS }
-                absSources.forEach { source ->
-                    launch {
-                        libraryObserver.observeLibraries(source.id).collect { libraries ->
-                            libraries.forEach { library ->
-                                launch { toReadRepository.refreshForSource(source.id, library.id) }
+                // supervisorScope keeps this lambda alive (so collectLatest doesn't return
+                // prematurely) and cancels all child observers when a new emission arrives.
+                supervisorScope {
+                    val absSources = sources.filter { it.type == SourceType.ABS }
+                    absSources.forEach { source ->
+                        launch {
+                            libraryObserver.observeLibraries(source.id).collectLatest { libraries ->
+                                coroutineScope {
+                                    libraries.forEach { library ->
+                                        launch { toReadRepository.refreshForSource(source.id, library.id) }
+                                    }
+                                }
                             }
                         }
                     }
