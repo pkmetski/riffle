@@ -125,13 +125,17 @@ class NavigationDrawerViewModelTest {
     }
 
     private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val bookshelfActiveFlow = MutableStateFlow(false)
 
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
         override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
             lastOpenedFlow.map { it[sourceId] }
         override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
             lastOpenedFlow.update { it + (sourceId to libraryId) }
+            bookshelfActiveFlow.value = false
         }
+        override fun wasBookshelfLastActive(): Flow<Boolean> = bookshelfActiveFlow
+        override suspend fun setBookshelfActive() { bookshelfActiveFlow.value = true }
     }
 
     private val isOnlineFlow = MutableStateFlow(true)
@@ -488,6 +492,34 @@ class NavigationDrawerViewModelTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(true, vm.showDownloadsLink.value)
+    }
+
+    // Regression: Bookshelf selection must persist the "bookshelf last active" flag so the next
+    // app start lands back on Bookshelf instead of defaulting to the active source's library.
+    @Test
+    fun `setBookshelfActive persists bookshelf as last active destination`() = runTest(testDispatcher) {
+        val vm = makeVm()
+
+        vm.setBookshelfActive()
+        testScheduler.advanceUntilIdle()
+
+        val wasBookshelf = bookshelfActiveFlow.first()
+        assertEquals(true, wasBookshelf)
+    }
+
+    // Regression: selecting a library after Bookshelf must clear the "bookshelf last active" flag
+    // so the next app start resumes the library, not Bookshelf.
+    @Test
+    fun `setActiveLibrary clears the bookshelf flag`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        bookshelfActiveFlow.value = true
+        val vm = makeVm()
+
+        vm.setActiveLibrary("lib-1")
+        testScheduler.advanceUntilIdle()
+
+        val wasBookshelf = bookshelfActiveFlow.first()
+        assertEquals(false, wasBookshelf)
     }
 
     private fun registryAllReturning(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =

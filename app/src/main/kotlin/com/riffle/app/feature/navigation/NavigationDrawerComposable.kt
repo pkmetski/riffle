@@ -99,6 +99,7 @@ fun RiffleNavigationDrawer(
             onSettingsSelected = onSettingsSelected,
             onBookshelfSelected = onBookshelfSelected,
             isBookshelfActive = isBookshelfActive,
+            suppressActiveSourceMark = isBookshelfActive,
         )
     }
 
@@ -139,6 +140,7 @@ private fun DrawerSheetContent(
     onSettingsSelected: () -> Unit,
     onBookshelfSelected: () -> Unit = {},
     isBookshelfActive: Boolean = false,
+    suppressActiveSourceMark: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
         NavigationDrawerItem(
@@ -153,6 +155,7 @@ private fun DrawerSheetContent(
             allServers = allServers,
             serverVersions = serverVersions,
             onServerSelected = onServerSelected,
+            suppressActiveSourceMark = suppressActiveSourceMark,
         )
         Column(
             modifier = Modifier
@@ -216,6 +219,7 @@ private fun DrawerHeader(
     allServers: List<Source>,
     serverVersions: Map<String, String>,
     onServerSelected: (Source) -> Unit,
+    suppressActiveSourceMark: Boolean = false,
 ) {
     val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }
@@ -314,7 +318,7 @@ private fun DrawerHeader(
                     },
                     leadingIcon = { SourceRowIcon(server = server) },
                     trailingIcon = {
-                        if (server.isActive) {
+                        if (server.isActive && !suppressActiveSourceMark) {
                             Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))

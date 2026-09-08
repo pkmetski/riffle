@@ -61,6 +61,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
                     ),
                 )
             },
+            onNavigateToBookshelf = {
+                navController.navigateAsRoot(BOOKSHELF)
+            },
         )
     }
     composable(DOWNLOADS) { backStackEntry ->

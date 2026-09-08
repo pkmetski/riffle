@@ -165,4 +165,8 @@ class NavigationDrawerViewModel constructor(
     fun setActiveServer(sourceId: String) {
         viewModelScope.launch { sourceRepository.setActive(sourceId) }
     }
+
+    fun setBookshelfActive() {
+        viewModelScope.launch { lastOpenedLibraryStore.setBookshelfActive() }
+    }
 }

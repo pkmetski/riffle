@@ -265,6 +265,7 @@ fun MainScreen(
             if (navController.currentDestination?.route != SETTINGS) navController.navigate(SETTINGS)
         },
         onBookshelfSelected = {
+            viewModel.setBookshelfActive()
             scope.launch { drawerState.close() }
             if (navController.currentDestination?.route != BOOKSHELF) navController.navigateAsRoot(BOOKSHELF)
         },

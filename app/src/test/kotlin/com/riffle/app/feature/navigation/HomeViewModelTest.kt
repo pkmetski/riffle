@@ -118,12 +118,17 @@ class HomeViewModelTest {
         override suspend fun showLibrary(sourceId: String, libraryId: String) {}
     }
 
+    private val bookshelfActiveFlow = MutableStateFlow(false)
+
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
         override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
             lastOpenedFlow.map { it[sourceId] }
         override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
             lastOpenedFlow.update { it + (sourceId to libraryId) }
+            bookshelfActiveFlow.value = false
         }
+        override fun wasBookshelfLastActive(): Flow<Boolean> = bookshelfActiveFlow
+        override suspend fun setBookshelfActive() { bookshelfActiveFlow.value = true }
     }
 
     private val unconfinedDispatchers = object : DispatcherProvider {
@@ -355,6 +360,36 @@ class HomeViewModelTest {
 
         assertFalse("must not unblock when isStillResumed returns false after waitForResumed", unblocked)
         job.cancelAndJoin()
+    }
+
+    // Regression: Bookshelf was never restored on app restart because getStartDestination
+    // only returned Library/AddSource/NoLibraries. wasBookshelfLastActive() must be checked first
+    // so the user lands back on Bookshelf after killing and reopening the app.
+    @Test
+    fun `getStartDestination returns Bookshelf when bookshelf was last active`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+        bookshelfActiveFlow.value = true
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Bookshelf, result)
+    }
+
+    // Regression: setLastOpenedLibrary must clear the Bookshelf flag so a subsequent app restart
+    // no longer returns Bookshelf after the user has navigated to a library.
+    @Test
+    fun `getStartDestination returns Library after library selected following Bookshelf`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+        // Bookshelf was last active, but then the user selected a library.
+        bookshelfActiveFlow.value = true
+        lastOpenedFlow.update { it + ("srv-1" to "lib-1") }
+        bookshelfActiveFlow.value = false
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
     }
 
     @Test

@@ -13,4 +13,10 @@ import kotlinx.coroutines.flow.Flow
 interface LastOpenedLibraryStore {
     fun lastOpenedLibrary(sourceId: String): Flow<String?>
     suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String)
+
+    /** Whether Bookshelf was the last active top-level destination. */
+    fun wasBookshelfLastActive(): Flow<Boolean> = kotlinx.coroutines.flow.flowOf(false)
+
+    /** Mark Bookshelf as the last active destination. Cleared by [setLastOpenedLibrary]. */
+    suspend fun setBookshelfActive() {}
 }
