@@ -104,7 +104,6 @@ import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.DownloadManager
 import com.riffle.feature.library.EpubTocExtractor
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
-import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
@@ -112,6 +111,7 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.feature.library.WebSourceLibraryItemUpserter
 import com.riffle.feature.reader.CbzReaderViewModel
