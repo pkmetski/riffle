@@ -40,8 +40,11 @@ object OReillyEpub {
     // the strict XML parser Readium uses. Self-close them so the fragment is well-formed XHTML.
     private val VOID_ELEMENTS =
         listOf("area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr")
+    // Attribute-aware: match any char that is not >, ", or ', OR a double-quoted value
+    // (which may itself contain >), OR a single-quoted value. This prevents the [^>] stop
+    // from firing inside an attribute like alt="a > b".
     private val voidElementRegex =
-        Regex("<(${VOID_ELEMENTS.joinToString("|")})\\b([^>]*?)/?>", RegexOption.IGNORE_CASE)
+        Regex("<(${VOID_ELEMENTS.joinToString("|")})\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*?)/?>", RegexOption.IGNORE_CASE)
 
     /** Rewrite `<img …>` / `<br>` etc. to `<img …/>` / `<br/>` so the XHTML parses as XML. */
     internal fun selfCloseVoidElements(html: String): String =

@@ -72,7 +72,7 @@ object EpubAssembler {
         return EpubZipWriter.write(entries)
     }
 
-    private fun containerXml(): String = """
+    internal fun containerXml(): String = """
         <?xml version="1.0" encoding="UTF-8"?>
         <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
           <rootfiles>
@@ -81,7 +81,7 @@ object EpubAssembler {
         </container>
     """.trimIndent().trim()
 
-    private fun contentOpf(book: SynthesizedBook): String {
+    internal fun contentOpf(book: SynthesizedBook): String {
         val creators = book.authors.mapIndexed { i, a ->
             """<dc:creator id="creator$i">${a.xmlEscape()}</dc:creator>"""
         }.joinToString("\n    ")
@@ -123,7 +123,7 @@ object EpubAssembler {
         """.trimIndent().trim()
     }
 
-    private fun navXhtml(book: SynthesizedBook): String {
+    internal fun navXhtml(book: SynthesizedBook): String {
         val items = book.chapters.joinToString("\n        ") {
             """<li><a href="${it.relativePath.xmlEscape()}">${it.title.xmlEscape()}</a></li>"""
         }

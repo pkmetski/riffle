@@ -3,6 +3,10 @@ package com.riffle.app.feature.source.oreilly
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.catalog.LazySpineItem
 import com.riffle.core.catalog.oreilly.OReillyEpub
+import com.riffle.core.catalog.oreilly.epub.EpubAssembler
+import com.riffle.core.catalog.oreilly.epub.EpubChapter
+import com.riffle.core.catalog.oreilly.epub.EpubResource
+import com.riffle.core.catalog.oreilly.epub.SynthesizedBook
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -92,6 +96,92 @@ class OReillyLazyContainer(
                 writeCacheFile(cacheFile, xhtml.encodeToByteArray())
             }
         }
+    }
+
+    /**
+     * Slowly caches every uncached chapter and asset in spine/file order, running in [scope]
+     * (cancelled when the user leaves the reader). Fetches are paced at [minDelayMs]–[maxDelayMs]
+     * to stay well below anti-abuse thresholds. Already-cached files are skipped instantly;
+     * individual failures are swallowed so one bad asset doesn't abort the run.
+     *
+     * When all chapters **and** assets are confirmed on disk, [onAllCached] is called with the
+     * assembled EPUB bytes so the caller can write them to the offline store. If assembly fails
+     * (e.g. a chapter is still missing after the loop despite best efforts) the callback is not
+     * invoked and offline caching is deferred to the next open.
+     */
+    fun startBackgroundPrefetch(
+        minDelayMs: Long = 1_500L,
+        maxDelayMs: Long = 4_000L,
+        onAllCached: suspend (epub: ByteArray) -> Unit = {},
+    ) {
+        scope.launch {
+            fun jitter() = if (minDelayMs >= maxDelayMs) minDelayMs
+            else minDelayMs + kotlin.random.Random.nextLong(maxDelayMs - minDelayMs + 1)
+
+            // Phase 1: chapters (in spine order).
+            for (item in pub.spine) {
+                val cacheFile = cacheFileFor(cacheDir, pub.bookId, item.fullPath)
+                if (!cacheFile.exists()) {
+                    kotlinx.coroutines.delay(jitter())
+                    runCatching {
+                        val html = fetchChapter(pub.bookId, item.fullPath, item.declaredByteSize)
+                        val xhtml = buildChapterXhtml(pub, item, html)
+                        writeCacheFile(cacheFile, xhtml.encodeToByteArray())
+                    }
+                }
+            }
+
+            // Phase 2: assets (images, CSS, fonts). Same pacing — each fetch is an independent
+            // API call and O'Reilly's rate guard doesn't distinguish chapter vs asset requests.
+            for (asset in pub.assetFiles) {
+                val cacheFile = cacheFileFor(cacheDir, pub.bookId, asset.fullPath)
+                if (!cacheFile.exists()) {
+                    kotlinx.coroutines.delay(jitter())
+                    runCatching {
+                        val bytes = fetchAsset(pub.bookId, asset.fullPath)
+                        if (bytes != null) writeCacheFile(cacheFile, bytes)
+                    }
+                }
+            }
+
+            // Phase 3: assemble and hand off — only if every chapter is present on disk.
+            val epub = assembleEpubFromCache() ?: return@launch
+            onAllCached(epub)
+        }
+    }
+
+    /**
+     * Assembles a complete EPUB from the on-disk lazy cache. Returns null if any spine chapter is
+     * missing from cache (which means the prefetch didn't finish). Assets that are absent are
+     * silently omitted — the book is still readable without every image.
+     */
+    internal fun assembleEpubFromCache(): ByteArray? {
+        val chapters = pub.spine.mapIndexed { index, item ->
+            val file = cacheFileFor(cacheDir, pub.bookId, item.fullPath)
+            if (!file.exists()) return null
+            EpubChapter(
+                id = OReillyEpub.chapterId(index),
+                relativePath = item.fullPath,
+                title = item.title,
+                xhtml = file.readText(),
+            )
+        }
+        val resources = pub.assetFiles.mapNotNull { asset ->
+            val file = cacheFileFor(cacheDir, pub.bookId, asset.fullPath)
+            if (!file.exists()) null
+            else EpubResource(asset.fullPath, file.readBytes(), asset.mediaType)
+        }
+        return EpubAssembler.assemble(
+            SynthesizedBook(
+                identifier = pub.identifier,
+                title = pub.title,
+                authors = emptyList(),
+                language = pub.language,
+                chapters = chapters,
+                resources = resources,
+                coverPath = null,
+            ),
+        )
     }
 
     companion object {

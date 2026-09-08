@@ -90,6 +90,7 @@ class ReaderSessionLifecycleTest {
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String) = false
         override fun isCached(sourceId: String, itemId: String) = false
+        override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
@@ -252,6 +253,7 @@ class ReaderSessionLifecycleTest {
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String) = false
         override fun isCached(sourceId: String, itemId: String) = false
+        override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 

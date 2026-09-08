@@ -24,15 +24,18 @@ import io.ktor.http.encodeURLQueryComponent
 internal class OReillyApi(
     private val client: HttpClient,
     private val cookieHeader: String,
+    private val userAgent: String = DEFAULT_USER_AGENT,
     private val baseUrl: String = DEFAULT_BASE_URL,
 ) {
     private val base = baseUrl.trimEnd('/')
 
     fun baseUrl(): String = base
 
+    private enum class RequestType { Json, Content, Asset }
+
     /** JSON API calls (search / spine / files-list / metadata). */
     suspend fun getJson(url: String): String {
-        val response = authorizedGet(url, ACCEPT_JSON)
+        val response = authorizedGet(url, ACCEPT_JSON, RequestType.Json)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
         return response.bodyAsText()
     }
@@ -43,27 +46,54 @@ internal class OReillyApi(
      * Accept yields the ~2KB DRM *sample* even with `?download=false`.
      */
     suspend fun getContent(url: String): String {
-        val response = authorizedGet(url, ACCEPT_HTML)
+        val response = authorizedGet(url, ACCEPT_HTML, RequestType.Content)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
         return response.bodyAsText()
     }
 
     /** Binary asset bytes (images / css / fonts). */
     suspend fun getBytes(url: String): ByteArray {
-        val response = authorizedGet(url, ACCEPT_ANY)
+        val response = authorizedGet(url, ACCEPT_ANY, RequestType.Asset)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
         return response.readBytes()
     }
 
     suspend fun ping(): Boolean = runCatching {
-        authorizedGet("$base/api/v1/user/", ACCEPT_JSON).status.value.let { it in 200..499 }
+        authorizedGet("$base/api/v1/user/", ACCEPT_JSON, RequestType.Json).status.value.let { it in 200..499 }
     }.getOrDefault(false)
 
-    private suspend fun authorizedGet(url: String, accept: String): HttpResponse = client.get(absolute(url)) {
-        header("Cookie", cookieHeader)
-        header("Accept", accept)
-        header("User-Agent", USER_AGENT)
-    }
+    private suspend fun authorizedGet(url: String, accept: String, type: RequestType): HttpResponse =
+        client.get(absolute(url)) {
+            header("Cookie", cookieHeader)
+            header("Accept", accept)
+            header("User-Agent", userAgent)
+            header("Origin", base)
+            header("Referer", "$base/")
+            header("Accept-Language", "en-US,en;q=0.9")
+            val chHint = chromeClientHint(userAgent)
+            if (chHint.isNotEmpty()) {
+                header("sec-ch-ua", chHint)
+                header("sec-ch-ua-mobile", "?1")
+                header("sec-ch-ua-platform", "\"Android\"")
+            }
+            when (type) {
+                RequestType.Json -> {
+                    header("sec-fetch-dest", "empty")
+                    header("sec-fetch-mode", "cors")
+                    header("sec-fetch-site", "same-origin")
+                }
+                RequestType.Content -> {
+                    header("sec-fetch-dest", "document")
+                    header("sec-fetch-mode", "navigate")
+                    header("sec-fetch-site", "same-origin")
+                }
+                RequestType.Asset -> {
+                    header("sec-fetch-dest", "image")
+                    header("sec-fetch-mode", "no-cors")
+                    header("sec-fetch-site", "same-origin")
+                }
+            }
+        }
 
     private fun absolute(url: String): String =
         if (url.startsWith("http://") || url.startsWith("https://")) url else "$base$url"
@@ -132,11 +162,21 @@ internal class OReillyApi(
 
     companion object {
         const val DEFAULT_BASE_URL = "https://learning.oreilly.com"
-        private const val USER_AGENT =
+        const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
         private const val ACCEPT_JSON = "application/json"
         private const val ACCEPT_HTML = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         private const val ACCEPT_ANY = "*/*"
+
+        /**
+         * Builds the `sec-ch-ua` client hint value from a Chrome UA string. Returns empty string when
+         * the UA carries no Chrome version (e.g. test stubs, non-Chrome clients) — callers omit the
+         * header entirely in that case so as not to send a malformed hint.
+         */
+        internal fun chromeClientHint(userAgent: String): String {
+            val version = Regex("""Chrome/(\d+)""").find(userAgent)?.groupValues?.get(1) ?: return ""
+            return """"Chromium";v="$version", "Google Chrome";v="$version", "Not.A/Brand";v="24""""
+        }
 
         /** High-resolution cover URL for [id] (public CDN, no auth). Shared by search + detail. */
         fun coverUrl(id: String, base: String = DEFAULT_BASE_URL): String =
@@ -153,6 +193,17 @@ internal class OReillyApi(
         fun kalturaHlsUrl(partnerId: String, entryId: String, ks: String): String =
             "$KALTURA_CDN/p/$partnerId/sp/${partnerId}00/playManifest/entryId/$entryId" +
                 "/format/applehttp/protocol/https/a.m3u8?ks=$ks"
+
+        /**
+         * Kaltura direct-download URL for one audiobook chapter. Returns an HTTP 302 to a
+         * CloudFront-signed `.mp4` (audio-only) that can be byte-streamed to disk. Use this for
+         * offline download/cache; use [kalturaHlsUrl] for live streaming (Media3 handles HLS
+         * natively but can't byte-download a manifest). Verified live 2026-09: redirects to
+         * `cfvod.kaltura.com` with a signed URL, `Content-Type: video/mp4`, `Content-Length` set.
+         */
+        fun kalturaDownloadUrl(partnerId: String, entryId: String, ks: String): String =
+            "$KALTURA_CDN/p/$partnerId/sp/${partnerId}00/playManifest/entryId/$entryId" +
+                "/format/url/protocol/https?ks=$ks"
     }
 
     private fun HttpStatusCode.isSuccess(): Boolean = value in 200..299

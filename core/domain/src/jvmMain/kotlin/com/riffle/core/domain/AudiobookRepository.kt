@@ -19,6 +19,10 @@ data class AudiobookSession(
     // The local zip archive backing zip-entry track URLs (a downloaded bundle), or null when tracks
     // are HTTP/file URLs. The player points the playback service at this file before preparing.
     val localZipFile: File? = null,
+    // Direct-download URLs for each track (same order as trackUrls), or null when trackUrls are
+    // also byte-downloadable. Sources whose streaming format cannot be byte-downloaded (e.g. O'Reilly
+    // HLS) populate this; download/cache paths use these instead of trackUrls.
+    val downloadTrackUrls: List<String>? = null,
 )
 
 interface AudiobookRepository {

@@ -32,6 +32,21 @@ class OReillyEpubTest {
     }
 
     @Test
+    fun `selfCloseVoidElements handles gt-sign inside a double-quoted attribute value`() {
+        // Regression: [^>]*? stopped at the > inside the attribute, producing truncated/broken output.
+        val input = "<img alt=\"a > b\" src=\"fig.png\">"
+        val result = OReillyEpub.selfCloseVoidElements(input)
+        assertEquals("<img alt=\"a > b\" src=\"fig.png\"/>", result)
+    }
+
+    @Test
+    fun `selfCloseVoidElements handles gt-sign inside a single-quoted attribute value`() {
+        val input = "<input placeholder='x > y'>"
+        val result = OReillyEpub.selfCloseVoidElements(input)
+        assertEquals("<input placeholder='x > y'/>", result)
+    }
+
+    @Test
     fun `relative prefix walks out of subdirectories`() {
         assertEquals("", OReillyEpub.relPrefixFor("cover.xhtml"))
         assertEquals("../", OReillyEpub.relPrefixFor("xhtml/cover.xhtml"))

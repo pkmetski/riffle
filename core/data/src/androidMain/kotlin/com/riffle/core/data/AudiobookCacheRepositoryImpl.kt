@@ -18,6 +18,14 @@ class AudiobookCacheRepositoryImpl constructor(
     private val trackDownloader: AudiobookTrackDownloader,
     private val dispatchers: DispatcherProvider,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
+    /**
+     * Jittered delay between consecutive track downloads during background caching. Avoids
+     * triggering anti-abuse rate limits on CDN-hosted sources (e.g. O'Reilly/Kaltura). Default
+     * 1.5–3s is conservative enough to stay unnoticed while completing in reasonable time.
+     * Set to 0 in tests to keep them fast.
+     */
+    private val minInterTrackDelayMs: Long = 1_500L,
+    private val maxInterTrackDelayMs: Long = 3_000L,
 ) : JvmAudiobookCacheRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -58,10 +66,17 @@ class AudiobookCacheRepositoryImpl constructor(
     ) = withContext(dispatchers.io) {
         if (isCached(sourceId, itemId)) return@withContext
         val dir = itemDir(sourceId, itemId).apply { mkdirs() }
+        // Sources whose streaming format can't be byte-downloaded (e.g. O'Reilly HLS) set
+        // downloadTrackUrls; substitute those so the track downloader receives real file URLs.
+        val downloadSession = session.downloadTrackUrls
+            ?.let { session.copy(trackUrls = it) }
+            ?: session
         try {
             val noop: (Long, Long) -> Unit = { _, _ -> }
             val progress = CumulativeDownloadProgress(0L, noop)
-            val manifestTracks = trackDownloader.download(session, dir, progress)
+            val interTrackDelay = if (minInterTrackDelayMs >= maxInterTrackDelayMs) minInterTrackDelayMs
+            else minInterTrackDelayMs + kotlin.random.Random.nextLong(maxInterTrackDelayMs - minInterTrackDelayMs + 1)
+            val manifestTracks = trackDownloader.download(downloadSession, dir, progress, interTrackDelay)
             val manifest = AudiobookDownloadManifest(
                 durationSec = session.timeline.durationSec,
                 tracks = manifestTracks.sortedBy { it.index },

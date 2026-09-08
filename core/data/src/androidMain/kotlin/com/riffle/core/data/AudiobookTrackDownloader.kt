@@ -10,6 +10,7 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -26,10 +27,16 @@ class AudiobookTrackDownloader constructor(
     private val httpClient: HttpClient,
     private val dispatchers: DispatcherProvider,
 ) {
+    /**
+     * @param interTrackDelayMs Extra delay to insert between consecutive track downloads. Use 0
+     *   for explicit user-initiated downloads (fastest, shows progress to the user). Use a jittered
+     *   value for background caching to avoid triggering anti-abuse rate limits on the CDN.
+     */
     internal suspend fun download(
         session: AudiobookSession,
         dir: File,
         progress: CumulativeDownloadProgress,
+        interTrackDelayMs: Long = 0L,
     ): List<AudiobookDownloadManifest.ManifestTrack> = withContext(dispatchers.io) {
         // For multi-track sources (e.g. Radio.es podcasts) whose catalog doesn't provide a
         // fingerprint size, pre-scan all track URLs in parallel via HEAD to establish the cumulative
@@ -77,6 +84,9 @@ class AudiobookTrackDownloader constructor(
                         durationSec = span?.durationSec ?: 0.0,
                     ),
                 )
+                if (interTrackDelayMs > 0L && i < session.trackUrls.lastIndex) {
+                    delay(interTrackDelayMs)
+                }
             }
         }
     }

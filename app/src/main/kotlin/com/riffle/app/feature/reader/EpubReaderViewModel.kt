@@ -3878,6 +3878,12 @@ class EpubReaderViewModel constructor(
             scope = viewModelScope,
         )
         lazyContainer = container
+        container.startBackgroundPrefetch(onAllCached = { epub ->
+            // Write the assembled EPUB to the cache store so the book shows as available offline.
+            // The guard inside cacheEpub() prevents double-writes on subsequent opens.
+            (epubRepository as? com.riffle.core.domain.JvmEpubRepository)
+                ?.cacheEpub(sourceId, itemId, epub)
+        })
         _isLazyPublication.value = true
         val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(container)
         val lastPosition = readingPositionStore.load(sourceId, itemId)

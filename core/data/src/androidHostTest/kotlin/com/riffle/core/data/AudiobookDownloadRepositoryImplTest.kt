@@ -289,4 +289,40 @@ class AudiobookDownloadRepositoryImplTest {
             server.shutdown()
         }
     }
+
+    @Test
+    fun `download uses downloadTrackUrls instead of trackUrls when set`() = runTest {
+        // O'Reilly sessions carry HLS stream URLs in trackUrls and downloadable MP4 URLs in
+        // downloadTrackUrls. The downloader must use the latter to actually write bytes to disk.
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setBody("mp4-audio-bytes"))
+            val hlsUrl = server.url("/hls-will-not-be-fetched.m3u8").toString()
+            val mp4Url = server.url("/track.mp4").toString()
+            val session = AudiobookSession(
+                trackUrls = listOf(hlsUrl),
+                downloadTrackUrls = listOf(mp4Url),
+                tracks = listOf(AudiobookTrackSpan(index = 0, startOffsetSec = 0.0, durationSec = 60.0)),
+                timeline = AudiobookTimeline(durationSec = 60.0, chapters = emptyList()),
+                serverCurrentTimeSec = 0.0,
+            )
+            val source = object : AudiobookRepository {
+                override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession = session
+                override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) = Unit
+            }
+            val root = tmp.newFolder()
+
+            val result = repo(root, audiobookRepository = source).download("srv", "it") { _, _ -> }
+
+            assertEquals(AudiobookDownloadResult.Success, result)
+            assertEquals("mp4-audio-bytes", File(root, "srv/it/track-0").readText())
+            // Only the MP4 URL was fetched — the HLS URL was never requested.
+            val requested = server.takeRequest()
+            assertTrue(requested.path?.endsWith("track.mp4") == true)
+            assertEquals(0, server.requestCount - 1)
+        } finally {
+            server.shutdown()
+        }
+    }
 }

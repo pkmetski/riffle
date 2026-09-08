@@ -32,6 +32,15 @@ object EpubZipWriter {
     private const val DOS_TIME = 0
     private const val DOS_DATE = 0x0021 // (year 0 << 9) | (month 1 << 5) | (day 1)
 
+    /**
+     * Streaming variant: returns a [EpubZipStreamWriter] that lets the caller emit one entry at a
+     * time and retrieve the local-file-header + data bytes immediately. Call [EpubZipStreamWriter.close]
+     * at the end to get the central-directory + end-of-central-dir bytes. Use this when entries
+     * arrive incrementally (e.g. concurrent chapter fetches) so bytes can flow to a consumer as
+     * each chapter completes rather than buffering the entire EPUB in memory first.
+     */
+    fun streamWriter(): EpubZipStreamWriter = EpubZipStreamWriter()
+
     fun write(entries: List<EpubZipEntry>): ByteArray {
         val out = GrowableBytes()
         val central = GrowableBytes()
@@ -111,6 +120,92 @@ object EpubZipWriter {
             crc = crcTable[(crc xor b.toInt()) and 0xFF] xor (crc ushr 8)
         }
         return crc.inv()
+    }
+}
+
+/**
+ * Stateful streaming ZIP writer. Call [writeEntry] for each [EpubZipEntry] as it becomes
+ * available — returns the local-file-header + data bytes ready to pipe to a consumer. Call
+ * [close] when all entries are written — returns the central-directory + end-of-central-dir bytes.
+ *
+ * NOT thread-safe; the caller must serialize [writeEntry] / [close] calls (e.g. via a mutex or
+ * by running them in a single coroutine).
+ */
+class EpubZipStreamWriter internal constructor() {
+    private val central = GrowableBytes()
+    private var currentOffset = 0
+    private var entryCount = 0
+
+    /** Write one entry; returns the bytes (local header + data) to send to the consumer. */
+    fun writeEntry(entry: EpubZipEntry): ByteArray {
+        val nameBytes = entry.path.encodeToByteArray()
+        val crc = EpubZipWriter.crc32(entry.bytes)
+        val size = entry.bytes.size
+        val localHeaderOffset = currentOffset
+
+        val out = GrowableBytes(30 + nameBytes.size + size)
+        out.putIntLE(LOCAL_FILE_HEADER_SIG)
+        out.putShortLE(VERSION_NEEDED)
+        out.putShortLE(0)
+        out.putShortLE(METHOD_STORED)
+        out.putShortLE(DOS_TIME)
+        out.putShortLE(DOS_DATE)
+        out.putIntLE(crc)
+        out.putIntLE(size)
+        out.putIntLE(size)
+        out.putShortLE(nameBytes.size)
+        out.putShortLE(0)
+        out.putBytes(nameBytes)
+        out.putBytes(entry.bytes)
+
+        central.putIntLE(CENTRAL_DIR_SIG)
+        central.putShortLE(VERSION_NEEDED)
+        central.putShortLE(VERSION_NEEDED)
+        central.putShortLE(0)
+        central.putShortLE(METHOD_STORED)
+        central.putShortLE(DOS_TIME)
+        central.putShortLE(DOS_DATE)
+        central.putIntLE(crc)
+        central.putIntLE(size)
+        central.putIntLE(size)
+        central.putShortLE(nameBytes.size)
+        central.putShortLE(0)
+        central.putShortLE(0)
+        central.putShortLE(0)
+        central.putShortLE(0)
+        central.putIntLE(0)
+        central.putIntLE(localHeaderOffset)
+        central.putBytes(nameBytes)
+
+        currentOffset += out.size
+        entryCount++
+        return out.toByteArray()
+    }
+
+    /** Returns the central directory + end-of-central-dir bytes. Call once after all entries. */
+    fun close(): ByteArray {
+        val centralBytes = central.toByteArray()
+        val out = GrowableBytes(centralBytes.size + 22)
+        out.putBytes(centralBytes)
+        out.putIntLE(END_OF_CENTRAL_DIR_SIG)
+        out.putShortLE(0)
+        out.putShortLE(0)
+        out.putShortLE(entryCount)
+        out.putShortLE(entryCount)
+        out.putIntLE(centralBytes.size)
+        out.putIntLE(currentOffset)
+        out.putShortLE(0)
+        return out.toByteArray()
+    }
+
+    private companion object {
+        private const val LOCAL_FILE_HEADER_SIG = 0x04034b50
+        private const val CENTRAL_DIR_SIG = 0x02014b50
+        private const val END_OF_CENTRAL_DIR_SIG = 0x06054b50
+        private const val VERSION_NEEDED = 20
+        private const val METHOD_STORED = 0
+        private const val DOS_TIME = 0
+        private const val DOS_DATE = 0x0021
     }
 }
 

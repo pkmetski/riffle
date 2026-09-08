@@ -131,4 +131,38 @@ class OReillyCatalogLazyTest {
         val result = catalog.fetchChapterForLazy(itemId, "xhtml/ch01.xhtml", expectedByteSize = 0L)
         assertNotNull("fetchChapterForLazy should succeed without calling the files endpoint", result)
     }
+
+    @Test
+    fun `lazyPublication follows spine pagination and returns all chapters`() = runBlocking {
+        // Regression: spineUrl hardcoded limit=100 and callers never followed the next cursor.
+        // Serve 2 pages of 2 chapters each; lazyPublication must return 4 spine items.
+        val page1Url = "/api/v2/epubs/$urn/spine/?limit=100"
+        val page2Url = "/api/v2/epubs/$urn/spine/?limit=100&offset=2"
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(req: RecordedRequest): MockResponse {
+                val path = req.path.orEmpty()
+                return when {
+                    path.trimEnd('/') == page1Url.trimEnd('/') || path.contains("/spine/?limit=100") && !path.contains("offset") ->
+                        MockResponse().setResponseCode(200).setBody("""
+                            {"count":4,"next":"${server.url(page2Url)}","results":[
+                              {"reference_id":"$itemId-/xhtml/ch01.xhtml","title":"Chapter 1"},
+                              {"reference_id":"$itemId-/xhtml/ch02.xhtml","title":"Chapter 2"}
+                            ]}""".trimIndent())
+                    path.contains("offset=2") ->
+                        MockResponse().setResponseCode(200).setBody("""
+                            {"count":4,"next":null,"results":[
+                              {"reference_id":"$itemId-/xhtml/ch03.xhtml","title":"Chapter 3"},
+                              {"reference_id":"$itemId-/xhtml/ch04.xhtml","title":"Chapter 4"}
+                            ]}""".trimIndent())
+                    path.contains("/files/") ->
+                        MockResponse().setResponseCode(200).setBody("""{"count":0,"next":null,"results":[]}""")
+                    else ->
+                        MockResponse().setResponseCode(200).setBody("""{"identifier":"$itemId","title":"Big Book","language":"en"}""")
+                }
+            }
+        }
+        val pub = catalog.lazyPublication(itemId)
+        assertEquals("Should return all 4 chapters from both spine pages", 4, pub?.spine?.size)
+        assertEquals("xhtml/ch04.xhtml", pub?.spine?.last()?.fullPath)
+    }
 }

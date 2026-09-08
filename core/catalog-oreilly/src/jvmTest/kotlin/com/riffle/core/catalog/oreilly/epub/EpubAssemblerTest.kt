@@ -1,5 +1,10 @@
 package com.riffle.core.catalog.oreilly.epub
 
+import com.riffle.core.catalog.oreilly.OReillyCatalog
+import com.riffle.core.catalog.oreilly.OReillyApi
+import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.core.readBytes
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -89,5 +94,161 @@ class EpubAssemblerTest {
     @Test
     fun `assembly is deterministic`() {
         assertArrayEquals(EpubAssembler.assemble(sampleBook()), EpubAssembler.assemble(sampleBook()))
+    }
+
+    @Test
+    fun `EpubZipStreamWriter produces a JVM-readable archive matching the batch writer`() {
+        val book = sampleBook()
+        val batchBytes = EpubAssembler.assemble(book)
+        val batchEntries = readEntries(batchBytes).associate { it.first.name to it.second }
+
+        // Feed the same entries through the streaming writer one at a time.
+        val writer = EpubZipWriter.streamWriter()
+        val out = java.io.ByteArrayOutputStream()
+        val allEntries = listOf(
+            EpubZipEntry("mimetype", "application/epub+zip".encodeToByteArray()),
+            EpubZipEntry("META-INF/container.xml", EpubAssembler.containerXml().encodeToByteArray()),
+            EpubZipEntry("OEBPS/content.opf", EpubAssembler.contentOpf(book).encodeToByteArray()),
+            EpubZipEntry("OEBPS/nav.xhtml", EpubAssembler.navXhtml(book).encodeToByteArray()),
+            EpubZipEntry("OEBPS/chapter1.xhtml", "<html><body><p>One</p></body></html>".encodeToByteArray()),
+            EpubZipEntry("OEBPS/chapter2.xhtml", "<html><body><p>Two</p></body></html>".encodeToByteArray()),
+            EpubZipEntry("OEBPS/style.css", "body{margin:0}".encodeToByteArray()),
+            EpubZipEntry("OEBPS/images/cover.jpg", byteArrayOf(1, 2, 3, 4, 5)),
+        )
+        for (entry in allEntries) {
+            out.write(writer.writeEntry(entry))
+        }
+        out.write(writer.close())
+        val streamBytes = out.toByteArray()
+
+        val streamEntries = readEntries(streamBytes).associate { it.first.name to it.second }
+
+        // Both must be readable ZIPs with the same entry names and byte content.
+        assertEquals(batchEntries.keys, streamEntries.keys)
+        for (name in batchEntries.keys) {
+            assertArrayEquals("entry $name differs", batchEntries[name], streamEntries[name])
+        }
+    }
+
+    @Test
+    fun `EpubZipStreamWriter first entry (mimetype) must be STORED and JVM-readable`() {
+        val writer = EpubZipWriter.streamWriter()
+        val out = java.io.ByteArrayOutputStream()
+        out.write(writer.writeEntry(EpubZipEntry("mimetype", "application/epub+zip".encodeToByteArray())))
+        out.write(writer.close())
+
+        val entries = readEntries(out.toByteArray())
+        assertEquals(1, entries.size)
+        assertEquals("mimetype", entries[0].first.name)
+        assertEquals(ZipEntry.STORED.toLong(), entries[0].first.method.toLong())
+        assertEquals("application/epub+zip", entries[0].second.decodeToString())
+    }
+
+    @Test
+    fun `withFileStream reports positive contentLength before any chapter is fetched`() = runBlocking {
+        // The streaming synthesis estimates the ZIP size from declared file sizes; it must be > 0
+        // so the consumer has a denominator for progress reporting.
+        val server = okhttp3.mockwebserver.MockWebServer()
+        server.start()
+        try {
+            val itemId = "9781098100000"
+            val urn = "urn:orm:book:$itemId"
+            val chapterBody = "<div id=\"sbo-rt-content\"><p>Hello world</p></div>"
+
+            server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+                override fun dispatch(req: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
+                    val path = req.path.orEmpty()
+                    val json = when {
+                        path.contains("/spine/") -> """{"count":1,"next":null,"results":[{"reference_id":"$itemId-/xhtml/ch01.xhtml","title":"Ch 1"}]}"""
+                        path.contains("/files/") && !path.contains("?download=false") -> """{"count":1,"next":null,"results":[{"full_path":"xhtml/ch01.xhtml","media_type":"application/xhtml+xml","kind":"chapter","file_size":${chapterBody.length}}]}"""
+                        path.contains("?download=false") -> chapterBody
+                        else -> """{"identifier":"$itemId","title":"Test","language":"en"}"""
+                    }
+                    return okhttp3.mockwebserver.MockResponse().setResponseCode(200).setBody(json)
+                }
+            }
+
+            val client = io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp)
+            val api = OReillyApi(client, cookieHeader = "orm-jwt=x", baseUrl = server.url("/").toString().trimEnd('/'))
+            val catalog = OReillyCatalog(api = api, bytesClient = client, cookieHeader = "orm-jwt=x")
+
+            var observedContentLength = -1L
+            catalog.withFileStream(itemId, com.riffle.core.catalog.BookFormat.Epub, null) { stream ->
+                observedContentLength = stream.contentLength
+                stream.channel.readRemaining() // consume all bytes
+            }
+
+            assertTrue("contentLength must be > 0 for progress reporting", observedContentLength > 0L)
+            client.close()
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `withFileStream with multiple concurrent chapters produces a valid readable ZIP`() = runBlocking {
+        // Regression for the writeMutex gap: pipe.writeFully was outside the lock, allowing
+        // concurrent chapter jobs to interleave their bytes. The ZIP must be parseable and
+        // every expected entry must be present at the offsets the central directory records.
+        val server = okhttp3.mockwebserver.MockWebServer()
+        server.start()
+        try {
+            val itemId = "9781098100001"
+            val chapters = listOf("xhtml/ch01.xhtml", "xhtml/ch02.xhtml", "xhtml/ch03.xhtml")
+            val bodies = chapters.mapIndexed { i, _ -> "<div id=\"sbo-rt-content\"><p>Chapter ${i + 1} content</p></div>" }
+            val spineJson = chapters.mapIndexed { i, p ->
+                """{"reference_id":"$itemId-/$p","title":"Chapter ${i + 1}"}"""
+            }.joinToString(",")
+            val filesJson = chapters.mapIndexed { i, p ->
+                """{"full_path":"$p","media_type":"application/xhtml+xml","kind":"chapter","file_size":${bodies[i].length}}"""
+            }.joinToString(",")
+
+            server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+                override fun dispatch(req: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
+                    val path = req.path.orEmpty()
+                    val json = when {
+                        path.contains("/spine/") -> """{"count":${chapters.size},"next":null,"results":[$spineJson]}"""
+                        path.contains("/files/") && path.contains("?download=false") -> {
+                            val idx = chapters.indexOfFirst { path.contains(it) }
+                            if (idx >= 0) bodies[idx] else ""
+                        }
+                        path.contains("/files/") -> """{"count":${chapters.size},"next":null,"results":[$filesJson]}"""
+                        else -> """{"identifier":"$itemId","title":"Multi","language":"en"}"""
+                    }
+                    return okhttp3.mockwebserver.MockResponse().setResponseCode(200).setBody(json)
+                }
+            }
+
+            val client = io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp)
+            val api = OReillyApi(client, cookieHeader = "orm-jwt=x", baseUrl = server.url("/").toString().trimEnd('/'))
+            val catalog = OReillyCatalog(
+                api = api, bytesClient = client, cookieHeader = "orm-jwt=x",
+                minRequestIntervalMs = 0L, maxRequestIntervalMs = 0L,
+            )
+
+            val zipBytes = catalog.withFileStream(itemId, com.riffle.core.catalog.BookFormat.Epub, null) { stream ->
+                stream.channel.readRemaining().readBytes()
+            }
+
+            // Parse with ZipInputStream — if bytes were interleaved the stream throws or misses entries.
+            val entryNames = mutableListOf<String>()
+            ZipInputStream(ByteArrayInputStream(zipBytes)).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    entryNames += entry.name
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                }
+            }
+
+            assertTrue("ZIP must contain mimetype entry", "mimetype" in entryNames)
+            assertTrue("ZIP must contain content.opf", entryNames.any { it.endsWith("content.opf") })
+            assertTrue("ZIP must contain all 3 chapters",
+                chapters.all { path -> entryNames.any { it.endsWith(path) } })
+
+            client.close()
+        } finally {
+            server.shutdown()
+        }
     }
 }
