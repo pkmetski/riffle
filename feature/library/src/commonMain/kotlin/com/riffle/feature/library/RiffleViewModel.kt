@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class BookshelfViewModel constructor(
+class RiffleViewModel constructor(
     private val libraryObserver: LibraryObserver,
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,

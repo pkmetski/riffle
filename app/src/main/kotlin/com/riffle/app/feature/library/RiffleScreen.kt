@@ -33,18 +33,18 @@ import com.riffle.app.feature.navigation.sourceDisplayName
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.AnnotationsListUiState
-import com.riffle.feature.library.BookshelfViewModel
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.LibrarySectionType
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookshelfScreen(
+fun RiffleScreen(
     onOpenDrawer: () -> Unit,
     onItemSelected: (sourceId: String, itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit = onItemSelected,
 ) {
-    val viewModel: BookshelfViewModel = koinViewModel()
+    val viewModel: RiffleViewModel = koinViewModel()
     val inProgress by viewModel.inProgress.collectAsState()
     val continueSeries by viewModel.continueSeries.collectAsState()
     val toRead by viewModel.toRead.collectAsState()

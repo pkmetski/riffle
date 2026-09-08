@@ -19,24 +19,24 @@ class LastOpenedLibraryStoreImpl constructor(
     override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
         dataStore.edit { prefs ->
             prefs[key(sourceId)] = libraryId
-            prefs.remove(BOOKSHELF_ACTIVE_KEY)
+            prefs.remove(RIFFLE_ACTIVE_KEY)
         }
     }
 
-    override fun wasBookshelfLastActive(): Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[BOOKSHELF_ACTIVE_KEY] == true }
+    override fun wasRiffleLastActive(): Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[RIFFLE_ACTIVE_KEY] == true }
 
-    override suspend fun setBookshelfActive() {
-        dataStore.edit { prefs -> prefs[BOOKSHELF_ACTIVE_KEY] = true }
+    override suspend fun setRiffleActive() {
+        dataStore.edit { prefs -> prefs[RIFFLE_ACTIVE_KEY] = true }
     }
 
-    override suspend fun clearBookshelfActive() {
-        dataStore.edit { prefs -> prefs.remove(BOOKSHELF_ACTIVE_KEY) }
+    override suspend fun clearRiffleActive() {
+        dataStore.edit { prefs -> prefs.remove(RIFFLE_ACTIVE_KEY) }
     }
 
     private fun key(sourceId: String) = stringPreferencesKey("last_$sourceId")
 
     companion object {
-        private val BOOKSHELF_ACTIVE_KEY = booleanPreferencesKey("last_dest_bookshelf")
+        private val RIFFLE_ACTIVE_KEY = booleanPreferencesKey("last_dest_riffle")
     }
 }

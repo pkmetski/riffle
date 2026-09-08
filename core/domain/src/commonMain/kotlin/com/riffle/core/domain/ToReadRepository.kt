@@ -25,7 +25,7 @@ interface ToReadRepository {
 
     /**
      * Like [refresh] but targets a specific source rather than the globally-active one.
-     * Used by cross-source views (e.g. Bookshelf) that need to populate the cache for
+     * Used by cross-source views (e.g. Riffle) that need to populate the cache for
      * ABS libraries even when a different source is currently active.
      */
     suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean
@@ -33,7 +33,7 @@ interface ToReadRepository {
     suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean
 
     /**
-     * Source-aware variant for cross-source views (e.g. Bookshelf) where the item's source
+     * Source-aware variant for cross-source views (e.g. Riffle) where the item's source
      * may differ from the globally-active source. Routes to the library's own backend rather
      * than the active source's backend. Defaults to active-source routing.
      */

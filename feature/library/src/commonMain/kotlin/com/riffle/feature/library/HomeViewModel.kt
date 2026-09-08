@@ -24,7 +24,7 @@ class HomeViewModel constructor(
     sealed class StartDestination {
         data object AddSource : StartDestination()
         data object NoLibraries : StartDestination()
-        data object Bookshelf : StartDestination()
+        data object Riffle : StartDestination()
         data class Library(
             val sourceType: SourceType,
             val libraryId: String,
@@ -33,8 +33,8 @@ class HomeViewModel constructor(
     }
 
     suspend fun getStartDestination(): StartDestination = withContext(dispatchers.io) {
-        if (lastOpenedLibraryStore.wasBookshelfLastActive().first()) {
-            return@withContext StartDestination.Bookshelf
+        if (lastOpenedLibraryStore.wasRiffleLastActive().first()) {
+            return@withContext StartDestination.Riffle
         }
         val servers = sourceRepository.observeAll().first()
         if (servers.isEmpty()) return@withContext StartDestination.AddSource

@@ -33,7 +33,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class BookshelfViewModelTest {
+class RiffleViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
@@ -120,7 +120,7 @@ class BookshelfViewModelTest {
         tokenStorage: TokenStorage = fakeTokenStorage(),
         toReadRepository: ToReadRepository = FakeToReadRepository(),
         annotationsRepo: AnnotationsLibraryRepository = FakeAllSourcesAnnotationsRepo(emptyList()),
-    ) = BookshelfViewModel(
+    ) = RiffleViewModel(
         libraryObserver = libraryObserver,
         sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,

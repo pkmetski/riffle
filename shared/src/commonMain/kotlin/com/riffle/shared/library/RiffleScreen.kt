@@ -28,16 +28,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
-import com.riffle.feature.library.BookshelfViewModel
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.LibrarySectionType
 import org.koin.compose.koinInject
 
 @Composable
-fun BookshelfScreen(
+fun RiffleScreen(
     onOpenDrawer: () -> Unit,
     onBack: () -> Unit,
 ) {
-    val viewModel = koinInject<BookshelfViewModel>()
+    val viewModel = koinInject<RiffleViewModel>()
     val inProgress by viewModel.inProgress.collectAsState()
     val continueSeries by viewModel.continueSeries.collectAsState()
     val toRead by viewModel.toRead.collectAsState()
@@ -73,7 +73,7 @@ fun BookshelfScreen(
                 style = TextStyle(fontSize = 18.sp),
             )
             BasicText(
-                text = "Bookshelf",
+                text = "Riffle",
                 style = TextStyle(fontSize = 18.sp),
                 modifier = Modifier.weight(1f),
             )

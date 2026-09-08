@@ -104,7 +104,7 @@ import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.DownloadManager
 import com.riffle.feature.library.EpubTocExtractor
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
-import com.riffle.feature.library.BookshelfViewModel
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
@@ -228,7 +228,7 @@ private fun iosLibraryModule(
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { DrawerViewModel(get(), get(), get(), get()) }
     single {
-        BookshelfViewModel(
+        RiffleViewModel(
             libraryObserver = get(),
             sourceRepository = get(),
             tokenStorage = get(),

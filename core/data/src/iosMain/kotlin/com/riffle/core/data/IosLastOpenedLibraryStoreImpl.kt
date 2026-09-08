@@ -10,29 +10,29 @@ class IosLastOpenedLibraryStoreImpl : LastOpenedLibraryStore {
     private val defaults = NSUserDefaults.standardUserDefaults
     private val lock = NSLock()
     private val flows = mutableMapOf<String, MutableStateFlow<String?>>()
-    private val bookshelfActiveFlow = MutableStateFlow(
-        defaults.boolForKey(BOOKSHELF_ACTIVE_KEY)
+    private val riffleActiveFlow = MutableStateFlow(
+        defaults.boolForKey(RIFFLE_ACTIVE_KEY)
     )
 
     override fun lastOpenedLibrary(sourceId: String): Flow<String?> = stateFor(sourceId)
 
     override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
         defaults.setObject(libraryId, forKey = key(sourceId))
-        defaults.removeObjectForKey(BOOKSHELF_ACTIVE_KEY)
+        defaults.removeObjectForKey(RIFFLE_ACTIVE_KEY)
         stateFor(sourceId).value = libraryId
-        bookshelfActiveFlow.value = false
+        riffleActiveFlow.value = false
     }
 
-    override fun wasBookshelfLastActive(): Flow<Boolean> = bookshelfActiveFlow
+    override fun wasRiffleLastActive(): Flow<Boolean> = riffleActiveFlow
 
-    override suspend fun setBookshelfActive() {
-        defaults.setBool(true, forKey = BOOKSHELF_ACTIVE_KEY)
-        bookshelfActiveFlow.value = true
+    override suspend fun setRiffleActive() {
+        defaults.setBool(true, forKey = RIFFLE_ACTIVE_KEY)
+        riffleActiveFlow.value = true
     }
 
-    override suspend fun clearBookshelfActive() {
-        defaults.removeObjectForKey(BOOKSHELF_ACTIVE_KEY)
-        bookshelfActiveFlow.value = false
+    override suspend fun clearRiffleActive() {
+        defaults.removeObjectForKey(RIFFLE_ACTIVE_KEY)
+        riffleActiveFlow.value = false
     }
 
     private fun stateFor(sourceId: String): MutableStateFlow<String?> {
@@ -49,6 +49,6 @@ class IosLastOpenedLibraryStoreImpl : LastOpenedLibraryStore {
     private fun key(sourceId: String) = "last_lib:$sourceId"
 
     companion object {
-        private const val BOOKSHELF_ACTIVE_KEY = "last_dest_bookshelf"
+        private const val RIFFLE_ACTIVE_KEY = "last_dest_riffle"
     }
 }

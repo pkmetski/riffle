@@ -125,18 +125,18 @@ class NavigationDrawerViewModelTest {
     }
 
     private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
-    private val bookshelfActiveFlow = MutableStateFlow(false)
+    private val riffleActiveFlow = MutableStateFlow(false)
 
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
         override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
             lastOpenedFlow.map { it[sourceId] }
         override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
             lastOpenedFlow.update { it + (sourceId to libraryId) }
-            bookshelfActiveFlow.value = false
+            riffleActiveFlow.value = false
         }
-        override fun wasBookshelfLastActive(): Flow<Boolean> = bookshelfActiveFlow
-        override suspend fun setBookshelfActive() { bookshelfActiveFlow.value = true }
-        override suspend fun clearBookshelfActive() { bookshelfActiveFlow.value = false }
+        override fun wasRiffleLastActive(): Flow<Boolean> = riffleActiveFlow
+        override suspend fun setRiffleActive() { riffleActiveFlow.value = true }
+        override suspend fun clearRiffleActive() { riffleActiveFlow.value = false }
     }
 
     private val isOnlineFlow = MutableStateFlow(true)
@@ -495,47 +495,47 @@ class NavigationDrawerViewModelTest {
         assertEquals(true, vm.showDownloadsLink.value)
     }
 
-    // Regression: Bookshelf selection must persist the "bookshelf last active" flag so the next
-    // app start lands back on Bookshelf instead of defaulting to the active source's library.
+    // Regression: Riffle selection must persist the "riffle last active" flag so the next
+    // app start lands back on Riffle instead of defaulting to the active source's library.
     @Test
-    fun `setBookshelfActive persists bookshelf as last active destination`() = runTest(testDispatcher) {
+    fun `setRiffleActive persists riffle as last active destination`() = runTest(testDispatcher) {
         val vm = makeVm()
 
-        vm.setBookshelfActive()
+        vm.setRiffleActive()
         testScheduler.advanceUntilIdle()
 
-        val wasBookshelf = bookshelfActiveFlow.first()
-        assertEquals(true, wasBookshelf)
+        val wasRiffle = riffleActiveFlow.first()
+        assertEquals(true, wasRiffle)
     }
 
-    // Regression: switching the active source while Bookshelf is showing must clear the
-    // "bookshelf last active" flag so the next getStartDestination() resolves to the new
-    // source's library instead of bouncing back to Bookshelf.
+    // Regression: switching the active source while Riffle is showing must clear the
+    // "riffle last active" flag so the next getStartDestination() resolves to the new
+    // source's library instead of bouncing back to Riffle.
     @Test
-    fun `setActiveServer clears the bookshelf flag`() = runTest(testDispatcher) {
+    fun `setActiveServer clears the riffle flag`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true), server("srv-2", active = false))
-        bookshelfActiveFlow.value = true
+        riffleActiveFlow.value = true
         val vm = makeVm()
 
         vm.setActiveServer("srv-2")
         testScheduler.advanceUntilIdle()
 
-        assertEquals(false, bookshelfActiveFlow.first())
+        assertEquals(false, riffleActiveFlow.first())
     }
 
-    // Regression: selecting a library after Bookshelf must clear the "bookshelf last active" flag
-    // so the next app start resumes the library, not Bookshelf.
+    // Regression: selecting a library after Riffle must clear the "riffle last active" flag
+    // so the next app start resumes the library, not Riffle.
     @Test
-    fun `setActiveLibrary clears the bookshelf flag`() = runTest(testDispatcher) {
+    fun `setActiveLibrary clears the riffle flag`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true))
-        bookshelfActiveFlow.value = true
+        riffleActiveFlow.value = true
         val vm = makeVm()
 
         vm.setActiveLibrary("lib-1")
         testScheduler.advanceUntilIdle()
 
-        val wasBookshelf = bookshelfActiveFlow.first()
-        assertEquals(false, wasBookshelf)
+        val wasRiffle = riffleActiveFlow.first()
+        assertEquals(false, wasRiffle)
     }
 
     private fun registryAllReturning(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =

@@ -81,8 +81,8 @@ fun RiffleNavigationDrawer(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
-    onBookshelfSelected: () -> Unit = {},
-    isBookshelfActive: Boolean = false,
+    onRiffleSelected: () -> Unit = {},
+    isRiffleActive: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val sheetBody: @Composable () -> Unit = {
@@ -97,8 +97,8 @@ fun RiffleNavigationDrawer(
             onLibrarySelected = onLibrarySelected,
             onDownloadsSelected = onDownloadsSelected,
             onSettingsSelected = onSettingsSelected,
-            onBookshelfSelected = onBookshelfSelected,
-            isBookshelfActive = isBookshelfActive,
+            onRiffleSelected = onRiffleSelected,
+            isRiffleActive = isRiffleActive,
         )
     }
 
@@ -137,8 +137,8 @@ private fun DrawerSheetContent(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
-    onBookshelfSelected: () -> Unit = {},
-    isBookshelfActive: Boolean = false,
+    onRiffleSelected: () -> Unit = {},
+    isRiffleActive: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
         DrawerHeader(
@@ -146,15 +146,15 @@ private fun DrawerSheetContent(
             allServers = allServers,
             serverVersions = serverVersions,
             onServerSelected = onServerSelected,
-            isBookshelfActive = isBookshelfActive,
-            onBookshelfSelected = onBookshelfSelected,
+            isRiffleActive = isRiffleActive,
+            onRiffleSelected = onRiffleSelected,
         )
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            if (!isBookshelfActive) {
+            if (!isRiffleActive) {
                 visibleLibraries.forEach { library ->
                     NavigationDrawerItem(
                         label = { Text(library.name) },
@@ -213,8 +213,8 @@ private fun DrawerHeader(
     allServers: List<Source>,
     serverVersions: Map<String, String>,
     onServerSelected: (Source) -> Unit,
-    isBookshelfActive: Boolean = false,
-    onBookshelfSelected: () -> Unit = {},
+    isRiffleActive: Boolean = false,
+    onRiffleSelected: () -> Unit = {},
 ) {
     val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }
@@ -226,13 +226,13 @@ private fun DrawerHeader(
         .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
     ) {
         ListItem(
-            leadingContent = if (isBookshelfActive) {
+            leadingContent = if (isRiffleActive) {
                 { RiffleAppIcon(size = 24.dp) }
             } else {
                 activeServer?.let { server -> { SourceRowIcon(server = server) } }
             },
             headlineContent = {
-                if (isBookshelfActive) {
+                if (isRiffleActive) {
                     AutoShrinkingSingleLineText(text = "Riffle")
                 } else {
                     val name = activeServer?.let { localizedSourceDisplayName(it) }
@@ -255,7 +255,7 @@ private fun DrawerHeader(
                     }
                 }
             },
-            supportingContent = if (isBookshelfActive) null else {
+            supportingContent = if (isRiffleActive) null else {
                 {
                     val support = activeServer?.let {
                         localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
@@ -281,12 +281,12 @@ private fun DrawerHeader(
             onDismissRequest = { switcherExpanded = false },
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
-            // Bookshelf entry pinned at top of the switcher.
+            // Riffle entry pinned at top of the switcher.
             DropdownMenuItem(
                 text = { AutoShrinkingSingleLineText(text = "Riffle") },
                 leadingIcon = { RiffleAppIcon(size = 24.dp) },
                 trailingIcon = {
-                    if (isBookshelfActive) {
+                    if (isRiffleActive) {
                         Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
                     } else {
                         Spacer(modifier = Modifier.size(24.dp))
@@ -294,7 +294,7 @@ private fun DrawerHeader(
                 },
                 onClick = {
                     switcherExpanded = false
-                    onBookshelfSelected()
+                    onRiffleSelected()
                 },
             )
             HorizontalDivider()
@@ -336,7 +336,7 @@ private fun DrawerHeader(
                     },
                     leadingIcon = { SourceRowIcon(server = server) },
                     trailingIcon = {
-                        if (server.isActive && !isBookshelfActive) {
+                        if (server.isActive && !isRiffleActive) {
                             Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))

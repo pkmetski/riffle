@@ -41,7 +41,7 @@ import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.SeriesDetailScreen
-import com.riffle.shared.library.BookshelfScreen
+import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
@@ -53,7 +53,7 @@ import org.koin.compose.koinInject
  * Top-level section — mirrors Android's nav graph routes (Library/Settings/Downloads).
  * Tapping Settings or Downloads in the drawer closes it and navigates here, exactly as on Android.
  */
-private enum class AppSection { Library, Settings, Downloads, Bookshelf }
+private enum class AppSection { Library, Settings, Downloads, Riffle }
 
 internal sealed interface LibraryNav {
     data object Items : LibraryNav
@@ -120,7 +120,7 @@ fun HomeScreen() {
             AppSection.Downloads -> DownloadsScreen(
                 onBack = { appSection = AppSection.Library },
             )
-            AppSection.Bookshelf -> BookshelfScreen(
+            AppSection.Riffle -> RiffleScreen(
                 onOpenDrawer = { drawerOpen = true },
                 onBack = { appSection = AppSection.Library },
             )
@@ -150,8 +150,8 @@ fun HomeScreen() {
             }
         }
 
-        // Drawer overlay — shown over Library and Bookshelf (same behaviour as Android ModalNavigationDrawer)
-        if (drawerOpen && (appSection == AppSection.Library || appSection == AppSection.Bookshelf)) {
+        // Drawer overlay — shown over Library and Riffle (same behaviour as Android ModalNavigationDrawer)
+        if (drawerOpen && (appSection == AppSection.Library || appSection == AppSection.Riffle)) {
             // Scrim
             Box(
                 Modifier
@@ -172,10 +172,10 @@ fun HomeScreen() {
                     allServers = allServers,
                     visibleLibraries = visibleLibraries,
                     activeLibraryId = activeLibraryId,
-                    isBookshelfActive = appSection == AppSection.Bookshelf,
-                    onNavigateToBookshelf = {
+                    isRiffleActive = appSection == AppSection.Riffle,
+                    onNavigateToRiffle = {
                         drawerOpen = false
-                        appSection = AppSection.Bookshelf
+                        appSection = AppSection.Riffle
                     },
                     onServerSelected = { source ->
                         drawerOpen = false
@@ -212,8 +212,8 @@ private fun DrawerSheetContent(
     allServers: List<Source>,
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
-    isBookshelfActive: Boolean = false,
-    onNavigateToBookshelf: () -> Unit = {},
+    isRiffleActive: Boolean = false,
+    onNavigateToRiffle: () -> Unit = {},
     onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -222,16 +222,16 @@ private fun DrawerSheetContent(
     var switcherExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxHeight()) {
-        // Bookshelf entry — pinned at the top, above the source switcher
+        // Riffle entry — pinned at the top, above the source switcher
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(if (isBookshelfActive) Color(0xFFE8E8E8) else Color.Transparent)
-                .clickable { onNavigateToBookshelf() }
+                .background(if (isRiffleActive) Color(0xFFE8E8E8) else Color.Transparent)
+                .clickable { onNavigateToRiffle() }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BasicText("Bookshelf", style = TextStyle(fontSize = 15.sp))
+            BasicText("Riffle", style = TextStyle(fontSize = 15.sp))
         }
         Box(
             modifier = Modifier
