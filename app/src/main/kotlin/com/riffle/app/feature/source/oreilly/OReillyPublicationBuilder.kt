@@ -6,7 +6,7 @@ import org.readium.r2.shared.publication.LocalizedString
 import org.readium.r2.shared.publication.Manifest
 import org.readium.r2.shared.publication.Metadata
 import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.publication.services.PerResourcePositionsService
+import org.readium.r2.streamer.parser.epub.EpubPositionsService
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.mediatype.MediaType
 
@@ -18,7 +18,8 @@ import org.readium.r2.shared.util.mediatype.MediaType
  * [OReillyLazyContainer], which downloads and caches each chapter on first access.
  *
  * No search service is registered — O'Reilly content is HTML scraped and would need a separate
- * extraction pass. [PerResourcePositionsService] gives the chapter map one position per chapter.
+ * extraction pass. [EpubPositionsService] with OriginalLength(1024) gives within-chapter positions
+ * based on [LazySpineItem.declaredByteSize].
  */
 object OReillyPublicationBuilder {
 
@@ -52,12 +53,14 @@ object OReillyPublicationBuilder {
             manifest = manifest,
             container = container,
             servicesBuilder = Publication.ServicesBuilder(
-                positions = { ctx ->
-                    PerResourcePositionsService(
-                        readingOrder = ctx.manifest.readingOrder,
-                        fallbackMediaType = MediaType.XHTML,
-                    )
-                },
+                // OriginalLength uses Resource.length() (our LazyChapterResource returns
+                // declaredByteSize) to estimate positions within each chapter, giving
+                // within-chapter progress in the chapter map.
+                positions = EpubPositionsService.createFactory(
+                    reflowableStrategy = EpubPositionsService.ReflowableStrategy.OriginalLength(
+                        pageLength = 1024,
+                    ),
+                ),
             ),
         )
     }
