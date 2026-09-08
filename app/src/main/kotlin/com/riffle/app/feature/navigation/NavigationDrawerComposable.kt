@@ -14,10 +14,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DropdownMenu
@@ -38,9 +39,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -143,20 +141,9 @@ private fun DrawerSheetContent(
     isBookshelfActive: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
-        val context = LocalContext.current
-        val launcherBitmap = remember {
-            android.graphics.BitmapFactory.decodeResource(context.resources, com.riffle.app.R.mipmap.ic_launcher_round)
-        }
         NavigationDrawerItem(
             label = { Text("Bookshelf") },
-            icon = {
-                Icon(
-                    painter = BitmapPainter(launcherBitmap.asImageBitmap()),
-                    contentDescription = null,
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(24.dp),
-                )
-            },
+            icon = { Icon(Icons.Filled.Home, contentDescription = null) },
             selected = isBookshelfActive,
             onClick = onBookshelfSelected,
         )

@@ -8,10 +8,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,6 +18,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import com.riffle.app.ui.theme.RiffleIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,20 +71,17 @@ fun BookshelfScreen(
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.MenuBook, contentDescription = null) },
-                    label = { Text("In Progress") },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "In Progress") },
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Bookmark, contentDescription = null) },
-                    label = { Text("To Read") },
+                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.FormatQuote, contentDescription = null) },
-                    label = { Text("Annotations") },
+                    icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
                 )
             }
         },

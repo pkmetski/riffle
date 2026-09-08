@@ -75,22 +75,23 @@ class BookshelfViewModel constructor(
         private set
 
     init {
-        viewModelScope.launch {
-            val sources = sourceRepository.observeAll().stateIn(viewModelScope).value
-            authTokenMap = coroutineScope {
-                sources.associate { source ->
-                    val token = async { tokenStorage.getToken(source.id) ?: "" }
-                    source.id to token.await()
-                }
-            }
-        }
-        // Refresh tokens whenever the source list changes.
+        // Refresh tokens and To Read lists whenever the source list changes.
         viewModelScope.launch {
             sourceRepository.observeAll().collect { sources ->
                 authTokenMap = coroutineScope {
                     sources.associate { source ->
                         val token = async { tokenStorage.getToken(source.id) ?: "" }
                         source.id to token.await()
+                    }
+                }
+                // ToReadRepository is in-memory; populate each library's cache on source change.
+                sources.forEach { source ->
+                    launch {
+                        libraryObserver.observeLibraries(source.id).collect { libraries ->
+                            libraries.forEach { library ->
+                                launch { toReadRepository.refresh(library.id) }
+                            }
+                        }
                     }
                 }
             }
