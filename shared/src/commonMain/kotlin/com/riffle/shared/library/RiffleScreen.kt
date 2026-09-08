@@ -164,7 +164,7 @@ private fun IosAnnotationsTab(annotations: List<AnnotatedBook>) {
                 Column(modifier = Modifier.weight(1f)) {
                     BasicText(text = book.title ?: "", style = TextStyle(fontSize = 15.sp))
                     if (book.author != null) {
-                        BasicText(text = book.author, style = TextStyle(fontSize = 13.sp, color = Color.Gray))
+                        BasicText(text = book.author!!, style = TextStyle(fontSize = 13.sp, color = Color.Gray))
                     }
                     BasicText(
                         text = "${book.highlightCount} highlight${if (book.highlightCount != 1) "s" else ""}",

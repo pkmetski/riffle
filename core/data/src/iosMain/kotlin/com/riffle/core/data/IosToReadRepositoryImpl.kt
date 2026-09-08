@@ -84,12 +84,12 @@ class IosToReadRepositoryImpl(
         cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
 
     override suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentialsForSource(sourceId) ?: return true  // non-ABS source: no-op
+        val creds = credentialsForSource(sourceId) ?: return true // non-ABS source: no-op
         return addWithCreds(creds, libraryItemId, libraryId)
     }
 
     override suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentialsForSource(sourceId) ?: return true  // non-ABS source: no-op
+        val creds = credentialsForSource(sourceId) ?: return true // non-ABS source: no-op
         return removeWithCreds(creds, libraryItemId, libraryId)
     }
 

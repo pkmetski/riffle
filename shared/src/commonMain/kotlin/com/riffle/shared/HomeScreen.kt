@@ -135,6 +135,9 @@ fun HomeScreen() {
                             onFinished = { refreshKey++ },
                             onCancelled = { refreshKey++ },
                         )
+                    is HomeViewModel.StartDestination.Riffle -> {
+                        LaunchedEffect(Unit) { appSection = AppSection.Riffle }
+                    }
                     is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
                     is HomeViewModel.StartDestination.Library -> {
                         LaunchedEffect(dest.libraryId) {
