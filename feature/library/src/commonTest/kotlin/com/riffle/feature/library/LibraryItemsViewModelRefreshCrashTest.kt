@@ -230,9 +230,13 @@ class LibraryItemsViewModelRefreshCrashTest {
         // advanceUntilIdle() because a failed refresh (refreshFailed=true while online) starts an
         // unbounded retry-poll loop in init; runCurrent drains the immediate work and parks that loop
         // at its first delay instead of advancing virtual time forever.
-        // Two runCurrent() calls: first runs runRefresh() and writes _refreshFailed=true; second
-        // processes the StateFlow emission so isOffline.value reflects it. K/N needs the second hop.
+        // Multiple runCurrent() calls drain the full StateFlow propagation chain:
+        //   1st: runs runRefresh() → throws → _refreshFailed=true
+        //   2nd: retry-poll combine + isOffline combine both receive _refreshFailed emission
+        //   3rd: stateIn internal coroutine updates isOffline.value=true
+        // K/N needs all three hops; extra runCurrent() calls are no-ops on an empty queue.
         backgroundScope.launch { vm.isOffline.collect {} }
+        runCurrent()
         runCurrent()
         runCurrent()
 
