@@ -76,7 +76,7 @@ final class AddAbsSourceFlowTests: XCTestCase {
         let settingsEntry = app.staticTexts["Settings"]
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
         settingsEntry.tap()
-        let removeButton = app.staticTexts["Remove"].firstMatch
+        let removeButton = app.buttons["Remove"].firstMatch
         XCTAssertTrue(removeButton.waitForExistence(timeout: 10), "Settings must list the source with a Remove action")
         removeButton.tap()
         XCTAssertTrue(
