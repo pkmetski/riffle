@@ -105,4 +105,30 @@ class OReillyCatalogLazyTest {
         assertEquals("$base/api/v2/epubs/$urn/files/", pub!!.absoluteFilesPrefix)
         assertEquals("/api/v2/epubs/$urn/files/", pub.pathFilesPrefix)
     }
+
+    @Test
+    fun `fetchChapterForLazy does not call the files-listing endpoint`() = runBlocking {
+        // Use a dispatcher where the files-listing endpoint returns 500. If fetchChapterForLazy
+        // still called fetchAllFiles (the old bug), the whole call would fail and return null.
+        val noFilesListDispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path.orEmpty()
+                return when {
+                    // Chapter download endpoint — serves content
+                    path.contains("?download=false") ->
+                        MockResponse().setResponseCode(200).setBody("<p>Hello</p>")
+                    // Files-listing endpoint — fail hard so the test catches any regression
+                    path.startsWith("/api/v2/epubs/$urn/files/") ->
+                        MockResponse().setResponseCode(500).setBody("should not be called")
+                    else -> MockResponse().setResponseCode(404).setBody("{}")
+                }
+            }
+        }
+        server.dispatcher = noFilesListDispatcher
+
+        // expectedByteSize = 0 skips truncation detection; we only care that no files-listing
+        // request was made, not about truncation handling.
+        val result = catalog.fetchChapterForLazy(itemId, "xhtml/ch01.xhtml", expectedByteSize = 0L)
+        assertNotNull("fetchChapterForLazy should succeed without calling the files endpoint", result)
+    }
 }

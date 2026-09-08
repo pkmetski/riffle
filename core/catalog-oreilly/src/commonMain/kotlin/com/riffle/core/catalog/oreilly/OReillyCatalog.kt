@@ -199,12 +199,10 @@ class OReillyCatalog internal constructor(
      * as [synthesizeEpub] but with a single-request pacer (each lazy chapter fetch is independent).
      * Returns null after exhausting retries so the caller can surface a per-chapter error.
      */
-    override suspend fun fetchChapterForLazy(itemId: String, fullPath: String): String? {
-        val files = runCatching { fetchAllFiles(itemId) }.getOrNull() ?: return null
-        val expectedSize = files.firstOrNull { it.fullPath == fullPath }?.fileSize ?: 0L
+    override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long): String? {
         val pacer = RequestPacer(maxConcurrency = 1, minIntervalMs = 0L) { clock.nowMs() }
         return runCatching {
-            fetchChapterContent(itemId, fullPath, expectedSize, pacer)
+            fetchChapterContent(itemId, fullPath, expectedByteSize, pacer)
         }.getOrNull()
     }
 

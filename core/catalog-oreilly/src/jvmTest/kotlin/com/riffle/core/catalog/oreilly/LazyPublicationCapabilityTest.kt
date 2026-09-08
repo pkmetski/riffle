@@ -13,7 +13,7 @@ class LazyPublicationCapabilityTest {
     fun `LazyPublicationCapability is a CatalogCapability`() {
         val fake = object : LazyPublicationCapability {
             override suspend fun lazyPublication(itemId: String) = null
-            override suspend fun fetchChapterForLazy(itemId: String, fullPath: String) = null
+            override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long) = null
             override suspend fun fetchAssetForLazy(itemId: String, fullPath: String) = null
         }
         assert(fake is CatalogCapability)

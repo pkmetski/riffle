@@ -29,7 +29,7 @@ class OReillyLazyContainer(
     val pub: LazyPublicationShape,
     private val cacheDir: File,
     /** Fetch one chapter's HTML (may throw on network error). */
-    private val fetchChapter: suspend (itemId: String, fullPath: String) -> String,
+    private val fetchChapter: suspend (itemId: String, fullPath: String, expectedByteSize: Long) -> String,
     /** Fetch one binary asset; null on failure (non-fatal). */
     private val fetchAsset: suspend (itemId: String, fullPath: String) -> ByteArray?,
     private val scope: CoroutineScope,
@@ -87,7 +87,7 @@ class OReillyLazyContainer(
         if (cacheFile.exists()) return
         scope.launch {
             runCatching {
-                val html = fetchChapter(pub.bookId, nextItem.fullPath)
+                val html = fetchChapter(pub.bookId, nextItem.fullPath, nextItem.declaredByteSize)
                 val xhtml = buildChapterXhtml(pub, nextItem, html)
                 writeCacheFile(cacheFile, xhtml.encodeToByteArray())
             }
@@ -115,7 +115,13 @@ class OReillyLazyContainer(
             target.parentFile?.mkdirs()
             val tmp = File(target.parent, "${target.name}.tmp")
             tmp.writeBytes(bytes)
-            tmp.renameTo(target)
+            if (!tmp.renameTo(target)) {
+                // renameTo can fail across mount points (e.g. under storage pressure). Fall back to
+                // a direct write so the cache is still populated; the file won't be atomic but is
+                // better than leaving it absent and re-fetching from network on every read.
+                target.writeBytes(bytes)
+                tmp.delete()
+            }
         }
 
         fun buildChapterXhtml(pub: LazyPublicationShape, item: LazySpineItem, rawHtml: String): String {
@@ -133,7 +139,7 @@ private class LazyChapterResource(
     private val spineItem: LazySpineItem,
     private val pub: LazyPublicationShape,
     private val cacheDir: File,
-    private val fetchChapter: suspend (itemId: String, fullPath: String) -> String,
+    private val fetchChapter: suspend (itemId: String, fullPath: String, expectedByteSize: Long) -> String,
 ) : Resource {
 
     override suspend fun properties(): Try<Resource.Properties, ReadError> =
@@ -161,7 +167,7 @@ private class LazyChapterResource(
     private suspend fun getOrFetchBytes(): ByteArray {
         val cacheFile = OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, spineItem.fullPath)
         if (cacheFile.exists()) return cacheFile.readBytes()
-        val html = fetchChapter(pub.bookId, spineItem.fullPath)
+        val html = fetchChapter(pub.bookId, spineItem.fullPath, spineItem.declaredByteSize)
         val xhtml = OReillyLazyContainer.buildChapterXhtml(pub, spineItem, html)
         val bytes = xhtml.encodeToByteArray()
         OReillyLazyContainer.writeCacheFile(cacheFile, bytes)

@@ -26,8 +26,12 @@ interface LazyPublicationCapability : CatalogCapability {
     /**
      * Fetch one chapter's HTML for the lazy-reading path. Applies the same backoff/truncation
      * logic as the full synthesize path. Returns null after exhausting retries.
+     *
+     * [expectedByteSize] is the declared size from [LazySpineItem.declaredByteSize] and is used
+     * for truncation detection — pass it through from the spine rather than re-fetching the file
+     * listing on every chapter load.
      */
-    suspend fun fetchChapterForLazy(itemId: String, fullPath: String): String?
+    suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long): String?
 
     /**
      * Fetch one asset's bytes for the lazy-reading path (non-fatal — returns null on failure).

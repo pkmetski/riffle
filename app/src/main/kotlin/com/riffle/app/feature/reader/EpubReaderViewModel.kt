@@ -579,6 +579,7 @@ class EpubReaderViewModel constructor(
     // last [openBook] build, kept so the resume-position collector below can map a synthesised-href
     // locator update back to a highlight id without rebuilding the Publication. Null in FullBook mode.
     private var lazyContainer: com.riffle.app.feature.source.oreilly.OReillyLazyContainer? = null
+    private val _isLazyPublication = kotlinx.coroutines.flow.MutableStateFlow(false)
 
     private var highlightsResumeChapters: List<ChapterElision>? = null
     private var highlightsResumeServerId: String? = null
@@ -894,7 +895,7 @@ class EpubReaderViewModel constructor(
 
     /** True when the open publication is a lazy (per-chapter streaming) O'Reilly book.
      *  Lazy publications have no search service — use this to show a "Download to search" hint. */
-    val isLazyPublication: Boolean get() = lazyContainer != null
+    val isLazyPublication: kotlinx.coroutines.flow.StateFlow<Boolean> = _isLazyPublication
 
     // ---- Readaloud (ADR 0027) ----------------------------------------------------------------
 
@@ -3872,11 +3873,12 @@ class EpubReaderViewModel constructor(
         val container = com.riffle.app.feature.source.oreilly.OReillyLazyContainer(
             pub = shape,
             cacheDir = cacheDir,
-            fetchChapter = { _, path -> cap.fetchChapterForLazy(itemId, path) ?: "" },
+            fetchChapter = { _, path, expectedSize -> cap.fetchChapterForLazy(itemId, path, expectedSize) ?: "" },
             fetchAsset = { _, path -> cap.fetchAssetForLazy(itemId, path) },
             scope = viewModelScope,
         )
         lazyContainer = container
+        _isLazyPublication.value = true
         val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(container)
         val lastPosition = readingPositionStore.load(sourceId, itemId)
         return Pair(publication, lastPosition)
