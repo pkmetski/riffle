@@ -62,7 +62,10 @@ class OReillyLazyContainer(
             )
         }
         // Unknown URL — try as a relative asset path (Readium requests css/images by their href).
-        val relativePath = url.toString().removePrefix("/")
+        // Sub-resources (images, CSS) arrive as absolute readium_package:// URLs:
+        //   https://readium_package/{path}
+        // Strip that prefix to recover the relative path used in the O'Reilly files API.
+        val relativePath = extractRelativePath(url.toString())
         return LazyAssetResource(
             sourceUrl = url as? AbsoluteUrl,
             fullPath = relativePath,
@@ -92,6 +95,14 @@ class OReillyLazyContainer(
     }
 
     companion object {
+        /**
+         * Strips the `https://readium_package/` origin that Readium prepends to sub-resource
+         * URLs (images, CSS) when requesting them from the container. Returns the bare relative
+         * path suitable for the O'Reilly files API.
+         */
+        internal fun extractRelativePath(urlString: String): String =
+            urlString.removePrefix("https://readium_package/").removePrefix("/")
+
         /** Stable cache path for `(bookId, fullPath)` under `cacheDir`. */
         fun cacheFileFor(cacheDir: File, bookId: String, fullPath: String): File {
             val safeBook = bookId.replace(Regex("[^A-Za-z0-9_\\-]"), "_")
@@ -173,7 +184,17 @@ private class LazyAssetResource(
 
     override suspend fun length(): Try<Long, ReadError> {
         val f = cacheFile()
-        return if (f.exists()) Try.success(f.length()) else Try.success(0L)
+        if (f.exists()) return Try.success(f.length())
+        // ReadableInputStreamAdapter (Readium) calls length() before read(). If we return 0
+        // here it will interpret the resource as empty and never call read(). Fetch eagerly so
+        // the correct byte count is available, and cache to disk so read() can serve instantly.
+        val fetched = fetchAsset(bookId, fullPath)
+        return if (fetched != null && fetched.isNotEmpty()) {
+            OReillyLazyContainer.writeCacheFile(f, fetched)
+            Try.success(fetched.size.toLong())
+        } else {
+            Try.success(0L)
+        }
     }
 
     override suspend fun read(range: LongRange?): Try<ByteArray, ReadError> {
@@ -182,9 +203,10 @@ private class LazyAssetResource(
             val bytes = if (cacheFile.exists()) {
                 cacheFile.readBytes()
             } else {
-                val fetched = fetchAsset(bookId, fullPath) ?: ByteArray(0)
-                if (fetched.isNotEmpty()) OReillyLazyContainer.writeCacheFile(cacheFile, fetched)
-                fetched
+                val fetched = fetchAsset(bookId, fullPath)
+                val result = fetched ?: ByteArray(0)
+                if (result.isNotEmpty()) OReillyLazyContainer.writeCacheFile(cacheFile, result)
+                result
             }
             val result = if (range == null) bytes
             else {

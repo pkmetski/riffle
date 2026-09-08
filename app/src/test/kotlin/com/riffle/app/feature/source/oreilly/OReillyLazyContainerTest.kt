@@ -122,4 +122,38 @@ class OReillyLazyContainerTest {
         assertTrue(xhtml.contains("<html"))
         assertTrue(xhtml.contains("</html>"))
     }
+
+    // ---- extractRelativePath ------------------------------------------------
+
+    @Test
+    fun `extractRelativePath strips readium_package origin from absolute URL`() {
+        assertEquals(
+            "assets/cover.png",
+            OReillyLazyContainer.extractRelativePath("https://readium_package/assets/cover.png"),
+        )
+    }
+
+    @Test
+    fun `extractRelativePath strips readium_package origin for root-level asset`() {
+        assertEquals(
+            "epub.css",
+            OReillyLazyContainer.extractRelativePath("https://readium_package/epub.css"),
+        )
+    }
+
+    @Test
+    fun `extractRelativePath leaves bare relative paths unchanged`() {
+        assertEquals(
+            "images/fig.png",
+            OReillyLazyContainer.extractRelativePath("images/fig.png"),
+        )
+    }
+
+    @Test
+    fun `extractRelativePath strips leading slash from non-readium path`() {
+        assertEquals(
+            "xhtml/ch01.html",
+            OReillyLazyContainer.extractRelativePath("/xhtml/ch01.html"),
+        )
+    }
 }
