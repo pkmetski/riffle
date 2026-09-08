@@ -17,6 +17,9 @@ interface LastOpenedLibraryStore {
     /** Whether Bookshelf was the last active top-level destination. */
     fun wasBookshelfLastActive(): Flow<Boolean> = kotlinx.coroutines.flow.flowOf(false)
 
-    /** Mark Bookshelf as the last active destination. Cleared by [setLastOpenedLibrary]. */
+    /** Mark Bookshelf as the last active destination. Cleared by [setLastOpenedLibrary] and [clearBookshelfActive]. */
     suspend fun setBookshelfActive() {}
+
+    /** Clear the Bookshelf-last-active flag without setting a library. Used on source switch. */
+    suspend fun clearBookshelfActive() {}
 }

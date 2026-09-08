@@ -30,6 +30,10 @@ class LastOpenedLibraryStoreImpl constructor(
         dataStore.edit { prefs -> prefs[BOOKSHELF_ACTIVE_KEY] = true }
     }
 
+    override suspend fun clearBookshelfActive() {
+        dataStore.edit { prefs -> prefs.remove(BOOKSHELF_ACTIVE_KEY) }
+    }
+
     private fun key(sourceId: String) = stringPreferencesKey("last_$sourceId")
 
     companion object {

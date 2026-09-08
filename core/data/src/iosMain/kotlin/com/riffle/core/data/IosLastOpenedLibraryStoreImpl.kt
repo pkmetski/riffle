@@ -30,6 +30,11 @@ class IosLastOpenedLibraryStoreImpl : LastOpenedLibraryStore {
         bookshelfActiveFlow.value = true
     }
 
+    override suspend fun clearBookshelfActive() {
+        defaults.removeObjectForKey(BOOKSHELF_ACTIVE_KEY)
+        bookshelfActiveFlow.value = false
+    }
+
     private fun stateFor(sourceId: String): MutableStateFlow<String?> {
         lock.lock()
         try {

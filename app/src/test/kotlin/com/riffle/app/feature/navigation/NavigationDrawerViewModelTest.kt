@@ -136,6 +136,7 @@ class NavigationDrawerViewModelTest {
         }
         override fun wasBookshelfLastActive(): Flow<Boolean> = bookshelfActiveFlow
         override suspend fun setBookshelfActive() { bookshelfActiveFlow.value = true }
+        override suspend fun clearBookshelfActive() { bookshelfActiveFlow.value = false }
     }
 
     private val isOnlineFlow = MutableStateFlow(true)
@@ -505,6 +506,21 @@ class NavigationDrawerViewModelTest {
 
         val wasBookshelf = bookshelfActiveFlow.first()
         assertEquals(true, wasBookshelf)
+    }
+
+    // Regression: switching the active source while Bookshelf is showing must clear the
+    // "bookshelf last active" flag so the next getStartDestination() resolves to the new
+    // source's library instead of bouncing back to Bookshelf.
+    @Test
+    fun `setActiveServer clears the bookshelf flag`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2", active = false))
+        bookshelfActiveFlow.value = true
+        val vm = makeVm()
+
+        vm.setActiveServer("srv-2")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(false, bookshelfActiveFlow.first())
     }
 
     // Regression: selecting a library after Bookshelf must clear the "bookshelf last active" flag

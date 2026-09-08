@@ -129,6 +129,7 @@ class HomeViewModelTest {
         }
         override fun wasBookshelfLastActive(): Flow<Boolean> = bookshelfActiveFlow
         override suspend fun setBookshelfActive() { bookshelfActiveFlow.value = true }
+        override suspend fun clearBookshelfActive() { bookshelfActiveFlow.value = false }
     }
 
     private val unconfinedDispatchers = object : DispatcherProvider {
