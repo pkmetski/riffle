@@ -77,3 +77,16 @@ kotlin {
 compose.resources {
     packageOfResClass = "com.riffle.feature.source.ui.generated.resources"
 }
+
+// Compose Multiplatform's own Android asset wiring (copyAndroidMainComposeResourcesToAndroidAssets)
+// is registered but never configured under AGP 9's com.android.kotlin.multiplatform.library plugin
+// ("property 'outputDirectory' doesn't have a configured value"), so the module's composeResources
+// silently never reach the consuming APK and every stringResource/painterResource crashes at
+// runtime with MissingResourceException. Bridge manually: assemble the prepared resources into the
+// on-device asset layout (composeResources/<res-package>/…); :app adds this directory as an asset
+// srcDir and wires its asset-merge tasks to depend on this task.
+val copyComposeResourcesForApk by tasks.registering(Copy::class) {
+    dependsOn(tasks.matching { it.name == "prepareComposeResourcesTaskForCommonMain" })
+    from(layout.buildDirectory.dir("generated/compose/resourceGenerator/preparedResources/commonMain/composeResources"))
+    into(layout.buildDirectory.dir("composeAssetsForApk/composeResources/com.riffle.feature.source.ui.generated.resources"))
+}

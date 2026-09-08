@@ -39,6 +39,14 @@ android {
     namespace = "com.riffle.app"
     compileSdk = 37
 
+    // :feature:source-ui's Compose Multiplatform resources are not packaged by AGP 9's KMP
+    // library plugin (CMP's asset task is registered but unconfigured there) — consume the
+    // module's manually assembled asset layout instead. See copyComposeResourcesForApk in
+    // feature/source-ui/build.gradle.kts.
+    sourceSets.getByName("main").assets.srcDir(
+        rootProject.layout.projectDirectory.dir("feature/source-ui/build/composeAssetsForApk"),
+    )
+
     defaultConfig {
         applicationId = "com.riffle.app"
         minSdk = 24
@@ -219,4 +227,10 @@ dependencies {
     androidTestImplementation(libs.koin.android.test)
 debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Asset merging must wait for :feature:source-ui to assemble its Compose resources into the
+// directory registered as an asset srcDir above.
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+    dependsOn(":feature:source-ui:copyComposeResourcesForApk")
 }
