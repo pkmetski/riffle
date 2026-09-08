@@ -33,12 +33,17 @@ import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.common.Clock
 import com.riffle.core.common.platformSystemClock
 import com.riffle.core.models.SourceType
+import com.riffle.core.catalog.oreilly.epub.EpubZipEntry
+import com.riffle.core.catalog.oreilly.epub.EpubZipWriter
 import io.ktor.client.HttpClient
+import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -201,7 +206,7 @@ class OReillyCatalog internal constructor(
 
     /**
      * Fetch one chapter's HTML for the lazy-reading path. Uses the same backoff/truncation logic
-     * as [synthesizeEpub] but with a single-request pacer (each lazy chapter fetch is independent).
+     * as [withFileStream] but with a single-request pacer (each lazy chapter fetch is independent).
      * Returns null after exhausting retries so the caller can surface a per-chapter error.
      */
     override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long): String? {
@@ -233,12 +238,150 @@ class OReillyCatalog internal constructor(
         if (format != BookFormat.Epub) {
             throw OReillyException("Only EPUB synthesis is supported for O'Reilly ebooks; got $format")
         }
-        val bytes = synthesizeEpub(itemId)
+
+        // Phase 1 (fast): fetch metadata from the API — JSON calls only, no content yet.
+        val detail = OReillyParser.parseBookDetail(api.getJson(api.bookDetailUrl(itemId)))
+        val spine = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+            .results.mapNotNull { it.fullPath?.let { p -> p to (it.title ?: "") } }
+        val files = fetchAllFiles(itemId)
+        val sizeByPath = files.associate { it.fullPath to it.fileSize }
+
+        val absPrefix = api.baseUrl().trimEnd('/') + api.filesPrefix(itemId)
+        val pathPrefix = api.filesPrefix(itemId)
+        val cssFullPaths = files.filter { it.kind == "stylesheet" }.map { it.fullPath }
+        val chapterPaths = spine.map { it.first }.toSet()
+        val reservedPaths = setOf("content.opf", "nav.xhtml")
+        val assetFiles = files.filter { f ->
+            f.kind != "chapter" && f.fullPath.isNotBlank() &&
+                f.fullPath !in chapterPaths && f.fullPath !in reservedPaths &&
+                f.mediaType != "application/oebps-package+xml" &&
+                f.mediaType != "application/x-dtbncx+xml"
+        }.distinctBy { it.fullPath }
+        val distinctSpine = spine.distinctBy { it.first }
+
+        // Estimate total ZIP size from declared file sizes so the consumer can report progress.
+        // Each ZIP entry costs: 30 (local header) + nameBytes + data. Central dir: 46 + nameBytes.
+        // We over-count slightly (chapter XHTML adds wrapper markup beyond the raw HTML), but
+        // that's fine — the consumer's progress fraction stays < 1.0 until the final close bytes.
+        val entriesCount = 2 /* preamble */ + distinctSpine.size + assetFiles.size + 2 /* opf+nav */
+        val estimatedContentBytes = 2 /* preamble: mimetype+container */ * 30L +
+            "mimetype".length + "application/epub+zip".length +
+            "META-INF/container.xml".length + 300L /* container.xml content */ +
+            distinctSpine.sumOf { (p, _) -> 30L + "OEBPS/$p".length + (sizeByPath[p] ?: 1024L) } +
+            assetFiles.sumOf { f -> 30L + "OEBPS/${f.fullPath}".length + (f.fileSize) } +
+            2L * (30L + 200L) /* content.opf + nav.xhtml rough estimate */ +
+            entriesCount * 46L /* central dir records */ + 22L /* EOCD */
+
+        // Phase 2: stream bytes through a ByteChannel pipe.
+        // Producer writes zip entries as each chapter/asset is fetched. Consumer (block) reads
+        // immediately — download progress advances throughout synthesis, not just at the end.
+        val pipe = ByteChannel(autoFlush = true)
         val stream = object : CatalogFileStream {
-            override val contentLength: Long = bytes.size.toLong()
-            override val channel: ByteReadChannel = ByteReadChannel(bytes)
+            override val contentLength: Long = estimatedContentBytes
+            override val channel: ByteReadChannel = pipe
         }
-        return block(stream)
+
+        return coroutineScope {
+            val producer = launch {
+                try {
+                    val writer = EpubZipWriter.streamWriter()
+                    val writeMutex = Mutex()
+
+                    // Serialize writes so concurrent chapter/asset jobs don't interleave bytes.
+                    suspend fun writeEntry(entry: EpubZipEntry) {
+                        val bytes = writeMutex.withLock { writer.writeEntry(entry) }
+                        pipe.writeFully(bytes)
+                    }
+
+                    // (a) Preamble entries: no network needed, write immediately so the consumer
+                    //     can start storing bytes while chapters are being fetched.
+                    writeEntry(EpubZipEntry("mimetype", "application/epub+zip".encodeToByteArray()))
+                    writeEntry(EpubZipEntry("META-INF/container.xml", EpubAssembler.containerXml().encodeToByteArray()))
+
+                    // (b) Fetch chapters + assets concurrently (same bounded pool as before).
+                    val total = distinctSpine.size + assetFiles.size
+                    val pacer = RequestPacer(maxConcurrency, minRequestIntervalMs, maxRequestIntervalMs) { clock.nowMs() }
+                    val progressMutex = Mutex()
+                    var done = 0
+                    onProgress(0, total)
+                    suspend fun tick() {
+                        val d = progressMutex.withLock { done += 1; done }
+                        onProgress(d, total)
+                    }
+
+                    val collectedChapters = ArrayList<EpubChapter>(distinctSpine.size)
+                    val collectedResources = ArrayList<EpubResource>(assetFiles.size)
+                    val chapterMutex = Mutex()
+
+                    val assetJobs = assetFiles.map { f ->
+                        async {
+                            val bytes = fetchAssetBytes(itemId, f.fullPath, pacer)
+                            tick()
+                            if (bytes != null) {
+                                val res = EpubResource(f.fullPath, bytes, f.mediaType)
+                                chapterMutex.withLock { collectedResources += res }
+                                writeEntry(EpubZipEntry("OEBPS/${f.fullPath}", bytes))
+                            }
+                        }
+                    }
+                    val chapterJobs = distinctSpine.mapIndexed { index, (fullPath, title) ->
+                        async {
+                            val raw = fetchChapterContent(itemId, fullPath, sizeByPath[fullPath] ?: 0L, pacer)
+                            tick()
+                            val t = title.ifBlank { "Chapter ${index + 1}" }
+                            val relPrefix = OReillyEpub.relPrefixFor(fullPath)
+                            val rewritten = raw.replace(absPrefix, relPrefix).replace(pathPrefix, relPrefix)
+                            val cssHrefs = cssFullPaths.map { OReillyEpub.relativeTo(fullPath, it) }
+                            val ch = EpubChapter(
+                                id = OReillyEpub.chapterId(index),
+                                relativePath = fullPath,
+                                title = t,
+                                xhtml = OReillyEpub.wrapChapter(t, rewritten, cssHrefs),
+                            )
+                            chapterMutex.withLock { collectedChapters += ch }
+                            writeEntry(EpubZipEntry("OEBPS/$fullPath", ch.xhtml.encodeToByteArray()))
+                        }
+                    }
+
+                    assetJobs.awaitAll()
+                    chapterJobs.awaitAll()
+
+                    if (collectedChapters.isEmpty()) throw OReillyException("No chapters resolved for O'Reilly $itemId")
+
+                    // Chapters must be in spine order for a valid OPF manifest spine.
+                    val sortedChapters = distinctSpine.mapNotNull { (p, _) ->
+                        collectedChapters.find { it.relativePath == p }
+                    }
+
+                    // (c) Package document + navigation (depend on knowing all chapters/resources).
+                    val book = SynthesizedBook(
+                        identifier = "urn:orm:book:${detail.identifier.ifBlank { itemId }}",
+                        title = detail.title.ifBlank { itemId },
+                        authors = emptyList(),
+                        language = detail.language ?: "en",
+                        publisher = null,
+                        chapters = sortedChapters,
+                        resources = collectedResources,
+                        coverPath = null,
+                    )
+                    writeEntry(EpubZipEntry("OEBPS/content.opf", EpubAssembler.contentOpf(book).encodeToByteArray()))
+                    writeEntry(EpubZipEntry("OEBPS/nav.xhtml", EpubAssembler.navXhtml(book).encodeToByteArray()))
+
+                    // (d) Central directory + EOCD.
+                    val trailer = writeMutex.withLock { writer.close() }
+                    pipe.writeFully(trailer)
+                    pipe.close()
+                } catch (e: Exception) {
+                    pipe.cancel(e)
+                } finally {
+                    onProgressDone()
+                }
+            }
+
+            val result = block(stream)
+            producer.join()
+            result
+        }
     }
 
     /**
