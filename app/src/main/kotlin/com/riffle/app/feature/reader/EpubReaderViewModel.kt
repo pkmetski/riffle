@@ -578,6 +578,8 @@ class EpubReaderViewModel constructor(
     // Highlights mode only (Task 10, ADR 0048): the chapter grouping + resolved server id from the
     // last [openBook] build, kept so the resume-position collector below can map a synthesised-href
     // locator update back to a highlight id without rebuilding the Publication. Null in FullBook mode.
+    private var lazyContainer: com.riffle.app.feature.source.oreilly.OReillyLazyContainer? = null
+
     private var highlightsResumeChapters: List<ChapterElision>? = null
     private var highlightsResumeServerId: String? = null
     // Plurality [AnnotationEntity.originFontFamily] across the currently-loaded elided chapters
@@ -1132,6 +1134,15 @@ class EpubReaderViewModel constructor(
             val sourceId = navServerId ?: sourceRepository.getActive()?.id
             val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
             readingSessionsEnabled.set(catalog is com.riffle.core.catalog.ReadingSessionsCapability)
+        }
+        // Lazy-publication prefetch: when the reader is on a lazy publication (O'Reilly), kick off
+        // background download of the next chapter each time the current chapter href changes.
+        viewModelScope.launch {
+            position.currentLocatorHref.collect { href ->
+                val c = lazyContainer ?: return@collect
+                val index = c.pub.spine.indexOfFirst { it.fullPath == href }
+                if (index >= 0) c.prefetchNext(index)
+            }
         }
         viewModelScope.launch {
             // Sequential: formatting prefs must be available before openBook() so the
@@ -3854,13 +3865,15 @@ class EpubReaderViewModel constructor(
             ?: return null
         val shape = cap.lazyPublication(itemId) ?: return null
         val cacheDir = getApplication<android.app.Application>().cacheDir.resolve("oreilly_lazy/$itemId")
-        val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(
+        val container = com.riffle.app.feature.source.oreilly.OReillyLazyContainer(
             pub = shape,
             cacheDir = cacheDir,
             fetchChapter = { _, path -> cap.fetchChapterForLazy(itemId, path) ?: "" },
             fetchAsset = { _, path -> cap.fetchAssetForLazy(itemId, path) },
             scope = viewModelScope,
         )
+        lazyContainer = container
+        val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(container)
         val lastPosition = readingPositionStore.load(sourceId, itemId)
         return Pair(publication, lastPosition)
     }

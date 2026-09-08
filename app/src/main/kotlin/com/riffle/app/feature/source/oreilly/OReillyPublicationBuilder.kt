@@ -1,8 +1,5 @@
 package com.riffle.app.feature.source.oreilly
 
-import com.riffle.core.catalog.LazyPublicationShape
-import com.riffle.core.catalog.LazySpineItem
-import kotlinx.coroutines.CoroutineScope
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.LocalizedString
@@ -12,7 +9,6 @@ import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.PerResourcePositionsService
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.mediatype.MediaType
-import java.io.File
 
 /**
  * Assembles a Readium [Publication] for an O'Reilly book using lazy per-chapter fetching.
@@ -28,13 +24,10 @@ object OReillyPublicationBuilder {
 
     @OptIn(ExperimentalReadiumApi::class)
     fun build(
-        pub: LazyPublicationShape,
-        cacheDir: File,
-        fetchChapter: suspend (itemId: String, fullPath: String) -> String,
-        fetchAsset: suspend (itemId: String, fullPath: String) -> ByteArray?,
-        scope: CoroutineScope,
+        container: OReillyLazyContainer,
         urlFactory: (String) -> Url? = { Url(it) },
     ): Publication {
+        val pub = container.pub
         val readingOrder = pub.spine.mapNotNull { item ->
             val url = urlFactory(item.fullPath) ?: return@mapNotNull null
             Link(
@@ -53,15 +46,6 @@ object OReillyPublicationBuilder {
             ),
             readingOrder = readingOrder,
             tableOfContents = readingOrder,
-        )
-
-        val container = OReillyLazyContainer(
-            pub = pub,
-            cacheDir = cacheDir,
-            fetchChapter = fetchChapter,
-            fetchAsset = fetchAsset,
-            scope = scope,
-            urlFactory = urlFactory,
         )
 
         return Publication(
