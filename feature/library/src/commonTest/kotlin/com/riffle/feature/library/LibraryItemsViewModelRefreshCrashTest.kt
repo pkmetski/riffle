@@ -230,8 +230,10 @@ class LibraryItemsViewModelRefreshCrashTest {
         // advanceUntilIdle() because a failed refresh (refreshFailed=true while online) starts an
         // unbounded retry-poll loop in init; runCurrent drains the immediate work and parks that loop
         // at its first delay instead of advancing virtual time forever.
-        // Keep the WhileSubscribed(isOffline) flow hot so its value reflects the computed state.
+        // Two runCurrent() calls: first runs runRefresh() and writes _refreshFailed=true; second
+        // processes the StateFlow emission so isOffline.value reflects it. K/N needs the second hop.
         backgroundScope.launch { vm.isOffline.collect {} }
+        runCurrent()
         runCurrent()
 
         // If runRefresh() does not absorb the exception from toReadRepository.refresh(), it escapes
