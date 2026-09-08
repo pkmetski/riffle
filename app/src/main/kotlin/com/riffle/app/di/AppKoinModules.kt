@@ -111,10 +111,13 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import org.readium.adapter.pdfium.document.PdfiumDocumentFactory
+import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.http.DefaultHttpClient
 import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.streamer.parser.DefaultPublicationParser
+import java.io.File
 
 val appKoinModule: Module = module {
 
@@ -461,8 +464,12 @@ val appKoinModule: Module = module {
     }
 
     factory<ReaderSessionLifecycle.Factory> {
-        ReaderSessionLifecycle.Factory { openPublication, cfiStringToLocator ->
-            ReaderSessionLifecycle(
+        object : ReaderSessionLifecycle.Factory {
+            override fun create(
+                openPublication: suspend (File) -> Publication?,
+                cfiStringToLocator: suspend (String) -> Locator?,
+                openLazy: (suspend (String, String) -> Pair<Publication, String?>?)?,
+            ) = ReaderSessionLifecycle(
                 openPublication = openPublication,
                 cfiStringToLocator = cfiStringToLocator,
                 libraryObserver = get(),
@@ -477,6 +484,7 @@ val appKoinModule: Module = module {
                 annotationStore = get(),
                 logger = get(),
                 itemProgressPuller = get(),
+                openLazy = openLazy,
             )
         }
     }

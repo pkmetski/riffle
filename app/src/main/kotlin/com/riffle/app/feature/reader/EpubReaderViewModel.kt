@@ -391,6 +391,7 @@ class EpubReaderViewModel constructor(
         readerSessionLifecycleFactory.create(
             openPublication = { file -> openPublication(file) },
             cfiStringToLocator = { cfi -> cfiStringToLocator(cfi) },
+            openLazy = { sourceId, itemId -> openLazyPublication(sourceId, itemId) },
         )
 
     // Readaloud session — owns readaloud state and leaf controls. Full extraction happens across
@@ -3845,6 +3846,23 @@ class EpubReaderViewModel constructor(
             is Try.Success -> r.value
             is Try.Failure -> null
         }
+    }
+
+    private suspend fun openLazyPublication(sourceId: String, itemId: String): Pair<Publication, String?>? {
+        val cap = catalogRegistry.forSourceId(sourceId)
+            as? com.riffle.core.catalog.LazyPublicationCapability
+            ?: return null
+        val shape = cap.lazyPublication(itemId) ?: return null
+        val cacheDir = getApplication<android.app.Application>().cacheDir.resolve("oreilly_lazy/$itemId")
+        val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(
+            pub = shape,
+            cacheDir = cacheDir,
+            fetchChapter = { _, path -> cap.fetchChapterForLazy(itemId, path) ?: "" },
+            fetchAsset = { _, path -> cap.fetchAssetForLazy(itemId, path) },
+            scope = viewModelScope,
+        )
+        val lastPosition = readingPositionStore.load(sourceId, itemId)
+        return Pair(publication, lastPosition)
     }
 
     fun updateFormatting(prefs: FormattingPreferences) = formatting.updateFormatting(itemId, prefs)
