@@ -305,9 +305,17 @@ class LibraryItemDetailViewModelTest {
             return true
         }
 
-        override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
+        override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
+            callLog += "refreshForSource"
+            return true
+        }
 
         override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean {
+            callLog += "isInToRead"
+            return libraryItemId in state
+        }
+
+        override suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
             callLog += "isInToRead"
             return libraryItemId in state
         }
@@ -318,18 +326,30 @@ class LibraryItemDetailViewModelTest {
             return addResult
         }
 
+        override suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+            addCalls += libraryItemId to libraryId
+            if (addResult) state += libraryItemId
+            return addResult
+        }
+
         override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
+            removeCalls += libraryItemId to libraryId
+            if (removeResult) state -= libraryItemId
+            return removeResult
+        }
+
+        override suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
             removeCalls += libraryItemId to libraryId
             if (removeResult) state -= libraryItemId
             return removeResult
         }
     }
 
-    /** refresh() suspends forever, modelling a slow/unreachable server. */
+    /** refreshForSource() suspends forever, modelling a slow/unreachable server. */
     private class BlockingRefreshToReadRepository : ToReadRepository {
         override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
         override suspend fun refresh(libraryId: String): Boolean = kotlinx.coroutines.awaitCancellation()
-        override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
+        override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = kotlinx.coroutines.awaitCancellation()
         override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
         override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
         override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
@@ -1021,10 +1041,10 @@ class LibraryItemDetailViewModelTest {
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // The first isInToRead read happens before the refresh — Ready is not gated on the network.
+        // The first isInToRead read happens before the refreshForSource — Ready is not gated on the network.
         val firstIsIn = toRead.callLog.indexOf("isInToRead")
-        val refreshIdx = toRead.callLog.indexOf("refresh")
-        assertTrue("expected isInToRead before refresh, got ${toRead.callLog}", firstIsIn in 0 until refreshIdx)
+        val refreshIdx = toRead.callLog.indexOf("refreshForSource")
+        assertTrue("expected isInToRead before refreshForSource, got ${toRead.callLog}", firstIsIn in 0 until refreshIdx)
         assertTrue((vm.uiState.value as Ready).isInToRead)
     }
 

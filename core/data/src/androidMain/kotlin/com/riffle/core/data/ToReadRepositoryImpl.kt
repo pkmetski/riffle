@@ -70,74 +70,19 @@ class ToReadRepositoryImpl constructor(
         }
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val cap = activePlaylistsCap()
-        if (cap == null) {
+        val cap = activePlaylistsCap() ?: run {
             localStore.add(libraryId, libraryItemId)
             return true
         }
-        val before = cache.value[libraryId] ?: ToReadSnapshot(playlistId = null, itemIds = emptySet())
-        // Optimistic update
-        cache.value = cache.value + (libraryId to before.copy(itemIds = before.itemIds + libraryItemId))
-        val playlistId = before.playlistId
-        val ok = if (playlistId == null) {
-            // Seed the new playlist with libraryItemId in a single request. Komga's
-            // POST /api/v1/readlists REQUIRES a non-empty bookIds, so we cannot create-empty
-            // and add-later on that backend. ABS accepts it as `initialBookId` in the same POST.
-            runCatching {
-                val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
-                cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
-                true
-            }.getOrElse {
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) createPlaylist failed: $it" }
-                false
-            }
-        } else {
-            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse { addErr ->
-                // The cached playlistId can go stale — Komga's readlist is server-wide, so a
-                // "remove last item" in a sibling library (or from another device) DELETEs the
-                // readlist while this library's snapshot still points at it. Rather than fail
-                // the tap, fall through to create-with-seed so the tap self-heals into a fresh
-                // readlist. The recovery is bounded to one retry; a genuine network error will
-                // fail again and get logged.
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
-                runCatching {
-                    val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
-                    cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
-                    true
-                }.getOrElse { createErr ->
-                    logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) recovery create failed: $createErr" }
-                    false
-                }
-            }
-        }
-        if (!ok) cache.value = cache.value + (libraryId to before)
-        return ok
+        return addWithCap(cap, libraryItemId, libraryId)
     }
 
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
-        val cap = activePlaylistsCap()
-        if (cap == null) {
+        val cap = activePlaylistsCap() ?: run {
             localStore.remove(libraryId, libraryItemId)
             return true
         }
-        val before = cache.value[libraryId] ?: return true
-        val playlistId = before.playlistId ?: return true
-        if (libraryItemId !in before.itemIds) return true
-        val remainingIds = before.itemIds - libraryItemId
-        // Optimistic update. If we're removing the last item, ABS auto-deletes the playlist
-        // server-side — drop our cached playlistId so the next addToToRead creates a fresh one.
-        val optimistic = if (remainingIds.isEmpty()) {
-            ToReadSnapshot(playlistId = null, itemIds = emptySet())
-        } else {
-            before.copy(itemIds = remainingIds)
-        }
-        cache.value = cache.value + (libraryId to optimistic)
-        val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrElse {
-            logger.d(LogChannel.ToRead) { "removeFromToRead($libraryId, $libraryItemId) failed: $it" }
-            false
-        }
-        if (!ok) cache.value = cache.value + (libraryId to before)
-        return ok
+        return removeWithCap(cap, libraryItemId, libraryId)
     }
 
     override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
@@ -155,8 +100,85 @@ class ToReadRepositoryImpl constructor(
         return true
     }
 
+    override suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val cap = capForSource(sourceId)
+        return if (cap != null) {
+            cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+        } else {
+            localStore.isInToRead(libraryId, libraryItemId)
+        }
+    }
+
+    override suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val cap = capForSource(sourceId) ?: run {
+            localStore.add(libraryId, libraryItemId)
+            return true
+        }
+        return addWithCap(cap, libraryItemId, libraryId)
+    }
+
+    override suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val cap = capForSource(sourceId) ?: run {
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
+        return removeWithCap(cap, libraryItemId, libraryId)
+    }
+
     private suspend fun activePlaylistsCap(): PlaylistsCapability? {
         val catalog: Catalog = catalogRegistry.forActive() ?: return null
         return catalog as? PlaylistsCapability
+    }
+
+    private suspend fun capForSource(sourceId: String): PlaylistsCapability? =
+        catalogRegistry.forSourceId(sourceId) as? PlaylistsCapability
+
+    private suspend fun addWithCap(cap: PlaylistsCapability, libraryItemId: String, libraryId: String): Boolean {
+        val before = cache.value[libraryId] ?: ToReadSnapshot(playlistId = null, itemIds = emptySet())
+        cache.value = cache.value + (libraryId to before.copy(itemIds = before.itemIds + libraryItemId))
+        val playlistId = before.playlistId
+        val ok = if (playlistId == null) {
+            runCatching {
+                val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
+                cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
+                true
+            }.getOrElse {
+                logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) createPlaylist failed: $it" }
+                false
+            }
+        } else {
+            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse { addErr ->
+                logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
+                runCatching {
+                    val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
+                    cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
+                    true
+                }.getOrElse { createErr ->
+                    logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) recovery create failed: $createErr" }
+                    false
+                }
+            }
+        }
+        if (!ok) cache.value = cache.value + (libraryId to before)
+        return ok
+    }
+
+    private suspend fun removeWithCap(cap: PlaylistsCapability, libraryItemId: String, libraryId: String): Boolean {
+        val before = cache.value[libraryId] ?: return true
+        val playlistId = before.playlistId ?: return true
+        if (libraryItemId !in before.itemIds) return true
+        val remainingIds = before.itemIds - libraryItemId
+        val optimistic = if (remainingIds.isEmpty()) {
+            ToReadSnapshot(playlistId = null, itemIds = emptySet())
+        } else {
+            before.copy(itemIds = remainingIds)
+        }
+        cache.value = cache.value + (libraryId to optimistic)
+        val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrElse {
+            logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) failed: $it" }
+            false
+        }
+        if (!ok) cache.value = cache.value + (libraryId to before)
+        return ok
     }
 }

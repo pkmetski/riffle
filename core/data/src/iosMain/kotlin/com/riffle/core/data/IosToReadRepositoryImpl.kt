@@ -71,7 +71,30 @@ class IosToReadRepositoryImpl(
         cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val (baseUrl, token, insecureAllowed) = credentials() ?: return false
+        val creds = credentials() ?: return false
+        return addWithCreds(creds, libraryItemId, libraryId)
+    }
+
+    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
+        val creds = credentials() ?: return false
+        return removeWithCreds(creds, libraryItemId, libraryId)
+    }
+
+    override suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean =
+        cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+
+    override suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val creds = credentialsForSource(sourceId) ?: return true  // non-ABS source: no-op
+        return addWithCreds(creds, libraryItemId, libraryId)
+    }
+
+    override suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val creds = credentialsForSource(sourceId) ?: return true  // non-ABS source: no-op
+        return removeWithCreds(creds, libraryItemId, libraryId)
+    }
+
+    private suspend fun addWithCreds(creds: Creds, libraryItemId: String, libraryId: String): Boolean {
+        val (baseUrl, token, insecureAllowed) = creds
         val before = cache.value[libraryId] ?: ToReadSnapshot(playlistId = null, itemIds = emptySet())
         cache.value = cache.value + (libraryId to before.copy(itemIds = before.itemIds + libraryItemId))
         val playlistId = before.playlistId
@@ -82,9 +105,8 @@ class IosToReadRepositoryImpl(
                 )
                 when (result) {
                     is NetworkResult.Success -> {
-                        val created = result.value
                         cache.value = cache.value + (libraryId to ToReadSnapshot(
-                            playlistId = created?.id,
+                            playlistId = result.value?.id,
                             itemIds = before.itemIds + libraryItemId,
                         ))
                         true
@@ -92,15 +114,14 @@ class IosToReadRepositoryImpl(
                     else -> false
                 }
             }.getOrElse {
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) createPlaylist failed: $it" }
+                logger.d(LogChannel.ToRead) { "addWithCreds($libraryId, $libraryItemId) createPlaylist failed: $it" }
                 false
             }
         } else {
             val result = runCatching {
                 absLibraryApi.addBookToPlaylist(baseUrl, playlistId, libraryItemId, token, insecureAllowed)
             }.getOrElse { addErr ->
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) addBookToPlaylist failed, retrying via create: $addErr" }
-                // Stale playlistId — recreate
+                logger.d(LogChannel.ToRead) { "addWithCreds($libraryId, $libraryItemId) addBookToPlaylist failed, retrying via create: $addErr" }
                 return runCatching {
                     val res = absLibraryApi.createPlaylist(
                         baseUrl, libraryId, TO_READ_PLAYLIST_NAME, libraryItemId, token, insecureAllowed,
@@ -119,7 +140,7 @@ class IosToReadRepositoryImpl(
                         }
                     }
                 }.getOrElse { createErr ->
-                    logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) recovery create failed: $createErr" }
+                    logger.d(LogChannel.ToRead) { "addWithCreds($libraryId, $libraryItemId) recovery create failed: $createErr" }
                     cache.value = cache.value + (libraryId to before)
                     false
                 }
@@ -130,8 +151,8 @@ class IosToReadRepositoryImpl(
         return ok
     }
 
-    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
-        val (baseUrl, token, insecureAllowed) = credentials() ?: return false
+    private suspend fun removeWithCreds(creds: Creds, libraryItemId: String, libraryId: String): Boolean {
+        val (baseUrl, token, insecureAllowed) = creds
         val before = cache.value[libraryId] ?: return true
         val playlistId = before.playlistId ?: return true
         if (libraryItemId !in before.itemIds) return true
@@ -145,7 +166,7 @@ class IosToReadRepositoryImpl(
         val result = runCatching {
             absLibraryApi.removeBookFromPlaylist(baseUrl, playlistId, libraryItemId, token, insecureAllowed)
         }.getOrElse {
-            logger.d(LogChannel.ToRead) { "removeFromToRead($libraryId, $libraryItemId) failed: $it" }
+            logger.d(LogChannel.ToRead) { "removeWithCreds($libraryId, $libraryItemId) failed: $it" }
             cache.value = cache.value + (libraryId to before)
             return false
         }
@@ -156,8 +177,10 @@ class IosToReadRepositoryImpl(
 
     private data class Creds(val baseUrl: String, val token: String, val insecureAllowed: Boolean)
 
-    private suspend fun credentials(): Creds? {
-        val source = sourceRepository.getActive() ?: return null
+    private suspend fun credentials(): Creds? = credentialsForSource(sourceRepository.getActive()?.id ?: return null)
+
+    private suspend fun credentialsForSource(sourceId: String): Creds? {
+        val source = sourceRepository.getById(sourceId) ?: return null
         if (source.type != SourceType.ABS) return null
         val token = tokenStorage.getToken(source.id) ?: return null
         return Creds(source.url.value, token, source.insecureConnectionAllowed)

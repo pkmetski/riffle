@@ -578,7 +578,7 @@ class LibraryItemDetailViewModel constructor(
                         deriveAudiobookDownloadState(item)
                     } else null
                     val isCachedOrDownloaded = isCachedOrDownloadedForFormat(item)
-                    val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
+                    val isInToRead = toReadRepository.isInToReadForSource(item.sourceId, item.id, item.libraryId)
                     val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.sourceId, item.id) }
                     val catalog = catalogRegistry.forSourceId(item.sourceId)
                     val isLiveStream = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) == true
@@ -665,8 +665,8 @@ class LibraryItemDetailViewModel constructor(
             val ready = _uiState.value
             if (ready is LibraryItemDetailUiState.Ready) {
                 launch {
-                    if (toReadRepository.refresh(ready.item.libraryId)) {
-                        val refreshed = toReadRepository.isInToRead(ready.item.id, ready.item.libraryId)
+                    if (toReadRepository.refreshForSource(ready.item.sourceId, ready.item.libraryId)) {
+                        val refreshed = toReadRepository.isInToReadForSource(ready.item.sourceId, ready.item.id, ready.item.libraryId)
                         val latest = _uiState.value
                         if (latest is LibraryItemDetailUiState.Ready) {
                             _uiState.value = latest.copy(isInToRead = refreshed)
@@ -774,10 +774,11 @@ class LibraryItemDetailViewModel constructor(
         viewModelScope.launch {
             val itemId = current.item.id
             val libraryId = current.item.libraryId
+            val sourceId = current.item.sourceId
             val ok = if (wasInToRead) {
-                toReadRepository.removeFromToRead(itemId, libraryId)
+                toReadRepository.removeFromToReadForSource(sourceId, itemId, libraryId)
             } else {
-                toReadRepository.addToToRead(itemId, libraryId)
+                toReadRepository.addToToReadForSource(sourceId, itemId, libraryId)
             }
             if (!ok) {
                 val now = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch

@@ -31,6 +31,24 @@ interface ToReadRepository {
     suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean
 
     suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean
+
+    /**
+     * Source-aware variant for cross-source views (e.g. Bookshelf) where the item's source
+     * may differ from the globally-active source. Routes to the library's own backend rather
+     * than the active source's backend. Defaults to active-source routing.
+     */
+    suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean =
+        isInToRead(libraryItemId, libraryId)
+
     suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean
+
+    /** Source-aware variant — see [isInToReadForSource]. */
+    suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean =
+        addToToRead(libraryItemId, libraryId)
+
     suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean
+
+    /** Source-aware variant — see [isInToReadForSource]. */
+    suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean =
+        removeFromToRead(libraryItemId, libraryId)
 }
