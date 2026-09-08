@@ -17,6 +17,9 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.EbookDetailsCapability
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.LazyPublicationCapability
+import com.riffle.core.catalog.LazyPublicationShape
+import com.riffle.core.catalog.LazySpineItem
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
@@ -78,7 +81,8 @@ class OReillyCatalog internal constructor(
     ReadCapability,
     DownloadsCapability,
     ToReadListCapability,
-    EbookDetailsCapability {
+    EbookDetailsCapability,
+    LazyPublicationCapability {
 
     override val sourceType: SourceType = SourceType.OREILLY
 
@@ -140,6 +144,74 @@ class OReillyCatalog internal constructor(
             tocEntries = toc,
             epubVersion = "3.0",
         )
+    }
+
+    // ---- Lazy (on-demand) publication (LazyPublicationCapability) ----------------------------
+
+    /**
+     * Builds the publication shape from metadata only — spine order + file sizes from two cheap
+     * JSON calls, same source as [ebookDetails]. Returns null when the spine is empty or
+     * unreachable. No chapter HTML is downloaded.
+     */
+    override suspend fun lazyPublication(itemId: String): LazyPublicationShape? {
+        val detail = runCatching {
+            OReillyParser.parseBookDetail(api.getJson(api.bookDetailUrl(itemId)))
+        }.getOrNull() ?: return null
+
+        val spineItems = OReillyParser.parseSpine(api.getJson(api.spineUrl(itemId)))
+            .results.mapNotNull { s -> s.fullPath?.let { path -> path to (s.title ?: "") } }
+        if (spineItems.isEmpty()) return null
+
+        val files = fetchAllFiles(itemId)
+        val fileMeta = files.associateBy { it.fullPath }
+        val cssFullPaths = files.filter { it.kind == "stylesheet" }.map { it.fullPath }
+
+        val absPrefix = api.baseUrl().trimEnd('/') + api.filesPrefix(itemId)
+        val pathPrefix = api.filesPrefix(itemId)
+
+        val distinctSpine = spineItems.distinctBy { it.first }
+
+        val spine = distinctSpine.mapIndexed { index, (fullPath, title) ->
+            val meta = fileMeta[fullPath]
+            LazySpineItem(
+                index = index,
+                fullPath = fullPath,
+                title = title.ifBlank { "Chapter ${index + 1}" },
+                declaredByteSize = meta?.fileSize ?: 0L,
+                mediaType = meta?.mediaType ?: "application/xhtml+xml",
+            )
+        }
+
+        return LazyPublicationShape(
+            bookId = itemId,
+            identifier = "urn:orm:book:${detail.identifier.ifBlank { itemId }}",
+            title = detail.title.ifBlank { itemId },
+            language = detail.language ?: "en",
+            spine = spine,
+            absoluteFilesPrefix = absPrefix,
+            pathFilesPrefix = pathPrefix,
+            cssFullPaths = cssFullPaths,
+        )
+    }
+
+    /**
+     * Fetch one chapter's HTML for the lazy-reading path. Uses the same backoff/truncation logic
+     * as [synthesizeEpub] but with a single-request pacer (each lazy chapter fetch is independent).
+     * Returns null after exhausting retries so the caller can surface a per-chapter error.
+     */
+    override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long): String? {
+        val pacer = RequestPacer(maxConcurrency = 1, minIntervalMs = 0L) { clock.nowMs() }
+        return runCatching {
+            fetchChapterContent(itemId, fullPath, expectedByteSize, pacer)
+        }.getOrNull()
+    }
+
+    /**
+     * Fetch one binary asset for the lazy-reading path (non-fatal — returns null on failure).
+     */
+    override suspend fun fetchAssetForLazy(itemId: String, fullPath: String): ByteArray? {
+        val pacer = RequestPacer(maxConcurrency = 1, minIntervalMs = 0L) { clock.nowMs() }
+        return fetchAssetBytes(itemId, fullPath, pacer)
     }
 
     // ---- Ebook: scrape + synthesize (verified against the live v2 epubs API) -----------------
@@ -338,7 +410,7 @@ class OReillyCatalog internal constructor(
      * exposure — the two are independent. A retry's backoff happens outside [execute], so it never
      * holds a permit while merely waiting.
      */
-    private class RequestPacer(
+    internal class RequestPacer(
         maxConcurrency: Int,
         private val minIntervalMs: Long,
         private val nowMs: () -> Long,

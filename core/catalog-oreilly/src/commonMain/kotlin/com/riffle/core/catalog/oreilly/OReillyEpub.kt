@@ -5,7 +5,7 @@ package com.riffle.core.catalog.oreilly
  * unit-testable. [OReillyCatalog] fetches the raw bytes and calls these to build the
  * [com.riffle.core.catalog.oreilly.epub.SynthesizedBook].
  */
-internal object OReillyEpub {
+object OReillyEpub {
 
     fun chapterFileName(index: Int): String = "chapter$index.xhtml"
 

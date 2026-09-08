@@ -57,12 +57,17 @@ class ReaderSessionLifecycle constructor(
     private val annotationStore: AnnotationStore,
     private val logger: Logger,
     private val itemProgressPuller: com.riffle.core.data.ItemProgressPuller,
+    /** Optional hook for sources that build a [Publication] without downloading an EPUB file.
+     *  Receives (sourceId, itemId) and returns (publication, lastPositionJson?).
+     *  When non-null and returning non-null, the normal [epubRepository.openEpub] path is skipped. */
+    private val openLazy: (suspend (String, String) -> Pair<Publication, String?>?)? = null,
 ) {
 
-    fun interface Factory {
+    interface Factory {
         fun create(
             openPublication: suspend (File) -> Publication?,
             cfiStringToLocator: suspend (String) -> Locator?,
+            openLazy: (suspend (String, String) -> Pair<Publication, String?>?)? = null,
         ): ReaderSessionLifecycle
     }
 
@@ -121,6 +126,13 @@ class ReaderSessionLifecycle constructor(
             }
         }
 
+        // Lazy path: source built a Publication directly (e.g. O'Reilly per-chapter streaming).
+        // Skip the EPUB download entirely when this succeeds.
+        val lazyPair = openLazy?.invoke(item.sourceId, item.id)
+        if (lazyPair != null) {
+            return resolveReadyWithPub(lazyPair.first, lazyPair.second, item.title, params)
+        }
+
         val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             epubRepository.openEpub(item)
         }
@@ -147,6 +159,15 @@ class ReaderSessionLifecycle constructor(
         epubFile = result.epubFile
         val pub = openPublication(result.epubFile)
             ?: return OpenOutcome.Error("Failed to open EPUB")
+        return resolveReadyWithPub(pub, result.lastPosition, title, params)
+    }
+
+    private suspend fun resolveReadyWithPub(
+        pub: Publication,
+        lastPosition: String?,
+        title: String,
+        params: OpenParams,
+    ): OpenOutcome {
         _publication.value = pub
 
         val activeServer: Source? = sourceRepository.getActive()
@@ -221,7 +242,7 @@ class ReaderSessionLifecycle constructor(
         // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0036's translation
         // fix may still hold a raw ABS `epubcfi(...)` — heal those on open so legacy progress
         // isn't lost. A genuinely unusable value falls back to null.
-        val storedLocator = result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
+        val storedLocator = lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
             runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                 ?: cfiStringToLocator(stored)
         }
