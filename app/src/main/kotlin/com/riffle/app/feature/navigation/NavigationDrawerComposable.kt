@@ -99,7 +99,6 @@ fun RiffleNavigationDrawer(
             onSettingsSelected = onSettingsSelected,
             onBookshelfSelected = onBookshelfSelected,
             isBookshelfActive = isBookshelfActive,
-            suppressActiveSourceMark = isBookshelfActive,
         )
     }
 
@@ -140,34 +139,29 @@ private fun DrawerSheetContent(
     onSettingsSelected: () -> Unit,
     onBookshelfSelected: () -> Unit = {},
     isBookshelfActive: Boolean = false,
-    suppressActiveSourceMark: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
-        NavigationDrawerItem(
-            label = { Text("Bookshelf") },
-            icon = { RiffleAppIcon(size = 24.dp) },
-            selected = isBookshelfActive,
-            onClick = onBookshelfSelected,
-        )
-        HorizontalDivider()
         DrawerHeader(
             activeServer = activeServer,
             allServers = allServers,
             serverVersions = serverVersions,
             onServerSelected = onServerSelected,
-            suppressActiveSourceMark = suppressActiveSourceMark,
+            isBookshelfActive = isBookshelfActive,
+            onBookshelfSelected = onBookshelfSelected,
         )
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            visibleLibraries.forEach { library ->
-                NavigationDrawerItem(
-                    label = { Text(library.name) },
-                    selected = !isBookshelfActive && library.id == activeLibraryId,
-                    onClick = { onLibrarySelected(library) },
-                )
+            if (!isBookshelfActive) {
+                visibleLibraries.forEach { library ->
+                    NavigationDrawerItem(
+                        label = { Text(library.name) },
+                        selected = library.id == activeLibraryId,
+                        onClick = { onLibrarySelected(library) },
+                    )
+                }
             }
         }
         HorizontalDivider()
@@ -219,7 +213,8 @@ private fun DrawerHeader(
     allServers: List<Source>,
     serverVersions: Map<String, String>,
     onServerSelected: (Source) -> Unit,
-    suppressActiveSourceMark: Boolean = false,
+    isBookshelfActive: Boolean = false,
+    onBookshelfSelected: () -> Unit = {},
 ) {
     val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }
@@ -231,40 +226,46 @@ private fun DrawerHeader(
         .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
     ) {
         ListItem(
-            leadingContent = activeServer?.let { server ->
-                { SourceRowIcon(server = server) }
+            leadingContent = if (isBookshelfActive) {
+                { RiffleAppIcon(size = 24.dp) }
+            } else {
+                activeServer?.let { server -> { SourceRowIcon(server = server) } }
             },
             headlineContent = {
-                val name = activeServer?.let { localizedSourceDisplayName(it) }
-                    ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
-                val username = activeServer
-                    ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
-                    ?.username?.takeIf { it.isNotEmpty() }
-                if (username != null) {
-                    AutoShrinkingSingleLineText(
-                        text = buildAnnotatedString {
-                            append(name)
-                            append(" ")
-                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
-                                append("[$username]")
-                            }
-                        },
-                    )
+                if (isBookshelfActive) {
+                    AutoShrinkingSingleLineText(text = "Bookshelf")
                 } else {
-                    AutoShrinkingSingleLineText(
-                        text = name,
-                    )
+                    val name = activeServer?.let { localizedSourceDisplayName(it) }
+                        ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
+                    val username = activeServer
+                        ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
+                        ?.username?.takeIf { it.isNotEmpty() }
+                    if (username != null) {
+                        AutoShrinkingSingleLineText(
+                            text = buildAnnotatedString {
+                                append(name)
+                                append(" ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                    append("[$username]")
+                                }
+                            },
+                        )
+                    } else {
+                        AutoShrinkingSingleLineText(text = name)
+                    }
                 }
             },
-            supportingContent = {
-                val support = activeServer?.let {
-                    localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
-                }
-                if (support != null) {
-                    AutoShrinkingSingleLineText(
-                        text = support,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            supportingContent = if (isBookshelfActive) null else {
+                {
+                    val support = activeServer?.let {
+                        localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
+                    }
+                    if (support != null) {
+                        AutoShrinkingSingleLineText(
+                            text = support,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             },
             trailingContent = {
@@ -280,6 +281,23 @@ private fun DrawerHeader(
             onDismissRequest = { switcherExpanded = false },
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
+            // Bookshelf entry pinned at top of the switcher.
+            DropdownMenuItem(
+                text = { AutoShrinkingSingleLineText(text = "Bookshelf") },
+                leadingIcon = { RiffleAppIcon(size = 24.dp) },
+                trailingIcon = {
+                    if (isBookshelfActive) {
+                        Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
+                    } else {
+                        Spacer(modifier = Modifier.size(24.dp))
+                    }
+                },
+                onClick = {
+                    switcherExpanded = false
+                    onBookshelfSelected()
+                },
+            )
+            HorizontalDivider()
             allServers.forEach { server ->
                 DropdownMenuItem(
                     text = {
@@ -318,7 +336,7 @@ private fun DrawerHeader(
                     },
                     leadingIcon = { SourceRowIcon(server = server) },
                     trailingIcon = {
-                        if (server.isActive && !suppressActiveSourceMark) {
+                        if (server.isActive && !isBookshelfActive) {
                             Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))
