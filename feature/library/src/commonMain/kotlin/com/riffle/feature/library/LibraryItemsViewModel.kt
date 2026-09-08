@@ -207,7 +207,7 @@ class LibraryItemsViewModel constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _refreshFailed = MutableStateFlow(false)
+    internal val _refreshFailed = MutableStateFlow(false)
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

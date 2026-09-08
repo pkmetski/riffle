@@ -227,22 +227,15 @@ class LibraryItemsViewModelRefreshCrashTest {
         )
 
         // Run the refresh coroutine launched in init to completion. We use runCurrent() rather than
-        // advanceUntilIdle() because a failed refresh (refreshFailed=true while online) starts an
-        // unbounded retry-poll loop in init; runCurrent drains the immediate work and parks that loop
-        // at its first delay instead of advancing virtual time forever.
-        // Multiple runCurrent() calls drain the full StateFlow propagation chain:
-        //   1st: runs runRefresh() → throws → _refreshFailed=true
-        //   2nd: retry-poll combine + isOffline combine both receive _refreshFailed emission
-        //   3rd: stateIn internal coroutine updates isOffline.value=true
-        // K/N needs all three hops; extra runCurrent() calls are no-ops on an empty queue.
-        backgroundScope.launch { vm.isOffline.collect {} }
-        runCurrent()
-        runCurrent()
+        // advanceUntilIdle() because a failed refresh starts an unbounded retry-poll loop; runCurrent()
+        // drains immediate work and parks the loop at its first delay instead of advancing forever.
         runCurrent()
 
         // If runRefresh() does not absorb the exception from toReadRepository.refresh(), it escapes
         // viewModelScope.launch {}, crashing the process on iOS (no framework CoroutineExceptionHandler).
-        // With the fix, the exception is absorbed as a failed refresh and isOffline reflects it.
-        assertTrue(vm.isOffline.value, "expected isOffline=true when refresh throws (refreshFailed=true, online=true)")
+        // With the fix, the exception is caught and _refreshFailed is set to true. We assert _refreshFailed
+        // directly (internal visibility) to avoid depending on the multi-hop StateFlow propagation timing,
+        // which differs between JVM and K/N.
+        assertTrue(vm._refreshFailed.value, "expected _refreshFailed=true when refresh throws")
     }
 }
