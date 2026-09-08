@@ -12,6 +12,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -84,12 +85,16 @@ class BookshelfViewModel constructor(
                         source.id to token.await()
                     }
                 }
-                // ToReadRepository is in-memory; populate each library's cache on source change.
-                sources.forEach { source ->
+                // Bookshelf is cross-source: refresh To Read for every ABS source, not just the
+                // active one. refreshForSource targets a specific source's catalog directly so it
+                // works regardless of which source is globally active. Non-ABS sources use a local
+                // DataStore that needs no refresh — refreshForSource returns true immediately.
+                val absSources = sources.filter { it.type == SourceType.ABS }
+                absSources.forEach { source ->
                     launch {
                         libraryObserver.observeLibraries(source.id).collect { libraries ->
                             libraries.forEach { library ->
-                                launch { toReadRepository.refresh(library.id) }
+                                launch { toReadRepository.refreshForSource(source.id, library.id) }
                             }
                         }
                     }

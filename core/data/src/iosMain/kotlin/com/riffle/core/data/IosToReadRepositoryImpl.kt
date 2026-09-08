@@ -45,6 +45,28 @@ class IosToReadRepositoryImpl(
         }
     }
 
+    override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
+        val source = sourceRepository.getById(sourceId) ?: return true
+        if (source.type != SourceType.ABS) return true
+        val token = tokenStorage.getToken(source.id) ?: return true
+        val result = absLibraryApi.getPlaylists(source.url.value, libraryId, token, source.insecureConnectionAllowed)
+        return when (result) {
+            is NetworkResult.Success -> {
+                val match = result.value.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
+                val snapshot = ToReadSnapshot(
+                    playlistId = match?.id,
+                    itemIds = match?.bookIds ?: emptySet(),
+                )
+                cache.value = cache.value + (libraryId to snapshot)
+                true
+            }
+            else -> {
+                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) failed: $result" }
+                false
+            }
+        }
+    }
+
     override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
         cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
 

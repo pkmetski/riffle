@@ -35,9 +35,10 @@ class ToReadRepositoryImpl constructor(
     private val cache = MutableStateFlow<Map<String, ToReadSnapshot>>(emptyMap())
 
     override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flow {
-        // Capability is resolved once at collection start. Route swaps rebuild the screen (and
-        // therefore re-observe this flow), so any source change flushes through naturally.
-        if (activePlaylistsCap() != null) {
+        // If this library was explicitly refreshed via refreshForSource (e.g. by Bookshelf for a
+        // non-active ABS source), the cache already has an entry for it — use that regardless of
+        // the active source. Otherwise route by whether the active source has PlaylistsCapability.
+        if (cache.value.containsKey(libraryId) || activePlaylistsCap() != null) {
             emitAll(cache.map { it[libraryId]?.itemIds ?: emptySet() })
         } else {
             emitAll(localStore.observeItemIds(libraryId))
@@ -137,6 +138,21 @@ class ToReadRepositoryImpl constructor(
         }
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
+    }
+
+    override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
+        val cap = (catalogRegistry.forSourceId(sourceId) as? PlaylistsCapability) ?: return true
+        val match = runCatching { cap.findPlaylist(libraryId, TO_READ_PLAYLIST_NAME) }
+            .getOrElse {
+                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) findPlaylist failed: $it" }
+                return false
+            }
+        val snapshot = ToReadSnapshot(
+            playlistId = match?.id,
+            itemIds = match?.itemIds?.toSet() ?: emptySet(),
+        )
+        cache.value = cache.value + (libraryId to snapshot)
+        return true
     }
 
     private suspend fun activePlaylistsCap(): PlaylistsCapability? {

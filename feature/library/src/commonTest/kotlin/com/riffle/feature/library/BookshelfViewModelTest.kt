@@ -208,6 +208,7 @@ private class FakeMultiSourceRepository(initial: List<Source>) : SourceRepositor
 private class FakeToReadRepository : ToReadRepository {
     override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
     override suspend fun refresh(libraryId: String): Boolean = true
+    override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
     override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true

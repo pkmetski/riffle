@@ -23,6 +23,13 @@ interface ToReadRepository {
     /** Fetches the To Read playlist from the server and refreshes the in-memory cache. */
     suspend fun refresh(libraryId: String): Boolean
 
+    /**
+     * Like [refresh] but targets a specific source rather than the globally-active one.
+     * Used by cross-source views (e.g. Bookshelf) that need to populate the cache for
+     * ABS libraries even when a different source is currently active.
+     */
+    suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean
+
     suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean
     suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean
     suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean
