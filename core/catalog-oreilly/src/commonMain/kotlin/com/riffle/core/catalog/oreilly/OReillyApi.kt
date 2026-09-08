@@ -31,9 +31,11 @@ internal class OReillyApi(
 
     fun baseUrl(): String = base
 
+    private enum class RequestType { Json, Content, Asset }
+
     /** JSON API calls (search / spine / files-list / metadata). */
     suspend fun getJson(url: String): String {
-        val response = authorizedGet(url, ACCEPT_JSON)
+        val response = authorizedGet(url, ACCEPT_JSON, RequestType.Json)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
         return response.bodyAsText()
     }
@@ -44,27 +46,54 @@ internal class OReillyApi(
      * Accept yields the ~2KB DRM *sample* even with `?download=false`.
      */
     suspend fun getContent(url: String): String {
-        val response = authorizedGet(url, ACCEPT_HTML)
+        val response = authorizedGet(url, ACCEPT_HTML, RequestType.Content)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
         return response.bodyAsText()
     }
 
     /** Binary asset bytes (images / css / fonts). */
     suspend fun getBytes(url: String): ByteArray {
-        val response = authorizedGet(url, ACCEPT_ANY)
+        val response = authorizedGet(url, ACCEPT_ANY, RequestType.Asset)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
         return response.readBytes()
     }
 
     suspend fun ping(): Boolean = runCatching {
-        authorizedGet("$base/api/v1/user/", ACCEPT_JSON).status.value.let { it in 200..499 }
+        authorizedGet("$base/api/v1/user/", ACCEPT_JSON, RequestType.Json).status.value.let { it in 200..499 }
     }.getOrDefault(false)
 
-    private suspend fun authorizedGet(url: String, accept: String): HttpResponse = client.get(absolute(url)) {
-        header("Cookie", cookieHeader)
-        header("Accept", accept)
-        header("User-Agent", userAgent)
-    }
+    private suspend fun authorizedGet(url: String, accept: String, type: RequestType): HttpResponse =
+        client.get(absolute(url)) {
+            header("Cookie", cookieHeader)
+            header("Accept", accept)
+            header("User-Agent", userAgent)
+            header("Origin", base)
+            header("Referer", "$base/")
+            header("Accept-Language", "en-US,en;q=0.9")
+            val chHint = chromeClientHint(userAgent)
+            if (chHint.isNotEmpty()) {
+                header("sec-ch-ua", chHint)
+                header("sec-ch-ua-mobile", "?1")
+                header("sec-ch-ua-platform", "\"Android\"")
+            }
+            when (type) {
+                RequestType.Json -> {
+                    header("sec-fetch-dest", "empty")
+                    header("sec-fetch-mode", "cors")
+                    header("sec-fetch-site", "same-origin")
+                }
+                RequestType.Content -> {
+                    header("sec-fetch-dest", "document")
+                    header("sec-fetch-mode", "navigate")
+                    header("sec-fetch-site", "same-origin")
+                }
+                RequestType.Asset -> {
+                    header("sec-fetch-dest", "image")
+                    header("sec-fetch-mode", "no-cors")
+                    header("sec-fetch-site", "same-origin")
+                }
+            }
+        }
 
     private fun absolute(url: String): String =
         if (url.startsWith("http://") || url.startsWith("https://")) url else "$base$url"
@@ -138,6 +167,16 @@ internal class OReillyApi(
         private const val ACCEPT_JSON = "application/json"
         private const val ACCEPT_HTML = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         private const val ACCEPT_ANY = "*/*"
+
+        /**
+         * Builds the `sec-ch-ua` client hint value from a Chrome UA string. Returns empty string when
+         * the UA carries no Chrome version (e.g. test stubs, non-Chrome clients) — callers omit the
+         * header entirely in that case so as not to send a malformed hint.
+         */
+        internal fun chromeClientHint(userAgent: String): String {
+            val version = Regex("""Chrome/(\d+)""").find(userAgent)?.groupValues?.get(1) ?: return ""
+            return """"Chromium";v="$version", "Google Chrome";v="$version", "Not.A/Brand";v="24""""
+        }
 
         /** High-resolution cover URL for [id] (public CDN, no auth). Shared by search + detail. */
         fun coverUrl(id: String, base: String = DEFAULT_BASE_URL): String =
