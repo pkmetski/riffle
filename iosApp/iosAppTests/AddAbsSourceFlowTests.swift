@@ -68,6 +68,21 @@ final class AddAbsSourceFlowTests: XCTestCase {
         let burger = app.staticTexts["☰"]
         XCTAssertTrue(burger.waitForExistence(timeout: 30), "Chitanka install must land on the library home")
         XCTAssertTrue(app.state == .runningForeground, "App must survive Chitanka install")
+
+        // Clean up: remove the installed source so later tests see a pristine no-source state
+        // (Chitanka is a network-only catalog — its empty local mirror otherwise breaks the
+        // library-home tests that run after this one).
+        burger.tap()
+        let settingsEntry = app.staticTexts["Settings"]
+        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
+        settingsEntry.tap()
+        let removeButton = app.staticTexts["Remove"].firstMatch
+        XCTAssertTrue(removeButton.waitForExistence(timeout: 10), "Settings must list the source with a Remove action")
+        removeButton.tap()
+        XCTAssertTrue(
+            app.staticTexts["No sources configured"].waitForExistence(timeout: 10),
+            "Removing the only source must leave Settings empty",
+        )
     }
 
     func testAddAbsSourceEndToEnd() throws {
