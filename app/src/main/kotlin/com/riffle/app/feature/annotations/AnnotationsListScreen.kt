@@ -71,7 +71,7 @@ fun AnnotationsListScreen(
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(coverGridMinCellSize()),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
                     modifier = Modifier
                         .fillMaxSize()
                         .fadingScrollbar(gridState),
