@@ -124,6 +124,14 @@ interface LibraryItemDao {
     """)
     fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
+    @Query("""
+        SELECT * FROM library_items
+        WHERE readingProgress > 0.0
+          AND readingProgress < 0.99
+        ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
+    """)
+    fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>>
+
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
     fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 

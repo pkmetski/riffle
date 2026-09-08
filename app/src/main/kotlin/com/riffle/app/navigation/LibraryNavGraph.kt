@@ -19,6 +19,7 @@ import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.library.playlists.PlaylistDetailScreen
+import com.riffle.app.feature.library.RiffleScreen
 import com.riffle.app.feature.navigation.HomeScreen
 import com.riffle.feature.library.HomeViewModel
 import java.net.URLDecoder
@@ -34,6 +35,19 @@ internal fun NavGraphBuilder.libraryNavGraph(
     libBackEnabled: Boolean,
     onSetActiveLibrary: (String) -> Unit,
 ) {
+    composable(RIFFLE) {
+        RiffleScreen(
+            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onItemSelected = { sourceId, itemId ->
+                val encodedId = URLEncoder.encode(itemId, "UTF-8")
+                val encodedSourceId = URLEncoder.encode(sourceId, "UTF-8")
+                navController.navigate("library_item_detail/$encodedId?sourceId=$encodedSourceId")
+            },
+            onAnnotatedBookClick = { sourceId, itemId ->
+                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
+            },
+        )
+    }
     composable(HOME) {
         HomeScreen(
             onNavigateToAddSource = {
@@ -46,6 +60,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
                         HomeViewModel.StartDestination.Library(sourceType, libraryId, libraryName),
                     ),
                 )
+            },
+            onNavigateToRiffle = {
+                navController.navigateAsRoot(RIFFLE)
             },
         )
     }

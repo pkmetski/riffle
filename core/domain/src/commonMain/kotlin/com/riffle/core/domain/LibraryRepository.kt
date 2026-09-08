@@ -25,6 +25,12 @@ interface LibraryObserver {
     fun observeLibraries(sourceId: String): Flow<List<Library>>
 
     fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>>
+
+    /** Library items scoped to a specific Source — for cross-source callers like [Riffle] that
+     *  must query items owned by non-active Sources. The unscoped [observeLibraryItems] always uses
+     *  the active Source's id and returns nothing for non-active Source libraries. */
+    fun observeLibraryItemsForSource(sourceId: String, libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+
     fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>>
@@ -34,6 +40,13 @@ interface LibraryObserver {
     /** All items owned by a specific Source, across every library. Used to check ownership
      *  across server sources when filtering web-source catalogs. */
     fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+
+    /** In-progress items across ALL configured Sources and libraries. Drives the [Riffle] screen. */
+    fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
+
+    /** Continue-series items across ALL configured Sources and libraries. Drives the [Riffle] screen. */
+    fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
+
     fun observeSeries(libraryId: String): Flow<List<Series>>
     fun observeCollections(libraryId: String): Flow<List<Collection>>
     fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>>

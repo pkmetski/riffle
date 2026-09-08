@@ -14,10 +14,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DropdownMenu
@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.app.BuildConfig
+import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
@@ -80,6 +81,8 @@ fun RiffleNavigationDrawer(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
+    onRiffleSelected: () -> Unit = {},
+    isRiffleActive: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val sheetBody: @Composable () -> Unit = {
@@ -94,6 +97,8 @@ fun RiffleNavigationDrawer(
             onLibrarySelected = onLibrarySelected,
             onDownloadsSelected = onDownloadsSelected,
             onSettingsSelected = onSettingsSelected,
+            onRiffleSelected = onRiffleSelected,
+            isRiffleActive = isRiffleActive,
         )
     }
 
@@ -132,6 +137,8 @@ private fun DrawerSheetContent(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
+    onRiffleSelected: () -> Unit = {},
+    isRiffleActive: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
         DrawerHeader(
@@ -139,18 +146,22 @@ private fun DrawerSheetContent(
             allServers = allServers,
             serverVersions = serverVersions,
             onServerSelected = onServerSelected,
+            isRiffleActive = isRiffleActive,
+            onRiffleSelected = onRiffleSelected,
         )
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            visibleLibraries.forEach { library ->
-                NavigationDrawerItem(
-                    label = { Text(library.name) },
-                    selected = library.id == activeLibraryId,
-                    onClick = { onLibrarySelected(library) },
-                )
+            if (!isRiffleActive) {
+                visibleLibraries.forEach { library ->
+                    NavigationDrawerItem(
+                        label = { Text(library.name) },
+                        selected = library.id == activeLibraryId,
+                        onClick = { onLibrarySelected(library) },
+                    )
+                }
             }
         }
         HorizontalDivider()
@@ -202,6 +213,8 @@ private fun DrawerHeader(
     allServers: List<Source>,
     serverVersions: Map<String, String>,
     onServerSelected: (Source) -> Unit,
+    isRiffleActive: Boolean = false,
+    onRiffleSelected: () -> Unit = {},
 ) {
     val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }
@@ -213,40 +226,46 @@ private fun DrawerHeader(
         .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
     ) {
         ListItem(
-            leadingContent = activeServer?.let { server ->
-                { SourceRowIcon(server = server) }
+            leadingContent = if (isRiffleActive) {
+                { RiffleAppIcon(size = 24.dp) }
+            } else {
+                activeServer?.let { server -> { SourceRowIcon(server = server) } }
             },
             headlineContent = {
-                val name = activeServer?.let { localizedSourceDisplayName(it) }
-                    ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
-                val username = activeServer
-                    ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
-                    ?.username?.takeIf { it.isNotEmpty() }
-                if (username != null) {
-                    AutoShrinkingSingleLineText(
-                        text = buildAnnotatedString {
-                            append(name)
-                            append(" ")
-                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
-                                append("[$username]")
-                            }
-                        },
-                    )
+                if (isRiffleActive) {
+                    AutoShrinkingSingleLineText(text = "Riffle")
                 } else {
-                    AutoShrinkingSingleLineText(
-                        text = name,
-                    )
+                    val name = activeServer?.let { localizedSourceDisplayName(it) }
+                        ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
+                    val username = activeServer
+                        ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
+                        ?.username?.takeIf { it.isNotEmpty() }
+                    if (username != null) {
+                        AutoShrinkingSingleLineText(
+                            text = buildAnnotatedString {
+                                append(name)
+                                append(" ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                    append("[$username]")
+                                }
+                            },
+                        )
+                    } else {
+                        AutoShrinkingSingleLineText(text = name)
+                    }
                 }
             },
-            supportingContent = {
-                val support = activeServer?.let {
-                    localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
-                }
-                if (support != null) {
-                    AutoShrinkingSingleLineText(
-                        text = support,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            supportingContent = if (isRiffleActive) null else {
+                {
+                    val support = activeServer?.let {
+                        localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
+                    }
+                    if (support != null) {
+                        AutoShrinkingSingleLineText(
+                            text = support,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             },
             trailingContent = {
@@ -262,6 +281,23 @@ private fun DrawerHeader(
             onDismissRequest = { switcherExpanded = false },
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
+            // Riffle entry pinned at top of the switcher.
+            DropdownMenuItem(
+                text = { AutoShrinkingSingleLineText(text = "Riffle") },
+                leadingIcon = { RiffleAppIcon(size = 24.dp) },
+                trailingIcon = {
+                    if (isRiffleActive) {
+                        Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
+                    } else {
+                        Spacer(modifier = Modifier.size(24.dp))
+                    }
+                },
+                onClick = {
+                    switcherExpanded = false
+                    onRiffleSelected()
+                },
+            )
+            HorizontalDivider()
             allServers.forEach { server ->
                 DropdownMenuItem(
                     text = {
@@ -300,7 +336,7 @@ private fun DrawerHeader(
                     },
                     leadingIcon = { SourceRowIcon(server = server) },
                     trailingIcon = {
-                        if (server.isActive) {
+                        if (server.isActive && !isRiffleActive) {
                             Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))

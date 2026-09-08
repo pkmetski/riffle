@@ -111,6 +111,7 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.feature.library.WebSourceLibraryItemUpserter
 import com.riffle.feature.reader.CbzReaderViewModel
@@ -226,6 +227,15 @@ private fun iosLibraryModule(
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { DrawerViewModel(get(), get(), get(), get()) }
+    single {
+        RiffleViewModel(
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            toReadRepository = get(),
+            annotationsLibraryRepository = get(),
+        )
+    }
 
     // ---- Source onboarding (shared Compose screens from :feature:source-ui) -------------------
     // iOS renders the same SourceTypePicker / AddSource / SelectLibraries screens as Android.
@@ -413,7 +423,7 @@ private fun iosLibraryModule(
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
     single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
     single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
-    single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get()) }
+    single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get(), sourceRepository = get()) }
 
     // LibraryItemDetailViewModel dependencies — no-op implementations for iOS
     single<EpubRepository> { IosNoOpEpubRepository() }

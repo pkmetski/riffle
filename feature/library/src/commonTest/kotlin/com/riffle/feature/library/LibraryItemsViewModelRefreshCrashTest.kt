@@ -126,6 +126,7 @@ class LibraryItemsViewModelRefreshCrashTest {
             override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
             override suspend fun refresh(libraryId: String): Boolean =
                 throw RuntimeException("simulated network failure")
+            override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
             override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
             override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
             override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
@@ -226,16 +227,15 @@ class LibraryItemsViewModelRefreshCrashTest {
         )
 
         // Run the refresh coroutine launched in init to completion. We use runCurrent() rather than
-        // advanceUntilIdle() because a failed refresh (refreshFailed=true while online) starts an
-        // unbounded retry-poll loop in init; runCurrent drains the immediate work and parks that loop
-        // at its first delay instead of advancing virtual time forever.
-        // Keep the WhileSubscribed(isOffline) flow hot so its value reflects the computed state.
-        backgroundScope.launch { vm.isOffline.collect {} }
+        // advanceUntilIdle() because a failed refresh starts an unbounded retry-poll loop; runCurrent()
+        // drains immediate work and parks the loop at its first delay instead of advancing forever.
         runCurrent()
 
         // If runRefresh() does not absorb the exception from toReadRepository.refresh(), it escapes
         // viewModelScope.launch {}, crashing the process on iOS (no framework CoroutineExceptionHandler).
-        // With the fix, the exception is absorbed as a failed refresh and isOffline reflects it.
-        assertTrue(vm.isOffline.value, "expected isOffline=true when refresh throws (refreshFailed=true, online=true)")
+        // With the fix, the exception is caught and _refreshFailed is set to true. We assert _refreshFailed
+        // directly (internal visibility) to avoid depending on the multi-hop StateFlow propagation timing,
+        // which differs between JVM and K/N.
+        assertTrue(vm._refreshFailed.value, "expected _refreshFailed=true when refresh throws")
     }
 }

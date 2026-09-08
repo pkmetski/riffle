@@ -13,4 +13,13 @@ import kotlinx.coroutines.flow.Flow
 interface LastOpenedLibraryStore {
     fun lastOpenedLibrary(sourceId: String): Flow<String?>
     suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String)
+
+    /** Whether Riffle was the last active top-level destination. */
+    fun wasRiffleLastActive(): Flow<Boolean> = kotlinx.coroutines.flow.flowOf(false)
+
+    /** Mark Riffle as the last active destination. Cleared by [setLastOpenedLibrary] and [clearRiffleActive]. */
+    suspend fun setRiffleActive() {}
+
+    /** Clear the Riffle-last-active flag without setting a library. Used on source switch. */
+    suspend fun clearRiffleActive() {}
 }

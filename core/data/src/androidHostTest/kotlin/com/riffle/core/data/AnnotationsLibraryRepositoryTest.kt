@@ -3,13 +3,29 @@ package com.riffle.core.data
 import com.riffle.core.database.BookHighlightSummary
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Source
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AnnotationsLibraryRepositoryTest {
+
+    private val emptySourceRepository: SourceRepository = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
+        override suspend fun getActive(): Source? = null
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(UnsupportedOperationException("stub"))
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
 
     private fun libItem(
         id: String,
@@ -50,7 +66,7 @@ class AnnotationsLibraryRepositoryTest {
                 ),
             )
         }
-        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao, emptySourceRepository)
 
         val result = repo.observeAnnotatedBooks("S1").first()
 
@@ -90,7 +106,7 @@ class AnnotationsLibraryRepositoryTest {
                 ),
             )
         }
-        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao, emptySourceRepository)
 
         val result = repo.observeAnnotatedBooks("S1").first()
 
@@ -120,7 +136,7 @@ class AnnotationsLibraryRepositoryTest {
                 ),
             )
         }
-        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao, emptySourceRepository)
 
         val result = repo.observeAnnotatedBooks("S1", "lib1").first()
 
@@ -145,7 +161,7 @@ class AnnotationsLibraryRepositoryTest {
                 ),
             )
         }
-        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao, emptySourceRepository)
 
         val result = repo.observeAnnotatedBooks("S1", "lib1").first()
 
@@ -171,7 +187,7 @@ class AnnotationsLibraryRepositoryTest {
                 ),
             )
         }
-        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao, emptySourceRepository)
 
         val result = repo.observeAnnotatedBooks("S1", "lib1").first()
 

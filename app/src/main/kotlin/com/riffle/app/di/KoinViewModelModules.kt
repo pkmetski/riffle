@@ -17,6 +17,7 @@ import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
 import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
@@ -286,6 +287,15 @@ private val libraryViewModelModule = module {
 }
 
 private val navigationViewModelModule = module {
+    viewModel {
+        RiffleViewModel(
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            toReadRepository = get(),
+            annotationsLibraryRepository = get(),
+        )
+    }
     viewModel {
         HomeViewModel(
             sourceRepository = get(),

@@ -207,19 +207,22 @@ class LibraryItemsViewModel constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _refreshFailed = MutableStateFlow(false)
+    internal val _refreshFailed = MutableStateFlow(false)
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private var refreshJob: Job? = null
 
     // The banner appears when the device has no network or when the last server refresh failed.
+    // Eagerly started so _refreshFailed writes immediately propagate to isOffline.value without
+    // waiting for a UI subscriber — required for the retry-poll loop (which reads _refreshFailed
+    // directly) to observe consistent state, and for unit tests to assert the value synchronously.
     val isOffline: StateFlow<Boolean> = combine(
         connectivityObserver.isOnline,
         _refreshFailed,
     ) { online, refreshFailed ->
         !online || refreshFailed
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * Representative member cover per Series. The persisted `series.coverUrl` can point at a

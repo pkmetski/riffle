@@ -404,6 +404,7 @@ class CatalogProgressRemoteFactoryTest {
             override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
             override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
             override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
+            override fun observeInProgressAllSources() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         }
         val fakeTranslatorFactory = object : com.riffle.core.domain.EbookCfiTranslatorFactory {
             override fun forItem(sourceId: String, itemId: String) = null

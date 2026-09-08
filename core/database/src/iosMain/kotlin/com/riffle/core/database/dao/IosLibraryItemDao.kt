@@ -198,6 +198,19 @@ internal class IosLibraryItemDao(
             }
         }
 
+    override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> =
+        invalidator.version.flatMapLatest {
+            flow {
+                emit(driver.executeQuery(
+                    null,
+                    """SELECT $ALL_COLS FROM library_items
+                       WHERE readingProgress > 0.0 AND readingProgress < 0.99
+                       ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC""",
+                    ::mapRows, 0,
+                ) {}.value)
+            }
+        }
+
     override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
         invalidator.version.flatMapLatest {
             flow {

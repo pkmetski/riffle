@@ -122,19 +122,20 @@ class KomgaPlaylistsCapabilityTest {
         assertEquals("RL_MINE", playlist!!.id)
     }
 
-    // Older Komga (< 1.19) omits ownerId — accept those matches so we don't regress users on
-    // older servers who don't have per-user ownership at all.
-    @Test fun `findPlaylist matches readlist with no ownerId (older Komga)`() = runTest {
+    // When /users/me succeeds (modern Komga ≥ 1.19) but a readlist has no ownerId — a relic from
+    // before ownership tracking was introduced — skip it. We cannot safely PATCH it (it may belong
+    // to admin or another user; PATCH returns 403). Fall through to createPlaylist to POST a fresh
+    // readlist that we will own. This replaces an old test that incorrectly accepted null-ownerId
+    // matches when meId was known, causing 403 loops (see RIFFLE_TOREAD logs for "PATCH … 403").
+    @Test fun `findPlaylist skips readlist with no ownerId when user identity is known`() = runTest {
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
         server.enqueue(readListPage(
             """{"id":"RL_OLD","name":"To Read","bookIds":[]}"""
         ))
-        server.enqueue(bookPage())
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
-        assertNotNull(playlist)
-        assertEquals("RL_OLD", playlist!!.id)
+        assertNull("must not hand back a null-ownerId readlist that may 403 on PATCH", playlist)
     }
 
     // When the only "To Read" on the server is foreign-owned, createPlaylist must POST a fresh
@@ -289,6 +290,7 @@ class KomgaPlaylistsCapabilityTest {
     // (old Komga never sets ownerId, so the null-ownerId predicate covers all their readlists).
     @Test fun `findPlaylist succeeds when users me returns 404 (old Komga without the endpoint)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"status":404,"message":"No endpoint GET /api/v1/users/me."}"""))
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"status":404,"message":"No endpoint GET /api/v2/users/me."}"""))
         server.enqueue(readListPage("""{"id":"RL1","name":"To Read","bookIds":["B1"]}"""))
         server.enqueue(bookPage("""{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Book","authors":[]}}"""))
 
@@ -300,6 +302,7 @@ class KomgaPlaylistsCapabilityTest {
     }
 
     @Test fun `findPlaylist returns null for old Komga when no matching readlist exists`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
         server.enqueue(MockResponse().setResponseCode(404))
         server.enqueue(readListPage("""{"id":"RL2","name":"Favourites","bookIds":[]}"""))
 

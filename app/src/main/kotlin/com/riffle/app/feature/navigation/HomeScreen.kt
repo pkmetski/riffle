@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 fun HomeScreen(
     onNavigateToAddSource: () -> Unit,
     onNavigateToLibrary: (sourceType: SourceType, libraryId: String, libraryName: String) -> Unit,
+    onNavigateToRiffle: () -> Unit = {},
     viewModel: HomeViewModel = koinViewModel(),
 ) {
     var retryKey by remember { mutableIntStateOf(0) }
@@ -48,6 +49,7 @@ fun HomeScreen(
             showRetry = false
             when (dest) {
                 is HomeViewModel.StartDestination.AddSource -> onNavigateToAddSource()
+                is HomeViewModel.StartDestination.Riffle -> onNavigateToRiffle()
                 is HomeViewModel.StartDestination.Library -> {
                     onNavigateToLibrary(dest.sourceType, dest.libraryId, dest.libraryName)
                 }

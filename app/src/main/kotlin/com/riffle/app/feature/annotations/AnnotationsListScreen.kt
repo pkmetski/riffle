@@ -48,6 +48,7 @@ fun AnnotationsListScreen(
     state: AnnotationsListUiState,
     onBookClick: (sourceId: String, itemId: String) -> Unit,
     token: String = "",
+    tokenMap: Map<String, String> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     // Rendered as a Library Tab Bar tab (see LibraryItemsScreen), so the enclosing screen
@@ -70,7 +71,7 @@ fun AnnotationsListScreen(
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(coverGridMinCellSize()),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
                     modifier = Modifier
                         .fillMaxSize()
                         .fadingScrollbar(gridState),
@@ -79,14 +80,14 @@ fun AnnotationsListScreen(
                         Text(
                             text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations_count, state.books.size),
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                         )
                     }
                     items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
                         Box(modifier = Modifier.padding(4.dp)) {
                             AnnotatedBookCoverTile(
                                 book = book,
-                                token = token,
+                                token = tokenMap[book.sourceId] ?: token,
                                 onClick = { onBookClick(book.sourceId, book.itemId) },
                             )
                         }

@@ -146,6 +146,9 @@ class LibraryRepositoryTest {
 
         override suspend fun deleteItemsByLibraryId(libraryId: String) {}
 
+        override fun observeContinueSeriesAllSources(): Flow<List<LibraryItemEntity>> =
+            MutableStateFlow(emptyList())
+
         fun seedItems(seriesId: String, items: List<LibraryItemEntity>) {
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }.value = items
         }

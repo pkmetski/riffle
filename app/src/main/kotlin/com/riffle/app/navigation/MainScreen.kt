@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 internal const val HOME = "home"
+internal const val RIFFLE = "riffle"
 internal const val SOURCE_SETUP_GRAPH = "source_setup"
 internal const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
 internal const val ADD_LOCAL_FILES = "add_local_files"
@@ -263,6 +264,12 @@ fun MainScreen(
             scope.launch { drawerState.close() }
             if (navController.currentDestination?.route != SETTINGS) navController.navigate(SETTINGS)
         },
+        onRiffleSelected = {
+            viewModel.setRiffleActive()
+            scope.launch { drawerState.close() }
+            if (navController.currentDestination?.route != RIFFLE) navController.navigateAsRoot(RIFFLE)
+        },
+        isRiffleActive = currentRoute == RIFFLE,
     ) {
         NavHost(
             navController = navController,

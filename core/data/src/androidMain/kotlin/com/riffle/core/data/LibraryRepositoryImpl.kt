@@ -88,6 +88,9 @@ class LibraryRepositoryImpl constructor(
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> libraryItemDao.observeByLibraryId(sourceId, libraryId) }
 
+    override fun observeLibraryItemsForSource(sourceId: String, libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeByLibraryId(sourceId, libraryId).map { list -> list.map { it.toDomain() } }
+
     override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> libraryItemDao.observeUngroupedByLibraryId(sourceId, libraryId) }
 
@@ -117,6 +120,12 @@ class LibraryRepositoryImpl constructor(
 
     override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> seriesDao.observeContinueSeriesItems(sourceId, libraryId) }
+
+    override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> =
+        libraryItemDao.observeInProgressAllSources().map { list -> list.map { it.toDomain() } }
+
+    override fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> =
+        seriesDao.observeContinueSeriesAllSources().map { list -> list.map { it.toDomain() } }
 
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> collectionDao.observeItemsByCollectionId(sourceId, collectionId) }

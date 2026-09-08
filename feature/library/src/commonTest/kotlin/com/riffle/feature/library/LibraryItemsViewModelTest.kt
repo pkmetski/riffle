@@ -241,6 +241,7 @@ class LibraryItemsViewModelTest {
             refreshCount++
             return true
         }
+        override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
         override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
             libraryItemId in ids.value
         override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
@@ -1012,6 +1013,7 @@ class LibraryItemsViewModelTest {
         val toRead = object : ToReadRepository {
             override fun observeToReadItemIds(libraryId: String) = MutableStateFlow<Set<String>>(emptySet())
             override suspend fun refresh(libraryId: String): Boolean = false
+            override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
             override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
             override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
             override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true

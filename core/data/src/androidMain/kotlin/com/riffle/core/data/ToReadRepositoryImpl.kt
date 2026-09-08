@@ -7,6 +7,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -34,15 +35,13 @@ class ToReadRepositoryImpl constructor(
 
     private val cache = MutableStateFlow<Map<String, ToReadSnapshot>>(emptyMap())
 
-    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flow {
-        // Capability is resolved once at collection start. Route swaps rebuild the screen (and
-        // therefore re-observe this flow), so any source change flushes through naturally.
-        if (activePlaylistsCap() != null) {
-            emitAll(cache.map { it[libraryId]?.itemIds ?: emptySet() })
-        } else {
-            emitAll(localStore.observeItemIds(libraryId))
+    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> =
+        // Always union server-synced (cache) and locally-stored items. This ensures items added via
+        // local-store fallback (when a source lacks readlist permissions) appear alongside items
+        // confirmed by the server.
+        cache.combine(localStore.observeItemIds(libraryId)) { cacheMap, localIds ->
+            (cacheMap[libraryId]?.itemIds ?: emptySet()) + localIds
         }
-    }
 
     override suspend fun refresh(libraryId: String): Boolean {
         // Local backing has nothing to refresh — the DataStore IS the source of truth. Report
@@ -69,62 +68,126 @@ class ToReadRepositoryImpl constructor(
         }
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val cap = activePlaylistsCap()
-        if (cap == null) {
+        val cap = activePlaylistsCap() ?: run {
             localStore.add(libraryId, libraryItemId)
             return true
         }
+        return addWithCap(cap, libraryItemId, libraryId)
+    }
+
+    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
+        val cap = activePlaylistsCap() ?: run {
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
+        return removeWithCap(cap, libraryItemId, libraryId)
+    }
+
+    override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
+        val cap = (catalogRegistry.forSourceId(sourceId) as? PlaylistsCapability) ?: return true
+        val match = runCatching { cap.findPlaylist(libraryId, TO_READ_PLAYLIST_NAME) }
+            .getOrElse {
+                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) findPlaylist failed: $it" }
+                return false
+            }
+        val snapshot = ToReadSnapshot(
+            playlistId = match?.id,
+            itemIds = match?.itemIds?.toSet() ?: emptySet(),
+        )
+        cache.value = cache.value + (libraryId to snapshot)
+        return true
+    }
+
+    override suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val cap = capForSource(sourceId)
+        return if (cap != null) {
+            cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+        } else {
+            localStore.isInToRead(libraryId, libraryItemId)
+        }
+    }
+
+    override suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val cap = capForSource(sourceId) ?: run {
+            localStore.add(libraryId, libraryItemId)
+            return true
+        }
+        return addWithCap(cap, libraryItemId, libraryId)
+    }
+
+    override suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val cap = capForSource(sourceId) ?: run {
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
+        return removeWithCap(cap, libraryItemId, libraryId)
+    }
+
+    private suspend fun activePlaylistsCap(): PlaylistsCapability? {
+        val catalog: Catalog = catalogRegistry.forActive() ?: return null
+        return catalog as? PlaylistsCapability
+    }
+
+    private suspend fun capForSource(sourceId: String): PlaylistsCapability? =
+        catalogRegistry.forSourceId(sourceId) as? PlaylistsCapability
+
+    private suspend fun addWithCap(cap: PlaylistsCapability, libraryItemId: String, libraryId: String): Boolean {
         val before = cache.value[libraryId] ?: ToReadSnapshot(playlistId = null, itemIds = emptySet())
-        // Optimistic update
         cache.value = cache.value + (libraryId to before.copy(itemIds = before.itemIds + libraryItemId))
         val playlistId = before.playlistId
         val ok = if (playlistId == null) {
-            // Seed the new playlist with libraryItemId in a single request. Komga's
-            // POST /api/v1/readlists REQUIRES a non-empty bookIds, so we cannot create-empty
-            // and add-later on that backend. ABS accepts it as `initialBookId` in the same POST.
             runCatching {
                 val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
                 cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
                 true
             }.getOrElse {
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) createPlaylist failed: $it" }
+                logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) createPlaylist failed: $it" }
                 false
             }
         } else {
             runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse { addErr ->
-                // The cached playlistId can go stale — Komga's readlist is server-wide, so a
-                // "remove last item" in a sibling library (or from another device) DELETEs the
-                // readlist while this library's snapshot still points at it. Rather than fail
-                // the tap, fall through to create-with-seed so the tap self-heals into a fresh
-                // readlist. The recovery is bounded to one retry; a genuine network error will
-                // fail again and get logged.
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
+                logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
                 runCatching {
                     val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
                     cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
                     true
                 }.getOrElse { createErr ->
-                    logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) recovery create failed: $createErr" }
+                    logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) recovery create failed: $createErr" }
                     false
                 }
             }
         }
-        if (!ok) cache.value = cache.value + (libraryId to before)
+        if (!ok) {
+            // Server rejected (e.g. readlist permissions not granted); fall back to local store so
+            // the feature still works for this user. Keep the optimistic cache update.
+            logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) server failed, persisting locally" }
+            localStore.add(libraryId, libraryItemId)
+            return true
+        }
         return ok
     }
 
-    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
-        val cap = activePlaylistsCap()
-        if (cap == null) {
+    private suspend fun removeWithCap(cap: PlaylistsCapability, libraryItemId: String, libraryId: String): Boolean {
+        val before = cache.value[libraryId] ?: run {
+            // No cache entry — item may still be in the local-store fallback; clean it up.
             localStore.remove(libraryId, libraryItemId)
             return true
         }
-        val before = cache.value[libraryId] ?: return true
-        val playlistId = before.playlistId ?: return true
-        if (libraryItemId !in before.itemIds) return true
+        if (libraryItemId !in before.itemIds) {
+            // Not in server cache. Clean up any local-store entry (e.g. added via fallback while
+            // cap was unavailable but cache was later populated without the item).
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
+        val playlistId = before.playlistId
+        if (playlistId == null) {
+            // Item was added via local-store fallback (no server playlist) — remove locally.
+            val remaining = before.itemIds - libraryItemId
+            cache.value = cache.value + (libraryId to before.copy(itemIds = remaining))
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
         val remainingIds = before.itemIds - libraryItemId
-        // Optimistic update. If we're removing the last item, ABS auto-deletes the playlist
-        // server-side — drop our cached playlistId so the next addToToRead creates a fresh one.
         val optimistic = if (remainingIds.isEmpty()) {
             ToReadSnapshot(playlistId = null, itemIds = emptySet())
         } else {
@@ -132,15 +195,16 @@ class ToReadRepositoryImpl constructor(
         }
         cache.value = cache.value + (libraryId to optimistic)
         val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrElse {
-            logger.d(LogChannel.ToRead) { "removeFromToRead($libraryId, $libraryItemId) failed: $it" }
+            logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) failed: $it" }
             false
         }
-        if (!ok) cache.value = cache.value + (libraryId to before)
-        return ok
-    }
-
-    private suspend fun activePlaylistsCap(): PlaylistsCapability? {
-        val catalog: Catalog = catalogRegistry.forActive() ?: return null
-        return catalog as? PlaylistsCapability
+        // Always remove from the local store regardless of server outcome. observeToReadItemIds
+        // unions cache + localStore, so skipping this leaves items added via the fallback path
+        // permanently visible even after the server successfully removes them.
+        localStore.remove(libraryId, libraryItemId)
+        if (!ok) {
+            logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) server failed, keeping optimistic remove" }
+        }
+        return true
     }
 }

@@ -118,12 +118,18 @@ class HomeViewModelTest {
         override suspend fun showLibrary(sourceId: String, libraryId: String) {}
     }
 
+    private val riffleActiveFlow = MutableStateFlow(false)
+
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
         override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
             lastOpenedFlow.map { it[sourceId] }
         override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
             lastOpenedFlow.update { it + (sourceId to libraryId) }
+            riffleActiveFlow.value = false
         }
+        override fun wasRiffleLastActive(): Flow<Boolean> = riffleActiveFlow
+        override suspend fun setRiffleActive() { riffleActiveFlow.value = true }
+        override suspend fun clearRiffleActive() { riffleActiveFlow.value = false }
     }
 
     private val unconfinedDispatchers = object : DispatcherProvider {
@@ -355,6 +361,36 @@ class HomeViewModelTest {
 
         assertFalse("must not unblock when isStillResumed returns false after waitForResumed", unblocked)
         job.cancelAndJoin()
+    }
+
+    // Regression: Riffle was never restored on app restart because getStartDestination
+    // only returned Library/AddSource/NoLibraries. wasRiffleLastActive() must be checked first
+    // so the user lands back on Riffle after killing and reopening the app.
+    @Test
+    fun `getStartDestination returns Riffle when riffle was last active`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+        riffleActiveFlow.value = true
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Riffle, result)
+    }
+
+    // Regression: setLastOpenedLibrary must clear the Riffle flag so a subsequent app restart
+    // no longer returns Riffle after the user has navigated to a library.
+    @Test
+    fun `getStartDestination returns Library after library selected following Riffle`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+        // Riffle was last active, but then the user selected a library.
+        riffleActiveFlow.value = true
+        lastOpenedFlow.update { it + ("srv-1" to "lib-1") }
+        riffleActiveFlow.value = false
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
     }
 
     @Test

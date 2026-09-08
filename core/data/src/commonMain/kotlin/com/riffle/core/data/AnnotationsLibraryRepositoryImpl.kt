@@ -4,14 +4,19 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class AnnotationsLibraryRepositoryImpl constructor(
     private val annotationDao: AnnotationDao,
     private val libraryItemDao: LibraryItemDao,
+    private val sourceRepository: SourceRepository,
 ) : AnnotationsLibraryRepository {
 
     override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> =
@@ -68,5 +73,13 @@ class AnnotationsLibraryRepositoryImpl constructor(
                         latestUpdatedAt = s.latestUpdatedAt,
                     )
                 }.sortedByDescending { it.latestUpdatedAt }
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeAnnotatedBooksAllSources(): Flow<List<AnnotatedBook>> =
+        sourceRepository.observeAll().flatMapLatest { sources ->
+            if (sources.isEmpty()) return@flatMapLatest flowOf(emptyList())
+            val perSource = sources.map { observeAnnotatedBooks(it.id) }
+            combine(perSource) { arrays -> arrays.flatMap { it }.sortedByDescending { it.latestUpdatedAt } }
         }
 }

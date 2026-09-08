@@ -125,13 +125,18 @@ class NavigationDrawerViewModelTest {
     }
 
     private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val riffleActiveFlow = MutableStateFlow(false)
 
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
         override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
             lastOpenedFlow.map { it[sourceId] }
         override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
             lastOpenedFlow.update { it + (sourceId to libraryId) }
+            riffleActiveFlow.value = false
         }
+        override fun wasRiffleLastActive(): Flow<Boolean> = riffleActiveFlow
+        override suspend fun setRiffleActive() { riffleActiveFlow.value = true }
+        override suspend fun clearRiffleActive() { riffleActiveFlow.value = false }
     }
 
     private val isOnlineFlow = MutableStateFlow(true)
@@ -488,6 +493,49 @@ class NavigationDrawerViewModelTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(true, vm.showDownloadsLink.value)
+    }
+
+    // Regression: Riffle selection must persist the "riffle last active" flag so the next
+    // app start lands back on Riffle instead of defaulting to the active source's library.
+    @Test
+    fun `setRiffleActive persists riffle as last active destination`() = runTest(testDispatcher) {
+        val vm = makeVm()
+
+        vm.setRiffleActive()
+        testScheduler.advanceUntilIdle()
+
+        val wasRiffle = riffleActiveFlow.first()
+        assertEquals(true, wasRiffle)
+    }
+
+    // Regression: switching the active source while Riffle is showing must clear the
+    // "riffle last active" flag so the next getStartDestination() resolves to the new
+    // source's library instead of bouncing back to Riffle.
+    @Test
+    fun `setActiveServer clears the riffle flag`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2", active = false))
+        riffleActiveFlow.value = true
+        val vm = makeVm()
+
+        vm.setActiveServer("srv-2")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(false, riffleActiveFlow.first())
+    }
+
+    // Regression: selecting a library after Riffle must clear the "riffle last active" flag
+    // so the next app start resumes the library, not Riffle.
+    @Test
+    fun `setActiveLibrary clears the riffle flag`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        riffleActiveFlow.value = true
+        val vm = makeVm()
+
+        vm.setActiveLibrary("lib-1")
+        testScheduler.advanceUntilIdle()
+
+        val wasRiffle = riffleActiveFlow.first()
+        assertEquals(false, wasRiffle)
     }
 
     private fun registryAllReturning(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =
