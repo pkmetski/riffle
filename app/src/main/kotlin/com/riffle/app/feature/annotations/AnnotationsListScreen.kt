@@ -80,7 +80,7 @@ fun AnnotationsListScreen(
                         Text(
                             text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations_count, state.books.size),
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                         )
                     }
                     items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
