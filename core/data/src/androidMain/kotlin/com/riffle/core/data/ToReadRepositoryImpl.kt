@@ -7,6 +7,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -34,16 +35,13 @@ class ToReadRepositoryImpl constructor(
 
     private val cache = MutableStateFlow<Map<String, ToReadSnapshot>>(emptyMap())
 
-    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flow {
-        // If this library was explicitly refreshed via refreshForSource (e.g. by Bookshelf for a
-        // non-active ABS source), the cache already has an entry for it — use that regardless of
-        // the active source. Otherwise route by whether the active source has PlaylistsCapability.
-        if (cache.value.containsKey(libraryId) || activePlaylistsCap() != null) {
-            emitAll(cache.map { it[libraryId]?.itemIds ?: emptySet() })
-        } else {
-            emitAll(localStore.observeItemIds(libraryId))
+    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> =
+        // Always union server-synced (cache) and locally-stored items. This ensures items added via
+        // local-store fallback (when a source lacks readlist permissions) appear alongside items
+        // confirmed by the server.
+        cache.combine(localStore.observeItemIds(libraryId)) { cacheMap, localIds ->
+            (cacheMap[libraryId]?.itemIds ?: emptySet()) + localIds
         }
-    }
 
     override suspend fun refresh(libraryId: String): Boolean {
         // Local backing has nothing to refresh — the DataStore IS the source of truth. Report
@@ -159,14 +157,27 @@ class ToReadRepositoryImpl constructor(
                 }
             }
         }
-        if (!ok) cache.value = cache.value + (libraryId to before)
+        if (!ok) {
+            // Server rejected (e.g. readlist permissions not granted); fall back to local store so
+            // the feature still works for this user. Keep the optimistic cache update.
+            logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) server failed, persisting locally" }
+            localStore.add(libraryId, libraryItemId)
+            return true
+        }
         return ok
     }
 
     private suspend fun removeWithCap(cap: PlaylistsCapability, libraryItemId: String, libraryId: String): Boolean {
         val before = cache.value[libraryId] ?: return true
-        val playlistId = before.playlistId ?: return true
         if (libraryItemId !in before.itemIds) return true
+        val playlistId = before.playlistId
+        if (playlistId == null) {
+            // Item was added via local-store fallback (no server playlist) — remove locally.
+            val remaining = before.itemIds - libraryItemId
+            cache.value = cache.value + (libraryId to before.copy(itemIds = remaining))
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
         val remainingIds = before.itemIds - libraryItemId
         val optimistic = if (remainingIds.isEmpty()) {
             ToReadSnapshot(playlistId = null, itemIds = emptySet())
@@ -178,7 +189,12 @@ class ToReadRepositoryImpl constructor(
             logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) failed: $it" }
             false
         }
-        if (!ok) cache.value = cache.value + (libraryId to before)
+        if (!ok) {
+            // Server rejected; keep the optimistic remove and remove from local store too.
+            logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) server failed, removing locally" }
+            localStore.remove(libraryId, libraryItemId)
+            return true
+        }
         return ok
     }
 }

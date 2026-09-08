@@ -585,33 +585,39 @@ class KomgaCatalog(
 
     private suspend fun currentUserId(): String? {
         cachedCurrentUserId?.let { return it }
-        val body = try {
-            http.getString(apiUrl("users/me"))
-        } catch (e: KomgaHttpException) {
-            if (e.code == 404) return null  // endpoint absent on old Komga; don't cache
-            throw e
+        // Try v1 first, then v2 — some Komga deployments expose /api/v2/users/me but not v1.
+        for (url in listOf(apiUrl("users/me"), rawUrl("api/v2/users/me"))) {
+            val body = try {
+                http.getString(url)
+            } catch (e: KomgaHttpException) {
+                if (e.code == 404) continue  // try next endpoint
+                throw e
+            }
+            val me = KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body)
+            cachedCurrentUserId = me.id
+            return me.id
         }
-        val me = KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body)
-        cachedCurrentUserId = me.id
-        return me.id
+        return null  // neither endpoint exists (very old Komga)
     }
 
     /**
-     * First readlist named [name] whose owner is the currently authenticated user. Readlists
-     * without an [KomgaReadListDto.ownerId] (older Komga < 1.19) are considered a match — we
-     * have no ownership signal there and the writes will either succeed or fail loudly. A
-     * readlist owned by SOMEONE ELSE is skipped so we don't hand back an id that will 403 on
-     * every subsequent PATCH — this is the exact regression the Komga integration hit against
-     * a "To Read" readlist that had been created via Komga's web UI by a different user.
+     * First readlist named [name] whose owner is the currently authenticated user.
      *
-     * When [currentUserId] returns null (server doesn't expose users/me), we can't determine
-     * ownership, so we match by name with null-ownerId entries only — old Komga never sets
-     * ownerId, so this is equivalent to matching everything on those servers.
+     * Ownership matching depends on whether the server exposes `/users/me` (Komga ≥ 1.19):
+     *
+     * - **meId known** (`/users/me` succeeds): only match `ownerId == meId`. Readlists with
+     *   `ownerId == null` are skipped — they were created before ownership tracking and may
+     *   not be writable by us (PATCHing them returns 403 if owned by admin or a different
+     *   account). We treat them as absent and create our own.
+     * - **meId unknown** (`/users/me` returns 404, old Komga): match `ownerId == null` only,
+     *   since old servers never set ownerId and all readlists are implicitly writable.
+     *
+     * In both cases, readlists owned by a DIFFERENT known user are always skipped.
      */
     private suspend fun firstOwnedReadListNamed(name: String): KomgaReadListDto? {
         val meId = currentUserId()
         return fetchAllReadLists().firstOrNull { rl ->
-            rl.name == name && (rl.ownerId == null || rl.ownerId == meId)
+            rl.name == name && if (meId != null) rl.ownerId == meId else rl.ownerId == null
         }
     }
 
