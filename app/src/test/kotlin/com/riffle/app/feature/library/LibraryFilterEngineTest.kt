@@ -127,6 +127,7 @@ class LibraryFilterEngineTest {
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = itemId in downloadedIds
         override fun isCached(sourceId: String, itemId: String): Boolean = false
+        override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
@@ -225,6 +226,7 @@ class LibraryFilterEngineTest {
                 return itemId == "id-A"
             }
             override fun isCached(sourceId: String, itemId: String): Boolean = false
+            override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
             override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
         }
         val engine = makeEngine(epubRepository = recordingEpubRepo)

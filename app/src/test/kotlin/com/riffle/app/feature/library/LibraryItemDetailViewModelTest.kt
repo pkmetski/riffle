@@ -182,6 +182,7 @@ class LibraryItemDetailViewModelTest {
         }
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
         override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
+        override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
         fun cache(itemId: String) {
             cached += itemId

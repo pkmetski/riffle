@@ -56,6 +56,17 @@ data class LazyPublicationShape(
     val pathFilesPrefix: String,
     /** Full paths of all stylesheets, used to inject `<link>` tags into each chapter. */
     val cssFullPaths: List<String>,
+    /**
+     * All packaged non-chapter assets (images, fonts, stylesheets). Used by the background
+     * prefetcher to fetch every asset so a complete offline EPUB can be assembled from the cache.
+     */
+    val assetFiles: List<LazyAssetFile> = emptyList(),
+)
+
+/** A non-chapter asset (image, stylesheet, font) packaged inside the publication. */
+data class LazyAssetFile(
+    val fullPath: String,
+    val mediaType: String,
 )
 
 /** One entry in the reading order of a [LazyPublicationShape]. */

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.source.oreilly
 
+import com.riffle.core.catalog.LazyAssetFile
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.catalog.LazySpineItem
 import kotlinx.coroutines.CoroutineScope
@@ -8,10 +9,14 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
+import java.util.zip.ZipInputStream
 
 /**
  * Unit tests for [OReillyLazyContainer] cache helpers and [buildChapterXhtml].
@@ -24,7 +29,10 @@ class OReillyLazyContainerTest {
 
     @get:Rule val tmp = TemporaryFolder()
 
-    private fun makePub(vararg paths: String): LazyPublicationShape {
+    private fun makePub(
+        vararg paths: String,
+        assetFiles: List<LazyAssetFile> = emptyList(),
+    ): LazyPublicationShape {
         val spine = paths.mapIndexed { i, p ->
             LazySpineItem(i, p, "Chapter ${i + 1}", 10_000L, "application/xhtml+xml")
         }
@@ -37,6 +45,7 @@ class OReillyLazyContainerTest {
             absoluteFilesPrefix = "https://oreilly.com/api/v2/epubs/urn:orm:book:9781234567890/files/",
             pathFilesPrefix = "/api/v2/epubs/urn:orm:book:9781234567890/files/",
             cssFullPaths = listOf("styles/main.css"),
+            assetFiles = assetFiles,
         )
     }
 
@@ -190,5 +199,127 @@ class OReillyLazyContainerTest {
         assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch01.xhtml").exists())
         assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch02.xhtml").exists())
         assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch03.xhtml").exists())
+    }
+
+    @Test
+    fun `startBackgroundPrefetch fetches assets and calls onAllCached with non-empty EPUB`() = runBlocking {
+        val cacheDir = tmp.newFolder()
+        val assetFiles = listOf(
+            LazyAssetFile("styles/main.css", "text/css"),
+            LazyAssetFile("images/cover.jpg", "image/jpeg"),
+        )
+        val pub = makePub("xhtml/ch01.xhtml", "xhtml/ch02.xhtml", assetFiles = assetFiles)
+        val fetchedAssets = mutableListOf<String>()
+        val container = OReillyLazyContainer(
+            pub = pub,
+            cacheDir = cacheDir,
+            fetchChapter = { _, path, _ -> "<p>$path</p>" },
+            fetchAsset = { _, path ->
+                fetchedAssets += path
+                "asset-$path".encodeToByteArray()
+            },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            urlFactory = { null },
+        )
+
+        var callbackBytes: ByteArray? = null
+        container.startBackgroundPrefetch(minDelayMs = 0L, maxDelayMs = 0L, onAllCached = { callbackBytes = it })
+
+        // Assets fetched from network.
+        assertEquals(listOf("styles/main.css", "images/cover.jpg"), fetchedAssets)
+        // Asset cache files written.
+        assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "styles/main.css").exists())
+        assertTrue(OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "images/cover.jpg").exists())
+        // Callback invoked with a non-empty EPUB.
+        assertNotNull(callbackBytes)
+        assertTrue(callbackBytes!!.isNotEmpty())
+        // The bytes form a readable ZIP starting with the mimetype entry.
+        ZipInputStream(ByteArrayInputStream(callbackBytes)).use { zis ->
+            val first = zis.nextEntry
+            assertEquals("mimetype", first.name)
+            assertEquals("application/epub+zip", zis.readBytes().decodeToString())
+        }
+    }
+
+    @Test
+    fun `startBackgroundPrefetch skips already-cached assets`() = runBlocking {
+        val cacheDir = tmp.newFolder()
+        val assetFiles = listOf(LazyAssetFile("styles/main.css", "text/css"))
+        val pub = makePub("xhtml/ch01.xhtml", assetFiles = assetFiles)
+        val fetchedAssets = mutableListOf<String>()
+
+        // Pre-cache the asset.
+        OReillyLazyContainer.writeCacheFile(
+            OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "styles/main.css"),
+            "pre-cached".encodeToByteArray(),
+        )
+
+        val container = OReillyLazyContainer(
+            pub = pub,
+            cacheDir = cacheDir,
+            fetchChapter = { _, path, _ -> "<p>$path</p>" },
+            fetchAsset = { _, path -> fetchedAssets += path; ByteArray(0) },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            urlFactory = { null },
+        )
+        container.startBackgroundPrefetch(minDelayMs = 0L, maxDelayMs = 0L)
+
+        assertTrue("Pre-cached asset must not be re-fetched", fetchedAssets.isEmpty())
+    }
+
+    @Test
+    fun `assembleEpubFromCache returns null when a chapter is missing`() {
+        val cacheDir = tmp.newFolder()
+        val pub = makePub("xhtml/ch01.xhtml", "xhtml/ch02.xhtml")
+        val container = OReillyLazyContainer(
+            pub = pub,
+            cacheDir = cacheDir,
+            fetchChapter = { _, _, _ -> "" },
+            fetchAsset = { _, _ -> null },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            urlFactory = { null },
+        )
+
+        // Only ch01 cached; ch02 is missing.
+        OReillyLazyContainer.writeCacheFile(
+            OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, "xhtml/ch01.xhtml"),
+            "<p>ch01</p>".encodeToByteArray(),
+        )
+
+        assertNull(container.assembleEpubFromCache())
+    }
+
+    @Test
+    fun `assembleEpubFromCache produces a valid EPUB when all chapters are cached`() {
+        val cacheDir = tmp.newFolder()
+        val pub = makePub("xhtml/ch01.xhtml", "xhtml/ch02.xhtml")
+        val container = OReillyLazyContainer(
+            pub = pub,
+            cacheDir = cacheDir,
+            fetchChapter = { _, _, _ -> "" },
+            fetchAsset = { _, _ -> null },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            urlFactory = { null },
+        )
+
+        for (item in pub.spine) {
+            OReillyLazyContainer.writeCacheFile(
+                OReillyLazyContainer.cacheFileFor(cacheDir, pub.bookId, item.fullPath),
+                "<p>${item.fullPath}</p>".encodeToByteArray(),
+            )
+        }
+
+        val epub = container.assembleEpubFromCache()
+        assertNotNull(epub)
+
+        val entries = mutableListOf<String>()
+        ZipInputStream(ByteArrayInputStream(epub)).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) { entries += entry.name; entry = zis.nextEntry }
+        }
+        assertTrue(entries.contains("mimetype"))
+        assertTrue(entries.contains("OEBPS/content.opf"))
+        assertTrue(entries.any { it.endsWith("ch01.xhtml") })
+        assertTrue(entries.any { it.endsWith("ch02.xhtml") })
     }
 }

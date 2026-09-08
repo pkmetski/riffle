@@ -33,6 +33,7 @@ import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.common.Clock
 import com.riffle.core.common.platformSystemClock
 import com.riffle.core.models.SourceType
+import com.riffle.core.catalog.LazyAssetFile
 import com.riffle.core.catalog.oreilly.epub.EpubZipEntry
 import com.riffle.core.catalog.oreilly.epub.EpubZipWriter
 import io.ktor.client.HttpClient
@@ -192,6 +193,10 @@ class OReillyCatalog internal constructor(
             )
         }
 
+        val chapterPaths = distinctSpine.map { it.first }.toSet()
+        val assetFiles = filterAssetFiles(files, chapterPaths)
+            .map { LazyAssetFile(it.fullPath, it.mediaType) }
+
         return LazyPublicationShape(
             bookId = itemId,
             identifier = "urn:orm:book:${detail.identifier.ifBlank { itemId }}",
@@ -201,6 +206,7 @@ class OReillyCatalog internal constructor(
             absoluteFilesPrefix = absPrefix,
             pathFilesPrefix = pathPrefix,
             cssFullPaths = cssFullPaths,
+            assetFiles = assetFiles,
         )
     }
 
@@ -250,13 +256,7 @@ class OReillyCatalog internal constructor(
         val pathPrefix = api.filesPrefix(itemId)
         val cssFullPaths = files.filter { it.kind == "stylesheet" }.map { it.fullPath }
         val chapterPaths = spine.map { it.first }.toSet()
-        val reservedPaths = setOf("content.opf", "nav.xhtml")
-        val assetFiles = files.filter { f ->
-            f.kind != "chapter" && f.fullPath.isNotBlank() &&
-                f.fullPath !in chapterPaths && f.fullPath !in reservedPaths &&
-                f.mediaType != "application/oebps-package+xml" &&
-                f.mediaType != "application/x-dtbncx+xml"
-        }.distinctBy { it.fullPath }
+        val assetFiles = filterAssetFiles(files, chapterPaths)
         val distinctSpine = spine.distinctBy { it.first }
 
         // Estimate total ZIP size from declared file sizes so the consumer can report progress.
@@ -415,18 +415,9 @@ class OReillyCatalog internal constructor(
         val pathPrefix = api.filesPrefix(itemId)                             // path-only prefix
         val cssFullPaths = files.filter { it.kind == "stylesheet" }.map { it.fullPath }
 
-        // Assets to package: every non-chapter file at its own full_path. Exclude the book's ORIGINAL
-        // package document / navigation / ncx — EpubAssembler generates its own `content.opf` and
-        // `nav.xhtml`, so re-packaging the originals produces duplicate zip entries (Readium: "invalid
-        // CEN header (duplicate entry)"). Also skip anything colliding with a chapter path, and dedupe.
+        // Assets to package: every non-chapter file at its own full_path.
         val chapterPaths = spine.map { it.first }.toSet()
-        val reservedPaths = setOf("content.opf", "nav.xhtml")
-        val assetFiles = files.filter { f ->
-            f.kind != "chapter" && f.fullPath.isNotBlank() &&
-                f.fullPath !in chapterPaths && f.fullPath !in reservedPaths &&
-                f.mediaType != "application/oebps-package+xml" &&
-                f.mediaType != "application/x-dtbncx+xml"
-        }.distinctBy { it.fullPath }
+        val assetFiles = filterAssetFiles(files, chapterPaths)
 
         // Dedupe repeated spine paths (a duplicate zip entry would fail Readium's parser).
         val distinctSpine = spine.distinctBy { it.first }
@@ -504,6 +495,24 @@ class OReillyCatalog internal constructor(
             offset += page.results.size
         }
         return all
+    }
+
+    /**
+     * Returns the packaged non-chapter assets from [files], excluding synthetic entries that
+     * [EpubAssembler] generates itself (content.opf, nav.xhtml) and OPF/NCX originals that would
+     * create duplicate ZIP entries if re-packaged.
+     */
+    internal fun filterAssetFiles(
+        files: List<OReillyFileMeta>,
+        chapterPaths: Set<String>,
+    ): List<OReillyFileMeta> {
+        val reservedPaths = setOf("content.opf", "nav.xhtml")
+        return files.filter { f ->
+            f.kind != "chapter" && f.fullPath.isNotBlank() &&
+                f.fullPath !in chapterPaths && f.fullPath !in reservedPaths &&
+                f.mediaType != "application/oebps-package+xml" &&
+                f.mediaType != "application/x-dtbncx+xml"
+        }.distinctBy { it.fullPath }
     }
 
     /**

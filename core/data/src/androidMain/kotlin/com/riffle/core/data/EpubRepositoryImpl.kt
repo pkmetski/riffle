@@ -161,6 +161,12 @@ class EpubRepositoryImpl(
 
     override fun isCached(sourceId: String, itemId: String): Boolean = cacheStore.get(sourceId, itemId) != null
 
+    override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {
+        if (isDownloaded(sourceId, itemId) || isCached(sourceId, itemId)) return
+        cacheStore.save(sourceId, itemId, bytes.inputStream())
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
+    }
+
     override suspend fun saveReadingPosition(itemId: String, cfi: String) {
         val sourceId = sourceRepository.getActive()?.id ?: return
         positionStore.save(sourceId, itemId, cfi)
