@@ -78,6 +78,9 @@ jobs:
             derived-data-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
             derived-data-${{ runner.os }}-
 
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
+
       - name: Select and pre-boot simulator
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c "
