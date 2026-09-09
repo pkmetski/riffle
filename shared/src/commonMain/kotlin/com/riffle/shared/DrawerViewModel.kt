@@ -72,7 +72,17 @@ class DrawerViewModel(
     }
 
     fun setActiveServer(sourceId: String) {
-        viewModelScope.launch { sourceRepository.setActive(sourceId) }
+        viewModelScope.launch {
+            lastOpenedLibraryStore.clearRiffleActive()
+            sourceRepository.setActive(sourceId)
+        }
+    }
+
+    fun setRiffleActive() {
+        viewModelScope.launch {
+            sourceRepository.clearActive()
+            lastOpenedLibraryStore.setRiffleActive()
+        }
     }
 
     init {

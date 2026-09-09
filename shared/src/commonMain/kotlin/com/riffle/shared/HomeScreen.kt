@@ -178,10 +178,12 @@ fun HomeScreen() {
                     isRiffleActive = appSection == AppSection.Riffle,
                     onNavigateToRiffle = {
                         drawerOpen = false
+                        drawerViewModel.setRiffleActive()
                         appSection = AppSection.Riffle
                     },
                     onServerSelected = { source ->
                         drawerOpen = false
+                        appSection = AppSection.Library
                         drawerViewModel.setActiveServer(source.id)
                         refreshKey++
                     },

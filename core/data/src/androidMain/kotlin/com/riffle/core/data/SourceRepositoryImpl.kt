@@ -63,6 +63,10 @@ class SourceRepositoryImpl constructor(
         dao.setActiveAtomic(sourceId)
     }
 
+    override suspend fun clearActive() {
+        dao.clearActiveFlag()
+    }
+
     override suspend fun remove(sourceId: String) {
         // Keep Room cleanup atomic. Some user databases have accumulated rows in source-scoped
         // caches and cross-source readaloud tables; deleting the source row through one graph

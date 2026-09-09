@@ -170,6 +170,14 @@ class NavigationDrawerViewModel constructor(
     }
 
     fun setRiffleActive() {
-        viewModelScope.launch { lastOpenedLibraryStore.setRiffleActive() }
+        viewModelScope.launch {
+            // Clear the active source so that switching back to any source (including the one
+            // that was active before entering Riffle) is always a state change. Without this,
+            // setActiveServer(X) on the previously-active source produces no new emission from the
+            // activeServer StateFlow (setActiveAtomic is transactional — Room fires one notification,
+            // net result is unchanged), so the LaunchedEffect in MainScreen never navigates away.
+            sourceRepository.clearActive()
+            lastOpenedLibraryStore.setRiffleActive()
+        }
     }
 }

@@ -33,6 +33,8 @@ interface SourceRepository {
         hiddenLibraryIds: Set<String>,
     ): CommitSourceResult
     suspend fun setActive(sourceId: String)
+    /** Deactivate all sources, leaving none active (e.g. when entering Riffle mode). */
+    suspend fun clearActive() {}
     suspend fun remove(sourceId: String)
     suspend fun getSourceVersion(sourceId: String): String?
 

@@ -51,7 +51,12 @@ private fun fakeSourceRepository(sources: List<Source> = listOf(absSource)): Sou
         override suspend fun getActive(): Source? = flow.value.firstOrNull { it.isActive }
         override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
             error("not used")
-        override suspend fun setActive(sourceId: String) {}
+        override suspend fun setActive(sourceId: String) {
+            flow.value = flow.value.map { it.copy(isActive = it.id == sourceId) }
+        }
+        override suspend fun clearActive() {
+            flow.value = flow.value.map { it.copy(isActive = false) }
+        }
         override suspend fun remove(sourceId: String) {}
         override suspend fun getSourceVersion(sourceId: String): String? = null
     }
@@ -90,9 +95,17 @@ private fun fakeVisibilityStore(hidden: Set<String> = emptySet()): LibraryVisibi
         override suspend fun showLibrary(sourceId: String, libraryId: String) {}
     }
 
-private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
+private fun fakeLastOpenedStore(): LastOpenedLibraryStore = trackingLastOpenedStore()
+
+private fun trackingLastOpenedStore(): TrackingLastOpenedStore = TrackingLastOpenedStore()
+
+private class TrackingLastOpenedStore : LastOpenedLibraryStore {
+    val riffleActiveFlow = MutableStateFlow(false)
     override fun lastOpenedLibrary(sourceId: String): Flow<String?> = flowOf(null)
-    override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {}
+    override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) { riffleActiveFlow.value = false }
+    override fun wasRiffleLastActive(): Flow<Boolean> = riffleActiveFlow
+    override suspend fun setRiffleActive() { riffleActiveFlow.value = true }
+    override suspend fun clearRiffleActive() { riffleActiveFlow.value = false }
 }
 
 class DrawerViewModelTest {
@@ -145,6 +158,41 @@ class DrawerViewModelTest {
         )
         val visible = vm.visibleLibraries.value
         assertEquals(listOf("B"), visible.map { it.id })
+    }
+
+    // Regression: setRiffleActive must clear the active source so that switching back to the
+    // previously-active source always changes activeServer (null → source) and triggers navigation.
+    @Test
+    fun setRiffleActiveClearsActiveSource() = runTest {
+        val store = trackingLastOpenedStore()
+        val vm = DrawerViewModel(
+            sourceRepository = fakeSourceRepository(listOf(absSource)),
+            libraryObserver = fakeLibraryObserver(),
+            visibilityStore = fakeVisibilityStore(),
+            lastOpenedLibraryStore = store,
+        )
+
+        vm.setRiffleActive()
+        testScheduler.advanceUntilIdle()
+
+        assertNull(vm.activeServer.value)
+    }
+
+    // Regression: setRiffleActive must persist the "riffle last active" flag for cold-start routing.
+    @Test
+    fun setRiffleActiveSetsRiffleFlag() = runTest {
+        val store = trackingLastOpenedStore()
+        val vm = DrawerViewModel(
+            sourceRepository = fakeSourceRepository(),
+            libraryObserver = fakeLibraryObserver(),
+            visibilityStore = fakeVisibilityStore(),
+            lastOpenedLibraryStore = store,
+        )
+
+        vm.setRiffleActive()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(true, store.riffleActiveFlow.value)
     }
 
     @Test

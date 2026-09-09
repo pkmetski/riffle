@@ -63,6 +63,10 @@ class IosSourceRepositoryImpl(private val dao: SourceDao, private val libraryDao
         dao.setActiveAtomic(sourceId)
     }
 
+    override suspend fun clearActive() {
+        dao.clearActiveFlag()
+    }
+
     override suspend fun remove(sourceId: String) {
         dao.deleteSourceGraph(sourceId)
         tokenStorage.deleteToken(sourceId)
