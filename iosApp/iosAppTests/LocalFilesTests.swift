@@ -22,6 +22,13 @@ final class LocalFilesTests: XCTestCase {
             localFilesCard.waitForExistence(timeout: 5),
             "Local files card should be visible in the source picker"
         )
+        // waitForExistence returns as soon as the element is in the hierarchy; on a loaded CI
+        // runner the card's initial-load animation may still be settling, causing the implicit
+        // kAXScrollToVisibleAction in tap() to fail with kAXErrorCannotComplete.  Wait until
+        // the element is fully hittable before tapping.
+        let hittable = NSPredicate(format: "hittable == true")
+        let hittableExp = XCTNSPredicateExpectation(predicate: hittable, object: localFilesCard)
+        wait(for: [hittableExp], timeout: 5)
 
         localFilesCard.tap()
 
