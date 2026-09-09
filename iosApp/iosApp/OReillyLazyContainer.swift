@@ -59,15 +59,15 @@ final class OReillyLazyContainer: Container {
     /// Mirror of `OReillyLazyContainer.extractRelativePath` on Android: strips the
     /// `https://readium_package/` origin Readium prepends to sub-resource URLs.
     static func extractRelativePath(_ urlString: String) -> String {
-        var s = urlString
+        var path = urlString
         let prefix = "https://readium_package/"
-        if s.hasPrefix(prefix) {
-            s = String(s.dropFirst(prefix.count))
+        if path.hasPrefix(prefix) {
+            path = String(path.dropFirst(prefix.count))
         }
-        if s.hasPrefix("/") {
-            s = String(s.dropFirst())
+        if path.hasPrefix("/") {
+            path = String(path.dropFirst())
         }
-        return s
+        return path
     }
 }
 
