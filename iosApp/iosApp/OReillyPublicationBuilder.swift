@@ -36,8 +36,8 @@ enum OReillyPublicationBuilder {
 
         let manifest = Manifest(
             metadata: Metadata(
-                conformsTo: [.epub],
                 identifier: shape.identifier,
+                conformsTo: [.epub],
                 title: shape.title,
                 languages: [shape.language]
             ),
