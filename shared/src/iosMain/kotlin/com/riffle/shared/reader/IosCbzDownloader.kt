@@ -14,11 +14,7 @@ import io.ktor.http.isSuccess
  * Downloads a CBZ file from ABS and returns its raw bytes.
  * Uses `/api/items/{id}/file/{ino}` — same endpoint as EPUB downloads.
  */
-class IosCbzDownloader(
-    private val httpClient: HttpClient,
-    private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
-) {
+class IosCbzDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) {
     suspend fun downloadBytes(item: LibraryItem): ByteArray? {
         val source = sourceRepository.getActive() ?: return null
         val token = tokenStorage.getToken(source.id) ?: return null

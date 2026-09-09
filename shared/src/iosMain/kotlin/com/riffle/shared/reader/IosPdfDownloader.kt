@@ -22,11 +22,7 @@ import platform.Foundation.create
  * Downloads PDF files from ABS to the iOS temporary directory using Ktor.
  * Uses `/api/items/{id}/file/{ino}` — the same endpoint as EPUB downloads.
  */
-class IosPdfDownloader(
-    private val httpClient: HttpClient,
-    private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
-) {
+class IosPdfDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) {
     /**
      * Returns the local file path of the PDF, downloading from ABS if not yet cached.
      * Returns null if the source, token, or file inode is unavailable, or the download fails.

@@ -102,7 +102,8 @@ class AddSourceViewModelTest {
             )
         ),
         private val storedById: Map<String, Source> = emptyMap(),
-    ) : SourceRepository, SourceAdapter {
+    ) : SourceRepository,
+        SourceAdapter {
         var commitCallCount = 0
         var lastInsecureAllowed: Boolean? = null
         var lastServerType: com.riffle.core.models.ServerType? = null
@@ -138,9 +139,7 @@ class AddSourceViewModelTest {
         }
     }
 
-    private class RecordingConfigStore(
-        initial: AnnotationSyncConfig? = null,
-    ) : AnnotationSyncConfigStore {
+    private class RecordingConfigStore(initial: AnnotationSyncConfig? = null,) : AnnotationSyncConfigStore {
         private val state = MutableStateFlow(initial)
         var saved: AnnotationSyncConfig? = null
         var clearCount = 0
@@ -155,9 +154,7 @@ class AddSourceViewModelTest {
         }
     }
 
-    private class CountingTokenStorage(
-        private val passwords: MutableMap<String, String> = mutableMapOf(),
-    ) : com.riffle.core.domain.TokenStorage {
+    private class CountingTokenStorage(private val passwords: MutableMap<String, String> = mutableMapOf(),) : com.riffle.core.domain.TokenStorage {
         override suspend fun saveToken(sourceId: String, token: String) {}
         override suspend fun getToken(sourceId: String): String? = null
         override suspend fun deleteToken(sourceId: String) {}

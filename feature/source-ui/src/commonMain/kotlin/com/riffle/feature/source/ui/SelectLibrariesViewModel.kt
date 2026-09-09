@@ -13,10 +13,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-class SelectLibrariesViewModel constructor(
-    private val repository: SourceRepository,
-    private val strings: SourceUiStrings,
-) : ViewModel() {
+class SelectLibrariesViewModel constructor(private val repository: SourceRepository, private val strings: SourceUiStrings,) : ViewModel() {
 
     private var pending: PendingSource? = null
 
