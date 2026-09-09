@@ -16,11 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import platform.Foundation.NSUUID
 
-class IosSourceRepositoryImpl(
-    private val dao: SourceDao,
-    private val libraryDao: LibraryDao,
-    private val tokenStorage: TokenStorage,
-) : SourceRepository {
+class IosSourceRepositoryImpl(private val dao: SourceDao, private val libraryDao: LibraryDao, private val tokenStorage: TokenStorage,) : SourceRepository {
 
     override fun observeAll(): Flow<List<Source>> =
         dao.observeAll().map { list ->

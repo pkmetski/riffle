@@ -10,10 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
-internal class IosLocalFilesFolderDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : LocalFilesFolderDao {
+internal class IosLocalFilesFolderDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : LocalFilesFolderDao {
 
     override suspend fun upsert(entity: LocalFilesFolderEntity) {
         driver.execute(

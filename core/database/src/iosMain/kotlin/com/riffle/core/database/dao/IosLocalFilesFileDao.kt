@@ -10,10 +10,7 @@ import com.riffle.core.database.LocalFilesFileEntity
 private const val ALL_COLS =
     "sourceId, sourceItemId, originalUri, copiedPath, coverPath, format, sizeBytes, mtimeEpochMs, lastSeenAtEpochMs, displayName"
 
-internal class IosLocalFilesFileDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : LocalFilesFileDao {
+internal class IosLocalFilesFileDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : LocalFilesFileDao {
 
     override suspend fun upsert(entity: LocalFilesFileEntity) {
         driver.execute(

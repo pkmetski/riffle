@@ -15,10 +15,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
 @Suppress("TooManyFunctions")
-internal class IosLibraryItemDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : LibraryItemDao {
+internal class IosLibraryItemDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : LibraryItemDao {
     override fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
         invalidator.version.flatMapLatest {
             flow { emit(queryByLibraryId(sourceId, libraryId)) }
@@ -315,14 +312,16 @@ internal class IosLibraryItemDao(
                WHERE s.serverType = ?""",
             { cursor ->
                 val rows = mutableListOf<MatchableItemRow>()
-                while (cursor.next().value) rows.add(MatchableItemRow(
-                    itemId = cursor.getString(0)!!,
-                    sourceId = cursor.getString(1)!!,
-                    title = cursor.getString(2)!!,
-                    author = cursor.getString(3)!!,
-                    isbn = cursor.getString(4),
-                    asin = cursor.getString(5),
-                ))
+                while (cursor.next().value) {
+                    rows.add(MatchableItemRow(
+                        itemId = cursor.getString(0)!!,
+                        sourceId = cursor.getString(1)!!,
+                        title = cursor.getString(2)!!,
+                        author = cursor.getString(3)!!,
+                        isbn = cursor.getString(4),
+                        asin = cursor.getString(5),
+                    ))
+                }
                 QueryResult.Value(rows)
             },
             1,

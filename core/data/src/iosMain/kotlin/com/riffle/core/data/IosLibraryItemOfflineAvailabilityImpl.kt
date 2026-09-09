@@ -16,9 +16,7 @@ const val NS_CBZ_CACHE = "cbz-cache"
 const val NS_AUDIOBOOK_DOWNLOADS = "audiobook-downloads"
 
 @OptIn(ExperimentalForeignApi::class)
-class IosLibraryItemOfflineAvailabilityImpl(
-    private val fileStore: FileStore,
-) : LibraryItemOfflineAvailability {
+class IosLibraryItemOfflineAvailabilityImpl(private val fileStore: FileStore,) : LibraryItemOfflineAvailability {
 
     override fun isAvailableOffline(item: LibraryItem): Boolean {
         val ebookAvailable = when (item.ebookFormat) {

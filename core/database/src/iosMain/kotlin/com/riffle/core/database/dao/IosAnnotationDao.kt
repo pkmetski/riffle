@@ -13,10 +13,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
 @Suppress("TooManyFunctions")
-internal class IosAnnotationDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : AnnotationDao {
+internal class IosAnnotationDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : AnnotationDao {
     override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
         invalidator.version.flatMapLatest {
             flow {
@@ -216,11 +213,13 @@ internal class IosAnnotationDao(
                        GROUP BY itemId ORDER BY latestUpdatedAt DESC""",
                     { cursor ->
                         val rows = mutableListOf<BookHighlightSummary>()
-                        while (cursor.next().value) rows.add(BookHighlightSummary(
-                            itemId = cursor.getString(0)!!,
-                            highlightCount = cursor.getLong(1)!!.toInt(),
-                            latestUpdatedAt = cursor.getLong(2)!!,
-                        ))
+                        while (cursor.next().value) {
+                            rows.add(BookHighlightSummary(
+                                itemId = cursor.getString(0)!!,
+                                highlightCount = cursor.getLong(1)!!.toInt(),
+                                latestUpdatedAt = cursor.getLong(2)!!,
+                            ))
+                        }
                         QueryResult.Value(rows)
                     }, 1) { bindString(0, sourceId) }.value)
             }

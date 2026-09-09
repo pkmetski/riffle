@@ -11,10 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
-internal class IosPlaylistDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : PlaylistDao {
+internal class IosPlaylistDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : PlaylistDao {
     override fun observeByRootId(rootId: String): Flow<List<PlaylistEntity>> =
         invalidator.version.flatMapLatest {
             flow {

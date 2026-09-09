@@ -5,12 +5,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 // NSUserDefaults-backed PreferenceStore for iOS.
 // Each instance manages a single keyed value in the standard user defaults store.
-class IosPreferenceStore<T>(
-    private val key: String,
-    private val defaultValue: T,
-    private val write: (T) -> Any?,
-) : PreferenceStore<T> {
-    @Suppress("ktlint:standard:property-naming")
+class IosPreferenceStore<T>(private val key: String, private val defaultValue: T, private val write: (T) -> Any?,) : PreferenceStore<T> {
+    @Suppress("ktlint:standard:property-naming", "ktlint:standard:backing-property-naming")
     private val _state = MutableStateFlow(defaultValue)
 
     override val flow: Flow<T> get() = _state
