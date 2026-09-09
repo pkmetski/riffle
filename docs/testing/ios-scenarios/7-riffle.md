@@ -49,14 +49,6 @@ Tests for the cross-source Riffle view introduced in the Riffle feature.
 **When** the drawer is opened from Riffle.
 **Then** the "Riffle" row in the drawer has a distinct background indicating it is the active destination.
 
-## Scenario 7.10 — Switching from Riffle back to the previously-active source navigates away on first tap
-
-**Given** source A is the active source and the user has navigated to the Riffle screen.
-**When** the user opens the drawer and taps source A (the same source that was active before entering Riffle).
-**Then** the drawer closes and the user is taken to source A's library on the **first** tap, not the second.
-
-*Regression: entering Riffle must deactivate the underlying source so that re-selecting the same source is always a state change that triggers navigation away from Riffle.*
-
 ## Scenario 7.9 — Riffle entry hidden with fewer than 2 sources
 
 **Given** exactly one source is configured.
@@ -66,3 +58,11 @@ Tests for the cross-source Riffle view introduced in the Riffle feature.
 **Given** two or more sources are configured.
 **When** the user opens the drawer.
 **Then** the "Riffle" row appears at the top of the drawer above the source-switcher header.
+
+## Scenario 7.10 — Switching from Riffle back to the previously-active source navigates away on first tap
+
+**Given** source A is the active source and the user has navigated to the Riffle screen.
+**When** the user opens the drawer and taps source A (the same source that was active before entering Riffle).
+**Then** the drawer closes and the user is taken to source A's library on the **first** tap, not the second.
+
+*Regression: entering Riffle must deactivate the underlying source so that re-selecting the same source is always a state change that triggers navigation away from Riffle.*
