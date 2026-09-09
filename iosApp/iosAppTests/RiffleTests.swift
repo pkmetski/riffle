@@ -42,6 +42,13 @@ final class RiffleTests: XCTestCase {
         throw XCTSkip("UI-only; verified manually — tapping a book in Riffle pushes LibraryItemDetailScreen")
     }
 
+    // Scenario 7.10 — Switching from Riffle back to the previously-active source navigates on first tap.
+    // The fix is in IosSourceRepositoryImpl.clearActive() called by setRiffleActive() in the shared
+    // NavigationDrawerViewModel (commonMain). iOS exercises the same ViewModel path.
+    func testSwitchingFromRiffleToSameSourceNavigatesOnFirstTap() throws {
+        throw XCTSkip("UI-only; verified manually — tap Riffle, open drawer, tap the source that was active before: library opens on the FIRST tap, not the second")
+    }
+
     // Scenario 7.9 — Riffle drawer entry is hidden when fewer than 2 sources are configured.
     // Logic lives in HomeScreen.kt (iOS drawer) and NavigationDrawerComposable.kt (Android).
     // Condition: allServers.size >= 2 (Android: shouldShowRiffleSource; iOS: inline guard).

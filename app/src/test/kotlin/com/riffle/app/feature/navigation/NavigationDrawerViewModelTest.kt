@@ -74,6 +74,9 @@ class NavigationDrawerViewModelTest {
         override suspend fun setActive(sourceId: String) {
             serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
+        override suspend fun clearActive() {
+            serversFlow.update { list -> list.map { it.copy(isActive = false) } }
+        }
         override suspend fun remove(sourceId: String) {
             serversFlow.update { list -> list.filter { it.id != sourceId } }
         }
@@ -506,6 +509,25 @@ class NavigationDrawerViewModelTest {
 
         val wasRiffle = riffleActiveFlow.first()
         assertEquals(true, wasRiffle)
+    }
+
+    // Regression: switching from Riffle back to the source that was active BEFORE Riffle was
+    // entered must change activeServer (null → source), so MainScreen's LaunchedEffect fires and
+    // navigates away from the Riffle screen. Without clearActive() in setRiffleActive(), the
+    // previously-active source stays active in the DB; setActiveAtomic is transactional and Room
+    // emits one notification with the net-unchanged value, so the StateFlow never changes and the
+    // LaunchedEffect is never triggered — first tap to switch away from Riffle silently no-ops.
+    @Test
+    fun `setRiffleActive clears the active source so re-selecting it later triggers a state change`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        val vm = makeVm()
+        backgroundScope.launch { vm.activeServer.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        vm.setRiffleActive()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(null, vm.activeServer.value)
     }
 
     // Regression: switching the active source while Riffle is showing must clear the
