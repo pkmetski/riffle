@@ -14,7 +14,6 @@ kotlin {
             api(project(":core:sync"))
             api(project(":core:database-api"))
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.koin.core)
             implementation(libs.androidx.lifecycle.viewmodel)
         }
         commonTest.dependencies {

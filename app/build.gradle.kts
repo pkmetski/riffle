@@ -200,12 +200,10 @@ dependencies {
     compileOnly(libs.pdfium.android)
 
     implementation(libs.acra.core)
-    implementation(libs.acra.toast)
     implementation(libs.acra.dialog)
     implementation(libs.acra.limiter)
 
     implementation(libs.jsoup)
-    testImplementation(libs.jsoup)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

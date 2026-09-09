@@ -13,7 +13,6 @@ kotlin {
             api(project(":core:models"))
             api(project(":core:catalog"))
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.koin.core)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.compose.runtime)  // mutableStateOf in ViewModels
         }
