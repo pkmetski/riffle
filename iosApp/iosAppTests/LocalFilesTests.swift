@@ -32,9 +32,11 @@ final class LocalFilesTests: XCTestCase {
 
         localFilesCard.tap()
 
-        // The iOS document picker appears with a Cancel button.
+        // The iOS document picker appears with a Cancel button. The system folder picker
+        // is presented modally and can take a few seconds to animate in on a loaded CI runner;
+        // use a generous timeout so the assertion isn't a timing flake.
         let cancelButton = app.buttons["Cancel"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Picker Cancel button should appear")
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 15), "Picker Cancel button should appear")
         cancelButton.tap()
 
         // After cancellation the source picker is visible again.

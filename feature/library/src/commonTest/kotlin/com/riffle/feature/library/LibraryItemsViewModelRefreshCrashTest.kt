@@ -47,8 +47,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -61,6 +65,9 @@ import kotlin.test.assertTrue
 class LibraryItemsViewModelRefreshCrashTest {
 
     private val testDispatcher = StandardTestDispatcher()
+
+    @BeforeTest fun setUp() { Dispatchers.setMain(testDispatcher) }
+    @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     private fun makeDispatcherProvider(): DispatcherProvider = object : DispatcherProvider {
         override val main: CoroutineDispatcher = testDispatcher
