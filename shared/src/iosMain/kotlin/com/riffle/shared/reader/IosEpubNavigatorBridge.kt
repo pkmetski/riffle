@@ -47,6 +47,15 @@ interface IosEpubNavigatorBridge {
      * identifier (e.g. "highlights", "bookmarks"). See [ReadiumSwiftNavigator] for the schema.
      */
     fun applyDecorations(decorationsJson: String, group: String)
+
+    /**
+     * Open an O'Reilly lazy publication: build a Readium Swift [Publication] from [shapeJson]
+     * (the serialised [LazyPublicationShape]) backed by [fetcher], then open the navigator.
+     * This bypasses file-based EPUB parsing entirely — no download is required.
+     *
+     * [shapeJson] must be the JSON produced by [IosLazyChapterFetcherImpl.serializeShape].
+     */
+    fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher)
 }
 
 /** Factory so Koin can produce one bridge instance per reader open. */

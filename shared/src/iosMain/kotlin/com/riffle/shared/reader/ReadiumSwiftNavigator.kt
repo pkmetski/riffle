@@ -65,6 +65,12 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         bridge.openEpub(bookFilePath, initialLocatorJson)
     }
 
+    /** Open an O'Reilly lazy publication without downloading a file first. */
+    fun openLazy(shapeJson: String, locatorJson: LocatorJson?, fetcher: IosLazyChapterFetcher) {
+        registerBridgeCallbacks()
+        bridge.openLazyEpub(shapeJson, locatorJson, fetcher)
+    }
+
     override fun close() {
         bridge.setLocatorCallback(null)
         bridge.setPageLoadCallback(null)

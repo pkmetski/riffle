@@ -73,6 +73,23 @@ object OReillyEpub {
     fun relativeTo(chapterFullPath: String, assetFullPath: String): String =
         relPrefixFor(chapterFullPath) + assetFullPath
 
+    /**
+     * Assembles the final XHTML for a lazy-loaded chapter. Rewrites absolute and path-based URL
+     * prefixes to relative form and injects stylesheet `<link>` tags. Shared by Android's
+     * [com.riffle.app.feature.source.oreilly.OReillyLazyContainer] and iOS's `IosLazyChapterFetcherImpl`.
+     */
+    fun buildChapterXhtml(
+        pub: com.riffle.core.catalog.LazyPublicationShape,
+        item: com.riffle.core.catalog.LazySpineItem,
+        rawHtml: String,
+    ): String {
+        val rewritten = rawHtml
+            .replace(pub.absoluteFilesPrefix, relPrefixFor(item.fullPath))
+            .replace(pub.pathFilesPrefix, relPrefixFor(item.fullPath))
+        val cssHrefs = pub.cssFullPaths.map { relativeTo(item.fullPath, it) }
+        return wrapChapter(item.title, rewritten, cssHrefs)
+    }
+
     private fun String.xmlText(): String =
         replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 

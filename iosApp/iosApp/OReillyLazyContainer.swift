@@ -1,0 +1,174 @@
+import Foundation
+import ReadiumShared
+import Riffle
+
+// MARK: - Shape DTOs (decoded from IosLazyChapterFetcherImpl.serializeShape JSON)
+
+struct LazyPublicationShapeDto: Codable {
+    let bookId: String
+    let identifier: String
+    let title: String
+    let language: String
+    let spine: [LazySpineItemDto]
+    let absoluteFilesPrefix: String
+    let pathFilesPrefix: String
+    let cssFullPaths: [String]
+}
+
+struct LazySpineItemDto: Codable {
+    let index: Int
+    let fullPath: String
+    let title: String
+    let declaredByteSize: Int64
+}
+
+// MARK: - Container
+
+/// Readium Swift `Container` for O'Reilly lazy publications.  Each chapter resource is served on
+/// demand via `IosLazyChapterFetcher` (backed by `IosLazyChapterFetcherImpl` on the Kotlin side),
+/// which fetches raw HTML, assembles XHTML via the shared `OReillyEpub` helpers, and caches to
+/// disk.  Subsequent reads of the same chapter are served from cache — no network round-trip.
+final class OReillyLazyContainer: Container {
+
+    let shape: LazyPublicationShapeDto
+    private let fetcher: any IosLazyChapterFetcher
+
+    var sourceURL: (any AbsoluteURL)? { nil }
+
+    var entries: Set<AnyURL> {
+        Set(shape.spine.compactMap { AnyURL(path: $0.fullPath) })
+    }
+
+    init(shape: LazyPublicationShapeDto, fetcher: any IosLazyChapterFetcher) {
+        self.shape = shape
+        self.fetcher = fetcher
+    }
+
+    subscript(_ url: any URLConvertible) -> (any Resource)? {
+        // Normalise to a relative path so we match spine items by their fullPath regardless of
+        // whether Readium delivers the URL as bare "xhtml/ch01.xhtml" or as an absolute
+        // "https://readium_package/xhtml/ch01.xhtml". Mirrors Android's exact-URL map lookup.
+        let relativePath = Self.extractRelativePath(url.anyURL.string)
+        if let spineItem = shape.spine.first(where: { $0.fullPath == relativePath }) {
+            return LazyChapterResource(spineItem: spineItem, fetcher: fetcher)
+        }
+        return LazyAssetResource(fullPath: relativePath, fetcher: fetcher)
+    }
+
+    func close() async {}
+
+    /// Mirror of `OReillyLazyContainer.extractRelativePath` on Android: strips the
+    /// `https://readium_package/` origin Readium prepends to sub-resource URLs.
+    static func extractRelativePath(_ urlString: String) -> String {
+        var path = urlString
+        let prefix = "https://readium_package/"
+        if path.hasPrefix(prefix) {
+            path = String(path.dropFirst(prefix.count))
+        }
+        if path.hasPrefix("/") {
+            path = String(path.dropFirst())
+        }
+        return path
+    }
+}
+
+// MARK: - Chapter resource
+
+/// `Resource` for a single spine chapter: delegates to `IosLazyChapterFetcher.fetchChapterXhtmlPath`.
+private final class LazyChapterResource: Resource {
+
+    var sourceURL: (any AbsoluteURL)? { nil }
+
+    private let spineItem: LazySpineItemDto
+    private let fetcher: any IosLazyChapterFetcher
+
+    init(spineItem: LazySpineItemDto, fetcher: any IosLazyChapterFetcher) {
+        self.spineItem = spineItem
+        self.fetcher = fetcher
+    }
+
+    func properties() async -> ReadResult<ResourceProperties> {
+        .success(ResourceProperties())
+    }
+
+    func estimatedLength() async -> ReadResult<UInt64?> {
+        let size = spineItem.declaredByteSize
+        return .success(size > 0 ? UInt64(size) : nil)
+    }
+
+    func stream(range: Range<UInt64>?, consume: @escaping (Data) -> Void) async -> ReadResult<Void> {
+        return await withCheckedContinuation { continuation in
+            fetcher.fetchChapterXhtmlPath(
+                fullPath: spineItem.fullPath,
+                expectedByteSize: spineItem.declaredByteSize
+            ) { filePath in
+                guard let filePath = filePath,
+                      let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
+                    continuation.resume(returning: .failure(.decoding("chapter fetch failed")))
+                    return
+                }
+                let chunk: Data
+                if let range = range {
+                    let start = Int(min(range.lowerBound, UInt64(data.count)))
+                    let end = Int(min(range.upperBound, UInt64(data.count)))
+                    chunk = data.subdata(in: start..<end)
+                } else {
+                    chunk = data
+                }
+                consume(chunk)
+                continuation.resume(returning: .success(()))
+            }
+        }
+    }
+
+    func close() async {}
+}
+
+// MARK: - Asset resource
+
+/// `Resource` for CSS, images, and other binary assets: delegates to
+/// `IosLazyChapterFetcher.fetchAssetPath`.
+private final class LazyAssetResource: Resource {
+
+    var sourceURL: (any AbsoluteURL)? { nil }
+
+    private let fullPath: String
+    private let fetcher: any IosLazyChapterFetcher
+
+    init(fullPath: String, fetcher: any IosLazyChapterFetcher) {
+        self.fullPath = fullPath
+        self.fetcher = fetcher
+    }
+
+    func properties() async -> ReadResult<ResourceProperties> {
+        .success(ResourceProperties())
+    }
+
+    func estimatedLength() async -> ReadResult<UInt64?> {
+        .success(nil)
+    }
+
+    func stream(range: Range<UInt64>?, consume: @escaping (Data) -> Void) async -> ReadResult<Void> {
+        return await withCheckedContinuation { continuation in
+            fetcher.fetchAssetPath(fullPath: fullPath) { filePath in
+                guard let filePath = filePath,
+                      let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
+                    continuation.resume(returning: .failure(.decoding("asset fetch failed")))
+                    return
+                }
+                let chunk: Data
+                if let range = range {
+                    let start = Int(min(range.lowerBound, UInt64(data.count)))
+                    let end = Int(min(range.upperBound, UInt64(data.count)))
+                    chunk = data.subdata(in: start..<end)
+                } else {
+                    chunk = data
+                }
+                consume(chunk)
+                continuation.resume(returning: .success(()))
+            }
+        }
+    }
+
+    func close() async {}
+}
