@@ -1,5 +1,6 @@
 import XCTest
 import Riffle
+import ReadiumShared
 
 // Covers scenarios from docs/testing/ios-scenarios/20-oreilly-lazy-publication.md
 
@@ -109,7 +110,8 @@ final class OReillyLazyPublicationTests: XCTestCase {
         """
         let fetcher = StubLazyChapterFetcher()
         let (_, container) = try OReillyPublicationBuilder.build(shapeJson: zeroSizeJson, fetcher: fetcher)
-        guard let resource = container["ch01.xhtml" as any URLConvertible] else {
+        guard let url = AnyURL(path: "ch01.xhtml"),
+              let resource = container[url] else {
             XCTFail("Expected a resource for ch01.xhtml"); return
         }
         let result = await resource.estimatedLength()
@@ -157,7 +159,8 @@ final class OReillyLazyPublicationTests: XCTestCase {
 
         let (_, container) = try OReillyPublicationBuilder.build(shapeJson: validShapeJson, fetcher: fetcher)
 
-        guard let resource = container["xhtml/ch01.xhtml" as any URLConvertible] else {
+        guard let chUrl = AnyURL(path: "xhtml/ch01.xhtml"),
+              let resource = container[chUrl] else {
             XCTFail("Container should return a resource for ch01.xhtml")
             return
         }
@@ -176,7 +179,8 @@ final class OReillyLazyPublicationTests: XCTestCase {
         // No path registered → fetcher returns nil.
         let (_, container) = try OReillyPublicationBuilder.build(shapeJson: validShapeJson, fetcher: fetcher)
 
-        guard let resource = container["xhtml/ch01.xhtml" as any URLConvertible] else {
+        guard let chUrl2 = AnyURL(path: "xhtml/ch01.xhtml"),
+              let resource = container[chUrl2] else {
             XCTFail("Container should return a resource (not nil) even for un-cached chapters")
             return
         }

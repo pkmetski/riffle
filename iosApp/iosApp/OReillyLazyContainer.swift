@@ -1,5 +1,6 @@
 import Foundation
 import ReadiumShared
+import Riffle
 
 // MARK: - Shape DTOs (decoded from IosLazyChapterFetcherImpl.serializeShape JSON)
 
@@ -35,7 +36,7 @@ final class OReillyLazyContainer: Container {
     var sourceURL: (any AbsoluteURL)? { nil }
 
     var entries: Set<AnyURL> {
-        Set(shape.spine.compactMap { AnyURL(string: $0.fullPath) })
+        Set(shape.spine.compactMap { AnyURL(path: $0.fullPath) })
     }
 
     init(shape: LazyPublicationShapeDto, fetcher: any IosLazyChapterFetcher) {
@@ -47,7 +48,7 @@ final class OReillyLazyContainer: Container {
         // Normalise to a relative path so we match spine items by their fullPath regardless of
         // whether Readium delivers the URL as bare "xhtml/ch01.xhtml" or as an absolute
         // "https://readium_package/xhtml/ch01.xhtml". Mirrors Android's exact-URL map lookup.
-        let relativePath = Self.extractRelativePath(url.string)
+        let relativePath = Self.extractRelativePath(url.anyURL.string)
         if let spineItem = shape.spine.first(where: { $0.fullPath == relativePath }) {
             return LazyChapterResource(spineItem: spineItem, fetcher: fetcher)
         }
