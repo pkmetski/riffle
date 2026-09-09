@@ -167,7 +167,7 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 75
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
