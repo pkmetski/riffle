@@ -481,12 +481,22 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             reader.isFirstLoadComplete.value
         }
-        // Let the rebuild's initial-scroll land fully: while pendingInitialScroll is set the
-        // controller ignores every shift decision (including the one this gesture triggers), so
-        // under machine load the prepend silently never fires and the leg flakes. The fallback
-        // fires at 2.5 s; wait just past it.
+        // Wait for the smooth-tail landing animation to settle before dispatching the fling.
+        // isFirstLoadComplete fires when smoothScrollTo(ch11.top) starts (scrollY=preLandY=0);
+        // on loaded CI the ~250 ms tween can be delayed much longer.  Poll until scrollY is
+        // stable at a positive value so the fling's ACTION_DOWN finds the reader at the landing
+        // position rather than mid-animation.  If the animation was skipped (non-smooth path),
+        // scrollY is already positive and stable within one poll cycle.
         composeTestRule.waitForIdle()
-        Thread.sleep(2_600)
+        var lastY = -1
+        var stableCount = 0
+        val stabilisationDeadline = android.os.SystemClock.uptimeMillis() + 8_000
+        while (stableCount < 5 && android.os.SystemClock.uptimeMillis() < stabilisationDeadline) {
+            Thread.sleep(100)
+            var y = -1
+            composeTestRule.activityRule.scenario.onActivity { y = reader.scrollY }
+            if (y == lastY && y > 0) stableCount++ else { stableCount = 0; lastY = y }
+        }
         dispatchFlingSwipeBackward(reader)
         // The prepended previous chapter must load AND measure past its screen-sized placeholder
         // before the landing position is meaningful. Polled manually so a timeout can report the
