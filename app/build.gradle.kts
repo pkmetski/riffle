@@ -229,8 +229,17 @@ debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
-// Asset merging must wait for :feature:source-ui to assemble its Compose resources into the
-// directory registered as an asset srcDir above.
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+// Asset merging and lint tasks must wait for :feature:source-ui to assemble its Compose resources
+// into the directory registered as an asset srcDir above. AGP 9.4.0 introduced
+// generateReleaseLintVitalReportModel / lintVitalAnalyze* as tasks that also scan asset source
+// directories; without the dependsOn they fail with "implicit dependency" validation errors.
+// The same applies to the standard lint task's generateDebugLintReportModel / lintAnalyze* tasks.
+tasks.matching {
+    (it.name.startsWith("merge") && it.name.endsWith("Assets")) ||
+        it.name.endsWith("LintVitalReportModel") ||
+        it.name.endsWith("LintReportModel") ||
+        it.name.startsWith("lintVitalAnalyze") ||
+        it.name.startsWith("lintAnalyze")
+}.configureEach {
     dependsOn(":feature:source-ui:copyComposeResourcesForApk")
 }

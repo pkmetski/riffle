@@ -60,11 +60,8 @@ interface IosLazyChapterFetcher {
  * Assets are cached similarly at a parallel path.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-class IosLazyChapterFetcherImpl(
-    private val cap: LazyPublicationCapability,
-    private val shape: LazyPublicationShape,
-    private val itemId: String,
-) : IosLazyChapterFetcher {
+class IosLazyChapterFetcherImpl(private val cap: LazyPublicationCapability, private val shape: LazyPublicationShape, private val itemId: String,) :
+    IosLazyChapterFetcher {
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
