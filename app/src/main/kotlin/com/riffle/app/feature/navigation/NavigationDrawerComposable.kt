@@ -281,23 +281,25 @@ private fun DrawerHeader(
             onDismissRequest = { switcherExpanded = false },
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
-            // Riffle entry pinned at top of the switcher.
-            DropdownMenuItem(
-                text = { AutoShrinkingSingleLineText(text = "Riffle") },
-                leadingIcon = { RiffleAppIcon(size = 24.dp) },
-                trailingIcon = {
-                    if (isRiffleActive) {
-                        Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
-                    } else {
-                        Spacer(modifier = Modifier.size(24.dp))
-                    }
-                },
-                onClick = {
-                    switcherExpanded = false
-                    onRiffleSelected()
-                },
-            )
-            HorizontalDivider()
+            // Riffle entry pinned at top of the switcher — only when 2+ sources are configured.
+            if (shouldShowRiffleSource(allServers.size)) {
+                DropdownMenuItem(
+                    text = { AutoShrinkingSingleLineText(text = "Riffle") },
+                    leadingIcon = { RiffleAppIcon(size = 24.dp) },
+                    trailingIcon = {
+                        if (isRiffleActive) {
+                            Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
+                    },
+                    onClick = {
+                        switcherExpanded = false
+                        onRiffleSelected()
+                    },
+                )
+                HorizontalDivider()
+            }
             allServers.forEach { server ->
                 DropdownMenuItem(
                     text = {
@@ -474,3 +476,5 @@ private fun localizedSourceSwitcherSubtitle(source: Source, version: String?): S
         localizedDescriptorSubtitle(descriptor)
     }
 }
+
+internal fun shouldShowRiffleSource(sourceCount: Int): Boolean = sourceCount >= 2

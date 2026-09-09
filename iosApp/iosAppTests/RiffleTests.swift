@@ -41,4 +41,15 @@ final class RiffleTests: XCTestCase {
     func testTappingBookOpensItemDetail() throws {
         throw XCTSkip("UI-only; verified manually — tapping a book in Riffle pushes LibraryItemDetailScreen")
     }
+
+    // Scenario 7.9 — Riffle drawer entry is hidden when fewer than 2 sources are configured.
+    // Logic lives in HomeScreen.kt (iOS drawer) and NavigationDrawerComposable.kt (Android).
+    // Condition: allServers.size >= 2 (Android: shouldShowRiffleSource; iOS: inline guard).
+    func testRiffleDrawerEntryHiddenWithOneSource() throws {
+        throw XCTSkip("UI-only; verified manually — with 1 source configured, Riffle row does not appear in the drawer")
+    }
+
+    func testRiffleDrawerEntryVisibleWithTwoSources() throws {
+        throw XCTSkip("UI-only; verified manually — with 2 sources configured, Riffle row appears at top of drawer")
+    }
 }
