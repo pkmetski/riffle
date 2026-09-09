@@ -1,9 +1,11 @@
 package com.riffle.app.ui.theme
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -18,6 +20,9 @@ import com.riffle.app.R
  * [painterResource] cannot load mipmap adaptive icons on API 26+ (they are XML, not rasters).
  * [ContextCompat.getDrawable] correctly resolves the adaptive icon and [toBitmap] renders both
  * background and foreground layers onto a canvas, producing a real bitmap at any size.
+ *
+ * CircleShape clip is applied explicitly because on API < 26 the round-launcher PNG is a plain
+ * raster without transparency masking, so the OS does not clip it to a circle automatically.
  */
 @Composable
 fun RiffleAppIcon(
@@ -33,7 +38,7 @@ fun RiffleAppIcon(
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
-            modifier = modifier,
+            modifier = modifier.clip(CircleShape),
         )
     }
 }

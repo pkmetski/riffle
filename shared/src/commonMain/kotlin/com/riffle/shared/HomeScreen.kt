@@ -225,23 +225,25 @@ private fun DrawerSheetContent(
     var switcherExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxHeight()) {
-        // Riffle entry — pinned at the top, above the source switcher
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(if (isRiffleActive) Color(0xFFE8E8E8) else Color.Transparent)
-                .clickable { onNavigateToRiffle() }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicText("Riffle", style = TextStyle(fontSize = 15.sp))
+        // Riffle entry — pinned at the top, only when 2+ sources are configured
+        if (allServers.size >= 2) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isRiffleActive) Color(0xFFE8E8E8) else Color.Transparent)
+                    .clickable { onNavigateToRiffle() }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicText("Riffle", style = TextStyle(fontSize = 15.sp))
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0xFFDDDDDD)),
+            )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color(0xFFDDDDDD)),
-        )
 
         // Server header
         Column(

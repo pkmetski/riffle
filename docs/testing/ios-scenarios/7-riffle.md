@@ -48,3 +48,13 @@ Tests for the cross-source Riffle view introduced in the Riffle feature.
 **Given** the user has navigated to Riffle.
 **When** the drawer is opened from Riffle.
 **Then** the "Riffle" row in the drawer has a distinct background indicating it is the active destination.
+
+## Scenario 7.9 — Riffle entry hidden with fewer than 2 sources
+
+**Given** exactly one source is configured.
+**When** the user opens the drawer.
+**Then** no "Riffle" row appears in the drawer.
+
+**Given** two or more sources are configured.
+**When** the user opens the drawer.
+**Then** the "Riffle" row appears at the top of the drawer above the source-switcher header.
