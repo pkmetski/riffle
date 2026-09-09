@@ -73,6 +73,52 @@ final class OReillyLazyPublicationTests: XCTestCase {
         )
     }
 
+    // MARK: - Scenario 20-F: special-character title survives JSON round-trip
+
+    func testBuildSucceedsWithSpecialCharactersInTitle() throws {
+        // Title contains a double-quote — must survive the Kotlin-side escaping and the Swift
+        // JSONDecoder round-trip. If serializeShape's jsonStr() is incomplete, this throws.
+        let specialJson = """
+        {
+          "bookId": "9781234567890",
+          "identifier": "urn:orm:book:9781234567890",
+          "title": "Swift \\"Programming\\": A Guide",
+          "language": "en",
+          "absoluteFilesPrefix": "https://example.com/files/",
+          "pathFilesPrefix": "/api/files/",
+          "cssFullPaths": [],
+          "spine": [
+            {"index": 0, "fullPath": "ch01.xhtml", "title": "Intro", "declaredByteSize": 5000}
+          ]
+        }
+        """
+        let fetcher = StubLazyChapterFetcher()
+        let result = try OReillyPublicationBuilder.build(shapeJson: specialJson, fetcher: fetcher)
+        XCTAssertTrue(result.publication.metadata.title.contains("Programming"))
+    }
+
+    // MARK: - Scenario 20-G: estimatedLength is nil when declaredByteSize is zero
+
+    func testEstimatedLengthIsNilWhenDeclaredByteSizeIsZero() async throws {
+        let zeroSizeJson = """
+        {
+          "bookId": "b1", "identifier": "urn:b1", "title": "T", "language": "en",
+          "absoluteFilesPrefix": "", "pathFilesPrefix": "", "cssFullPaths": [],
+          "spine": [{"index": 0, "fullPath": "ch01.xhtml", "title": "Ch1", "declaredByteSize": 0}]
+        }
+        """
+        let fetcher = StubLazyChapterFetcher()
+        let (_, container) = try OReillyPublicationBuilder.build(shapeJson: zeroSizeJson, fetcher: fetcher)
+        guard let resource = container["ch01.xhtml" as any URLConvertible] else {
+            XCTFail("Expected a resource for ch01.xhtml"); return
+        }
+        let result = await resource.estimatedLength()
+        guard case .success(let length) = result else {
+            XCTFail("Expected success"); return
+        }
+        XCTAssertNil(length, "estimatedLength must be nil when declaredByteSize is 0")
+    }
+
     func testContainerEntriesMatchSpine() throws {
         let fetcher = StubLazyChapterFetcher()
         let (_, container) = try OReillyPublicationBuilder.build(shapeJson: validShapeJson, fetcher: fetcher)

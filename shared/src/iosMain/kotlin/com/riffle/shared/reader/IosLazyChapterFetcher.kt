@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUserDomainMask
@@ -124,7 +125,7 @@ class IosLazyChapterFetcherImpl(
         NSFileManager.defaultManager.createDirectoryAtPath(
             parent, withIntermediateDirectories = true, attributes = null, error = null,
         )
-        val tmpPath = "$path.tmp"
+        val tmpPath = "$path.${NSProcessInfo.processInfo.globallyUniqueString()}.tmp"
         val nsData = bytes.usePinned { pinned ->
             NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
         }
@@ -168,6 +169,20 @@ class IosLazyChapterFetcherImpl(
             append("}")
         }
 
-        private fun String.jsonStr() = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        private fun String.jsonStr(): String {
+            val escaped = buildString {
+                for (ch in this@jsonStr) {
+                    when (ch) {
+                        '\\' -> append("\\\\")
+                        '"' -> append("\\\"")
+                        '\n' -> append("\\n")
+                        '\r' -> append("\\r")
+                        '\t' -> append("\\t")
+                        else -> if (ch.code < 0x20) append("\\u${ch.code.toString(16).padStart(4, '0')}") else append(ch)
+                    }
+                }
+            }
+            return "\"$escaped\""
+        }
     }
 }

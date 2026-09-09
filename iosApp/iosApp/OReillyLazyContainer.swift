@@ -44,11 +44,13 @@ final class OReillyLazyContainer: Container {
     }
 
     subscript(_ url: any URLConvertible) -> (any Resource)? {
-        let urlStr = url.string
-        if let spineItem = shape.spine.first(where: { urlStr.hasSuffix($0.fullPath) || $0.fullPath == urlStr }) {
+        // Normalise to a relative path so we match spine items by their fullPath regardless of
+        // whether Readium delivers the URL as bare "xhtml/ch01.xhtml" or as an absolute
+        // "https://readium_package/xhtml/ch01.xhtml". Mirrors Android's exact-URL map lookup.
+        let relativePath = Self.extractRelativePath(url.string)
+        if let spineItem = shape.spine.first(where: { $0.fullPath == relativePath }) {
             return LazyChapterResource(spineItem: spineItem, fetcher: fetcher)
         }
-        let relativePath = Self.extractRelativePath(urlStr)
         return LazyAssetResource(fullPath: relativePath, fetcher: fetcher)
     }
 
@@ -89,7 +91,8 @@ private final class LazyChapterResource: Resource {
     }
 
     func estimatedLength() async -> ReadResult<UInt64?> {
-        .success(UInt64(bitPattern: spineItem.declaredByteSize))
+        let size = spineItem.declaredByteSize
+        return .success(size > 0 ? UInt64(size) : nil)
     }
 
     func read(range: Range<UInt64>?) async -> ReadResult<Data> {
