@@ -233,10 +233,13 @@ debugImplementation(libs.androidx.compose.ui.tooling)
 // into the directory registered as an asset srcDir above. AGP 9.4.0 introduced
 // generateReleaseLintVitalReportModel / lintVitalAnalyze* as tasks that also scan asset source
 // directories; without the dependsOn they fail with "implicit dependency" validation errors.
+// The same applies to the standard lint task's generateDebugLintReportModel / lintAnalyze* tasks.
 tasks.matching {
     (it.name.startsWith("merge") && it.name.endsWith("Assets")) ||
         it.name.endsWith("LintVitalReportModel") ||
-        it.name.startsWith("lintVitalAnalyze")
+        it.name.endsWith("LintReportModel") ||
+        it.name.startsWith("lintVitalAnalyze") ||
+        it.name.startsWith("lintAnalyze")
 }.configureEach {
     dependsOn(":feature:source-ui:copyComposeResourcesForApk")
 }
