@@ -56,13 +56,13 @@ jobs:
           echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
 
       - name: Cache Kotlin/Native toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
 
       - name: Cache SPM SourcePackages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/spm-packages
           key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
@@ -70,7 +70,7 @@ jobs:
             spm-${{ runner.os }}-
 
       - name: Cache DerivedData
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/derived-data
           key: derived-data-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ steps.kotlin-version.outputs.version }}
