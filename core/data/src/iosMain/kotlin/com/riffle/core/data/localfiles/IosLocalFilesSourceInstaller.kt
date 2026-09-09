@@ -12,11 +12,7 @@ class IosLocalFilesSourceInstaller(
     private val scanner: IosLocalFilesScanner,
 ) : LocalFilesInstallerInterface {
 
-    data class InstallResult(
-        val sourceId: String,
-        val libraryId: String,
-        val scan: IosLocalFilesScanner.ScanReport,
-    )
+    data class InstallResult(val sourceId: String, val libraryId: String, val scan: IosLocalFilesScanner.ScanReport,)
 
     override suspend fun installFolder(folderUri: FolderUri): LocalFilesInstallerInterface.InstallReport {
         val result = installFolderDetailed(folderUri)

@@ -41,10 +41,9 @@ class IosFolderPicker : FolderPickerInterface {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private class FolderPickerDelegate(
-    private val onResult: (FolderUri?) -> Unit,
-    private val onDone: () -> Unit,
-) : NSObject(), UIDocumentPickerDelegateProtocol {
+private class FolderPickerDelegate(private val onResult: (FolderUri?) -> Unit, private val onDone: () -> Unit,) :
+    NSObject(),
+    UIDocumentPickerDelegateProtocol {
 
     override fun documentPicker(
         controller: UIDocumentPickerViewController,

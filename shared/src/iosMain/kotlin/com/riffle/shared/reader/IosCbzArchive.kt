@@ -110,17 +110,13 @@ class IosCbzArchive(private val archiveBytes: ByteArray) : ComicImageSource {
         return localHeaderOffset + 30 + nameLen + extraLen
     }
 
-    private fun readInt32LE(offset: Int): Int {
-        return (archiveBytes[offset].toInt() and 0xFF) or
-            ((archiveBytes[offset + 1].toInt() and 0xFF) shl 8) or
-            ((archiveBytes[offset + 2].toInt() and 0xFF) shl 16) or
-            ((archiveBytes[offset + 3].toInt() and 0xFF) shl 24)
-    }
+    private fun readInt32LE(offset: Int): Int = (archiveBytes[offset].toInt() and 0xFF) or
+        ((archiveBytes[offset + 1].toInt() and 0xFF) shl 8) or
+        ((archiveBytes[offset + 2].toInt() and 0xFF) shl 16) or
+        ((archiveBytes[offset + 3].toInt() and 0xFF) shl 24)
 
-    private fun readInt16LE(offset: Int): Int {
-        return (archiveBytes[offset].toInt() and 0xFF) or
-            ((archiveBytes[offset + 1].toInt() and 0xFF) shl 8)
-    }
+    private fun readInt16LE(offset: Int): Int = (archiveBytes[offset].toInt() and 0xFF) or
+        ((archiveBytes[offset + 1].toInt() and 0xFF) shl 8)
 
     // endregion
 

@@ -6,10 +6,7 @@ import com.riffle.core.database.IosInvalidator
 import com.riffle.core.database.TocCacheDao
 import com.riffle.core.database.TocCacheEntity
 
-internal class IosTocCacheDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : TocCacheDao {
+internal class IosTocCacheDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : TocCacheDao {
     override suspend fun get(sourceId: String, itemId: String): TocCacheEntity? =
         driver.executeQuery(
             null,

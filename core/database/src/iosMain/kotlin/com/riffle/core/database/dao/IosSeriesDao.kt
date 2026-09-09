@@ -12,10 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
-internal class IosSeriesDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : SeriesDao {
+internal class IosSeriesDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : SeriesDao {
 
     override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> =
         invalidator.version.flatMapLatest {

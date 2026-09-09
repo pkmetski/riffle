@@ -41,13 +41,7 @@ import com.riffle.feature.source.ui.generated.resources.ui_coming_soon
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
-data class SourceTypeCard(
-    val type: SourceType,
-    val titleRes: StringResource,
-    val subtitleRes: StringResource,
-    val enabled: Boolean,
-    val comingSoon: Boolean,
-)
+data class SourceTypeCard(val type: SourceType, val titleRes: StringResource, val subtitleRes: StringResource, val enabled: Boolean, val comingSoon: Boolean,)
 
 /**
  * Cards shown by [SourceTypePickerScreen]. Iterates every registered [WebSourceDescriptors]

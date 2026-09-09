@@ -9,10 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
-internal class IosSourceDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : SourceDao {
+internal class IosSourceDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : SourceDao {
     override fun observeAll(): Flow<List<SourceEntity>> =
         invalidator.version.flatMapLatest { flow { emit(querySources()) } }
 
@@ -63,13 +60,11 @@ internal class IosSourceDao(
         invalidator.invalidate()
     }
 
-    override suspend fun upsertAsFirstIfNoActive(source: SourceEntity): SourceEntity {
-        return withTransactionResult {
-            val hasActive = getActive() != null
-            val toInsert = source.copy(isActive = !hasActive)
-            upsert(toInsert)
-            toInsert
-        }
+    override suspend fun upsertAsFirstIfNoActive(source: SourceEntity): SourceEntity = withTransactionResult {
+        val hasActive = getActive() != null
+        val toInsert = source.copy(isActive = !hasActive)
+        upsert(toInsert)
+        toInsert
     }
 
     override suspend fun getById(id: String): SourceEntity? =

@@ -49,11 +49,7 @@ fun interface ProgressSyncTrigger {
  * `local.properties` in debug builds and empty in release). Android supplies the BuildConfig
  * values; iOS and tests use [Empty].
  */
-data class DevSourceDefaults(
-    val url: String = "",
-    val username: String = "",
-    val password: String = "",
-) {
+data class DevSourceDefaults(val url: String = "", val username: String = "", val password: String = "",) {
     companion object {
         val Empty = DevSourceDefaults()
     }

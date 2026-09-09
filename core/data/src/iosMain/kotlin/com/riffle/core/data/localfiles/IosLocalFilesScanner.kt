@@ -28,12 +28,7 @@ class IosLocalFilesScanner(
     private val dispatchers: DispatcherProvider,
 ) {
 
-    data class ScanReport(
-        val added: Int,
-        val refreshed: Int,
-        val removed: Int,
-        val failures: List<ScanFailure>,
-    )
+    data class ScanReport(val added: Int, val refreshed: Int, val removed: Int, val failures: List<ScanFailure>,)
 
     data class ScanFailure(val displayName: String, val reason: String)
 

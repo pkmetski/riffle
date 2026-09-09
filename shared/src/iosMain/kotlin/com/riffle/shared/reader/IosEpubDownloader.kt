@@ -22,11 +22,7 @@ import platform.Foundation.create
  * Downloads EPUB files from ABS to the iOS temporary directory using Ktor.
  * Uses `/api/items/{id}/file/{ino}` — the same endpoint as audio tracks.
  */
-class IosEpubDownloader(
-    private val httpClient: HttpClient,
-    private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
-) {
+class IosEpubDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) {
     /**
      * Returns the local file path of the EPUB, downloading from ABS if not yet cached.
      * Returns null if the source, token, file inode is unavailable or the download fails.

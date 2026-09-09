@@ -61,10 +61,7 @@ sealed class AddSourceBackend {
      * `serverType` disambiguates ABS's Audiobookshelf/Storyteller split (a placeholder
      * [ServerType.AUDIOBOOKSHELF] is passed for non-ABS sources, which ignore it).
      */
-    data class Credentialed(
-        val sourceType: SourceType,
-        val serverType: ServerType,
-    ) : AddSourceBackend() {
+    data class Credentialed(val sourceType: SourceType, val serverType: ServerType,) : AddSourceBackend() {
         override val routeType: String = when (sourceType) {
             // ABS carries two product-server variants under one SourceType until #441 — the
             // routes stay `type=audiobookshelf` / `type=storyteller` to preserve deep links.

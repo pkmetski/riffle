@@ -10,10 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
-internal class IosLibraryDao(
-    private val driver: SqlDriver,
-    private val invalidator: IosInvalidator,
-) : LibraryDao {
+internal class IosLibraryDao(private val driver: SqlDriver, private val invalidator: IosInvalidator,) : LibraryDao {
     override fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>> =
         invalidator.version.flatMapLatest {
             flow { emit(queryLibrariesForSource(sourceId)) }

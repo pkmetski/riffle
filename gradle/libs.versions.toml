@@ -38,7 +38,7 @@ jsoup = "1.23.2"
 media3 = "1.11.0"
 webkit = "1.16.0"
 documentfile = "1.1.0"
-ktlint-gradle = "12.1.2"
+ktlint-gradle = "14.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
