@@ -17,7 +17,7 @@ final class StubLazyChapterFetcher: NSObject, IosLazyChapterFetcher {
     var disposeCallCount = 0
 
     func fetchChapterXhtmlPath(
-        _ fullPath: String,
+        fullPath: String,
         expectedByteSize: Int64,
         completion: ((String?) -> Void)?
     ) {
@@ -25,7 +25,7 @@ final class StubLazyChapterFetcher: NSObject, IosLazyChapterFetcher {
         completion?(chapterPathsByFullPath[fullPath])
     }
 
-    func fetchAssetPath(_ fullPath: String, completion: ((String?) -> Void)?) {
+    func fetchAssetPath(fullPath: String, completion: ((String?) -> Void)?) {
         fetchAssetCallCount += 1
         completion?(assetPathsByFullPath[fullPath])
     }

@@ -99,12 +99,12 @@ private final class LazyChapterResource: Resource {
     func stream(range: Range<UInt64>?, consume: @escaping (Data) -> Void) async -> ReadResult<Void> {
         return await withCheckedContinuation { continuation in
             fetcher.fetchChapterXhtmlPath(
-                spineItem.fullPath,
+                fullPath: spineItem.fullPath,
                 expectedByteSize: spineItem.declaredByteSize
             ) { filePath in
                 guard let filePath = filePath,
                       let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
-                    continuation.resume(returning: .failure(.decoding(nil)))
+                    continuation.resume(returning: .failure(.decoding("chapter fetch failed")))
                     return
                 }
                 let chunk: Data
@@ -150,10 +150,10 @@ private final class LazyAssetResource: Resource {
 
     func stream(range: Range<UInt64>?, consume: @escaping (Data) -> Void) async -> ReadResult<Void> {
         return await withCheckedContinuation { continuation in
-            fetcher.fetchAssetPath(fullPath) { filePath in
+            fetcher.fetchAssetPath(fullPath: fullPath) { filePath in
                 guard let filePath = filePath,
                       let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
-                    continuation.resume(returning: .failure(.decoding(nil)))
+                    continuation.resume(returning: .failure(.decoding("asset fetch failed")))
                     return
                 }
                 let chunk: Data
