@@ -165,7 +165,7 @@ jobs:
           if-no-files-found: ignore
 
   unit-test:
-    name: iOS Unit Tests
+    name: Unit Tests
     runs-on: macos-15
     timeout-minutes: 25
     concurrency:
