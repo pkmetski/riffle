@@ -95,7 +95,7 @@ final class OReillyLazyPublicationTests: XCTestCase {
         """
         let fetcher = StubLazyChapterFetcher()
         let result = try OReillyPublicationBuilder.build(shapeJson: specialJson, fetcher: fetcher)
-        XCTAssertTrue(result.publication.metadata.title.contains("Programming"))
+        XCTAssertTrue(result.publication.metadata.title?.contains("Programming") == true)
     }
 
     // MARK: - Scenario 20-G: estimatedLength is nil when declaredByteSize is zero
