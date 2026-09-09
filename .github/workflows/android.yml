@@ -50,7 +50,7 @@ jobs:
           if-no-files-found: ignore
 
   unit-test:
-    name: Unit Tests
+    name: Android Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 12
     concurrency:
