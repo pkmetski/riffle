@@ -96,7 +96,7 @@ private final class LazyChapterResource: Resource {
         return .success(size > 0 ? UInt64(size) : nil)
     }
 
-    func read(range: Range<UInt64>?) async -> ReadResult<Data> {
+    func stream(range: Range<UInt64>?, consume: @escaping (Data) -> Void) async -> ReadResult<Void> {
         return await withCheckedContinuation { continuation in
             fetcher.fetchChapterXhtmlPath(
                 spineItem.fullPath,
@@ -107,13 +107,16 @@ private final class LazyChapterResource: Resource {
                     continuation.resume(returning: .failure(.decoding(nil)))
                     return
                 }
+                let chunk: Data
                 if let range = range {
                     let start = Int(min(range.lowerBound, UInt64(data.count)))
                     let end = Int(min(range.upperBound, UInt64(data.count)))
-                    continuation.resume(returning: .success(data.subdata(in: start..<end)))
+                    chunk = data.subdata(in: start..<end)
                 } else {
-                    continuation.resume(returning: .success(data))
+                    chunk = data
                 }
+                consume(chunk)
+                continuation.resume(returning: .success(()))
             }
         }
     }
@@ -145,7 +148,7 @@ private final class LazyAssetResource: Resource {
         .success(nil)
     }
 
-    func read(range: Range<UInt64>?) async -> ReadResult<Data> {
+    func stream(range: Range<UInt64>?, consume: @escaping (Data) -> Void) async -> ReadResult<Void> {
         return await withCheckedContinuation { continuation in
             fetcher.fetchAssetPath(fullPath) { filePath in
                 guard let filePath = filePath,
@@ -153,13 +156,16 @@ private final class LazyAssetResource: Resource {
                     continuation.resume(returning: .failure(.decoding(nil)))
                     return
                 }
+                let chunk: Data
                 if let range = range {
                     let start = Int(min(range.lowerBound, UInt64(data.count)))
                     let end = Int(min(range.upperBound, UInt64(data.count)))
-                    continuation.resume(returning: .success(data.subdata(in: start..<end)))
+                    chunk = data.subdata(in: start..<end)
                 } else {
-                    continuation.resume(returning: .success(data))
+                    chunk = data
                 }
+                consume(chunk)
+                continuation.resume(returning: .success(()))
             }
         }
     }
