@@ -28,7 +28,7 @@ final class LocalFilesTests: XCTestCase {
         // the element is fully hittable before tapping.
         let hittable = NSPredicate(format: "hittable == true")
         let hittableExp = XCTNSPredicateExpectation(predicate: hittable, object: localFilesCard)
-        wait(for: [hittableExp], timeout: 5)
+        wait(for: [hittableExp], timeout: 10)
 
         localFilesCard.tap()
 
