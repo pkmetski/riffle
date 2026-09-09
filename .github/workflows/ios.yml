@@ -7,7 +7,7 @@ on:
 
 jobs:
   lint:
-    name: iOS lint
+    name: Lint
     runs-on: macos-15
     timeout-minutes: 15
     concurrency:
@@ -37,7 +37,7 @@ jobs:
         run: swiftlint lint iosApp/
 
   integration-tests:
-    name: iOS integration tests
+    name: Integration tests
     runs-on: macos-15
     timeout-minutes: 30
     concurrency:
@@ -115,7 +115,7 @@ jobs:
           if-no-files-found: ignore
 
   build:
-    name: iOS build
+    name: Build
     runs-on: macos-15
     timeout-minutes: 30
     concurrency:
@@ -140,7 +140,7 @@ jobs:
             build
 
   database-test:
-    name: iOS database tests (core:database)
+    name: Database tests (core:database)
     runs-on: macos-15
     timeout-minutes: 15
     concurrency:

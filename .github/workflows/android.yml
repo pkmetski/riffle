@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Android build
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 12
     concurrency:
@@ -23,7 +23,7 @@ jobs:
       - run: ./gradlew assembleDebug
 
   lint:
-    name: Android lint
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -80,7 +80,7 @@ jobs:
           if-no-files-found: ignore
 
   integration-test:
-    name: Android integration tests
+    name: Integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 8
     concurrency:
@@ -104,7 +104,7 @@ jobs:
   connected-test:
     # Instrumented Room tests (migrations + DAOs) need an emulator, so they run here on a
     # hardware-accelerated AVD rather than in the JVM jobs above.
-    name: Android database tests (core:database)
+    name: Database tests (core:database)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -136,7 +136,7 @@ jobs:
           if-no-files-found: ignore
 
   harness-test-phone:
-    name: Android harness tests (phone)
+    name: Harness tests (phone)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -189,7 +189,7 @@ jobs:
           if-no-files-found: ignore
 
   harness-test-tablet:
-    name: Android harness tests (tablet)
+    name: Harness tests (tablet)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
