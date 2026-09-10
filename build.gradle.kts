@@ -32,6 +32,24 @@ subprojects {
     }
 }
 
+// Gradle parallelises iosSimulatorArm64Test tasks across modules by default. Running more
+// than one K/N test binary simultaneously on the same simulator causes resource exhaustion
+// and hangs — especially on CI runners where the simulator has limited memory headroom.
+// This Build Service acts as a counting semaphore capping concurrent iOS test processes at 1.
+abstract class IosSimulatorService : BuildService<BuildServiceParameters.None>
+
+val iosSimulatorService = gradle.sharedServices.registerIfAbsent("iosSimulator", IosSimulatorService::class) {
+    maxParallelUsages.set(1)
+}
+
+subprojects {
+    tasks.configureEach {
+        if (name.endsWith("iosSimulatorArm64Test")) {
+            usesService(iosSimulatorService)
+        }
+    }
+}
+
 // Enforces that `Log.[dweiv]("RIFFLE_…"` literals only live in core/logging.
 // Anything else: route the call through `Logger` + `LogChannel`. See #337.
 // Excludes RIFFLE_TEST (androidTest tag). Detection logic lives in

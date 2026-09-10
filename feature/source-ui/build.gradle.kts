@@ -45,7 +45,6 @@ kotlin {
             implementation(project(":feature:settings"))
             api(project(":feature:source"))
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.koin.core)
             api(libs.androidx.lifecycle.viewmodel)
             api(libs.androidx.lifecycle.viewmodel.savedstate)
         }

@@ -12,7 +12,6 @@ kotlin {
             api(project(":core:domain"))
             api(project(":core:models"))
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.koin.core)
             implementation(libs.androidx.lifecycle.viewmodel)
         }
         commonTest.dependencies {
