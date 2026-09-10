@@ -535,7 +535,8 @@ class EpubReaderViewModel constructor(
 
     private val positionSaveCoordinator = PositionSaveCoordinator<String>(
         savePosition = { cfi ->
-            epubRepository.saveReadingPosition(itemId, cfi)
+            val sid = navServerId ?: sourceRepository.getActive()?.id
+            if (sid != null) epubRepository.saveReadingPosition(sid, itemId, cfi)
             // Matched book: reading is also listening — persist the translated audiobook position
             // locally so the durable sweep pushes the audio record too, without reopening (ADR 0036).
             readaloud.mirrorReadingToAudiobook(cfi)
@@ -1409,11 +1410,18 @@ class EpubReaderViewModel constructor(
                 openAtCfi = openAtCfi,
                 openAnnotationId = openAnnotationId,
                 startTocHref = startTocHref,
+                sourceId = navServerId,
             ),
         )
         when (outcome) {
-            is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Error ->
-                _state.value = ReaderState.Error(outcome.message)
+            is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Error -> {
+                val displayMessage = if (outcome.message == "Book not found") {
+                    getApplication<android.app.Application>().getString(com.riffle.app.R.string.reader_book_not_found)
+                } else {
+                    outcome.message
+                }
+                _state.value = ReaderState.Error(displayMessage)
+            }
             is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Ready ->
                 onOpenReady(outcome)
         }

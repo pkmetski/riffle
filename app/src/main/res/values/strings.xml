@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name" translatable="false">Riffle</string>
     <string name="export_pdf_error">Couldn\'t generate PDF</string>
+    <string name="reader_book_not_found">Book not found</string>
     <string name="source_audiobookshelf_name" translatable="false">Audiobookshelf</string>
     <string name="source_chitanka_name" translatable="false">Chitanka</string>
     <string name="source_komga_name" translatable="false">Komga</string>

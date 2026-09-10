@@ -76,8 +76,8 @@ internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}?sourceId=
 internal const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
 internal const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
-internal const val PDF_READER = "pdf_reader/{itemId}"
-internal const val CBZ_READER = "cbz_reader/{itemId}"
+internal const val PDF_READER = "pdf_reader/{itemId}?sourceId={sourceId}"
+internal const val CBZ_READER = "cbz_reader/{itemId}?sourceId={sourceId}"
 internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 internal const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
 

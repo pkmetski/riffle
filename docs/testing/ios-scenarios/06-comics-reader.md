@@ -27,6 +27,22 @@ Corresponds to Android harness tests: `CbzThumbnailStripTest`.
 2. Tap "← Back".
 3. **Expected**: The library browser is shown. No crash.
 
+## Scenario 06-E: Open downloaded CBZ book from source browse (sourceId regression)
+
+1. Ensure a CBZ book from a non-primary source (e.g. Komga when ABS is active) is already downloaded.
+2. Navigate to that source's browse screen via the drawer.
+3. Tap the downloaded book to open the detail screen.
+4. Tap **Read**.
+5. **Expected**: The CBZ reader opens successfully — "Book not found" must NOT appear.
+
+## Scenario 06-F: Progress is restored when opening from the Riffle home screen
+
+1. Open a CBZ book from a non-primary source (e.g. Komga when ABS is active) and advance to page 3 or later.
+2. Tap "← Back" to close the reader.
+3. Navigate to the Riffle home (in-progress) screen.
+4. Tap the same book.
+5. **Expected**: The reader reopens at the last page viewed — **not** at page 1.
+
 ## Scenario 06-D: Reading position persists across sessions
 
 1. Open a CBZ book and advance to page 3 or later.
