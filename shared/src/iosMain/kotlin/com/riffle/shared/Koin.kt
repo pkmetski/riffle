@@ -316,7 +316,7 @@ private fun iosLibraryModule(
     factory { params ->
         CbzReaderViewModel(
             itemId = params.get(0),
-            sourceId = params.getOrNull(1),
+            sourceId = params.values.getOrNull(1) as? String,
             libraryObserver = get(),
             cbzRepository = get(),
             readingSessionRepository = get(),
