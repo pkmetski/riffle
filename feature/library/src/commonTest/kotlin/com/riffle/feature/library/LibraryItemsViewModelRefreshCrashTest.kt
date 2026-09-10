@@ -171,7 +171,10 @@ class LibraryItemsViewModelRefreshCrashTest {
                 override fun isAvailableOffline(item: LibraryItem): Boolean = false
             },
             connectivityObserver = object : ConnectivityObserver {
-                override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
+                // isOnline=false so shouldPoll=(failed&&online)=false — the retry-poll loop never
+                // fires. Initial launchRefresh() in init is unconditional, so the exception still
+                // propagates and _refreshFailed still becomes true.
+                override val isOnline: StateFlow<Boolean> = MutableStateFlow(false)
             },
             toReadRepository = throwingToReadRepo,
             playlistsRepository = noOpPlaylistsRepo,
