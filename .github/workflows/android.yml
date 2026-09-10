@@ -52,7 +52,7 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 36
+    timeout-minutes: 12
     concurrency:
       group: android-unit-test-${{ github.ref }}
       cancel-in-progress: true
