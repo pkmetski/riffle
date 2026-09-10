@@ -75,7 +75,7 @@ internal class IosNoOpEpubRepository : EpubRepository {
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
     override fun isCached(sourceId: String, itemId: String): Boolean = false
-    override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
 }
 
 internal object IosNoOpEbookCfiTranslatorFactory : EbookCfiTranslatorFactory {
@@ -98,7 +98,7 @@ internal class IosNoOpPdfRepository : PdfRepository {
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
     override fun isCached(sourceId: String, itemId: String): Boolean = false
-    override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
 }
 
 internal class IosNoOpCbzRepository : CbzRepository {
@@ -108,7 +108,7 @@ internal class IosNoOpCbzRepository : CbzRepository {
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
     override fun isCached(sourceId: String, itemId: String): Boolean = false
-    override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
     override suspend fun supportsStreaming(sourceId: String): Boolean = false
     override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray =
         ByteArray(0)

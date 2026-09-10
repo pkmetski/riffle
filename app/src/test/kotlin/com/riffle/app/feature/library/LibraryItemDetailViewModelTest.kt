@@ -183,7 +183,7 @@ class LibraryItemDetailViewModelTest {
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
         override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
         override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
         fun cache(itemId: String) {
             cached += itemId
         }
@@ -212,7 +212,7 @@ class LibraryItemDetailViewModelTest {
         }
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
         override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
-        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
     }
 
     private class FakeAudiobookDownloadRepository(

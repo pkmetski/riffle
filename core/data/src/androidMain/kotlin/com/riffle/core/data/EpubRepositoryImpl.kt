@@ -78,11 +78,7 @@ class EpubRepositoryImpl(
                     }
             }
         }
-        // Position load intentionally stays keyed by activeSource.id — [saveReadingPosition] also
-        // uses it, so this pair stays consistent within a session. Round-trip across a user-switch
-        // is a separate concern tracked apart from this fix.
-        val activeSource = sourceRepository.getActive()
-        val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
+        val lastPosition = positionStore.load(item.sourceId, item.id)
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
     }
 
@@ -167,8 +163,7 @@ class EpubRepositoryImpl(
         localAvailabilityEvents.notifyChanged(sourceId, itemId)
     }
 
-    override suspend fun saveReadingPosition(itemId: String, cfi: String) {
-        val sourceId = sourceRepository.getActive()?.id ?: return
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {
         positionStore.save(sourceId, itemId, cfi)
     }
 

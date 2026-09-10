@@ -30,7 +30,7 @@ class NetworkComicPageSourceTest {
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
         override fun isCached(sourceId: String, itemId: String): Boolean = false
-        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
         override suspend fun supportsStreaming(sourceId: String): Boolean = true
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
             requestedSourceId = sourceId

@@ -54,7 +54,7 @@ interface CbzRepository {
     suspend fun removeDownload(sourceId: String, itemId: String)
     fun isDownloaded(sourceId: String, itemId: String): Boolean
     fun isCached(sourceId: String, itemId: String): Boolean
-    suspend fun saveReadingPosition(itemId: String, locatorJson: String)
+    suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String)
     /** True when the catalog for [sourceId] implements per-page streaming. */
     suspend fun supportsStreaming(sourceId: String): Boolean
     /**

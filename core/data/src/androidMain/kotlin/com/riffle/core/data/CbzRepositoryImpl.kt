@@ -45,7 +45,7 @@ class CbzRepositoryImpl(
         val local = resolveLocalFile(item.sourceId, item.id)
         if (local != null) {
             if (local.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))
-            val lastPosition = loadLastPosition(item.id)
+            val lastPosition = loadLastPosition(item.sourceId, item.id)
             return openLocal(local.file, lastPosition)
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
@@ -60,7 +60,7 @@ class CbzRepositoryImpl(
             if (pageCount <= 0) return CbzOpenResult.NetworkError(
                 IllegalStateException("Server returned zero page count for ${item.id}")
             )
-            val lastPosition = loadLastPosition(item.id)
+            val lastPosition = loadLastPosition(item.sourceId, item.id)
             return CbzOpenResult.Streaming(
                 imageSource = NetworkComicPageSource(
                     sourceId = item.sourceId, itemId = item.id, count = pageCount,
@@ -81,14 +81,14 @@ class CbzRepositoryImpl(
             )
             contentCacheAccessStore.markAccessed(contentCacheKey(item))
             localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
-            openLocal(cbzFile, loadLastPosition(item.id))
+            openLocal(cbzFile, loadLastPosition(item.sourceId, item.id))
         } catch (t: Throwable) {
             CbzOpenResult.NetworkError(t)
         }
     }
 
-    private suspend fun loadLastPosition(itemId: String): String? =
-        sourceRepository.getActive()?.let { positionStore.load(it.id, itemId) }
+    private suspend fun loadLastPosition(sourceId: String, itemId: String): String? =
+        positionStore.load(sourceId, itemId)
 
     /** Opens [file] as a local archive on the IO dispatcher, reading its ComicInfo bookmarks. */
     private suspend fun openLocal(file: File, lastPosition: String?): CbzOpenResult =
@@ -145,8 +145,7 @@ class CbzRepositoryImpl(
 
     override fun isCached(sourceId: String, itemId: String): Boolean = cacheStore.get(sourceId, itemId) != null
 
-    override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {
-        val sourceId = sourceRepository.getActive()?.id ?: return
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {
         positionStore.save(sourceId, itemId, locatorJson)
     }
 

@@ -407,9 +407,9 @@ class ReadaloudSessionTest {
      * Fake [EpubRepository] that records [saveReadingPosition] calls.
      */
     private class FakeEpubRepository : JvmEpubRepository {
-        val savedPositions = mutableListOf<Pair<String, String>>()
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) {
-            savedPositions.add(itemId to cfi)
+        val savedPositions = mutableListOf<Triple<String, String, String>>()
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {
+            savedPositions.add(Triple(sourceId, itemId, cfi))
         }
         override suspend fun openEpub(item: com.riffle.core.models.LibraryItem) =
             error("not needed in test")
@@ -534,7 +534,8 @@ class ReadaloudSessionTest {
 
             // 1) Sentence-precise ebook position must be persisted
             assertEquals("epubRepository.saveReadingPosition called once", 1, fakeEpubRepo.savedPositions.size)
-            assertEquals("correct itemId", "ebook-789", fakeEpubRepo.savedPositions.first().first)
+            assertEquals("correct sourceId", "srv2", fakeEpubRepo.savedPositions.first().first)
+            assertEquals("correct itemId", "ebook-789", fakeEpubRepo.savedPositions.first().second)
 
             // 2) Audio mirror must be written
             assertEquals("audioSyncStore.mirror called once", 1, fakeAudioSyncStore.mirrorCalls.size)

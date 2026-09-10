@@ -53,8 +53,7 @@ class PdfRepositoryImpl(
                 return PdfOpenResult.NetworkError(t)
             }
         }
-        val activeSource = sourceRepository.getActive()
-        val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
+        val lastPosition = positionStore.load(item.sourceId, item.id)
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = lastPosition)
     }
 
@@ -120,8 +119,7 @@ class PdfRepositoryImpl(
 
     override fun isCached(sourceId: String, itemId: String): Boolean = cacheStore.get(sourceId, itemId) != null
 
-    override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {
-        val sourceId = sourceRepository.getActive()?.id ?: return
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {
         positionStore.save(sourceId, itemId, locatorJson)
     }
 
