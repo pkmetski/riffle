@@ -62,6 +62,7 @@ class PdfReaderViewModel constructor(
     private val sourceRepository: SourceRepository,
     private val formattingSessionFactory: FormattingSession.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
+    private val progressFlushScope: com.riffle.feature.reader.ProgressFlushScope,
     clock: Clock,
     readingSpeedStore: ReadingSpeedStore,
     private val catalogRegistry: com.riffle.core.catalog.CatalogRegistry,
@@ -72,11 +73,16 @@ class PdfReaderViewModel constructor(
 
     init {
         viewModelScope.launch {
-            // getActive() is captured once at reader-open time. In practice the reader is opened
-            // from a tap on the currently-active Source's library, so this matches the item's
-            // Source. Raw `is` check in place of the inline has<T>() extension — see
-            // LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
-            val catalog = sourceRepository.getActive()?.let { catalogRegistry.forSource(it) }
+            // Resolve the catalog from the book's own source (navSourceId when present; active
+            // source as fallback for normal single-source opens). Raw `is` check in place of the
+            // inline has<T>() extension — see LibraryItemsViewModel.tabVisibility for the
+            // JVM-target rationale.
+            val bookSource = if (navSourceId != null) {
+                sourceRepository.getById(navSourceId) ?: sourceRepository.getActive()
+            } else {
+                sourceRepository.getActive()
+            }
+            val catalog = bookSource?.let { catalogRegistry.forSource(it) }
             readingSessionsEnabled.set(catalog is com.riffle.core.catalog.ReadingSessionsCapability)
         }
     }
@@ -290,7 +296,7 @@ class PdfReaderViewModel constructor(
                 }
                 this.publication = publication
                 buildTocAndRail(publication)
-                annotationServerId = sourceRepository.getActive()?.id
+                annotationServerId = item.sourceId
                 startObservingAnnotations()
                 val locator = result.lastPosition
                     ?.takeIf { it.isNotEmpty() }
@@ -524,6 +530,15 @@ class PdfReaderViewModel constructor(
         if (closeSyncDone) return
         closeSyncDone = true
         val locator = lastLocator ?: return
+        // Persist position on survivable scope — same race as EpubReaderViewModel: onCleared()
+        // calls super.onCleared() first, cancelling viewModelScope before the in-flight
+        // onPageChanged save coroutine can execute.
+        val locatorJson = locator.toJSON().toString()
+        val capturedNavSourceId = navSourceId
+        progressFlushScope.flush {
+            val sid = capturedNavSourceId ?: sourceRepository.getActive()?.id ?: return@flush
+            pdfRepository.saveReadingPosition(sid, itemId, locatorJson)
+        }
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(payload.ebookProgress)

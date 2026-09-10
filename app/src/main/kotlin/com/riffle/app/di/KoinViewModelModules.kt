@@ -600,6 +600,7 @@ private val readerViewModelModule = module {
             sourceRepository = get(),
             formattingSessionFactory = get(),
             volumeKeyDispatcher = get(),
+            progressFlushScope = get(),
             clock = get(),
             readingSpeedStore = get(),
             catalogRegistry = get(),
@@ -628,6 +629,7 @@ private val readerViewModelModule = module {
             colorPageDecoder = get(),
             dispatchers = get(),
             panelReportRepository = get(),
+            applicationScope = get(),
         )
     }
 }

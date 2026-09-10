@@ -1476,13 +1476,13 @@ class EpubReaderViewModel constructor(
         // is still starting up (measured ~500ms gap on cold-open with 99 annotations). The
         // sync-namespace (used ONLY by cross-device sync scheduling) resolves in parallel via a
         // separate viewModelScope.launch and lands on the session via updateNamespace().
-        val activeServer = o.activeServer
-        if (!o.isStorytellerService && activeServer != null) {
-            annotationServerId = activeServer.id
+        val bookSourceId = o.resolvedReaderServerId
+        if (!o.isStorytellerService && bookSourceId != null) {
+            annotationServerId = bookSourceId
             // Bind the bookmarks controller so it can observe bookmarks and track the current
             // locator for page-bookmark detection.
             bookmarks.bind(
-                sourceId = activeServer.id,
+                sourceId = bookSourceId,
                 itemId = itemId,
                 currentLocator = position.currentLocator,
                 spinePositionCounts = spinePositionCounts,
@@ -1500,7 +1500,7 @@ class EpubReaderViewModel constructor(
             // Bind annotation session eagerly with an EMPTY namespace — the observer subscription
             // is what we want early; sync scheduling stays no-op until updateNamespace() below.
             annotationSession.bind(
-                sourceId = activeServer.id,
+                sourceId = bookSourceId,
                 namespace = "",
                 itemId = itemId,
                 highlightRenderResolver = { a -> annotationToRender(a) },
@@ -1518,12 +1518,12 @@ class EpubReaderViewModel constructor(
             // teardown propagates normally.
             viewModelScope.launch {
                 val namespace = try {
-                    (sourceRepository.ensureSyncNamespace(activeServer.id)
+                    (sourceRepository.ensureSyncNamespace(bookSourceId)
                         as? com.riffle.core.domain.SyncNamespace.Configured)?.value
                 } catch (t: Throwable) {
                     if (t is kotlinx.coroutines.CancellationException) throw t
                     logger.w(LogChannel.HighlightMerge) {
-                        "ensureSyncNamespace failed on reader-open for sourceId=${activeServer.id} — " +
+                        "ensureSyncNamespace failed on reader-open for sourceId=$bookSourceId — " +
                             "${t::class.simpleName}: ${t.message}. Sync stays disabled for this session."
                     }
                     null
@@ -1541,9 +1541,8 @@ class EpubReaderViewModel constructor(
             // [orphanEmphasisCleanupAttempted]'s CAS; safe no-op on healthy books.
             if (orphanEmphasisCleanupAttempted.compareAndSet(false, true)) {
                 viewModelScope.launch(dispatchers.io) {
-                    val serverId = activeServer.id
                     val allRows = runCatching {
-                        annotationStore.observeAnnotations(serverId, itemId).first()
+                        annotationStore.observeAnnotations(bookSourceId, itemId).first()
                     }.getOrDefault(emptyList())
                     val liveHighlightCfis = allRows.asSequence()
                         .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }
@@ -1555,7 +1554,7 @@ class EpubReaderViewModel constructor(
                     if (orphans.isEmpty()) return@launch
                     orphans.forEach { annotationStore.delete(it.id) }
                     logger.d(LogChannel.HighlightMerge) {
-                        "orphan-emphasis cleanup sourceId=$serverId itemId=$itemId deleted=${orphans.size}"
+                        "orphan-emphasis cleanup sourceId=$bookSourceId itemId=$itemId deleted=${orphans.size}"
                     }
                     scheduleAnnotationSync()
                 }
@@ -1567,15 +1566,14 @@ class EpubReaderViewModel constructor(
             // the annotation Flow → session → decorations naturally.
             if (legacyImageUpgradeAttempted.compareAndSet(false, true)) {
                 viewModelScope.launch(dispatchers.io) {
-                    val serverId = activeServer.id
                     val legacy = runCatching {
-                        annotationStore.observeAnnotations(serverId, itemId)
+                        annotationStore.observeAnnotations(bookSourceId, itemId)
                             .first()
                             .filter { it.type == AnnotationEntity.TYPE_IMAGE }
                     }.getOrDefault(emptyList())
                     if (legacy.isEmpty()) return@launch
                     val allAnnotations = runCatching {
-                        annotationStore.observeAnnotations(serverId, itemId).first()
+                        annotationStore.observeAnnotations(bookSourceId, itemId).first()
                     }.getOrDefault(emptyList())
                     val result = runCatching {
                         captionHighlightUpgrader.sweep(
@@ -1585,7 +1583,7 @@ class EpubReaderViewModel constructor(
                     }.getOrNull()
                     if (result != null && result.total > 0) {
                         logger.d(LogChannel.HighlightMerge) {
-                            "caption-highlight sweep sourceId=$serverId itemId=$itemId " +
+                            "caption-highlight sweep sourceId=$bookSourceId itemId=$itemId " +
                                 "merged=${result.merged} upgraded=${result.upgraded} legacy=${legacy.size}"
                         }
                         scheduleAnnotationSync()
@@ -1885,6 +1883,19 @@ class EpubReaderViewModel constructor(
         }
         if (!shouldRunReadingSideEffects(source)) return
         val locator = position.snapshotLastLocator() ?: return
+        // Persist the last-seen locator on the survivable progressFlushScope so it is guaranteed
+        // to land in the DB even when back navigation triggers onCleared() immediately after this
+        // call — cancelling viewModelScope before the in-flight onPositionChanged save coroutine
+        // (which also runs on viewModelScope) has a chance to execute. Without this flush the
+        // local position row can stay stale, and a subsequent pullItem() on reopen finds InSync
+        // (nothing changed since last server sync) and opens the book at the old server position
+        // instead of the page the user was actually on. ADR 0036 / ProgressFlushScope.
+        val locatorJson = locator.toJSON().toString()
+        val capturedNavServerId = navServerId
+        progressFlushScope.flush {
+            val sid = capturedNavServerId ?: sourceRepository.getActive()?.id ?: return@flush
+            epubRepository.saveReadingPosition(sid, itemId, locatorJson)
+        }
         // Stays on viewModelScope: runReaderSyncCycle mutates reader state (lastLocator,
         // pendingServerJumpStamp, …) and posts the inbound-jump channel, which must run on the main
         // thread while the screen is alive — it is not safe to relocate to a background flush scope.

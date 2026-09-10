@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlin.concurrent.Volatile
 import com.riffle.core.domain.CbzLocalSource
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
@@ -89,6 +90,7 @@ class CbzReaderViewModel constructor(
     private val colorPageDecoder: ColorPageDecoder,
     private val dispatchers: DispatcherProvider,
     val panelReportRepository: PanelReportRepository,
+    private val applicationScope: ApplicationScope,
 ) : ViewModel() {
 
     private var currentSource: ComicPageSource? = null
@@ -678,6 +680,13 @@ class CbzReaderViewModel constructor(
         val page = _currentPage.value + 1
         val progression = if (ready.pageCount > 0) page.toDouble() / ready.pageCount.toDouble() else 0.0
         val locatorJson = buildLocatorJson(page, progression)
+        // Persist position on survivable scope — same race as EpubReaderViewModel: onCleared()
+        // calls super.onCleared() first, cancelling viewModelScope before the in-flight
+        // savePosition coroutine can execute.
+        val sid = resolvedSourceId
+        if (sid != null) {
+            applicationScope.launchSurvivable { cbzRepository.saveReadingPosition(sid, itemId, locatorJson) }
+        }
         syncSession.sync(SessionPayload(ebookLocation = locatorJson, ebookProgress = progression.toFloat()))
     }
 
