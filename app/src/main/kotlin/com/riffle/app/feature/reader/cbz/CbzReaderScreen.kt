@@ -120,7 +120,7 @@ fun CbzReaderScreen(
     val immersiveState = rememberImmersiveModeState()
 
     LaunchedEffect(state) {
-        if (state is CbzReaderState.Error) immersiveState.show()
+        if (state is CbzReaderState.Error || state is CbzReaderState.BookNotFound) immersiveState.show()
     }
 
     DisposableEffect(viewModel) {
@@ -150,6 +150,12 @@ fun CbzReaderScreen(
         when (val s = state) {
             CbzReaderState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
+            }
+            CbzReaderState.BookNotFound -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.reader_book_not_found),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
             is CbzReaderState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(s.message, color = MaterialTheme.colorScheme.onSurface)

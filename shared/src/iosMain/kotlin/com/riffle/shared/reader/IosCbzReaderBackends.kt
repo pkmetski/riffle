@@ -109,7 +109,7 @@ internal class IosCbzRepository(
 
     override fun isCached(sourceId: String, itemId: String): Boolean = false
 
-    override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
 
     override suspend fun supportsStreaming(sourceId: String): Boolean = true
 

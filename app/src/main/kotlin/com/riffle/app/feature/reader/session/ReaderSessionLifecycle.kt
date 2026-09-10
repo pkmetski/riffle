@@ -98,7 +98,8 @@ class ReaderSessionLifecycle constructor(
         // ~300ms of pre-visible stall on cold open. resolveReady returns to caller context
         // implicitly on return.
         val item = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            libraryObserver.getItem(params.itemId)
+            params.sourceId?.let { libraryObserver.getItem(it, params.itemId) }
+                ?: libraryObserver.getItem(params.itemId)
         } ?: return OpenOutcome.Error("Book not found")
 
         // Refresh this book's server position BEFORE loading the initial locator so the reader
@@ -340,6 +341,7 @@ class ReaderSessionLifecycle constructor(
         val openAtCfi: String?,
         val startTocHref: String?,
         val openAnnotationId: String? = null,
+        val sourceId: String? = null,
     )
 
     sealed interface OpenOutcome {

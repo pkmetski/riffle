@@ -82,6 +82,7 @@ class PdfReaderViewModel constructor(
     }
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
+    private val navSourceId: String? = savedStateHandle.get<String>("sourceId")
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
@@ -149,7 +150,10 @@ class PdfReaderViewModel constructor(
     )
 
     private val positionSaveCoordinator = PositionSaveCoordinator<String>(
-        savePosition = { cfi -> pdfRepository.saveReadingPosition(itemId, cfi) },
+        savePosition = { cfi ->
+            val sid = navSourceId ?: sourceRepository.getActive()?.id
+            if (sid != null) pdfRepository.saveReadingPosition(sid, itemId, cfi)
+        },
         updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
     )
 
@@ -271,9 +275,10 @@ class PdfReaderViewModel constructor(
     }
 
     private suspend fun openBook() {
-        val item = libraryObserver.getItem(itemId)
+        val item = navSourceId?.let { libraryObserver.getItem(it, itemId) }
+            ?: libraryObserver.getItem(itemId)
         if (item == null) {
-            _state.value = ReaderState.Error("Book not found")
+            _state.value = ReaderState.Error(getApplication<android.app.Application>().getString(com.riffle.app.R.string.reader_book_not_found))
             return
         }
         when (val result = pdfRepository.openPdf(item)) {

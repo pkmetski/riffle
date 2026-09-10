@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="export_pdf_error">Не можа да се генерира PDF</string>
+    <string name="reader_book_not_found">Книгата не е намерена</string>
     <string name="ui_active">Активен</string>
     <string name="ui_active_source">Активен източник</string>
     <string name="ui_add_a_note">Добавяне на бележка…</string>

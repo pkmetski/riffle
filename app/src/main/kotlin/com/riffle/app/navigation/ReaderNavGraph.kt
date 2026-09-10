@@ -112,6 +112,11 @@ internal fun NavGraphBuilder.readerNavGraph(
         route = PDF_READER,
         arguments = listOf(
             navArgument("itemId") { type = NavType.StringType },
+            navArgument("sourceId") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            },
         )
     ) { backStackEntry ->
         PdfReaderScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
@@ -121,6 +126,11 @@ internal fun NavGraphBuilder.readerNavGraph(
         route = CBZ_READER,
         arguments = listOf(
             navArgument("itemId") { type = NavType.StringType },
+            navArgument("sourceId") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            },
         )
     ) { backStackEntry ->
         CbzReaderScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })

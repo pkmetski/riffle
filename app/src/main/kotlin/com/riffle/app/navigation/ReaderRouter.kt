@@ -6,10 +6,15 @@ import java.net.URLEncoder
 
 fun readerRouteFor(item: LibraryItem): String? {
     val encodedId = URLEncoder.encode(item.id, "UTF-8")
+    val sourceParam = if (item.sourceId.isNotBlank()) {
+        "?sourceId=${URLEncoder.encode(item.sourceId, "UTF-8")}"
+    } else {
+        ""
+    }
     return when (item.ebookFormat) {
-        EbookFormat.Epub -> "epub_reader/$encodedId"
-        EbookFormat.Pdf -> "pdf_reader/$encodedId"
-        EbookFormat.Cbz -> "cbz_reader/$encodedId"
+        EbookFormat.Epub -> "epub_reader/$encodedId$sourceParam"
+        EbookFormat.Pdf -> "pdf_reader/$encodedId$sourceParam"
+        EbookFormat.Cbz -> "cbz_reader/$encodedId$sourceParam"
         EbookFormat.Unsupported -> null
     }
 }

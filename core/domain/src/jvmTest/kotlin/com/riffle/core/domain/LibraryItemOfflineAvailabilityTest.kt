@@ -150,7 +150,7 @@ class LibraryItemOfflineAvailabilityTest {
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
         override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
-        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) = error("unused")
         override suspend fun supportsStreaming(sourceId: String) = false
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?) = error("unused")
         override suspend fun awaitCachedSource(item: LibraryItem): com.riffle.core.domain.CbzLocalSource? = null
@@ -231,7 +231,7 @@ class LibraryItemOfflineAvailabilityTest {
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
         override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) = error("unused")
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) = error("unused")
         override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
     }
 
@@ -247,7 +247,7 @@ class LibraryItemOfflineAvailabilityTest {
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
         override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
-        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) = error("unused")
     }
 
     private class FakeCbzRepository(
@@ -262,7 +262,7 @@ class LibraryItemOfflineAvailabilityTest {
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
         override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
-        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) = error("unused")
         override suspend fun supportsStreaming(sourceId: String) = false
         override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?) = error("unused")
         override suspend fun awaitCachedSource(item: LibraryItem): com.riffle.core.domain.CbzLocalSource? = null

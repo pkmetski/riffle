@@ -262,7 +262,12 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onReadItemAtHref = { item, href ->
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
                 val encodedHref = URLEncoder.encode(href, "UTF-8")
-                navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref")
+                val sourceParam = if (item.sourceId.isNotBlank()) {
+                    "&sourceId=${URLEncoder.encode(item.sourceId, "UTF-8")}"
+                } else {
+                    ""
+                }
+                navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref$sourceParam")
             },
             onListenItemAtSec = { item, startSec ->
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")

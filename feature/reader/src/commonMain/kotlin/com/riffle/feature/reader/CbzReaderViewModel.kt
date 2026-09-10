@@ -70,6 +70,7 @@ import kotlinx.serialization.json.put
  */
 class CbzReaderViewModel constructor(
     private val itemId: String,
+    private val sourceId: String? = null,
     private val libraryObserver: LibraryObserver,
     private val cbzRepository: CbzRepository,
     private val readingSessionRepository: ReadingSessionRepository,
@@ -95,6 +96,8 @@ class CbzReaderViewModel constructor(
     private var closeSyncDone: Boolean = false
     var bookId: String = itemId
         private set
+    // Resolved once during openBook() — the item's canonical sourceId used to key position saves.
+    private var resolvedSourceId: String? = null
     private var panelBook: PanelEngine.Book? = null
     // Cancel-and-replace the in-flight panel resolve on every page change so a stale resolver
     // can't overwrite a newer page's PagePanels result.
@@ -268,12 +271,14 @@ class CbzReaderViewModel constructor(
         // (panelViewOn=false), causing a pager flash for books with Panel View enabled.
         comicFormattingPreferencesStore.preferences.first()
 
-        val item = libraryObserver.getItem(itemId)
+        val item = sourceId?.let { libraryObserver.getItem(it, itemId) }
+            ?: libraryObserver.getItem(itemId)
         if (item == null) {
-            _state.value = CbzReaderState.Error("Book not found")
+            _state.value = CbzReaderState.BookNotFound
             return
         }
         bookId = "${item.sourceId}::${item.id}"
+        resolvedSourceId = item.sourceId
         // Load per-book Comic formatting overrides (new store).
         // Also performs a one-time lazy migration from the legacy PanelViewPreferencesStore.
         val existingOverrides = bookComicFormattingPreferencesStore.overrides(bookId).first()
@@ -639,7 +644,8 @@ class CbzReaderViewModel constructor(
         val progression = if (pageCount > 0) (pageIndex + 1).toDouble() / pageCount.toDouble() else 0.0
         val locatorJson = buildLocatorJson(pageIndex + 1, progression)
         viewModelScope.launch {
-            cbzRepository.saveReadingPosition(itemId, locatorJson)
+            val sid = resolvedSourceId ?: return@launch
+            cbzRepository.saveReadingPosition(sid, itemId, locatorJson)
             val progressFraction = if (pageCount > 1) pageIndex.toFloat() / (pageCount - 1).toFloat() else 1f
             updateReadingProgressUseCase(itemId, progressFraction)
         }

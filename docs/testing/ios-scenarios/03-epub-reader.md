@@ -48,3 +48,19 @@ Corresponds to Android harness tests: `EpubHarnessTest`, `TocIntegrationTest`,
 
 1. In the library, tap an item whose `ebookFormat` is `Unsupported`.
 2. **Expected**: No reader screen is opened (`isReadable == false` gate).
+
+## Scenario 03-H: Progress is restored when opening from the Riffle home screen
+
+1. Open an EPUB book from a non-primary source (e.g. Chitanka/Gutenberg when ABS is active) and advance several pages.
+2. Tap "← Back" to close the reader.
+3. Navigate to the Riffle home (in-progress) screen.
+4. Tap the same book.
+5. **Expected**: The reader reopens at the page where reading stopped — **not** at the beginning.
+
+## Scenario 03-G: Open downloaded EPUB from source browse (sourceId regression)
+
+1. Ensure a downloaded EPUB from a non-primary source (e.g. Chitanka/Gutenberg when ABS is active) exists.
+2. Navigate to that source's browse screen via the drawer.
+3. Tap the downloaded book → detail screen.
+4. Tap **Read**.
+5. **Expected**: The EPUB reader opens successfully — "Book not found" must NOT appear.

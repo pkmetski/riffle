@@ -109,7 +109,7 @@ class EpubPositionIntegrationTest {
 
         // First session: open book then save position
         repo1.openEpub(item())
-        repo1.saveReadingPosition("item-1", "epubcfi(/6/4[chap01]!/4/2[body01]/1:0)")
+        repo1.saveReadingPosition("source-1", "item-1", "epubcfi(/6/4[chap01]!/4/2[body01]/1:0)")
 
         // Simulate restart: new repository instance backed by the same persistent DAO
         val repo2 = buildRepo()
@@ -138,13 +138,68 @@ class EpubPositionIntegrationTest {
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         val repo1 = buildRepo()
         repo1.openEpub(item())
-        repo1.saveReadingPosition("item-1", "epubcfi(/6/2!/4/1:10)")
-        repo1.saveReadingPosition("item-1", "epubcfi(/6/8!/4/1:99)")
+        repo1.saveReadingPosition("source-1", "item-1", "epubcfi(/6/2!/4/1:10)")
+        repo1.saveReadingPosition("source-1", "item-1", "epubcfi(/6/8!/4/1:99)")
 
         val repo2 = buildRepo()
         val result = repo2.openEpub(item()) as EpubOpenResult.Success
 
         assertEquals("epubcfi(/6/8!/4/1:99)", result.lastPosition)
+    }
+
+    @Test
+    fun `position is restored when the item belongs to a non-active source`() = runTest {
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+
+        // Repo whose "active" source is source-1 — the book's own source.
+        val repo1 = buildRepo()
+        repo1.openEpub(item())
+        repo1.saveReadingPosition("source-1", "item-1", "epubcfi(/6/6!/4/1:42)")
+
+        // Simulate the Riffle source scenario: build a repo where "active" is source-2 but the
+        // book's sourceId is still source-1. Before the fix, openEpub loaded position keyed by
+        // activeSource.id ("source-2") and returned null, making the reader start from the
+        // beginning. After the fix, it loads by item.sourceId ("source-1") and finds the position.
+        val differentActiveSourceRepo = object : SourceRepository {
+            val activeSource2 = Source(
+                id = "source-2",
+                url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
+                isActive = true,
+                insecureConnectionAllowed = false,
+                username = "",
+            )
+            val source1 = Source(
+                id = "source-1",
+                url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
+                isActive = false,
+                insecureConnectionAllowed = false,
+                username = "",
+            )
+            override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeSource2, source1))
+            override suspend fun getActive(): Source = activeSource2
+            override suspend fun getById(sourceId: String): Source? =
+                if (sourceId == "source-1") source1 else if (sourceId == "source-2") activeSource2 else null
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
+                throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) = Unit
+            override suspend fun remove(sourceId: String) = Unit
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val repo2 = EpubRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(differentActiveSourceRepo, mapOf("source-1" to "test-token", "source-2" to "test-token")),
+            cacheStore = cacheStore,
+            downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-cross-source"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
+            positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
+            sourceRepository = differentActiveSourceRepo,
+        )
+
+        val result = repo2.openEpub(item()) as EpubOpenResult.Success
+
+        assertEquals(
+            "position keyed by item.sourceId must be restored regardless of active source",
+            "epubcfi(/6/6!/4/1:42)",
+            result.lastPosition,
+        )
     }
 
     private class InMemoryReadingPositionDao : ReadingPositionDao {

@@ -48,7 +48,7 @@ import platform.UIKit.UIViewContentMode
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
-    val vm = koinInject<CbzReaderViewModel> { parametersOf(item.id) }
+    val vm = koinInject<CbzReaderViewModel> { parametersOf(item.id, item.sourceId) }
 
     DisposableEffect(vm) {
         vm.onReaderResumed()
@@ -59,6 +59,9 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         when (val s = state) {
+            CbzReaderState.BookNotFound -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                BasicText("Book not found")
+            }
             is CbzReaderState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BasicText(s.message)
             }

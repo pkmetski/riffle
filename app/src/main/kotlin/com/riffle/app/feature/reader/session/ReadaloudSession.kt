@@ -430,7 +430,7 @@ class ReadaloudSession constructor(
         val sentenceJson = com.riffle.app.feature.reader.readaloudLocatorJson(
             fragmentRef, quoteBuilder.sentenceQuotes.value[sid]
         ).toString()
-        epubRepository.saveReadingPosition(itemId, sentenceJson)
+        epubRepository.saveReadingPosition(sourceId, itemId, sentenceJson)
         val readerSync = readerSyncProvider()
         val audiobookFollow = audiobookFollowProvider()
         val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return

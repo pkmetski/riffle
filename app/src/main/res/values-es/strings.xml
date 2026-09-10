@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="export_pdf_error">No se pudo generar el PDF</string>
+    <string name="reader_book_not_found">Libro no encontrado</string>
     <string name="ui_active">Activo</string>
     <string name="ui_active_source">Fuente activa</string>
     <string name="ui_add_a_note">Añade una nota…</string>

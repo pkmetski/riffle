@@ -4,6 +4,7 @@ import com.riffle.core.domain.comic.ComicPageSource
 
 sealed class CbzReaderState {
     data object Loading : CbzReaderState()
+    data object BookNotFound : CbzReaderState()
     data class Error(val message: String) : CbzReaderState()
     data class Ready(
         val title: String,

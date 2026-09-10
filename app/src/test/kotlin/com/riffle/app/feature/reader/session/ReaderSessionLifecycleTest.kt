@@ -91,7 +91,7 @@ class ReaderSessionLifecycleTest {
         override fun isDownloaded(sourceId: String, itemId: String) = false
         override fun isCached(sourceId: String, itemId: String) = false
         override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
     }
 
     private class FakeServerRepository(private val active: Source?) : SourceRepository {
@@ -254,7 +254,7 @@ class ReaderSessionLifecycleTest {
         override fun isDownloaded(sourceId: String, itemId: String) = false
         override fun isCached(sourceId: String, itemId: String) = false
         override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
-        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
     }
 
     private fun makeLifecycle(
@@ -302,11 +302,13 @@ class ReaderSessionLifecycleTest {
         openAtCfi: String? = null,
         openAnnotationId: String? = null,
         startTocHref: String? = null,
+        sourceId: String? = null,
     ) = ReaderSessionLifecycle.OpenParams(
         itemId = itemId,
         openAtCfi = openAtCfi,
         openAnnotationId = openAnnotationId,
         startTocHref = startTocHref,
+        sourceId = sourceId,
     )
 
     // ── Tests ────────────────────────────────────────────────────────────────────────────
@@ -389,6 +391,22 @@ class ReaderSessionLifecycleTest {
         assertTrue(outcome is ReaderSessionLifecycle.OpenOutcome.Error)
         assertEquals("Book not found", (outcome as ReaderSessionLifecycle.OpenOutcome.Error).message)
         assertNull(lifecycle.publication.value)
+    }
+
+    @Test
+    fun `open succeeds when sourceId in params resolves item not in active source`() = runTest {
+        // Regression: items from non-active sources (e.g. Chitanka downloaded books) must be
+        // found via getItem(sourceId, itemId), not just getItem(itemId) which checks active server.
+        val nonActiveSourceId = "src-chitanka"
+        val chitankaItem = ebookItem.copy(sourceId = nonActiveSourceId)
+        val (lifecycle, _) = makeLifecycle(
+            libraryObserver = FakeLibraryObserver(
+                items = mapOf((nonActiveSourceId to "item-1") to chitankaItem),
+                activeItems = emptyMap(), // item NOT in active (ABS) server
+            ),
+        )
+        val outcome = lifecycle.open(params(sourceId = nonActiveSourceId))
+        assertTrue("Expected Ready, got $outcome", outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
     }
 
     @Test
