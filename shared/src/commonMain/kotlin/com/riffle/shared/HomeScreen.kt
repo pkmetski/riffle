@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -194,7 +195,11 @@ fun HomeScreen() {
                         // refreshKey++ fires before clearRiffleActive() runs and
                         // wasRiffleLastActive() returns true, sending the user back to Riffle.
                         scope.launch {
-                            drawerViewModel.activeServer.first { it?.id == source.id }
+                            // 5 s safety valve: if source was deleted between drawer-open and tap,
+                            // activeServer never emits a matching value; timeout lets us proceed.
+                            withTimeoutOrNull(5_000) {
+                                drawerViewModel.activeServer.first { it?.id == source.id }
+                            }
                             refreshKey++
                         }
                     },
