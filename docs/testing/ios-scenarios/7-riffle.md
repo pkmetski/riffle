@@ -66,3 +66,11 @@ Tests for the cross-source Riffle view introduced in the Riffle feature.
 **Then** the drawer closes and the user is taken to source A's library on the **first** tap, not the second.
 
 *Regression: entering Riffle must deactivate the underlying source so that re-selecting the same source is always a state change that triggers navigation away from Riffle.*
+
+## Scenario 7.11 — Cold-start on Riffle: first tap on the previously-active source navigates away
+
+**Given** source A was the active source and the user was last on the Riffle screen when the app was closed.
+**When** the user reopens the app (Riffle is shown on cold start) and taps source A in the drawer.
+**Then** the drawer closes and source A's library is shown on the **first** tap, not the second.
+
+*Regression: Android — onServerSelected now waits for activeServer to confirm the new source is active (scope.launch { activeServer.first { it.id == id }; navigateAsRoot(HOME) }) before routing. This fixes two races: (1) the drop(1) LaunchedEffect was never consumed when all sources were inactive in Riffle mode (null→null deduplicated); (2) immediate navigateAsRoot caused getStartDestination() to run before the DB write completed, returning NoLibraries → "Unable to connect to source" screen. iOS — same pattern: refreshKey++ waits for activeServer to confirm before triggering getStartDestination(), eliminating the race with clearRiffleActive().*

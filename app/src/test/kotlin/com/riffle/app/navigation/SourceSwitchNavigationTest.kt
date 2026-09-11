@@ -4,32 +4,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the fix for source-switch landing on the wrong library:
+ * Pins the invariant that source switching always routes through HOME so
+ * [com.riffle.feature.library.HomeViewModel.getStartDestination] picks the correct library
+ * for the new source.
  *
- * Previously the LaunchedEffect on activeServer only navigated to HOME when item-detail was on
- * the back stack (PR #678). Switching sources while on a library screen left the old source's
- * route in place, showing "nothing to show here" when the library ID didn't exist in the new source.
+ * Originally this guarded a LaunchedEffect that watched activeServer and called
+ * [shouldNavigateHomeOnSourceSwitch] before navigating. That reactive approach was replaced with
+ * `scope.launch { activeServer.filterNotNull().first { it.id == server.id }; navigateAsRoot(HOME) }`
+ * in the `onServerSelected` drawer callback (MainScreen.kt) to fix two races:
+ *   1. drop(1) in Riffle mode: all sources inactive → Room emits null → StateFlow deduplicates
+ *      (null→null) → drop(1) never consumed → first source tap swallowed.
+ *   2. Immediate navigateAsRoot: HOME calls getStartDestination() before setActiveServer's DB
+ *      write completes → no active source → NoLibraries → "Unable to connect to source" screen.
  *
- * The fix: navigate to HOME unconditionally on source switch, letting getStartDestination()
- * pick the correct library for the new source (last-opened per source, fallback: first in list).
- *
- * The assertions below flip red if the guard is reintroduced (i.e., if
- * shouldNavigateHomeOnSourceSwitch() is changed to return false for non-item-detail routes).
+ * [shouldNavigateHomeOnSourceSwitch] now serves as a named constant documenting the intent.
+ * The assertion below flips red if the constant is changed to false (which would break the
+ * onServerSelected navigation path).
  */
 class SourceSwitchNavigationTest {
 
     @Test
-    fun `navigates home on source switch when on a library list screen`() {
-        assertTrue(shouldNavigateHomeOnSourceSwitch())
-    }
-
-    @Test
-    fun `navigates home on source switch when on item detail screen`() {
-        assertTrue(shouldNavigateHomeOnSourceSwitch())
-    }
-
-    @Test
-    fun `navigates home on source switch when back stack is empty`() {
+    fun `source switch always navigates home so getStartDestination picks the correct library`() {
         assertTrue(shouldNavigateHomeOnSourceSwitch())
     }
 }

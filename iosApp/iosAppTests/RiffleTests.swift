@@ -49,6 +49,15 @@ final class RiffleTests: XCTestCase {
         throw XCTSkip("UI-only; verified manually — tap Riffle, open drawer, tap the source that was active before: library opens on the FIRST tap, not the second")
     }
 
+    // Scenario 7.11 — Cold-start on Riffle: first tap on previously-active source navigates away.
+    // iOS fix is in HomeScreen.kt onServerSelected: scope.launch { activeServer.first { it?.id ==
+    // source.id } → refreshKey++ } instead of refreshKey++ immediately. This ensures
+    // getStartDestination() runs only after setActiveServer's clearRiffleActive+setActive
+    // coroutine has committed to the DB, so wasRiffleLastActive() correctly returns false.
+    func testColdStartOnRiffleFirstTapNavigatesAway() throws {
+        throw XCTSkip("UI-only; verified manually — kill the app while on Riffle, reopen it, tap the source that was last active: library opens on FIRST tap, not second")
+    }
+
     // Scenario 7.9 — Riffle drawer entry is hidden when fewer than 2 sources are configured.
     // Logic lives in HomeScreen.kt (iOS drawer) and NavigationDrawerComposable.kt (Android).
     // Condition: allServers.size >= 2 (Android: shouldShowRiffleSource; iOS: inline guard).

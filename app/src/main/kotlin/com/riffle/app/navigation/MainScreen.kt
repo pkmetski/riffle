@@ -30,9 +30,10 @@ import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import java.net.URLEncoder
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal const val HOME = "home"
 internal const val RIFFLE = "riffle"
@@ -227,15 +228,6 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.activeServer
-            .filterNotNull()
-            .drop(1)
-            .collect {
-                if (shouldNavigateHomeOnSourceSwitch()) navController.navigateAsRoot(HOME)
-            }
-    }
-
     RiffleNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = !isReaderRoute(currentRoute),
@@ -250,6 +242,20 @@ fun MainScreen(
         onServerSelected = { server ->
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
+            // Wait for setActiveServer's coroutine to commit the DB write before navigating.
+            // Navigating to HOME immediately causes getStartDestination() to run before the
+            // new source is active in the DB, returning NoLibraries → "Unable to connect" screen.
+            // drop(1) on activeServer is also unreliable in Riffle mode (all sources inactive →
+            // null→null deduplicated, so drop(1) is never consumed). Waiting here is the correct fix.
+            scope.launch {
+                // 5 s safety valve: if the source was deleted between drawer-open and tap,
+                // setActiveAtomic writes 0 rows and activeServer never emits a matching value.
+                // Timeout ensures we still navigate (getStartDestination handles the no-source case).
+                withTimeoutOrNull(5_000) {
+                    viewModel.activeServer.filterNotNull().first { it.id == server.id }
+                }
+                navController.navigateAsRoot(HOME)
+            }
         },
         onLibrarySelected = { library ->
             viewModel.setActiveLibrary(library.id)
