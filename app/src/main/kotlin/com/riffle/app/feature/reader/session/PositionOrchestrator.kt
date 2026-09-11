@@ -167,7 +167,8 @@ class PositionOrchestrator constructor(
         val serverJumpStamp = serverJump.consumePendingStamp()
         scope.launch {
             saveMutex.withLock {
-                positionSaveCoordinator?.onChanged(locator.toJSON().toString())
+                val locatorJson = locator.toJSON().toString()
+                positionSaveCoordinator?.onChanged(locatorJson)
                 if (serverJumpStamp != null) {
                     readingPositionStore?.updateLocalTimestamp(sourceId, itemId, serverJumpStamp)
                 }

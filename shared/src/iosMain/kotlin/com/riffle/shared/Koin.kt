@@ -335,6 +335,7 @@ private fun iosLibraryModule(
             colorPageDecoder = get(),
             dispatchers = get(),
             panelReportRepository = get(),
+            applicationScope = get(),
         )
     }
 

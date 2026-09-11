@@ -171,19 +171,28 @@ class ReaderSessionLifecycle constructor(
     ): OpenOutcome {
         _publication.value = pub
 
-        val activeServer: Source? = sourceRepository.getActive()
-        val isStorytellerService = activeServer?.serverType == ServerType.STORYTELLER_SERVICE
+        // Prefer the explicit sourceId from navigation (cross-source opens from the Riffle screen)
+        // over the currently-active source. Using the active source here was the root cause of
+        // annotations, bookmarks, and readaloud links all being looked up under the wrong source
+        // when the user opened a book that belongs to a non-active source.
+        val bookSource: Source? = if (params.sourceId != null) {
+            sourceRepository.getById(params.sourceId) ?: sourceRepository.getActive()
+        } else {
+            sourceRepository.getActive()
+        }
+        val effectiveServerId: String? = bookSource?.id
+        val isStorytellerService = bookSource?.serverType == ServerType.STORYTELLER_SERVICE
 
         // Matched ABS book → key the bundle by the linked Storyteller book id (the bundle is
         // stored under that id, not the ABS item id). Storyteller side keeps itemId.
-        val link = if (!isStorytellerService && activeServer != null) {
-            readaloudLinkRepository.findByAbsItem(activeServer.id, params.itemId)
+        val link = if (!isStorytellerService && effectiveServerId != null) {
+            readaloudLinkRepository.findByAbsItem(effectiveServerId, params.itemId)
         } else {
             null
         }
         val resolvedAudioBookId = link?.storytellerBookId ?: params.itemId
-        val resolvedAudioServerId = link?.storytellerSourceId ?: activeServer?.id ?: ""
-        val resolvedReaderServerId = activeServer?.id
+        val resolvedAudioServerId = link?.storytellerSourceId ?: effectiveServerId ?: ""
+        val resolvedReaderServerId = effectiveServerId
 
         // The audiobook to switch to on swipe-up: among this readaloud's ABS targets, the
         // listenable one (in a split library), or this same item if it's a combined ebook+audio.
@@ -200,7 +209,7 @@ class ReaderSessionLifecycle constructor(
         val resolvedAudioSettingsIdentity = if (link != null) {
             audioIdentityResolver.resolveForStorytellerBook(link.storytellerSourceId, link.storytellerBookId)
         } else {
-            AudioIdentity(activeServer?.id ?: "", params.itemId)
+            AudioIdentity(effectiveServerId ?: "", params.itemId)
         }
         val resolvedInitialSpeed = audioPlaybackPreferencesStore.load(resolvedAudioSettingsIdentity)
             ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
@@ -211,7 +220,7 @@ class ReaderSessionLifecycle constructor(
         readerServerId = resolvedReaderServerId
         readerItemId = params.itemId
         // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0036).
-        activeServer?.id?.let { openReconcileTargets.markOpen(it, params.itemId) }
+        effectiveServerId?.let { openReconcileTargets.markOpen(it, params.itemId) }
 
         val openAtCfiNonBlank = params.openAtCfi?.takeIf { it.isNotBlank() }
         // A search-result / annotation-tap open overrides the saved position. Requires `publication`
@@ -283,7 +292,6 @@ class ReaderSessionLifecycle constructor(
             initialFocusAnnotationId = effectiveFocusAnnotationId,
             effectiveInitialLocator = effectiveInitial,
             openAtLocator = openAtLocator,
-            activeServer = activeServer,
             isStorytellerService = isStorytellerService,
             resolvedAudioBookId = resolvedAudioBookId,
             resolvedAudioServerId = resolvedAudioServerId,
@@ -353,7 +361,6 @@ class ReaderSessionLifecycle constructor(
             /** The initial locator without the TOC-nav null-out. Used by the initial sync cycle. */
             val effectiveInitialLocator: Locator?,
             val openAtLocator: Locator?,
-            val activeServer: Source?,
             val isStorytellerService: Boolean,
             val resolvedAudioBookId: String,
             val resolvedAudioServerId: String,

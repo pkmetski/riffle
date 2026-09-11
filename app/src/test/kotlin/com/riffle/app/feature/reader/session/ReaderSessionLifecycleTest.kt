@@ -94,9 +94,14 @@ class ReaderSessionLifecycleTest {
         override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
     }
 
-    private class FakeServerRepository(private val active: Source?) : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = flowOf(active?.let { listOf(it) } ?: emptyList())
+    private class FakeServerRepository(
+        private val active: Source?,
+        private val extra: List<Source> = emptyList(),
+    ) : SourceRepository {
+        private val all: List<Source> get() = listOfNotNull(active) + extra
+        override fun observeAll(): Flow<List<Source>> = flowOf(all)
         override suspend fun getActive(): Source? = active
+        override suspend fun getById(sourceId: String): Source? = all.firstOrNull { it.id == sourceId }
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>,
         ) = com.riffle.core.domain.CommitSourceResult.Failure(RuntimeException("not needed"))
@@ -410,6 +415,28 @@ class ReaderSessionLifecycleTest {
     }
 
     @Test
+    fun `open with cross-source params sets resolvedReaderServerId to book source not active source`() = runTest {
+        // Regression for annotation loading bug: when a book from source B is opened while
+        // source A is active (e.g. from the Riffle cross-source screen), resolvedReaderServerId
+        // must equal source B's id so annotations are fetched from the correct (sourceId, itemId)
+        // key and not from source A where they don't exist.
+        val absSource = activeServer               // active source: srv-abs
+        val secondSource = activeServer.copy(id = "srv-abs-2", isActive = false)
+        val secondSourceItem = ebookItem.copy(sourceId = secondSource.id)
+        val (lifecycle, _) = makeLifecycle(
+            libraryObserver = FakeLibraryObserver(
+                items = mapOf((secondSource.id to "item-1") to secondSourceItem),
+                activeItems = mapOf("item-1" to ebookItem), // active source has a DIFFERENT item
+            ),
+            sourceRepository = FakeServerRepository(active = absSource, extra = listOf(secondSource)),
+        )
+        val outcome = lifecycle.open(params(sourceId = secondSource.id))
+            as ReaderSessionLifecycle.OpenOutcome.Ready
+
+        assertEquals(secondSource.id, outcome.resolvedReaderServerId)
+    }
+
+    @Test
     fun `open returns Error when EPUB open fails`() = runTest {
         val (lifecycle, _) = makeLifecycle(
             epubRepository = FakeEpubRepository(EpubOpenResult.Offline),
@@ -440,7 +467,6 @@ class ReaderSessionLifecycleTest {
         assertEquals("srv-abs", outcome.resolvedReaderServerId)
         assertNull(outcome.resolvedAudiobookItemId)
         assertEquals(1.25f, outcome.resolvedInitialSpeed, 0.0001f)
-        assertSame(activeServer, outcome.activeServer)
         assertTrue(reconcile.isOpen("srv-abs", "item-1"))
         assertNotNull(lifecycle.publication.value)
     }
