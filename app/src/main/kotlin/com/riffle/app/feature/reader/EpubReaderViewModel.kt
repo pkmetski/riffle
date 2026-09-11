@@ -1161,7 +1161,10 @@ class EpubReaderViewModel constructor(
             // time first() returned and now. setScreenDimensionBucket only calls bindToBook when
             // previous!=null, so the init coroutine must pick up the latest value here rather
             // than the stale one captured by first().
-            formatting.bindToBook(itemId, checkNotNull(_screenDimensionBucket.value))
+            // Key formatting on the book's own source, not the currently-active one — a book
+            // opened from the Riffle source view carries its real sourceId in navServerId.
+            val formattingSourceId = navServerId ?: sourceRepository.getActive()?.id
+            formatting.bindToBook(itemId, checkNotNull(_screenDimensionBucket.value), formattingSourceId)
             openBook()
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0044). Stop (not Pause):

@@ -48,12 +48,12 @@ class PdfReaderViewModelFormattingTest {
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
         private val saved = mutableMapOf<Pair<String, ScreenDimensionBucket>, BookFormattingOverrides>()
-        override suspend fun load(itemId: String, dimension: ScreenDimensionBucket): BookFormattingOverrides? =
+        override suspend fun load(sourceId: String, itemId: String, dimension: ScreenDimensionBucket): BookFormattingOverrides? =
             saved[itemId to dimension]
-        override suspend fun save(itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides) {
+        override suspend fun save(sourceId: String, itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides) {
             saved[itemId to dimension] = overrides
         }
-        override suspend fun clear(itemId: String, dimension: ScreenDimensionBucket) {
+        override suspend fun clear(sourceId: String, itemId: String, dimension: ScreenDimensionBucket) {
             saved.remove(itemId to dimension)
         }
         fun captured(itemId: String, dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait): BookFormattingOverrides? =
@@ -120,7 +120,7 @@ class PdfReaderViewModelFormattingTest {
     fun `updateFormatting persists to book override store`() = runTest {
         val fixture = formattingSessionFixture()
         try {
-            fixture.session.bindToBook("book-1")
+            fixture.session.bindToBook("book-1", sourceId = "test-src")
             fixture.session.updateFormatting("book-1", FormattingPreferences(margins = 2.0f))
             assertEquals(2.0f, fixture.bookStore.captured("book-1")?.margins)
         } finally {

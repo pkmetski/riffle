@@ -545,7 +545,7 @@ private val coreDataPreferencesModule = module {
         FormattingPreferencesStoreProviderImpl(fullBook = get<FormattingPreferencesStoreImpl>())
     }
 
-    single<BookFormattingPreferencesStore> { BookFormattingPreferencesStoreImpl(get(), get()) }
+    single<BookFormattingPreferencesStore> { BookFormattingPreferencesStoreImpl(get()) }
     single<AudioPlaybackPreferencesStore> { AudioPlaybackPreferencesStoreImpl(get()) }
     single<LibraryVisibilityPreferencesStore> {
         LibraryVisibilityPreferencesStoreImpl(get(named(DS_LIBRARY_VISIBILITY)))

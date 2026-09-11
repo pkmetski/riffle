@@ -8,7 +8,6 @@ import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.SourceRepository
 
 // Formatting is per-device, keyed by (sourceId, itemId, screenDimensionBucket). sourceId
 // prevents colliding item ids across Sources from sharing one row (ADR 0031); screenDimensionBucket
@@ -16,14 +15,13 @@ import com.riffle.core.domain.SourceRepository
 // and the elided (annotations) reader share the same row.
 class BookFormattingPreferencesStoreImpl constructor(
     private val dao: BookFormattingPreferencesDao,
-    private val sourceRepository: SourceRepository,
 ) : BookFormattingPreferencesStore {
 
     override suspend fun load(
+        sourceId: String,
         itemId: String,
         dimension: ScreenDimensionBucket,
     ): BookFormattingOverrides? {
-        val sourceId = sourceRepository.getActive()?.id ?: return null
         val entity = dao.getByItemId(sourceId, itemId, dimension.encode()) ?: return null
         return BookFormattingOverrides(
             fontSize = entity.fontSize,
@@ -43,11 +41,11 @@ class BookFormattingPreferencesStoreImpl constructor(
     }
 
     override suspend fun save(
+        sourceId: String,
         itemId: String,
         dimension: ScreenDimensionBucket,
         overrides: BookFormattingOverrides,
     ) {
-        val sourceId = sourceRepository.getActive()?.id ?: return
         if (overrides.isEmpty) {
             dao.deleteByItemId(sourceId, itemId, dimension.encode())
             return
@@ -75,10 +73,10 @@ class BookFormattingPreferencesStoreImpl constructor(
     }
 
     override suspend fun clear(
+        sourceId: String,
         itemId: String,
         dimension: ScreenDimensionBucket,
     ) {
-        val sourceId = sourceRepository.getActive()?.id ?: return
         dao.deleteByItemId(sourceId, itemId, dimension.encode())
     }
 }

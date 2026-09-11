@@ -51,19 +51,25 @@ class FormattingSessionTest {
     }
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
-        // Keyed by (itemId, dimension) — mirrors the real store's (sourceId, itemId, bucket) PK,
-        // minus the fixed sourceId which is an active-source concern outside the session layer.
         val saved = mutableMapOf<Pair<String, ScreenDimensionBucket>, BookFormattingOverrides>()
+        val loadedSourceIds = mutableListOf<String>()
+        val savedSourceIds = mutableListOf<String>()
         private var toReturn: BookFormattingOverrides? = null
         fun willReturn(o: BookFormattingOverrides?) { toReturn = o }
         override suspend fun load(
-            itemId: String, dimension: ScreenDimensionBucket,
-        ): BookFormattingOverrides? = saved[itemId to dimension] ?: toReturn
+            sourceId: String, itemId: String, dimension: ScreenDimensionBucket,
+        ): BookFormattingOverrides? {
+            loadedSourceIds += sourceId
+            return saved[itemId to dimension] ?: toReturn
+        }
         override suspend fun save(
-            itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides,
-        ) { saved[itemId to dimension] = overrides }
+            sourceId: String, itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides,
+        ) {
+            savedSourceIds += sourceId
+            saved[itemId to dimension] = overrides
+        }
         override suspend fun clear(
-            itemId: String, dimension: ScreenDimensionBucket,
+            sourceId: String, itemId: String, dimension: ScreenDimensionBucket,
         ) { saved.remove(itemId to dimension) }
     }
 
@@ -152,7 +158,7 @@ class FormattingSessionTest {
         val global = FormattingPreferences(fontSize = 1.5f)
         val (session, _, _, _, _, scope) = makeEager(globalPrefs = global)
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertEquals(1.5f, session.effectiveFormattingPreferences.value.fontSize)
         } finally {
             scope.cancel()
@@ -166,7 +172,7 @@ class FormattingSessionTest {
         val overrides = BookFormattingOverrides(fontSize = 2.0f)
         val (session, _, _, _, _, scope) = makeEager(globalPrefs = global, bookOverrides = overrides)
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertEquals(2.0f, session.effectiveFormattingPreferences.value.fontSize)
             assertEquals(ReaderTheme.Light, session.effectiveFormattingPreferences.value.theme)
         } finally {
@@ -179,7 +185,7 @@ class FormattingSessionTest {
     fun `updateFormatting persists book overrides to store`() = runTest {
         val (session, _, bookStore, _, _, scope) = makeEager()
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             val newPrefs = FormattingPreferences(fontSize = 1.8f)
             session.updateFormatting("item1", newPrefs)
             assertTrue(bookStore.saved.containsKey("item1" to ScreenDimensionBucket.PhonePortrait))
@@ -194,7 +200,7 @@ class FormattingSessionTest {
         val overrides = BookFormattingOverrides(fontSize = 2.0f)
         val (session, _, bookStore, _, _, scope) = makeEager(bookOverrides = overrides)
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertTrue(session.hasBookOverrides.value)
             session.resetToGlobalDefaults("item1")
             assertFalse(session.hasBookOverrides.value)
@@ -217,7 +223,7 @@ class FormattingSessionTest {
         )
         val (session, _, _, _, _, scope) = makeEager(globalPrefs = global, fakeAppearance = appearance)
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertEquals(ReaderTheme.Light, session.effectiveFormattingPreferences.value.theme)
 
             // Simulate the coordinator emitting a boundary tick that flips to night.
@@ -315,7 +321,7 @@ class FormattingSessionTest {
         val (session, _, _, _, _, scope) = makeEager()
         try {
             assertFalse(session.formattingPreferencesReady.value)
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertTrue(session.formattingPreferencesReady.value)
         } finally {
             scope.cancel()
@@ -328,7 +334,7 @@ class FormattingSessionTest {
         val overrides = BookFormattingOverrides(theme = ReaderTheme.Dark)
         val (session, _, _, _, _, scope) = makeEager(bookOverrides = overrides)
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertTrue(session.hasBookOverrides.value)
         } finally {
             scope.cancel()
@@ -344,10 +350,10 @@ class FormattingSessionTest {
         fakeBook.saved["book-b" to ScreenDimensionBucket.PhonePortrait] = BookFormattingOverrides(fontSize = 2.0f)
         val (session, _, _, _, _, scope) = makeEager(fakeGlobal = fakeGlobal, fakeBook = fakeBook)
         try {
-            session.bindToBook("book-a")
+            session.bindToBook("book-a", sourceId = "test-src")
             assertEquals(1.5f, session.effectiveFormattingPreferences.value.fontSize)
 
-            session.bindToBook("book-b")
+            session.bindToBook("book-b", sourceId = "test-src")
             assertEquals(2.0f, session.effectiveFormattingPreferences.value.fontSize)
         } finally {
             scope.cancel()
@@ -359,7 +365,7 @@ class FormattingSessionTest {
     fun `onBookClosed sets formattingPreferencesReady to false`() = runTest {
         val (session, _, _, _, _, scope) = makeEager()
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertTrue(session.formattingPreferencesReady.value)
 
             session.onBookClosed()
@@ -375,7 +381,7 @@ class FormattingSessionTest {
         val fakeGlobal = FakeFormattingPreferencesStore(FormattingPreferences(autoScrollWpm = 250))
         val (session, _, _, _, autoScrollController, scope) = makeEager(fakeGlobal = fakeGlobal)
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
 
             autoScrollController.dispatch(AutoScrollEvent.Start)
             assertEquals(250, (autoScrollController.state.value as AutoScrollState.Running).speed.wpm)
@@ -529,7 +535,7 @@ class FormattingSessionTest {
             appearanceCoordinator = FakeAppearanceCoordinator(),
         )
         try {
-            session.bindToBook("item1")
+            session.bindToBook("item1", sourceId = "test-src")
             assertEquals(
                 "Highlights bind must expose the global store's orientation",
                 ReaderOrientation.Continuous,
@@ -557,7 +563,7 @@ class FormattingSessionTest {
             appearanceCoordinator = FakeAppearanceCoordinator(),
         )
         try {
-            session.bindToBook("book-x")
+            session.bindToBook("book-x", sourceId = "test-src")
             session.updateFormatting("book-x", FormattingPreferences(fontSize = 1.75f))
 
             assertTrue(
@@ -611,7 +617,7 @@ class FormattingSessionTest {
         val fakeGlobal = FakeFormattingPreferencesStore(globalPrefs)
         val b = makeEager(fakeGlobal = fakeGlobal, fakeBook = fakeBook)
         try {
-            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait)
+            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait, "test-src")
 
             val seeded = fakeBook.saved["book1" to ScreenDimensionBucket.PhonePortrait]
             assertNotNull(seeded)
@@ -629,9 +635,9 @@ class FormattingSessionTest {
         val dimA = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
         val dimB = ScreenDimensionBucket.PhonePortrait
         try {
-            b.session.bindToBook("book1", dimA)
+            b.session.bindToBook("book1", dimA, "test-src")
             b.session.updateFormatting("book1", b.session.formattingPreferences.value.copy(fontSize = 2.0f))
-            b.session.bindToBook("book1", dimB)
+            b.session.bindToBook("book1", dimB, "test-src")
 
             val dimARow = fakeBook.saved["book1" to dimA]
             val dimBRow = fakeBook.saved["book1" to dimB]
@@ -654,7 +660,7 @@ class FormattingSessionTest {
 
         val b = makeEager(fakeBook = fakeBook)
         try {
-            b.session.bindToBook("book1", dimA)
+            b.session.bindToBook("book1", dimA, "test-src")
             b.session.resetToGlobalDefaults("book1")
 
             assertNull(fakeBook.saved["book1" to dimA])
@@ -673,13 +679,52 @@ class FormattingSessionTest {
         val b = makeEager(fakeBook = fakeBook)
         try {
             // Call bindToBook twice in quick succession — dimB must win.
-            b.session.bindToBook("book1", dimA)
-            b.session.bindToBook("book1", dimB)
+            b.session.bindToBook("book1", dimA, "test-src")
+            b.session.bindToBook("book1", dimB, "test-src")
 
             // activeDimension must reflect the last call's dimension so any subsequent
             // updateFormatting / resetToGlobalDefaults targets dimB, not dimA.
             val seededB = fakeBook.saved["book1" to dimB]
             assertNotNull("dimB row must be seeded by the winning bindToBook call", seededB)
+        } finally {
+            b.sessionScope.cancel()
+        }
+    }
+
+    // Regression: opening a book from the Riffle source view must use the book's own sourceId,
+    // not whatever source happens to be active. Before the fix, FormattingSession ignored the
+    // sourceId in bindToBook and the store always called sourceRepository.getActive(), which
+    // could be null or a different source when the Riffle aggregate view was active.
+    @Test
+    fun `bindToBook passes the provided sourceId to the store, not a hard-coded fallback`() = runTest {
+        val fakeBook = FakeBookFormattingPreferencesStore().also { it.willReturn(null) }
+        val b = makeEager(fakeBook = fakeBook)
+        try {
+            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait, "riffle-source-id")
+
+            assertTrue(
+                "store must have been queried with the provided sourceId",
+                fakeBook.loadedSourceIds.contains("riffle-source-id") ||
+                    fakeBook.savedSourceIds.contains("riffle-source-id"),
+            )
+        } finally {
+            b.sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `updateFormatting persists with the sourceId set by the preceding bindToBook`() = runTest {
+        val fakeBook = FakeBookFormattingPreferencesStore().also { it.willReturn(null) }
+        val b = makeEager(fakeBook = fakeBook)
+        try {
+            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait, "my-source")
+            b.session.updateFormatting("book1", FormattingPreferences(fontSize = 1.5f))
+
+            assertEquals(
+                "updateFormatting must use the sourceId from bindToBook",
+                "my-source",
+                fakeBook.savedSourceIds.last(),
+            )
         } finally {
             b.sessionScope.cancel()
         }

@@ -96,6 +96,7 @@ class FormattingSession constructor(
     val autoScrollScrollDeltas: Flow<Int> = autoScrollController.scrollDeltas
 
     private var bookId: String? = null
+    private var boundSourceId: String? = null
     private var activeDimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait
     private var bindJob: kotlinx.coroutines.Job? = null
 
@@ -189,22 +190,28 @@ class FormattingSession constructor(
      * Load book-specific overrides for the given screen-dimension bucket and mark prefs as ready.
      * Must be called before [effectiveFormattingPreferences] is consumed by the navigator. May be
      * re-called when the device dimension changes (fold/rotate) to switch to the new bucket's row.
-     * If no row exists for this (itemId, dimension), global defaults are seeded as a dense
-     * override row so the dimension's settings are independent going forward.
+     * If no row exists for this (sourceId, itemId, dimension), global defaults are seeded as a
+     * dense override row so the dimension's settings are independent going forward.
+     *
+     * [sourceId] is the book's own source (not the currently-active one). Pass it on the initial
+     * call; subsequent re-binds for dimension changes may omit it to reuse the stored value.
      */
     fun bindToBook(
         itemId: String,
         dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait,
+        sourceId: String? = null,
     ) {
         val alreadyReady = _formattingPreferencesReady.value
         bookId = itemId
         activeDimension = dimension
+        if (sourceId != null) boundSourceId = sourceId
+        val sid = boundSourceId
         // Only reset the ready flag on the first bind. Re-binding for a dimension change leaves the
         // prior prefs visible while the new dimension's row loads — avoids a spinner flash on fold/rotate.
         if (!alreadyReady) _formattingPreferencesReady.value = false
         bindJob?.cancel()
         bindJob = this.scope.launch {
-            val existing = bookFormattingPreferencesStore.load(itemId, dimension)
+            val existing = sid?.let { bookFormattingPreferencesStore.load(it, itemId, dimension) }
             val global = formattingPreferencesStoreProvider.store().preferences.first()
             val overrides = if (existing != null) {
                 existing
@@ -226,7 +233,7 @@ class FormattingSession constructor(
                     doublePageSpread = global.doublePageSpread,
                     justifyText = global.justifyText,
                 ).also { seed ->
-                    bookFormattingPreferencesStore.save(itemId, dimension, seed)
+                    if (sid != null) bookFormattingPreferencesStore.save(sid, itemId, dimension, seed)
                 }
             }
             _bookOverrides.value = overrides
@@ -254,8 +261,9 @@ class FormattingSession constructor(
         _bookOverrides.value = updated
         _formattingPreferences.value = prefs
         _hasBookOverrides.value = !updated.isEmpty
+        val sid = boundSourceId ?: return
         val boundDimension = activeDimension
-        scope.launch { bookFormattingPreferencesStore.save(itemId, boundDimension, updated) }
+        scope.launch { bookFormattingPreferencesStore.save(sid, itemId, boundDimension, updated) }
     }
 
     /**
@@ -270,9 +278,10 @@ class FormattingSession constructor(
 
     /** Clear book-level overrides for the current dimension, reverting to global formatting preferences. */
     fun resetToGlobalDefaults(itemId: String) {
+        val sid = boundSourceId
         val boundDimension = activeDimension
         scope.launch {
-            bookFormattingPreferencesStore.clear(itemId, boundDimension)
+            if (sid != null) bookFormattingPreferencesStore.clear(sid, itemId, boundDimension)
             _bookOverrides.value = BookFormattingOverrides()
             _formattingPreferences.value =
                 formattingPreferencesStoreProvider.store().preferences.first()
