@@ -20,8 +20,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -84,6 +87,7 @@ fun HomeScreen() {
     val viewModel = koinInject<HomeViewModel>()
     val drawerViewModel = koinInject<DrawerViewModel>()
 
+    val scope = rememberCoroutineScope()
     var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
@@ -185,7 +189,14 @@ fun HomeScreen() {
                         drawerOpen = false
                         appSection = AppSection.Library
                         drawerViewModel.setActiveServer(source.id)
-                        refreshKey++
+                        // Wait for setActiveServer's coroutine to complete (clearRiffleActive +
+                        // setActive) before triggering getStartDestination(). Without this,
+                        // refreshKey++ fires before clearRiffleActive() runs and
+                        // wasRiffleLastActive() returns true, sending the user back to Riffle.
+                        scope.launch {
+                            drawerViewModel.activeServer.first { it?.id == source.id }
+                            refreshKey++
+                        }
                     },
                     onLibrarySelected = { library ->
                         drawerOpen = false
