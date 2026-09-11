@@ -497,6 +497,18 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
             composeTestRule.activityRule.scenario.onActivity { y = reader.scrollY }
             if (y == lastY && y > 0) stableCount++ else { stableCount = 0; lastY = y }
         }
+        // Guard: if the stabilisation deadline expired before scrollY moved above 0 (smooth-scroll
+        // animation not yet started on a loaded CI runner), wait explicitly for the animation to
+        // produce a positive scrollY before dispatching the fling. Without this, the fling is
+        // dispatched from scrollY=0, clamps immediately, never crosses the backward-prepend
+        // threshold, and ch10 is never loaded — causing a spurious 20-second timeout failure.
+        if (lastY <= 0) {
+            composeTestRule.waitUntil(timeoutMillis = 20_000) {
+                var y = -1
+                composeTestRule.activityRule.scenario.onActivity { y = reader.scrollY }
+                y > 0
+            }
+        }
         dispatchFlingSwipeBackward(reader)
         // The prepended previous chapter must load AND measure past its screen-sized placeholder
         // before the landing position is meaningful. Polled manually so a timeout can report the
