@@ -263,7 +263,9 @@ class PdfReaderViewModel constructor(
             // Sequential: formatting prefs must be available before openBook() so the
             // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
             // waits for effectiveFormattingPreferences to reflect the loaded value).
-            formatting.bindToBook(itemId)
+            // Key formatting on the book's own source, not the currently-active one.
+            val formattingSourceId = navSourceId ?: sourceRepository.getActive()?.id
+            formatting.bindToBook(itemId, sourceId = formattingSourceId)
             openBook()
         }
         viewModelScope.launch {

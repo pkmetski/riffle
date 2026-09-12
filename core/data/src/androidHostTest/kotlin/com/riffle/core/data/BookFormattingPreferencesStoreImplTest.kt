@@ -3,17 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.BookFormattingOverrides
-import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
-import com.riffle.core.models.ServerType
-import com.riffle.core.models.Source
-import com.riffle.core.models.SourceUrl
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -21,26 +13,8 @@ import org.junit.Test
 
 class BookFormattingPreferencesStoreImplTest {
 
-    private val testSource = Source(
-        id = "src1",
-        url = SourceUrl.parse("http://test")!!,
-        isActive = true,
-        insecureConnectionAllowed = false,
-        username = "",
-        serverType = ServerType.AUDIOBOOKSHELF,
-    )
-
-    private class FakeSourceRepository(private val source: Source?) : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOfNotNull(source))
-        override suspend fun getActive() = source
-        override suspend fun getById(sourceId: String): Source? = source?.takeIf { it.id == sourceId }
-        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
-        override suspend fun setActive(sourceId: String) = Unit
-        override suspend fun remove(sourceId: String) = Unit
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
     private val capturedGetBuckets = mutableListOf<String>()
+    private val capturedGetSourceIds = mutableListOf<String>()
 
     private inner class FakeDao : BookFormattingPreferencesDao {
         var entityToReturn: BookFormattingPreferencesEntity? = null
@@ -53,6 +27,7 @@ class BookFormattingPreferencesStoreImplTest {
         override suspend fun getByItemId(
             sourceId: String, itemId: String, screenDimensionBucket: String,
         ): BookFormattingPreferencesEntity? {
+            capturedGetSourceIds += sourceId
             capturedGetBuckets += screenDimensionBucket
             return entityToReturn
         }
@@ -66,20 +41,30 @@ class BookFormattingPreferencesStoreImplTest {
     @Test
     fun load_passesEncodedDimensionToDao() = runTest {
         val dao = FakeDao()
-        val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
+        val store = BookFormattingPreferencesStoreImpl(dao)
         val bucket = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
 
-        store.load("book1", bucket)
+        store.load("src1", "book1", bucket)
 
         assertEquals(bucket.encode(), capturedGetBuckets.first())
     }
 
     @Test
+    fun load_passesSourceIdToDao() = runTest {
+        val dao = FakeDao()
+        val store = BookFormattingPreferencesStoreImpl(dao)
+
+        store.load("my-source", "book1", ScreenDimensionBucket.PhonePortrait)
+
+        assertEquals("my-source", capturedGetSourceIds.first())
+    }
+
+    @Test
     fun load_returnsNull_whenNoRowFound() = runTest {
         val dao = FakeDao().also { it.entityToReturn = null }
-        val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
+        val store = BookFormattingPreferencesStoreImpl(dao)
 
-        val result = store.load("book1", ScreenDimensionBucket.PhonePortrait)
+        val result = store.load("src1", "book1", ScreenDimensionBucket.PhonePortrait)
 
         assertNull(result)
     }
@@ -87,11 +72,11 @@ class BookFormattingPreferencesStoreImplTest {
     @Test
     fun save_includesEncodedDimensionInEntity() = runTest {
         val dao = FakeDao()
-        val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
+        val store = BookFormattingPreferencesStoreImpl(dao)
         val bucket = ScreenDimensionBucket.of(SizeClass.Medium, SizeClass.Expanded)
         val overrides = BookFormattingOverrides(theme = ReaderTheme.Dark)
 
-        store.save("book1", bucket, overrides)
+        store.save("src1", "book1", bucket, overrides)
 
         assertEquals(1, dao.upserted.size)
         assertEquals(bucket.encode(), dao.upserted.first().screenDimensionBucket)
@@ -99,24 +84,25 @@ class BookFormattingPreferencesStoreImplTest {
     }
 
     @Test
-    fun clear_passesEncodedDimensionToDao() = runTest {
+    fun save_includesSourceIdInEntity() = runTest {
         val dao = FakeDao()
-        val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(testSource))
-        val bucket = ScreenDimensionBucket.of(SizeClass.Expanded, SizeClass.Compact)
+        val store = BookFormattingPreferencesStoreImpl(dao)
+        val overrides = BookFormattingOverrides(theme = ReaderTheme.Dark)
 
-        store.clear("book1", bucket)
+        store.save("my-source", "book1", ScreenDimensionBucket.PhonePortrait, overrides)
 
-        assertEquals(1, dao.deletedBuckets.size)
-        assertEquals(bucket.encode(), dao.deletedBuckets.first())
+        assertEquals("my-source", dao.upserted.first().sourceId)
     }
 
     @Test
-    fun load_returnsNull_whenNoActiveSource() = runTest {
+    fun clear_passesEncodedDimensionToDao() = runTest {
         val dao = FakeDao()
-        val store = BookFormattingPreferencesStoreImpl(dao, FakeSourceRepository(null))
+        val store = BookFormattingPreferencesStoreImpl(dao)
+        val bucket = ScreenDimensionBucket.of(SizeClass.Expanded, SizeClass.Compact)
 
-        val result = store.load("book1", ScreenDimensionBucket.PhonePortrait)
+        store.clear("src1", "book1", bucket)
 
-        assertNull(result)
+        assertEquals(1, dao.deletedBuckets.size)
+        assertEquals(bucket.encode(), dao.deletedBuckets.first())
     }
 }

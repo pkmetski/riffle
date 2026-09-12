@@ -47,17 +47,18 @@ class PdfReaderViewModelFormattingTest {
     }
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
-        private val saved = mutableMapOf<Pair<String, ScreenDimensionBucket>, BookFormattingOverrides>()
-        override suspend fun load(itemId: String, dimension: ScreenDimensionBucket): BookFormattingOverrides? =
-            saved[itemId to dimension]
-        override suspend fun save(itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides) {
-            saved[itemId to dimension] = overrides
+        // Keyed by (sourceId, itemId, dimension) so a wrong-sourceId routing regression fails fast.
+        private val saved = mutableMapOf<Triple<String, String, ScreenDimensionBucket>, BookFormattingOverrides>()
+        override suspend fun load(sourceId: String, itemId: String, dimension: ScreenDimensionBucket): BookFormattingOverrides? =
+            saved[Triple(sourceId, itemId, dimension)]
+        override suspend fun save(sourceId: String, itemId: String, dimension: ScreenDimensionBucket, overrides: BookFormattingOverrides) {
+            saved[Triple(sourceId, itemId, dimension)] = overrides
         }
-        override suspend fun clear(itemId: String, dimension: ScreenDimensionBucket) {
-            saved.remove(itemId to dimension)
+        override suspend fun clear(sourceId: String, itemId: String, dimension: ScreenDimensionBucket) {
+            saved.remove(Triple(sourceId, itemId, dimension))
         }
-        fun captured(itemId: String, dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait): BookFormattingOverrides? =
-            saved[itemId to dimension]
+        fun captured(sourceId: String, itemId: String, dimension: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait): BookFormattingOverrides? =
+            saved[Triple(sourceId, itemId, dimension)]
     }
 
     private class FakeWakeLockPreferencesStore : WakeLockPreferencesStore {
@@ -120,9 +121,9 @@ class PdfReaderViewModelFormattingTest {
     fun `updateFormatting persists to book override store`() = runTest {
         val fixture = formattingSessionFixture()
         try {
-            fixture.session.bindToBook("book-1")
+            fixture.session.bindToBook("book-1", sourceId = "test-src")
             fixture.session.updateFormatting("book-1", FormattingPreferences(margins = 2.0f))
-            assertEquals(2.0f, fixture.bookStore.captured("book-1")?.margins)
+            assertEquals(2.0f, fixture.bookStore.captured("test-src", "book-1")?.margins)
         } finally {
             fixture.autoScrollController.release()
             fixture.scope.cancel()

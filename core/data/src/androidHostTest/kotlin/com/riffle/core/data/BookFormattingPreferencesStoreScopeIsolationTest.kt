@@ -2,19 +2,10 @@ package com.riffle.core.data
 
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesEntity
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.BookFormattingOverrides
-import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
-import com.riffle.core.models.ServerType
-import com.riffle.core.models.Source
-import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.SourceUrl
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -36,6 +27,7 @@ import org.junit.Test
  */
 class BookFormattingPreferencesStoreScopeIsolationTest {
 
+    private val sourceId = "srv-A"
     private val dim = ScreenDimensionBucket.PhonePortrait
     private val dimLandscape = ScreenDimensionBucket.of(SizeClass.Compact, SizeClass.Compact)
 
@@ -58,82 +50,68 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
         }
     }
 
-    private class FixedActiveSourceRepository(private val active: Source) : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(active))
-        override suspend fun getActive(): Source? = active
-        override suspend fun getById(sourceId: String): Source? =
-            active.takeIf { it.id == sourceId }
-        override suspend fun commit(
-            pending: PendingSource,
-            hiddenLibraryIds: Set<String>,
-        ): CommitSourceResult = throw UnsupportedOperationException()
-        override suspend fun setActive(sourceId: String) = Unit
-        override suspend fun remove(sourceId: String) = Unit
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
     private fun newStore(): BookFormattingPreferencesStoreImpl = BookFormattingPreferencesStoreImpl(
         dao = InMemoryDao(),
-        sourceRepository = FixedActiveSourceRepository(
-            Source(
-                id = "srv-A",
-                url = SourceUrl.parse("http://localhost")!!,
-                isActive = true,
-                insecureConnectionAllowed = false,
-                username = "",
-                serverType = ServerType.AUDIOBOOKSHELF,
-            ),
-        ),
     )
 
     @Test
     fun `override round-trips for a book`() = runTest {
         val store = newStore()
-        store.save("item-1", dim, BookFormattingOverrides(theme = ReaderTheme.Dark))
+        store.save(sourceId, "item-1", dim, BookFormattingOverrides(theme = ReaderTheme.Dark))
 
         assertEquals(
             ReaderTheme.Dark,
-            store.load("item-1", dim)?.theme,
+            store.load(sourceId, "item-1", dim)?.theme,
         )
     }
 
     @Test
     fun `portrait and landscape dimensions hold independent values for the same book`() = runTest {
         val store = newStore()
-        store.save("item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
-        store.save("item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
+        store.save(sourceId, "item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
+        store.save(sourceId, "item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
 
-        assertEquals(1.4f, store.load("item-1", dim)?.fontSize)
-        assertEquals(1.8f, store.load("item-1", dimLandscape)?.fontSize)
+        assertEquals(1.4f, store.load(sourceId, "item-1", dim)?.fontSize)
+        assertEquals(1.8f, store.load(sourceId, "item-1", dimLandscape)?.fontSize)
     }
 
     @Test
     fun `clear removes the row for the targeted dimension only`() = runTest {
         val store = newStore()
-        store.save("item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
-        store.save("item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
+        store.save(sourceId, "item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
+        store.save(sourceId, "item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
 
-        store.clear("item-1", dim)
+        store.clear(sourceId, "item-1", dim)
 
         assertNull(
             "Portrait value must be gone after a portrait-scoped clear",
-            store.load("item-1", dim)?.fontSize,
+            store.load(sourceId, "item-1", dim)?.fontSize,
         )
         assertEquals(
             "Landscape value must survive a portrait-scoped clear",
             1.8f,
-            store.load("item-1", dimLandscape)?.fontSize,
+            store.load(sourceId, "item-1", dimLandscape)?.fontSize,
         )
     }
 
     @Test
     fun `colored chapter map override round-trips for a book`() = runTest {
         val store = newStore()
-        store.save("item-1", dim, BookFormattingOverrides(coloredChapterMap = false))
+        store.save(sourceId, "item-1", dim, BookFormattingOverrides(coloredChapterMap = false))
 
         assertEquals(
             false,
-            store.load("item-1", dim)?.coloredChapterMap,
+            store.load(sourceId, "item-1", dim)?.coloredChapterMap,
         )
+    }
+
+    @Test
+    fun `two sources with the same itemId hold independent settings`() = runTest {
+        val store = newStore()
+        store.save("src-A", "item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
+        store.save("src-B", "item-1", dim, BookFormattingOverrides(fontSize = 1.8f))
+
+        assertEquals(1.4f, store.load("src-A", "item-1", dim)?.fontSize)
+        assertEquals(1.8f, store.load("src-B", "item-1", dim)?.fontSize)
     }
 }
