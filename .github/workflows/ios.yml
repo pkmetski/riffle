@@ -55,6 +55,10 @@ jobs:
         run: |
           echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
 
+      - name: Read Xcode version
+        id: xcode-version
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
+
       - name: Cache Kotlin/Native toolchain
         uses: actions/cache@v6
         with:
@@ -73,10 +77,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ steps.kotlin-version.outputs.version }}
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ steps.kotlin-version.outputs.version }}
           restore-keys: |
-            derived-data-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
-            derived-data-${{ runner.os }}-
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
       - name: Assemble Riffle XCFramework
         run: ./gradlew assembleRiffleDebugXCFramework
