@@ -64,3 +64,27 @@ Corresponds to Android harness tests: `EpubHarnessTest`, `TocIntegrationTest`,
 3. Tap the downloaded book → detail screen.
 4. Tap **Read**.
 5. **Expected**: The EPUB reader opens successfully — "Book not found" must NOT appear.
+
+## Scenario 03-I: Progress bar is per-source when the same book exists on two sources
+
+1. Configure two sources (e.g. ABS and O'Reilly) that both carry the same title (e.g. "Fundamentals of Software Architecture").
+2. Open the ABS copy, advance to ~25 % of the book, and close.
+3. Open the O'Reilly copy, advance to ~75 % of the book, and close.
+4. Navigate to the Riffle home screen ("In Progress" section).
+5. **Expected**: Both copies appear with **different** progress bars — ~25 % for the ABS copy and ~75 % for the O'Reilly copy. Neither copy must display the other's progress.
+
+## Scenario 03-J: Lazy (O'Reilly) book opens at saved position when position was pre-migration
+
+1. Configure ABS and O'Reilly sources. Ensure the O'Reilly book's saved position row (if any) lives only under the ABS source id (simulates pre-PR-999 data — e.g. clear the O'Reilly row from `reading_positions` for the book while leaving the ABS row intact with a valid locator).
+2. Open the O'Reilly book from the Riffle home or the O'Reilly browse screen.
+3. **Expected**: The reader opens at the position recorded under the ABS source id (the backward-compat fallback fires), NOT at the cover page.
+4. Advance a few pages and close the reader.
+5. Re-open the same O'Reilly book.
+6. **Expected**: The reader opens at the position saved in step 4 (now under the O'Reilly source id — the fallback is no longer needed).
+
+## Scenario 03-K: Lazy (O'Reilly) book opens at saved position when locator has OEBPS-prefixed href
+
+1. Configure an O'Reilly source. Open an O'Reilly book that was previously read as a downloaded EPUB (its position stored with an `"OEBPS/"` href prefix, e.g. `{"href":"OEBPS/ch09.html",...}`). This can be simulated by manually inserting a row in `reading_positions` with `href = "OEBPS/ch09.html"` for the book.
+2. Open the same O'Reilly book lazily (i.e. without having downloaded the EPUB first).
+3. **Expected**: The reader opens at the chapter corresponding to `ch09.html`, NOT at the cover page. The `"OEBPS/"` prefix in the stored locator must be silently normalized to match the lazy publication's bare reading-order paths.
+4. The progress bar must show non-zero progress matching the stored position.

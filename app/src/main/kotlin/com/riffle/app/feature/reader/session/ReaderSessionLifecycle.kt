@@ -256,7 +256,6 @@ class ReaderSessionLifecycle constructor(
             runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                 ?: cfiStringToLocator(stored)
         }
-
         // Effective initial locator — openAtCfi wins over stored. When a TOC entry is requested,
         // pass null so Readium's async restore doesn't race with the VM's navigateToEntry.
         val effectiveInitial = openAtLocator ?: storedLocator

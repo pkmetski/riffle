@@ -261,7 +261,11 @@ class CbzReaderViewModel constructor(
                     lastSavedPage = clamped
                     onCurrentPageChanged(clamped)
                     val progressFraction = if (ready.pageCount > 1) clamped.toFloat() / (ready.pageCount - 1).toFloat() else 1f
-                    viewModelScope.launch { updateReadingProgressUseCase(itemId, progressFraction) }
+                    val snapSourceId = resolvedSourceId
+                    viewModelScope.launch {
+                        if (snapSourceId != null) updateReadingProgressUseCase(snapSourceId, itemId, progressFraction)
+                        else updateReadingProgressUseCase(itemId, progressFraction)
+                    }
                 }
             }
         }
@@ -649,7 +653,7 @@ class CbzReaderViewModel constructor(
             val sid = resolvedSourceId ?: return@launch
             cbzRepository.saveReadingPosition(sid, itemId, locatorJson)
             val progressFraction = if (pageCount > 1) pageIndex.toFloat() / (pageCount - 1).toFloat() else 1f
-            updateReadingProgressUseCase(itemId, progressFraction)
+            updateReadingProgressUseCase(sid, itemId, progressFraction)
         }
     }
 

@@ -54,6 +54,7 @@ class NoopUpdateReadingProgress(
     val calls: MutableList<Pair<String, Float>> = mutableListOf(),
 ) : UpdateReadingProgress(NoopLibraryMutator) {
     override suspend fun invoke(itemId: String, progress: Float) { calls += itemId to progress }
+    override suspend fun invoke(sourceId: String, itemId: String, progress: Float) { calls += itemId to progress }
 }
 
 class NoopRecordItemOpened(

@@ -9,4 +9,8 @@ open class UpdateReadingProgress constructor(
     open suspend operator fun invoke(itemId: String, progress: Float) {
         libraryMutator.updateReadingProgress(itemId, progress)
     }
+
+    open suspend operator fun invoke(sourceId: String, itemId: String, progress: Float) {
+        libraryMutator.updateReadingProgress(sourceId, itemId, progress)
+    }
 }

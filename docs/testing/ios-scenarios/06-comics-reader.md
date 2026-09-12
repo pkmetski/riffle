@@ -49,3 +49,11 @@ Corresponds to Android harness tests: `CbzThumbnailStripTest`.
 2. Tap "← Back" to return to the library.
 3. Re-open the same book.
 4. **Expected**: The reader resumes at the last-viewed page (not page 1).
+
+## Scenario 06-G: Progress bar is per-source when the same CBZ exists on two sources
+
+1. Configure two sources (e.g. ABS and Komga) that both carry the same CBZ title.
+2. Open the ABS copy, advance to page ~25 % through, and close.
+3. Open the Komga copy, advance to page ~75 % through, and close.
+4. Navigate to the Riffle home screen ("In Progress" section).
+5. **Expected**: Both copies appear with **different** progress bars. Neither copy must display the other's progress.

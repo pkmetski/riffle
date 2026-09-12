@@ -19,7 +19,9 @@ internal fun pickInitialLocator(
     focusAnnotationId: String?,
     latest: Locator?,
     initial: Locator?,
-): Locator? = when {
-    focusAnnotationId != null -> initial
-    else -> latest ?: initial
+): Locator? {
+    return when {
+        focusAnnotationId != null -> initial
+        else -> latest ?: initial
+    }
 }

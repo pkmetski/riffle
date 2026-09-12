@@ -541,7 +541,11 @@ class EpubReaderViewModel constructor(
             // locally so the durable sweep pushes the audio record too, without reopening (ADR 0036).
             readaloud.mirrorReadingToAudiobook(cfi)
         },
-        updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
+        updateProgress = { progress ->
+            val sid = navServerId ?: sourceRepository.getActive()?.id
+            if (sid != null) updateReadingProgressUseCase(sid, itemId, progress)
+            else updateReadingProgressUseCase(itemId, progress)
+        },
     )
 
     // ---- PositionOrchestrator delegations ---------------------------------------------------
@@ -1463,9 +1467,12 @@ class EpubReaderViewModel constructor(
         )
 
         // Bind the position orchestrator so it can save positions for this book.
+        // Use the item's own sourceId (navServerId) for timestamp writes so server-jump stamps land
+        // under the same key as the position rows written by positionSaveCoordinator. Fall back to
+        // resolvedReaderServerId for ABS-only books opened without a sourceId nav arg.
         position.bindBook(
             itemId = itemId,
-            sourceId = o.resolvedReaderServerId ?: "",
+            sourceId = navServerId ?: o.resolvedReaderServerId ?: "",
             positionSaveCoordinator = positionSaveCoordinator,
             readingPositionStore = readingPositionStore,
             spinePositionCounts = spinePositionCounts,
@@ -3911,8 +3918,24 @@ class EpubReaderViewModel constructor(
         })
         _isLazyPublication.value = true
         val publication = com.riffle.app.feature.source.oreilly.OReillyPublicationBuilder.build(container)
-        val lastPosition = readingPositionStore.load(sourceId, itemId)
-        return Pair(publication, lastPosition)
+        val lastPosition = com.riffle.feature.reader.loadPositionWithActiveFallback(
+            store = readingPositionStore,
+            sourceRepository = sourceRepository,
+            sourceId = sourceId,
+            itemId = itemId,
+        )
+        // Stored locators from a previously-assembled EPUB carry "OEBPS/"-prefixed hrefs (e.g.
+        // "OEBPS/ch09.html"), but the lazy publication's reading order uses the bare API paths
+        // ("ch09.html"). Strip the prefix when the bare path matches a publication link so
+        // Readium's go() can find the right resource in setCurrent().
+        val normalizedLastPosition = normalizeLazyLocator(lastPosition, publication)
+        return Pair(publication, normalizedLastPosition)
+    }
+
+    private fun normalizeLazyLocator(lastPosition: String?, publication: Publication): String? {
+        if (lastPosition == null) return null
+        val knownHrefs = publication.readingOrder.map { it.url().toString() }.toSet()
+        return normalizeLocatorHrefForLazyPub(lastPosition, knownHrefs)
     }
 
     fun updateFormatting(prefs: FormattingPreferences) = formatting.updateFormatting(itemId, prefs)
