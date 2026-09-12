@@ -655,6 +655,9 @@ class EpubReaderViewModel constructor(
 
     fun resumeAutoScrollIfPaused() = formatting.resumeAutoScrollIfPaused()
 
+    fun resumeAutoScrollIfPausedBy(cause: com.riffle.core.domain.autoscroll.PauseCause) =
+        formatting.resumeAutoScrollIfPausedBy(cause)
+
     fun pauseAutoScrollFromPill() = formatting.pauseAutoScrollFromPill()
 
     fun resumeAutoScrollFromPill() = formatting.resumeAutoScrollIfPaused()

@@ -341,6 +341,13 @@ class FormattingSession constructor(
         autoScrollController.dispatch(AutoScrollEvent.Resume)
     }
 
+    fun resumeAutoScrollIfPausedBy(cause: PauseCause) {
+        val s = autoScrollController.state.value
+        if (s is AutoScrollState.Paused && s.cause == cause) {
+            autoScrollController.dispatch(AutoScrollEvent.Resume)
+        }
+    }
+
     fun reachedEndOfBookForAutoScroll() {
         autoScrollController.dispatch(AutoScrollEvent.Stop)
     }

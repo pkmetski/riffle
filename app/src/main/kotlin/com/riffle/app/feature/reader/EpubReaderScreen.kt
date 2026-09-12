@@ -265,6 +265,26 @@ fun EpubReaderScreen(
         onDispose { lifecycle.removeObserver(observer) }
     }
 
+    // Pause auto-scroll while the screen is off and resume when the screen comes back on.
+    DisposableEffect(viewModel) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+                when (intent.action) {
+                    android.content.Intent.ACTION_SCREEN_OFF ->
+                        viewModel.pauseAutoScroll(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+                    android.content.Intent.ACTION_SCREEN_ON ->
+                        viewModel.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_SCREEN_OFF)
+            addAction(android.content.Intent.ACTION_SCREEN_ON)
+        }
+        context.registerReceiver(receiver, filter)
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+
     // Screen wake lock — gated on user preference
     DisposableEffect(keepScreenOn) {
         val window = (context as? FragmentActivity)?.window

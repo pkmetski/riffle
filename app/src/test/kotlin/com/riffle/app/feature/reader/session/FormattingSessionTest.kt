@@ -729,4 +729,42 @@ class FormattingSessionTest {
             b.sessionScope.cancel()
         }
     }
+
+    // Screen-off pause: resumeAutoScrollIfPausedBy(ScreenOff) must resume a ScreenOff-paused session.
+    @Test
+    fun `resumeAutoScrollIfPausedBy ScreenOff resumes a ScreenOff-paused scroll`() = runTest {
+        val (session, _, _, _, autoScrollController, scope) = makeEager()
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            session.pauseAutoScroll(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+            assertTrue(autoScrollController.state.value is AutoScrollState.Paused)
+
+            session.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+            assertTrue(autoScrollController.state.value is AutoScrollState.Running)
+        } finally {
+            autoScrollController.release()
+            scope.cancel()
+        }
+    }
+
+    // Screen-off resume must NOT unpark a UserPausedPill session — the pill-park is sticky.
+    @Test
+    fun `resumeAutoScrollIfPausedBy ScreenOff does not resume a UserPausedPill scroll`() = runTest {
+        val (session, _, _, _, autoScrollController, scope) = makeEager()
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            session.pauseAutoScrollFromPill()
+            val parked = autoScrollController.state.value as AutoScrollState.Paused
+            assertEquals(com.riffle.core.domain.autoscroll.PauseCause.UserPausedPill, parked.cause)
+
+            session.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+            assertTrue(
+                "pill-parked scroll must not be resumed by a screen-on event",
+                autoScrollController.state.value is AutoScrollState.Paused,
+            )
+        } finally {
+            autoScrollController.release()
+            scope.cancel()
+        }
+    }
 }
