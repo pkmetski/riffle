@@ -19,7 +19,7 @@ internal fun normalizeLocatorHrefForLazyPub(locatorJson: String, knownHrefs: Set
     if (href in knownHrefs) return locatorJson
     val stripped = href.removePrefix("OEBPS/")
     if (stripped != href && stripped in knownHrefs) {
-        return JSONObject(locatorJson).apply { put("href", stripped) }.toString()
+        return json.apply { put("href", stripped) }.toString()
     }
     return locatorJson
 }
