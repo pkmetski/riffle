@@ -601,24 +601,28 @@ class KomgaCatalog(
     }
 
     /**
-     * First readlist named [name] whose owner is the currently authenticated user.
+     * First readlist named [name] that belongs (or probably belongs) to the current user.
      *
-     * Ownership matching depends on whether the server exposes `/users/me` (Komga ≥ 1.19):
+     * Priority:
+     * 1. **Exact ownership** (`ownerId == meId`): preferred when the server tracks ownership.
+     * 2. **Null-ownerId fallback**: readlists created before Komga 1.19 never had ownerId set.
+     *    After a server upgrade to 1.19+, those pre-existing readlists keep `ownerId == null`.
+     *    On 1.19+ a foreign-owned readlist always carries a real `ownerId`, so null here means
+     *    "pre-upgrade, potentially ours" — we accept it so existing items stay visible. If a
+     *    subsequent PATCH turns out to 403 (edge case: admin-created pre-1.19 readlist that
+     *    another user owns), [ToReadRepositoryImpl] handles the failure gracefully.
+     * 3. **Old Komga** (`meId == null`, `/users/me` absent): accept `ownerId == null` exactly
+     *    as before — all pre-1.19 readlists are implicitly writable by any user.
      *
-     * - **meId known** (`/users/me` succeeds): only match `ownerId == meId`. Readlists with
-     *   `ownerId == null` are skipped — they were created before ownership tracking and may
-     *   not be writable by us (PATCHing them returns 403 if owned by admin or a different
-     *   account). We treat them as absent and create our own.
-     * - **meId unknown** (`/users/me` returns 404, old Komga): match `ownerId == null` only,
-     *   since old servers never set ownerId and all readlists are implicitly writable.
-     *
-     * In both cases, readlists owned by a DIFFERENT known user are always skipped.
+     * Readlists owned by a DIFFERENT known user (ownerId ≠ null && ownerId ≠ meId) are always
+     * skipped to avoid 403s on PATCH.
      */
     private suspend fun firstOwnedReadListNamed(name: String): KomgaReadListDto? {
         val meId = currentUserId()
-        return fetchAllReadLists().firstOrNull { rl ->
-            rl.name == name && if (meId != null) rl.ownerId == meId else rl.ownerId == null
-        }
+        val all = fetchAllReadLists()
+        // Prefer exact ownership; fall back to null-ownerId (pre-1.19 or old Komga).
+        return all.firstOrNull { rl -> rl.name == name && rl.ownerId == meId }
+            ?: all.firstOrNull { rl -> rl.name == name && rl.ownerId == null }
     }
 
     private suspend fun fetchAllReadLists(): List<KomgaReadListDto> {

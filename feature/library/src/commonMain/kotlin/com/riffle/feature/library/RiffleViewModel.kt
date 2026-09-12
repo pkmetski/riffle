@@ -12,7 +12,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.models.SourceType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -96,8 +95,9 @@ class RiffleViewModel constructor(
                 // supervisorScope keeps this lambda alive (so collectLatest doesn't return
                 // prematurely) and cancels all child observers when a new emission arrives.
                 supervisorScope {
-                    val absSources = sources.filter { it.type == SourceType.ABS }
-                    absSources.forEach { source ->
+                    // Refresh To Read for all sources, not just ABS. refreshForSource is a no-op
+                    // for sources that don't implement PlaylistsCapability (returns true early).
+                    sources.forEach { source ->
                         launch {
                             libraryObserver.observeLibraries(source.id).collectLatest { libraries ->
                                 coroutineScope {

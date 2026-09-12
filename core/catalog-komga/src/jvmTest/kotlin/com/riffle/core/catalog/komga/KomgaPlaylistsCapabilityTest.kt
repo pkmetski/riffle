@@ -122,20 +122,47 @@ class KomgaPlaylistsCapabilityTest {
         assertEquals("RL_MINE", playlist!!.id)
     }
 
-    // When /users/me succeeds (modern Komga ≥ 1.19) but a readlist has no ownerId — a relic from
-    // before ownership tracking was introduced — skip it. We cannot safely PATCH it (it may belong
-    // to admin or another user; PATCH returns 403). Fall through to createPlaylist to POST a fresh
-    // readlist that we will own. This replaces an old test that incorrectly accepted null-ownerId
-    // matches when meId was known, causing 403 loops (see RIFFLE_TOREAD logs for "PATCH … 403").
-    @Test fun `findPlaylist skips readlist with no ownerId when user identity is known`() = runTest {
+    // Regression (#1004): readlists created before Komga 1.19 have no ownerId. After a server
+    // upgrade to 1.19+, /users/me succeeds (meId is known) but those pre-existing readlists keep
+    // ownerId=null. The old code skipped null-ownerId readlists when meId was known, making all
+    // pre-upgrade "To Read" items permanently invisible. On 1.19+ a foreign readlist carries a
+    // real ownerId, so ownerId=null means "pre-upgrade, potentially ours" — we accept it as a
+    // fallback so the user's existing items remain visible. If a subsequent PATCH returns 403,
+    // ToReadRepositoryImpl handles it gracefully via its local-store fallback.
+    @Test fun `findPlaylist accepts null-ownerId readlist as pre-upgrade fallback when user identity is known`() = runTest {
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
         server.enqueue(readListPage(
-            """{"id":"RL_OLD","name":"To Read","bookIds":[]}"""
+            """{"id":"RL_OLD","name":"To Read","bookIds":["B1"]}"""
+        ))
+        // 3rd call: fetchReadListBookIdsInLibrary
+        server.enqueue(bookPage(
+            """{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Old book","authors":[]}}"""
         ))
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
-        assertNull("must not hand back a null-ownerId readlist that may 403 on PATCH", playlist)
+        assertNotNull("null-ownerId readlist must be returned as pre-upgrade fallback", playlist)
+        assertEquals("RL_OLD", playlist!!.id)
+        assertEquals(listOf("B1"), playlist.itemIds)
+    }
+
+    // Exact-ownership match must win over a null-ownerId fallback when both exist.
+    @Test fun `findPlaylist prefers exact-ownership match over null-ownerId readlist`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
+        // List contains both a null-ownerId relic and an exact-ownership match.
+        server.enqueue(readListPage(
+            """{"id":"RL_OLD","name":"To Read","bookIds":["B_OLD"]}""",
+            """{"id":"RL_MINE","name":"To Read","bookIds":["B_MINE"],"ownerId":"USER_ME"}""",
+        ))
+        server.enqueue(bookPage(
+            """{"id":"B_MINE","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Mine","authors":[]}}"""
+        ))
+
+        val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
+
+        assertNotNull(playlist)
+        assertEquals("RL_MINE", playlist!!.id)
+        assertEquals(listOf("B_MINE"), playlist.itemIds)
     }
 
     // When the only "To Read" on the server is foreign-owned, createPlaylist must POST a fresh
