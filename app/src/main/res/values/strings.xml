@@ -311,6 +311,10 @@
     <string name="ui_wi_fi_only">Wi-Fi only</string>
     <string name="ui_remove_named_item">Remove %1$s</string>
     <string name="ui_annotations_count">Annotations (%1$d)</string>
+    <string name="ui_series_count">Series (%1$d)</string>
+    <string name="ui_collections_count">Collections (%1$d)</string>
+    <string name="ui_to_read_count">To Read (%1$d)</string>
+    <string name="ui_all_books_count">All Books (%1$d)</string>
     <string name="ui_debug_entries_count">%1$d/%2$d entries (buffer holds %3$d)</string>
     <string name="ui_sleeping_in">Sleeping in %1$s</string>
     <string name="ui_sleeping_at_end_of_chapter">Sleeping at end of chapter</string>

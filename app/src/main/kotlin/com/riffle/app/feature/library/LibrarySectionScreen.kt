@@ -41,7 +41,7 @@ fun LibrarySectionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(sectionType.title) },
+                title = { Text(stringResource(sectionType.titleResId())) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))

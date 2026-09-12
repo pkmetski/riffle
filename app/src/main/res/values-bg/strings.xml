@@ -294,7 +294,7 @@
     <string name="ui_unable_to_connect_to_source">Не може да се свърже с източника</string>
     <string name="ui_unlink">Премахване на връзката</string>
     <string name="ui_unmatch">Премахване на съвпадението</string>
-    <string name="ui_unowned">Без собственик</string>
+    <string name="ui_unowned">Непритежаван</string>
     <string name="ui_update">Актуализиране</string>
     <string name="ui_update_available">Налична е актуализация</string>
     <string name="ui_upload_completed">Качването завърши</string>
@@ -308,6 +308,10 @@
     <string name="ui_wi_fi_only">Само Wi-Fi</string>
     <string name="ui_remove_named_item">Премахване на %1$s</string>
     <string name="ui_annotations_count">Анотации (%1$d)</string>
+    <string name="ui_series_count">Поредици (%1$d)</string>
+    <string name="ui_collections_count">Колекции (%1$d)</string>
+    <string name="ui_to_read_count">За четене (%1$d)</string>
+    <string name="ui_all_books_count">Всички книги (%1$d)</string>
     <string name="ui_debug_entries_count">%1$d/%2$d записа (буферът пази %3$d)</string>
     <string name="ui_sleeping_in">Заспиване след %1$s</string>
     <string name="ui_sleeping_at_end_of_chapter">Заспиване в края на главата</string>

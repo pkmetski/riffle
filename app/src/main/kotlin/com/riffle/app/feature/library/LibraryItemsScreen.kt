@@ -447,7 +447,7 @@ private fun SearchResultsContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
         if (filteredSeries.isNotEmpty()) {
-            item { SectionHeader("Series") }
+            item { SectionHeader(stringResource(R.string.ui_series)) }
             items(filteredSeries, key = { "series_${it.id}" }) { s ->
                 SearchSeriesRow(
                     series = s,
@@ -458,13 +458,13 @@ private fun SearchResultsContent(
             }
         }
         if (filteredCollections.isNotEmpty()) {
-            item { SectionHeader("Collections") }
+            item { SectionHeader(stringResource(R.string.ui_collections)) }
             items(filteredCollections, key = { "col_${it.id}" }) { col ->
                 SearchCollectionRow(collection = col, onClick = { onCollectionSelected(col) })
             }
         }
         if (filteredItems.isNotEmpty()) {
-            item { SectionHeader("Books") }
+            item { SectionHeader(stringResource(R.string.ui_books)) }
             items(filteredItems, key = { "item_${it.id}" }) { item ->
                 LibraryItemCard(
                     item = item,
@@ -476,7 +476,7 @@ private fun SearchResultsContent(
         }
         val hasAnnotations = annotationResults.isNotEmpty() || audiobookBookmarkResults.isNotEmpty()
         if (hasAnnotations) {
-            item { SectionHeader("Annotations") }
+            item { SectionHeader(stringResource(R.string.ui_annotations)) }
             val totalCount = annotationResults.size + audiobookBookmarkResults.size
             // Split the preview cap fairly so neither type is starved when both are present.
             // Each type gets at least ceil(cap/2) slots; unused slots from one side spill to the other.
@@ -1608,7 +1608,7 @@ internal fun HomeTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader(LibrarySectionType.IN_PROGRESS.title) }
+            item(key = "header_in_progress") { SectionHeader(stringResource(LibrarySectionType.IN_PROGRESS.titleResId())) }
             item(key = "grid_in_progress") {
                 BookSectionGrid(
                     items = inProgress,
@@ -1621,7 +1621,7 @@ internal fun HomeTabContent(
             }
         }
         if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader(LibrarySectionType.CONTINUE_SERIES.title) }
+            item(key = "header_continue_series") { SectionHeader(stringResource(LibrarySectionType.CONTINUE_SERIES.titleResId())) }
             item(key = "grid_continue_series") {
                 BookSectionGrid(
                     items = continueSeries,
@@ -1635,7 +1635,7 @@ internal fun HomeTabContent(
             }
         }
         if (recentlyAdded.isNotEmpty()) {
-            item(key = "header_recently_added") { SectionHeader(LibrarySectionType.RECENTLY_ADDED.title) }
+            item(key = "header_recently_added") { SectionHeader(stringResource(LibrarySectionType.RECENTLY_ADDED.titleResId())) }
             item(key = "grid_recently_added") {
                 BookSectionGrid(
                     items = recentlyAdded,
@@ -1648,7 +1648,7 @@ internal fun HomeTabContent(
             }
         }
         if (finished.isNotEmpty()) {
-            item(key = "header_completed") { SectionHeader(LibrarySectionType.FINISHED.title) }
+            item(key = "header_completed") { SectionHeader(stringResource(LibrarySectionType.FINISHED.titleResId())) }
             item(key = "grid_completed") {
                 BookSectionGrid(
                     items = finished,
@@ -1692,7 +1692,7 @@ private fun SeriesTabContent(
             .fadingScrollbar(gridState),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader("Series (${items.size})")
+            SectionHeader(stringResource(R.string.ui_series_count, items.size))
         }
         items(items, key = { it.id }) { s ->
             Box(modifier = Modifier.padding(4.dp)) {
@@ -1736,7 +1736,7 @@ private fun CollectionsTabContent(
             .fadingScrollbar(gridState),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader("Collections (${items.size})")
+            SectionHeader(stringResource(R.string.ui_collections_count, items.size))
         }
         items(items, key = { it.id }) { col ->
             Box(modifier = Modifier.padding(4.dp)) {
@@ -1780,7 +1780,7 @@ internal fun ToReadTabContent(
             .fadingScrollbar(gridState),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader("To Read (${items.size})")
+            SectionHeader(stringResource(R.string.ui_to_read_count, items.size))
         }
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
@@ -1811,7 +1811,7 @@ private fun AllBooksTabContent(
 ) {
     if (isLoading) return
     Column(modifier = Modifier.fillMaxSize()) {
-        SectionHeader("All Books (${items.size})")
+        SectionHeader(stringResource(R.string.ui_all_books_count, items.size))
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

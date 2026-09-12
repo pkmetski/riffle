@@ -32,6 +32,8 @@ import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.navigation.sourceDisplayName
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.LibrarySectionType
@@ -81,17 +83,17 @@ fun RiffleScreen(
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Filled.Home, contentDescription = "In Progress") },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = stringResource(R.string.ui_section_in_progress)) },
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = stringResource(R.string.ui_to_read)) },
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                    icon = { Icon(RiffleIcons.Annotations, contentDescription = stringResource(R.string.ui_annotations)) },
                 )
             }
         },
@@ -136,7 +138,7 @@ private fun InProgressTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader(LibrarySectionType.IN_PROGRESS.title) }
+            item(key = "header_in_progress") { SectionHeader(stringResource(LibrarySectionType.IN_PROGRESS.titleResId())) }
             item(key = "grid_in_progress") {
                 BookSectionGrid(
                     items = inProgress,
@@ -149,7 +151,7 @@ private fun InProgressTabContent(
             }
         }
         if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader(LibrarySectionType.CONTINUE_SERIES.title) }
+            item(key = "header_continue_series") { SectionHeader(stringResource(LibrarySectionType.CONTINUE_SERIES.titleResId())) }
             item(key = "grid_continue_series") {
                 BookSectionGrid(
                     items = continueSeries,
@@ -178,7 +180,7 @@ private fun ToReadTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (items.isNotEmpty()) {
-            item(key = "header_to_read") { SectionHeader("To Read") }
+            item(key = "header_to_read") { SectionHeader(stringResource(R.string.ui_to_read)) }
             item(key = "grid_to_read") {
                 BookSectionGrid(
                     items = items,
