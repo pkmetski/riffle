@@ -14,6 +14,7 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -97,6 +98,33 @@ class RiffleViewModelTest {
 
     // endregion
 
+    // region To Read refresh
+
+    @Test
+    fun toReadRefreshesForKomgaSourcesNotJustAbs() = runTest(dispatcher) {
+        // Regression: RiffleViewModel only called refreshForSource for ABS sources, so Komga
+        // "To Read" items were never populated in the Riffle unified home screen.
+        val komgaSource = source("komga-1", type = SourceType.KOMGA)
+        val komgaLibrary = Library(id = "lib-k1", name = "Komga Library", mediaType = "book", isUnsupported = false)
+        val tracker = TrackingToReadRepository()
+        val observer = fakeObserver(librariesBySourceId = mapOf("komga-1" to listOf(komgaLibrary)))
+        val sourceRepo = FakeMultiSourceRepository(listOf(komgaSource))
+
+        makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = sourceRepo,
+            toReadRepository = tracker,
+        )
+        advanceUntilIdle()
+
+        assertTrue(
+            tracker.refreshedPairs.contains("komga-1" to "lib-k1"),
+            "refreshForSource must be called for Komga source libraries; got ${tracker.refreshedPairs}",
+        )
+    }
+
+    // endregion
+
     // region Sources
 
     @Test
@@ -131,9 +159,11 @@ class RiffleViewModelTest {
     private fun fakeObserver(
         inProgressAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
         continueSeriesAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
+        librariesBySourceId: Map<String, List<Library>> = emptyMap(),
     ): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = flowOf(emptyList())
-        override fun observeLibraries(sourceId: String): Flow<List<Library>> = flowOf(emptyList())
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> =
+            flowOf(librariesBySourceId[sourceId] ?: emptyList())
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
@@ -177,12 +207,13 @@ class RiffleViewModelTest {
         latestUpdatedAt = latestUpdatedAt,
     )
 
-    private fun source(id: String) = Source(
+    private fun source(id: String, type: SourceType = SourceType.ABS) = Source(
         id = id,
         url = SourceUrl.parse("https://$id.example.com")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "",
+        type = type,
     )
 
     private fun fakeTokenStorage(): TokenStorage = object : TokenStorage {
@@ -209,6 +240,19 @@ private class FakeToReadRepository : ToReadRepository {
     override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
     override suspend fun refresh(libraryId: String): Boolean = true
     override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
+    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
+    override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
+    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
+}
+
+private class TrackingToReadRepository : ToReadRepository {
+    val refreshedPairs = mutableListOf<Pair<String, String>>()
+    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
+    override suspend fun refresh(libraryId: String): Boolean = true
+    override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
+        refreshedPairs += sourceId to libraryId
+        return true
+    }
     override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
