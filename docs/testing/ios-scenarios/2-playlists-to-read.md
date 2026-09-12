@@ -52,6 +52,20 @@ via the iOS Koin module, replacing the previous no-op bindings.
 - The Playlists tab is empty (no playlists shown) — non-ABS sources return `true` from `refresh`
   with an empty list, so the tab renders but is blank rather than erroring.
 
+### 2.6 — Riffle home screen does not error for Komga sources
+**Regression for:** `RiffleViewModel` previously only called `refreshForSource` for ABS sources;
+Komga sources were silently skipped. On iOS, `IosToReadRepositoryImpl.refreshForSource` returns
+`true` early for non-ABS sources, so this is a no-op — but it must not crash.
+
+**Steps:**
+1. Configure at least one Komga source in addition to (or instead of) an ABS source.
+2. Open the Riffle home screen (the unified "Home" / "Riffle" tab).
+
+**Expected:**
+- The home screen loads without error or crash.
+- No "To Read" items appear for the Komga source (Komga To Read is not yet implemented on iOS).
+- ABS "To Read" items (if present) continue to appear normally.
+
 ## Test coverage
 
 Scenarios 2.1–2.5 require a live ABS instance and are verified manually on a simulator.
