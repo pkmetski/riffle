@@ -160,7 +160,11 @@ class PdfReaderViewModel constructor(
             val sid = navSourceId ?: sourceRepository.getActive()?.id
             if (sid != null) pdfRepository.saveReadingPosition(sid, itemId, cfi)
         },
-        updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
+        updateProgress = { progress ->
+            val sid = navSourceId ?: sourceRepository.getActive()?.id
+            if (sid != null) updateReadingProgressUseCase(sid, itemId, progress)
+            else updateReadingProgressUseCase(itemId, progress)
+        },
     )
 
     private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)

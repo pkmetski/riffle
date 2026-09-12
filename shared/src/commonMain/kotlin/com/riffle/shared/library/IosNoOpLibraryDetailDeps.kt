@@ -204,6 +204,7 @@ internal class IosNoOpRecordItemOpened : RecordItemOpened(NoOpLibraryMutator, No
 
 internal class IosNoOpUpdateReadingProgress : UpdateReadingProgress(NoOpLibraryMutator) {
     override suspend fun invoke(itemId: String, progress: Float) {}
+    override suspend fun invoke(sourceId: String, itemId: String, progress: Float) {}
 }
 
 internal class IosNoOpMarkReadAcrossDimensions : MarkReadAcrossDimensions(
