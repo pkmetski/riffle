@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.RiffleViewModel
-import com.riffle.feature.library.LibrarySectionType
 import org.koin.compose.koinInject
 
 @Composable
@@ -116,11 +115,11 @@ private fun IosInProgressTab(
             }
         }
         if (inProgress.isNotEmpty()) {
-            item { SectionLabel(LibrarySectionType.IN_PROGRESS.title) }
+            item { SectionLabel("In Progress") }
             items(inProgress, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, onItemSelected) }
         }
         if (continueSeries.isNotEmpty()) {
-            item { SectionLabel(LibrarySectionType.CONTINUE_SERIES.title) }
+            item { SectionLabel("Continue Series") }
             items(continueSeries, key = { "cs_${it.sourceId}_${it.id}" }) { ItemRow(it, onItemSelected) }
         }
     }
