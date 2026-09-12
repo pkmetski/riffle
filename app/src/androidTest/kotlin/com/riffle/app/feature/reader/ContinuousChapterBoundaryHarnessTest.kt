@@ -509,6 +509,13 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
                 y > 0
             }
         }
+        // Drain any port.post / postOnAnimation callbacks still queued from the landing sequence
+        // (post-measure maybeShift, reapplyLandingAfterFallback triggers) before the fling's
+        // ACTION_DOWN clears controller state. Without this, a queued maybeShift can consume
+        // shiftPending mid-gesture, preventing the backward-prepend threshold from being crossed.
+        // Two back-to-back flushes cover the two-level chain: port.post { … postOnAnimation { } }.
+        composeTestRule.activityRule.scenario.onActivity { }
+        composeTestRule.activityRule.scenario.onActivity { }
         dispatchFlingSwipeBackward(reader)
         // The prepended previous chapter must load AND measure past its screen-sized placeholder
         // before the landing position is meaningful. Polled manually so a timeout can report the
