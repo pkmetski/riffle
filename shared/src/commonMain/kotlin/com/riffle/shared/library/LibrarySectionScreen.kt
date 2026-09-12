@@ -80,7 +80,12 @@ fun LibrarySectionScreen(
                 style = TextStyle(fontSize = 20.sp),
             )
             BasicText(
-                text = sectionType.title,
+                text = when (sectionType) {
+                    LibrarySectionType.IN_PROGRESS -> "In Progress"
+                    LibrarySectionType.FINISHED -> "Completed"
+                    LibrarySectionType.RECENTLY_ADDED -> "Recently Added"
+                    LibrarySectionType.CONTINUE_SERIES -> "Continue Series"
+                },
                 style = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
             )
         }

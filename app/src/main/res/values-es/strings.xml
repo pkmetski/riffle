@@ -308,6 +308,10 @@
     <string name="ui_wi_fi_only">Solo Wi-Fi</string>
     <string name="ui_remove_named_item">Eliminar %1$s</string>
     <string name="ui_annotations_count">Anotaciones (%1$d)</string>
+    <string name="ui_series_count">Serie (%1$d)</string>
+    <string name="ui_collections_count">Colecciones (%1$d)</string>
+    <string name="ui_to_read_count">Para leer (%1$d)</string>
+    <string name="ui_all_books_count">Todos los libros (%1$d)</string>
     <string name="ui_debug_entries_count">%1$d/%2$d entradas (el búfer conserva %3$d)</string>
     <string name="ui_sleeping_in">Se detendrá en %1$s</string>
     <string name="ui_sleeping_at_end_of_chapter">Se detendrá al final del capítulo</string>
