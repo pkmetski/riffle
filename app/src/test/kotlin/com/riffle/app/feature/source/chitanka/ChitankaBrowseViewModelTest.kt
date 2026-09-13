@@ -99,9 +99,6 @@ class ChitankaBrowseViewModelTest {
                 com.riffle.core.data.websource.WebSourceItemGate.Outcome.Fetched(listing)
             }
         }
-        val connectivityObserver = mockk<ConnectivityObserver>().also {
-            every { it.isOnline } returns MutableStateFlow(true)
-        }
         return ChitankaBrowseViewModel(
             savedStateHandle,
             sourceRepo,

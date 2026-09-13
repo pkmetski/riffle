@@ -96,9 +96,6 @@ class GutenbergBrowseViewModelTest {
     ): Pair<GutenbergBrowseViewModel, WebSourceItemGate> {
         val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
         val handle = SavedStateHandle(mapOf("libraryId" to GutenbergCatalog.ROOT_BOOKS))
-        val connectivityObserver = mockk<ConnectivityObserver>().also {
-            every { it.isOnline } returns MutableStateFlow(true)
-        }
         val vm = GutenbergBrowseViewModel(
             handle,
             sourceRepo,

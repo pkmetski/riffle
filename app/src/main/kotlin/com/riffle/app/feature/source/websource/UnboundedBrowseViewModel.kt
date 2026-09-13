@@ -137,10 +137,6 @@ abstract class UnboundedBrowseViewModel(
     private val _items = MutableStateFlow<List<CatalogItem>>(emptyList())
     val items: StateFlow<List<CatalogItem>> = _items.asStateFlow()
 
-    val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
-        .map { !it }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
     // Catalog items are only meaningful when online — hide them while offline so the Library tab
     // doesn't show a stale list of items the user can't actually open without a network connection.
     private val onlineItems: StateFlow<List<CatalogItem>> =
