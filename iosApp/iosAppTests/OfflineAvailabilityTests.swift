@@ -66,7 +66,9 @@ final class OfflineAvailabilityTests: XCTestCase {
     // WebSourceLibraryViewModel. The filtering/banner logic is covered by WebSourceLibraryViewModelTest
     // (JVM unit tests); here we verify the symbol is exported from the KMP framework.
     func testWebSourceLibraryViewModelIsRegisteredInKoin() throws {
-        throw XCTSkip("WebSourceLibraryViewModel is an Android-only ViewModel (app module); iOS web source screens are not yet implemented. Offline filtering logic is verified by WebSourceLibraryViewModelTest (JVM).")
+        // Android-only ViewModel (app module); iOS web source screens not yet implemented.
+        // Offline filtering is verified by WebSourceLibraryViewModelTest (JVM).
+        throw XCTSkip("WebSourceLibraryViewModel is Android-only; iOS parity pending.")
     }
 
     // Scenarios 4.8 / 4.9 — Offline item filtering for web source Home/To Read tabs is pure
