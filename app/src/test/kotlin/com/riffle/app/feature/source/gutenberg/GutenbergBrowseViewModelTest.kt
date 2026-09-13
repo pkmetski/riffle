@@ -31,8 +31,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import com.riffle.core.domain.ConnectivityObserver
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -106,7 +108,7 @@ class GutenbergBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             libraryFilterPreferencesStore,
             emptyLibraryObserver(),
-            connectivityObserver,
+            FakeConnectivityObserver(),
         )
         return vm to gate
     }
@@ -311,4 +313,8 @@ class GutenbergBrowseViewModelTest {
 
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
     }
+}
+
+private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
+    override val isOnline: StateFlow<Boolean> = MutableStateFlow(online)
 }

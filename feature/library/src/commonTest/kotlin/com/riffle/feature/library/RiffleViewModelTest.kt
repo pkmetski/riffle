@@ -3,6 +3,8 @@ package com.riffle.feature.library
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
@@ -20,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -31,6 +34,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -121,6 +125,61 @@ class RiffleViewModelTest {
             tracker.refreshedPairs.contains("komga-1" to "lib-k1"),
             "refreshForSource must be called for Komga source libraries; got ${tracker.refreshedPairs}",
         )
+    // region Offline
+
+    @Test
+    fun isOfflineFalseWhenConnected() = runTest(dispatcher) {
+        val connectivity = FakeConnectivityObserver(online = true)
+        val vm = makeViewModel(connectivity = connectivity)
+        advanceUntilIdle()
+        assertFalse(vm.isOffline.first())
+    }
+
+    @Test
+    fun isOfflineTrueWhenDisconnected() = runTest(dispatcher) {
+        val connectivity = FakeConnectivityObserver(online = false)
+        val vm = makeViewModel(connectivity = connectivity)
+        advanceUntilIdle()
+        assertTrue(vm.isOffline.first())
+    }
+
+    @Test
+    fun inProgressFiltersUnavailableItemsWhenOffline() = runTest(dispatcher) {
+        val items = listOf(libraryItem("available", "src1"), libraryItem("unavailable", "src2"))
+        val observer = fakeObserver(inProgressAllSources = MutableStateFlow(items))
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            connectivity = FakeConnectivityObserver(online = false),
+            offlineAvailability = FakeItemOfflineAvailability(setOf("available")),
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("available"), vm.inProgress.first().map { it.id })
+    }
+
+    @Test
+    fun inProgressShowsAllItemsWhenOnline() = runTest(dispatcher) {
+        val items = listOf(libraryItem("A", "src1"), libraryItem("B", "src2"))
+        val observer = fakeObserver(inProgressAllSources = MutableStateFlow(items))
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            connectivity = FakeConnectivityObserver(online = true),
+            offlineAvailability = FakeItemOfflineAvailability(emptySet()),
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("A", "B"), vm.inProgress.first().map { it.id })
+    }
+
+    @Test
+    fun continueSeriesFiltersUnavailableItemsWhenOffline() = runTest(dispatcher) {
+        val items = listOf(libraryItem("kept", "src1"), libraryItem("dropped", "src2"))
+        val observer = fakeObserver(continueSeriesAllSources = MutableStateFlow(items))
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            connectivity = FakeConnectivityObserver(online = false),
+            offlineAvailability = FakeItemOfflineAvailability(setOf("kept")),
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("kept"), vm.continueSeries.first().map { it.id })
     }
 
     // endregion
@@ -148,12 +207,16 @@ class RiffleViewModelTest {
         tokenStorage: TokenStorage = fakeTokenStorage(),
         toReadRepository: ToReadRepository = FakeToReadRepository(),
         annotationsRepo: AnnotationsLibraryRepository = FakeAllSourcesAnnotationsRepo(emptyList()),
+        connectivity: ConnectivityObserver = FakeConnectivityObserver(online = true),
+        offlineAvailability: LibraryItemOfflineAvailability = FakeItemOfflineAvailability(emptySet()),
     ) = RiffleViewModel(
         libraryObserver = libraryObserver,
         sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
         toReadRepository = toReadRepository,
         annotationsLibraryRepository = annotationsRepo,
+        connectivityObserver = connectivity,
+        offlineAvailability = offlineAvailability,
     )
 
     private fun fakeObserver(
@@ -223,6 +286,14 @@ class RiffleViewModelTest {
     }
 
     // endregion
+}
+
+private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
+    override val isOnline: StateFlow<Boolean> = MutableStateFlow(online)
+}
+
+private class FakeItemOfflineAvailability(private val availableIds: Set<String>) : LibraryItemOfflineAvailability {
+    override fun isAvailableOffline(item: LibraryItem): Boolean = item.id in availableIds
 }
 
 private class FakeMultiSourceRepository(initial: List<Source>) : SourceRepository {

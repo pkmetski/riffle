@@ -294,6 +294,8 @@ private val navigationViewModelModule = module {
             tokenStorage = get(),
             toReadRepository = get(),
             annotationsLibraryRepository = get(),
+            connectivityObserver = get(),
+            offlineAvailability = get(),
         )
     }
     viewModel {
@@ -474,6 +476,9 @@ private val sourceViewModelModule = module {
             toReadRepository = get(),
             libraryMutator = get(),
             positionTombstoneWriter = get(),
+            remoteItemFreshness = get(),
+            connectivityObserver = get(),
+            offlineAvailability = get(),
         )
     }
     viewModel { AddRadioEsViewModel(installer = get()) }

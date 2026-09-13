@@ -41,6 +41,7 @@ fun RiffleScreen(
     val continueSeries by viewModel.continueSeries.collectAsState()
     val toRead by viewModel.toRead.collectAsState()
     val annotations by viewModel.annotations.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
 
     var selectedItem by remember { mutableStateOf<LibraryItem?>(null) }
     val current = selectedItem
@@ -88,6 +89,19 @@ fun RiffleScreen(
                 ) {
                     BasicText(text = title, style = TextStyle(fontSize = 13.sp))
                 }
+            }
+        }
+        if (isOffline) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFBBDEFB))
+                    .padding(vertical = 6.dp, horizontal = 16.dp),
+            ) {
+                BasicText(
+                    text = "Offline — showing cached data",
+                    style = TextStyle(fontSize = 12.sp),
+                )
             }
         }
         when (selectedTab) {

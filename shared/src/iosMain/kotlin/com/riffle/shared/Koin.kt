@@ -234,6 +234,8 @@ private fun iosLibraryModule(
             tokenStorage = get(),
             toReadRepository = get(),
             annotationsLibraryRepository = get(),
+            connectivityObserver = get(),
+            offlineAvailability = get(),
         )
     }
 

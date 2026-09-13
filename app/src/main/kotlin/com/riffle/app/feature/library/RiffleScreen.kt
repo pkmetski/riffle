@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -52,6 +53,7 @@ fun RiffleScreen(
     val toRead by viewModel.toRead.collectAsState()
     val annotations by viewModel.annotations.collectAsState()
     val sources by viewModel.sources.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
 
     val sourceBadgeMap = sources.associate { it.id to sourceDisplayName(it) }
     val authTokenMap = viewModel.authTokenMap
@@ -98,28 +100,30 @@ fun RiffleScreen(
             }
         },
     ) { innerPadding ->
-        when (selectedTab) {
-            0 -> InProgressTabContent(
-                inProgress = inProgress,
-                continueSeries = continueSeries,
-                sourceBadgeMap = sourceBadgeMap,
-                authTokenMap = authTokenMap,
-                innerPadding = innerPadding,
-                onItemSelected = { onItemSelected(it.sourceId, it.id) },
-            )
-            1 -> ToReadTabContent(
-                items = toRead,
-                sourceBadgeMap = sourceBadgeMap,
-                authTokenMap = authTokenMap,
-                innerPadding = innerPadding,
-                onItemSelected = { onItemSelected(it.sourceId, it.id) },
-            )
-            else -> AnnotationsTabContent(
-                annotations = annotations,
-                authTokenMap = authTokenMap,
-                innerPadding = innerPadding,
-                onBookClick = onAnnotatedBookClick,
-            )
+        Column(modifier = androidx.compose.ui.Modifier.fillMaxSize().padding(innerPadding)) {
+            if (isOffline) {
+                OfflineBanner()
+            }
+            when (selectedTab) {
+                0 -> InProgressTabContent(
+                    inProgress = inProgress,
+                    continueSeries = continueSeries,
+                    sourceBadgeMap = sourceBadgeMap,
+                    authTokenMap = authTokenMap,
+                    onItemSelected = { onItemSelected(it.sourceId, it.id) },
+                )
+                1 -> ToReadTabContent(
+                    items = toRead,
+                    sourceBadgeMap = sourceBadgeMap,
+                    authTokenMap = authTokenMap,
+                    onItemSelected = { onItemSelected(it.sourceId, it.id) },
+                )
+                else -> AnnotationsTabContent(
+                    annotations = annotations,
+                    authTokenMap = authTokenMap,
+                    onBookClick = onAnnotatedBookClick,
+                )
+            }
         }
     }
 }
@@ -130,11 +134,10 @@ private fun InProgressTabContent(
     continueSeries: List<LibraryItem>,
     sourceBadgeMap: Map<String, String>,
     authTokenMap: Map<String, String>,
-    innerPadding: PaddingValues,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
@@ -172,11 +175,10 @@ private fun ToReadTabContent(
     items: List<LibraryItem>,
     sourceBadgeMap: Map<String, String>,
     authTokenMap: Map<String, String>,
-    innerPadding: PaddingValues,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (items.isNotEmpty()) {
@@ -199,13 +201,11 @@ private fun ToReadTabContent(
 private fun AnnotationsTabContent(
     annotations: List<AnnotatedBook>,
     authTokenMap: Map<String, String>,
-    innerPadding: PaddingValues,
     onBookClick: (sourceId: String, itemId: String) -> Unit,
 ) {
     AnnotationsListScreen(
         state = AnnotationsListUiState(loading = false, books = annotations),
         onBookClick = onBookClick,
         tokenMap = authTokenMap,
-        modifier = Modifier.padding(innerPadding),
     )
 }

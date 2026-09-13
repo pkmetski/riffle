@@ -12,6 +12,9 @@ import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.websource.PositionTombstoneWriter
+import com.riffle.core.data.websource.RemoteItemFreshness
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.LibraryItem
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -35,26 +39,47 @@ class WebSourceLibraryViewModel constructor(
     toReadRepository: ToReadRepository,
     private val libraryMutator: LibraryMutator,
     private val positionTombstoneWriter: PositionTombstoneWriter,
+    private val remoteItemFreshness: RemoteItemFreshness,
+    connectivityObserver: ConnectivityObserver,
+    private val offlineAvailability: LibraryItemOfflineAvailability,
 ) : ViewModel() {
 
     private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
-    val inProgress: StateFlow<List<LibraryItem>> = libraryObserver.observeInProgressItems(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
+        .map { !it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    val recentlyAdded: StateFlow<List<LibraryItem>> = libraryObserver.observeRecentlyAddedItems(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val inProgress: StateFlow<List<LibraryItem>> =
+        combine(libraryObserver.observeInProgressItems(libraryId), isOffline) { items, offline ->
+            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val finished: StateFlow<List<LibraryItem>> = libraryObserver.observeFinishedItems(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recentlyAdded: StateFlow<List<LibraryItem>> =
+        combine(libraryObserver.observeRecentlyAddedItems(libraryId), isOffline) { items, offline ->
+            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val continueSeries: StateFlow<List<LibraryItem>> = libraryObserver.observeContinueSeriesItems(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val finished: StateFlow<List<LibraryItem>> =
+        combine(libraryObserver.observeFinishedItems(libraryId), isOffline) { items, offline ->
+            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val toReadItems: StateFlow<List<LibraryItem>> = webSourceToReadItems(
-        toReadItemIds = toReadRepository.observeToReadItemIds(libraryId),
-        allBooks = libraryObserver.observeAllBooks(libraryId),
-    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val continueSeries: StateFlow<List<LibraryItem>> =
+        combine(libraryObserver.observeContinueSeriesItems(libraryId), isOffline) { items, offline ->
+            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val toReadItems: StateFlow<List<LibraryItem>> =
+        combine(
+            webSourceToReadItems(
+                toReadItemIds = toReadRepository.observeToReadItemIds(libraryId),
+                allBooks = libraryObserver.observeAllBooks(libraryId),
+            ),
+            isOffline,
+        ) { items, offline ->
+            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun removeFromLibrary(sourceId: String, itemId: String) {
         viewModelScope.launch {
