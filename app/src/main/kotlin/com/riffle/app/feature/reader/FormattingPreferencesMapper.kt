@@ -7,6 +7,7 @@ import com.riffle.app.feature.readersettings.DARK_DIM_TEXT
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.effectiveOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
@@ -40,7 +41,7 @@ fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
     isFixedLayout: Boolean = false,
 ): EpubPreferences {
-    val effectiveOrientation = if (isLandscape && forcePaginatedInLandscape) ReaderOrientation.Horizontal else orientation
+    val effectiveOrientation = effectiveOrientation(isLandscape)
     val isDoublePage = effectiveOrientation == ReaderOrientation.Horizontal && doublePageSpread && isLandscape
     return EpubPreferences(
         fontSize = fontSize.toDouble(),
@@ -93,7 +94,7 @@ fun FormattingPreferences.toFragmentConfiguration(
     // time, bypassing Readium's 60em media-query threshold that --USER__colCount relies on.
     // --RS__colWidth must be "auto" to remove the default 45em minimum which would otherwise
     // prevent two columns from fitting in a phone-width viewport.
-    val effectiveOrientation = if (isLandscape && forcePaginatedInLandscape) ReaderOrientation.Horizontal else orientation
+    val effectiveOrientation = effectiveOrientation(isLandscape)
     val isDoublePage = !isFixedLayout &&
         effectiveOrientation == ReaderOrientation.Horizontal &&
         doublePageSpread &&

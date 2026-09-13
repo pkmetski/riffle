@@ -114,6 +114,7 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.effectiveOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.app.feature.readersettings.palette
@@ -368,6 +369,9 @@ fun EpubReaderScreen(
         immersiveState = immersiveState,
     )
 
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val effectiveOrientation = formattingPrefs.effectiveOrientation(isLandscape)
+
     // Reserve a fixed bottom strip for the readaloud mini-player only while the player is actually
     // open. Books whose match was never started render edge-to-edge with no wasted bottom space.
     // When the player opens, the CSS reserve repaginates the page and EpubNavigatorView navigates
@@ -375,14 +379,14 @@ fun EpubReaderScreen(
     // player floats over a freely-scrollable page). See ReadaloudReserve.kt.
     val readaloudReservePx: Int = readaloudReserveDp(
         readaloudOpen = readaloudOpen,
-        paginated = formattingPrefs.orientation == ReaderOrientation.Horizontal,
+        paginated = effectiveOrientation == ReaderOrientation.Horizontal,
     )
 
     // Track the rendered height of the chapter rail overlay so its pixels can be added to the CSS
     // reserve, preventing Readium from paginating text behind the overlay in paged mode.
     var railOverlayHeightPx by remember { mutableStateOf(0) }
     val density = LocalDensity.current
-    val paginated = formattingPrefs.orientation != ReaderOrientation.Vertical
+    val paginated = effectiveOrientation != ReaderOrientation.Vertical
     val railReserveCssPx: Int = if (paginated) {
         (railOverlayHeightPx / density.density).roundToInt()
     } else 0
@@ -742,7 +746,7 @@ fun EpubReaderScreen(
                                 // seam. Tracked by ReaderModeForkGuardTest — bump MAX_MODE_BRANCHES
                                 // if you add another fork nearby.
                                 rendererBridgeRef.value
-                                    ?.takeIf { formattingPrefs.orientation != ReaderOrientation.Continuous }
+                                    ?.takeIf { effectiveOrientation != ReaderOrientation.Continuous }
                                     ?.capturePageFragmentAnchor()
                             }
                         },
@@ -899,9 +903,8 @@ fun EpubReaderScreen(
                                 )
                             }
                             val autoScrollState by viewModel.autoScrollState.collectAsState()
-                            val orientation = formattingPrefs.orientation
                             if (formattingPrefs.showAutoScroll &&
-                                (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous)
+                                (effectiveOrientation == ReaderOrientation.Vertical || effectiveOrientation == ReaderOrientation.Continuous)
                             ) {
                                 com.riffle.app.feature.readersettings.AutoScrollToggleIcon(
                                     isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
@@ -1338,10 +1341,11 @@ private fun EpubNavigatorView(
     val appName = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.app_name)
     val fragmentActivity = context as? FragmentActivity ?: return
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val effectiveOrientation = formattingPrefs.effectiveOrientation(isLandscape)
     val isFixedLayout = state.publication.metadata.layout == Layout.FIXED
     val coroutineScope = rememberCoroutineScope()
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
-    val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
+    val isContinuous = effectiveOrientation == ReaderOrientation.Continuous
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
 
     // Per-publication ReadiumPresenter (#300 step 2). Owns the seam between paginated/vertical
@@ -2107,7 +2111,7 @@ private fun EpubNavigatorView(
             // have re-rendered yet. formattingPrefsProvider reads _formattingPreferences directly
             // (set synchronously by loadFormattingPreferences() before openBook() fires the event),
             // so it always carries the correct orientation at this point.
-            if (formattingPrefsProvider().orientation == ReaderOrientation.Continuous) {
+            if (formattingPrefsProvider().effectiveOrientation(isLandscape) == ReaderOrientation.Continuous) {
                 // For a cross-window jump (target not in the loaded window), the controller tears
                 // down all WebViews and calls openWindowAt, which sets container.visibility=INVISIBLE
                 // while the new window builds. Without a cover the user sees a blank flash between
@@ -2250,7 +2254,7 @@ private fun EpubNavigatorView(
         annotationNavigationEvents,
         isContinuous,
         readerPresenter,
-        formattingPrefs.orientation,
+        effectiveOrientation,
     ) {
         annotationNavigationEvents.collect { event ->
             val view = continuousViewRef.value
@@ -2271,7 +2275,7 @@ private fun EpubNavigatorView(
                     annotationNavigationOptions(
                         isBookmark = event.isBookmark,
                         annotationId = event.annotationId.takeIf {
-                            formattingPrefs.orientation == ReaderOrientation.Horizontal
+                            effectiveOrientation == ReaderOrientation.Horizontal
                         },
                     ),
                     event.locator.href.toString(),
@@ -2499,7 +2503,7 @@ private fun EpubNavigatorView(
             // turn via its installed JS evaluator. Paginated + continuous fall through to the
             // mode-agnostic presenter.pageBy(); ContinuousPresenter and ReadiumPresenter own the
             // mode-specific turn semantics.
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
+            if (currentFormattingPrefs.effectiveOrientation(isLandscape) == ReaderOrientation.Vertical && container != null) {
                 if (fragmentRef.value == null) return@collect
                 val boundary = readerPresenter.scrollBoundary()
                 val atBoundary = if (direction == PageDirection.Forward) boundary.atForwardBoundary
@@ -2585,8 +2589,8 @@ private fun EpubNavigatorView(
     // hasn't moved, which broke the previous staleness check. The seam owns the WebView query so
     // the screen stays free of inline JS strings; the loop lifecycle stays here because polling is
     // a UI concern, not a renderer concern.
-    LaunchedEffect(fragmentRef.value, currentFormattingPrefs.orientation) {
-        if (currentFormattingPrefs.orientation != ReaderOrientation.Vertical) return@LaunchedEffect
+    LaunchedEffect(fragmentRef.value, effectiveOrientation) {
+        if (effectiveOrientation != ReaderOrientation.Vertical) return@LaunchedEffect
         if (fragmentRef.value == null) return@LaunchedEffect
         while (true) {
             val container = containerRef.value
@@ -2614,7 +2618,7 @@ private fun EpubNavigatorView(
     // page-coloured gutter behind). Scroll / fixed-layout / double-page keep fillMaxSize and the
     // bare modifier, untouched. See reference_reader_right_margin_is_column_snap_bug.
     val density = LocalDensity.current.density
-    val isPaginated = !isFixedLayout && formattingPrefs.orientation == ReaderOrientation.Horizontal
+    val isPaginated = !isFixedLayout && effectiveOrientation == ReaderOrientation.Horizontal
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
     // Both single-page and double-page paginated modes align the viewport to a whole-pixel width
     // so the CSS column-snap pitch (window.innerWidth) matches the physical pixel pitch exactly.
@@ -2716,20 +2720,20 @@ private fun EpubNavigatorView(
             update = { container ->
                 // In Continuous mode the fragment is kept alive only to maintain the HTTP server.
                 // Collapse it to zero-height so ContinuousReaderView takes the full screen.
-                if (formattingPrefs.orientation == ReaderOrientation.Continuous) {
+                if (effectiveOrientation == ReaderOrientation.Continuous) {
                     container.layoutParams = container.layoutParams?.apply { height = 0 }
                     container.visibility = View.INVISIBLE
                 } else {
                     container.layoutParams = container.layoutParams?.apply { height = FrameLayout.LayoutParams.MATCH_PARENT }
                     container.visibility = View.VISIBLE
                 }
-                container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
+                container.isScrollMode = effectiveOrientation != ReaderOrientation.Horizontal
                 // MODE-FORK: routes the Readium ActionMode-wrapper's coordinate handling —
                 // paginated columns want the JS-captured CSS rect, vertical scroll wants Readium's
                 // native callback because the CSS rect maps wrong through the WebView's internal
                 // scroll. This is a UI-lifecycle fork (framework popup positioning), not domain
                 // behaviour, so it doesn't belong behind ReaderPresenter.
-                readiumIsScrollMode.set(formattingPrefs.orientation == ReaderOrientation.Vertical)
+                readiumIsScrollMode.set(effectiveOrientation == ReaderOrientation.Vertical)
                 // Pull callbacks capture composable-local State vars; re-set on every update so
                 // back-stack returns (which re-create the composable but reuse the cached View)
                 // always write to the current State instances rather than stale ones.
@@ -2747,7 +2751,7 @@ private fun EpubNavigatorView(
                     ?.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
 
-                val isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
+                val isScrollMode = effectiveOrientation != ReaderOrientation.Horizontal
                 val density = container.resources.displayMetrics.density
                 val (topPx, bottomPx) = readerContainerPaddingPx(
                     margins = formattingPrefs.margins,
@@ -2842,7 +2846,7 @@ private fun EpubNavigatorView(
                             // and the next reopen lands viewport-top at the chapter top instead of
                             // the user's actual reading spot. ContinuousReaderView owns position
                             // tracking in this mode.
-                            if (formattingPrefsProvider().orientation != ReaderOrientation.Continuous) {
+                            if (formattingPrefsProvider().effectiveOrientation(isLandscape) != ReaderOrientation.Continuous) {
                                 onPositionChanged(locator)
                             }
                             val key = locator.href.removeFragment().toString()
@@ -3030,7 +3034,7 @@ private fun EpubNavigatorView(
         // (the existing volume-key path uses the same JS scroll mechanism, see line ~1810).
         // At chapter end we hand off to fragment.goForward() and use a ~600ms settle window so
         // the next chapter's WebView is painted before the ticker resumes scrolling on it.
-        if (formattingPrefs.orientation == ReaderOrientation.Vertical) {
+        if (effectiveOrientation == ReaderOrientation.Vertical) {
             val verticalFragment = fragmentRef.value
             LaunchedEffect(verticalFragment) {
                 if (verticalFragment == null) return@LaunchedEffect

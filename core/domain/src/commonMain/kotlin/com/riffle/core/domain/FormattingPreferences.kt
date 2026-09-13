@@ -119,6 +119,12 @@ data class ThemeSchedule(
     }
 }
 
+// Returns the orientation that should actually drive rendering. When forcePaginatedInLandscape
+// is on and the device is in landscape, the stored orientation is overridden to Horizontal
+// regardless of what the user last selected.
+fun FormattingPreferences.effectiveOrientation(isLandscape: Boolean): ReaderOrientation =
+    if (isLandscape && forcePaginatedInLandscape) ReaderOrientation.Horizontal else orientation
+
 // Returns a copy with `theme` replaced by the schedule-resolved concrete theme when
 // the user picked Auto. For any non-Auto theme this is a no-op identity. Reader VMs
 // run this at render-time so every downstream consumer (Readium mapper, palette,

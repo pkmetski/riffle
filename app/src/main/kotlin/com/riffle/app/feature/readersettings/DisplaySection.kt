@@ -121,16 +121,14 @@ fun DisplaySection(
             Spacer(Modifier.height(12.dp))
         }
         if (capabilities.supportsDoublePage) {
-            val doublePageEnabled = prefs.orientation == ReaderOrientation.Horizontal
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().alpha(if (doublePageEnabled) 1f else 0.38f),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.ui_double_page_in_landscape), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(
                     checked = prefs.doublePageSpread,
                     onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
-                    enabled = doublePageEnabled,
                 )
             }
             Spacer(Modifier.height(20.dp))
