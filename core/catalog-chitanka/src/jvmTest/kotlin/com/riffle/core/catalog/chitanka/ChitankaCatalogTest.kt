@@ -646,6 +646,20 @@ class ChitankaCatalogTest {
 
     // endregion
 
+    @Test fun `search returns empty list when chitanka responds 404 (no results)`() = runTest {
+        // chitanka.info returns HTTP 404 — not an empty HTML page — when a search query yields no
+        // results. The catalog must treat 404 as empty results rather than propagating an exception
+        // that would show a raw URL-bearing error message to the user.
+        server.enqueue(MockResponse().setResponseCode(404))
+        val cat = ChitankaCatalog(
+            http = ChitankaHttpClient(client = HttpClient(OkHttp) {}, userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = HttpClient(OkHttp) {},
+            baseUrl = server.url("").toString().trimEnd('/'),
+        )
+        val results = cat.search(rootId = ChitankaCatalog.ROOT_BOOKS, query = "нещонесъществуващо", page = 0, pageSize = 50)
+        assertEquals(emptyList<com.riffle.core.catalog.CatalogItem>(), results)
+    }
+
     @Test fun `books unknown facet key falls back to new arrivals`() {
         // A facet key the catalog doesn't recognise should not silently 404 on a bogus URL —
         // fall back to the safe default surface.

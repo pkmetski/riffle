@@ -2,16 +2,20 @@ package com.riffle.app.feature.source.websource
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -23,14 +27,71 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.library.LocalCoverGridScale
+import com.riffle.app.feature.library.OfflineBanner
 import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.app.feature.library.pinchCoverZoom
 import com.riffle.app.ui.fadingScrollbar
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 private const val PAGINATION_PREFETCH_THRESHOLD = 6
+
+/**
+ * Shared content area for unbounded web source browse screens.
+ * Renders: offline banner (when offline) + loading spinner / error / empty state / grid.
+ */
+@Composable
+internal fun <T> UnboundedBrowseContent(
+    isOffline: Boolean,
+    isLoading: Boolean,
+    error: String?,
+    items: List<T>,
+    query: String,
+    isPaging: Boolean,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit,
+    onCoverScaleChange: (Float) -> Unit,
+    itemKey: (T) -> Any,
+    modifier: Modifier = Modifier,
+    coverCellSizeMultiplier: Float = 1f,
+    itemContent: @Composable (T) -> Unit,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        if (isOffline) OfflineBanner()
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                isLoading && items.isEmpty() ->
+                    CircularProgressIndicator(modifier = Modifier.wrapContentSize().align(Alignment.Center))
+                error != null && items.isEmpty() ->
+                    Text(
+                        error,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    )
+                items.isEmpty() ->
+                    Text(
+                        if (query.isNotBlank()) stringResource(R.string.ui_no_results)
+                        else stringResource(R.string.ui_nothing_to_show),
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    )
+                else ->
+                    UnboundedCatalogGrid(
+                        items = items,
+                        isPaging = isPaging,
+                        hasMore = hasMore,
+                        onLoadMore = onLoadMore,
+                        onCoverScaleChange = onCoverScaleChange,
+                        itemKey = itemKey,
+                        coverCellSizeMultiplier = coverCellSizeMultiplier,
+                        itemContent = itemContent,
+                    )
+            }
+        }
+    }
+}
 
 /**
  * Supplies the global, persisted cover density to every tab in an unbounded web source while

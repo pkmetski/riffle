@@ -23,8 +23,10 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.ConnectivityObserver
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -92,6 +94,9 @@ class GutenbergBrowseViewModelTest {
     ): Pair<GutenbergBrowseViewModel, WebSourceItemGate> {
         val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
         val handle = SavedStateHandle(mapOf("libraryId" to GutenbergCatalog.ROOT_BOOKS))
+        val connectivityObserver = mockk<ConnectivityObserver>().also {
+            every { it.isOnline } returns MutableStateFlow(true)
+        }
         val vm = GutenbergBrowseViewModel(
             handle,
             sourceRepo,
@@ -101,6 +106,7 @@ class GutenbergBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             libraryFilterPreferencesStore,
             emptyLibraryObserver(),
+            connectivityObserver,
         )
         return vm to gate
     }
@@ -184,6 +190,15 @@ class GutenbergBrowseViewModelTest {
             ),
             store.state.value["gut-1" to GutenbergCatalog.ROOT_BOOKS],
         )
+    }
+
+    @Test
+    fun `GutenbergHttpException does not leak raw URL in error message`() {
+        val ex = com.riffle.core.catalog.gutenberg.GutenbergHttpException(
+            503, "https://gutendex.com/books/?search=test", "Service Unavailable",
+        )
+        val msg = friendlyErrorMessage(ex)
+        assertEquals("Couldn't reach Project Gutenberg. Check your connection and try again.", msg)
     }
 
     private fun fakeSourceRepo(active: Source?): SourceRepository = object : SourceRepository {

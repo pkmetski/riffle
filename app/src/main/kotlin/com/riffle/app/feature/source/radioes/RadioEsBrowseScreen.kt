@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,13 +23,11 @@ import com.riffle.core.models.SourceType
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
@@ -54,13 +51,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
-import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.app.feature.source.common.toggleSearchOpen
-import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
+import com.riffle.app.feature.source.websource.UnboundedBrowseContent
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
@@ -108,17 +104,20 @@ fun RadioEsBrowseScreen(
                     }
                 },
                 actions = {
-                    if (selectedTab == TAB_LIBRARY) {
-                        IconButton(onClick = {
+                    IconButton(onClick = {
+                        if (selectedTab != TAB_LIBRARY) {
+                            selectedTab = TAB_LIBRARY
+                            searchOpen = true
+                        } else {
                             searchOpen = toggleSearchOpen(searchOpen) {
                                 viewModel.onQueryChange("")
                             }
-                        }) {
-                            Icon(
-                                if (searchOpen) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = if (searchOpen) "Close search" else "Search",
-                            )
                         }
+                    }) {
+                        Icon(
+                            if (searchOpen && selectedTab == TAB_LIBRARY) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = if (searchOpen && selectedTab == TAB_LIBRARY) "Close search" else "Search",
+                        )
                     }
                 },
             )
@@ -197,6 +196,7 @@ private fun RadioEsLibraryTabContent(
     val error by viewModel.error.collectAsState()
     val isPaging by viewModel.isPaging.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (searchOpen) {
@@ -287,46 +287,24 @@ private fun RadioEsLibraryTabContent(
                 }
             }
         }
-        Box(modifier = Modifier.fillMaxSize()) {
-            when {
-                isLoading && items.isEmpty() -> {
-                    CircularProgressIndicator(modifier = Modifier.wrapContentSize().align(Alignment.Center))
-                }
-                error != null && items.isEmpty() -> {
-                    Text(
-                        error ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    )
-                }
-                items.isEmpty() -> {
-                    Text(
-                        if (query.isNotBlank()) {
-                            stringResource(R.string.ui_no_results)
-                        } else {
-                            stringResource(R.string.ui_nothing_to_show)
-                        },
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    )
-                }
-                else -> {
-                    UnboundedCatalogGrid(
-                        items = items,
-                        isPaging = isPaging,
-                        hasMore = hasMore,
-                        onLoadMore = viewModel::loadMore,
-                        onCoverScaleChange = onCoverScaleChange,
-                        itemKey = { it.id },
-                        coverCellSizeMultiplier = 4f / 3f,
-                    ) { item ->
-                        WebSourceCatalogItemCard(
-                            item = item,
-                            isAudio = true,
-                            onClick = { viewModel.openDetail(item) },
-                        )
-                    }
-                }
-            }
+        UnboundedBrowseContent(
+            isOffline = isOffline,
+            isLoading = isLoading,
+            error = error,
+            items = items,
+            query = query,
+            isPaging = isPaging,
+            hasMore = hasMore,
+            onLoadMore = viewModel::loadMore,
+            onCoverScaleChange = onCoverScaleChange,
+            itemKey = { it.id },
+            coverCellSizeMultiplier = 4f / 3f,
+        ) { item ->
+            WebSourceCatalogItemCard(
+                item = item,
+                isAudio = true,
+                onClick = { viewModel.openDetail(item) },
+            )
         }
     }
 }

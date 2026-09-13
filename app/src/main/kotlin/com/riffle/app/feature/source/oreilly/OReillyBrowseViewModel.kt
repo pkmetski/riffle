@@ -6,6 +6,8 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.catalog.oreilly.OReillyHttpException
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
@@ -23,6 +25,7 @@ class OReillyBrowseViewModel constructor(
     coverGridDensityStore: CoverGridDensityStore,
     libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     libraryObserver: LibraryObserver,
+    connectivityObserver: ConnectivityObserver,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -32,6 +35,7 @@ class OReillyBrowseViewModel constructor(
     coverGridDensityStore = coverGridDensityStore,
     libraryFilterPreferencesStore = libraryFilterPreferencesStore,
     libraryObserver = libraryObserver,
+    connectivityObserver = connectivityObserver,
     sourceType = SourceType.OREILLY,
     defaultRootId = OReillyCatalog.ROOT_BOOKS,
     pageSize = 20,
@@ -44,6 +48,8 @@ internal fun oReillyFriendlyErrorMessage(t: Throwable): String {
         chain.any { it is UnknownHostException } ->
             "You appear to be offline. Connect to the internet and try again."
         chain.any { it is IOException } ->
+            "Couldn't reach O'Reilly. Check your connection and try again."
+        chain.any { it is OReillyHttpException } ->
             "Couldn't reach O'Reilly. Check your connection and try again."
         else -> t.message ?: t::class.simpleName ?: "Error"
     }

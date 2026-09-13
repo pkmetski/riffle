@@ -10,6 +10,7 @@ import com.riffle.core.catalog.FacetedSearchCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
@@ -74,6 +75,7 @@ abstract class UnboundedBrowseViewModel(
     private val coverGridDensityStore: CoverGridDensityStore,
     private val libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     private val libraryObserver: LibraryObserver,
+    private val connectivityObserver: ConnectivityObserver,
     private val sourceType: SourceType,
     defaultRootId: String,
     private val pageSize: Int,
@@ -86,6 +88,10 @@ abstract class UnboundedBrowseViewModel(
      */
     private val facetDebounceMs: Long = 250L,
 ) : ViewModel() {
+
+    val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
+        .map { !it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** Global per-device cover density, shared with bounded library screens. */
     val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale

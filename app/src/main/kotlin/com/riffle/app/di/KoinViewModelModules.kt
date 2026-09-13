@@ -448,6 +448,7 @@ private val sourceViewModelModule = module {
             coverGridDensityStore = get(),
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
+            connectivityObserver = get(),
         )
     }
     viewModel { AddChitankaViewModel(installer = get()) }
@@ -461,6 +462,7 @@ private val sourceViewModelModule = module {
             coverGridDensityStore = get(),
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
+            connectivityObserver = get(),
         )
     }
     viewModel { AddGutenbergViewModel(installer = get()) }
@@ -485,6 +487,7 @@ private val sourceViewModelModule = module {
             coverGridDensityStore = get(),
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
+            connectivityObserver = get(),
         )
     }
     viewModel { OReillyLoginViewModel(repository = get()) }
@@ -498,6 +501,7 @@ private val sourceViewModelModule = module {
             coverGridDensityStore = get(),
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
+            connectivityObserver = get(),
         )
     }
 }
