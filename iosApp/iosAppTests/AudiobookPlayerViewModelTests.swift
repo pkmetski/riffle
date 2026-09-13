@@ -98,6 +98,22 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
         )
     }
 
+    func testStartSecRestartsExactlyAtEnd() {
+        XCTAssertEqual(
+            AudiobookProgressUtilsKt.audiobookStartSec(resumeSec: 3600.0, durationSec: 3600.0),
+            0.0,
+            "Position at end must reset to 0 so the player opens from the beginning"
+        )
+    }
+
+    func testStartSecPreservesInProgressPosition() {
+        XCTAssertEqual(
+            AudiobookProgressUtilsKt.audiobookStartSec(resumeSec: 1800.0, durationSec: 3600.0),
+            1800.0,
+            "In-progress position must not be reset"
+        )
+    }
+
     // MARK: NowPlayingStore (scenario 5.8)
 
     func testNowPlayingStoreSetAndClear() {

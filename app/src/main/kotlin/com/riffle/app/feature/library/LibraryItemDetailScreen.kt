@@ -657,6 +657,7 @@ internal fun LibraryItemDetailContent(
             audiobookDownloadState = audiobookDownloadState,
             onReadItem = onReadItem,
             onListenItem = onListenItem,
+            onListenItemAtSec = onListenItemAtSec,
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
             onToggleToRead = onToggleToRead,
@@ -1023,6 +1024,7 @@ internal fun LibraryItemDetailContentTablet(
                 audiobookDownloadState = audiobookDownloadState,
                 onReadItem = onReadItem,
                 onListenItem = onListenItem,
+                onListenItemAtSec = onListenItemAtSec,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
                 onToggleToRead = onToggleToRead,
@@ -1244,6 +1246,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 audiobookDownloadState = audiobookDownloadState,
                 onReadItem = onReadItem,
                 onListenItem = onListenItem,
+                onListenItemAtSec = onListenItemAtSec,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
                 onToggleToRead = onToggleToRead,
@@ -1440,6 +1443,14 @@ private fun FacetValue(
     )
 }
 
+/**
+ * Returns 0.0 when [readingProgress] indicates a finished audiobook (so "Listen" reopens from the
+ * start and auto-plays rather than being suppressed by the wasFinishedOnOpen guard), or null when
+ * the book is still in progress and the normal resume path should be used.
+ */
+internal fun listenStartAtSecForFinished(readingProgress: Float): Double? =
+    if (readingProgress >= 1.0f) 0.0 else null
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActionRow(
@@ -1453,6 +1464,7 @@ private fun ActionRow(
     audiobookDownloadState: DownloadState? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit,
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -1531,7 +1543,10 @@ private fun ActionRow(
                 }
             } else {
                 Button(
-                    onClick = { onListenItem(item) },
+                    onClick = {
+                        val restartSec = listenStartAtSecForFinished(item.readingProgress)
+                        if (restartSec != null) onListenItemAtSec(item, restartSec) else onListenItem(item)
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_listen))
