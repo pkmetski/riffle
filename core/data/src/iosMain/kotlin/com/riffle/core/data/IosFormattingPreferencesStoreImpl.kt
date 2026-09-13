@@ -20,9 +20,9 @@ import platform.Foundation.NSUserDefaults
 internal class IosFormattingPreferencesStoreImpl : FormattingPreferencesStore {
 
     private val defaults = NSUserDefaults.standardUserDefaults
-    private val _prefs = MutableStateFlow(loadFromDefaults())
+    private val _preferences = MutableStateFlow(loadFromDefaults())
 
-    override val preferences: Flow<FormattingPreferences> = _prefs
+    override val preferences: Flow<FormattingPreferences> = _preferences
 
     override suspend fun update(preferences: FormattingPreferences) {
         defaults.setDouble(preferences.fontSize.toDouble(), forKey = KEY_FONT_SIZE)
@@ -44,63 +44,113 @@ internal class IosFormattingPreferencesStoreImpl : FormattingPreferencesStore {
         defaults.setBool(preferences.showCadence, forKey = KEY_SHOW_CADENCE)
         defaults.setObject(preferences.cadenceHighlightColor.name, forKey = KEY_CADENCE_HIGHLIGHT_COLOR)
         defaults.setObject(preferences.autoReaderThemeMode.name, forKey = KEY_AUTO_READER_THEME_MODE)
-        defaults.setObject(preferences.appThemeReaderThemes.lightTheme.name, forKey = KEY_APP_THEME_LIGHT_READER_THEME)
-        defaults.setObject(preferences.appThemeReaderThemes.darkTheme.name, forKey = KEY_APP_THEME_DARK_READER_THEME)
-        defaults.setInteger(preferences.themeSchedule.dayStart.toMinuteOfDay().toLong(), forKey = KEY_SCHEDULE_DAY_START)
-        defaults.setInteger(preferences.themeSchedule.nightStart.toMinuteOfDay().toLong(), forKey = KEY_SCHEDULE_NIGHT_START)
+        defaults.setObject(
+            preferences.appThemeReaderThemes.lightTheme.name,
+            forKey = KEY_APP_THEME_LIGHT_READER_THEME,
+        )
+        defaults.setObject(
+            preferences.appThemeReaderThemes.darkTheme.name,
+            forKey = KEY_APP_THEME_DARK_READER_THEME,
+        )
+        defaults.setInteger(
+            preferences.themeSchedule.dayStart.toMinuteOfDay().toLong(),
+            forKey = KEY_SCHEDULE_DAY_START,
+        )
+        defaults.setInteger(
+            preferences.themeSchedule.nightStart.toMinuteOfDay().toLong(),
+            forKey = KEY_SCHEDULE_NIGHT_START,
+        )
         defaults.setObject(preferences.themeSchedule.dayTheme.name, forKey = KEY_SCHEDULE_DAY_THEME)
         defaults.setObject(preferences.themeSchedule.nightTheme.name, forKey = KEY_SCHEDULE_NIGHT_THEME)
-        _prefs.value = preferences
+        _preferences.value = preferences
     }
 
     override suspend fun setCadencePlatformSupported(supported: Boolean) {
         defaults.setBool(supported, forKey = KEY_CADENCE_PLATFORM_SUPPORTED)
-        _prefs.value = _prefs.value.copy(cadencePlatformSupported = supported)
+        _preferences.value = _preferences.value.copy(cadencePlatformSupported = supported)
     }
 
     private fun loadFromDefaults(): FormattingPreferences = FormattingPreferences(
-        fontSize = defaults.doubleForKey(KEY_FONT_SIZE).let { if (it == 0.0) FormattingPreferences.DEFAULT_FONT_SIZE else it.toFloat() },
-        theme = defaults.stringForKey(KEY_THEME)?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+        fontSize = defaults.doubleForKey(KEY_FONT_SIZE).let {
+            if (it == 0.0) FormattingPreferences.DEFAULT_FONT_SIZE else it.toFloat()
+        },
+        theme = defaults.stringForKey(KEY_THEME)
+            ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
             ?: FormattingPreferences.DEFAULT_THEME,
         fontFamily = defaults.stringForKey(KEY_FONT_FAMILY)?.decodeFontFamily()
             ?: FormattingPreferences.DEFAULT_FONT_FAMILY,
-        lineSpacing = defaults.doubleForKey(KEY_LINE_SPACING).let { if (it == 0.0) FormattingPreferences.DEFAULT_LINE_SPACING else it.toFloat() },
-        margins = defaults.doubleForKey(KEY_MARGINS).let { if (it == 0.0) FormattingPreferences.DEFAULT_MARGINS else it.toFloat() },
-        orientation = defaults.stringForKey(KEY_ORIENTATION)?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
+        lineSpacing = defaults.doubleForKey(KEY_LINE_SPACING).let {
+            if (it == 0.0) FormattingPreferences.DEFAULT_LINE_SPACING else it.toFloat()
+        },
+        margins = defaults.doubleForKey(KEY_MARGINS).let {
+            if (it == 0.0) FormattingPreferences.DEFAULT_MARGINS else it.toFloat()
+        },
+        orientation = defaults.stringForKey(KEY_ORIENTATION)
+            ?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
             ?: FormattingPreferences.DEFAULT_ORIENTATION,
-        showChapterMap = if (defaults.objectForKey(KEY_SHOW_CHAPTER_MAP) != null) defaults.boolForKey(KEY_SHOW_CHAPTER_MAP) else FormattingPreferences.DEFAULT_SHOW_CHAPTER_MAP,
-        coloredChapterMap = if (defaults.objectForKey(KEY_COLORED_CHAPTER_MAP) != null) defaults.boolForKey(KEY_COLORED_CHAPTER_MAP) else FormattingPreferences.DEFAULT_COLORED_CHAPTER_MAP,
-        showReadingProgressLabels = if (defaults.objectForKey(KEY_SHOW_READING_PROGRESS_LABELS) != null) defaults.boolForKey(KEY_SHOW_READING_PROGRESS_LABELS) else FormattingPreferences.DEFAULT_SHOW_READING_PROGRESS_LABELS,
-        showCurrentChapterLabel = if (defaults.objectForKey(KEY_SHOW_CURRENT_CHAPTER_LABEL) != null) defaults.boolForKey(KEY_SHOW_CURRENT_CHAPTER_LABEL) else FormattingPreferences.DEFAULT_SHOW_CURRENT_CHAPTER_LABEL,
-        showReadingTimeEstimate = if (defaults.objectForKey(KEY_SHOW_READING_TIME_ESTIMATE) != null) defaults.boolForKey(KEY_SHOW_READING_TIME_ESTIMATE) else FormattingPreferences.DEFAULT_SHOW_READING_TIME_ESTIMATE,
-        doublePageSpread = if (defaults.objectForKey(KEY_DOUBLE_PAGE_SPREAD) != null) defaults.boolForKey(KEY_DOUBLE_PAGE_SPREAD) else FormattingPreferences.DEFAULT_DOUBLE_PAGE_SPREAD,
-        justifyText = if (defaults.objectForKey(KEY_JUSTIFY_TEXT) != null) defaults.boolForKey(KEY_JUSTIFY_TEXT) else FormattingPreferences.DEFAULT_JUSTIFY_TEXT,
-        autoScrollWpm = if (defaults.objectForKey(KEY_AUTO_SCROLL_WPM) != null) defaults.integerForKey(KEY_AUTO_SCROLL_WPM).toInt() else FormattingPreferences.DEFAULT_AUTO_SCROLL_WPM,
-        showAutoScroll = if (defaults.objectForKey(KEY_SHOW_AUTO_SCROLL) != null) defaults.boolForKey(KEY_SHOW_AUTO_SCROLL) else FormattingPreferences.DEFAULT_SHOW_AUTO_SCROLL,
-        cadenceWpm = if (defaults.objectForKey(KEY_CADENCE_WPM) != null) defaults.integerForKey(KEY_CADENCE_WPM).toInt() else FormattingPreferences.DEFAULT_CADENCE_WPM,
-        showCadence = if (defaults.objectForKey(KEY_SHOW_CADENCE) != null) defaults.boolForKey(KEY_SHOW_CADENCE) else FormattingPreferences.DEFAULT_SHOW_CADENCE,
-        cadenceHighlightColor = defaults.stringForKey(KEY_CADENCE_HIGHLIGHT_COLOR)?.let { runCatching { HighlightColor.valueOf(it) }.getOrNull() }
+        showChapterMap = boolOrDefault(KEY_SHOW_CHAPTER_MAP, FormattingPreferences.DEFAULT_SHOW_CHAPTER_MAP),
+        coloredChapterMap = boolOrDefault(KEY_COLORED_CHAPTER_MAP, FormattingPreferences.DEFAULT_COLORED_CHAPTER_MAP),
+        showReadingProgressLabels = boolOrDefault(
+            KEY_SHOW_READING_PROGRESS_LABELS,
+            FormattingPreferences.DEFAULT_SHOW_READING_PROGRESS_LABELS,
+        ),
+        showCurrentChapterLabel = boolOrDefault(
+            KEY_SHOW_CURRENT_CHAPTER_LABEL,
+            FormattingPreferences.DEFAULT_SHOW_CURRENT_CHAPTER_LABEL,
+        ),
+        showReadingTimeEstimate = boolOrDefault(
+            KEY_SHOW_READING_TIME_ESTIMATE,
+            FormattingPreferences.DEFAULT_SHOW_READING_TIME_ESTIMATE,
+        ),
+        doublePageSpread = boolOrDefault(KEY_DOUBLE_PAGE_SPREAD, FormattingPreferences.DEFAULT_DOUBLE_PAGE_SPREAD),
+        justifyText = boolOrDefault(KEY_JUSTIFY_TEXT, FormattingPreferences.DEFAULT_JUSTIFY_TEXT),
+        autoScrollWpm = intOrDefault(KEY_AUTO_SCROLL_WPM, FormattingPreferences.DEFAULT_AUTO_SCROLL_WPM),
+        showAutoScroll = boolOrDefault(KEY_SHOW_AUTO_SCROLL, FormattingPreferences.DEFAULT_SHOW_AUTO_SCROLL),
+        cadenceWpm = intOrDefault(KEY_CADENCE_WPM, FormattingPreferences.DEFAULT_CADENCE_WPM),
+        showCadence = boolOrDefault(KEY_SHOW_CADENCE, FormattingPreferences.DEFAULT_SHOW_CADENCE),
+        cadenceHighlightColor = defaults.stringForKey(KEY_CADENCE_HIGHLIGHT_COLOR)
+            ?.let { runCatching { HighlightColor.valueOf(it) }.getOrNull() }
             ?: FormattingPreferences.DEFAULT_CADENCE_HIGHLIGHT_COLOR,
-        cadencePlatformSupported = if (defaults.objectForKey(KEY_CADENCE_PLATFORM_SUPPORTED) != null) defaults.boolForKey(KEY_CADENCE_PLATFORM_SUPPORTED) else FormattingPreferences.DEFAULT_CADENCE_PLATFORM_SUPPORTED,
-        autoReaderThemeMode = defaults.stringForKey(KEY_AUTO_READER_THEME_MODE)?.let { runCatching { AutoReaderThemeMode.valueOf(it) }.getOrNull() }
+        cadencePlatformSupported = boolOrDefault(
+            KEY_CADENCE_PLATFORM_SUPPORTED,
+            FormattingPreferences.DEFAULT_CADENCE_PLATFORM_SUPPORTED,
+        ),
+        autoReaderThemeMode = defaults.stringForKey(KEY_AUTO_READER_THEME_MODE)
+            ?.let { runCatching { AutoReaderThemeMode.valueOf(it) }.getOrNull() }
             ?: FormattingPreferences.DEFAULT_AUTO_READER_THEME_MODE,
         appThemeReaderThemes = AppThemeReaderThemes(
-            lightTheme = defaults.stringForKey(KEY_APP_THEME_LIGHT_READER_THEME)?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }?.takeIf { it != ReaderTheme.Auto }
+            lightTheme = defaults.stringForKey(KEY_APP_THEME_LIGHT_READER_THEME)
+                ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                ?.takeIf { it != ReaderTheme.Auto }
                 ?: AppThemeReaderThemes.DEFAULT_LIGHT_THEME,
-            darkTheme = defaults.stringForKey(KEY_APP_THEME_DARK_READER_THEME)?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }?.takeIf { it != ReaderTheme.Auto }
+            darkTheme = defaults.stringForKey(KEY_APP_THEME_DARK_READER_THEME)
+                ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                ?.takeIf { it != ReaderTheme.Auto }
                 ?: AppThemeReaderThemes.DEFAULT_DARK_THEME,
         ),
         themeSchedule = ThemeSchedule(
-            dayStart = defaults.objectForKey(KEY_SCHEDULE_DAY_START)?.let { minuteOfDayToLocalTime(defaults.integerForKey(KEY_SCHEDULE_DAY_START).toInt()) }
-                ?: ThemeSchedule.DEFAULT_DAY_START,
-            nightStart = defaults.objectForKey(KEY_SCHEDULE_NIGHT_START)?.let { minuteOfDayToLocalTime(defaults.integerForKey(KEY_SCHEDULE_NIGHT_START).toInt()) }
-                ?: ThemeSchedule.DEFAULT_NIGHT_START,
-            dayTheme = defaults.stringForKey(KEY_SCHEDULE_DAY_THEME)?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }?.takeIf { it != ReaderTheme.Auto }
+            dayStart = defaults.objectForKey(KEY_SCHEDULE_DAY_START)?.let {
+                minuteOfDayToLocalTime(defaults.integerForKey(KEY_SCHEDULE_DAY_START).toInt())
+            } ?: ThemeSchedule.DEFAULT_DAY_START,
+            nightStart = defaults.objectForKey(KEY_SCHEDULE_NIGHT_START)?.let {
+                minuteOfDayToLocalTime(defaults.integerForKey(KEY_SCHEDULE_NIGHT_START).toInt())
+            } ?: ThemeSchedule.DEFAULT_NIGHT_START,
+            dayTheme = defaults.stringForKey(KEY_SCHEDULE_DAY_THEME)
+                ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                ?.takeIf { it != ReaderTheme.Auto }
                 ?: ThemeSchedule.DEFAULT_DAY_THEME,
-            nightTheme = defaults.stringForKey(KEY_SCHEDULE_NIGHT_THEME)?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }?.takeIf { it != ReaderTheme.Auto }
+            nightTheme = defaults.stringForKey(KEY_SCHEDULE_NIGHT_THEME)
+                ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                ?.takeIf { it != ReaderTheme.Auto }
                 ?: ThemeSchedule.DEFAULT_NIGHT_THEME,
         ),
     )
+
+    private fun boolOrDefault(key: String, default: Boolean): Boolean =
+        if (defaults.objectForKey(key) != null) defaults.boolForKey(key) else default
+
+    private fun intOrDefault(key: String, default: Int): Int =
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key).toInt() else default
 
     private companion object {
         const val KEY_FONT_SIZE = "formatting.font_size"

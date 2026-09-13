@@ -30,7 +30,6 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
-import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
@@ -40,12 +39,10 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRefresher
@@ -69,8 +66,6 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
-import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
-import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
@@ -132,6 +127,7 @@ import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
+import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
@@ -148,14 +144,10 @@ import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpDownloadManager
 import com.riffle.shared.library.IosNoOpDownloadsRepository
 import com.riffle.shared.library.IosNoOpEbookCfiTranslatorFactory
-import com.riffle.shared.library.IosEpubRepositoryImpl
-
 import com.riffle.shared.library.IosNoOpEpubTocExtractor
-
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpLocalAvailabilityEvents
 import com.riffle.shared.library.IosNoOpLocalFileMetadataOverrideSaver
-
 import com.riffle.shared.library.IosNoOpPdfPageCountExtractor
 import com.riffle.shared.library.IosNoOpPdfRepository
 import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
@@ -165,16 +157,13 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReadingSpeedStore
-
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
-
 import com.riffle.shared.library.IosNoOpWebSourceLibraryItemUpserter
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosNoOpAppearanceCoordinator
-
 import com.riffle.shared.reader.IosNoOpPanelMaskService
 import com.riffle.shared.reader.IosNoOpPanelReportRepository
 import com.riffle.shared.reader.IosNoOpPanelViewPreferencesStore
@@ -184,7 +173,6 @@ import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
 import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
-
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpDeveloperOptionsRepository
 import com.riffle.shared.settings.IosNoOpLibraryOrderPreferencesStore

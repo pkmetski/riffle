@@ -12,9 +12,9 @@ import platform.Foundation.NSUserDefaults
 internal class IosComicFormattingPreferencesStoreImpl : ComicFormattingPreferencesStore {
 
     private val defaults = NSUserDefaults.standardUserDefaults
-    private val _prefs = MutableStateFlow(loadFromDefaults())
+    private val _preferences = MutableStateFlow(loadFromDefaults())
 
-    override val preferences: Flow<ComicFormattingPreferences> = _prefs
+    override val preferences: Flow<ComicFormattingPreferences> = _preferences
 
     override suspend fun update(prefs: ComicFormattingPreferences) {
         defaults.setObject(prefs.backgroundTheme.name, forKey = KEY_BACKGROUND_THEME)
@@ -23,19 +23,27 @@ internal class IosComicFormattingPreferencesStoreImpl : ComicFormattingPreferenc
         defaults.setInteger(prefs.panelAnimationSpeedMs.toLong(), forKey = KEY_PANEL_ANIMATION_SPEED_MS)
         defaults.setBool(prefs.showChapterMap, forKey = KEY_SHOW_CHAPTER_MAP)
         defaults.setBool(prefs.showPageProgress, forKey = KEY_SHOW_PAGE_PROGRESS)
-        _prefs.value = prefs
+        _preferences.value = prefs
     }
 
     private fun loadFromDefaults(): ComicFormattingPreferences = ComicFormattingPreferences(
-        backgroundTheme = defaults.stringForKey(KEY_BACKGROUND_THEME)?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+        backgroundTheme = defaults.stringForKey(KEY_BACKGROUND_THEME)
+            ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
             ?: ReaderTheme.Dark,
-        panelViewOn = if (defaults.objectForKey(KEY_PANEL_VIEW_ON) != null) defaults.boolForKey(KEY_PANEL_VIEW_ON) else false,
-        panelOverflow = defaults.stringForKey(KEY_PANEL_OVERFLOW)?.let { runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull() }
+        panelViewOn = boolOrDefault(KEY_PANEL_VIEW_ON, false),
+        panelOverflow = defaults.stringForKey(KEY_PANEL_OVERFLOW)
+            ?.let { runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull() }
             ?: PanelOverflowBehavior.SPLIT,
-        panelAnimationSpeedMs = if (defaults.objectForKey(KEY_PANEL_ANIMATION_SPEED_MS) != null) defaults.integerForKey(KEY_PANEL_ANIMATION_SPEED_MS).toInt() else 250,
-        showChapterMap = if (defaults.objectForKey(KEY_SHOW_CHAPTER_MAP) != null) defaults.boolForKey(KEY_SHOW_CHAPTER_MAP) else false,
-        showPageProgress = if (defaults.objectForKey(KEY_SHOW_PAGE_PROGRESS) != null) defaults.boolForKey(KEY_SHOW_PAGE_PROGRESS) else false,
+        panelAnimationSpeedMs = intOrDefault(KEY_PANEL_ANIMATION_SPEED_MS, 250),
+        showChapterMap = boolOrDefault(KEY_SHOW_CHAPTER_MAP, false),
+        showPageProgress = boolOrDefault(KEY_SHOW_PAGE_PROGRESS, false),
     )
+
+    private fun boolOrDefault(key: String, default: Boolean): Boolean =
+        if (defaults.objectForKey(key) != null) defaults.boolForKey(key) else default
+
+    private fun intOrDefault(key: String, default: Int): Int =
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key).toInt() else default
 
     private companion object {
         const val KEY_BACKGROUND_THEME = "comic_formatting.background_theme"
