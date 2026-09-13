@@ -1,5 +1,6 @@
 package com.riffle.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -29,4 +30,6 @@ data class AudiobookPositionEntity(
     // The localUpdatedAt value last confirmed pushed to / pulled from the server; the row is
     // **dirty** when localUpdatedAt > lastSyncedAt (ADR 0036). See ReadingPositionEntity.
     val lastSyncedAt: Long = 0,
+    // Soft-delete tombstone — see ReadingPositionEntity.deleted for rationale.
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )

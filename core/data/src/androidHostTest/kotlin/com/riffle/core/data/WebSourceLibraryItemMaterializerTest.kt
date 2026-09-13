@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
+
+
 class WebSourceLibraryItemMaterializerTest {
 
     private val chitankaSourceId = "chitanka-1"
@@ -73,15 +75,15 @@ class WebSourceLibraryItemMaterializerTest {
         override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
-    private fun positionDao(vararg ids: String): ReadingPositionDao {
-        val rows = ids.map { ReadingPositionEntity(chitankaSourceId, it, "", 100L, 100L) }
+    private fun positionDao(vararg ids: String, deleted: Boolean = false): ReadingPositionDao {
+        val rows = ids.map { ReadingPositionEntity(chitankaSourceId, it, "", 100L, 100L, deleted = deleted) }
         return object : ReadingPositionDao by ThrowingReadingPositionDao {
             override suspend fun allForSource(sourceId: String) = rows
         }
     }
 
-    private fun audioPositionDao(vararg ids: String): AudiobookPositionDao {
-        val rows = ids.map { AudiobookPositionEntity(chitankaSourceId, it, 894.0, 100L, 100L) }
+    private fun audioPositionDao(vararg ids: String, deleted: Boolean = false): AudiobookPositionDao {
+        val rows = ids.map { AudiobookPositionEntity(chitankaSourceId, it, 894.0, 100L, 100L, deleted = deleted) }
         return object : AudiobookPositionDao by ThrowingAudiobookPositionDao {
             override suspend fun allForSource(sourceId: String) = rows
         }
@@ -212,6 +214,45 @@ class WebSourceLibraryItemMaterializerTest {
     }
 
     @Test
+    fun `run skips ebook item that the user explicitly removed`() = runTest {
+        val catalog = mockk<Catalog>(relaxed = true)
+        val registry = mockk<CatalogRegistry>(relaxed = true)
+        coEvery { registry.forSourceId(chitankaSourceId) } returns catalog
+        val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
+
+        makeMaterializer(
+            // Position row exists but is soft-deleted — library row was removed by the user
+            readingPositionDao = positionDao(itemId, deleted = true),
+            libraryItemDao = libraryItemDao(),
+            catalogRegistry = registry,
+            upserter = upserter,
+        ).run(chitankaSourceId)
+
+        coVerify(exactly = 0) { catalog.getItem(any()) }
+        coVerify(exactly = 0) { upserter.upsert(any(), any()) }
+    }
+
+    @Test
+    fun `run skips audio item that the user explicitly removed`() = runTest {
+        val catalog = mockk<Catalog>(relaxed = true)
+        val registry = mockk<CatalogRegistry>(relaxed = true)
+        coEvery { registry.forSourceId(chitankaSourceId) } returns catalog
+        val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
+
+        makeMaterializer(
+            readingPositionDao = positionDao(),
+            // Audio position row exists but is soft-deleted
+            audiobookPositionDao = audioPositionDao(audioItemId, deleted = true),
+            libraryItemDao = libraryItemDao(),
+            catalogRegistry = registry,
+            upserter = upserter,
+        ).run(chitankaSourceId)
+
+        coVerify(exactly = 0) { catalog.getItem(any()) }
+        coVerify(exactly = 0) { upserter.upsert(any(), any()) }
+    }
+
+    @Test
     fun `run creates library item for missing Gramofonche audio item`() = runTest {
         val audioCatalogItem = CatalogItem(
             id = audioItemId,
@@ -248,21 +289,25 @@ private object ThrowingReadingPositionDao : ReadingPositionDao {
     override suspend fun upsert(entity: com.riffle.core.database.ReadingPositionEntity) = Unit
     override suspend fun getByItemId(sourceId: String, itemId: String) = null
     override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
     override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
     override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
     override suspend fun dirtyForSource(sourceId: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
     override suspend fun sourcesWithDirtyRows() = emptyList<String>()
     override suspend fun allForSource(sourceId: String) = emptyList<com.riffle.core.database.ReadingPositionEntity>()
+    override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) = Unit
+    override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
 }
 
 private object ThrowingAudiobookPositionDao : AudiobookPositionDao {
     override suspend fun upsert(entity: AudiobookPositionEntity) = Unit
     override suspend fun getByItemId(sourceId: String, itemId: String) = null
-    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
     override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
     override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
     override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
     override suspend fun sourcesWithDirtyRows() = emptyList<String>()
     override suspend fun allForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
+    override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) = Unit
+    override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
 }

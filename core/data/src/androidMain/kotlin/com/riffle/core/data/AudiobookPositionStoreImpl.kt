@@ -50,11 +50,22 @@ class AudiobookPositionStoreImpl constructor(
     }
 
     override suspend fun acceptServerPosition(
-        sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long,
+        sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
     ): Boolean {
-        if (dao.acceptServerIfUnchanged(sourceId, itemId, position, serverStamp, ifLocalUpdatedAt) > 0) return true
+        if (dao.acceptServerIfUnchanged(sourceId, itemId, position, serverStamp, ifLocalUpdatedAt, deleted) > 0) return true
         if (dao.getByItemId(sourceId, itemId) == null) {
-            dao.upsert(AudiobookPositionEntity(sourceId, itemId, position, serverStamp, serverStamp))
+            dao.upsert(AudiobookPositionEntity(sourceId, itemId, position, serverStamp, serverStamp, deleted = deleted))
+            return true
+        }
+        return false
+    }
+
+    override suspend fun markDeletedAndClean(
+        sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+    ): Boolean {
+        if (dao.acceptServerDeletionIfUnchanged(sourceId, itemId, serverStamp, ifLocalUpdatedAt) > 0) return true
+        if (dao.getByItemId(sourceId, itemId) == null) {
+            dao.upsert(AudiobookPositionEntity(sourceId, itemId, 0.0, serverStamp, serverStamp, deleted = true))
             return true
         }
         return false

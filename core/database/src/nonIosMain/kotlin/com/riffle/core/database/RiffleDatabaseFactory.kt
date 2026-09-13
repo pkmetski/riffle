@@ -109,4 +109,5 @@ internal val RIFFLE_DATABASE_MIGRATIONS: Array<Migration> = arrayOf(
     RiffleDatabase.MIGRATION_69_70,
     RiffleDatabase.MIGRATION_70_71,
     RiffleDatabase.MIGRATION_71_72,
+    RiffleDatabase.MIGRATION_72_73,
 )

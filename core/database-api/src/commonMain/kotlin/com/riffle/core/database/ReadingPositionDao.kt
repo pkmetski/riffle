@@ -23,11 +23,11 @@ interface ReadingPositionDao {
 
     /** Server wins: overwrite the position and set both stamps clean (= server stamp). */
     @Query(
-        "UPDATE reading_positions SET cfi = :position, localUpdatedAt = :serverStamp, lastSyncedAt = :serverStamp " +
+        "UPDATE reading_positions SET cfi = :position, deleted = :deleted, localUpdatedAt = :serverStamp, lastSyncedAt = :serverStamp " +
             "WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt = :ifLocalUpdatedAt"
     )
     suspend fun acceptServerIfUnchanged(
-        sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+        sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
     ): Int
 
     /** Local push confirmed: adopt the server-returned stamp into both timestamps (clean). */
@@ -53,6 +53,22 @@ interface ReadingPositionDao {
     /** All distinct sourceIds that have at least one dirty row. */
     @Query("SELECT DISTINCT sourceId FROM reading_positions WHERE localUpdatedAt > lastSyncedAt")
     suspend fun sourcesWithDirtyRows(): List<String>
+
+    /** Mark the row as a soft-delete tombstone and make it dirty so the deletion propagates to WebDAV. */
+    @Query(
+        "UPDATE reading_positions SET deleted = 1, localUpdatedAt = :localUpdatedAt " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId"
+    )
+    suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long)
+
+    /** Server wins and the remote position was a deletion: mark local row as deleted and clean. */
+    @Query(
+        "UPDATE reading_positions SET deleted = 1, localUpdatedAt = :serverStamp, lastSyncedAt = :serverStamp " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt = :ifLocalUpdatedAt"
+    )
+    suspend fun acceptServerDeletionIfUnchanged(
+        sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+    ): Int
 
     /** All rows for a source — used by RemoteProgressIndex to reconcile clean rows against WebDAV. */
     @Query("SELECT * FROM reading_positions WHERE sourceId = :sourceId")

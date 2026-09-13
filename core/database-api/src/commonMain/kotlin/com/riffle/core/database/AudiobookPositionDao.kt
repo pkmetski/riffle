@@ -18,11 +18,11 @@ interface AudiobookPositionDao {
 
     /** Server wins: overwrite the seconds and set both stamps clean (= server stamp). */
     @Query(
-        "UPDATE audiobook_positions SET positionSec = :positionSec, localUpdatedAt = :serverStamp, lastSyncedAt = :serverStamp " +
+        "UPDATE audiobook_positions SET positionSec = :positionSec, deleted = :deleted, localUpdatedAt = :serverStamp, lastSyncedAt = :serverStamp " +
             "WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt = :ifLocalUpdatedAt"
     )
     suspend fun acceptServerIfUnchanged(
-        sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long,
+        sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
     ): Int
 
     /** Local push confirmed: adopt the server-returned stamp into both timestamps (clean). */
@@ -48,6 +48,22 @@ interface AudiobookPositionDao {
     /** All distinct sourceIds that have at least one dirty row. */
     @Query("SELECT DISTINCT sourceId FROM audiobook_positions WHERE localUpdatedAt > lastSyncedAt")
     suspend fun sourcesWithDirtyRows(): List<String>
+
+    /** Mark the row as a soft-delete tombstone and make it dirty so the deletion propagates to WebDAV. */
+    @Query(
+        "UPDATE audiobook_positions SET deleted = 1, localUpdatedAt = :localUpdatedAt " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId"
+    )
+    suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long)
+
+    /** Server wins and the remote position was a deletion: mark local row as deleted and clean. */
+    @Query(
+        "UPDATE audiobook_positions SET deleted = 1, localUpdatedAt = :serverStamp, lastSyncedAt = :serverStamp " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt = :ifLocalUpdatedAt"
+    )
+    suspend fun acceptServerDeletionIfUnchanged(
+        sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+    ): Int
 
     /** All rows for a source — used by RemoteProgressIndex to reconcile clean rows against WebDAV. */
     @Query("SELECT * FROM audiobook_positions WHERE sourceId = :sourceId")

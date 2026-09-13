@@ -26,7 +26,7 @@ class ProgressSweepTest {
             val (p, lu, ls) = rows[sourceId to itemId] ?: Triple(null, 0L, 0L)
             return PositionSnapshot(p, lu, ls)
         }
-        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long): Boolean {
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean): Boolean {
             val cur = rows[sourceId to itemId]
             if ((cur?.second ?: 0L) != ifLocalUpdatedAt) return false
             rows[sourceId to itemId] = Triple(position, serverStamp, serverStamp); return true

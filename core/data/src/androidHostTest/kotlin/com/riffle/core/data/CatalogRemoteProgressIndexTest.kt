@@ -79,7 +79,9 @@ class CatalogRemoteProgressIndexTest {
         override suspend fun upsert(entity: ReadingPositionEntity) {}
         override suspend fun getByItemId(sourceId: String, itemId: String) = rows.find { it.itemId == itemId }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
-        override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+        override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
+        override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) {}
+        override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int = 0
         override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
         override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
         override suspend fun dirtyForSource(sourceId: String) = emptyList<ReadingPositionEntity>()
@@ -91,7 +93,9 @@ class CatalogRemoteProgressIndexTest {
         private val rows = ids.map { AudiobookPositionEntity(chitankaSourceId, it, 0.0, 100L, 100L) }
         override suspend fun upsert(entity: AudiobookPositionEntity) {}
         override suspend fun getByItemId(sourceId: String, itemId: String) = rows.find { it.itemId == itemId }
-        override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+        override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
+        override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) {}
+        override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int = 0
         override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
         override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
         override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()

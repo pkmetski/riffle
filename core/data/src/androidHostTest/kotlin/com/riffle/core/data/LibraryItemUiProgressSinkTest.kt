@@ -165,4 +165,5 @@ class LibraryItemUiProgressSinkTest {
 
         coVerify { dao.updateReadingProgress(chitankaSourceId, itemId, 0.3f) }
     }
+
 }

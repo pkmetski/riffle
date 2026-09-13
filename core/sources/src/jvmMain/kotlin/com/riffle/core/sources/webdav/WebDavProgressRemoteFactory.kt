@@ -37,6 +37,7 @@ class WebDavProgressRemoteFactory(
         finishedAt: suspend () -> Long?,
         clock: Clock,
         suffix: String = WebDavProgressRemote.EBOOK_PROGRESS_SUFFIX,
+        deleted: suspend () -> Boolean = { false },
     ): WebDavProgressRemote? {
         val baseUrl = parseWebDavBaseUrl(config.baseUrl) ?: return null
         val authHeader = "Basic " + Base64.getEncoder()
@@ -49,6 +50,7 @@ class WebDavProgressRemoteFactory(
             finishedAt = finishedAt,
             dispatchers = dispatchers,
             clock = clock,
+            deleted = deleted,
         )
     }
 
@@ -60,8 +62,9 @@ class WebDavProgressRemoteFactory(
         readingProgress: suspend () -> Float,
         finishedAt: suspend () -> Long?,
         clock: Clock,
+        deleted: suspend () -> Boolean = { false },
     ): ProgressRemote<Double>? =
-        create(config, namespace, itemId, readingProgress, finishedAt, clock, WebDavProgressRemote.AUDIO_PROGRESS_SUFFIX)?.asAudioRemote()
+        create(config, namespace, itemId, readingProgress, finishedAt, clock, WebDavProgressRemote.AUDIO_PROGRESS_SUFFIX, deleted)?.asAudioRemote()
 
     companion object {
         private const val WEBDAV_CALL_TIMEOUT_MS = 30_000L

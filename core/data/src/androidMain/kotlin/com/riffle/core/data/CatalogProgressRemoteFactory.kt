@@ -3,7 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.EbookCfiTranslatorFactory
@@ -41,6 +43,8 @@ class CatalogProgressRemoteFactory constructor(
     private val annotationSyncConfigStore: AnnotationSyncConfigStore,
     private val webDavProgressRemoteFactory: WebDavProgressRemoteFactory,
     private val sourceRepository: SourceRepository,
+    private val readingPositionDao: ReadingPositionDao,
+    private val audiobookPositionDao: AudiobookPositionDao,
 ) : ProgressRemoteFactory {
 
     override suspend fun ebook(sourceId: String, itemId: String): ProgressRemote<String>? {
@@ -66,6 +70,7 @@ class CatalogProgressRemoteFactory constructor(
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
             finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
             clock = clock,
+            deleted = { readingPositionDao.getByItemId(sourceId, itemId)?.deleted == true },
         )
     }
 
@@ -92,6 +97,7 @@ class CatalogProgressRemoteFactory constructor(
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
             finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
             clock = clock,
+            deleted = { audiobookPositionDao.getByItemId(sourceId, itemId)?.deleted == true },
         )
     }
 }

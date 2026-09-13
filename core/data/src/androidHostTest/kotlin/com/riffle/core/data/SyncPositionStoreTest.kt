@@ -26,13 +26,15 @@ class SyncPositionStoreTest {
             rows[sourceId to itemId]?.let { rows[sourceId to itemId] = it.copy(localUpdatedAt = millis) }
         }
         override suspend fun acceptServerIfUnchanged(
-            sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
         ): Int {
             val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
             rows[sourceId to itemId] = e.copy(cfi = position, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
+        override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) {}
+        override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int = 0
         override suspend fun confirmPushedIfUnchanged(
             sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
@@ -182,13 +184,15 @@ class SyncPositionStoreTest {
         override suspend fun upsert(entity: AudiobookPositionEntity) { rows[entity.sourceId to entity.itemId] = entity }
         override suspend fun getByItemId(sourceId: String, itemId: String) = rows[sourceId to itemId]
         override suspend fun acceptServerIfUnchanged(
-            sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
         ): Int {
             val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
             rows[sourceId to itemId] = e.copy(positionSec = positionSec, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
+        override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) {}
+        override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int = 0
         override suspend fun confirmPushedIfUnchanged(
             sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {

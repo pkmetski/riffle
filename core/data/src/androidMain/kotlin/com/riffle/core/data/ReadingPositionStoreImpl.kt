@@ -54,13 +54,24 @@ class ReadingPositionStoreImpl constructor(
     }
 
     override suspend fun acceptServerPosition(
-        sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+        sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
     ): Boolean {
-        if (dao.acceptServerIfUnchanged(sourceId, itemId, position, serverStamp, ifLocalUpdatedAt) > 0) return true
+        if (dao.acceptServerIfUnchanged(sourceId, itemId, position, serverStamp, ifLocalUpdatedAt, deleted) > 0) return true
         // No matching row updated: either the row is absent (create it — a server win on a fresh row)
         // or localUpdatedAt advanced mid-flight (superseded — leave the fresh local edit alone).
         if (dao.getByItemId(sourceId, itemId) == null) {
-            dao.upsert(ReadingPositionEntity(sourceId, itemId, position, serverStamp, serverStamp))
+            dao.upsert(ReadingPositionEntity(sourceId, itemId, position, serverStamp, serverStamp, deleted = deleted))
+            return true
+        }
+        return false
+    }
+
+    override suspend fun markDeletedAndClean(
+        sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+    ): Boolean {
+        if (dao.acceptServerDeletionIfUnchanged(sourceId, itemId, serverStamp, ifLocalUpdatedAt) > 0) return true
+        if (dao.getByItemId(sourceId, itemId) == null) {
+            dao.upsert(ReadingPositionEntity(sourceId, itemId, "", serverStamp, serverStamp, deleted = true))
             return true
         }
         return false

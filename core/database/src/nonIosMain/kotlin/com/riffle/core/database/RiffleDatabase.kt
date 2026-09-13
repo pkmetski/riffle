@@ -45,7 +45,7 @@ import androidx.sqlite.execSQL
         LookupHistoryEntity::class,
         CoverGridScaleEntity::class,
     ],
-    version = 72,
+    version = 73,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1887,6 +1887,20 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_cover_grid_scale_sourceId` " +
                         "ON `cover_grid_scale` (`sourceId`)"
+                )
+            }
+        }
+
+        // Adds the soft-delete tombstone column to both position tables so user-initiated "remove
+        // from library" on web-source items propagates to WebDAV and survives sync sweeps without
+        // the item reappearing (mirrors the annotation deleted-flag pattern from ADR 0045).
+        val MIGRATION_72_73 = object : Migration(72, 73) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "ALTER TABLE `reading_positions` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `audiobook_positions` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }
