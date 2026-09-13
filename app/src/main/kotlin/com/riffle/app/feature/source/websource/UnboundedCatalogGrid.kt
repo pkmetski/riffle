@@ -72,11 +72,16 @@ internal fun <T> UnboundedBrowseContent(
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
                     )
                 items.isEmpty() ->
-                    Text(
-                        if (query.isNotBlank()) stringResource(R.string.ui_no_results)
-                        else stringResource(R.string.ui_nothing_to_show),
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    )
+                    if (query.isNotBlank()) {
+                        Text(
+                            stringResource(R.string.ui_no_results),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        )
+                    } else {
+                        com.riffle.app.ui.EmptyLibrary(modifier = Modifier.align(Alignment.Center).padding(24.dp))
+                    }
                 else ->
                     UnboundedCatalogGrid(
                         items = items,

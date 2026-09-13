@@ -60,8 +60,8 @@ import com.riffle.app.feature.source.websource.UnboundedBrowseContent
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
-import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.theme.RiffleIcons
 
 @OptIn(ExperimentalMaterial3Api::class)

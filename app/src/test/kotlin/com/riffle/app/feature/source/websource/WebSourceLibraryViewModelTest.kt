@@ -1,11 +1,18 @@
 package com.riffle.app.feature.source.websource
 
 import com.riffle.core.data.websource.PositionTombstoneWriter
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -25,6 +32,40 @@ class WebSourceLibraryViewModelTest {
         ).first()
 
         assertEquals(listOf(first, third), result)
+    }
+
+    @Test
+    fun `to-read items filters unavailable items when offline`() = runTest {
+        val available = item("available")
+        val unavailable = item("unavailable")
+        val connectivity = FakeConnectivityObserver(online = false)
+        val offlineAvailability = FakeItemOfflineAvailability(setOf("available"))
+
+        val result = webSourceToReadItemsOfflineFiltered(
+            toReadItemIds = flowOf(setOf("available", "unavailable")),
+            allBooks = flowOf(listOf(available, unavailable)),
+            connectivity = connectivity,
+            offlineAvailability = offlineAvailability,
+        ).first()
+
+        assertEquals(listOf(available), result)
+    }
+
+    @Test
+    fun `to-read items shows all items when online`() = runTest {
+        val available = item("available")
+        val unavailable = item("unavailable")
+        val connectivity = FakeConnectivityObserver(online = true)
+        val offlineAvailability = FakeItemOfflineAvailability(emptySet())
+
+        val result = webSourceToReadItemsOfflineFiltered(
+            toReadItemIds = flowOf(setOf("available", "unavailable")),
+            allBooks = flowOf(listOf(available, unavailable)),
+            connectivity = connectivity,
+            offlineAvailability = offlineAvailability,
+        ).first()
+
+        assertEquals(listOf(available, unavailable), result)
     }
 
     @Test
@@ -74,6 +115,26 @@ class WebSourceLibraryViewModelTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
     )
+}
+
+private fun webSourceToReadItemsOfflineFiltered(
+    toReadItemIds: Flow<Set<String>>,
+    allBooks: Flow<List<LibraryItem>>,
+    connectivity: ConnectivityObserver,
+    offlineAvailability: LibraryItemOfflineAvailability,
+) = combine(
+    webSourceToReadItems(toReadItemIds, allBooks),
+    connectivity.isOnline.map { !it },
+) { items, offline ->
+    if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+}
+
+private class FakeConnectivityObserver(online: Boolean) : ConnectivityObserver {
+    override val isOnline: StateFlow<Boolean> = MutableStateFlow(online)
+}
+
+private class FakeItemOfflineAvailability(private val availableIds: Set<String>) : LibraryItemOfflineAvailability {
+    override fun isAvailableOffline(item: LibraryItem): Boolean = item.id in availableIds
 }
 
 private open class RecordingLibraryMutator : LibraryMutator {

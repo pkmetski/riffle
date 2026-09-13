@@ -137,6 +137,13 @@ abstract class UnboundedBrowseViewModel(
     private val _items = MutableStateFlow<List<CatalogItem>>(emptyList())
     val items: StateFlow<List<CatalogItem>> = _items.asStateFlow()
 
+    // Catalog items are only meaningful when online — hide them while offline so the Library tab
+    // doesn't show a stale list of items the user can't actually open without a network connection.
+    private val onlineItems: StateFlow<List<CatalogItem>> =
+        combine(_items, connectivityObserver.isOnline) { items, online ->
+            if (online) items else emptyList()
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private val _notStartedFilterActive = MutableStateFlow(false)
     val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
 
@@ -240,7 +247,7 @@ abstract class UnboundedBrowseViewModel(
 
     val filteredItems: StateFlow<List<CatalogItem>> =
         combine(
-            _items,
+            onlineItems,
             progressLookup,
             _notStartedFilterActive,
             ownedItemIndex,
@@ -256,10 +263,16 @@ abstract class UnboundedBrowseViewModel(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    val isLoading: StateFlow<Boolean> =
+        combine(_isLoading, connectivityObserver.isOnline) { loading, online -> loading && online }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    // Suppress the network error while offline — the banner already explains the situation and
+    // a red "You appear to be offline" message below it is redundant noise.
+    val error: StateFlow<String?> =
+        combine(_error, connectivityObserver.isOnline) { err, online -> if (online) err else null }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()

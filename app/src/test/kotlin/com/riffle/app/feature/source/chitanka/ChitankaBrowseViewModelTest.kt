@@ -28,6 +28,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -97,9 +98,6 @@ class ChitankaBrowseViewModelTest {
                 com.riffle.core.data.websource.WebSourceItemGate.Outcome.Fetched(listing)
             }
         }
-        val connectivityObserver = mockk<ConnectivityObserver>().also {
-            every { it.isOnline } returns MutableStateFlow(true)
-        }
         return ChitankaBrowseViewModel(
             savedStateHandle,
             sourceRepo,
@@ -109,7 +107,7 @@ class ChitankaBrowseViewModelTest {
             coverGridDensityStore,
             libraryFilterPreferencesStore,
             libraryObserver,
-            connectivityObserver,
+            FakeConnectivityObserver(),
         )
     }
 
@@ -175,7 +173,7 @@ class ChitankaBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
-            mockk<ConnectivityObserver>().also { every { it.isOnline } returns MutableStateFlow(true) },
+            FakeConnectivityObserver(),
         )
         advanceUntilIdle()
 
@@ -209,7 +207,7 @@ class ChitankaBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
-            mockk<ConnectivityObserver>().also { every { it.isOnline } returns MutableStateFlow(true) },
+            FakeConnectivityObserver(),
         )
         advanceUntilIdle()
 
@@ -243,7 +241,7 @@ class ChitankaBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
-            mockk<ConnectivityObserver>().also { every { it.isOnline } returns MutableStateFlow(true) },
+            FakeConnectivityObserver(),
         )
         advanceUntilIdle()
 
@@ -916,4 +914,8 @@ class ChitankaBrowseViewModelTest {
             }
         }
     }
+}
+
+private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
+    override val isOnline: StateFlow<Boolean> = MutableStateFlow(online)
 }

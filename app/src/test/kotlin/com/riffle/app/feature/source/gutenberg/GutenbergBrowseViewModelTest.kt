@@ -33,6 +33,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -94,9 +95,6 @@ class GutenbergBrowseViewModelTest {
     ): Pair<GutenbergBrowseViewModel, WebSourceItemGate> {
         val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
         val handle = SavedStateHandle(mapOf("libraryId" to GutenbergCatalog.ROOT_BOOKS))
-        val connectivityObserver = mockk<ConnectivityObserver>().also {
-            every { it.isOnline } returns MutableStateFlow(true)
-        }
         val vm = GutenbergBrowseViewModel(
             handle,
             sourceRepo,
@@ -106,7 +104,7 @@ class GutenbergBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             libraryFilterPreferencesStore,
             emptyLibraryObserver(),
-            connectivityObserver,
+            FakeConnectivityObserver(),
         )
         return vm to gate
     }
@@ -311,4 +309,8 @@ class GutenbergBrowseViewModelTest {
 
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
     }
+}
+
+private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
+    override val isOnline: StateFlow<Boolean> = MutableStateFlow(online)
 }
