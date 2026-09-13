@@ -85,6 +85,7 @@
     <string name="ui_display">Pantalla</string>
     <string name="ui_done">Listo</string>
     <string name="ui_double_page_in_landscape">Doble página en horizontal</string>
+    <string name="ui_force_paginated_in_landscape">Forzar paginado en horizontal</string>
     <string name="ui_download">Descargar</string>
     <string name="ui_download_cached_item">Descargar elemento en caché</string>
     <string name="ui_download_only_audio_doesn_t_match">Descargar solo · el audio no coincide</string>
