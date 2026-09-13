@@ -7,19 +7,20 @@ import org.junit.Test
 class ReadaloudReserveTest {
 
     @Test
-    fun `no reserve when player is closed`() {
+    fun `no reserve when readaloud unavailable`() {
+        // "unavailable" now means the player is not open — same claim, param renamed readaloudOpen
         assertEquals(0, readaloudReserveDp(readaloudOpen = false, paginated = true))
     }
 
     @Test
-    fun `no reserve in scroll mode even when player is open`() {
+    fun `no reserve in scroll mode even when readaloud available`() {
         // Scroll/vertical mode: text isn't pinned to a page, so the player floating over the bottom
         // sliver is a non-issue (one small scroll reveals it). Deliberately reserves nothing.
         assertEquals(0, readaloudReserveDp(readaloudOpen = true, paginated = false))
     }
 
     @Test
-    fun `reserves the bar height when player is open and paginated`() {
+    fun `reserves the bar height when readaloud available and paginated`() {
         assertEquals(READALOUD_RESERVE_DP, readaloudReserveDp(readaloudOpen = true, paginated = true))
     }
 
