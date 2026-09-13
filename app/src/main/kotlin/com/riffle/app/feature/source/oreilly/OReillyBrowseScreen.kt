@@ -47,7 +47,6 @@ import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
-import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.feature.library.LibrarySectionType
@@ -66,6 +65,7 @@ fun OReillyBrowseScreen(
     viewModel: OReillyBrowseViewModel = koinViewModel(),
 ) {
     val isAudio = libraryId == OReillyCatalog.ROOT_AUDIOBOOKS
+    val isOffline by viewModel.isOffline.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 
     LaunchedEffect(viewModel) {
@@ -133,10 +133,7 @@ fun OReillyBrowseScreen(
             }
         },
     ) { padding ->
-        TabletContentWidthContainer(
-            windowSizeClass = windowSizeClass,
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
+        WebSourceBrowseContent(isOffline = isOffline, windowSizeClass = windowSizeClass, padding = padding) {
             UnboundedCoverGridZoomProvider(
                 persistedScale = persistedCoverScale,
                 onPersistScaleChange = viewModel::setCoverGridScale,

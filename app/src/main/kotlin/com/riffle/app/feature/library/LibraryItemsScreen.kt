@@ -1841,15 +1841,15 @@ private fun AllBooksTabContent(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (notStartedFilterActive) {
-                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_unstarted_books)
-                    } else {
-                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_items_in_this_library)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (notStartedFilterActive) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_unstarted_books),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    com.riffle.app.ui.EmptyLibrary()
+                }
             }
         } else {
             val gridState = rememberLazyGridState()
