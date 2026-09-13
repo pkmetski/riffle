@@ -59,6 +59,8 @@ class ChitankaCatalog(
     // throttles/blocks requests carrying the raw `okhttp/x.x.x` default. Without this the
     // EPUB download URL 429s on the first request even though browse succeeds.
     private val userAgent: String = "Riffle",
+    // Overridable in tests to point search requests at a mock server instead of chitanka.info.
+    internal val baseUrl: String = ChitankaScraper.BASE,
 ) : Catalog,
     SeriesCapability,
     AudiobookMediaCapability,
@@ -176,8 +178,13 @@ class ChitankaCatalog(
         if (query.isBlank()) return emptyList()
         return when (rootId) {
             ROOT_BOOKS -> {
-                val url = "${ChitankaScraper.BASE}/search?q=" + query.encodeURLParameter()
-                val html = http.getString(url)
+                val url = "$baseUrl/search?q=" + query.encodeURLParameter()
+                val html = try {
+                    http.getString(url)
+                } catch (e: ChitankaHttpException) {
+                    if (e.code == 404) return emptyList() // chitanka.info returns 404 for empty search results
+                    throw e
+                }
                 ChitankaScraper.parseSearchResults(html).items
                     .map { it.toCatalogItem(rootId) }
                     .drop(page * pageSize)
