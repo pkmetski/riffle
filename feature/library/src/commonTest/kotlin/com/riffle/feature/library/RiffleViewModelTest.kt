@@ -125,6 +125,10 @@ class RiffleViewModelTest {
             tracker.refreshedPairs.contains("komga-1" to "lib-k1"),
             "refreshForSource must be called for Komga source libraries; got ${tracker.refreshedPairs}",
         )
+    }
+
+    // endregion
+
     // region Offline
 
     @Test
