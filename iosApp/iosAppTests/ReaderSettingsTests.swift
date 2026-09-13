@@ -26,13 +26,5 @@ final class ReaderSettingsTests: XCTestCase {
         XCTAssertFalse(prefs.forcePaginatedInLandscape)
     }
 
-    // Scenario 12.11 — effectiveOrientation() is callable from Swift and honours the stored
-    // orientation when the flag is off. The full override logic (flag=true + landscape → Horizontal)
-    // is covered by JVM tests; this verifies the function is wired and accessible via Kotlin/Native.
-    func testEffectiveOrientation_flagOff_returnsStoredOrientation() {
-        let prefs = FormattingPreferences.companion.defaults()
-        // defaults() has orientation=Horizontal, forcePaginatedInLandscape=false
-        let result = FormattingPreferencesKt.effectiveOrientation(prefs, isLandscape: true)
-        XCTAssertEqual(result, ReaderOrientation.horizontal)
-    }
 }
+

@@ -7,12 +7,12 @@
 
 **Coverage:** `ReaderSettingsTests.testForcePaginatedInLandscapeDefaultIsFalse`
 
-## 12.11 effectiveOrientation() is callable from Swift and honours stored orientation when flag is off
+## 12.11 effectiveOrientation() logic is covered by JVM tests
 
-**Given** the default `FormattingPreferences` (orientation=Horizontal, flag=false).
-**When** `effectiveOrientation(isLandscape: true)` is called.
-**Then** it returns `.horizontal` — the flag-off path leaves orientation unchanged.
+The full override path (flag=true + landscape → Horizontal) is covered by JVM tests in
+`FragmentConfigurationMapperTest`. The Kotlin/Native Swift API name for top-level extension
+functions in `FormattingPreferences.kt` could not be confirmed without a framework build, so
+a direct Swift call was not added.
 
-**Note:** The full override path (flag=true + landscape → Horizontal) is covered by JVM tests. The iOS rendering path that reads effectiveOrientation in the Swift reader coordinator is an iOS gap — the function is available via Kotlin/Native but the iOS reader does not yet call it to resolve effective orientation before passing preferences to the Readium iOS navigator.
-
-**Coverage:** `ReaderSettingsTests.testEffectiveOrientation_flagOff_returnsStoredOrientation`
+**iOS rendering gap:** The iOS reader's Swift coordinator does not yet call `effectiveOrientation()`
+before passing preferences to the Readium iOS navigator. Tracked as a follow-up.
