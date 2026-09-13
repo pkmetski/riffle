@@ -79,7 +79,9 @@ internal object IosNoOpReadingPositionDao : ReadingPositionDao {
     override suspend fun upsert(entity: ReadingPositionEntity) = Unit
     override suspend fun getByItemId(sourceId: String, itemId: String): ReadingPositionEntity? = null
     override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean): Int = 0
+    override suspend fun acceptServerIfUnchanged(
+        sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+    ): Int = 0
     override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int = 0
     override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long): Int = 0
     override suspend fun dirtyForSource(sourceId: String): List<ReadingPositionEntity> = emptyList()
@@ -149,7 +151,9 @@ internal object IosNoOpAudioPlaybackPreferencesDao : AudioPlaybackPreferencesDao
 internal object IosNoOpAudiobookPositionDao : AudiobookPositionDao {
     override suspend fun upsert(entity: AudiobookPositionEntity) = Unit
     override suspend fun getByItemId(sourceId: String, itemId: String): AudiobookPositionEntity? = null
-    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean): Int = 0
+    override suspend fun acceptServerIfUnchanged(
+        sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+    ): Int = 0
     override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int = 0
     override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long): Int = 0
     override suspend fun dirtyForSource(sourceId: String): List<AudiobookPositionEntity> = emptyList()
