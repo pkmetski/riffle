@@ -209,5 +209,5 @@ internal class OReillyApi(
     private fun HttpStatusCode.isSuccess(): Boolean = value in 200..299
 }
 
-internal class OReillyHttpException(val code: Int, val url: String) :
+class OReillyHttpException(val code: Int, val url: String) :
     RuntimeException("O'Reilly request failed ($code): $url")
