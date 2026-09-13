@@ -221,8 +221,14 @@ class SettingsViewModel constructor(
     val appTheme: StateFlow<AppTheme> = appThemeStore.appTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppTheme.System)
 
-    val servers: StateFlow<List<Source>> = sourceRepository.observeAll()
+    private val _pendingRemovals = MutableStateFlow<Set<String>>(emptySet())
+
+    private val rawServers: StateFlow<List<Source>> = sourceRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val servers: StateFlow<List<Source>> = combine(rawServers, _pendingRemovals) { list, pending ->
+        list.filter { it.id !in pending }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val localFilesSource: StateFlow<Source?> = servers
         .map { list -> list.firstOrNull { it.type == SourceType.LOCAL_FILES } }
@@ -385,9 +391,11 @@ class SettingsViewModel constructor(
 
     fun removeServer(sourceId: String) {
         viewModelScope.launch {
-            val current = servers.value
+            val current = rawServers.value
             val removing = current.firstOrNull { it.id == sourceId } ?: return@launch
+            _pendingRemovals.value = _pendingRemovals.value + sourceId
             sourceRepository.remove(sourceId)
+            _pendingRemovals.value = _pendingRemovals.value - sourceId
             if (removing.isActive) {
                 val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER_SERVICE }
                 if (next != null) {
