@@ -121,14 +121,18 @@ fun DisplaySection(
             Spacer(Modifier.height(12.dp))
         }
         if (capabilities.supportsDoublePage) {
+            // Active when paginated is the base mode, or when forcePaginatedInLandscape will
+            // promote to paginated in landscape — in both cases the setting has a rendering effect.
+            val doublePageEnabled = prefs.orientation == ReaderOrientation.Horizontal || prefs.forcePaginatedInLandscape
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().alpha(if (doublePageEnabled) 1f else 0.38f),
             ) {
                 Text(stringResource(R.string.ui_double_page_in_landscape), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(
                     checked = prefs.doublePageSpread,
                     onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
+                    enabled = doublePageEnabled,
                 )
             }
             Spacer(Modifier.height(20.dp))
