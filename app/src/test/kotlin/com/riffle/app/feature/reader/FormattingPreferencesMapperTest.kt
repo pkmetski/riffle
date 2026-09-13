@@ -58,6 +58,41 @@ class FragmentConfigurationMapperTest {
         assertEquals(null, result.readiumCssRsProperties.colCount)
     }
 
+    // forcePaginatedInLandscape: fragment configuration verifies effective orientation applied.
+    // (toEpubPreferences is not JVM-testable: its file-level DARK_DIM_TEXT_COLOR touches Compose
+    // Color.toArgb() at class-init time, which has no JVM implementation.)
+    @Test
+    fun forcePaginatedInLandscape_landscapeAndFlagOn_treatsOrientationAsPaginated() {
+        // Vertical base orientation + flag on + landscape → effectiveOrientation = Horizontal →
+        // single column (same as the paginated path).
+        val result = FormattingPreferences(
+            orientation = ReaderOrientation.Vertical,
+            forcePaginatedInLandscape = true,
+        ).toFragmentConfiguration(isLandscape = true, isFixedLayout = false)
+        assertEquals(ColCount.ONE, result.readiumCssRsProperties.colCount)
+    }
+
+    @Test
+    fun forcePaginatedInLandscape_landscapeAndFlagOff_keepsVerticalOrientation() {
+        // Vertical base orientation + flag off + landscape → effectiveOrientation = Vertical →
+        // null colCount (scroll mode, column count not applicable).
+        val result = FormattingPreferences(
+            orientation = ReaderOrientation.Vertical,
+            forcePaginatedInLandscape = false,
+        ).toFragmentConfiguration(isLandscape = true, isFixedLayout = false)
+        assertEquals(null, result.readiumCssRsProperties.colCount)
+    }
+
+    @Test
+    fun forcePaginatedInLandscape_portraitAndFlagOn_keepsVerticalOrientation() {
+        // Flag only overrides in landscape; portrait ignores it.
+        val result = FormattingPreferences(
+            orientation = ReaderOrientation.Vertical,
+            forcePaginatedInLandscape = true,
+        ).toFragmentConfiguration(isLandscape = false, isFixedLayout = false)
+        assertEquals(null, result.readiumCssRsProperties.colCount)
+    }
+
     // Regression: cutout/punch-hole devices in scroll mode used to show a status-bar-height
     // band of page background at the top because R2EpubPageFragment reads displayCutout
     // insets directly from decorView, bypassing our inset consumption at the AndroidView root.

@@ -43,6 +43,8 @@ class FormattingPreferencesStoreImpl constructor(
             showCurrentChapterLabel = prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] ?: false,
             showReadingTimeEstimate = prefs[KEY_SHOW_READING_TIME_ESTIMATE] ?: false,
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
+            forcePaginatedInLandscape = prefs[KEY_FORCE_PAGINATED_IN_LANDSCAPE]
+                ?: FormattingPreferences.DEFAULT_FORCE_PAGINATED_IN_LANDSCAPE,
             justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
             autoScrollWpm = prefs[KEY_AUTO_SCROLL_WPM] ?: FormattingPreferences.DEFAULT_AUTO_SCROLL_WPM,
             showAutoScroll = prefs[KEY_SHOW_AUTO_SCROLL] ?: FormattingPreferences.DEFAULT_SHOW_AUTO_SCROLL,
@@ -97,6 +99,7 @@ class FormattingPreferencesStoreImpl constructor(
             prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] = preferences.showCurrentChapterLabel
             prefs[KEY_SHOW_READING_TIME_ESTIMATE] = preferences.showReadingTimeEstimate
             prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
+            prefs[KEY_FORCE_PAGINATED_IN_LANDSCAPE] = preferences.forcePaginatedInLandscape
             prefs[KEY_JUSTIFY_TEXT] = preferences.justifyText
             prefs[KEY_AUTO_SCROLL_WPM] = preferences.autoScrollWpm
             prefs[KEY_SHOW_AUTO_SCROLL] = preferences.showAutoScroll
@@ -135,6 +138,7 @@ class FormattingPreferencesStoreImpl constructor(
         val KEY_SHOW_CURRENT_CHAPTER_LABEL = booleanPreferencesKey("show_current_chapter_label")
         val KEY_SHOW_READING_TIME_ESTIMATE = booleanPreferencesKey("show_reading_time_estimate")
         val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
+        val KEY_FORCE_PAGINATED_IN_LANDSCAPE = booleanPreferencesKey("force_paginated_in_landscape")
         val KEY_JUSTIFY_TEXT = booleanPreferencesKey("justify_text")
         val KEY_AUTO_SCROLL_WPM = intPreferencesKey("auto_scroll_wpm")
         val KEY_SHOW_AUTO_SCROLL = booleanPreferencesKey("show_auto_scroll")

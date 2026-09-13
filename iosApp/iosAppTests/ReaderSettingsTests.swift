@@ -18,4 +18,13 @@ final class ReaderSettingsTests: XCTestCase {
         let prefs = FormattingPreferences.companion.defaults()
         XCTAssertTrue(prefs.coloredChapterMap)
     }
+
+    // Scenario 12.10 — forcePaginatedInLandscape defaults to false (opt-in). If this regresses to
+    // true, all users in landscape would be forced into paginated mode without opting in.
+    func testForcePaginatedInLandscapeDefaultIsFalse() {
+        let prefs = FormattingPreferences.companion.defaults()
+        XCTAssertFalse(prefs.forcePaginatedInLandscape)
+    }
+
 }
+

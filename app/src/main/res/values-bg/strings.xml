@@ -85,6 +85,7 @@
     <string name="ui_display">Дисплей</string>
     <string name="ui_done">Готово</string>
     <string name="ui_double_page_in_landscape">Двойна страница в пейзаж</string>
+    <string name="ui_force_paginated_in_landscape">Принудително странично в пейзаж</string>
     <string name="ui_download">Изтегляне</string>
     <string name="ui_download_cached_item">Изтегляне на кеширан елемент</string>
     <string name="ui_download_only_audio_doesn_t_match">Само изтегляне · аудиото не съвпада</string>
