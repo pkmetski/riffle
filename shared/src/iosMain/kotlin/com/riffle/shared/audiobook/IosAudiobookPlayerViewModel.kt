@@ -6,6 +6,7 @@ import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.feature.player.audiobookStartSec
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,7 +94,7 @@ class IosAudiobookPlayerViewModel(
 
         val trackUrls = session.tracks.map { t -> "$baseUrl${t.contentUrl}?token=$token" }
         val trackOffsets = session.tracks.map { it.startOffsetSec }
-        val startAt = session.currentTimeSec.coerceIn(0.0, session.durationSec)
+        val startAt = audiobookStartSec(session.currentTimeSec.coerceAtLeast(0.0), session.durationSec)
 
         val b = bridgeFactory.create()
         bridge = b
