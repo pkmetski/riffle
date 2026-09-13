@@ -81,8 +81,11 @@ internal suspend fun removeFromLibrary(
     libraryMutator: LibraryMutator,
     hideItem: suspend (String, String) -> Unit,
 ) {
-    libraryMutator.deleteItem(sourceId, itemId)
+    // Tombstone the position rows before deleting the library row so a concurrent sweep
+    // cannot observe the library row as gone while the position row is still live (and
+    // re-insert the item back into the library grid).
     hideItem(sourceId, itemId)
+    libraryMutator.deleteItem(sourceId, itemId)
 }
 
 @Composable

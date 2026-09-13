@@ -44,6 +44,25 @@ class WebSourceLibraryViewModelTest {
         assertTrue("position tombstone was not written", tombstoned.contains("src-1" to "item-42"))
     }
 
+    @Test
+    fun `removeFromLibrary tombstones position row before deleting library row`() = runTest {
+        // A concurrent sweep must never see the library row gone while the position row is
+        // still live — that window would cause it to re-insert the item. Verify that hideItem
+        // fires first by recording the order of operations.
+        val order = mutableListOf<String>()
+        val mutator = object : RecordingLibraryMutator() {
+            override suspend fun deleteItem(sourceId: String, itemId: String) {
+                order += "delete"
+                super.deleteItem(sourceId, itemId)
+            }
+        }
+        val writer = PositionTombstoneWriter { _, _ -> order += "tombstone" }
+
+        removeFromLibrary("src-1", "item-42", mutator, writer::markDeleted)
+
+        assertEquals(listOf("tombstone", "delete"), order)
+    }
+
     private fun item(id: String) = LibraryItem(
         id = id,
         libraryId = "books",
@@ -57,7 +76,7 @@ class WebSourceLibraryViewModelTest {
     )
 }
 
-private class RecordingLibraryMutator : LibraryMutator {
+private open class RecordingLibraryMutator : LibraryMutator {
     val deleted = mutableListOf<Pair<String, String>>()
     override suspend fun markItemOpened(itemId: String) = Unit
     override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
