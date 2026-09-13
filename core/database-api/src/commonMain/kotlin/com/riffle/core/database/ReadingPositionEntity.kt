@@ -1,5 +1,6 @@
 package com.riffle.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -30,5 +31,5 @@ data class ReadingPositionEntity(
     // removes a web-source item from the library shelf, this flag is set to true and the row is
     // made dirty so the deletion propagates to WebDAV. Filters in WebSourceLibraryItemMaterializer
     // and LibraryItemUiProgressSink prevent the item from being re-inserted after a sync sweep.
-    val deleted: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
