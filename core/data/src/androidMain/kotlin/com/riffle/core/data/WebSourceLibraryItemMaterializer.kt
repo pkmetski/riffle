@@ -40,10 +40,10 @@ class WebSourceLibraryItemMaterializer constructor(
 
         val libraryIds = libraryItemDao.observeBySource(sourceId).first().map { it.id }.toSet()
 
-        val ebookIds = readingPositionDao.allForSource(sourceId).map { it.itemId }.toSet()
+        val ebookIds = readingPositionDao.allForSource(sourceId).filter { !it.deleted }.map { it.itemId }.toSet()
         val missingEbook = ebookIds - libraryIds
 
-        val audioIds = audiobookPositionDao.allForSource(sourceId).map { it.itemId }.toSet()
+        val audioIds = audiobookPositionDao.allForSource(sourceId).filter { !it.deleted }.map { it.itemId }.toSet()
         val missingAudio = audioIds - libraryIds
 
         val missing = missingEbook + missingAudio

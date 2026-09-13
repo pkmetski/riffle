@@ -25,7 +25,7 @@ class AudiobookReconciliationCoordinatorTest {
         val mirrors = mutableListOf<MirrorCall<String>>()
         override suspend fun snapshot(sourceId: String, itemId: String) =
             PositionSnapshot<String>(null, 0L, 0L)
-        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
         override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
         override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
         override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {
@@ -37,7 +37,7 @@ class AudiobookReconciliationCoordinatorTest {
         private val snap: PositionSnapshot<Double> = PositionSnapshot(null, 12_345L, 67_890L),
     ) : SyncPositionStore<Double> {
         override suspend fun snapshot(sourceId: String, itemId: String) = snap
-        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
         override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
         override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
         override suspend fun mirror(sourceId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) {}

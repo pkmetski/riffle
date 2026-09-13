@@ -1,5 +1,6 @@
 package com.riffle.app.feature.source.websource
 
+import com.riffle.core.data.websource.PositionTombstoneWriter
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
@@ -27,19 +28,20 @@ class WebSourceLibraryViewModelTest {
     }
 
     @Test
-    fun `removeFromLibrary deletes item and clears freshness stamp`() = runTest {
+    fun `removeFromLibrary deletes item and marks position rows as tombstoned`() = runTest {
         val mutator = RecordingLibraryMutator()
-        val cleared = mutableListOf<Pair<String, String>>()
+        val tombstoned = mutableListOf<Pair<String, String>>()
+        val writer = PositionTombstoneWriter { sourceId, itemId -> tombstoned += sourceId to itemId }
 
         removeFromLibrary(
             sourceId = "src-1",
             itemId = "item-42",
             libraryMutator = mutator,
-            clearFreshness = { sourceId, itemId -> cleared += sourceId to itemId },
+            hideItem = writer::markDeleted,
         )
 
         assertTrue("deleteItem was not called", mutator.deleted.contains("src-1" to "item-42"))
-        assertTrue("freshness was not cleared", cleared.contains("src-1" to "item-42"))
+        assertTrue("position tombstone was not written", tombstoned.contains("src-1" to "item-42"))
     }
 
     private fun item(id: String) = LibraryItem(

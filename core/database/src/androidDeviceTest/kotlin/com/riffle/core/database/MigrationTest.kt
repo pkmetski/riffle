@@ -1993,6 +1993,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_69_70,
             RiffleDatabase.MIGRATION_70_71,
             RiffleDatabase.MIGRATION_71_72,
+            RiffleDatabase.MIGRATION_72_73,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2006,7 +2007,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(72, cursor.getInt(0))
+            assertEquals(73, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
@@ -3150,6 +3151,39 @@ class MigrationTest {
             db.query("SELECT state FROM dictionary_packs WHERE languageTag = 'fr'").use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals("INSTALLED", c.getString(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration72To73_addsDeletedColumnToPositionTables() {
+        helper.createDatabase(TEST_DB, 72).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt, lastSyncedAt) " +
+                    "VALUES ('src1', 'book1', 'epubcfi(/6/2)', 1000, 1000)"
+            )
+            db.execSQL(
+                "INSERT INTO audiobook_positions (sourceId, itemId, positionSec, localUpdatedAt, lastSyncedAt) " +
+                    "VALUES ('src1', 'audio1', 120.5, 2000, 2000)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 73, true, RiffleDatabase.MIGRATION_72_73
+        ).use { db ->
+            // reading_positions: pre-existing row defaults to deleted = 0
+            db.query("SELECT deleted FROM reading_positions WHERE sourceId = 'src1' AND itemId = 'book1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+            }
+            // audiobook_positions: pre-existing row defaults to deleted = 0
+            db.query("SELECT deleted FROM audiobook_positions WHERE sourceId = 'src1' AND itemId = 'audio1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
             }
         }
     }

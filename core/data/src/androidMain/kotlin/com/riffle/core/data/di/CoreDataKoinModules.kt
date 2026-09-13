@@ -119,6 +119,8 @@ import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.SafFolderWalker
+import com.riffle.core.data.websource.PositionTombstoneWriter
+import com.riffle.core.data.websource.PositionTombstoneWriterImpl
 import com.riffle.core.data.websource.RemoteItemFreshness
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.data.websource.WebSourceItemGate
@@ -944,6 +946,8 @@ private val coreDataSyncModule = module {
             annotationSyncConfigStore = get(),
             webDavProgressRemoteFactory = get(),
             sourceRepository = get(),
+            readingPositionDao = get(),
+            audiobookPositionDao = get(),
         )
     }
     single<SyncSourceResolver> { CatalogSyncSourceResolver(get(), get()) }
@@ -1255,6 +1259,9 @@ private val coreDataMiscModule = module {
     // WebSource install/browse plumbing (WebSourceLibraryItemUpserter is bound in
     // coreDataRepositoriesModule)
     factory { RemoteItemFreshness(dao = get(), clock = get()) }
+    single<PositionTombstoneWriter> {
+        PositionTombstoneWriterImpl(readingPositionDao = get(), audiobookPositionDao = get(), clock = get())
+    }
     factory {
         WebSourceItemGate(
             libraryObserver = get(),

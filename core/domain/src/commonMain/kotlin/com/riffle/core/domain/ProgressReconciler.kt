@@ -61,15 +61,28 @@ class ProgressReconciler<P>(
         val localDirty = snap.localUpdatedAt > snap.lastSyncedAt
         val serverAdvanced = read.lastUpdate > snap.lastSyncedAt
 
+        val serverWinsCondition = (!localDirty && serverAdvanced) ||
+            (localDirty && read.lastUpdate > snap.localUpdatedAt)
+
         return when {
             // ServerWins: (a) a clean row and the server has moved since our last sync — adopt it;
             // (b) a dirty row where the server stamp is strictly newer than our local edit — the
             // remote change beat our un-pushed edit and wins the last-update-wins race.
-            (!localDirty && serverAdvanced) ||
-                (localDirty && read.lastUpdate > snap.localUpdatedAt) -> {
+            serverWinsCondition && read.deleted -> {
+                // Server carries a soft-delete tombstone: mark local row deleted+clean and skip
+                // the UI sink so the item is not re-inserted into the library grid.
+                val applied = store.markDeletedAndClean(
+                    sourceId, itemId, serverStamp = read.lastUpdate,
+                    ifLocalUpdatedAt = snap.localUpdatedAt,
+                )
+                if (applied) ReconcileOutcome.ServerWon(read.position, read.lastUpdate)
+                else ReconcileOutcome.Superseded
+            }
+
+            serverWinsCondition -> {
                 val applied = store.acceptServerPosition(
                     sourceId, itemId, read.position, serverStamp = read.lastUpdate,
-                    ifLocalUpdatedAt = snap.localUpdatedAt,
+                    ifLocalUpdatedAt = snap.localUpdatedAt, deleted = false,
                 )
                 if (applied) {
                     // Mirror the fresh server state into the UI-facing columns so the library

@@ -29,4 +29,6 @@ data class AudiobookPositionEntity(
     // The localUpdatedAt value last confirmed pushed to / pulled from the server; the row is
     // **dirty** when localUpdatedAt > lastSyncedAt (ADR 0036). See ReadingPositionEntity.
     val lastSyncedAt: Long = 0,
+    // Soft-delete tombstone — see ReadingPositionEntity.deleted for rationale.
+    val deleted: Boolean = false,
 )

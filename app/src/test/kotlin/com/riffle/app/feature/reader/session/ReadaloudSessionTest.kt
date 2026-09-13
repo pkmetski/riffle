@@ -382,7 +382,7 @@ class ReadaloudSessionTest {
             localUpdatedAt: Long, lastSyncedAt: Long,
         ) { mirrorCalls.add(MirrorCall(sourceId, itemId, position, localUpdatedAt, lastSyncedAt)) }
 
-        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
         override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
         override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
     }
@@ -398,7 +398,7 @@ class ReadaloudSessionTest {
             PositionSnapshot(position = null, localUpdatedAt = localUpdatedAt, lastSyncedAt = lastSyncedAt)
 
         override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {}
-        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
         override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
         override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
     }

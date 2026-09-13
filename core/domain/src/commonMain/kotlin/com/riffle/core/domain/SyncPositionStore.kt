@@ -24,7 +24,21 @@ interface SyncPositionStore<P> {
         position: P,
         serverStamp: Long,
         ifLocalUpdatedAt: Long,
+        deleted: Boolean = false,
     ): Boolean
+
+    /**
+     * Server wins and the remote position was a soft-delete tombstone: mark the local row as
+     * deleted and clean (both timestamps = server stamp) without updating the position value.
+     * Default implementation returns false so test mocks and non-web-source stores do not need
+     * to override it.
+     */
+    suspend fun markDeletedAndClean(
+        sourceId: String,
+        itemId: String,
+        serverStamp: Long,
+        ifLocalUpdatedAt: Long,
+    ): Boolean = false
 
     /** Local push confirmed: adopt the server-returned stamp into both timestamps (clean). */
     suspend fun confirmPushed(

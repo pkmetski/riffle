@@ -43,6 +43,7 @@ class WebDavProgressRemote(
     private val finishedAt: suspend () -> Long?,
     private val dispatchers: DispatcherProvider,
     private val clock: Clock,
+    private val deleted: suspend () -> Boolean = { false },
 ) : ProgressRemote<String> {
 
     override suspend fun get(): RemoteProgress<String>? = withContext(dispatchers.io) {
@@ -65,6 +66,7 @@ class WebDavProgressRemote(
                         lastUpdate = lastModified,
                         readingProgress = payload.readingProgress,
                         finishedAt = payload.finishedAt,
+                        deleted = payload.deleted,
                     )
                 }
                 else -> null
@@ -79,6 +81,7 @@ class WebDavProgressRemote(
                 readingProgress = readingProgress(),
                 finishedAt = finishedAt(),
                 lastUpdate = clock.nowMs(),
+                deleted = deleted(),
             )
             val response = client.put(progressFileUrl) {
                 header(HttpHeaders.Authorization, authHeader)
@@ -120,6 +123,9 @@ class WebDavProgressRemote(
         val readingProgress: Float,
         val finishedAt: Long? = null,
         val lastUpdate: Long,
+        // Soft-delete tombstone propagated via WebDAV (mirrors "riffle:deleted" in annotation sync).
+        // Readers that don't know this field ignore it (ignoreUnknownKeys = true on the Json instance).
+        val deleted: Boolean = false,
     )
 
     companion object {

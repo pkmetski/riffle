@@ -11,7 +11,7 @@ import com.riffle.app.feature.library.HomeTabContent
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.core.data.ToReadRepository
-import com.riffle.core.data.websource.RemoteItemFreshness
+import com.riffle.core.data.websource.PositionTombstoneWriter
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.LibraryItem
@@ -34,7 +34,7 @@ class WebSourceLibraryViewModel constructor(
     libraryObserver: LibraryObserver,
     toReadRepository: ToReadRepository,
     private val libraryMutator: LibraryMutator,
-    private val remoteItemFreshness: RemoteItemFreshness,
+    private val positionTombstoneWriter: PositionTombstoneWriter,
 ) : ViewModel() {
 
     private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -62,7 +62,7 @@ class WebSourceLibraryViewModel constructor(
                 sourceId = sourceId,
                 itemId = itemId,
                 libraryMutator = libraryMutator,
-                clearFreshness = remoteItemFreshness::clear,
+                hideItem = positionTombstoneWriter::markDeleted,
             )
         }
     }
@@ -79,10 +79,10 @@ internal suspend fun removeFromLibrary(
     sourceId: String,
     itemId: String,
     libraryMutator: LibraryMutator,
-    clearFreshness: suspend (String, String) -> Unit,
+    hideItem: suspend (String, String) -> Unit,
 ) {
     libraryMutator.deleteItem(sourceId, itemId)
-    clearFreshness(sourceId, itemId)
+    hideItem(sourceId, itemId)
 }
 
 @Composable

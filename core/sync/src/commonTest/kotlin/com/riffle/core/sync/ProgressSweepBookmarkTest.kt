@@ -19,7 +19,7 @@ class ProgressSweepBookmarkTest {
 
     private class NoopStore<P> : SyncPositionStore<P> {
         override suspend fun snapshot(sourceId: String, itemId: String) = PositionSnapshot<P>(null, 0L, 0L)
-        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
         override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
         override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
         override suspend fun mirror(sourceId: String, itemId: String, position: P, localUpdatedAt: Long, lastSyncedAt: Long) {}

@@ -473,7 +473,7 @@ private val sourceViewModelModule = module {
             libraryObserver = get(),
             toReadRepository = get(),
             libraryMutator = get(),
-            remoteItemFreshness = get(),
+            positionTombstoneWriter = get(),
         )
     }
     viewModel { AddRadioEsViewModel(installer = get()) }

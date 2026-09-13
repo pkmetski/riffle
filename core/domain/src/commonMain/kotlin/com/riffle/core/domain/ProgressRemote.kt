@@ -14,6 +14,7 @@ data class RemoteProgress<P>(
     val lastUpdate: Long,
     val readingProgress: Float = 0f,
     val finishedAt: Long? = null,
+    val deleted: Boolean = false,
 )
 
 /**

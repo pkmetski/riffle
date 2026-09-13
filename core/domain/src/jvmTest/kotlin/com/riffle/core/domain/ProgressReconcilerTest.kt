@@ -25,11 +25,24 @@ class ProgressReconcilerTest {
         override suspend fun snapshot(sourceId: String, itemId: String) =
             PositionSnapshot(position, localUpdatedAt, lastSyncedAt)
 
+        var deleted: Boolean = false
+
         override suspend fun acceptServerPosition(
-            sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
         ): Boolean {
             if (localUpdatedAt != ifLocalUpdatedAt) return false
             this.position = position
+            this.deleted = deleted
+            localUpdatedAt = serverStamp
+            lastSyncedAt = serverStamp
+            return true
+        }
+
+        override suspend fun markDeletedAndClean(
+            sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+        ): Boolean {
+            if (localUpdatedAt != ifLocalUpdatedAt) return false
+            this.deleted = true
             localUpdatedAt = serverStamp
             lastSyncedAt = serverStamp
             return true
@@ -407,6 +420,40 @@ class ProgressReconcilerTest {
         ).reconcile(SERVER, ITEM, FakeRemote(RemoteProgress("srv", 200L), patchStamp = null))
 
         assertEquals(0, sinkCalls)
+    }
+
+    // --- Soft-delete tombstone (web-source removal) ---
+
+    @Test
+    fun `ServerWon with deleted=true marks local row deleted and skips uiSink`() = runTest {
+        var sinkCalls = 0
+        val store = FakeSyncStore(position = "cfi", localUpdatedAt = 100L, lastSyncedAt = 100L)
+        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+
+        val outcome = ProgressReconciler(store, sink).reconcile(
+            SERVER, ITEM,
+            FakeRemote(RemoteProgress("", lastUpdate = 200L, deleted = true)),
+        )
+
+        assertEquals(ReconcileOutcome.ServerWon("", 200L), outcome)
+        assertTrue("row must be marked deleted", store.deleted)
+        assertEquals("uiSink must not be called for a deleted item", 0, sinkCalls)
+    }
+
+    @Test
+    fun `ServerWon with deleted=false resets local deleted flag and calls uiSink`() = runTest {
+        var sinkCalls = 0
+        val store = FakeSyncStore(position = "cfi", localUpdatedAt = 100L, lastSyncedAt = 100L).also { it.deleted = true }
+        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+
+        val outcome = ProgressReconciler(store, sink).reconcile(
+            SERVER, ITEM,
+            FakeRemote(RemoteProgress("newCfi", lastUpdate = 200L, deleted = false)),
+        )
+
+        assertEquals(ReconcileOutcome.ServerWon("newCfi", 200L), outcome)
+        assertFalse("deleted flag must be reset by server win", store.deleted)
+        assertEquals("uiSink must be called for non-deleted server win", 1, sinkCalls)
     }
 
     private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
