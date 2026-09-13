@@ -40,7 +40,8 @@ fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
     isFixedLayout: Boolean = false,
 ): EpubPreferences {
-    val isDoublePage = orientation == ReaderOrientation.Horizontal && doublePageSpread && isLandscape
+    val effectiveOrientation = if (isLandscape && forcePaginatedInLandscape) ReaderOrientation.Horizontal else orientation
+    val isDoublePage = effectiveOrientation == ReaderOrientation.Horizontal && doublePageSpread && isLandscape
     return EpubPreferences(
         fontSize = fontSize.toDouble(),
         theme = when (theme) {
@@ -77,7 +78,7 @@ fun FormattingPreferences.toEpubPreferences(
         publisherStyles = false,
         lineHeight = lineSpacing.toDouble().takeIf { lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING },
         pageMargins = margins.toDouble(),
-        scroll = orientation != ReaderOrientation.Horizontal,
+        scroll = effectiveOrientation != ReaderOrientation.Horizontal,
         // Fixed-layout: spread controls two-page side-by-side rendering.
         // Reflowable: column count is set via RS properties in toFragmentConfiguration().
         spread = if (isFixedLayout) (if (isDoublePage) Spread.ALWAYS else Spread.NEVER) else null,
@@ -92,8 +93,9 @@ fun FormattingPreferences.toFragmentConfiguration(
     // time, bypassing Readium's 60em media-query threshold that --USER__colCount relies on.
     // --RS__colWidth must be "auto" to remove the default 45em minimum which would otherwise
     // prevent two columns from fitting in a phone-width viewport.
+    val effectiveOrientation = if (isLandscape && forcePaginatedInLandscape) ReaderOrientation.Horizontal else orientation
     val isDoublePage = !isFixedLayout &&
-        orientation == ReaderOrientation.Horizontal &&
+        effectiveOrientation == ReaderOrientation.Horizontal &&
         doublePageSpread &&
         isLandscape
     return EpubNavigatorFragment.Configuration(
@@ -119,7 +121,7 @@ fun FormattingPreferences.toFragmentConfiguration(
             // default so a phone-width viewport rendered TWO columns — and its decoration renderer
             // mispositions the readaloud highlight in a multi-column layout, so the synced highlight
             // silently vanished. (Landscape double-page still uses TWO columns above, by design.)
-            !isFixedLayout && orientation == ReaderOrientation.Horizontal ->
+            !isFixedLayout && effectiveOrientation == ReaderOrientation.Horizontal ->
                 RsProperties(colCount = ColCount.ONE)
             // Scroll mode and fixed-layout: column count doesn't apply.
             else -> RsProperties()

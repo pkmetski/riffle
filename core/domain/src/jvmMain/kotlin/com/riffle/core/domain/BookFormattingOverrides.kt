@@ -13,6 +13,7 @@ data class BookFormattingOverrides(
     val showCurrentChapterLabel: Boolean? = null,
     val showReadingTimeEstimate: Boolean? = null,
     val doublePageSpread: Boolean? = null,
+    val forcePaginatedInLandscape: Boolean? = null,
     val justifyText: Boolean? = null,
     val autoScrollWpm: Int? = null,
     val cadenceWpm: Int? = null,
@@ -30,6 +31,7 @@ data class BookFormattingOverrides(
             showCurrentChapterLabel == null &&
             showReadingTimeEstimate == null &&
             doublePageSpread == null &&
+            forcePaginatedInLandscape == null &&
             justifyText == null &&
             autoScrollWpm == null &&
             cadenceWpm == null
@@ -47,6 +49,7 @@ data class BookFormattingOverrides(
         showCurrentChapterLabel = showCurrentChapterLabel ?: global.showCurrentChapterLabel,
         showReadingTimeEstimate = showReadingTimeEstimate ?: global.showReadingTimeEstimate,
         doublePageSpread = doublePageSpread ?: global.doublePageSpread,
+        forcePaginatedInLandscape = forcePaginatedInLandscape ?: global.forcePaginatedInLandscape,
         justifyText = justifyText ?: global.justifyText,
         // themeSchedule is intentionally global-only (no per-book override). Threading
         // global through keeps the in-reader Auto resolution honouring the user's
@@ -81,6 +84,7 @@ data class BookFormattingOverrides(
         showCurrentChapterLabel = if (new.showCurrentChapterLabel != previous.showCurrentChapterLabel) new.showCurrentChapterLabel else showCurrentChapterLabel,
         showReadingTimeEstimate = if (new.showReadingTimeEstimate != previous.showReadingTimeEstimate) new.showReadingTimeEstimate else showReadingTimeEstimate,
         doublePageSpread = if (new.doublePageSpread != previous.doublePageSpread) new.doublePageSpread else doublePageSpread,
+        forcePaginatedInLandscape = if (new.forcePaginatedInLandscape != previous.forcePaginatedInLandscape) new.forcePaginatedInLandscape else forcePaginatedInLandscape,
         justifyText = if (new.justifyText != previous.justifyText) new.justifyText else justifyText,
         autoScrollWpm = if (new.autoScrollWpm != previous.autoScrollWpm) new.autoScrollWpm else autoScrollWpm,
         cadenceWpm = if (new.cadenceWpm != previous.cadenceWpm) new.cadenceWpm else cadenceWpm,

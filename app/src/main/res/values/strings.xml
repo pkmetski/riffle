@@ -89,6 +89,7 @@
     <string name="ui_display">Display</string>
     <string name="ui_done">Done</string>
     <string name="ui_double_page_in_landscape">Double page in landscape</string>
+    <string name="ui_force_paginated_in_landscape">Force paginated in landscape</string>
     <string name="ui_download">Download</string>
     <string name="ui_download_cached_item">Download cached item</string>
     <string name="ui_download_only_audio_doesn_t_match">Download only · audio doesn\'t match</string>

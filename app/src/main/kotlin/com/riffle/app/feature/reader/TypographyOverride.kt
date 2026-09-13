@@ -83,6 +83,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "theme" to "Multi-property (background, text colour, link colour, image filters) — handled by Readium's theme stylesheet, not a single override.",
     "orientation" to "Layout/scroll mode, not a CSS property.",
     "doublePageSpread" to "Column-count layout mode, handled by RsProperties at fragment-creation time.",
+    "forcePaginatedInLandscape" to "Layout behaviour override (forces Horizontal orientation in landscape); resolved in the mapper before CSS generation, not a CSS property.",
     "showChapterMap" to "UI affordance outside the reader content; no CSS implication.",
     "coloredChapterMap" to "Chapter-map rendering style outside the reader content; no CSS implication.",
     "showReadingProgressLabels" to "UI affordance outside the reader content; no CSS implication.",

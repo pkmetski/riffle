@@ -15,6 +15,7 @@ data class FormattingPreferences(
     val showCurrentChapterLabel: Boolean = DEFAULT_SHOW_CURRENT_CHAPTER_LABEL,
     val showReadingTimeEstimate: Boolean = DEFAULT_SHOW_READING_TIME_ESTIMATE,
     val doublePageSpread: Boolean = DEFAULT_DOUBLE_PAGE_SPREAD,
+    val forcePaginatedInLandscape: Boolean = DEFAULT_FORCE_PAGINATED_IN_LANDSCAPE,
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
     val autoReaderThemeMode: AutoReaderThemeMode = DEFAULT_AUTO_READER_THEME_MODE,
     val appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
@@ -42,6 +43,7 @@ data class FormattingPreferences(
         const val DEFAULT_SHOW_CURRENT_CHAPTER_LABEL: Boolean = false
         const val DEFAULT_SHOW_READING_TIME_ESTIMATE: Boolean = false
         const val DEFAULT_DOUBLE_PAGE_SPREAD: Boolean = false
+        const val DEFAULT_FORCE_PAGINATED_IN_LANDSCAPE: Boolean = false
         const val DEFAULT_JUSTIFY_TEXT: Boolean = false
         const val DEFAULT_AUTO_SCROLL_WPM: Int = 250
         const val DEFAULT_SHOW_AUTO_SCROLL: Boolean = false

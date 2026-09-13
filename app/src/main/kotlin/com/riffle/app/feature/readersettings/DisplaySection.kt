@@ -107,6 +107,17 @@ fun DisplaySection(
                     )
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.ui_force_paginated_in_landscape), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = prefs.forcePaginatedInLandscape,
+                    onCheckedChange = { onPrefsChange(prefs.copy(forcePaginatedInLandscape = it)) },
+                )
+            }
             Spacer(Modifier.height(12.dp))
         }
         if (capabilities.supportsDoublePage) {
