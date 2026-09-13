@@ -368,14 +368,13 @@ fun EpubReaderScreen(
         immersiveState = immersiveState,
     )
 
-    // Reserve a fixed bottom strip for the readaloud mini-player whenever readaloud is AVAILABLE
-    // (a downloaded/usable match) and the reader is paginated. The reserve is held for the whole
-    // session — NOT gated on the player being open — so toggling the player (Play-from-here, the play
-    // button, close) never re-paginates and the page can never jump. Non-readaloud books, and ABS
-    // matches whose bundle isn't downloaded yet, reserve nothing and render edge to edge. Scroll mode
-    // needs no reserve (the player floats over a freely-scrollable page). See ReadaloudReserve.kt.
+    // Reserve a fixed bottom strip for the readaloud mini-player only while the player is actually
+    // open. Books whose match was never started render edge-to-edge with no wasted bottom space.
+    // When the player opens, the CSS reserve repaginates the page and EpubNavigatorView navigates
+    // back to the saved locator to avoid a column-boundary jump. Scroll mode needs no reserve (the
+    // player floats over a freely-scrollable page). See ReadaloudReserve.kt.
     val readaloudReservePx: Int = readaloudReserveDp(
-        readaloudAvailable = readaloudAvailable,
+        readaloudOpen = readaloudOpen,
         paginated = formattingPrefs.orientation == ReaderOrientation.Horizontal,
     )
 
@@ -1880,9 +1879,8 @@ private fun EpubNavigatorView(
 
     // Bumps whenever a formatting change (font/margin/spacing/orientation) reflows the layout so the
     // decoration effects and the auto-follow probe below re-apply / re-centre onto the new pagination
-    // (see rememberReflowReapplyGeneration). Also keyed on the readaloud reserve: it's constant across
-    // the session in the common case (so opening the player is NOT a reflow trigger), but it flips once
-    // if an ABS bundle finishes downloading mid-session — that one re-paginates, so re-apply then too.
+    // (see rememberReflowReapplyGeneration). Also keyed on the readaloud reserve so opening or
+    // closing the player (which repaginates columns) triggers a decoration re-apply.
     val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs to readaloudReservePx)
 
     // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
@@ -2002,16 +2000,20 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Push the reserve to the live page if it changes without a page reload — readaloud becoming
-    // available mid-session (an ABS bundle finishes downloading) or the reader switching to/from scroll
-    // mode. In the common case the value is set at the first page load and never changes here, so this
-    // is a no-op. Unlike the earlier open-gated reserve, there is no top-of-page anchor to capture: the
-    // reserve isn't tied to the player opening, so this transition isn't one the user is staring at.
+    // Push the reserve change to the live page when the player opens or closes, or when the reader
+    // switches to/from scroll mode. Applying the reserve repaginates columns (shorter or taller),
+    // so the current scrollLeft position can land on the wrong column. Navigate back to the saved
+    // locator to pin the reading position across the reflow — the same approach used for the
+    // continuous→paginated mode switch (see LaunchedEffect(isContinuous) below).
     LaunchedEffect(readaloudReservePx) {
         if (fragmentRef.value == null) return@LaunchedEffect
         withContext(dispatchers.main) {
             rendererBridge.applyReadaloudReserve(readaloudReservePx)
         }
+        delay(200L)
+        val locator = currentLatestLocator() ?: return@LaunchedEffect
+        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+        fragment.go(locator, animated = false)
     }
 
     // Tap on an in-document anchor inside the WebView → look up the target in

@@ -35,31 +35,29 @@ private const val RESERVE_VAR = "--riffle-ra-reserve"
 internal const val READALOUD_RESERVE_DP = 56
 
 /**
- * CSS-px bottom reserve to hold the floating player clear of the text — [READALOUD_RESERVE_DP] when
- * readaloud is available AND the reader is paginated, else 0 (no reserve; the page renders edge to
- * edge). Gated on availability, NOT on the player being open, so the value is stable across the
- * session and toggling the player never re-paginates.
+ * CSS-px bottom reserve to hold the floating player clear of the text — [READALOUD_RESERVE_DP]
+ * when the player is open AND the reader is paginated, else 0 (no reserve; the page renders edge
+ * to edge). Gated on [readaloudOpen] so books whose readaloud match was never started pay no
+ * layout cost. When the player opens the page repaginates; the caller must navigate back to the
+ * saved locator to avoid a column-boundary jump.
  */
-internal fun readaloudReserveDp(readaloudAvailable: Boolean, paginated: Boolean): Int =
-    if (readaloudAvailable && paginated) READALOUD_RESERVE_DP else 0
+internal fun readaloudReserveDp(readaloudOpen: Boolean, paginated: Boolean): Int =
+    if (readaloudOpen && paginated) READALOUD_RESERVE_DP else 0
 
 /**
- * The reserve rule. Active only while `<html>` carries [RESERVE_ACTIVE_CLASS]. The bottom padding is
- * the page's own bottom margin — the SAME `--RS__pageGutter * --USER__pageMargins` calc the margins
- * override uses for its `padding-bottom` (the 1.0× bottom factor; the override's top is 0.5×, so this
- * is NOT symmetric with the top), so the gap above the player tracks the margins slider exactly —
- * PLUS the strip height carried in [RESERVE_VAR] (the player bar). The
- * doubled `:root` raises specificity to (0,3,0) so it beats both Readium's `:root{padding:0}` (0,1,0)
- * and the margins override (0,2,0) regardless of source order. `--USER__pageMargins` defaults to 1 so
- * the `calc()` stays valid on books left at the default margin (an unset var with no fallback would
- * void the whole declaration and drop the reserve).
+ * The reserve rule. Active only while `<html>` carries [RESERVE_ACTIVE_CLASS]. Sets
+ * `padding-bottom` to exactly the strip height carried in [RESERVE_VAR] — no gutter term. The
+ * page's own bottom margin already comes from the Android container View padding
+ * (`readerContainerPaddingPx` → `20 × margins` dp below the WebView), so adding
+ * `--RS__pageGutter × --USER__pageMargins` here would double-count it and produce an oversized
+ * blank strip. The gap above the player therefore tracks the margins slider correctly via the
+ * container, not via CSS. The doubled `:root` raises specificity to (0,3,0) so it beats both
+ * Readium's `:root{padding:0}` (0,1,0) and the margins override (0,2,0) regardless of source order.
  */
 internal fun readaloudReserveCss(): String =
     """
     :root.$RESERVE_ACTIVE_CLASS:root {
-      padding-bottom: calc(
-        var(--RS__pageGutter, 8px) * var(--USER__pageMargins, 1) + var($RESERVE_VAR, 0px)
-      ) !important;
+      padding-bottom: var($RESERVE_VAR, 0px) !important;
     }
     """.trimIndent()
 
