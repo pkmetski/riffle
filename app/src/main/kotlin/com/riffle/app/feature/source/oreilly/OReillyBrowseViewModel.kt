@@ -6,6 +6,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
@@ -23,6 +24,7 @@ class OReillyBrowseViewModel constructor(
     coverGridDensityStore: CoverGridDensityStore,
     libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     libraryObserver: LibraryObserver,
+    connectivityObserver: ConnectivityObserver,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -32,6 +34,7 @@ class OReillyBrowseViewModel constructor(
     coverGridDensityStore = coverGridDensityStore,
     libraryFilterPreferencesStore = libraryFilterPreferencesStore,
     libraryObserver = libraryObserver,
+    connectivityObserver = connectivityObserver,
     sourceType = SourceType.OREILLY,
     defaultRootId = OReillyCatalog.ROOT_BOOKS,
     pageSize = 20,

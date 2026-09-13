@@ -6,11 +6,13 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.radioes.RadioEsCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
+import com.riffle.core.catalog.radioes.RadioEsHttpException
 import java.io.IOException
 import java.net.UnknownHostException
 
@@ -23,6 +25,7 @@ class RadioEsBrowseViewModel constructor(
     coverGridDensityStore: CoverGridDensityStore,
     libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     libraryObserver: LibraryObserver,
+    connectivityObserver: ConnectivityObserver,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -32,6 +35,7 @@ class RadioEsBrowseViewModel constructor(
     coverGridDensityStore = coverGridDensityStore,
     libraryFilterPreferencesStore = libraryFilterPreferencesStore,
     libraryObserver = libraryObserver,
+    connectivityObserver = connectivityObserver,
     sourceType = SourceType.RADIO_ES,
     defaultRootId = RadioEsCatalog.ROOT_PODCASTS,
     pageSize = 20,
@@ -44,6 +48,8 @@ internal fun radioEsFriendlyErrorMessage(t: Throwable): String {
         chain.any { it is UnknownHostException } ->
             "You appear to be offline. Connect to the internet and try again."
         chain.any { it is IOException } ->
+            "Couldn't reach radio.es. Check your connection and try again."
+        chain.any { it is RadioEsHttpException } ->
             "Couldn't reach radio.es. Check your connection and try again."
         else -> t.message ?: t::class.simpleName ?: "Error"
     }

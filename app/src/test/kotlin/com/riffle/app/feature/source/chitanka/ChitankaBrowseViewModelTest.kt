@@ -18,8 +18,10 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.ConnectivityObserver
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -95,6 +97,9 @@ class ChitankaBrowseViewModelTest {
                 com.riffle.core.data.websource.WebSourceItemGate.Outcome.Fetched(listing)
             }
         }
+        val connectivityObserver = mockk<ConnectivityObserver>().also {
+            every { it.isOnline } returns MutableStateFlow(true)
+        }
         return ChitankaBrowseViewModel(
             savedStateHandle,
             sourceRepo,
@@ -104,6 +109,7 @@ class ChitankaBrowseViewModelTest {
             coverGridDensityStore,
             libraryFilterPreferencesStore,
             libraryObserver,
+            connectivityObserver,
         )
     }
 
@@ -169,6 +175,7 @@ class ChitankaBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
+            mockk<ConnectivityObserver>().also { every { it.isOnline } returns MutableStateFlow(true) },
         )
         advanceUntilIdle()
 
@@ -202,6 +209,7 @@ class ChitankaBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
+            mockk<ConnectivityObserver>().also { every { it.isOnline } returns MutableStateFlow(true) },
         )
         advanceUntilIdle()
 
@@ -235,6 +243,7 @@ class ChitankaBrowseViewModelTest {
             fakeCoverGridDensityStore(),
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
+            mockk<ConnectivityObserver>().also { every { it.isOnline } returns MutableStateFlow(true) },
         )
         advanceUntilIdle()
 
@@ -264,6 +273,15 @@ class ChitankaBrowseViewModelTest {
     @Test
     fun `generic IOException falls back to reachability message`() {
         val msg = friendlyErrorMessage(java.io.IOException("connection reset"))
+        assertEquals("Couldn't reach chitanka.info. Check your connection and try again.", msg)
+    }
+
+    @Test
+    fun `ChitankaHttpException does not leak raw URL in error message`() {
+        val ex = com.riffle.core.catalog.chitanka.ChitankaHttpException(
+            503, "https://chitanka.info/search?q=test", "Service Unavailable",
+        )
+        val msg = friendlyErrorMessage(ex)
         assertEquals("Couldn't reach chitanka.info. Check your connection and try again.", msg)
     }
 
