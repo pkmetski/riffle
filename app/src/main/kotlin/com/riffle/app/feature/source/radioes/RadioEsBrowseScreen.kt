@@ -59,8 +59,8 @@ import com.riffle.app.feature.source.common.toggleSearchOpen
 import com.riffle.app.feature.source.websource.UnboundedBrowseContent
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
-import com.riffle.app.feature.source.websource.WebSourceBrowseContent
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
+import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.theme.RiffleIcons
 
@@ -75,7 +75,6 @@ fun RadioEsBrowseScreen(
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     viewModel: RadioEsBrowseViewModel = koinViewModel(),
 ) {
-    val isOffline by viewModel.isOffline.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 
     LaunchedEffect(viewModel) {
@@ -145,7 +144,10 @@ fun RadioEsBrowseScreen(
             }
         },
     ) { padding ->
-        WebSourceBrowseContent(isOffline = isOffline, windowSizeClass = windowSizeClass, padding = padding) {
+        TabletContentWidthContainer(
+            windowSizeClass = windowSizeClass,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
             UnboundedCoverGridZoomProvider(
                 persistedScale = persistedCoverScale,
                 onPersistScaleChange = viewModel::setCoverGridScale,

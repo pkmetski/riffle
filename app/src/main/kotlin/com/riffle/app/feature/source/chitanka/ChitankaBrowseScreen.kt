@@ -54,8 +54,8 @@ import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.source.websource.UnboundedBrowseContent
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
-import com.riffle.app.feature.source.websource.WebSourceBrowseContent
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
+import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 
@@ -86,7 +86,6 @@ fun ChitankaBrowseScreen(
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     viewModel: ChitankaBrowseViewModel = koinViewModel(),
 ) {
-    val isOffline by viewModel.isOffline.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 
     // Chitanka items don't live in `library_items` until this point (ADR 0051: unbounded
@@ -180,7 +179,10 @@ fun ChitankaBrowseScreen(
             }
         },
     ) { padding ->
-        WebSourceBrowseContent(isOffline = isOffline, windowSizeClass = windowSizeClass, padding = padding) {
+        TabletContentWidthContainer(
+            windowSizeClass = windowSizeClass,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
             UnboundedCoverGridZoomProvider(
                 persistedScale = persistedCoverScale,
                 onPersistScaleChange = viewModel::setCoverGridScale,
