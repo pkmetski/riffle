@@ -19,14 +19,19 @@ class AudiobookChapterCacheRepositoryImpl constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    // Bump this suffix whenever chapter-title generation logic changes so that stale cache
+    // entries (keyed on the previous suffix) are transparently bypassed and re-fetched.
+    // Current bump: v1 = added show-name prefix stripping for Radio.es episode titles.
+    private fun cacheKey(itemId: String) = "$itemId/v1"
+
     override suspend fun getCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
-        val entity = dao.get(sourceId, itemId) ?: return null
+        val entity = dao.get(sourceId, cacheKey(itemId)) ?: return null
         if (isDerivedCacheStale(clock.nowMs(), entity.cachedAt)) return null
         return decode(entity)
     }
 
     override suspend fun getStaleCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
-        val entity = dao.get(sourceId, itemId) ?: return null
+        val entity = dao.get(sourceId, cacheKey(itemId)) ?: return null
         return decode(entity)
     }
 
@@ -38,7 +43,7 @@ class AudiobookChapterCacheRepositoryImpl constructor(
         dao.upsert(
             AudiobookChapterCacheEntity(
                 sourceId = sourceId,
-                itemId = itemId,
+                itemId = cacheKey(itemId),
                 chaptersJson = json.encodeToString(chapters),
                 cachedAt = clock.nowMs(),
             )
