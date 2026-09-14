@@ -22,6 +22,7 @@
 		B1007010 /* ComicsReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1007020 /* ComicsReaderTests.swift */; };
 		B1009010 /* LocalFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1009020 /* LocalFilesTests.swift */; };
 		B100B010 /* AddAbsSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100B020 /* AddAbsSourceFlowTests.swift */; };
+		B100C010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B1008010 /* AnnotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008020 /* AnnotationTests.swift */; };
 		B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008021 /* AudiobookPlayerViewModelTests.swift */; };
 		B1008012 /* AutoFollowJsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008022 /* AutoFollowJsTests.swift */; };
@@ -61,6 +62,7 @@
 		B1007020 /* ComicsReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicsReaderTests.swift; sourceTree = "<group>"; };
 		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
 		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
+		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
 		B1008000 /* iosAppUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1008020 /* AnnotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTests.swift; sourceTree = "<group>"; };
 		B1008021 /* AudiobookPlayerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerViewModelTests.swift; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 				B1007020 /* ComicsReaderTests.swift */,
 				B1009020 /* LocalFilesTests.swift */,
 				B100B020 /* AddAbsSourceFlowTests.swift */,
+				B100C020 /* DownloadsTests.swift */,
 				B1008020 /* AnnotationTests.swift */,
 				B1008021 /* AudiobookPlayerViewModelTests.swift */,
 				B1008022 /* AutoFollowJsTests.swift */,
@@ -335,6 +338,7 @@
 				B1007010 /* ComicsReaderTests.swift in Sources */,
 				B1009010 /* LocalFilesTests.swift in Sources */,
 				B100B010 /* AddAbsSourceFlowTests.swift in Sources */,
+				B100C010 /* DownloadsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -502,6 +506,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				OTHER_LDFLAGS = "-lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosAppTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -520,6 +525,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				OTHER_LDFLAGS = "-lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = com.riffle.iosAppTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
