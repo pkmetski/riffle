@@ -1,8 +1,12 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.common.FileStore
+import com.riffle.core.data.NS_EPUB_CACHE
+import com.riffle.core.data.NS_EPUB_DOWNLOADS
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
+import com.riffle.shared.library.IosEpubPaths
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -15,50 +19,52 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 
 /**
- * Downloads EPUB files from ABS to the iOS temporary directory using Ktor.
- * Uses `/api/items/{id}/file/{ino}` — the same endpoint as audio tracks.
+ * Returns a local path for the given EPUB, used by the reader to open the file.
+ * Priority: permanent download (epub-downloads) → cached copy (epub-cache) → download to cache.
  */
-class IosEpubDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) {
-    /**
-     * Returns the local file path of the EPUB, downloading from ABS if not yet cached.
-     * Returns null if the source, token, file inode is unavailable or the download fails.
-     */
+class IosEpubDownloader(
+    private val httpClient: HttpClient,
+    private val sourceRepository: SourceRepository,
+    private val tokenStorage: TokenStorage,
+    private val fileStore: FileStore,
+) {
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     suspend fun localPath(item: LibraryItem): String? {
+        // Prefer already-downloaded permanent copy.
+        val downloadPath = fileStore.resolve(NS_EPUB_DOWNLOADS, IosEpubPaths.downloadRelativePath(item.sourceId, item.id))
+        if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) return downloadPath
+
+        // Fall back to the cached copy.
+        val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
+        if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) return cachePath
+
+        // Download from ABS into the cache namespace.
         val source = sourceRepository.getActive() ?: return null
         val token = tokenStorage.getToken(source.id) ?: return null
         val fileIno = item.ebookFileIno ?: return null
 
-        val destPath = "${NSTemporaryDirectory()}riffle_${source.id}_${item.id}.epub"
-        if (NSFileManager.defaultManager.fileExistsAtPath(destPath)) return destPath
-
         val urlString = "${source.url.value.trimEnd('/')}/api/items/${item.id}/file/$fileIno"
 
         val response = runCatching {
-            httpClient.get(urlString) {
-                header(HttpHeaders.Authorization, "Bearer $token")
-            }
+            httpClient.get(urlString) { header(HttpHeaders.Authorization, "Bearer $token") }
         }.getOrNull() ?: return null
 
         if (!response.status.isSuccess()) return null
 
-        val bytes = runCatching { response.bodyAsBytes() }.getOrNull() ?: return null
-        if (bytes.isEmpty()) return null
+        val bytes = runCatching { response.bodyAsBytes() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return null
 
         val nsData = bytes.usePinned { pinned ->
             NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
         }
 
         val written = NSFileManager.defaultManager.createFileAtPath(
-            path = destPath,
+            path = cachePath,
             contents = nsData,
             attributes = null,
         )
-
-        return if (written) destPath else null
+        return if (written) cachePath else null
     }
 }

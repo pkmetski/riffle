@@ -102,10 +102,16 @@ private fun trackingLastOpenedStore(): TrackingLastOpenedStore = TrackingLastOpe
 private class TrackingLastOpenedStore : LastOpenedLibraryStore {
     val riffleActiveFlow = MutableStateFlow(false)
     override fun lastOpenedLibrary(sourceId: String): Flow<String?> = flowOf(null)
-    override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) { riffleActiveFlow.value = false }
+    override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
+        riffleActiveFlow.value = false
+    }
     override fun wasRiffleLastActive(): Flow<Boolean> = riffleActiveFlow
-    override suspend fun setRiffleActive() { riffleActiveFlow.value = true }
-    override suspend fun clearRiffleActive() { riffleActiveFlow.value = false }
+    override suspend fun setRiffleActive() {
+        riffleActiveFlow.value = true
+    }
+    override suspend fun clearRiffleActive() {
+        riffleActiveFlow.value = false
+    }
 }
 
 class DrawerViewModelTest {

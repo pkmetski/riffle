@@ -23,9 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,13 +41,16 @@ import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
-import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.shared.library.RiffleScreen
+import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
 import com.riffle.shared.settings.SettingsScreen
 import com.riffle.shared.source.SourceOnboardingHost
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.compose.koinInject
 
 /**
