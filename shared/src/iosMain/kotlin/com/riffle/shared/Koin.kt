@@ -127,6 +127,9 @@ import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
+import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
+import com.riffle.shared.library.IosDownloadManagerImpl
+import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
@@ -137,15 +140,9 @@ import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpCatalogRegistry
 import com.riffle.shared.library.IosNoOpCbzRepository
-import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
-import com.riffle.shared.library.IosDownloadManagerImpl
-import com.riffle.shared.library.IosDownloadsRepositoryImpl
-import com.riffle.shared.library.IosNoOpContentCacheSettingsStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpCoverImageCopier
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
-import com.riffle.shared.library.IosNoOpDownloadManager
-import com.riffle.shared.library.IosNoOpDownloadsRepository
 import com.riffle.shared.library.IosNoOpEbookCfiTranslatorFactory
 import com.riffle.shared.library.IosNoOpEpubTocExtractor
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
@@ -416,7 +413,9 @@ private fun iosLibraryModule(
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get(), sourceRepository = get()) }
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
-    single<EpubRepository> { IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), sourceRepository = get(), tokenStorage = get(), httpClient = get()) }
+    single<EpubRepository> {
+        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), sourceRepository = get(), tokenStorage = get(), httpClient = get())
+    }
     single<EbookCfiTranslatorFactory> { IosNoOpEbookCfiTranslatorFactory }
     single<PdfRepository> { IosNoOpPdfRepository() }
     single<CbzRepository> { IosNoOpCbzRepository() }

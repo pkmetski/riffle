@@ -49,12 +49,14 @@ internal class IosDownloadsRepositoryImpl(
 
     private fun scanNamespace(namespace: String, ext: String, mediaType: StoredMediaType): List<StoredItemArtifact> {
         val root = fileStore.resolve(namespace, "")
+
         @Suppress("UNCHECKED_CAST")
         val sourceDirs = NSFileManager.defaultManager.contentsOfDirectoryAtPath(root, null) as? List<String>
             ?: return emptyList()
 
         return sourceDirs.flatMap { sourceId ->
             val sourceDir = "$root/$sourceId"
+
             @Suppress("UNCHECKED_CAST")
             val files = NSFileManager.defaultManager.contentsOfDirectoryAtPath(sourceDir, null) as? List<String>
                 ?: return@flatMap emptyList()

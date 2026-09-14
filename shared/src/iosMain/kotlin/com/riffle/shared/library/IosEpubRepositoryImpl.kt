@@ -86,8 +86,11 @@ internal class IosEpubRepositoryImpl(
                     contents = accumulator,
                     attributes = null,
                 )
-                if (written) EpubDownloadResult.Success
-                else EpubDownloadResult.NetworkError(IllegalStateException("Failed to write file to $destPath"))
+                if (written) {
+                    EpubDownloadResult.Success
+                } else {
+                    EpubDownloadResult.NetworkError(IllegalStateException("Failed to write file to $destPath"))
+                }
             }
         }.getOrElse { EpubDownloadResult.NetworkError(it) }
     }
