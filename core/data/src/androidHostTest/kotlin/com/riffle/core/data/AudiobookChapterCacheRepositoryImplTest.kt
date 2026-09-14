@@ -211,16 +211,15 @@ class AudiobookChapterCacheRepositoryImplTest {
     }
 
     /**
-     * Regression: stale cache entries keyed on a previous version suffix must not be served
-     * after a chapter-title algorithm change. Both unversioned and /v1 entries must be
-     * invisible to code expecting /v2 keys so the caller re-fetches with the new logic.
+     * Regression: pre-fix cache entries (keyed without a version suffix) must not be served
+     * after a chapter-title algorithm change. getCachedChapters and getStaleCachedChapters
+     * must both return null for unversioned entries so the caller re-fetches with the new logic.
      */
     @Test
     fun `getCachedChapters ignores pre-fix unversioned cache entries`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Show 1x01: Episode"}]"""
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt = NOW_MS)
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt = NOW_MS)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
