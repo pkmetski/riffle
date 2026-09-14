@@ -274,6 +274,12 @@ class RadioEsCatalog(
         return RadioEsParser.parseEpisodes(body).episodes.reversed()
     }
 
+    private suspend fun fetchPodcastName(itemId: String): String? {
+        val url = "$apiBase/podcasts/details?podcastIds=$itemId"
+        val body = runCatching { http.getString(url) }.getOrNull() ?: return null
+        return RadioEsParser.parsePodcastDetail(body)?.name
+    }
+
     override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
         if (itemId.startsWith("s:")) {
             return fetchStationTrack(itemId)
@@ -319,10 +325,11 @@ class RadioEsCatalog(
         val episodes = fetchEpisodes(itemId)
         val tracks = buildTracksFromEpisodes(episodes)
         if (tracks.isEmpty()) return null
+        val showName = fetchPodcastName(itemId)
         return CatalogAudiobookStream(
             trackUrls = tracks.map { it.contentUrl },
             tracks = tracks,
-            chapters = synthesizeChaptersFromTracks(tracks, episodes.map { it.title }),
+            chapters = synthesizeChaptersFromTracks(tracks, episodes.map { it.title }, showName),
             totalDurationSec = tracks.sumOf { it.durationSec },
             serverCurrentTimeSec = 0.0,
             serverLastUpdate = 0L,
@@ -334,7 +341,8 @@ class RadioEsCatalog(
         return runCatching {
             val episodes = fetchEpisodes(itemId)
             val tracks = buildTracksFromEpisodes(episodes)
-            synthesizeChaptersFromTracks(tracks, episodes.map { it.title })
+            val showName = fetchPodcastName(itemId)
+            synthesizeChaptersFromTracks(tracks, episodes.map { it.title }, showName)
         }.getOrElse { emptyList() }
     }
 
@@ -416,11 +424,27 @@ class RadioEsCatalog(
             }
         }
 
+        // Separator pattern: optional episode label (1x01, S01E01, E01, bare number),
+        // then a hard separator (: - |), then optional whitespace.
+        private val EPISODE_SEPARATOR = Regex("""^(?:\d+x\d+|[Ss]\d+[Ee]\d+|[Ee]\d+|\d+)?\s*[:\-|]\s*""")
+
+        internal fun stripShowNamePrefix(title: String, showName: String): String {
+            if (showName.isEmpty() || !title.startsWith(showName, ignoreCase = true)) return title
+            val charAfter = title.getOrNull(showName.length)
+            if (charAfter != null && charAfter.isLetterOrDigit()) return title
+            val remainder = title.drop(showName.length).trimStart(' ')
+            val match = EPISODE_SEPARATOR.find(remainder) ?: return title
+            val stripped = remainder.removePrefix(match.value)
+            return stripped.ifEmpty { title }
+        }
+
         internal fun synthesizeChaptersFromTracks(
             tracks: List<CatalogAudioTrack>,
             episodeTitles: List<String>,
+            showName: String? = null,
         ): List<CatalogAudiobookChapter> = tracks.mapIndexed { i, t ->
-            val title = episodeTitles.getOrNull(i)?.takeIf { it.isNotEmpty() } ?: "Episode ${i + 1}"
+            val rawTitle = episodeTitles.getOrNull(i)?.takeIf { it.isNotEmpty() } ?: "Episode ${i + 1}"
+            val title = if (showName != null) stripShowNamePrefix(rawTitle, showName) else rawTitle
             CatalogAudiobookChapter(
                 index = i,
                 startSec = t.startOffsetSec,

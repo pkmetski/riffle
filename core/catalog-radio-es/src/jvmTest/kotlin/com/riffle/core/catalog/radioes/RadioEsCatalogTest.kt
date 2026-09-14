@@ -243,6 +243,7 @@ class RadioEsCatalogTest {
 
     @Test fun `openAudiobook returns stream with correct totalDurationSec`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-episodes.json")))
+        server.enqueue(MockResponse().setBody(fixture("radioes-detail.json")))
         val cap = catalog as AudiobookMediaCapability
         val stream = cap.openAudiobook("the-daily", "TestDevice")
         assertNotNull(stream)
@@ -253,6 +254,7 @@ class RadioEsCatalogTest {
 
     @Test fun `openAudiobook chapter titles come from episode titles in chronological order`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-episodes.json")))
+        server.enqueue(MockResponse().setBody(fixture("radioes-detail.json")))
         val cap = catalog as AudiobookMediaCapability
         val stream = cap.openAudiobook("the-daily", "TestDevice")
         assertNotNull(stream)
@@ -261,8 +263,19 @@ class RadioEsCatalogTest {
         assertEquals("Episode Two", stream.chapters[1].title)
     }
 
+    @Test fun `openAudiobook strips show name prefix from chapter titles`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-episodes-prefixed.json")))
+        server.enqueue(MockResponse().setBody(fixture("radioes-detail.json")))
+        val cap = catalog as AudiobookMediaCapability
+        val stream = cap.openAudiobook("the-daily", "TestDevice")
+        assertNotNull(stream)
+        assertEquals("Episode One", stream!!.chapters[0].title)
+        assertEquals("Episode Two", stream.chapters[1].title)
+    }
+
     @Test fun `getAudiobookChapters returns one chapter per episode with episode title`() = runTest {
         server.enqueue(MockResponse().setBody(fixture("radioes-episodes.json")))
+        server.enqueue(MockResponse().setBody(fixture("radioes-detail.json")))
         val cap = catalog as AudiobookMediaCapability
         val chapters = cap.getAudiobookChapters("the-daily")
         assertEquals(2, chapters.size)
@@ -271,6 +284,16 @@ class RadioEsCatalogTest {
         assertEquals(0.0, chapters[0].startSec, 0.001)
         assertEquals(1800.0, chapters[0].endSec, 0.001)
         assertEquals(1800.0, chapters[1].startSec, 0.001)
+    }
+
+    @Test fun `getAudiobookChapters strips show name prefix from chapter titles`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("radioes-episodes-prefixed.json")))
+        server.enqueue(MockResponse().setBody(fixture("radioes-detail.json")))
+        val cap = catalog as AudiobookMediaCapability
+        val chapters = cap.getAudiobookChapters("the-daily")
+        assertEquals(2, chapters.size)
+        assertEquals("Episode One", chapters[0].title)
+        assertEquals("Episode Two", chapters[1].title)
     }
 
     @Test fun `getFingerprint returns null`() = runTest {
@@ -454,5 +477,53 @@ class RadioEsCatalogTest {
             threwExpected = true
         }
         assertTrue("expected RadioEsException for live stream", threwExpected)
+    }
+
+    // ---- stripShowNamePrefix ------------------------------------------------
+
+    @Test fun `stripShowNamePrefix removes colon-space separator`() {
+        assertEquals("Episode One", RadioEsCatalog.stripShowNamePrefix("The Daily: Episode One", "The Daily"))
+    }
+
+    @Test fun `stripShowNamePrefix removes dash-space separator`() {
+        assertEquals("Episode One", RadioEsCatalog.stripShowNamePrefix("The Daily - Episode One", "The Daily"))
+    }
+
+    @Test fun `stripShowNamePrefix removes pipe-space separator`() {
+        assertEquals("Episode One", RadioEsCatalog.stripShowNamePrefix("The Daily | Episode One", "The Daily"))
+    }
+
+    @Test fun `stripShowNamePrefix leaves title unchanged when prefix absent`() {
+        assertEquals("Episode One", RadioEsCatalog.stripShowNamePrefix("Episode One", "The Daily"))
+    }
+
+    @Test fun `stripShowNamePrefix leaves title unchanged when show name is empty`() {
+        assertEquals("The Daily: Episode One", RadioEsCatalog.stripShowNamePrefix("The Daily: Episode One", ""))
+    }
+
+    @Test fun `stripShowNamePrefix does not strip partial show name match`() {
+        assertEquals("The Daily Extra: Episode One", RadioEsCatalog.stripShowNamePrefix("The Daily Extra: Episode One", "The Daily"))
+    }
+
+    @Test fun `stripShowNamePrefix strips season-episode number before colon`() {
+        assertEquals("Tráiler", RadioEsCatalog.stripShowNamePrefix("El Espacio del espacio 1x01: Tráiler", "El Espacio del espacio"))
+    }
+
+    @Test fun `stripShowNamePrefix strips S01E01-style marker before colon`() {
+        assertEquals("Tráiler", RadioEsCatalog.stripShowNamePrefix("My Show S01E01: Tráiler", "My Show"))
+    }
+
+    @Test fun `stripShowNamePrefix strips bare episode number before colon`() {
+        assertEquals("Episode Title", RadioEsCatalog.stripShowNamePrefix("My Show 5: Episode Title", "My Show"))
+    }
+
+    @Test fun `stripShowNamePrefix matches show name case-insensitively`() {
+        // API returns "El Espacio del Espacio" but episodes are titled "El Espacio del espacio 1x01: ..."
+        assertEquals("Tráiler", RadioEsCatalog.stripShowNamePrefix("El Espacio del espacio 1x01: Tráiler", "El Espacio del Espacio"))
+    }
+
+    @Test fun `stripShowNamePrefix does not false-positive when show name is a prefix of a longer show name`() {
+        // "My Show" must not match "My Show5: Episode Title" — the digit immediately after the name is part of the title
+        assertEquals("My Show5: Episode Title", RadioEsCatalog.stripShowNamePrefix("My Show5: Episode Title", "My Show"))
     }
 }
