@@ -30,7 +30,6 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
-import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
@@ -40,12 +39,10 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRefresher
@@ -69,8 +66,6 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
-import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
-import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
@@ -132,13 +127,13 @@ import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
+import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
-import com.riffle.shared.library.IosNoOpAudiobookPositionStore
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpCatalogRegistry
 import com.riffle.shared.library.IosNoOpCbzRepository
@@ -149,13 +144,10 @@ import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpDownloadManager
 import com.riffle.shared.library.IosNoOpDownloadsRepository
 import com.riffle.shared.library.IosNoOpEbookCfiTranslatorFactory
-import com.riffle.shared.library.IosNoOpEpubRepository
 import com.riffle.shared.library.IosNoOpEpubTocExtractor
-import com.riffle.shared.library.IosNoOpFormattingPreferencesStore
 import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpLocalAvailabilityEvents
 import com.riffle.shared.library.IosNoOpLocalFileMetadataOverrideSaver
-import com.riffle.shared.library.IosNoOpMarkReadAcrossDimensions
 import com.riffle.shared.library.IosNoOpPdfPageCountExtractor
 import com.riffle.shared.library.IosNoOpPdfRepository
 import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
@@ -165,17 +157,13 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReadingSpeedStore
-import com.riffle.shared.library.IosNoOpRecordItemOpened
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
-import com.riffle.shared.library.IosNoOpUpdateReadingProgress
 import com.riffle.shared.library.IosNoOpWebSourceLibraryItemUpserter
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosNoOpAppearanceCoordinator
-import com.riffle.shared.reader.IosNoOpBookComicFormattingPreferencesStore
-import com.riffle.shared.reader.IosNoOpLibraryMutator
 import com.riffle.shared.reader.IosNoOpPanelMaskService
 import com.riffle.shared.reader.IosNoOpPanelReportRepository
 import com.riffle.shared.reader.IosNoOpPanelViewPreferencesStore
@@ -185,7 +173,6 @@ import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
 import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
-import com.riffle.shared.settings.IosNoOpComicFormattingPreferencesStore
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpDeveloperOptionsRepository
 import com.riffle.shared.settings.IosNoOpLibraryOrderPreferencesStore
@@ -305,11 +292,9 @@ private fun iosLibraryModule(
     single { IosCbzDownloader(get(), get(), get()) }
     single<CbzRepository> { IosCbzRepository(get(), get(), get(), get()) }
     single<ReadingSessionRepository> { IosNoOpReadingSessionRepository }
-    single<LibraryMutator> { IosNoOpLibraryMutator }
     single { UpdateReadingProgress(get()) }
     single<PanelMaskService> { IosNoOpPanelMaskService }
     single<PanelViewPreferencesStore> { IosNoOpPanelViewPreferencesStore }
-    single<BookComicFormattingPreferencesStore> { IosNoOpBookComicFormattingPreferencesStore }
     single<AppearanceCoordinator> { IosNoOpAppearanceCoordinator }
     single<PanelReportRepository> { IosNoOpPanelReportRepository }
     single { VolumeNavigationController() }
@@ -367,7 +352,6 @@ private fun iosLibraryModule(
     single<CoverGridDensityStore> { IosNoOpCoverGridDensityStore() }
     single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
     single<AppThemeStore> { IosNoOpAppThemeStore() }
-    single<FormattingPreferencesStore> { IosNoOpFormattingPreferencesStore() }
     single<DownloadsRepository> { IosNoOpDownloadsRepository() }
     single<ContentCacheSettingsStore> { IosNoOpContentCacheSettingsStore() }
     single<ReadaloudSidecarDownloads> { IosNoOpReadaloudSidecarDownloads }
@@ -393,7 +377,6 @@ private fun iosLibraryModule(
     single<DeveloperOptionsRepository> { IosNoOpDeveloperOptionsRepository() }
     single<AnnotationSyncConfigStore> { IosNoOpAnnotationSyncConfigStore }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
-    single<ComicFormattingPreferencesStore> { IosNoOpComicFormattingPreferencesStore() }
     single {
         SettingsViewModel(
             appVersion = AppVersion(name = "iOS", code = 0),
@@ -429,10 +412,9 @@ private fun iosLibraryModule(
     single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get(), sourceRepository = get()) }
 
-    // LibraryItemDetailViewModel dependencies — no-op implementations for iOS
-    single<EpubRepository> { IosNoOpEpubRepository() }
+    // LibraryItemDetailViewModel dependencies — real implementations on iOS
+    single<EpubRepository> { IosEpubRepositoryImpl(get()) }
     single<EbookCfiTranslatorFactory> { IosNoOpEbookCfiTranslatorFactory }
-    single<AudiobookPositionStore> { IosNoOpAudiobookPositionStore() }
     single<PdfRepository> { IosNoOpPdfRepository() }
     single<CbzRepository> { IosNoOpCbzRepository() }
     single<ReadaloudAudioRepository> { IosNoOpReadaloudAudioRepository() }
@@ -443,9 +425,8 @@ private fun iosLibraryModule(
     single<ReadingSpeedStore> { IosNoOpReadingSpeedStore() }
     single<CatalogRegistry> { IosNoOpCatalogRegistry }
     single<ReadaloudSidecarPrefetcher> { IosNoOpReadaloudSidecarPrefetcher }
-    single<RecordItemOpened> { IosNoOpRecordItemOpened() }
-    single<UpdateReadingProgress> { IosNoOpUpdateReadingProgress() }
-    single<MarkReadAcrossDimensions> { IosNoOpMarkReadAcrossDimensions() }
+    single<RecordItemOpened> { RecordItemOpened(get(), get()) }
+    single<MarkReadAcrossDimensions> { MarkReadAcrossDimensions(get(), get(), get(), get()) }
     single { IosNoOpAudiobookChapterCacheRepository() }
     single { FetchAudiobookChaptersUseCase(get<IosNoOpAudiobookChapterCacheRepository>()) }
     single<ReadaloudOfflineDownloader> { IosNoOpReadaloudOfflineDownloader }
