@@ -394,8 +394,11 @@ class SettingsViewModel constructor(
             val current = rawServers.value
             val removing = current.firstOrNull { it.id == sourceId } ?: return@launch
             _pendingRemovals.value = _pendingRemovals.value + sourceId
-            sourceRepository.remove(sourceId)
-            _pendingRemovals.value = _pendingRemovals.value - sourceId
+            try {
+                sourceRepository.remove(sourceId)
+            } finally {
+                _pendingRemovals.value = _pendingRemovals.value - sourceId
+            }
             if (removing.isActive) {
                 val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER_SERVICE }
                 if (next != null) {

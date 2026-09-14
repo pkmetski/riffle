@@ -430,6 +430,8 @@ class RadioEsCatalog(
 
         internal fun stripShowNamePrefix(title: String, showName: String): String {
             if (showName.isEmpty() || !title.startsWith(showName, ignoreCase = true)) return title
+            val charAfter = title.getOrNull(showName.length)
+            if (charAfter != null && charAfter.isLetterOrDigit()) return title
             val remainder = title.drop(showName.length).trimStart(' ')
             val match = EPISODE_SEPARATOR.find(remainder) ?: return title
             val stripped = remainder.removePrefix(match.value)

@@ -19,16 +19,14 @@ class AudiobookChapterCacheRepositoryImpl constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun cacheKey(itemId: String) = itemId
-
     override suspend fun getCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
-        val entity = dao.get(sourceId, cacheKey(itemId)) ?: return null
+        val entity = dao.get(sourceId, itemId) ?: return null
         if (isDerivedCacheStale(clock.nowMs(), entity.cachedAt)) return null
         return decode(entity)
     }
 
     override suspend fun getStaleCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
-        val entity = dao.get(sourceId, cacheKey(itemId)) ?: return null
+        val entity = dao.get(sourceId, itemId) ?: return null
         return decode(entity)
     }
 
@@ -40,7 +38,7 @@ class AudiobookChapterCacheRepositoryImpl constructor(
         dao.upsert(
             AudiobookChapterCacheEntity(
                 sourceId = sourceId,
-                itemId = cacheKey(itemId),
+                itemId = itemId,
                 chaptersJson = json.encodeToString(chapters),
                 cachedAt = clock.nowMs(),
             )

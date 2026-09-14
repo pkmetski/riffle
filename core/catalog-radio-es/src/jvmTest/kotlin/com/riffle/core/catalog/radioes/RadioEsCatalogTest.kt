@@ -521,4 +521,9 @@ class RadioEsCatalogTest {
         // API returns "El Espacio del Espacio" but episodes are titled "El Espacio del espacio 1x01: ..."
         assertEquals("Tráiler", RadioEsCatalog.stripShowNamePrefix("El Espacio del espacio 1x01: Tráiler", "El Espacio del Espacio"))
     }
+
+    @Test fun `stripShowNamePrefix does not false-positive when show name is a prefix of a longer show name`() {
+        // "My Show" must not match "My Show5: Episode Title" — the digit immediately after the name is part of the title
+        assertEquals("My Show5: Episode Title", RadioEsCatalog.stripShowNamePrefix("My Show5: Episode Title", "My Show"))
+    }
 }
