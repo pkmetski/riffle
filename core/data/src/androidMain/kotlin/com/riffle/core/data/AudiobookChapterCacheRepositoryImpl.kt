@@ -21,8 +21,9 @@ class AudiobookChapterCacheRepositoryImpl constructor(
 
     // Bump this suffix whenever chapter-title generation logic changes so that stale cache
     // entries (keyed on the previous suffix) are transparently bypassed and re-fetched.
-    // Current bump: v1 = added show-name prefix stripping for Radio.es episode titles.
-    private fun cacheKey(itemId: String) = "$itemId/v1"
+    // v1 = added show-name prefix stripping for Radio.es episode titles.
+    // v2 = made show-name prefix match case-insensitive (fixes "El Espacio del Espacio").
+    private fun cacheKey(itemId: String) = "$itemId/v2"
 
     override suspend fun getCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
         val entity = dao.get(sourceId, cacheKey(itemId)) ?: return null

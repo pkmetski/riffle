@@ -81,7 +81,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getCachedChapters returns deserialized chapters`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Intro"}]"""
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt = NOW_MS)
+        dao.store["srv" to "item/v2"] = AudiobookChapterCacheEntity("srv", "item/v2", json, cachedAt = NOW_MS)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         val result = repo.getCachedChapters("srv", "item")
@@ -105,10 +105,10 @@ class AudiobookChapterCacheRepositoryImplTest {
         assertEquals(0.0, result[0].startSec, 0.001)
         assertEquals(600.0, result[0].endSec, 0.001)
         assert(dao.upsertCalled) { "dao.upsert should have been called" }
-        val entity = dao.store["srv" to "item/v1"]
+        val entity = dao.store["srv" to "item/v2"]
         assertNotNull(entity)
         assertEquals("srv", entity!!.sourceId)
-        assertEquals("item/v1", entity.itemId)
+        assertEquals("item/v2", entity.itemId)
     }
 
     @Test
@@ -133,7 +133,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
         val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS - 1
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt)
+        dao.store["srv" to "item/v2"] = AudiobookChapterCacheEntity("srv", "item/v2", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
@@ -144,7 +144,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Fresh"}]"""
         val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS + 1
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt)
+        dao.store["srv" to "item/v2"] = AudiobookChapterCacheEntity("srv", "item/v2", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         val result = repo.getCachedChapters("srv", "item")
@@ -162,7 +162,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getCachedChapters treats migrated rows with cachedAt=0 as stale`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Pre-migration"}]"""
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt = 0L)
+        dao.store["srv" to "item/v2"] = AudiobookChapterCacheEntity("srv", "item/v2", json, cachedAt = 0L)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
@@ -177,7 +177,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getCachedChapters treats a backward clock jump as stale`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Future-stamped"}]"""
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt = NOW_MS + 60_000L)
+        dao.store["srv" to "item/v2"] = AudiobookChapterCacheEntity("srv", "item/v2", json, cachedAt = NOW_MS + 60_000L)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
@@ -193,7 +193,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
         val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS - 1
-        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt)
+        dao.store["srv" to "item/v2"] = AudiobookChapterCacheEntity("srv", "item/v2", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
@@ -211,15 +211,16 @@ class AudiobookChapterCacheRepositoryImplTest {
     }
 
     /**
-     * Regression: pre-fix cache entries (keyed without "/v1") must not be served after
-     * a chapter-title algorithm change. getCachedChapters and getStaleCachedChapters must
-     * both return null for unversioned entries so the caller re-fetches with the new logic.
+     * Regression: stale cache entries keyed on a previous version suffix must not be served
+     * after a chapter-title algorithm change. Both unversioned and /v1 entries must be
+     * invisible to code expecting /v2 keys so the caller re-fetches with the new logic.
      */
     @Test
     fun `getCachedChapters ignores pre-fix unversioned cache entries`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Show 1x01: Episode"}]"""
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt = NOW_MS)
+        dao.store["srv" to "item/v1"] = AudiobookChapterCacheEntity("srv", "item/v1", json, cachedAt = NOW_MS)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
@@ -234,7 +235,7 @@ class AudiobookChapterCacheRepositoryImplTest {
 
         repo.fetchAndCacheChapters("srv", "item")
 
-        assertEquals(NOW_MS, dao.store["srv" to "item/v1"]!!.cachedAt)
+        assertEquals(NOW_MS, dao.store["srv" to "item/v2"]!!.cachedAt)
     }
 
     @Test

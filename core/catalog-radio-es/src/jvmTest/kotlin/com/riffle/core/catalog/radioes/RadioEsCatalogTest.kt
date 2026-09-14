@@ -516,4 +516,9 @@ class RadioEsCatalogTest {
     @Test fun `stripShowNamePrefix strips bare episode number before colon`() {
         assertEquals("Episode Title", RadioEsCatalog.stripShowNamePrefix("My Show 5: Episode Title", "My Show"))
     }
+
+    @Test fun `stripShowNamePrefix matches show name case-insensitively`() {
+        // API returns "El Espacio del Espacio" but episodes are titled "El Espacio del espacio 1x01: ..."
+        assertEquals("Tráiler", RadioEsCatalog.stripShowNamePrefix("El Espacio del espacio 1x01: Tráiler", "El Espacio del Espacio"))
+    }
 }

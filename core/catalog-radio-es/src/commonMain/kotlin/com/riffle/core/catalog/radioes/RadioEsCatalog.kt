@@ -429,8 +429,8 @@ class RadioEsCatalog(
         private val EPISODE_SEPARATOR = Regex("""^(?:\d+x\d+|[Ss]\d+[Ee]\d+|[Ee]\d+|\d+)?\s*[:\-|]\s*""")
 
         internal fun stripShowNamePrefix(title: String, showName: String): String {
-            if (showName.isEmpty() || !title.startsWith(showName)) return title
-            val remainder = title.removePrefix(showName).trimStart(' ')
+            if (showName.isEmpty() || !title.startsWith(showName, ignoreCase = true)) return title
+            val remainder = title.drop(showName.length).trimStart(' ')
             val match = EPISODE_SEPARATOR.find(remainder) ?: return title
             val stripped = remainder.removePrefix(match.value)
             return stripped.ifEmpty { title }
