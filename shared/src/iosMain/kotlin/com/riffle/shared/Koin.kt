@@ -137,6 +137,9 @@ import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpCatalogRegistry
 import com.riffle.shared.library.IosNoOpCbzRepository
+import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
+import com.riffle.shared.library.IosDownloadManagerImpl
+import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosNoOpContentCacheSettingsStore
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpCoverImageCopier
@@ -282,7 +285,7 @@ private fun iosLibraryModule(
 
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
-    single { IosEpubDownloader(get(), get(), get()) }
+    single { IosEpubDownloader(get(), get(), get(), get()) }
 
     // PDF reader
     single<IosPdfNavigatorBridgeFactory> { pdfNavigatorBridgeFactory }
@@ -352,8 +355,8 @@ private fun iosLibraryModule(
     single<CoverGridDensityStore> { IosNoOpCoverGridDensityStore() }
     single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
     single<AppThemeStore> { IosNoOpAppThemeStore() }
-    single<DownloadsRepository> { IosNoOpDownloadsRepository() }
-    single<ContentCacheSettingsStore> { IosNoOpContentCacheSettingsStore() }
+    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get()) }
+    single<ContentCacheSettingsStore> { IosContentCacheSettingsStoreImpl() }
     single<ReadaloudSidecarDownloads> { IosNoOpReadaloudSidecarDownloads }
     single {
         DownloadsViewModel(
@@ -413,7 +416,7 @@ private fun iosLibraryModule(
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get(), sourceRepository = get()) }
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
-    single<EpubRepository> { IosEpubRepositoryImpl(get()) }
+    single<EpubRepository> { IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), sourceRepository = get(), tokenStorage = get(), httpClient = get()) }
     single<EbookCfiTranslatorFactory> { IosNoOpEbookCfiTranslatorFactory }
     single<PdfRepository> { IosNoOpPdfRepository() }
     single<CbzRepository> { IosNoOpCbzRepository() }
@@ -430,7 +433,7 @@ private fun iosLibraryModule(
     single { IosNoOpAudiobookChapterCacheRepository() }
     single { FetchAudiobookChaptersUseCase(get<IosNoOpAudiobookChapterCacheRepository>()) }
     single<ReadaloudOfflineDownloader> { IosNoOpReadaloudOfflineDownloader }
-    single<DownloadManager> { IosNoOpDownloadManager() }
+    single<DownloadManager> { IosDownloadManagerImpl(get()) }
     single<BookImportManager> { IosNoOpBookImportManager() }
     single<EpubTocExtractor> { IosNoOpEpubTocExtractor() }
     single<PdfPageCountExtractor> { IosNoOpPdfPageCountExtractor }
