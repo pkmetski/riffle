@@ -10,7 +10,7 @@ import kotlin.math.abs
 class ScrollPaceTest {
 
     private fun nearly(expected: Float, actual: Float, eps: Float = 0.05f) {
-        assert(abs(expected - actual) < eps) { "expected ≈$expected, got $actual" }
+        assertTrue(abs(expected - actual) < eps, "expected ≈$expected, got $actual")
     }
 
     private val typicalLayout = LayoutContext(wordsPerLine = 9f, lineHeightPx = 28f)

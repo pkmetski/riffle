@@ -48,8 +48,8 @@ class ReadingSessionControllerTest {
         )
         controller.sync("item-1", payload)
         advanceUntilIdle()
-        assert(syncedItemId == "item-1")
-        assert(syncedPayload == payload)
+        assertTrue(syncedItemId == "item-1")
+        assertTrue(syncedPayload == payload)
     }
 
     @Test
@@ -97,6 +97,6 @@ class ReadingSessionControllerTest {
         controller.sync("item-1", payload)
         controller.sync("item-1", payload)
         advanceUntilIdle()
-        assert(callCount == 3)
+        assertTrue(callCount == 3)
     }
 }

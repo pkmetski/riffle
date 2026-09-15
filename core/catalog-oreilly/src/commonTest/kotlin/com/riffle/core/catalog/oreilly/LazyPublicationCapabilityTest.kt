@@ -5,6 +5,7 @@ import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.catalog.LazySpineItem
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.Test
 
 class LazyPublicationCapabilityTest {
@@ -16,7 +17,7 @@ class LazyPublicationCapabilityTest {
             override suspend fun fetchChapterForLazy(itemId: String, fullPath: String, expectedByteSize: Long) = null
             override suspend fun fetchAssetForLazy(itemId: String, fullPath: String) = null
         }
-        assert(fake is CatalogCapability)
+        assertTrue(fake is CatalogCapability)
     }
 
     @Test
