@@ -2,17 +2,25 @@ package com.riffle.core.data.di
 
 import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosAppThemeStoreImpl
 import com.riffle.core.data.IosAudiobookPositionStoreImpl
 import com.riffle.core.data.IosBookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosConnectivityObserver
+import com.riffle.core.data.IosCoverGridDensityStoreImpl
 import com.riffle.core.data.IosDeviceIdStoreImpl
 import com.riffle.core.data.IosDeviceLabelResolver
 import com.riffle.core.data.IosFileStore
 import com.riffle.core.data.IosFormattingPreferencesStoreImpl
+import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryMutatorImpl
+import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
+import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosReadingPositionStoreImpl
+import com.riffle.core.data.IosReadingSpeedStoreImpl
 import com.riffle.core.data.IosTokenStorage
+import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
+import com.riffle.core.data.IosWakeLockPreferencesStoreImpl
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
 import com.riffle.core.data.localfiles.FolderPickerInterface
@@ -27,15 +35,23 @@ import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
+import com.riffle.core.domain.LibraryOrderPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.VolumeKeyPreferencesStore
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.ColorPageDecoder
@@ -71,4 +87,13 @@ val iosDataModule = module {
     single<BookComicFormattingPreferencesStore> { IosBookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
     single<LibraryMutator> { IosLibraryMutatorImpl(get<LibraryItemDao>(), get<SourceRepository>(), get<Clock>()) }
+
+    single<AppThemeStore> { IosAppThemeStoreImpl() }
+    single<CoverGridDensityStore> { IosCoverGridDensityStoreImpl() }
+    single<LibraryFilterPreferencesStore> { IosLibraryFilterPreferencesStoreImpl() }
+    single<LibraryOrderPreferencesStore> { IosLibraryOrderPreferencesStoreImpl() }
+    single<ListeningPreferencesStore> { IosListeningPreferencesStoreImpl() }
+    single<ReadingSpeedStore> { IosReadingSpeedStoreImpl() }
+    single<WakeLockPreferencesStore> { IosWakeLockPreferencesStoreImpl() }
+    single<VolumeKeyPreferencesStore> { IosVolumeKeyPreferencesStoreImpl() }
 }
