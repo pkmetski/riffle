@@ -199,6 +199,7 @@ class SleepTimerTest {
         val sharedPositionStore = FakePositionStore()
         return AudiobookPlayerViewModel(
             navItemId = itemId,
+            navSourceId = sourceId,
             navPlaylistId = null,
             navPlaylistLibraryId = null,
             navStartAtSec = -1f,

@@ -131,8 +131,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 )
             },
             onAudiobookBookmarkSelected = { result ->
+                val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                navController.navigate("audiobook_player/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}")
             },
             onShowAllAnnotations = { query ->
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
@@ -170,11 +171,12 @@ internal fun NavGraphBuilder.libraryNavGraph(
             // context (`playlistId` + `libraryId`) — the player VM uses those to look up
             // the next item on end-of-book and hop straight into it (auto-advance).
             onPlayItem = { item ->
+                val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
                 val plQ = URLEncoder.encode(playlistIdArg, "UTF-8")
                 val libQ = URLEncoder.encode(playlistLibraryId, "UTF-8")
                 navController.navigate(
-                    "audiobook_player/$encodedId?playlistId=$plQ&libraryId=$libQ"
+                    "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ"
                 )
             },
         )
@@ -256,8 +258,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 readerRouteFor(item)?.let { navController.navigate(it) }
             },
             onListenItem = { item ->
+                val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                navController.navigate("audiobook_player/$encodedId")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId")
             },
             onReadItemAtHref = { item, href ->
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
@@ -270,8 +273,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref$sourceParam")
             },
             onListenItemAtSec = { item, startSec ->
+                val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                navController.navigate("audiobook_player/$encodedId?startAtSec=$startSec")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec")
             },
             onNavigateToFacet = { libraryId, facet, value ->
                 val encoded = URLEncoder.encode(value, "UTF-8")
@@ -319,8 +323,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 )
             },
             onAudiobookBookmarkSelected = { result ->
+                val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                navController.navigate("audiobook_player/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}")
             },
         )
     }

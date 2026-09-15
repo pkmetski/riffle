@@ -15,14 +15,14 @@ class NowPlayingStoreTest {
     @Test
     fun `set records the active session`() {
         val store = NowPlayingStore()
-        store.set(NowPlaying.Audiobook("item-1"))
-        assertEquals(NowPlaying.Audiobook("item-1"), store.current)
+        store.set(NowPlaying.Audiobook("source-1", "item-1"))
+        assertEquals(NowPlaying.Audiobook("source-1", "item-1"), store.current)
     }
 
     @Test
     fun `set overwrites the previous session`() {
         val store = NowPlayingStore()
-        store.set(NowPlaying.Audiobook("item-1"))
+        store.set(NowPlaying.Audiobook("source-1", "item-1"))
         store.set(NowPlaying.Readaloud("item-2"))
         assertEquals(NowPlaying.Readaloud("item-2"), store.current)
     }
@@ -30,7 +30,7 @@ class NowPlayingStoreTest {
     @Test
     fun `clearIf clears when the predicate matches`() {
         val store = NowPlayingStore()
-        store.set(NowPlaying.Audiobook("item-1"))
+        store.set(NowPlaying.Audiobook("source-1", "item-1"))
         store.clearIf { it is NowPlaying.Audiobook && it.itemId == "item-1" }
         assertNull(store.current)
     }
@@ -38,10 +38,10 @@ class NowPlayingStoreTest {
     @Test
     fun `clearIf leaves a non-matching session intact`() {
         val store = NowPlayingStore()
-        store.set(NowPlaying.Audiobook("item-1"))
+        store.set(NowPlaying.Audiobook("source-1", "item-1"))
         // A readaloud teardown for a different item must not wipe the audiobook entry.
         store.clearIf { it is NowPlaying.Readaloud && it.itemId == "item-1" }
-        assertEquals(NowPlaying.Audiobook("item-1"), store.current)
+        assertEquals(NowPlaying.Audiobook("source-1", "item-1"), store.current)
     }
 
     @Test

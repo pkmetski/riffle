@@ -154,7 +154,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         positionStore: com.riffle.core.domain.AudiobookPositionStore = FakePositionStore(),
         logger: RecordingLogger = RecordingLogger(),
         playlistsRepository: com.riffle.core.domain.PlaylistsRepository = NoopPlaylistsRepository,
-        savedState: Map<String, Any?> = mapOf("itemId" to itemId),
+        savedState: Map<String, Any?> = mapOf("itemId" to itemId, "sourceId" to sourceId),
         handoffState: AudiobookHandoffState = AudiobookHandoffState(),
         cacheRepository: JvmAudiobookCacheRepository = NoCacheRepo,
         sessionOverride: AudiobookSession? = null,
@@ -170,6 +170,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         lastAudiobookRepo = repo
         return AudiobookPlayerViewModel(
             navItemId = savedState["itemId"] as? String ?: "",
+            navSourceId = savedState["sourceId"] as? String ?: "",
             navPlaylistId = savedState["playlistId"] as? String,
             navPlaylistLibraryId = savedState["libraryId"] as? String,
             navStartAtSec = savedState["startAtSec"] as? Float ?: -1f,
@@ -384,6 +385,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             playlistsRepository = playlistsRepo,
             savedState = mapOf(
                 "itemId" to itemId,
+                "sourceId" to sourceId,
                 "playlistId" to "pl-1",
                 "libraryId" to "lib-1",
             ),
@@ -398,7 +400,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         runCurrent()
         job.join()
 
-        assertEquals(listOf(AudiobookPlayerEvent.PlaylistAdvance(nextItemId)), collected)
+        assertEquals(listOf(AudiobookPlayerEvent.PlaylistAdvance(sourceId, nextItemId)), collected)
         // The critical invariant: on auto-advance we MUST leave the singleton controller alone.
         // If stopCount > 0, the incoming VM's playback will race a connector release and die.
         assertEquals(0, controller.stopCount)
@@ -429,6 +431,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             playlistsRepository = playlistsRepo,
             savedState = mapOf(
                 "itemId" to itemId,
+                "sourceId" to sourceId,
                 "playlistId" to "pl-1",
                 "libraryId" to "lib-1",
             ),
@@ -624,7 +627,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         val vm = buildViewModel(
             ctrl,
             FakeBookmarkStore(),
-            savedState = mapOf("itemId" to itemId, "startAtSec" to -2f),
+            savedState = mapOf("itemId" to itemId, "sourceId" to sourceId, "startAtSec" to -2f),
             handoffState = handoffState,
         )
         runCurrent()
