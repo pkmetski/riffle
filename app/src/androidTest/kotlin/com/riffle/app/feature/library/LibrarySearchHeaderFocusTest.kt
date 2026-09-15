@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.app.feature.source.common.SourceBrowseHeader
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -27,8 +28,8 @@ class LibrarySearchHeaderFocusTest {
     @Test
     fun searchFieldIsNotFocusedOnEntry() {
         composeTestRule.setContent {
-            LibrarySearchHeader(
-                libraryName = "My Library",
+            SourceBrowseHeader(
+                sourceName = "My Library",
                 searchQuery = "",
                 onSearchQueryChange = {},
                 onOpenDrawer = {},
@@ -45,8 +46,8 @@ class LibrarySearchHeaderFocusTest {
     @Test
     fun clearButtonIsHiddenWhenQueryIsEmpty() {
         composeTestRule.setContent {
-            LibrarySearchHeader(
-                libraryName = "My Library",
+            SourceBrowseHeader(
+                sourceName = "My Library",
                 searchQuery = "",
                 onSearchQueryChange = {},
                 onOpenDrawer = {},
@@ -61,8 +62,8 @@ class LibrarySearchHeaderFocusTest {
     @Test
     fun clearButtonIsVisibleWhenQueryIsNonEmpty() {
         composeTestRule.setContent {
-            LibrarySearchHeader(
-                libraryName = "My Library",
+            SourceBrowseHeader(
+                sourceName = "My Library",
                 searchQuery = "dune",
                 onSearchQueryChange = {},
                 onOpenDrawer = {},
@@ -78,8 +79,8 @@ class LibrarySearchHeaderFocusTest {
     fun clearButtonClickInvokesOnSearchQueryChangeWithEmpty() {
         val captured = mutableListOf<String>()
         composeTestRule.setContent {
-            LibrarySearchHeader(
-                libraryName = "My Library",
+            SourceBrowseHeader(
+                sourceName = "My Library",
                 searchQuery = "dune",
                 onSearchQueryChange = { captured.add(it) },
                 onOpenDrawer = {},

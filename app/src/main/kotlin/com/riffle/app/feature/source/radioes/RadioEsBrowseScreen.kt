@@ -2,38 +2,28 @@ package com.riffle.app.feature.source.radioes
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.core.models.SourceType
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,17 +35,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.LocalCoversAreSquare
-import com.riffle.app.feature.source.common.toggleSearchOpen
+import com.riffle.app.feature.source.common.SourceBrowseHeader
 import com.riffle.app.feature.source.websource.UnboundedBrowseContent
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
@@ -64,7 +52,6 @@ import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.theme.RiffleIcons
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RadioEsBrowseScreen(
     libraryName: String,
@@ -81,7 +68,7 @@ fun RadioEsBrowseScreen(
         viewModel.openDetailEvents.collect { event -> onOpenDetail(event.itemId) }
     }
 
-    var searchOpen by remember { mutableStateOf(false) }
+    val query by viewModel.query.collectAsState()
     val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
     val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
@@ -91,34 +78,21 @@ fun RadioEsBrowseScreen(
         if (selectedTab == TAB_TO_READ && !visibility.toRead) selectedTab = TAB_HOME
     }
 
+    // Switch to the Library tab automatically when the user starts typing in the always-visible
+    // search field, regardless of which tab they are currently on.
+    LaunchedEffect(query) {
+        if (query.isNotEmpty()) selectedTab = TAB_LIBRARY
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(libraryName) },
-                navigationIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.ui_open_drawer))
-                        }
-                        SourceTypeIcon(type = SourceType.RADIO_ES, size = 24.dp, modifier = Modifier.padding(end = 4.dp))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        if (selectedTab != TAB_LIBRARY) {
-                            selectedTab = TAB_LIBRARY
-                            searchOpen = true
-                        } else {
-                            searchOpen = toggleSearchOpen(searchOpen) {
-                                viewModel.onQueryChange("")
-                            }
-                        }
-                    }) {
-                        Icon(
-                            if (searchOpen && selectedTab == TAB_LIBRARY) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = if (searchOpen && selectedTab == TAB_LIBRARY) "Close search" else "Search",
-                        )
-                    }
+            SourceBrowseHeader(
+                sourceName = libraryName,
+                searchQuery = query,
+                onSearchQueryChange = viewModel::onQueryChange,
+                onOpenDrawer = onOpenDrawer,
+                sourceIcon = {
+                    SourceTypeIcon(type = SourceType.RADIO_ES, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
             )
         },
@@ -165,7 +139,6 @@ fun RadioEsBrowseScreen(
                         )
                         TAB_LIBRARY -> RadioEsLibraryTabContent(
                             viewModel = viewModel,
-                            searchOpen = searchOpen,
                             onCoverScaleChange = onCoverScaleChange,
                         )
                     }
@@ -182,7 +155,6 @@ private const val TAB_LIBRARY = 2
 @Composable
 private fun RadioEsLibraryTabContent(
     viewModel: RadioEsBrowseViewModel,
-    searchOpen: Boolean,
     onCoverScaleChange: (Float) -> Unit,
 ) {
     val items by viewModel.filteredItems.collectAsState()
@@ -199,18 +171,6 @@ private fun RadioEsLibraryTabContent(
     val isOffline by viewModel.isOffline.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (searchOpen) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = viewModel::onQueryChange,
-                placeholder = { Text(stringResource(R.string.ui_search_radio_es)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            )
-        }
         LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
