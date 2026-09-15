@@ -133,7 +133,6 @@ import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
-import com.riffle.shared.library.IosNoOpCbzRepository
 import com.riffle.shared.library.IosNoOpCoverImageCopier
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpEbookCfiTranslatorFactory
