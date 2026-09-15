@@ -353,6 +353,7 @@
 				B100B010 /* AddAbsSourceFlowTests.swift in Sources */,
 				B1013010 /* AddKomgaSourceFlowTests.swift in Sources */,
 				B1014010 /* SourcePickerTests.swift in Sources */,
+				B1015010 /* ProgressPipelineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -376,7 +377,6 @@
 				B1012010 /* OReillyLazyPublicationTests.swift in Sources */,
 				B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */,
 				B1017010 /* DownloadsTests.swift in Sources */,
-				B1015010 /* ProgressPipelineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
