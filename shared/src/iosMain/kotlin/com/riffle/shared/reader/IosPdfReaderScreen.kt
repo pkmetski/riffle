@@ -12,7 +12,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,8 +38,6 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val downloader = koinInject<IosPdfDownloader>()
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
-    val scope = rememberCoroutineScope()
-
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     val bridge = remember { bridgeFactory.create() }
@@ -60,7 +59,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             val page = bridge.currentPage()
             val pageCount = bridge.pageCount()
             if (page > 0 || pageCount > 0) {
-                scope.launch {
+                CoroutineScope(SupervisorJob()).launch {
                     val locatorJson = encodePdfLocator(page, pageCount)
                     val progress = if (pageCount > 0) page.toFloat() / pageCount else 0f
                     positionStore.save(item.sourceId, item.id, locatorJson)

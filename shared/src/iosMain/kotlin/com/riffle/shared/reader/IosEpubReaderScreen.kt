@@ -12,7 +12,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,8 +45,6 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val catalogRegistry = koinInject<CatalogRegistry>()
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
-    val scope = rememberCoroutineScope()
-
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -111,7 +110,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             coordinator.stop()
             val position = navigator.snapshotPosition()
             if (position != null) {
-                scope.launch {
+                // rememberCoroutineScope is cancelled during composition teardown; use an
+                // independent scope so the DB write and sync survive past onDispose.
+                CoroutineScope(SupervisorJob()).launch {
                     positionStore.save(item.sourceId, item.id, position.locatorJson)
                     val payload = SessionPayload(
                         ebookLocation = position.locatorJson,

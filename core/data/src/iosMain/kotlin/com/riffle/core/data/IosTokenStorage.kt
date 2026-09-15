@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.TokenStorage
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
@@ -13,7 +14,7 @@ import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFDictionarySetValue
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFStringCreateWithCString
-import kotlinx.cinterop.ObjCObjectVar
+import platform.CoreFoundation.CFStringRef
 import platform.CoreFoundation.kCFAllocatorDefault
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
@@ -40,25 +41,12 @@ import platform.Security.kSecValueData
 private const val KEYCHAIN_SERVICE = "com.riffle.app"
 
 class IosTokenStorage : TokenStorage {
-
-    override suspend fun saveToken(sourceId: String, token: String) =
-        saveKeychainItem(tokenAccount(sourceId), token)
-
-    override suspend fun getToken(sourceId: String): String? =
-        loadKeychainItem(tokenAccount(sourceId))
-
-    override suspend fun deleteToken(sourceId: String) =
-        deleteKeychainItem(tokenAccount(sourceId))
-
-    override suspend fun savePassword(sourceId: String, password: String) =
-        saveKeychainItem(passwordAccount(sourceId), password)
-
-    override suspend fun getPassword(sourceId: String): String? =
-        loadKeychainItem(passwordAccount(sourceId))
-
-    override suspend fun deletePassword(sourceId: String) =
-        deleteKeychainItem(passwordAccount(sourceId))
-
+    override suspend fun saveToken(sourceId: String, token: String) = saveKeychainItem(tokenAccount(sourceId), token)
+    override suspend fun getToken(sourceId: String): String? = loadKeychainItem(tokenAccount(sourceId))
+    override suspend fun deleteToken(sourceId: String) = deleteKeychainItem(tokenAccount(sourceId))
+    override suspend fun savePassword(sourceId: String, password: String) = saveKeychainItem(passwordAccount(sourceId), password)
+    override suspend fun getPassword(sourceId: String): String? = loadKeychainItem(passwordAccount(sourceId))
+    override suspend fun deletePassword(sourceId: String) = deleteKeychainItem(passwordAccount(sourceId))
     private fun tokenAccount(sourceId: String) = "token:$sourceId"
     private fun passwordAccount(sourceId: String) = "password:$sourceId"
 }
@@ -67,61 +55,71 @@ class IosTokenStorage : TokenStorage {
 private fun saveKeychainItem(account: String, value: String) {
     val data = NSString.create(string = value).dataUsingEncoding(NSUTF8StringEncoding) ?: return
     val dataRef = CFBridgingRetain(data) ?: return
-    val exists = loadKeychainData(account) != null
-    if (exists) {
-        val query = keychainQuery(account)
-        val attrs = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, null, null)!!
-        CFDictionaryAddValue(attrs, kSecValueData, dataRef)
-        SecItemUpdate(query, attrs)
-        CFRelease(attrs)
-        CFRelease(query)
-    } else {
-        val query = keychainQuery(account)
-        CFDictionaryAddValue(query, kSecValueData, dataRef)
-        SecItemAdd(query, null)
-        CFRelease(query)
+    try {
+        val exists = withKeychainQuery(account) { query ->
+            CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
+            CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
+            memScoped {
+                val out = alloc<ObjCObjectVar<Any?>>()
+                val status = SecItemCopyMatching(query, out.ptr.reinterpret())
+                status == errSecSuccess && out.value as? NSData != null
+            }
+        }
+        if (exists) {
+            withKeychainQuery(account) { query ->
+                val attrs = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, null, null)!!
+                CFDictionaryAddValue(attrs, kSecValueData, dataRef)
+                SecItemUpdate(query, attrs)
+                CFRelease(attrs)
+            }
+        } else {
+            withKeychainQuery(account) { query ->
+                CFDictionaryAddValue(query, kSecValueData, dataRef)
+                SecItemAdd(query, null)
+            }
+        }
+    } finally {
+        CFRelease(dataRef)
     }
-    CFRelease(dataRef)
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun loadKeychainItem(account: String): String? {
-    val data = loadKeychainData(account) ?: return null
-    return NSString.create(data = data, encoding = NSUTF8StringEncoding)?.toString()
 }
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun loadKeychainData(account: String): NSData? {
-    val query = keychainQuery(account)
-    CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
-    CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
-    return memScoped {
-        val result = alloc<ObjCObjectVar<Any?>>()
-        val status = SecItemCopyMatching(query, result.ptr.reinterpret())
-        CFRelease(query)
-        if (status == errSecSuccess) result.value as? NSData else null
+private fun loadKeychainItem(account: String): String? {
+    return withKeychainQuery(account) { query ->
+        CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
+        CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
+        val data: NSData? = memScoped {
+            val out = alloc<ObjCObjectVar<Any?>>()
+            val status = SecItemCopyMatching(query, out.ptr.reinterpret())
+            if (status == errSecSuccess) out.value as? NSData else null
+        }
+        data?.let { NSString.create(data = it, encoding = NSUTF8StringEncoding)?.toString() }
     }
 }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun deleteKeychainItem(account: String) {
-    val query = keychainQuery(account)
-    SecItemDelete(query)
-    CFRelease(query)
+    withKeychainQuery(account) { query -> SecItemDelete(query) }
 }
 
+/**
+ * CFDictionaryCreateMutable with null callbacks does not retain inserted values. All CFStringRefs
+ * created here are kept alive for the duration of [block] and released in the finally clause,
+ * preventing use-after-free when the dict holds raw pointers to them.
+ */
 @OptIn(ExperimentalForeignApi::class)
-private fun keychainQuery(account: String): platform.CoreFoundation.CFMutableDictionaryRef {
+private inline fun <T> withKeychainQuery(account: String, block: (platform.CoreFoundation.CFMutableDictionaryRef) -> T): T {
+    val svcRef: CFStringRef? = CFStringCreateWithCString(kCFAllocatorDefault, KEYCHAIN_SERVICE, kCFStringEncodingUTF8)
+    val accRef: CFStringRef? = CFStringCreateWithCString(kCFAllocatorDefault, account, kCFStringEncodingUTF8)
     val query = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, null, null)!!
     CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
-    cfString(KEYCHAIN_SERVICE) { svc -> CFDictionaryAddValue(query, kSecAttrService, svc) }
-    cfString(account) { acc -> CFDictionaryAddValue(query, kSecAttrAccount, acc) }
-    return query
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private inline fun cfString(s: String, block: (platform.CoreFoundation.CFStringRef) -> Unit) {
-    val ref = CFStringCreateWithCString(kCFAllocatorDefault, s, kCFStringEncodingUTF8) ?: return
-    block(ref)
-    CFRelease(ref)
+    if (svcRef != null) CFDictionaryAddValue(query, kSecAttrService, svcRef)
+    if (accRef != null) CFDictionaryAddValue(query, kSecAttrAccount, accRef)
+    try {
+        return block(query)
+    } finally {
+        CFRelease(query)
+        if (svcRef != null) CFRelease(svcRef)
+        if (accRef != null) CFRelease(accRef)
+    }
 }

@@ -10,6 +10,8 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.NetworkResult
 import com.riffle.feature.player.audiobookStartSec
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -51,6 +53,7 @@ class IosAudiobookPlayerViewModel(
     private var sessionId: String? = null
     private var baseUrl: String = ""
     private var token: String = ""
+    private var sessionOpenPositionSec: Double = 0.0
 
     init {
         viewModelScope.launch { prepare() }
@@ -97,6 +100,7 @@ class IosAudiobookPlayerViewModel(
         val trackUrls = session.tracks.map { t -> "$baseUrl${t.contentUrl}?token=$token" }
         val trackOffsets = session.tracks.map { it.startOffsetSec }
         val startAt = audiobookStartSec(session.currentTimeSec.coerceAtLeast(0.0), session.durationSec)
+        sessionOpenPositionSec = startAt
 
         val b = bridgeFactory.create()
         bridge = b
@@ -176,7 +180,9 @@ class IosAudiobookPlayerViewModel(
         val positionSec = _state.value.positionSec
         val sid = sessionId
         val activeSourceId = sourceId ?: baseUrl
-        viewModelScope.launch {
+        val timeListenedSec = (positionSec - sessionOpenPositionSec).coerceAtLeast(0.0)
+        // viewModelScope is already cancelled before onCleared runs; use a standalone scope.
+        CoroutineScope(SupervisorJob()).launch {
             if (positionSec > 0 && activeSourceId.isNotEmpty()) {
                 audiobookPositionStore.save(activeSourceId, itemId, positionSec)
             }
@@ -186,7 +192,7 @@ class IosAudiobookPlayerViewModel(
                         baseUrl = baseUrl,
                         sessionId = sid,
                         currentTimeSec = positionSec,
-                        timeListenedSec = positionSec,
+                        timeListenedSec = timeListenedSec,
                         token = token,
                         insecureAllowed = true,
                     )
