@@ -161,6 +161,8 @@ class AnnotationFocusHarnessTest : KoinTest {
             composeTestRule.onAllNodesWithText(bookmark.bookmarkTitle).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(bookmark.bookmarkTitle).performClick()
+        composeTestRule.waitForIdle()
+        waitForReaderReady()
 
         val result = waitForPhraseOnScreen(
             orientation,

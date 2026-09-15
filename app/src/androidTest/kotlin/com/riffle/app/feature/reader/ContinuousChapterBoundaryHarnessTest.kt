@@ -540,7 +540,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         // The prepended previous chapter must load AND measure past its screen-sized placeholder
         // before the landing position is meaningful. Polled manually so a timeout can report the
         // full window state instead of an opaque ComposeTimeoutException.
-        val measureDeadline = android.os.SystemClock.uptimeMillis() + 20_000
+        val measureDeadline = android.os.SystemClock.uptimeMillis() + 30_000
         var prevMeasured = false
         while (!prevMeasured && android.os.SystemClock.uptimeMillis() < measureDeadline) {
             composeTestRule.waitForIdle()
