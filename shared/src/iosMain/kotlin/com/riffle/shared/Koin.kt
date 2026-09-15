@@ -9,7 +9,6 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
-import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryObserverImpl
@@ -19,6 +18,7 @@ import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.PlaylistsRepository
+import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule

@@ -84,17 +84,15 @@ private fun saveKeychainItem(account: String, value: String) {
 }
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun loadKeychainItem(account: String): String? {
-    return withKeychainQuery(account) { query ->
-        CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
-        CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
-        val data: NSData? = memScoped {
-            val out = alloc<ObjCObjectVar<Any?>>()
-            val status = SecItemCopyMatching(query, out.ptr.reinterpret())
-            if (status == errSecSuccess) out.value as? NSData else null
-        }
-        data?.let { NSString.create(data = it, encoding = NSUTF8StringEncoding)?.toString() }
+private fun loadKeychainItem(account: String): String? = withKeychainQuery(account) { query ->
+    CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
+    CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
+    val data: NSData? = memScoped {
+        val out = alloc<ObjCObjectVar<Any?>>()
+        val status = SecItemCopyMatching(query, out.ptr.reinterpret())
+        if (status == errSecSuccess) out.value as? NSData else null
     }
+    data?.let { NSString.create(data = it, encoding = NSUTF8StringEncoding)?.toString() }
 }
 
 @OptIn(ExperimentalForeignApi::class)
