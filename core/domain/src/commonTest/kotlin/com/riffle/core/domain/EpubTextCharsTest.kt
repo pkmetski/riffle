@@ -7,7 +7,7 @@ import kotlin.test.Test
 class EpubTextCharsTest {
 
     @Test
-    fun `counts only non-blank text characters, ignoring markup and whitespace`() {
+    fun `counts only non-blank text characters ignoring markup and whitespace`() {
         val html = "<html><body><p>Hello</p>\n  <p><b>there</b>.</p></body></html>"
 
         // "Hello" = 5, "there" = 5, "." = 1 → 11

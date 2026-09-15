@@ -1080,7 +1080,7 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `profileB scan -- flat 1px-bump prefix does not inflate riseSpan when steep diagonal follows (issue 834)`() {
+    fun `profileB scan -- flat 1px-bump prefix does not inflate riseSpan when steep diagonal follows issue 834`() {
         // Boundary: falling-right diagonal detected via profileB when a horizontal gutter row
         // (between row 2 and row 3) generates flat-prefix profileB entries (dy=0) with 1-pixel
         // bumps (dy=1), followed by a steep diagonal rise (dy=8). The fix: when hasFlatPrefix is
@@ -1661,7 +1661,7 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `narrow strips from the same column (x-centres within 25pct) are coalesced into a tall panel`() {
+    fun `narrow strips from the same column x-centres within 25pct are coalesced into a tall panel`() {
         // Boundary test for the x-centre span guard in coalesceNarrowStripColumns
         // (!hasSpanningPanel path). When strips' x-centres span ≤ 25% of the downscaled page
         // width they are in the same column and the union-fallback applies.
@@ -1689,7 +1689,7 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `narrow strips from different columns (x-centres span more than 25pct) are NOT coalesced`() {
+    fun `narrow strips from different columns x-centres span more than 25pct are NOT coalesced`() {
         // Boundary test: strips whose x-centres span > 25% of the downscaled page width come from
         // different columns and must be kept separate. Coalescing them loses real panels.
         // Layout: two wide row panels (top and bottom) plus a narrow left and a narrow right strip

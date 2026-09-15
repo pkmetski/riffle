@@ -24,7 +24,7 @@ class ReadaloudTextQuotesTest {
     """.trimIndent()
 
     @Test
-    fun `highlight is the sentence text, even through a nested span`() {
+    fun `highlight is the sentence text even through a nested span`() {
         val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter)
         assertEquals(quotes["id259-s0"]!!.highlight, "LOG ENTRY: SOL 63")
         assertEquals(quotes["id259-s1"]!!.highlight, "I finished making water some time ago.")
@@ -39,7 +39,7 @@ class ReadaloudTextQuotesTest {
     }
 
     @Test
-    fun `first sentence has empty before, last has empty after`() {
+    fun `first sentence has empty before last has empty after`() {
         val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter)
         assertEquals(quotes["id259-s0"]!!.before, "")
         assertEquals(quotes["id259-s3"]!!.after, "")
@@ -70,7 +70,7 @@ class ReadaloudTextQuotesTest {
     // manifest is OPF-relative, so keying by href#id never matched. Keying by the (book-unique) span id
     // makes the lookup independent of how either side spells the href.
     @Test
-    fun `lookup is by span id, independent of chapter href`() {
+    fun `lookup is by span id independent of chapter href`() {
         val chapters = listOf(
             EpubChapterHtml(href = "text/part0012_split_001.html", html = martianChapter),
             EpubChapterHtml(href = "OEBPS/xhtml/Weir_9780593135211_epub3_c008_r1.xhtml", html = phmChapter),
@@ -116,7 +116,7 @@ class ReadaloudTextQuotesTest {
     }
 
     @Test
-    fun `unparseable or empty chapter contributes nothing, never throws`() {
+    fun `unparseable or empty chapter contributes nothing never throws`() {
         assertTrue(ReadaloudTextQuotes.quotesForChapter("").isEmpty())
         assertTrue(ReadaloudTextQuotes.build(emptyList()).isEmpty())
     }

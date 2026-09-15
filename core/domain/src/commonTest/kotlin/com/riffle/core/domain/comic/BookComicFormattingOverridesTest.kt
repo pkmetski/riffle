@@ -79,7 +79,7 @@ class BookComicFormattingOverridesTest {
         assertEquals(global.panelAnimationSpeedMs, result.panelAnimationSpeedMs)
     }
 
-    @Test fun `applyTo 0ms disables animation (override takes precedence)`() {
+    @Test fun `applyTo 0ms disables animation override takes precedence`() {
         val result = BookComicFormattingOverrides(panelAnimationSpeedMs = 0).applyTo(global)
         assertEquals(0, result.panelAnimationSpeedMs)
     }

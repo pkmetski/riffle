@@ -8,7 +8,7 @@ class PanelOrdererTest {
     private val orderer = PanelOrderer()
 
     @Test
-    fun `2x2 grid is ordered top-left, top-right, bottom-left, bottom-right`() {
+    fun `2x2 grid is ordered top-left top-right bottom-left bottom-right`() {
         val panels = listOf(
             // Deliberately shuffled input to prove we don't just return insertion order.
             PanelRegion(x = 210, y = 290, width = 170, height = 250),
@@ -38,7 +38,7 @@ class PanelOrdererTest {
     }
 
     @Test
-    fun `staircase (each panel starts partway down the previous one) reads top-to-bottom`() {
+    fun `staircase each panel starts partway down the previous one reads top-to-bottom`() {
         val panels = listOf(
             PanelRegion(x = 20, y = 400, width = 300, height = 100),
             PanelRegion(x = 20, y = 20, width = 300, height = 100),
@@ -157,7 +157,7 @@ class PanelOrdererTest {
     // producing wrong reading order. Fix: strictly less than (<).
 
     @Test
-    fun `two panels sharing identical y are placed in the same row left-to-right (issue 896)`() {
+    fun `two panels sharing identical y are placed in the same row left-to-right issue 896`() {
         // Regression: exile check member.y <= candidate.y fired on equal-y panels when the
         // member x-overlapped the candidate. Fix: member.y < candidate.y (strictly less).
         val left = PanelRegion(x = 0, y = 609, width = 430, height = 459)    // y=609..1068
@@ -186,7 +186,7 @@ class PanelOrdererTest {
     }
 
     @Test
-    fun `tall spanning panel still exiles the lower panel in its own column (issue 780 shape)`() {
+    fun `tall spanning panel still exiles the lower panel in its own column issue 780 shape`() {
         // Regression guard: the union+exile fix must not re-introduce the #780 bug.
         // Mirrors the real fixture geometry from the #780 test in PanelDetectorImageTest:
         //   tall-left   x=0..460,  y=200..1080
@@ -247,7 +247,7 @@ class PanelOrdererTest {
     }
 
     @Test
-    fun `tail above 3 percent of candidate height still exiles (issue 780 preserved)`() {
+    fun `tail above 3 percent of candidate height still exiles issue 780 preserved`() {
         // Boundary: candidate sticks out 60px below the member (60/600 = 10% ≥ 3%) → exiled.
         val spanning = PanelRegion(x = 0, y = 0, width = 460, height = 1060)
         val upperRight = PanelRegion(x = 520, y = 0, width = 280, height = 500)

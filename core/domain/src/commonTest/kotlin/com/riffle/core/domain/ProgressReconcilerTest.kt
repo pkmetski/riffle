@@ -161,7 +161,7 @@ class ProgressReconcilerTest {
      * Matches [com.riffle.core.data.ReadingSessionRepositoryImpl.runSyncCycle]'s guard.
      */
     @Test
-    fun `clean row with local stamp ABOVE server stamp does NOT push (clock-skew guard)`() = runTest {
+    fun `clean row with local stamp ABOVE server stamp does NOT push clock-skew guard`() = runTest {
         val store = FakeSyncStore(position = "stale-local-cfi", localUpdatedAt = 500L, lastSyncedAt = 500L)
         val remote = FakeRemote(RemoteProgress("server-cfi", lastUpdate = 300L))
 
@@ -180,7 +180,7 @@ class ProgressReconcilerTest {
      * it to refresh the position store before the reader loads the initial locator.
      */
     @Test
-    fun `clean row pulls when server has advanced since last sync (cross-device push)`() = runTest {
+    fun `clean row pulls when server has advanced since last sync cross-device push`() = runTest {
         val store = FakeSyncStore(position = "old-server-cfi", localUpdatedAt = 300L, lastSyncedAt = 300L)
         val remote = FakeRemote(RemoteProgress("new-server-cfi", lastUpdate = 500L))
 
@@ -267,7 +267,7 @@ class ProgressReconcilerTest {
      * (4) row is now clean at T1/T1 but no file exists → formerly stuck as InSync forever.
      */
     @Test
-    fun `clean row with missing server file (lastUpdate=0) re-pushes to restore it`() = runTest {
+    fun `clean row with missing server file lastUpdate=0 re-pushes to restore it`() = runTest {
         val store = FakeSyncStore(position = "saved-cfi", localUpdatedAt = 500L, lastSyncedAt = 500L)
         val remote = FakeRemote(RemoteProgress("", lastUpdate = 0L), patchStamp = 505L)
 
@@ -284,7 +284,7 @@ class ProgressReconcilerTest {
      * server returns lastUpdate=0. The re-sync guard requires lastSyncedAt > 0.
      */
     @Test
-    fun `book never synced (lastSyncedAt=0) with server lastUpdate=0 stays InSync without push`() = runTest {
+    fun `book never synced lastSyncedAt=0 with server lastUpdate=0 stays InSync without push`() = runTest {
         val store = FakeSyncStore<String>(position = null, localUpdatedAt = 0L, lastSyncedAt = 0L)
         val remote = FakeRemote(RemoteProgress("", lastUpdate = 0L))
 
@@ -328,7 +328,7 @@ class ProgressReconcilerTest {
     }
 
     @Test
-    fun `works over a Double payload (audio seconds)`() = runTest {
+    fun `works over a Double payload audio seconds`() = runTest {
         val store = FakeSyncStore(position = 42.0, localUpdatedAt = 300L, lastSyncedAt = 100L)
         val remote = FakeRemote(RemoteProgress(10.0, lastUpdate = 200L), patchStamp = 301L)
 

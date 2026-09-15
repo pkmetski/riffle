@@ -16,7 +16,7 @@ class ConfirmedReadaloudStatusTest {
         ConfirmedReadaloud("st", "b", "Title", targets.toList())
 
     @Test
-    fun `linked audiobook, verified → STREAMING`() {
+    fun `linked audiobook verified → STREAMING`() {
         val c = confirmed(
             target(hasAudio = false, AudiobookIdentityResult.UNKNOWN), // the ebook target
             target(hasAudio = true, AudiobookIdentityResult.VERIFIED),

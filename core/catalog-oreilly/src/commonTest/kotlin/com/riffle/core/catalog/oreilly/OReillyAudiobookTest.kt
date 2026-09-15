@@ -92,7 +92,7 @@ class OReillyAudiobookTest {
     }
 
     @Test
-    fun `openAudiobook returns tracks, chapters with real titles, and total duration`() = runBlocking {
+    fun `openAudiobook returns tracks chapters with real titles and total duration`() = runBlocking {
         val stream = catalog.openAudiobook(itemId, deviceLabel = "test")!!
 
         assertEquals(2, stream.trackUrls.size)

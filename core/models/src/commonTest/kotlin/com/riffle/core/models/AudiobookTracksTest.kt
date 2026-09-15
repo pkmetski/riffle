@@ -47,7 +47,7 @@ class AudiobookTracksTest {
     }
 
     @Test
-    fun `startPositionFor resumes mid-track at the right track and offset, not track 0`() {
+    fun `startPositionFor resumes mid-track at the right track and offset not track 0`() {
         // The bug: opening at a saved mid-book position briefly played from track 0 / offset 0. The
         // resolved start must land on the containing track with the in-track offset in millis.
         val start = AudiobookTracks.startPositionFor(absoluteSec = 325.0, durationSec = 600.0, tracks = tracks)

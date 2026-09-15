@@ -24,7 +24,7 @@ class EmphasisStyleTest {
     }
 
     @Test
-    fun `encode of empty set returns null (single representation of "no styles")`() {
+    fun `encode of empty set returns null single representation of "no styles"`() {
         assertNull(EmphasisStyle.encode(emptySet()))
     }
 
@@ -39,14 +39,14 @@ class EmphasisStyleTest {
     }
 
     @Test
-    fun `decode drops unknown tokens without crashing (forward-compat with future styles)`() {
+    fun `decode drops unknown tokens without crashing forward-compat with future styles`() {
         // A peer running a newer version could emit "sparkle" alongside known tokens.
         val decoded = EmphasisStyle.decode("bold,sparkle,underline")
         assertEquals(setOf(EmphasisStyle.BOLD, EmphasisStyle.UNDERLINE), decoded)
     }
 
     @Test
-    fun `decode of null blank or unknown-only returns null (no empty set state)`() {
+    fun `decode of null blank or unknown-only returns null no empty set state`() {
         assertNull(EmphasisStyle.decode(null))
         assertNull(EmphasisStyle.decode(""))
         assertNull(EmphasisStyle.decode("   "))

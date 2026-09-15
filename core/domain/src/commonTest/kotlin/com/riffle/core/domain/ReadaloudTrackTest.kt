@@ -61,7 +61,7 @@ class ReadaloudTrackTest {
     // back to the chapter's first clip. (The fix that surfaces the span id lives in EpubReaderScreen;
     // this locks the resolver contract that fix depends on.)
     @Test
-    fun `resolveStartClip on a mid-chapter sentence starts there, not at the chapter's first clip`() {
+    fun `resolveStartClip on a mid-chapter sentence starts there not at the chapter's first clip`() {
         val resolved = chapterTrack.resolveStartClip("text/c1.html", "s2")
         assertEquals(chapterClips[1], resolved)
         assertNotEquals(chapterClips[0], resolved)

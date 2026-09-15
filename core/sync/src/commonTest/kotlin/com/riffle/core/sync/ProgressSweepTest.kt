@@ -229,7 +229,7 @@ class ProgressSweepTest {
         ).run()
 
         val row = store.rows["s1" to "i1"]!!
-        assertEquals(row.first, "source-newer")
+        assertEquals("source-newer", row.first)
         assertFalse(store.dirty("s1", "i1"))
     }
 
@@ -282,7 +282,7 @@ class ProgressSweepTest {
         ).run()
 
         val row = store.rows["ws" to "item1"]!!
-        assertEquals(row.first, "server-newer")
+        assertEquals("server-newer", row.first)
         assertFalse(store.dirty("ws", "item1"))
     }
 

@@ -38,7 +38,7 @@ class OReillyApiHeaderTest {
     }
 
     @Test
-    fun `JSON requests carry Origin, Accept-Language, and sec-fetch headers`() {
+    fun `JSON requests carry Origin Accept-Language and sec-fetch headers`() {
         val captured = mutableMapOf<String, String>()
         val client = makeClient { req -> req.headers.forEach { key, vals -> captured[key] = vals.first() } }
         val api = OReillyApi(client = client, cookieHeader = "orm-jwt=x")

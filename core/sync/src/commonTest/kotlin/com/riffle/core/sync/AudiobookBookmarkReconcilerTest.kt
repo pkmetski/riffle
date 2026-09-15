@@ -162,9 +162,9 @@ class AudiobookBookmarkReconcilerTest {
         reconciler(store, cat).run()
 
         val row = store.allForItemIncludingDeleted("s1", "i1").single()
-        assertEquals(row.id, "gen-0")
+        assertEquals("gen-0", row.id)
         assertEquals(77.0, row.positionSec, 0.0001)
-        assertEquals(row.title, "From source")
+        assertEquals("From source", row.title)
         assertEquals(1234L, row.createdAt)
         assertEquals(1000L, row.localUpdatedAt)
         assertEquals(1000L, row.lastSyncedAt)
@@ -192,7 +192,7 @@ class AudiobookBookmarkReconcilerTest {
 
         assertNotNull(store.getById("create"), "dirty pending create must survive pull")
         val renameRow = store.getById("rename")!!
-        assertEquals(renameRow.title, "dirty local title must NOT be clobbered", "local title")
+        assertEquals("local title", renameRow.title, "dirty local title must NOT be clobbered")
     }
 
     @Test fun listBookmarksNetworkErrorSkipsPullButPushesHappen() = runTest {
@@ -220,7 +220,7 @@ class AudiobookBookmarkReconcilerTest {
 
         val rows = store.allForItemIncludingDeleted("s1", "i1")
         assertEquals(1, rows.size)
-        assertEquals(rows.single().title, "ours")
+        assertEquals("ours", rows.single().title)
         assertTrue(store.rows.none { it.itemId == "OTHER" })
     }
 }

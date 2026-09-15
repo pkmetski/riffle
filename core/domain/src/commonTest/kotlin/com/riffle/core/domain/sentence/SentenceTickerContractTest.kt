@@ -53,7 +53,7 @@ class SentenceTickerContractTest {
     }
 
     @Test
-    fun `play() emits a currentFragment`() {
+    fun `play emits a currentFragment`() {
         val ticker = FakeSentenceTicker()
         ticker.play()
         assertEquals(ticker.currentFragment.value, "chapter1.xhtml#s0")
@@ -61,7 +61,7 @@ class SentenceTickerContractTest {
     }
 
     @Test
-    fun `pause() retains currentFragment and progress`() {
+    fun `pause retains currentFragment and progress`() {
         val ticker = FakeSentenceTicker()
         ticker.play()
         val fragment = ticker.currentFragment.value
@@ -72,7 +72,7 @@ class SentenceTickerContractTest {
     }
 
     @Test
-    fun `stop() clears currentFragment and progress`() {
+    fun `stop clears currentFragment and progress`() {
         val ticker = FakeSentenceTicker()
         ticker.play()
         ticker.stop()
@@ -81,7 +81,7 @@ class SentenceTickerContractTest {
     }
 
     @Test
-    fun `goTo() updates currentFragment and resets progress`() {
+    fun `goTo updates currentFragment and resets progress`() {
         val ticker = FakeSentenceTicker()
         ticker.play()
         ticker.goTo("chapter2.xhtml#s5")

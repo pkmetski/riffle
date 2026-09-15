@@ -81,7 +81,7 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
-    fun `getLibraryItems sets hasAudio from numAudioFiles and numTracks, false when absent`() = runTest {
+    fun `getLibraryItems sets hasAudio from numAudioFiles and numTracks false when absent`() = runTest {
         val (_, client) = mockAbsClient(
             ("""{"results":[""" +
                 """{"id":"ebook","libraryId":"lib-1","media":{"metadata":{"title":"Ebook","authorName":"A"},"ebookFormat":"epub"}},""" +

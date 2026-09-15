@@ -42,7 +42,7 @@ class ReadingSpeedTrackerTest {
     }
 
     @Test
-    fun `session implying fewer than 20 WPM is discarded (left book open)`() {
+    fun `session implying fewer than 20 WPM is discarded left book open`() {
         val result = ReadingSpeedTracker.recordSession(
             progressDelta = 1f / 500f,
             timeDeltaSec = 760.0,
@@ -53,7 +53,7 @@ class ReadingSpeedTrackerTest {
     }
 
     @Test
-    fun `session implying more than 1000 WPM is discarded (scanning)`() {
+    fun `session implying more than 1000 WPM is discarded scanning`() {
         val result = ReadingSpeedTracker.recordSession(
             progressDelta = 1f / 500f,
             timeDeltaSec = 14.0,

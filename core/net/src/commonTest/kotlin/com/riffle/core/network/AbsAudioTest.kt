@@ -18,7 +18,7 @@ class AbsAudioTest {
     }
 
     @Test
-    fun `parses streamable tracks with ino, index-ordered`() {
+    fun `parses streamable tracks with ino index-ordered`() {
         val body = """
             {"id":"x","media":{"audioFiles":[
               {"ino":"b","index":2,"duration":1721.0},

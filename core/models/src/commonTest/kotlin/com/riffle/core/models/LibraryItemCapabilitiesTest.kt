@@ -34,7 +34,7 @@ class LibraryItemCapabilitiesTest {
         assertTrue(item(EbookFormat.Pdf).canAnnotate)
     }
 
-    @Test fun `CBZ cannot be annotated (raster comic archive)`() {
+    @Test fun `CBZ cannot be annotated raster comic archive`() {
         assertFalse(item(EbookFormat.Cbz).canAnnotate)
     }
 

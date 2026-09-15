@@ -35,7 +35,7 @@ class CanonicalSyncCycleTest {
     private fun pos(v: String) = CanonicalReaderPosition(v)
 
     @Test
-    fun `the newest remote wins, the reader jumps to it, and stale remotes are patched to it`() = runTest {
+    fun `the newest remote wins the reader jumps to it and stale remotes are patched to it`() = runTest {
         val local = LocalCanonical(pos("L"), lastUpdate = 100)
         val ebook = FakePeer("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
         val audio = FakePeer("ABS_AUDIO", RemoteRead(pos("B"), lastUpdate = 80))

@@ -64,7 +64,7 @@ class DaoBackedReadingPositionStoreTest {
         val dao = FakeReadingPositionDao()
         val store = DaoBackedReadingPositionStore(dao, FakeClock(1_000L))
         store.save("source-A", "item-1", "epubcfi(/6/4[chap01]!/4/2[body01]/1:0)")
-        assertEquals(dao.store["source-A" to "item-1"]?.cfi, "epubcfi(/6/4[chap01]!/4/2[body01]/1:0)")
+        assertEquals("epubcfi(/6/4[chap01]!/4/2[body01]/1:0)", dao.store["source-A" to "item-1"]?.cfi)
     }
 
     @Test
@@ -73,7 +73,7 @@ class DaoBackedReadingPositionStoreTest {
             it.seed(ReadingPositionEntity("source-A", "item-1", "epubcfi(/6/2!/4/1:42)"))
         }
         val store = DaoBackedReadingPositionStore(dao, FakeClock())
-        assertEquals(store.load("source-A", "item-1"), "epubcfi(/6/2!/4/1:42)")
+        assertEquals("epubcfi(/6/2!/4/1:42)", store.load("source-A", "item-1"))
     }
 
     @Test
@@ -88,7 +88,7 @@ class DaoBackedReadingPositionStoreTest {
         val store = DaoBackedReadingPositionStore(dao, FakeClock(1_000L))
         store.save("source-A", "item-1", "epubcfi(/6/2!/4/1:10)")
         store.save("source-A", "item-1", "epubcfi(/6/2!/4/1:99)")
-        assertEquals(store.load("source-A", "item-1"), "epubcfi(/6/2!/4/1:99)")
+        assertEquals("epubcfi(/6/2!/4/1:99)", store.load("source-A", "item-1"))
     }
 
     @Test
@@ -121,7 +121,7 @@ class DaoBackedReadingPositionStoreTest {
         val after = dao.store["source-A" to "item-1"]?.localUpdatedAt ?: 0L
         assertTrue(after > futureSourceStamp,
             "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureSourceStamp")
-        assertEquals(store.load("source-A", "item-1"), "fresh")
+        assertEquals("fresh", store.load("source-A", "item-1"))
     }
 
     @Test
@@ -130,8 +130,8 @@ class DaoBackedReadingPositionStoreTest {
         val store = DaoBackedReadingPositionStore(dao, FakeClock(1_000L))
         store.save("source-A", "item-1", "epubcfi(/6/2!/4/1:10)")
         store.save("source-B", "item-1", "epubcfi(/6/8!/4/1:99)")
-        assertEquals(store.load("source-A", "item-1"), "epubcfi(/6/2!/4/1:10)")
-        assertEquals(store.load("source-B", "item-1"), "epubcfi(/6/8!/4/1:99)")
+        assertEquals("epubcfi(/6/2!/4/1:10)", store.load("source-A", "item-1"))
+        assertEquals("epubcfi(/6/8!/4/1:99)", store.load("source-B", "item-1"))
         assertNotEquals(store.load("source-A", "item-1"), store.load("source-B", "item-1"))
     }
 

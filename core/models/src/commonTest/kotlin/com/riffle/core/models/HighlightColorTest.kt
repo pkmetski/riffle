@@ -34,7 +34,7 @@ class HighlightColorTest {
     }
 
     @Test
-    fun `legacy pink token falls back to default (no alias, no migration)`() {
+    fun `legacy pink token falls back to default no alias no migration`() {
         // The fourth swatch used to be "pink" (rose-400) — locally-stored rows written by that
         // build, and inbound sync from clients still on it, both take the standard unknown-name
         // fallback to YELLOW. Same policy as the readaloud pref on legacy "PINK"/"PURPLE".
@@ -42,7 +42,7 @@ class HighlightColorTest {
     }
 
     @Test
-    fun `argb bakes in the single palette alpha (0x80) plus the hue`() {
+    fun `argb bakes in the single palette alpha 0x80 plus the hue`() {
         // `argb` is the final rendered ARGB — used verbatim by settings swatches and reader
         // decorations. Any change here must be a deliberate palette redesign; a drift to full
         // opacity would paint solid bars over body text.

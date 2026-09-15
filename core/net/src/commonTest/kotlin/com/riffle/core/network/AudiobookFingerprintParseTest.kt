@@ -34,7 +34,7 @@ class AudiobookFingerprintParseTest {
     }
 
     @Test
-    fun `abs item maps its audio files to a fingerprint, ordered by index`() {
+    fun `abs item maps its audio files to a fingerprint ordered by index`() {
         val body = """
             {"id":"abc","media":{"duration":8356.0,"audioFiles":[
               {"index":2,"duration":1721.0,"metadata":{"size":200}},

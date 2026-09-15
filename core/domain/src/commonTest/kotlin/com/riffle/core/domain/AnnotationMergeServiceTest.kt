@@ -87,7 +87,7 @@ class AnnotationMergeServiceTest {
 
     // Test 3: Tombstone wins if it's the latest version
     @Test
-    fun `tombstone (deleted=true) wins if latest updatedAt`() {
+    fun `tombstone deleted=true wins if latest updatedAt`() {
         // Arrange
         val originalAnnotation = W3CAnnotation(
             id = "uuid-1",
@@ -170,7 +170,7 @@ class AnnotationMergeServiceTest {
 
     // Test 5: Merge is idempotent
     @Test
-    fun `merge is idempotent - merge(merge(A)) equals merge(A)`() {
+    fun `merge is idempotent - mergemergeA equals mergeA`() {
         // Arrange
         val annotations = listOf(
             W3CAnnotation(
@@ -356,7 +356,7 @@ class AnnotationMergeServiceTest {
 
     // Test 10: Cross-device edits - chain of modifications
     @Test
-    fun `cross-device edit chain - create, edit, delete`() {
+    fun `cross-device edit chain - create edit delete`() {
         // Arrange
         // Device A creates the annotation
         val creation = W3CAnnotation(
@@ -458,7 +458,7 @@ class AnnotationMergeServiceTest {
 
     // Test 12: Complex merge with mixed UUIDs, timestamps, and tombstones
     @Test
-    fun `complex merge with multiple UUIDs, edits, and deletions`() {
+    fun `complex merge with multiple UUIDs edits and deletions`() {
         // Arrange
         val annotations = listOf(
             // UUID-1: created by A, edited by B with higher timestamp

@@ -26,7 +26,7 @@ class SegmentTrackMapperTest {
     }
 
     @Test
-    fun `a dropped leading ABS track (intro) is skipped`() {
+    fun `a dropped leading ABS track intro is skipped`() {
         // ABS has a 1s publisher intro Storyteller dropped; segments align to tracks 1..2.
         val map = SegmentTrackMapper.align(clips, absTrackDurationsSec = listOf(1.0, 5.0, 3.0))!!
         assertEquals(AbsAudioPosition(1, 0.0), map.positionFor(clips[0])) // c1#s1 → track 1 @ 0s
@@ -41,7 +41,7 @@ class SegmentTrackMapperTest {
     }
 
     @Test
-    fun `placements map each segment to a whole ABS track (1 to 1)`() {
+    fun `placements map each segment to a whole ABS track 1 to 1`() {
         val map = SegmentTrackMapper.align(clips, listOf(5.0, 3.0))!!
         assertEquals(
             listOf(

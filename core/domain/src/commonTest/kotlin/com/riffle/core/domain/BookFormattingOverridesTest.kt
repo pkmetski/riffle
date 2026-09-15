@@ -135,7 +135,7 @@ class BookFormattingOverridesTest {
     }
 
     @Test
-    fun `applyTo always threads global themeSchedule (no per-book override)`() {
+    fun `applyTo always threads global themeSchedule no per-book override`() {
         val customSchedule = ThemeSchedule(
             dayStart = LocalMinuteTime.of(6, 30),
             nightStart = LocalMinuteTime.of(19, 45),
@@ -149,7 +149,7 @@ class BookFormattingOverridesTest {
     }
 
     @Test
-    fun `applyTo always threads global autoReaderThemeMode (no per-book override)`() {
+    fun `applyTo always threads global autoReaderThemeMode no per-book override`() {
         val globalWithAppThemeAuto = global.copy(autoReaderThemeMode = AutoReaderThemeMode.AppTheme)
         val effective = BookFormattingOverrides(theme = ReaderTheme.Auto)
             .applyTo(globalWithAppThemeAuto)
@@ -157,7 +157,7 @@ class BookFormattingOverridesTest {
     }
 
     @Test
-    fun `applyTo always threads global appThemeReaderThemes (no per-book override)`() {
+    fun `applyTo always threads global appThemeReaderThemes no per-book override`() {
         val appThemeReaderThemes = AppThemeReaderThemes(
             lightTheme = ReaderTheme.Sepia,
             darkTheme = ReaderTheme.DarkDim,

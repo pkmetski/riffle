@@ -35,7 +35,7 @@ class AudiobookTimelineTest {
     }
 
     @Test
-    fun `next chapter seeks to the following chapter start, null past the last`() {
+    fun `next chapter seeks to the following chapter start null past the last`() {
         val t = AudiobookTimeline(400.0, chapters())
         assertEquals(100.0, t.nextChapterTargetSec(50.0)!!, 0.0)
         assertEquals(250.0, t.nextChapterTargetSec(120.0)!!, 0.0)
