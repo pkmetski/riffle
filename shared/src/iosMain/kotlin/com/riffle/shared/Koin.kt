@@ -1,7 +1,10 @@
 package com.riffle.shared
 
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.DefaultCatalogRegistry
+import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
@@ -91,6 +94,7 @@ import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
+import com.riffle.core.sources.komga.KomgaSourceAdapter
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
@@ -138,7 +142,6 @@ import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
-import com.riffle.shared.library.IosNoOpCatalogRegistry
 import com.riffle.shared.library.IosNoOpCbzRepository
 import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpCoverImageCopier
@@ -158,7 +161,7 @@ import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReadingSpeedStore
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
-import com.riffle.shared.library.IosNoOpWebSourceLibraryItemUpserter
+import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEpubDownloader
@@ -233,14 +236,16 @@ private fun iosLibraryModule(
     single { SourceTypePickerViewModel(sourceRepository = get(), developerOptions = get()) }
     single { SourceSetupViewModel() }
     single<SourceUiStrings> { ComposeResourceSourceUiStrings }
-    // core:sources' AbsSourceAdapter is already multiplatform (commonMain) and covers both
-    // Audiobookshelf and Storyteller. Komga's adapter is jvmMain-only, which is why
-    // `iosSupportedSourceTypes()` keeps the other credentialed cards disabled on iOS.
+    // core:sources' AbsSourceAdapter and KomgaSourceAdapter are both commonMain.
     single { StorytellerApiClient(get()) }
     single<StorytellerApi> { get<StorytellerApiClient>() }
     single { AbsSourceAdapter(get(), get(), get()) }
+    single { KomgaSourceAdapter(get()) }
     single<Map<SourceType, SourceAdapter>> {
-        mapOf(SourceType.ABS to get<AbsSourceAdapter>())
+        mapOf(
+            SourceType.ABS to get<AbsSourceAdapter>(),
+            SourceType.KOMGA to get<KomgaSourceAdapter>(),
+        )
     }
     // The WebDAV annotation-sync sidecar is Android-only (its target factory lives in
     // core/sources' jvmMain). No iOS surface navigates to the WebDAV form; this binding exists
@@ -425,7 +430,18 @@ private fun iosLibraryModule(
     single<LocalAvailabilityEvents> { IosNoOpLocalAvailabilityEvents() }
     single<CrossEpubIndexBuildTrigger> { IosNoOpCrossEpubIndexBuildTrigger }
     single<ReadingSpeedStore> { IosNoOpReadingSpeedStore() }
-    single<CatalogRegistry> { IosNoOpCatalogRegistry }
+    single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
+        mapOf(
+            SourceType.KOMGA to KomgaCatalogFactory(
+                httpClient = get(),
+                tokenStorage = get(),
+                userAgent = "Riffle/dev (iOS) komga-source",
+            ),
+        )
+    }
+    single<CatalogRegistry> {
+        DefaultCatalogRegistry(get(named("catalogFactoriesBySourceType")), get())
+    }
     single<ReadaloudSidecarPrefetcher> { IosNoOpReadaloudSidecarPrefetcher }
     single<RecordItemOpened> { RecordItemOpened(get(), get()) }
     single<MarkReadAcrossDimensions> { MarkReadAcrossDimensions(get(), get(), get(), get()) }
@@ -438,7 +454,7 @@ private fun iosLibraryModule(
     single<PdfPageCountExtractor> { IosNoOpPdfPageCountExtractor }
     single<LocalFileMetadataOverrideSaver> { IosNoOpLocalFileMetadataOverrideSaver }
     single<CoverImageCopier> { IosNoOpCoverImageCopier }
-    single<WebSourceLibraryItemUpserter> { IosNoOpWebSourceLibraryItemUpserter }
+    single<WebSourceLibraryItemUpserter> { IosWebSourceLibraryItemUpserterImpl(get()) }
 
     // ViewModel factories — keyed by libraryId (+ sectionType for section screen)
     factory { params ->

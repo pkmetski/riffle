@@ -15,12 +15,14 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import java.util.Base64
 
 class KomgaSourceAdapterTest {
 
@@ -58,8 +60,8 @@ class KomgaSourceAdapterTest {
             serverType = ServerType.AUDIOBOOKSHELF,
         )
 
-        assertTrue(result is AuthenticateResult.Success)
-        val pending = (result as AuthenticateResult.Success).pending
+        assertIs<AuthenticateResult.Success>(result)
+        val pending = result.pending
         assertEquals(SourceType.KOMGA, pending.sourceType)
         assertEquals("alice", pending.username)
         assertEquals("secret", pending.password)
@@ -67,7 +69,6 @@ class KomgaSourceAdapterTest {
         assertEquals(2, pending.libraries.size)
         assertEquals("L1", pending.libraries[0].id)
         assertEquals("Comics", pending.libraries[0].name)
-        // First request must go to v2/users/me with Basic auth.
         val meReq = engine.requestHistory[0]
         assertEquals("/api/v2/users/me", meReq.url.encodedPath)
         assertTrue(meReq.headers[HttpHeaders.Authorization]!!.startsWith("Basic "))
@@ -84,7 +85,7 @@ class KomgaSourceAdapterTest {
             serverType = ServerType.AUDIOBOOKSHELF,
         )
 
-        assertTrue(result is AuthenticateResult.WrongCredentials)
+        assertIs<AuthenticateResult.WrongCredentials>(result)
     }
 
     @Test fun `403 on users me maps to WrongCredentials`() = runTest {
@@ -98,7 +99,7 @@ class KomgaSourceAdapterTest {
             serverType = ServerType.AUDIOBOOKSHELF,
         )
 
-        assertTrue(result is AuthenticateResult.WrongCredentials)
+        assertIs<AuthenticateResult.WrongCredentials>(result)
     }
 
     @Test fun `http URL without insecureAllowed flags InsecureConnection HTTP`() = runTest {
@@ -112,15 +113,15 @@ class KomgaSourceAdapterTest {
             serverType = ServerType.AUDIOBOOKSHELF,
         )
 
-        assertTrue(result is AuthenticateResult.InsecureConnection)
-        assertEquals(InsecureConnectionType.HTTP, (result as AuthenticateResult.InsecureConnection).type)
+        assertIs<AuthenticateResult.InsecureConnection>(result)
+        assertEquals(InsecureConnectionType.HTTP, result.type)
     }
 
     @Test fun `v2 404 falls back to v1 users me then succeeds`() = runTest {
         val (engine, client) = mockClient(
-            """{}""" to HttpStatusCode.NotFound,             // v2 /api/v2/users/me
-            """{"id":"u2"}""" to HttpStatusCode.OK,         // v1 /api/v1/users/me
-            """[]""" to HttpStatusCode.OK,                   // /api/v1/libraries
+            """{}""" to HttpStatusCode.NotFound,
+            """{"id":"u2"}""" to HttpStatusCode.OK,
+            """[]""" to HttpStatusCode.OK,
         )
 
         val result = KomgaSourceAdapter(client).authenticate(
@@ -131,13 +132,14 @@ class KomgaSourceAdapterTest {
             serverType = ServerType.AUDIOBOOKSHELF,
         )
 
-        assertTrue(result is AuthenticateResult.Success)
-        assertEquals(0, (result as AuthenticateResult.Success).pending.libraries.size)
+        assertIs<AuthenticateResult.Success>(result)
+        assertEquals(0, result.pending.libraries.size)
         assertEquals("/api/v2/users/me", engine.requestHistory[0].url.encodedPath)
         assertEquals("/api/v1/users/me", engine.requestHistory[1].url.encodedPath)
         assertEquals("/api/v1/libraries", engine.requestHistory[2].url.encodedPath)
     }
 
+    @OptIn(ExperimentalEncodingApi::class)
     @Test fun `Basic auth header is encoded correctly`() = runTest {
         val (engine, client) = mockClient(
             """{"id":"u1"}""" to HttpStatusCode.OK,
@@ -148,7 +150,7 @@ class KomgaSourceAdapterTest {
 
         val authHeader = engine.requestHistory[0].headers[HttpHeaders.Authorization]!!
         assertTrue(authHeader.startsWith("Basic "))
-        val decoded = String(Base64.getDecoder().decode(authHeader.removePrefix("Basic ")))
+        val decoded = Base64.decode(authHeader.removePrefix("Basic ")).decodeToString()
         assertEquals("alice:s3cr3t", decoded)
     }
 
@@ -166,6 +168,6 @@ class KomgaSourceAdapterTest {
             serverType = ServerType.AUDIOBOOKSHELF,
         )
 
-        assertTrue(result is AuthenticateResult.Success)
+        assertIs<AuthenticateResult.Success>(result)
     }
 }

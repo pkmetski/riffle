@@ -113,13 +113,12 @@ private sealed interface OnboardingStep {
 
 /**
  * Source types iOS can currently install. Credentialed sources need a Kotlin/Native
- * [com.riffle.core.sources.SourceAdapter]; only Audiobookshelf has one
- * (`core:sources` commonMain `AbsSourceAdapter`) — Komga's adapter is JVM-only
- * (`core/sources/src/jvmMain`), so its card renders greyed-out on iOS instead of failing on
- * Connect. Extend the set as adapters gain iOS implementations.
+ * [com.riffle.core.sources.SourceAdapter]. Both [SourceType.ABS] and [SourceType.KOMGA] have
+ * commonMain adapters in `core:sources`. Extend the set as additional adapters gain iOS support.
  */
 internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
     add(SourceType.ABS)
+    add(SourceType.KOMGA)
     add(SourceType.LOCAL_FILES)
     // Zero-config singletons install straight from the picker via SingletonWebSourceInstaller,
     // which is commonMain, so they need no per-source adapter.
