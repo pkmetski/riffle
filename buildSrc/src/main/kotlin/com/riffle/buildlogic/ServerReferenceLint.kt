@@ -47,7 +47,7 @@ object ServerReferenceLint {
         // credentialed source setup. Moving source sets does not introduce new debt.
         "core/sources/src/commonMain/kotlin/com/riffle/core/sources/SourceAdapter.kt",
         "core/sources/src/commonMain/kotlin/com/riffle/core/sources/abs/AbsSourceAdapter.kt",
-        "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/komga/KomgaSourceAdapter.kt",
+        "core/sources/src/commonMain/kotlin/com/riffle/core/sources/komga/KomgaSourceAdapter.kt",
         // WebDAV's ServerError is an HTTP result, not the Source/Service taxonomy.
         "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/webdav/WebDavAnnotationSyncTarget.kt",
         // Android's adapter from the jvmMain-only WebDAV target onto the shared
