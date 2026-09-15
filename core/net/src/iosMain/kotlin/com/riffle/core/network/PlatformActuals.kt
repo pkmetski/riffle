@@ -4,7 +4,7 @@ import io.ktor.client.HttpClient
 
 internal actual fun isSSLHandshakeException(e: Throwable): Boolean = false
 
-internal actual fun isIOException(e: Throwable): Boolean = false
+internal actual fun isIOException(e: Throwable): Boolean = e is NetworkOfflineException
 
 internal actual fun newSSLHandshakeException(msg: String): Throwable = Exception(msg)
 

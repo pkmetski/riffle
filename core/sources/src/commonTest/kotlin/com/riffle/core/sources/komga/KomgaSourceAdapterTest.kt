@@ -63,14 +63,14 @@ class KomgaSourceAdapterTest {
         assertIs<AuthenticateResult.Success>(result)
         val pending = result.pending
         assertEquals(SourceType.KOMGA, pending.sourceType)
-        assertEquals("alice", pending.username)
-        assertEquals("secret", pending.password)
-        assertEquals("u1", pending.userId)
+        assertEquals(pending.username, "alice")
+        assertEquals(pending.password, "secret")
+        assertEquals(pending.userId, "u1")
         assertEquals(2, pending.libraries.size)
-        assertEquals("L1", pending.libraries[0].id)
-        assertEquals("Comics", pending.libraries[0].name)
+        assertEquals(pending.libraries[0].id, "L1")
+        assertEquals(pending.libraries[0].name, "Comics")
         val meReq = engine.requestHistory[0]
-        assertEquals("/api/v2/users/me", meReq.url.encodedPath)
+        assertEquals(meReq.url.encodedPath, "/api/v2/users/me")
         assertTrue(meReq.headers[HttpHeaders.Authorization]!!.startsWith("Basic "))
     }
 
@@ -134,9 +134,9 @@ class KomgaSourceAdapterTest {
 
         assertIs<AuthenticateResult.Success>(result)
         assertEquals(0, result.pending.libraries.size)
-        assertEquals("/api/v2/users/me", engine.requestHistory[0].url.encodedPath)
-        assertEquals("/api/v1/users/me", engine.requestHistory[1].url.encodedPath)
-        assertEquals("/api/v1/libraries", engine.requestHistory[2].url.encodedPath)
+        assertEquals(engine.requestHistory[0].url.encodedPath, "/api/v2/users/me")
+        assertEquals(engine.requestHistory[1].url.encodedPath, "/api/v1/users/me")
+        assertEquals(engine.requestHistory[2].url.encodedPath, "/api/v1/libraries")
     }
 
     @OptIn(ExperimentalEncodingApi::class)
@@ -151,7 +151,7 @@ class KomgaSourceAdapterTest {
         val authHeader = engine.requestHistory[0].headers[HttpHeaders.Authorization]!!
         assertTrue(authHeader.startsWith("Basic "))
         val decoded = Base64.decode(authHeader.removePrefix("Basic ")).decodeToString()
-        assertEquals("alice:s3cr3t", decoded)
+        assertEquals(decoded, "alice:s3cr3t")
     }
 
     @Test fun `http URL with insecureAllowed proceeds normally`() = runTest {

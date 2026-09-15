@@ -17,12 +17,17 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             api(libs.ktor.client.core)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+        }
         jvmTest.dependencies {
             implementation(libs.junit)
-            implementation(libs.kotlinx.coroutines.test)
             implementation(libs.okhttp.mockwebserver)
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.ktor.client.mock)
         }
     }
 }

@@ -187,6 +187,10 @@ jobs:
       - name: Run iOS commonTest (all iOS-targeted modules)
         run: |
           ./gradlew \
+            :core:models:iosSimulatorArm64Test \
+            :core:net:iosSimulatorArm64Test \
+            :core:sources:iosSimulatorArm64Test \
+            :core:catalog-oreilly:iosSimulatorArm64Test \
             :core:sync:iosSimulatorArm64Test \
             :core:domain:iosSimulatorArm64Test \
             :core:dictionary:iosSimulatorArm64Test \
@@ -210,6 +214,10 @@ jobs:
         with:
           name: ios-commontest-reports
           path: |
+            core/models/build/reports/tests/
+            core/net/build/reports/tests/
+            core/sources/build/reports/tests/
+            core/catalog-oreilly/build/reports/tests/
             core/sync/build/reports/tests/
             core/dictionary/build/reports/tests/
             core/catalog/build/reports/tests/

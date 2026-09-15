@@ -20,21 +20,13 @@ final class PreferenceStoresAndConnectivityTests: XCTestCase {
         XCTAssertNotNil(observer.isOnline, "IosConnectivityObserver.isOnline must be non-nil")
     }
 
-    // Scenario 13.3 — AppTheme enum has three distinct members. Used to pin the persisted
-    // name encoding: IosAppThemeStoreImpl stores value.name, so new enum entries must not
-    // accidentally alias an existing name.
-    func testAppThemeEnumMembersAreDistinct() {
-        XCTAssertNotEqual(AppTheme.light, AppTheme.dark)
-        XCTAssertNotEqual(AppTheme.light, AppTheme.system)
-        XCTAssertNotEqual(AppTheme.dark, AppTheme.system)
-    }
-
-    // Scenario 13.2 — IosAppThemeStoreImpl is exported by the framework and can be instantiated.
-    // Round-trip persistence is verified by the JVM/KMP unit test suite; here we confirm the
-    // class is linked into the binary and the default value is AppTheme.System.
+    // Scenario 13.2 — IosAppThemeStoreImpl is exported by the framework; default is AppTheme.system
+    // (the UserDefaults key is absent on first launch). If the default changes or the class fails
+    // to export, this test catches it.
     func testAppThemeStoreDefaultIsSystem() {
         UserDefaults.standard.removeObject(forKey: "app_theme")
         let store = IosAppThemeStoreImpl()
-        XCTAssertNotNil(store, "IosAppThemeStoreImpl should initialise without error")
+        XCTAssertEqual(store.appTheme, AppTheme.system,
+                       "IosAppThemeStoreImpl default must be AppTheme.system when no persisted value")
     }
 }

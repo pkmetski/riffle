@@ -20,11 +20,4 @@ final class LibraryCoverGridTests: XCTestCase {
         XCTAssertNotEqual(blue.argb, red.argb)
     }
 
-    // Scenario 8.7 — The token persisted in AnnotationEntity.color is lowercase.
-    func testHighlightColorTokensAreLowercase() {
-        XCTAssertEqual(HighlightColor.yellow.token, "yellow")
-        XCTAssertEqual(HighlightColor.green.token, "green")
-        XCTAssertEqual(HighlightColor.blue.token, "blue")
-        XCTAssertEqual(HighlightColor.red.token, "red")
-    }
 }

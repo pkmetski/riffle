@@ -13,8 +13,8 @@ kotlin {
             api(project(":core:common"))
             implementation(libs.kotlinx.serialization.json)
         }
-        jvmTest.dependencies {
-            implementation(libs.junit)
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }

@@ -32,8 +32,8 @@ class LanguageCatalogTest {
     fun `entryFor returns correct entry`() {
         val fr = LanguageCatalog.entryFor("fr")
         assertNotNull(fr)
-        assertEquals("fr", fr.languageTag)
-        assertEquals("French", fr.displayName)
+        assertEquals(fr.languageTag, "fr")
+        assertEquals(fr.displayName, "French")
     }
 
     @Test
