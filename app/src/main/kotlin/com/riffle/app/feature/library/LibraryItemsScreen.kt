@@ -298,12 +298,14 @@ fun LibraryItemsScreen(
     ) {
     Scaffold(
         topBar = {
-            LibrarySearchHeader(
-                libraryName = libraryName,
+            com.riffle.app.feature.source.common.SourceBrowseHeader(
+                sourceName = libraryName,
                 searchQuery = searchQuery,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onOpenDrawer = onOpenDrawer,
-                source = activeSource,
+                sourceIcon = activeSource?.let { src ->
+                    { SourceIcon(source = src, size = 24.dp, modifier = Modifier.padding(end = 8.dp)) }
+                },
             )
         },
         bottomBar = {
@@ -1179,142 +1181,6 @@ private fun ShowAllAnnotationsRow(count: Int, onClick: () -> Unit) {
 }
 
 // --- Header / banner composables ---
-
-@Composable
-internal fun LibrarySearchHeader(
-    libraryName: String,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    onOpenDrawer: () -> Unit,
-    source: Source? = null,
-) {
-    val keyboardController = LocalSoftwareKeyboardController.current
-    // Claim initial focus on an invisible focusable element so the BasicTextField below never
-    // receives auto-focus on entry (e.g. after login). clearFocus() alone races with Android's
-    // view-focus pass; assigning focus explicitly is reliable.
-    val initialFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        initialFocus.requestFocus()
-        keyboardController?.hide()
-    }
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    val view = LocalView.current
-    DisposableEffect(view) {
-        onDispose {
-            // Clear the exclusion rect when this composable leaves composition so
-            // other screens are not affected.
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                view.systemGestureExclusionRects = emptyList()
-            }
-        }
-    }
-    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-        Box(
-            modifier = Modifier
-                .size(1.dp)
-                .focusRequester(initialFocus)
-                .focusable(),
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(end = 16.dp),
-        ) {
-            IconButton(
-                onClick = onOpenDrawer,
-                modifier = Modifier.onGloballyPositioned { coords ->
-                    // The ☰ button sits within Android's left-edge back-gesture zone (~40dp).
-                    // A quick tap here can be misinterpreted as a swipe-back gesture by the
-                    // system gesture monitor, firing a spurious BACK event. Declaring a system
-                    // gesture exclusion rect over the button area prevents this capture so the
-                    // tap always reaches the app as a click, not a back gesture.
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        val bounds = coords.boundsInWindow()
-                        // Extend left to x=0 to cover the full gesture zone from the screen edge.
-                        view.systemGestureExclusionRects = listOf(
-                            android.graphics.Rect(0, bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
-                        )
-                    }
-                },
-            ) {
-                Icon(Icons.Default.Menu, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_open_menu))
-            }
-            if (source != null) {
-                SourceIcon(
-                    source = source,
-                    size = 24.dp,
-                    modifier = Modifier.padding(end = 8.dp),
-                )
-            }
-            Text(
-                text = libraryName.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            val underlineColor = MaterialTheme.colorScheme.primary
-            BasicTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                singleLine = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(bottom = 4.dp)
-                    .drawBehind {
-                        drawLine(
-                            color = underlineColor,
-                            start = Offset(0f, size.height),
-                            end = Offset(size.width, size.height),
-                            strokeWidth = 1.5.dp.toPx(),
-                        )
-                    },
-                decorationBox = { inner ->
-                    Box {
-                        if (searchQuery.isEmpty()) {
-                            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        inner()
-                    }
-                },
-            )
-            AnimatedVisibility(visible = searchQuery.isNotEmpty()) {
-                IconButton(
-                    onClick = { onSearchQueryChange("") },
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_clear_search),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        }
-        HorizontalDivider()
-    }
-}
 
 @Composable
 internal fun SectionHeader(title: String) {
