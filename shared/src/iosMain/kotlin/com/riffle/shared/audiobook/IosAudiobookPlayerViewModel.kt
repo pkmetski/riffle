@@ -3,6 +3,7 @@ package com.riffle.shared.audiobook
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -39,6 +40,7 @@ class IosAudiobookPlayerViewModel(
     private val absPlaybackApi: AbsPlaybackApi,
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
+    private val audiobookPositionStore: AudiobookPositionStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(IosAudiobookPlayerState())
@@ -169,8 +171,29 @@ class IosAudiobookPlayerViewModel(
     }
 
     override fun onCleared() {
-        bridge?.dispose()
+        val currentBridge = bridge
         bridge = null
+        val positionSec = _state.value.positionSec
+        val sid = sessionId
+        val activeSourceId = sourceId ?: baseUrl
+        viewModelScope.launch {
+            if (positionSec > 0 && activeSourceId.isNotEmpty()) {
+                audiobookPositionStore.save(activeSourceId, itemId, positionSec)
+            }
+            if (sid != null) {
+                runCatching {
+                    absPlaybackApi.closePlaybackSession(
+                        baseUrl = baseUrl,
+                        sessionId = sid,
+                        currentTimeSec = positionSec,
+                        timeListenedSec = positionSec,
+                        token = token,
+                        insecureAllowed = true,
+                    )
+                }
+            }
+            currentBridge?.dispose()
+        }
     }
 
     companion object {

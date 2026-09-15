@@ -5,7 +5,7 @@ import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryMutator
-import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.appearance.AppearanceCoordinator
@@ -22,9 +22,6 @@ import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.models.ProgressSyncCycleResult
-import com.riffle.core.models.SessionPayload
-import com.riffle.core.models.SyncSessionResult
 import com.riffle.core.network.KomgaCbzApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +52,7 @@ internal class IosCbzRepository(
     private val tokenStorage: TokenStorage,
     private val cbzApi: KomgaCbzApi,
     private val downloader: IosCbzDownloader,
+    private val positionStore: ReadingPositionStore,
 ) : CbzRepository {
 
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
@@ -63,6 +61,8 @@ internal class IosCbzRepository(
         val token = tokenStorage.getToken(source.id)
             ?: return CbzOpenResult.NetworkError(IllegalStateException("No credentials"))
 
+        val lastPosition = positionStore.load(item.sourceId, item.id)
+
         return if (item.ebookFileIno != null) {
             val bytes = downloader.downloadBytes(item)
                 ?: return CbzOpenResult.NetworkError(IllegalStateException("Download failed"))
@@ -70,7 +70,7 @@ internal class IosCbzRepository(
             CbzOpenResult.Success(
                 imageSource = comicPageSourceOf(archive),
                 pageCount = archive.pageCount,
-                lastPosition = null,
+                lastPosition = lastPosition,
                 bookmarks = emptyList(),
             )
         } else {
@@ -93,7 +93,7 @@ internal class IosCbzRepository(
                 ),
                 thumbnailSource = null,
                 pageCount = count,
-                lastPosition = null,
+                lastPosition = lastPosition,
             )
         }
     }
@@ -109,7 +109,9 @@ internal class IosCbzRepository(
 
     override fun isCached(sourceId: String, itemId: String): Boolean = false
 
-    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
+    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {
+        positionStore.save(sourceId, itemId, locatorJson)
+    }
 
     override suspend fun supportsStreaming(sourceId: String): Boolean = true
 
@@ -134,18 +136,6 @@ internal class IosCbzRepository(
     }
 
     override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
-}
-
-internal object IosNoOpReadingSessionRepository : ReadingSessionRepository {
-    override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult =
-        SyncSessionResult.Success
-
-    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult =
-        ProgressSyncCycleResult.InSync
-
-    override suspend fun markFinished(itemId: String, finished: Boolean) {}
-
-    override suspend fun touchOpenTimestamp(itemId: String) {}
 }
 
 /**

@@ -32,6 +32,7 @@ kotlin {
             implementation(project(":core:domain"))
             implementation(project(":core:models"))
             implementation(project(":core:database-api"))
+            implementation(project(":core:catalog"))
             // SingletonWebSourceInstaller (commonMain since the Add-Source picker went shared)
             // logs through the typed Logger channels.
             implementation(project(":core:logging"))
@@ -42,7 +43,6 @@ kotlin {
             implementation(project(":core:sources"))
             implementation(project(":core:network"))
             implementation(project(":core:database"))
-            implementation(project(":core:catalog"))
             implementation(project(":core:catalog-chitanka"))
             implementation(project(":core:catalog-gutenberg"))
             implementation(project(":core:catalog-radio-es"))
@@ -65,7 +65,6 @@ kotlin {
             implementation(project(":core:database"))
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
-            implementation(project(":core:catalog"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)

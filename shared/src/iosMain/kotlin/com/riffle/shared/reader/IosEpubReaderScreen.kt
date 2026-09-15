@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,15 +22,18 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.SessionPayload
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import platform.Foundation.NSUserDefaults
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via
  * [IosLazyChapterFetcherImpl] without downloading the full EPUB. For all other sources,
- * downloads the EPUB and uses the file-based open path. Persists the reading position across
- * sessions via [NSUserDefaults].
+ * downloads the EPUB and uses the file-based open path. Persists the reading position via
+ * [ReadingPositionStore] and syncs progress to the server via [ReadingSessionRepository].
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
@@ -38,6 +42,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val downloader = koinInject<IosEpubDownloader>()
     val annotationStore = koinInject<AnnotationStore>()
     val catalogRegistry = koinInject<CatalogRegistry>()
+    val positionStore = koinInject<ReadingPositionStore>()
+    val sessionRepository = koinInject<ReadingSessionRepository>()
+    val scope = rememberCoroutineScope()
 
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -58,7 +65,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var lazyShape by remember { mutableStateOf<LazyPublicationShape?>(null) }
 
     LaunchedEffect(item.id) {
-        val savedLocator = NSUserDefaults.standardUserDefaults.stringForKey(locatorKey(item))
+        val savedLocator = positionStore.load(item.sourceId, item.id)
 
         val cap = catalogRegistry.forSourceId(item.sourceId) as? LazyPublicationCapability
         if (cap != null) {
@@ -102,8 +109,16 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     DisposableEffect(item.id) {
         onDispose {
             coordinator.stop()
-            navigator.snapshotPosition()?.locatorJson?.let { json ->
-                NSUserDefaults.standardUserDefaults.setObject(json, forKey = locatorKey(item))
+            val position = navigator.snapshotPosition()
+            if (position != null) {
+                scope.launch {
+                    positionStore.save(item.sourceId, item.id, position.locatorJson)
+                    val payload = SessionPayload(
+                        ebookLocation = position.locatorJson,
+                        ebookProgress = position.totalProgression ?: position.progression,
+                    )
+                    sessionRepository.runSyncCycle(item.id, payload)
+                }
             }
             navigator.close()
             lazyFetcher?.dispose()
@@ -150,5 +165,3 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 }
-
-private fun locatorKey(item: LibraryItem) = "epub_locator_${item.sourceId}_${item.id}"
