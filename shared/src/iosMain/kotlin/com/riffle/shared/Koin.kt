@@ -1,8 +1,8 @@
 package com.riffle.shared
 
 import androidx.lifecycle.SavedStateHandle
-import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogFactory
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.common.Clock
