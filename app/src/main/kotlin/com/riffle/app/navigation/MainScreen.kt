@@ -163,6 +163,7 @@ fun MainScreen(
     val visibleLibraries by viewModel.visibleLibraries.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val showDownloadsLink by viewModel.showDownloadsLink.collectAsState()
+    val isRiffleMode by viewModel.isRiffleMode.collectAsState()
 
     val currentBackStack by navController.currentBackStackEntryAsState()
     val activeLibraryId = currentBackStack
@@ -275,7 +276,7 @@ fun MainScreen(
             scope.launch { drawerState.close() }
             if (navController.currentDestination?.route != RIFFLE) navController.navigateAsRoot(RIFFLE)
         },
-        isRiffleActive = currentRoute == RIFFLE,
+        isRiffleActive = isRiffleMode,
     ) {
         NavHost(
             navController = navController,

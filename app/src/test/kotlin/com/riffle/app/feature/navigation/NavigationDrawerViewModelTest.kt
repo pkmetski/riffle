@@ -560,6 +560,42 @@ class NavigationDrawerViewModelTest {
         assertEquals(false, wasRiffle)
     }
 
+    // Regression: when Riffle mode is active and the user navigates to book details, the
+    // current route changes away from "riffle" — but the drawer must still show the Riffle
+    // header, not "No source". isRiffleMode is derived from wasRiffleLastActive() so it stays
+    // true for the entire Riffle session regardless of which route is currently on screen.
+    @Test
+    fun `isRiffleMode is true after setRiffleActive and stays true regardless of route`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        val vm = makeVm()
+        backgroundScope.launch { vm.isRiffleMode.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(false, vm.isRiffleMode.value)
+
+        vm.setRiffleActive()
+        testScheduler.advanceUntilIdle()
+
+        // isRiffleMode is true — and stays true even without a route change in the ViewModel
+        assertEquals(true, vm.isRiffleMode.value)
+    }
+
+    @Test
+    fun `isRiffleMode becomes false when a source is selected`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = false))
+        riffleActiveFlow.value = true
+        val vm = makeVm()
+        backgroundScope.launch { vm.isRiffleMode.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(true, vm.isRiffleMode.value)
+
+        vm.setActiveServer("srv-1")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(false, vm.isRiffleMode.value)
+    }
+
     private fun registryAllReturning(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =
         object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog = catalog
