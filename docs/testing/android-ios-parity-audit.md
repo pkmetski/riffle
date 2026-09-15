@@ -432,6 +432,25 @@ Android class (e.g. `ContinuousReaderView`) that must be extracted first.
   `ContinuousPlayFromHere` (5), `ContinuousResumeTouchWiring` (2),
   `CadenceController`/`Cadence*` — done above; `CadenceInjector`/`CadenceDomScript` done above.
 
+### 2026-09-15 — Picker XCUITests 17.1–17.4 + 17.6 (issue #978)
+
+- **4 missing test files wired into Xcode project:** `AddKomgaSourceFlowTests.swift`,
+  `RiffleTests.swift`, `PreferenceStoresAndConnectivityTests.swift`, and the new
+  `SourcePickerTests.swift` had never been registered in `project.pbxproj` and were therefore
+  silently excluded from every `xcodebuild test` run. All four are now in the correct targets:
+  `AddKomgaSourceFlowTests` and `SourcePickerTests` → `iosAppTests` (UI test target);
+  `RiffleTests` and `PreferenceStoresAndConnectivityTests` → `iosAppUnitTests` (unit test target).
+- **`SourcePickerTests.swift` added** (4 server-free tests, all runnable in CI):
+  - `testAllSourceCardsVisibleOnPristineInstall` (17.1) — all 6 source cards (ABS, Local files,
+    Chitanka, Project Gutenberg, Komga, radio.es) are present on a pristine install.
+  - `testAbsCredentialFormReachable` (17.2) — tapping the ABS card opens the credential form;
+    Connect is disabled when URL is empty (no server needed).
+  - `testGutenbergInstallDoesNotCrash` (17.3) — tapping Project Gutenberg installs the
+    zero-config source and lands on the library home; cleanup removes it via Settings.
+  - `testRadioEsInstallDoesNotCrash` (17.6) — same pattern for radio.es.
+  - Chitanka install (17.4) already covered by `testChitankaInstallDoesNotCrash` in
+    `AddAbsSourceFlowTests.swift`; ABS e2e (17.5) already covered there too.
+
 ### 2026-09-07 — Source-onboarding consolidation + the e2e test that made iOS function
 
 - **Shared UI proven:** new `:feature:source-ui` (androidTarget+ios, Compose Multiplatform
