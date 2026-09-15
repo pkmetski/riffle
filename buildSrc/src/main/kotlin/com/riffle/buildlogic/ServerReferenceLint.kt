@@ -71,7 +71,7 @@ object ServerReferenceLint {
         "core/data/src/androidMain/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",
         "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadaloudReviewRepositoryImpl.kt",
         "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadaloudMatchingService.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
         "core/data/src/androidMain/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
         "core/data/src/androidMain/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",
         // Existing ABS bookmark synchronization sites branch on the grandfathered
