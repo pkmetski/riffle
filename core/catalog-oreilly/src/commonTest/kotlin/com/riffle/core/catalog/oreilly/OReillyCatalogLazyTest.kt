@@ -6,7 +6,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -69,7 +69,7 @@ class OReillyCatalogLazyTest {
     }
 
     @Test
-    fun `lazyPublication returns spine in reading order with declared sizes`() = runBlocking {
+    fun `lazyPublication returns spine in reading order with declared sizes`() = runTest {
         val pub = catalog.lazyPublication(itemId)
 
         assertNotNull(pub)
@@ -87,14 +87,14 @@ class OReillyCatalogLazyTest {
     }
 
     @Test
-    fun `lazyPublication includes stylesheet paths in cssFullPaths`() = runBlocking {
+    fun `lazyPublication includes stylesheet paths in cssFullPaths`() = runTest {
         val pub = catalog.lazyPublication(itemId)
         assertNotNull(pub)
         assertEquals(listOf("styles/main.css"), pub!!.cssFullPaths)
     }
 
     @Test
-    fun `lazyPublication sets absoluteFilesPrefix and pathFilesPrefix correctly`() = runBlocking {
+    fun `lazyPublication sets absoluteFilesPrefix and pathFilesPrefix correctly`() = runTest {
         val pub = catalog.lazyPublication(itemId)
         assertNotNull(pub)
         assertEquals(pub!!.absoluteFilesPrefix, "$BASE_URL/api/v2/epubs/$urn/files/")
@@ -102,7 +102,7 @@ class OReillyCatalogLazyTest {
     }
 
     @Test
-    fun `fetchChapterForLazy does not call the files-listing endpoint`() = runBlocking {
+    fun `fetchChapterForLazy does not call the files-listing endpoint`() = runTest {
         // Use an engine where the files-listing endpoint returns 500. If fetchChapterForLazy
         // still called fetchAllFiles (the old bug), the whole call would fail and return null.
         val localEngine = MockEngine { request ->
@@ -130,7 +130,7 @@ class OReillyCatalogLazyTest {
     }
 
     @Test
-    fun `lazyPublication follows spine pagination and returns all chapters`() = runBlocking {
+    fun `lazyPublication follows spine pagination and returns all chapters`() = runTest {
         // Regression: spineUrl hardcoded limit=100 and callers never followed the next cursor.
         // Serve 2 pages of 2 chapters each; lazyPublication must return 4 spine items.
         val page2Path = "/api/v2/epubs/$urn/spine/?limit=100&offset=2"

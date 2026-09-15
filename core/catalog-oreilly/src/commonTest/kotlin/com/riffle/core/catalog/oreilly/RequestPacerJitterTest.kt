@@ -1,6 +1,6 @@
 package com.riffle.core.catalog.oreilly
 
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
@@ -32,7 +32,7 @@ class RequestPacerJitterTest {
     }
 
     @Test
-    fun `pacer with jitter executes block and returns result`() = runBlocking {
+    fun `pacer with jitter executes block and returns result`() = runTest {
         var fakeTime = 1000L
         val pacer = OReillyCatalog.RequestPacer(
             maxConcurrency = 1,

@@ -6,7 +6,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -72,7 +72,7 @@ class OReillyAudiobookTest {
     }
 
     @Test
-    fun `getTracks builds ordered Kaltura HLS tracks with cumulative offsets`() = runBlocking {
+    fun `getTracks builds ordered Kaltura HLS tracks with cumulative offsets`() = runTest {
         val tracks = catalog.getTracks(itemId)
 
         assertEquals(2, tracks.size)
@@ -92,7 +92,7 @@ class OReillyAudiobookTest {
     }
 
     @Test
-    fun `openAudiobook returns tracks chapters with real titles and total duration`() = runBlocking {
+    fun `openAudiobook returns tracks chapters with real titles and total duration`() = runTest {
         val stream = catalog.openAudiobook(itemId, deviceLabel = "test")!!
 
         assertEquals(2, stream.trackUrls.size)
@@ -104,14 +104,14 @@ class OReillyAudiobookTest {
     }
 
     @Test
-    fun `an unresolved chapter fails the whole session so tracks never diverge from the toc`() = runBlocking {
+    fun `an unresolved chapter fails the whole session so tracks never diverge from the toc`() = runTest {
         breakSecondClip = true
         assertTrue(catalog.getTracks(itemId).isEmpty())
         assertNull(catalog.openAudiobook(itemId, deviceLabel = "test"))
     }
 
     @Test
-    fun `openAudiobook populates downloadTrackUrls with format-url MP4 paths`() = runBlocking {
+    fun `openAudiobook populates downloadTrackUrls with format-url MP4 paths`() = runTest {
         val stream = catalog.openAudiobook(itemId, deviceLabel = "test")!!
 
         val dlUrls = stream.downloadTrackUrls
@@ -128,7 +128,7 @@ class OReillyAudiobookTest {
     }
 
     @Test
-    fun `getAudiobookChapters comes from the toc without a Kaltura session`() = runBlocking {
+    fun `getAudiobookChapters comes from the toc without a Kaltura session`() = runTest {
         val chapters = catalog.getAudiobookChapters(itemId)
         assertEquals(listOf("Introduction", "Chapter 2"), chapters.map { it.title })
         assertEquals(400.0, chapters[1].startSec, 0.001)

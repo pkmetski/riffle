@@ -5,7 +5,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
 import kotlin.test.Test
 
@@ -19,30 +19,30 @@ class OReillyApiHeaderTest {
     }
 
     @Test
-    fun `custom UA overrides the hardcoded default`() {
+    fun `custom UA overrides the hardcoded default`() = runTest {
         val customUa = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/128.0 Mobile Safari/537.36"
         var capturedUa: String? = null
         val client = makeClient { capturedUa = it.headers["User-Agent"] }
         val api = OReillyApi(client = client, cookieHeader = "orm-jwt=x", userAgent = customUa)
-        runBlocking { api.getJson(api.browseUrl("books", 1, 5)) }
+        api.getJson(api.browseUrl("books", 1, 5))
         assertEquals(customUa, capturedUa)
     }
 
     @Test
-    fun `default UA is used when no custom UA provided`() {
+    fun `default UA is used when no custom UA provided`() = runTest {
         var capturedUa: String? = null
         val client = makeClient { capturedUa = it.headers["User-Agent"] }
         val api = OReillyApi(client = client, cookieHeader = "orm-jwt=x")
-        runBlocking { api.getJson(api.browseUrl("books", 1, 5)) }
+        api.getJson(api.browseUrl("books", 1, 5))
         assertEquals(OReillyApi.DEFAULT_USER_AGENT, capturedUa)
     }
 
     @Test
-    fun `JSON requests carry Origin Accept-Language and sec-fetch headers`() {
+    fun `JSON requests carry Origin Accept-Language and sec-fetch headers`() = runTest {
         val captured = mutableMapOf<String, String>()
         val client = makeClient { req -> req.headers.forEach { key, vals -> captured[key] = vals.first() } }
         val api = OReillyApi(client = client, cookieHeader = "orm-jwt=x")
-        runBlocking { api.getJson(api.browseUrl("books", 1, 5)) }
+        api.getJson(api.browseUrl("books", 1, 5))
         assertEquals(captured["Origin"], "https://learning.oreilly.com")
         assertEquals(captured["Accept-Language"], "en-US,en;q=0.9")
         assertEquals(captured["sec-fetch-dest"], "empty")
@@ -51,22 +51,22 @@ class OReillyApiHeaderTest {
     }
 
     @Test
-    fun `content requests carry navigate sec-fetch headers`() {
+    fun `content requests carry navigate sec-fetch headers`() = runTest {
         val captured = mutableMapOf<String, String>()
         val client = makeClient { req -> req.headers.forEach { key, vals -> captured[key] = vals.first() } }
         val api = OReillyApi(client = client, cookieHeader = "orm-jwt=x")
-        runBlocking { api.getContent(api.fileContentUrl("123456789", "xhtml/ch01.html")) }
+        api.getContent(api.fileContentUrl("123456789", "xhtml/ch01.html"))
         assertEquals(captured["sec-fetch-dest"], "document")
         assertEquals(captured["sec-fetch-mode"], "navigate")
         assertEquals(captured["sec-fetch-site"], "same-origin")
     }
 
     @Test
-    fun `binary asset requests carry no-cors sec-fetch headers`() {
+    fun `binary asset requests carry no-cors sec-fetch headers`() = runTest {
         val captured = mutableMapOf<String, String>()
         val client = makeClient { req -> req.headers.forEach { key, vals -> captured[key] = vals.first() } }
         val api = OReillyApi(client = client, cookieHeader = "orm-jwt=x")
-        runBlocking { api.getBytes(api.fileContentUrl("123456789", "images/cover.jpg")) }
+        api.getBytes(api.fileContentUrl("123456789", "images/cover.jpg"))
         assertEquals(captured["sec-fetch-dest"], "image")
         assertEquals(captured["sec-fetch-mode"], "no-cors")
         assertEquals(captured["sec-fetch-site"], "same-origin")
