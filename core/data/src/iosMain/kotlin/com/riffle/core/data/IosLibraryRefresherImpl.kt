@@ -118,7 +118,9 @@ class IosLibraryRefresherImpl(
             return refreshAbsLibraryItems(source, libraryId)
         }
         // For Komga (and any future catalogued source): browse via the CatalogRegistry.
-        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        // If no factory is registered (e.g. LOCAL_FILES has no catalog), no-op — rows
+        // for those sources are inserted by other paths (scanner, etc.).
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.Success
         val items = try {
             catalog.browse(libraryId, pageSize = Int.MAX_VALUE)
         } catch (t: Throwable) {
@@ -212,7 +214,7 @@ class IosLibraryRefresherImpl(
         }
         // For Komga (and any future source with SeriesCapability): delegate to the catalog.
         if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
-        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.Success
         val seriesCap = catalog as? SeriesCapability ?: return LibraryRefreshResult.Success
         val series = try {
             seriesCap.listSeries(libraryId)
@@ -294,7 +296,7 @@ class IosLibraryRefresherImpl(
         }
         // For Komga (and any future source with CollectionsCapability): delegate to the catalog.
         if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
-        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.Success
         val collectionsCap = catalog as? CollectionsCapability ?: return LibraryRefreshResult.Success
         val collections = try {
             collectionsCap.listCollections(libraryId)
