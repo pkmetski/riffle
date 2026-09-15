@@ -130,6 +130,7 @@ class ServerSettingsExpansionTest {
                 onOpenReadaloudMatches = {},
             )
         }
+        composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithContentDescription("Move Fiction up").assertIsNotEnabled()
         composeTestRule.onNodeWithContentDescription("Move Non-fiction down").assertIsNotEnabled()
