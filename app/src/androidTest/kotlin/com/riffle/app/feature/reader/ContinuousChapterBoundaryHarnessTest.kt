@@ -516,7 +516,27 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         // Two back-to-back flushes cover the two-level chain: port.post { … postOnAnimation { } }.
         composeTestRule.activityRule.scenario.onActivity { }
         composeTestRule.activityRule.scenario.onActivity { }
+        // On loaded CI runners the emulator scroll container occasionally doesn't respond to the
+        // first fling (scrollY remains unchanged). Retry up to two extra times: each attempt
+        // re-reads scrollY before dispatching so it doesn't retry after a successful but slow move.
+        val scrollYBeforeFling = run {
+            var y = -1
+            composeTestRule.activityRule.scenario.onActivity { y = reader.scrollY }
+            y
+        }
         dispatchFlingSwipeBackward(reader)
+        var flingAttempts = 1
+        while (flingAttempts < 3) {
+            Thread.sleep(500)
+            var yAfter = -1
+            composeTestRule.activityRule.scenario.onActivity { yAfter = reader.scrollY }
+            if (yAfter != scrollYBeforeFling) break
+            // scrollY unchanged — the fling had no effect; drain callbacks and retry
+            composeTestRule.activityRule.scenario.onActivity { }
+            composeTestRule.activityRule.scenario.onActivity { }
+            dispatchFlingSwipeBackward(reader)
+            flingAttempts++
+        }
         // The prepended previous chapter must load AND measure past its screen-sized placeholder
         // before the landing position is meaningful. Polled manually so a timeout can report the
         // full window state instead of an opaque ComposeTimeoutException.
