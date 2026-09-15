@@ -24,6 +24,9 @@ import ReadiumNavigator
     // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
     private var lastLoadedHref: String?
 
+    // Pending preferences — stored before the navigator exists so openEpub can use them.
+    private var pendingPreferences: EPUBPreferences = EPUBPreferences()
+
     // Test observation properties
     fileprivate var _lastAppliedDecorationsJson: String?
     fileprivate var _lastAppliedGroup: String?
@@ -54,8 +57,12 @@ import ReadiumNavigator
                     initialLocator = try? Locator(json: jsonValue, warnings: nil)
                 }
 
+                let config = EPUBNavigatorViewController.Configuration(
+                    preferences: self.pendingPreferences
+                )
                 let navigator = try EPUBNavigatorViewController(
                     publication: pub,
+                    config: config,
                     initialLocation: initialLocator
                 )
                 navigator.delegate = self
@@ -112,8 +119,12 @@ import ReadiumNavigator
                     initialLocator = try? Locator(json: jsonValue, warnings: nil)
                 }
 
+                let config = EPUBNavigatorViewController.Configuration(
+                    preferences: self.pendingPreferences
+                )
                 let navigator = try EPUBNavigatorViewController(
                     publication: pub,
+                    config: config,
                     initialLocation: initialLocator
                 )
                 navigator.delegate = self
@@ -148,6 +159,45 @@ import ReadiumNavigator
             guard let nav = epubNavigator else { return }
             let decorations = parseDecorations(decorationsJson)
             nav.apply(decorations: decorations, in: group)
+        }
+    }
+
+    func applyReaderPreferences(
+        fontSizePercent: Float,
+        scrollMode: Bool,
+        theme: String,
+        fontFamilyCss: String,
+        lineHeightMultiplier: Float,
+        pageMargins: Double,
+        justifyText: Bool
+    ) {
+        let resolvedTheme: Theme? = switch theme {
+        case "dark": .dark
+        case "sepia": .sepia
+        default: .light
+        }
+
+        var fontFamily: FontFamily? = nil
+        if !fontFamilyCss.isEmpty {
+            fontFamily = FontFamily(rawValue: fontFamilyCss)
+        }
+
+        let textAlign: TextAlignment? = justifyText ? .justify : nil
+        let lineHeight: Double? = lineHeightMultiplier > 0 ? Double(lineHeightMultiplier) : nil
+
+        let prefs = EPUBPreferences(
+            fontFamily: fontFamily,
+            fontOverride: fontFamily != nil,
+            fontSize: Double(fontSizePercent),
+            lineHeight: lineHeight,
+            pageMargins: pageMargins > 0 ? pageMargins : nil,
+            scroll: scrollMode,
+            textAlign: textAlign,
+            theme: resolvedTheme
+        )
+        pendingPreferences = prefs
+        Task { @MainActor in
+            epubNavigator?.apply(preferences: prefs)
         }
     }
 

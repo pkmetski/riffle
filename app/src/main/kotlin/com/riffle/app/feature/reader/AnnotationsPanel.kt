@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.fadingScrollbar
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
+import com.riffle.feature.reader.splitSnippetForFigures as splitSnippetForFiguresShared
+import com.riffle.feature.reader.splitSnippetForFiguresAt as splitSnippetForFiguresAtShared
 import com.riffle.core.models.HighlightColor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -330,38 +332,11 @@ private fun collectInlineFigures(annotation: Annotation): List<InlineFigure> {
  * `findEnclosedFiguresInHtml`'s counter). So an offset captured from that walk lands at the same
  * position in the snippet — no reshaping required.
  */
-internal fun splitSnippetForFiguresAt(snippet: String, offsets: List<Long?>): List<String> {
-    if (offsets.isEmpty()) return listOf(snippet)
-    if (offsets.all { it == null }) return splitSnippetForFigures(snippet, offsets.size)
-    val chunks = mutableListOf<String>()
-    var cursor = 0
-    val maxLen = snippet.length
-    var lastOffset = 0
-    for (offset in offsets) {
-        val clamped = when (offset) {
-            null -> maxLen
-            else -> offset.toInt().coerceIn(lastOffset, maxLen)
-        }
-        chunks += snippet.substring(cursor, clamped)
-        cursor = clamped
-        lastOffset = clamped
-    }
-    chunks += snippet.substring(cursor, maxLen)
-    return chunks
-}
+internal fun splitSnippetForFiguresAt(snippet: String, offsets: List<Long?>): List<String> =
+    splitSnippetForFiguresAtShared(snippet, offsets)
 
-internal fun splitSnippetForFigures(snippet: String, figureCount: Int): List<String> {
-    if (figureCount <= 0) return listOf(snippet)
-    val parts = snippet.split('\n').filter { it.isNotBlank() }
-    return when {
-        parts.size >= figureCount + 1 -> {
-            // More paragraphs than needed splits — merge the trailing extras into the last chunk.
-            parts.take(figureCount) + listOf(parts.drop(figureCount).joinToString("\n"))
-        }
-        parts.isEmpty() -> listOf(snippet) + List(figureCount) { "" }
-        else -> parts + List(figureCount + 1 - parts.size) { "" }
-    }
-}
+internal fun splitSnippetForFigures(snippet: String, figureCount: Int): List<String> =
+    splitSnippetForFiguresShared(snippet, figureCount)
 
 @Composable
 private fun InlineFigureImage(figure: InlineFigure, borderColor: Color) {

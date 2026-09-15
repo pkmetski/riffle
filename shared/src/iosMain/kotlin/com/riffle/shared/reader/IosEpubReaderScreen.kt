@@ -21,6 +21,10 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
@@ -45,6 +49,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val catalogRegistry = koinInject<CatalogRegistry>()
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
+    val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -91,6 +96,36 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         localPath = path
         navigator.open(path, savedLocator)
         coordinator.start()
+    }
+
+    // Apply formatting preferences (font, theme, scroll mode) to the Readium navigator.
+    // Called before open so the initial render respects user settings, and whenever prefs change.
+    LaunchedEffect(item.id) {
+        formattingPreferencesStore.preferences.collect { prefs ->
+            val theme = when (prefs.theme) {
+                ReaderTheme.Dark, ReaderTheme.Dim -> "dark"
+                ReaderTheme.Sepia -> "sepia"
+                else -> "light"
+            }
+            val fontFamilyCss = when (prefs.fontFamily) {
+                ReaderFontFamily.Original -> ""
+                ReaderFontFamily.Serif -> "serif"
+                ReaderFontFamily.SansSerif -> "sans-serif"
+                ReaderFontFamily.Monospace -> "monospace"
+                ReaderFontFamily.Literata -> "Literata"
+                ReaderFontFamily.Merriweather -> "Merriweather"
+                ReaderFontFamily.OpenDyslexic -> "OpenDyslexic"
+            }
+            navigator.applyReaderPreferences(
+                fontSizePercent = prefs.fontSize,
+                scrollMode = prefs.orientation == ReaderOrientation.Vertical,
+                theme = theme,
+                fontFamilyCss = fontFamilyCss,
+                lineHeightMultiplier = prefs.lineSpacing,
+                pageMargins = prefs.margins.toDouble(),
+                justifyText = prefs.justifyText,
+            )
+        }
     }
 
     // Prefetch the next chapter whenever position changes in a lazy publication.

@@ -151,6 +151,26 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
 
     override suspend fun scrollBoundary(): NavigatorScrollBoundary = NavigatorScrollBoundary.None
 
+    fun applyReaderPreferences(
+        fontSizePercent: Float,
+        scrollMode: Boolean,
+        theme: String,
+        fontFamilyCss: String,
+        lineHeightMultiplier: Float,
+        pageMargins: Double,
+        justifyText: Boolean,
+    ) {
+        bridge.applyReaderPreferences(
+            fontSizePercent = fontSizePercent,
+            scrollMode = scrollMode,
+            theme = theme,
+            fontFamilyCss = fontFamilyCss,
+            lineHeightMultiplier = lineHeightMultiplier,
+            pageMargins = pageMargins,
+            justifyText = justifyText,
+        )
+    }
+
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     private fun parseLocatorJson(json: String): NavigatorPosition? {
         val bytes = json.encodeToByteArray()
