@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
@@ -40,16 +41,20 @@ class RiffleViewModel constructor(
     private val offlineAvailability: LibraryItemOfflineAvailability,
 ) : ViewModel() {
 
-    private val _refreshFailed = MutableStateFlow(false)
+    // Tracks which sourceIds currently have a failing To Read refresh. A Set (rather than a single
+    // Boolean) is necessary because multiple sources refresh concurrently: when one source's library
+    // list re-emits and its refreshes succeed, we only clear that source's entry — not the entries
+    // of other sources that may still be failing.
+    private val _failedSourceIds = MutableStateFlow<Set<String>>(emptySet())
 
     // The banner appears when the device has no network or when any source's To Read refresh
     // failed — matching the LibraryItemsViewModel parity. Eagerly started so writes from the
     // init refresh loop propagate immediately without waiting for a UI subscriber.
     val isOffline: StateFlow<Boolean> = combine(
         connectivityObserver.isOnline,
-        _refreshFailed,
-    ) { online, refreshFailed ->
-        !online || refreshFailed
+        _failedSourceIds,
+    ) { online, failedIds ->
+        !online || failedIds.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val inProgress: StateFlow<List<LibraryItem>> =
@@ -110,7 +115,7 @@ class RiffleViewModel constructor(
         // arrives, preventing coroutine accumulation across source-list changes.
         viewModelScope.launch {
             sourceRepository.observeAll().collectLatest { sources ->
-                _refreshFailed.value = false
+                _failedSourceIds.value = emptySet()
                 authTokenMap = coroutineScope {
                     sources.associate { source ->
                         val token = async { tokenStorage.getToken(source.id) ?: "" }
@@ -125,11 +130,16 @@ class RiffleViewModel constructor(
                     sources.forEach { source ->
                         launch {
                             libraryObserver.observeLibraries(source.id).collectLatest { libraries ->
+                                // Clear this source's failure entry before re-refreshing, so a
+                                // successful re-emit clears the banner even if a prior pass failed.
+                                _failedSourceIds.update { it - source.id }
                                 coroutineScope {
                                     libraries.forEach { library ->
                                         launch {
-                                            val success = toReadRepository.refreshForSource(source.id, library.id)
-                                            if (!success) _refreshFailed.value = true
+                                            val success = runCatching {
+                                                toReadRepository.refreshForSource(source.id, library.id)
+                                            }.getOrDefault(false)
+                                            if (!success) _failedSourceIds.update { it + source.id }
                                         }
                                     }
                                 }

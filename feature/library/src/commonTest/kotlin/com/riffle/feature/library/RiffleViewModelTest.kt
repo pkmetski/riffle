@@ -246,6 +246,37 @@ class RiffleViewModelTest {
         assertFalse(vm.isOffline.first(), "isOffline must remain false when connected and refresh succeeds")
     }
 
+    @Test
+    fun isOfflineClearsWhenLibraryReEmitsAndRefreshSucceeds() = runTest(dispatcher) {
+        // Regression: with a single _refreshFailed Boolean, a failed refresh sets the flag but a
+        // subsequent successful library re-emit never cleared it — the offline banner stuck
+        // permanently. The fix uses a per-source Set so clearing one source's entry doesn't affect
+        // others, and the inner collectLatest resets the source's entry before each re-refresh.
+        val absSource = source("abs-1", type = SourceType.ABS)
+        val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
+        val librariesFlow = MutableStateFlow(listOf(library))
+        val observer = fakeObserver(librariesFlowBySourceId = mapOf("abs-1" to librariesFlow))
+        val toReadRepo = ToggleableToReadRepository(initialSuccess = false)
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
+            connectivity = FakeConnectivityObserver(online = true),
+            toReadRepository = toReadRepo,
+        )
+        advanceUntilIdle()
+        assertTrue(vm.isOffline.first(), "isOffline must be true after initial failing refresh")
+
+        // Server comes back: flip the repo to succeed and re-emit a structurally different library
+        // list (MutableStateFlow deduplicates equal values, so a new Library object is needed to
+        // trigger the inner collectLatest and clear the failure entry).
+        toReadRepo.succeeds = true
+        val libraryReloaded = Library(id = "lib-1", name = "My Library (reloaded)", mediaType = "book", isUnsupported = false)
+        librariesFlow.value = listOf(libraryReloaded)
+        advanceUntilIdle()
+
+        assertFalse(vm.isOffline.first(), "isOffline must clear when library re-emits and refresh now succeeds")
+    }
+
     // endregion
 
     // region Sources
@@ -287,10 +318,11 @@ class RiffleViewModelTest {
         inProgressAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
         continueSeriesAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
         librariesBySourceId: Map<String, List<Library>> = emptyMap(),
+        librariesFlowBySourceId: Map<String, Flow<List<Library>>> = emptyMap(),
     ): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = flowOf(emptyList())
         override fun observeLibraries(sourceId: String): Flow<List<Library>> =
-            flowOf(librariesBySourceId[sourceId] ?: emptyList())
+            librariesFlowBySourceId[sourceId] ?: flowOf(librariesBySourceId[sourceId] ?: emptyList())
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
@@ -391,6 +423,16 @@ private class TrackingToReadRepository : ToReadRepository {
     override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
+}
+
+private class ToggleableToReadRepository(initialSuccess: Boolean) : ToReadRepository {
+    var succeeds: Boolean = initialSuccess
+    override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
+    override suspend fun refresh(libraryId: String): Boolean = succeeds
+    override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = succeeds
+    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
+    override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = succeeds
+    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = succeeds
 }
 
 private class FailingToReadRepository : ToReadRepository {
