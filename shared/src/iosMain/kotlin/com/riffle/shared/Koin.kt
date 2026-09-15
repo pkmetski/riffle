@@ -26,7 +26,6 @@ import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationsLibraryRepository
-import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
@@ -35,7 +34,6 @@ import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheSettingsStore
-import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
 import com.riffle.core.domain.DispatcherProvider
@@ -44,13 +42,10 @@ import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
-import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
-import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
@@ -61,11 +56,8 @@ import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
-import com.riffle.core.domain.VolumeKeyPreferencesStore
-import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
@@ -135,7 +127,6 @@ import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
-import com.riffle.shared.library.IosNoOpAppThemeStore
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
@@ -143,12 +134,10 @@ import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpCbzRepository
-import com.riffle.shared.library.IosNoOpCoverGridDensityStore
 import com.riffle.shared.library.IosNoOpCoverImageCopier
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpEbookCfiTranslatorFactory
 import com.riffle.shared.library.IosNoOpEpubTocExtractor
-import com.riffle.shared.library.IosNoOpLibraryFilterPreferencesStore
 import com.riffle.shared.library.IosNoOpLocalAvailabilityEvents
 import com.riffle.shared.library.IosNoOpLocalFileMetadataOverrideSaver
 import com.riffle.shared.library.IosNoOpPdfPageCountExtractor
@@ -159,7 +148,6 @@ import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
-import com.riffle.shared.library.IosNoOpReadingSpeedStore
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.reader.IosCbzDownloader
@@ -178,16 +166,12 @@ import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpDeveloperOptionsRepository
-import com.riffle.shared.settings.IosNoOpLibraryOrderPreferencesStore
-import com.riffle.shared.settings.IosNoOpListeningPreferencesStore
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderDao
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderRepository
 import com.riffle.shared.settings.IosNoOpLocalFilesScannerInterface
 import com.riffle.shared.settings.IosNoOpReadaloudPreferencesStore
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
-import com.riffle.shared.settings.IosNoOpVolumeKeyPreferencesStore
-import com.riffle.shared.settings.IosNoOpWakeLockPreferencesStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -354,9 +338,6 @@ private fun iosLibraryModule(
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
-    single<CoverGridDensityStore> { IosNoOpCoverGridDensityStore() }
-    single<LibraryFilterPreferencesStore> { IosNoOpLibraryFilterPreferencesStore() }
-    single<AppThemeStore> { IosNoOpAppThemeStore() }
     single<DownloadsRepository> { IosDownloadsRepositoryImpl(get()) }
     single<ContentCacheSettingsStore> { IosContentCacheSettingsStoreImpl() }
     single<ReadaloudSidecarDownloads> { IosNoOpReadaloudSidecarDownloads }
@@ -373,10 +354,6 @@ private fun iosLibraryModule(
     single<CrashReportRepository> { IosNoOpCrashReportRepository }
     single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
     single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
-    single<WakeLockPreferencesStore> { IosNoOpWakeLockPreferencesStore() }
-    single<VolumeKeyPreferencesStore> { IosNoOpVolumeKeyPreferencesStore() }
-    single<ListeningPreferencesStore> { IosNoOpListeningPreferencesStore() }
-    single<LibraryOrderPreferencesStore> { IosNoOpLibraryOrderPreferencesStore() }
     single<ReadaloudPreferencesStore> { IosNoOpReadaloudPreferencesStore() }
     single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
     single<DeveloperOptionsRepository> { IosNoOpDeveloperOptionsRepository() }
@@ -429,7 +406,6 @@ private fun iosLibraryModule(
     single<AudiobookCacheRepository> { IosNoOpAudiobookCacheRepository() }
     single<LocalAvailabilityEvents> { IosNoOpLocalAvailabilityEvents() }
     single<CrossEpubIndexBuildTrigger> { IosNoOpCrossEpubIndexBuildTrigger }
-    single<ReadingSpeedStore> { IosNoOpReadingSpeedStore() }
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
             SourceType.KOMGA to KomgaCatalogFactory(
