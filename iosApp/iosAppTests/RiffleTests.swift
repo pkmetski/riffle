@@ -24,9 +24,10 @@ final class RiffleTests: XCTestCase {
     func testRiffleViewModelIsRegisteredInKoin() {
         // RiffleViewModel is registered as `single {}` in iosLibraryModule (Koin.kt).
         // If this were missing, `koinInject<RiffleViewModel>()` in RiffleScreen would crash on launch.
-        // We verify the class symbol is exported from the Kotlin/Native framework.
-        let vmClass: AnyClass? = NSClassFromString("Riffle.RiffleViewModel")
-        XCTAssertNotNil(vmClass, "RiffleViewModel must be compiled into the framework")
+        // We verify the class symbol is exported from the Kotlin/Native framework by referencing its
+        // metatype directly — NSClassFromString uses ObjC names, not Swift module-qualified names.
+        let vmType: RiffleViewModel.Type = RiffleViewModel.self
+        XCTAssertNotNil(vmType, "RiffleViewModel must be compiled into the framework")
     }
 
     // Scenario 7.4 / 7.5 / 7.6 — tab content and item-tap navigation are UI-only.
@@ -76,8 +77,9 @@ final class RiffleTests: XCTestCase {
     func testRiffleViewModelExposesIsOffline() {
         // isOffline is a StateFlow property on RiffleViewModel. If it were missing, the iOS
         // RiffleScreen would fail to compile against the KMP framework.
-        let vmClass: AnyClass? = NSClassFromString("Riffle.RiffleViewModel")
-        XCTAssertNotNil(vmClass, "RiffleViewModel must be compiled into the framework with isOffline")
+        // Use metatype reference — NSClassFromString uses ObjC names, not Swift module-qualified names.
+        let vmType: RiffleViewModel.Type = RiffleViewModel.self
+        XCTAssertNotNil(vmType, "RiffleViewModel must be compiled into the framework with isOffline")
     }
 
     // Scenario 7.14 / 7.15 — Offline item filtering is pure ViewModel logic covered by
