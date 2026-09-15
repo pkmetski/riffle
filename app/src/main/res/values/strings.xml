@@ -337,9 +337,13 @@
     <string name="ui_sort_author_az">Author (A–Z)</string>
     <string name="ui_sort_recently_opened">Recently opened</string>
     <string name="ui_section_in_progress">In Progress</string>
+    <string name="ui_section_in_progress_count">In Progress (%1$d)</string>
     <string name="ui_section_completed">Completed</string>
+    <string name="ui_section_completed_count">Completed (%1$d)</string>
     <string name="ui_section_recently_added">Recently Added</string>
+    <string name="ui_section_recently_added_count">Recently Added (%1$d)</string>
     <string name="ui_section_continue_series">Continue Series</string>
+    <string name="ui_section_continue_series_count">Continue Series (%1$d)</string>
     <string name="ui_move_named_item_up">Move %1$s up</string>
     <string name="ui_move_named_item_down">Move %1$s down</string>
     <string name="ui_reading_progress_value">Reading progress: %1$s</string>
