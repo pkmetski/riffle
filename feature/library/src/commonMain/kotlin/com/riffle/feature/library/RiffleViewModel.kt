@@ -17,6 +17,7 @@ import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -39,9 +40,17 @@ class RiffleViewModel constructor(
     private val offlineAvailability: LibraryItemOfflineAvailability,
 ) : ViewModel() {
 
-    val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
-        .map { !it }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    private val _refreshFailed = MutableStateFlow(false)
+
+    // The banner appears when the device has no network or when any source's To Read refresh
+    // failed — matching the LibraryItemsViewModel parity. Eagerly started so writes from the
+    // init refresh loop propagate immediately without waiting for a UI subscriber.
+    val isOffline: StateFlow<Boolean> = combine(
+        connectivityObserver.isOnline,
+        _refreshFailed,
+    ) { online, refreshFailed ->
+        !online || refreshFailed
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val inProgress: StateFlow<List<LibraryItem>> =
         combine(libraryObserver.observeInProgressItemsAllSources(), isOffline) { items, offline ->
@@ -101,6 +110,7 @@ class RiffleViewModel constructor(
         // arrives, preventing coroutine accumulation across source-list changes.
         viewModelScope.launch {
             sourceRepository.observeAll().collectLatest { sources ->
+                _refreshFailed.value = false
                 authTokenMap = coroutineScope {
                     sources.associate { source ->
                         val token = async { tokenStorage.getToken(source.id) ?: "" }
@@ -117,7 +127,10 @@ class RiffleViewModel constructor(
                             libraryObserver.observeLibraries(source.id).collectLatest { libraries ->
                                 coroutineScope {
                                     libraries.forEach { library ->
-                                        launch { toReadRepository.refreshForSource(source.id, library.id) }
+                                        launch {
+                                            val success = toReadRepository.refreshForSource(source.id, library.id)
+                                            if (!success) _refreshFailed.value = true
+                                        }
                                     }
                                 }
                             }
