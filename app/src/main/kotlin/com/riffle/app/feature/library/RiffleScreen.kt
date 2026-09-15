@@ -141,7 +141,7 @@ private fun InProgressTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader(stringResource(LibrarySectionType.IN_PROGRESS.titleResId())) }
+            item(key = "header_in_progress") { SectionHeader("${stringResource(R.string.ui_section_in_progress)} (${inProgress.size})") }
             item(key = "grid_in_progress") {
                 BookSectionGrid(
                     items = inProgress,
@@ -154,7 +154,7 @@ private fun InProgressTabContent(
             }
         }
         if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader(stringResource(LibrarySectionType.CONTINUE_SERIES.titleResId())) }
+            item(key = "header_continue_series") { SectionHeader("${stringResource(R.string.ui_section_continue_series)} (${continueSeries.size})") }
             item(key = "grid_continue_series") {
                 BookSectionGrid(
                     items = continueSeries,
@@ -182,7 +182,7 @@ private fun ToReadTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (items.isNotEmpty()) {
-            item(key = "header_to_read") { SectionHeader(stringResource(R.string.ui_to_read)) }
+            item(key = "header_to_read") { SectionHeader(stringResource(R.string.ui_to_read_count, items.size)) }
             item(key = "grid_to_read") {
                 BookSectionGrid(
                     items = items,
