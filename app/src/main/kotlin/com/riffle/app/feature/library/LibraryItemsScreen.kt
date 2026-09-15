@@ -1474,7 +1474,7 @@ internal fun HomeTabContent(
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader(stringResource(R.string.ui_section_in_progress_count, inProgress.size)) }
+            item(key = "header_in_progress") { SectionHeader("${stringResource(R.string.ui_section_in_progress)} (${inProgress.size})") }
             item(key = "grid_in_progress") {
                 BookSectionGrid(
                     items = inProgress,
@@ -1487,7 +1487,7 @@ internal fun HomeTabContent(
             }
         }
         if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader(stringResource(R.string.ui_section_continue_series_count, continueSeries.size)) }
+            item(key = "header_continue_series") { SectionHeader("${stringResource(R.string.ui_section_continue_series)} (${continueSeries.size})") }
             item(key = "grid_continue_series") {
                 BookSectionGrid(
                     items = continueSeries,
@@ -1501,7 +1501,7 @@ internal fun HomeTabContent(
             }
         }
         if (recentlyAdded.isNotEmpty()) {
-            item(key = "header_recently_added") { SectionHeader(stringResource(R.string.ui_section_recently_added_count, recentlyAdded.size)) }
+            item(key = "header_recently_added") { SectionHeader("${stringResource(R.string.ui_section_recently_added)} (${recentlyAdded.size})") }
             item(key = "grid_recently_added") {
                 BookSectionGrid(
                     items = recentlyAdded,
@@ -1514,7 +1514,7 @@ internal fun HomeTabContent(
             }
         }
         if (finished.isNotEmpty()) {
-            item(key = "header_completed") { SectionHeader(stringResource(R.string.ui_section_completed_count, finished.size)) }
+            item(key = "header_completed") { SectionHeader("${stringResource(R.string.ui_section_completed)} (${finished.size})") }
             item(key = "grid_completed") {
                 BookSectionGrid(
                     items = finished,
