@@ -80,6 +80,8 @@ kotlin {
             implementation(libs.coil.network.ktor3)
             // O'Reilly lazy-loading helpers (OReillyEpub.buildChapterXhtml) for IosLazyChapterFetcherImpl.
             implementation(project(":core:catalog-oreilly"))
+            // KomgaCatalogFactory for the real CatalogRegistry on iOS.
+            implementation(project(":core:catalog-komga"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

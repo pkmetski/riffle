@@ -36,10 +36,9 @@ class IosSupportedSourceTypesTest {
     }
 
     @Test
-    fun excludesKomgaUntilItsAdapterIsMultiplatform() {
-        // KomgaSourceAdapter lives in core/sources' jvmMain. Until it has a Kotlin/Native
-        // implementation its card must stay disabled, otherwise Connect throws
-        // "no CredentialedAuthenticator bound for KOMGA" on the UI thread.
-        assertFalse(SourceType.KOMGA in iosSupportedSourceTypes())
+    fun offersKomga() {
+        // KomgaSourceAdapter is now in core/sources commonMain (JVM-only imports replaced with
+        // multiplatform equivalents). The card must be enabled so iOS users can add a Komga server.
+        assertTrue(SourceType.KOMGA in iosSupportedSourceTypes(), "iOS must offer adding a Komga server")
     }
 }

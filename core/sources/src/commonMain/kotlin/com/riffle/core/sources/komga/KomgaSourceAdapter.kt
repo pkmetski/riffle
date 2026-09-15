@@ -14,14 +14,13 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
-import java.io.IOException
-import java.util.Base64
-import javax.net.ssl.SSLHandshakeException
 
 /**
  * [SourceAdapter] for [SourceType.KOMGA]. Verifies (username, password) by GETting
@@ -51,16 +50,18 @@ class KomgaSourceAdapter(
 
         val meResult = try {
             probeUserId(base, authHeader)
-        } catch (e: SSLHandshakeException) {
-            return AuthenticateResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
-        } catch (e: IOException) {
-            return AuthenticateResult.NetworkError(e)
+        } catch (e: Exception) {
+            return if (isSslHandshakeError(e)) {
+                AuthenticateResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
+            } else {
+                AuthenticateResult.NetworkError(e)
+            }
         }
 
         when {
             meResult.status == 401 || meResult.status == 403 -> return AuthenticateResult.WrongCredentials()
             meResult.status !in 200..399 -> return AuthenticateResult.NetworkError(
-                IOException("Komga returned HTTP ${meResult.status} at /users/me")
+                Exception("Komga returned HTTP ${meResult.status} at /users/me")
             )
         }
 
@@ -69,10 +70,10 @@ class KomgaSourceAdapter(
                 header(HttpHeaders.Authorization, authHeader)
             }
             if (!response.status.isSuccess()) {
-                return AuthenticateResult.LibraryFetchFailed(IOException("HTTP ${response.status.value}"))
+                return AuthenticateResult.LibraryFetchFailed(Exception("HTTP ${response.status.value}"))
             }
             KOMGA_JSON.decodeFromString(ListSerializer(serializer<KomgaLibraryDto>()), response.bodyAsText())
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             return AuthenticateResult.LibraryFetchFailed(e)
         }
 
@@ -128,8 +129,9 @@ class KomgaSourceAdapter(
     companion object {
         private val KOMGA_JSON = Json { ignoreUnknownKeys = true }
 
+        @OptIn(ExperimentalEncodingApi::class)
         fun buildBasicAuthHeader(username: String, password: String): String {
-            val token = Base64.getEncoder().encodeToString("$username:$password".toByteArray(Charsets.UTF_8))
+            val token = Base64.encode("$username:$password".encodeToByteArray())
             return "Basic $token"
         }
     }
