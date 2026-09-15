@@ -45,6 +45,7 @@ import com.riffle.core.models.AudiobookTracks
 
 class AudiobookPlayerViewModel constructor(
     navItemId: String,
+    navSourceId: String,
     navPlaylistId: String?,
     navPlaylistLibraryId: String?,
     navStartAtSec: Float,
@@ -81,6 +82,7 @@ class AudiobookPlayerViewModel constructor(
 ) : ViewModel() {
 
     private val itemId: String = navItemId
+    private val sourceId: String = navSourceId
 
     private val playlistId: String? = navPlaylistId?.takeIf { it.isNotEmpty() }
     private val playlistLibraryId: String? = navPlaylistLibraryId?.takeIf { it.isNotEmpty() }
@@ -97,7 +99,6 @@ class AudiobookPlayerViewModel constructor(
         AudiobookPlayerUiState(loading = true),
     )
     private var timeline: AudiobookTimeline = AudiobookTimeline(0.0)
-    private var sourceId: String = ""
 
     private var audioSettingsIdentity: AudioIdentity = AudioIdentity("", itemId)
     private var pendingSpeed: Float? = null
@@ -192,8 +193,7 @@ class AudiobookPlayerViewModel constructor(
             try {
             val t0 = clock.nowMs()
             logger.d(LogChannel.Handoff) { "AB.VM init start itemId=$itemId startAtSec=$startAtSec" }
-            val server = sourceRepository.getActive()
-            sourceId = server?.id ?: ""
+            val server = sourceRepository.getActive() // auth token only — sourceId comes from nav
             if (sourceId.isNotEmpty()) openReconcileTargets.markOpen(sourceId, itemId)
             if (sourceId.isNotEmpty()) {
                 viewModelScope.launch {
@@ -213,7 +213,7 @@ class AudiobookPlayerViewModel constructor(
             }
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
             logger.d(LogChannel.Handoff) { "AB.VM init: got server +${clock.nowMs() - t0}ms" }
-            val item = libraryObserver.getItem(itemId)
+            val item = libraryObserver.getItem(sourceId, itemId)
             logger.d(LogChannel.Handoff) { "AB.VM init: got item +${clock.nowMs() - t0}ms" }
             var launchCacheJob = false
             var usedAutoCache = false
@@ -334,7 +334,7 @@ class AudiobookPlayerViewModel constructor(
                     bookTitle = item.title,
                     chapters = session.timeline.chapters,
                 )
-                nowPlayingStore.set(NowPlaying.Audiobook(itemId))
+                nowPlayingStore.set(NowPlaying.Audiobook(sourceId, itemId))
                 controller.setSpeed(initialSpeed)
                 reconciledResumeSec = resumeSec
                 localUpdatedAt = resumeStamp
@@ -377,7 +377,7 @@ class AudiobookPlayerViewModel constructor(
                     handingOffToPlaylistAdvance = true
                     controller.clearEndOfBookCache()
                     logger.d(LogChannel.Handoff) { "AB.VM playlist auto-advance → $nextInPlaylist" }
-                    _events.tryEmit(AudiobookPlayerEvent.PlaylistAdvance(nextInPlaylist))
+                    _events.tryEmit(AudiobookPlayerEvent.PlaylistAdvance(sourceId, nextInPlaylist))
                 } else {
                     pushProgressAndStopPlayer()
                     clearAudiobookNowPlaying()
@@ -545,7 +545,7 @@ class AudiobookPlayerViewModel constructor(
             audiobookPositionStore.save(sourceId, itemId, finalSec)
             audiobookPositionStore.updateLocalTimestamp(sourceId, itemId, localUpdatedAt)
         }
-        nowPlayingStore.set(NowPlaying.Audiobook(itemId))
+        nowPlayingStore.set(NowPlaying.Audiobook(sourceId, itemId))
         controller.play()
         logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: play() called +${clock.nowMs() - t0}ms" }
         attachReaderSync(finalSec, localUpdatedAt)
@@ -558,7 +558,7 @@ class AudiobookPlayerViewModel constructor(
     }
 
     private fun clearAudiobookNowPlaying() {
-        nowPlayingStore.clearIf { it is NowPlaying.Audiobook && it.itemId == itemId }
+        nowPlayingStore.clearIf { it is NowPlaying.Audiobook && it.sourceId == sourceId && it.itemId == itemId }
     }
 
     override fun onCleared() {
