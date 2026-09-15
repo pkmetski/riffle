@@ -16,6 +16,7 @@ import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
+import com.riffle.core.data.IosNoOpReadaloudResumeStore
 import com.riffle.core.data.IosReadingPositionStoreImpl
 import com.riffle.core.data.IosReadingSpeedStoreImpl
 import com.riffle.core.data.IosTokenStorage
@@ -46,6 +47,7 @@ import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceRepository
@@ -83,6 +85,7 @@ val iosDataModule = module {
 
     single<ReadingPositionStore> { IosReadingPositionStoreImpl(get<ReadingPositionDao>(), get<Clock>()) }
     single<AudiobookPositionStore> { IosAudiobookPositionStoreImpl(get<AudiobookPositionDao>(), get<Clock>()) }
+    single<ReadaloudResumeStore> { IosNoOpReadaloudResumeStore }
     single<FormattingPreferencesStore> { IosFormattingPreferencesStoreImpl() }
     single<BookComicFormattingPreferencesStore> { IosBookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }

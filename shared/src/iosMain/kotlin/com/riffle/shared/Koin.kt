@@ -18,6 +18,7 @@ import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.PlaylistsRepository
+import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
@@ -157,7 +158,6 @@ import com.riffle.shared.reader.IosNoOpAppearanceCoordinator
 import com.riffle.shared.reader.IosNoOpPanelMaskService
 import com.riffle.shared.reader.IosNoOpPanelReportRepository
 import com.riffle.shared.reader.IosNoOpPanelViewPreferencesStore
-import com.riffle.shared.reader.IosNoOpReadingSessionRepository
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
@@ -278,8 +278,18 @@ private fun iosLibraryModule(
 
     // CBZ reader
     single { IosCbzDownloader(get(), get(), get()) }
-    single<CbzRepository> { IosCbzRepository(get(), get(), get(), get()) }
-    single<ReadingSessionRepository> { IosNoOpReadingSessionRepository }
+    single<CbzRepository> { IosCbzRepository(get(), get(), get(), get(), get()) }
+    single<ReadingSessionRepository> {
+        ReadingSessionRepositoryImpl(
+            catalogRegistry = get(),
+            sourceRepository = get(),
+            positionStore = get(),
+            audiobookPositionStore = get(),
+            readaloudResumeStore = get(),
+            libraryItemDao = get(),
+            clock = get(),
+        )
+    }
     single { UpdateReadingProgress(get()) }
     single<PanelMaskService> { IosNoOpPanelMaskService }
     single<PanelViewPreferencesStore> { IosNoOpPanelViewPreferencesStore }
@@ -325,6 +335,7 @@ private fun iosLibraryModule(
             absPlaybackApi = get(),
             sourceRepository = get(),
             tokenStorage = get(),
+            audiobookPositionStore = get(),
         )
     }
 
