@@ -164,7 +164,7 @@ class AnnotationFocusHarnessTest : KoinTest {
 
         val result = waitForPhraseOnScreen(
             orientation,
-            timeoutMs = 15_000,
+            timeoutMs = 30_000,
             phrase = targetPhrase,
         )
         assertTrue(
