@@ -7,9 +7,9 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.ByteReadChannel
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class WebDavAnnotationSyncTargetFactoryTest {
 

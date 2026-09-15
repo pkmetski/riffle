@@ -2,15 +2,15 @@ package com.riffle.core.domain.autoscroll
 
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.Test
 import kotlin.math.abs
 
 class ScrollPaceTest {
 
     private fun nearly(expected: Float, actual: Float, eps: Float = 0.05f) {
-        assert(abs(expected - actual) < eps) { "expected ≈$expected, got $actual" }
+        assertTrue(abs(expected - actual) < eps, "expected ≈$expected, got $actual")
     }
 
     private val typicalLayout = LayoutContext(wordsPerLine = 9f, lineHeightPx = 28f)
@@ -71,8 +71,8 @@ class ScrollPaceTest {
         val smallPace = pxPerSecond(AutoScrollSpeed.of(250), small)
         val largePace = pxPerSecond(AutoScrollSpeed.of(250), large)
         assertTrue(
-            "expected large pace > 3x small pace, got small=$smallPace large=$largePace",
             largePace > 3f * smallPace,
+            "expected large pace > 3x small pace, got small=$smallPace large=$largePace",
         )
     }
 
@@ -90,8 +90,8 @@ class ScrollPaceTest {
         val narrow = ctxFor(FormattingPreferences(margins = 1.0f))
         val wide = ctxFor(FormattingPreferences(margins = 3.0f))
         assertTrue(
-            "wider margins should reduce wordsPerLine: narrow=${narrow.wordsPerLine} wide=${wide.wordsPerLine}",
             wide.wordsPerLine < narrow.wordsPerLine,
+            "wider margins should reduce wordsPerLine: narrow=${narrow.wordsPerLine} wide=${wide.wordsPerLine}",
         )
     }
 
@@ -100,8 +100,8 @@ class ScrollPaceTest {
         val serif = ctxFor(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
         val mono = ctxFor(FormattingPreferences(fontFamily = ReaderFontFamily.Monospace))
         assertTrue(
-            "monospace should fit fewer words per line: serif=${serif.wordsPerLine} mono=${mono.wordsPerLine}",
             mono.wordsPerLine < serif.wordsPerLine,
+            "monospace should fit fewer words per line: serif=${serif.wordsPerLine} mono=${mono.wordsPerLine}",
         )
     }
 
@@ -126,8 +126,8 @@ class ScrollPaceTest {
         val ctx = ctxFor(FormattingPreferences(), phone)
         val pace = pxPerSecond(AutoScrollSpeed.of(250), ctx)
         assertTrue(
-            "expected pace in [33, 38] px/s, got $pace (wpl=${ctx.wordsPerLine}, lh=${ctx.lineHeightPx})",
             pace in 33f..38f,
+            "expected pace in [33, 38] px/s, got $pace (wpl=${ctx.wordsPerLine}, lh=${ctx.lineHeightPx})",
         )
     }
 }

@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class StorytellerFragmentIndexBuilderTest {
 
@@ -36,7 +36,7 @@ class StorytellerFragmentIndexBuilderTest {
     }
 
     @Test
-    fun `resolves SMIL refs written relative to the SMIL directory (dot-dot prefix)`() {
+    fun `resolves SMIL refs written relative to the SMIL directory dot-dot prefix`() {
         // Storyteller's SMIL files live in their own directory and reference the text files as
         // "../text/...", while the spine chapter hrefs are root-relative "text/...". The builder
         // must resolve the relative path so the fragment maps to its chapter.
@@ -63,7 +63,7 @@ class StorytellerFragmentIndexBuilderTest {
     }
 
     @Test
-    fun `resolves each chapter's HTML once, not once per clip (perf regression guard)`() {
+    fun `resolves each chapter's HTML once not once per clip perf regression guard`() {
         // A readaloud chapter holds thousands of SMIL clips; parsing the chapter HTML per clip made
         // opening a matched book take tens of seconds. The builder must resolve each chapter once.
         val chapters = listOf(

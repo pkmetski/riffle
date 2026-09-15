@@ -1,10 +1,10 @@
 package com.riffle.core.domain
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * Contract tests for [DefaultPositionTranslator] — pin the three coordinate round-trips
@@ -45,9 +45,9 @@ class PositionTranslatorTest {
     @Test fun `absCfi round-trip stays within a one-character tolerance`() {
         // chapter 0, progression ~0.5 → epubcfi step 2, midway in p0
         val canonical = translator.absCfiToCanonical("epubcfi(/6/2!/4/2/1:50)")
-        assertNotNull("canonical for known CFI", canonical)
+        assertNotNull(canonical, "canonical for known CFI")
         val recovered = translator.canonicalToAbsCfi(canonical!!)
-        assertNotNull("CFI for canonical", recovered)
+        assertNotNull(recovered, "CFI for canonical")
         // Re-derive progression from the recovered CFI and assert within ~1 char
         val originalProg = CanonicalReaderPosition(canonical).chapterProgression!!
         val docPath = extractCfiDocPath(recovered!!)!!
@@ -64,7 +64,7 @@ class PositionTranslatorTest {
     @Test fun `audio second mid-clip resolves to a canonical position on the displayed EPUB`() {
         val canonical = translator.audioSecondsToCanonical(7.5) // inside the c0 clip
         assertNotNull(canonical)
-        assertEquals("c0.xhtml", CanonicalReaderPosition(canonical!!).href)
+        assertEquals(CanonicalReaderPosition(canonical!!).href, "c0.xhtml")
     }
 
     @Test fun `audio seconds round-trip returns the same instant within bundle precision`() {
@@ -85,7 +85,7 @@ class PositionTranslatorTest {
         assertNotNull(canonical)
         val back = translator.canonicalToStorytellerLocator(canonical!!)
         assertNotNull(back)
-        assertEquals("c0.xhtml", CanonicalReaderPosition(back!!).href)
+        assertEquals(CanonicalReaderPosition(back!!).href, "c0.xhtml")
         assertEquals(0.5, CanonicalReaderPosition(back).chapterProgression!!, 0.001)
     }
 
@@ -98,7 +98,7 @@ class PositionTranslatorTest {
             ),
         )
         assertEquals(5.0, bundleOnly.fragmentRefToAudioSeconds("c0.xhtml#s1")!!, 0.001)
-        assertEquals("c0.xhtml#s1", bundleOnly.audioSecondsToTextFragment(7.0))
+        assertEquals(bundleOnly.audioSecondsToTextFragment(7.0), "c0.xhtml#s1")
         // Without spine/HTML the locator methods degrade to null rather than guessing.
         assertNull(bundleOnly.audioSecondsToCanonical(7.0))
         assertNull(bundleOnly.absCfiToCanonical("epubcfi(/6/2!/4/2/1:0)"))
@@ -120,7 +120,7 @@ class PositionTranslatorTest {
     // ── displayedHref ↔ bundleHref ────────────────────────────────────────────
 
     @Test fun `displayedHrefToBundleHref returns the spine-aligned Storyteller href`() {
-        assertEquals("c1.xhtml", translator.displayedHrefToBundleHref("c1.xhtml"))
+        assertEquals(translator.displayedHrefToBundleHref("c1.xhtml"), "c1.xhtml")
         assertNull(translator.displayedHrefToBundleHref("not-in-spine.xhtml"))
     }
 
@@ -130,7 +130,7 @@ class PositionTranslatorTest {
         // First chapter, mid-chapter → ~25% of the book (chapter weight 1/2, within-chapter 0.5)
         val canonical = """{"href":"c0.xhtml","locations":{"progression":0.5}}"""
         val p = translator.canonicalBookProgress(canonical)
-        assertTrue("expected ~0.25, got $p", p in 0.2f..0.3f)
+        assertTrue(p in 0.2f..0.3f, "expected ~0.25, got $p")
     }
 
     // ── Non-identity cross-EPUB scaling ───────────────────────────────────────
@@ -189,6 +189,6 @@ class PositionTranslatorTest {
         val canonical = twoEntries.absCfiToCanonical("epubcfi(/6/2!/4/2/1:0)")
         // step 2 → spine index 0 — should resolve and read chapter 0's html, not skip to index 2.
         assertNotNull(canonical)
-        assertEquals("c0.xhtml", CanonicalReaderPosition(canonical!!).href)
+        assertEquals(CanonicalReaderPosition(canonical!!).href, "c0.xhtml")
     }
 }

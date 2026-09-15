@@ -6,7 +6,7 @@ import java.io.IOException
 import javax.net.ssl.SSLHandshakeException
 
 internal actual fun isSSLHandshakeException(e: Throwable): Boolean = e is SSLHandshakeException
-internal actual fun isIOException(e: Throwable): Boolean = e is IOException
+internal actual fun isIOException(e: Throwable): Boolean = e is IOException || e is NetworkOfflineException
 internal actual fun newSSLHandshakeException(msg: String): Throwable = SSLHandshakeException(msg)
 internal actual fun newIOException(msg: String): Throwable = IOException(msg)
 

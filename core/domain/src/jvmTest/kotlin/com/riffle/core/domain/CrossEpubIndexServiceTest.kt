@@ -1,10 +1,10 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 import com.riffle.core.models.ReadaloudLink
 
 class CrossEpubIndexServiceTest {

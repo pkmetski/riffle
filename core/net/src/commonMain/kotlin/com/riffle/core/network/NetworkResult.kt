@@ -25,6 +25,9 @@ sealed class NetworkResult<out T> {
 /** Thrown by endpoint blocks to signal a non-success HTTP code; the classifier maps 401 → Auth. */
 class HttpException(val code: Int, msg: String? = null) : Exception(msg)
 
+/** Cross-platform marker: thrown by test helpers (MockEngine) to simulate an unreachable host. */
+class NetworkOfflineException(msg: String) : Exception(msg)
+
 object KtorClassifier {
     /**
      * Run [block], producing a `Success`. Any thrown exception is mapped to the matching

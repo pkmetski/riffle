@@ -42,6 +42,7 @@
 		B1013010 /* AddKomgaSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1013020 /* AddKomgaSourceFlowTests.swift */; };
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
 		B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1016020 /* PreferenceStoresAndConnectivityTests.swift */; };
+		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
 		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
@@ -347,7 +348,6 @@
 				B1007010 /* ComicsReaderTests.swift in Sources */,
 				B1009010 /* LocalFilesTests.swift in Sources */,
 				B100B010 /* AddAbsSourceFlowTests.swift in Sources */,
-				B100C010 /* DownloadsTests.swift in Sources */,
 				B1013010 /* AddKomgaSourceFlowTests.swift in Sources */,
 				B1014010 /* SourcePickerTests.swift in Sources */,
 			);
@@ -372,6 +372,7 @@
 				B101101A /* OReillyPublicationBuilder.swift in Sources */,
 				B1012010 /* OReillyLazyPublicationTests.swift in Sources */,
 				B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */,
+				B1017010 /* DownloadsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
