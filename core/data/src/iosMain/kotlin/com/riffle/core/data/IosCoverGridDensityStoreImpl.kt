@@ -16,15 +16,15 @@ internal class IosCoverGridDensityStoreImpl : CoverGridDensityStore {
     private val lock = NSLock()
     private val perLibraryFlows = mutableMapOf<String, MutableStateFlow<Float>>()
 
-    private val _globalScale = MutableStateFlow(
+    private val globalScaleFlow = MutableStateFlow(
         if (defaults.objectForKey(GLOBAL_KEY) != null) defaults.floatForKey(GLOBAL_KEY) else 1f,
     )
 
-    override val scale: Flow<Float> = _globalScale
+    override val scale: Flow<Float> = globalScaleFlow
 
     override suspend fun setScale(value: Float) {
         defaults.setFloat(value, forKey = GLOBAL_KEY)
-        _globalScale.value = value
+        globalScaleFlow.value = value
     }
 
     override fun scale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket): Flow<Float> =

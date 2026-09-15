@@ -9,8 +9,11 @@ import platform.Foundation.NSUserDefaults
 internal class IosReadingSpeedStoreImpl : ReadingSpeedStore {
     private val defaults = NSUserDefaults.standardUserDefaults
     private val _speedSecPerPosition = MutableStateFlow(
-        if (defaults.objectForKey(KEY) != null) defaults.doubleForKey(KEY)
-        else ReadingSpeedTracker.DEFAULT_SECS_PER_POSITION,
+        if (defaults.objectForKey(KEY) != null) {
+            defaults.doubleForKey(KEY)
+        } else {
+            ReadingSpeedTracker.DEFAULT_SECS_PER_POSITION
+        },
     )
 
     override val speedSecPerPosition: Flow<Double> = _speedSecPerPosition

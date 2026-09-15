@@ -62,11 +62,17 @@ internal class IosLibraryFilterPreferencesStoreImpl : LibraryFilterPreferencesSt
 
     private fun loadFromDefaults(sourceId: String, libraryId: String) = LibraryFilterPreferences(
         selectedFacetKey = defaults.stringForKey(facetKey(sourceId, libraryId)),
-        notStartedFilterActive = if (defaults.objectForKey(notStartedKey(sourceId, libraryId)) != null)
-            defaults.boolForKey(notStartedKey(sourceId, libraryId)) else false,
+        notStartedFilterActive = if (defaults.objectForKey(notStartedKey(sourceId, libraryId)) != null) {
+            defaults.boolForKey(notStartedKey(sourceId, libraryId))
+        } else {
+            false
+        },
         sortModeName = defaults.stringForKey(sortModeKey(sourceId, libraryId)),
-        unownedFilterActive = if (defaults.objectForKey(unownedKey(sourceId, libraryId)) != null)
-            defaults.boolForKey(unownedKey(sourceId, libraryId)) else false,
+        unownedFilterActive = if (defaults.objectForKey(unownedKey(sourceId, libraryId)) != null) {
+            defaults.boolForKey(unownedKey(sourceId, libraryId))
+        } else {
+            false
+        },
     )
 
     private fun facetKey(sourceId: String, libraryId: String) =
