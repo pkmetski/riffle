@@ -154,7 +154,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         positionStore: com.riffle.core.domain.AudiobookPositionStore = FakePositionStore(),
         logger: RecordingLogger = RecordingLogger(),
         playlistsRepository: com.riffle.core.domain.PlaylistsRepository = NoopPlaylistsRepository,
-        savedState: Map<String, Any?> = mapOf("itemId" to itemId),
+        savedState: Map<String, Any?> = mapOf("itemId" to itemId, "sourceId" to sourceId),
         handoffState: AudiobookHandoffState = AudiobookHandoffState(),
         cacheRepository: JvmAudiobookCacheRepository = NoCacheRepo,
         sessionOverride: AudiobookSession? = null,
@@ -170,6 +170,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         lastAudiobookRepo = repo
         return AudiobookPlayerViewModel(
             navItemId = savedState["itemId"] as? String ?: "",
+            navSourceId = savedState["sourceId"] as? String ?: "",
             navPlaylistId = savedState["playlistId"] as? String,
             navPlaylistLibraryId = savedState["libraryId"] as? String,
             navStartAtSec = savedState["startAtSec"] as? Float ?: -1f,
@@ -384,6 +385,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             playlistsRepository = playlistsRepo,
             savedState = mapOf(
                 "itemId" to itemId,
+                "sourceId" to sourceId,
                 "playlistId" to "pl-1",
                 "libraryId" to "lib-1",
             ),
@@ -398,7 +400,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         runCurrent()
         job.join()
 
-        assertEquals(listOf(AudiobookPlayerEvent.PlaylistAdvance(nextItemId)), collected)
+        assertEquals(listOf(AudiobookPlayerEvent.PlaylistAdvance(sourceId, nextItemId)), collected)
         // The critical invariant: on auto-advance we MUST leave the singleton controller alone.
         // If stopCount > 0, the incoming VM's playback will race a connector release and die.
         assertEquals(0, controller.stopCount)
@@ -429,6 +431,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             playlistsRepository = playlistsRepo,
             savedState = mapOf(
                 "itemId" to itemId,
+                "sourceId" to sourceId,
                 "playlistId" to "pl-1",
                 "libraryId" to "lib-1",
             ),
@@ -624,7 +627,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         val vm = buildViewModel(
             ctrl,
             FakeBookmarkStore(),
-            savedState = mapOf("itemId" to itemId, "startAtSec" to -2f),
+            savedState = mapOf("itemId" to itemId, "sourceId" to sourceId, "startAtSec" to -2f),
             handoffState = handoffState,
         )
         runCurrent()
@@ -678,6 +681,109 @@ class AudiobookPlayerViewModelBookmarkTest {
             messages.any { it.startsWith("AB.VM init start itemId=") },
         )
         vm.clearForTest()
+    }
+
+    /**
+     * Regression test for the "downloaded radio.es items not playable from Riffle source" bug.
+     *
+     * Root cause: [AudiobookPlayerViewModel] used `sourceRepository.getActive()` to set `sourceId`,
+     * so downloads stored under `radio-es-source` were looked up under `abs-server` (the active
+     * source at playback time), missing the manifest and falling back to a network-only session.
+     *
+     * After the fix, `sourceId` comes from the nav route param and `localSession` must be called
+     * with that value — not with the active source's id.
+     */
+    @Test
+    fun `localSession is called with navSourceId not the active source id`() = runTest(testDispatcher) {
+        val navSourceId = "radio-es-source"
+        val activeSourceId = "srv-1" // returned by FakeServerRepository.getActive()
+        val capturedSourceIds = mutableListOf<String>()
+
+        // A recording download repo: captures the sourceId that localSession receives.
+        val recordingDownloadRepo = object : JvmAudiobookDownloadRepository {
+            override fun isDownloaded(sourceId: String, itemId: String) = false
+            override fun localSession(sourceId: String, itemId: String): AudiobookSession? {
+                capturedSourceIds.add(sourceId)
+                return null // not downloaded — forces fallback chain
+            }
+            override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit) =
+                com.riffle.core.domain.AudiobookDownloadResult.Success
+            override suspend fun remove(sourceId: String, itemId: String): Long = 0
+        }
+
+        val vm2 = AudiobookPlayerViewModel(
+            navItemId = itemId,
+            navSourceId = navSourceId,
+            navPlaylistId = null,
+            navPlaylistLibraryId = null,
+            navStartAtSec = -1f,
+            audiobookRepository = FakeAudiobookRepository(AudiobookSession(
+                trackUrls = listOf("http://x/track0"),
+                tracks = listOf(com.riffle.core.models.AudiobookTrackSpan(0, 0.0, 1000.0)),
+                timeline = timeline,
+                serverCurrentTimeSec = 0.0,
+                serverLastUpdate = 0L,
+            )),
+            audiobookDownloadRepository = recordingDownloadRepo,
+            audiobookCacheRepository = NoCacheRepo,
+            bundleAudiobookSource = NoBundleSource,
+            libraryObserver = FakeLibraryRepository(),
+            updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
+            sourceRepository = FakeServerRepository(),
+            tokenStorage = FakeTokenStorage,
+            controller = FakeController(position = 0.0),
+            readaloudHandoff = FakeReadaloudController(),
+            audioPlaybackPreferencesStore = FakePrefsStore,
+            listeningPreferencesStore = FakeListeningPreferencesStore,
+            audioIdentityResolver = FakeIdentityResolver,
+            readaloudLinkRepository = FakeLinkRepository,
+            readaloudAudioRepository = FakeAudioRepo,
+            nowPlayingStore = NowPlayingStore(),
+            audiobookPositionStore = FakePositionStore(),
+            openReconcileTargets = OpenReconcileTargets(),
+            progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            bookmarkStore = FakeBookmarkStore(),
+            connectivityObserver = FakeConnectivityObserver(online = true),
+            audiobookHandoffState = AudiobookHandoffState(),
+            followLoopOrchestrator = FollowLoopOrchestrator(
+                clock = object : Clock {
+                    override fun nowMs(): Long = fixedNow
+                    override fun nowNs(): Long = fixedNow * 1_000_000L
+                },
+                progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            ),
+            resumeResolver = AudiobookResumeResolver(
+                positionStore = FakePositionStore(),
+                clock = object : Clock {
+                    override fun nowMs(): Long = fixedNow
+                    override fun nowNs(): Long = fixedNow * 1_000_000L
+                },
+            ),
+            reconciliationCoordinator = AudiobookReconciliationCoordinator(
+                readerSyncFactory = TestReaderSyncFactory(),
+                openReconcileTargets = OpenReconcileTargets(),
+                audioSyncStore = FakeSyncStoreDouble(),
+                readingSyncStore = FakeSyncStore(),
+                readaloudResumeStore = FakeResumeStore,
+            ),
+            clock = object : Clock {
+                override fun nowMs(): Long = fixedNow
+                override fun nowNs(): Long = fixedNow * 1_000_000L
+            },
+            logger = RecordingLogger(),
+            playlistsRepository = NoopPlaylistsRepository,
+            contentCacheAccessStore = NoopContentCacheAccessStore,
+            progressSweep = io.mockk.mockk(relaxed = true),
+        )
+        runCurrent()
+
+        assertEquals(
+            "localSession must be called with navSourceId='$navSourceId', not activeSourceId='$activeSourceId'",
+            listOf(navSourceId),
+            capturedSourceIds,
+        )
+        assertEquals(activeSourceId, "srv-1") // guard: FakeServerRepository.getActive().id is still "srv-1"
+        vm2.clearForTest()
     }
 
     // --- fakes ---

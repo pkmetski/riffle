@@ -137,7 +137,7 @@ fun AudiobookPlayerScreen(
     /** Called on end-of-book when the player was opened inside a playlist context (via
      *  [PlaylistDetailScreen]) and there IS a next item. Callers navigate to the next item's
      *  audiobook player, preserving the playlist context so auto-advance chains through. */
-    onPlaylistAdvance: (nextItemId: String) -> Unit = {},
+    onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit = { _, _ -> },
     viewModel: AudiobookPlayerViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -150,7 +150,7 @@ fun AudiobookPlayerScreen(
         viewModel.events.collect { event ->
             when (event) {
                 AudiobookPlayerEvent.Finished -> latestOnNavigateBack.value()
-                is AudiobookPlayerEvent.PlaylistAdvance -> latestOnPlaylistAdvance.value(event.nextItemId)
+                is AudiobookPlayerEvent.PlaylistAdvance -> latestOnPlaylistAdvance.value(event.sourceId, event.nextItemId)
             }
         }
     }

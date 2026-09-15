@@ -1085,6 +1085,9 @@ class EpubReaderViewModel constructor(
 
     val audiobookItemId: StateFlow<String?> get() = readaloud.audiobookItemId
 
+    /** SourceId for the linked audiobook — same source as the ebook being read. */
+    val audiobookSourceId: String? get() = navServerId
+
     // Mirrors the controller's playback state for the mini-player controls.
     val playbackState: StateFlow<ReadaloudController.PlaybackState> = playerCoordinator.state
 

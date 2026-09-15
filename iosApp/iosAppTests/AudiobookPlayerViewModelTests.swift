@@ -118,11 +118,23 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
 
     func testNowPlayingStoreSetAndClear() {
         let store = NowPlayingStore()
-        store.set(value: NowPlayingAudiobook(itemId: "book-1"))
+        store.set(value: NowPlayingAudiobook(sourceId: "source-1", itemId: "book-1"))
         XCTAssertEqual(store.current?.itemId, "book-1")
 
         store.clearIf { KotlinBoolean(bool: $0.itemId == "book-1") }
         XCTAssertNil(store.current)
+    }
+
+    func testNowPlayingAudiobookExposesSourceId() {
+        let nowPlaying = NowPlayingAudiobook(sourceId: "radio-es-source", itemId: "item-abc")
+        XCTAssertEqual(nowPlaying.sourceId, "radio-es-source")
+        XCTAssertEqual(nowPlaying.itemId, "item-abc")
+    }
+
+    func testPlaylistAdvanceExposesSourceId() {
+        let event = AudiobookPlayerEventPlaylistAdvance(sourceId: "radio-es-source", nextItemId: "item-xyz")
+        XCTAssertEqual(event.sourceId, "radio-es-source")
+        XCTAssertEqual(event.nextItemId, "item-xyz")
     }
 
     // MARK: readaloudControlState (scenario 5.9)

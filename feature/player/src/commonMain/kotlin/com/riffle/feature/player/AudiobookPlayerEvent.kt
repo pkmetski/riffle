@@ -10,5 +10,5 @@ sealed interface AudiobookPlayerEvent {
      * item. The screen navigates to the next item's audiobook player (preserving the same
      * playlist context) so playback auto-advances through the playlist.
      */
-    data class PlaylistAdvance(val nextItemId: String) : AudiobookPlayerEvent
+    data class PlaylistAdvance(val sourceId: String, val nextItemId: String) : AudiobookPlayerEvent
 }

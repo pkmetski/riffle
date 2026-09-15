@@ -80,7 +80,7 @@ internal const val EPUB_READER =
 internal const val PDF_READER = "pdf_reader/{itemId}?sourceId={sourceId}"
 internal const val CBZ_READER = "cbz_reader/{itemId}?sourceId={sourceId}"
 internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
-internal const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
+internal const val AUDIOBOOK_PLAYER = "audiobook_player/{sourceId}/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
 
 /**
  * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
@@ -215,7 +215,10 @@ fun MainScreen(
             val target = viewModel.currentNowPlaying() ?: return@collect
             val encoded = URLEncoder.encode(target.itemId, "UTF-8")
             val route = when (target) {
-                is NowPlaying.Audiobook -> "audiobook_player/$encoded"
+                is NowPlaying.Audiobook -> {
+                    val encodedSource = URLEncoder.encode(target.sourceId, "UTF-8")
+                    "audiobook_player/$encodedSource/$encoded"
+                }
                 is NowPlaying.Readaloud -> "epub_reader/$encoded"
             }
             navController.navigate(route) { launchSingleTop = true }

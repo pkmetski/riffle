@@ -648,6 +648,7 @@ private val audiobookViewModelModule = module {
         val handle = get<androidx.lifecycle.SavedStateHandle>()
         AudiobookPlayerViewModel(
             navItemId = handle.get<String>("itemId") ?: "",
+            navSourceId = handle.get<String>("sourceId") ?: "",
             navPlaylistId = handle.get<String>("playlistId"),
             navPlaylistLibraryId = handle.get<String>("libraryId"),
             navStartAtSec = handle.get<Float>("startAtSec") ?: -1f,

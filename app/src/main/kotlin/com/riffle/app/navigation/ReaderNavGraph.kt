@@ -139,6 +139,7 @@ internal fun NavGraphBuilder.readerNavGraph(
     composable(
         route = AUDIOBOOK_PLAYER,
         arguments = listOf(
+            navArgument("sourceId") { type = NavType.StringType },
             navArgument("itemId") { type = NavType.StringType },
             navArgument("startAtSec") {
                 type = NavType.FloatType
@@ -160,6 +161,7 @@ internal fun NavGraphBuilder.readerNavGraph(
             },
         )
     ) { backStackEntry ->
+        val currentSourceId = backStackEntry.arguments?.getString("sourceId").orEmpty()
         val currentPlaylistId = backStackEntry.arguments?.getString("playlistId")
         val currentLibraryId = backStackEntry.arguments?.getString("libraryId")
         AudiobookPlayerScreen(
@@ -168,7 +170,8 @@ internal fun NavGraphBuilder.readerNavGraph(
             // End-of-book with a playlist context: hop straight to the next item's player,
             // popping the current player entry so Back returns to the playlist detail
             // (rather than an ever-growing stack of dead player entries).
-            onPlaylistAdvance = { nextItemId ->
+            onPlaylistAdvance = { advSourceId, nextItemId ->
+                val encodedSource = URLEncoder.encode(advSourceId, "UTF-8")
                 val encoded = URLEncoder.encode(nextItemId, "UTF-8")
                 val pl = URLEncoder.encode(currentPlaylistId.orEmpty(), "UTF-8")
                 val lib = URLEncoder.encode(currentLibraryId.orEmpty(), "UTF-8")
@@ -178,7 +181,7 @@ internal fun NavGraphBuilder.readerNavGraph(
                 // 100% is now handled by [AudiobookController.clearEndOfBookCache] wiping
                 // the STATE_ENDED replay before the incoming VM subscribes.)
                 navController.navigate(
-                    "audiobook_player/$encoded?playlistId=$pl&libraryId=$lib"
+                    "audiobook_player/$encodedSource/$encoded?playlistId=$pl&libraryId=$lib"
                 ) {
                     popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
                 }

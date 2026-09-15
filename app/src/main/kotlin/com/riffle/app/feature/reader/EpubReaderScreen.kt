@@ -1006,6 +1006,7 @@ fun EpubReaderScreen(
         // rendered at size 0 when hidden, making it invisible and non-interactive.
         audiobookItemId?.let { abItemId ->
             AudiobookPlayerOverlay(
+                sourceId = viewModel.audiobookSourceId.orEmpty(),
                 itemId = abItemId,
                 visible = showAudiobookOverlay,
                 windowSizeClass = windowSizeClass,
@@ -3193,6 +3194,7 @@ private fun highlightTint(color: String): Int =
 
 @Composable
 private fun AudiobookPlayerOverlay(
+    sourceId: String,
     itemId: String,
     visible: Boolean,
     windowSizeClass: WindowSizeClass,
@@ -3200,11 +3202,12 @@ private fun AudiobookPlayerOverlay(
     onSwitchToReadaloud: (Double) -> Unit,
 ) {
     val navController = rememberNavController()
+    val encodedSource = URLEncoder.encode(sourceId, "UTF-8")
     val encoded = URLEncoder.encode(itemId, "UTF-8")
     // Always use the PREWARM_SENTINEL (-2f) so the NavBackStackEntry — and therefore
     // AudiobookPlayerViewModel — is created once and kept alive between swipe-up/down cycles.
     // The actual start position arrives via AudiobookHandoffState when the overlay is revealed.
-    val startRoute = "overlay_audiobook/$encoded?startAtSec=-2.0"
+    val startRoute = "overlay_audiobook/$encodedSource/$encoded?startAtSec=-2.0"
 
     // Slide up on show, slide down on dismiss. `overlayVisible` trails `visible` on the way out —
     // it stays true until the slide-down animation finishes, then flips to false (size 0).
@@ -3234,8 +3237,9 @@ private fun AudiobookPlayerOverlay(
         },
     ) {
         composable(
-            route = "overlay_audiobook/{itemId}?startAtSec={startAtSec}",
+            route = "overlay_audiobook/{sourceId}/{itemId}?startAtSec={startAtSec}",
             arguments = listOf(
+                navArgument("sourceId") { type = NavType.StringType },
                 navArgument("itemId") { type = NavType.StringType },
                 navArgument("startAtSec") {
                     type = NavType.FloatType
