@@ -60,8 +60,12 @@ final class EpubReaderTests: XCTestCase {
         let bridge = ReadiumEpubNavigatorBridge()
         var loadCount = 0
         bridge.setPageLoadCallback { loadCount += 1 }
-        bridge.simulatePageLoad()
-        XCTAssertEqual(loadCount, 1)
+        // Drive through the real delegate path (locationDidChange → pageLoadCallback)
+        // rather than the test-only simulatePageLoad() helper.
+        bridge.simulateLocatorUpdate("""
+        {"href":"/ch1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.0}}
+        """)
+        XCTAssertEqual(loadCount, 1, "pageLoadCallback must fire via locationDidChange, not only via simulatePageLoad")
     }
 
     func testTapCallbackIsInvoked() {

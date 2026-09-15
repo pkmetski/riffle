@@ -2,6 +2,8 @@ package com.riffle.shared.audiobook
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -281,7 +283,12 @@ private fun ProgressBar(
             .height(4.dp)
             .clip(RoundedCornerShape(2.dp))
             .background(Color(0xFFE0E0E0))
-            .clickable { onSeek(durationSec * 0.5) },
+            .pointerInput(durationSec) {
+                detectTapGestures { offset ->
+                    val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                    onSeek(durationSec * fraction)
+                }
+            },
     ) {
         Box(
             modifier = Modifier

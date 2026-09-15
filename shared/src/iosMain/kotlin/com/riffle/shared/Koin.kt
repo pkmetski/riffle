@@ -195,7 +195,7 @@ private fun iosLibraryModule(
     single<DispatcherProvider> { IosDispatcherProvider }
     single<SourceRepository> { IosSourceRepositoryImpl(get(), get(), get()) }
     single<LibraryObserver> { IosLibraryObserverImpl(get(), get(), get(), get(), get()) }
-    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get()) }
+    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
@@ -400,7 +400,6 @@ private fun iosLibraryModule(
     }
     single<EbookCfiTranslatorFactory> { IosNoOpEbookCfiTranslatorFactory }
     single<PdfRepository> { IosNoOpPdfRepository() }
-    single<CbzRepository> { IosNoOpCbzRepository() }
     single<ReadaloudAudioRepository> { IosNoOpReadaloudAudioRepository() }
     single<AudiobookDownloadRepository> { IosNoOpAudiobookDownloadRepository() }
     single<AudiobookCacheRepository> { IosNoOpAudiobookCacheRepository() }

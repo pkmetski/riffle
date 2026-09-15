@@ -195,6 +195,7 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         guard let json = try? locator.jsonString() else { return }
         cachedLocatorJson = json
         locatorCallback?(json)
+        pageLoadCallback?()
     }
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {

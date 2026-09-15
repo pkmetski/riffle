@@ -1,5 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
@@ -14,6 +17,7 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
@@ -31,6 +35,7 @@ class IosLibraryRefresherImpl(
     private val seriesDao: SeriesDao,
     private val collectionDao: CollectionDao,
     private val libraryItemDao: LibraryItemDao,
+    private val catalogRegistry: CatalogRegistry,
 ) : LibraryRefresher {
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
@@ -106,10 +111,52 @@ class IosLibraryRefresherImpl(
 
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        // Only ABS syncs items into the local mirror on iOS today. Unbounded catalogues are
-        // network-only by design (ADR 0051), Local Files rows are owned by the installer, and
-        // Komga is not yet enabled on iOS — none of those may be wiped by a replace-all.
-        if (source.type != SourceType.ABS) return LibraryRefreshResult.Success
+        // Unbounded catalogues (Chitanka, Gutenberg, RadioES) are network-only per ADR 0051
+        // and must not be wiped by a replace-all. ABS and Komga both use the local mirror.
+        if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
+        if (source.type == SourceType.ABS) {
+            return refreshAbsLibraryItems(source, libraryId)
+        }
+        // For Komga (and any future catalogued source): browse via the CatalogRegistry.
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val items = try {
+            catalog.browse(libraryId, pageSize = Int.MAX_VALUE)
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        }
+        val lastOpenedAtById = libraryItemDao.getLastOpenedAtMap(source.id, libraryId)
+            .associate { it.id to it.lastOpenedAt }
+        val nowMs = (NSDate().timeIntervalSince1970 * 1000).toLong()
+        val entities = items.map { item ->
+            LibraryItemEntity(
+                sourceId = source.id,
+                id = item.id,
+                libraryId = item.rootId,
+                title = item.title,
+                author = item.author,
+                coverUrl = item.coverUrl ?: "",
+                readingProgress = item.readingProgress ?: 0f,
+                ebookFileIno = item.ebookFileIno,
+                ebookFormat = item.ebookFormat.toEbookFormat().toStorageString(),
+                hasAudio = item.hasAudio,
+                audioDurationSec = item.audioDurationSec,
+                description = item.description,
+                seriesName = item.seriesName,
+                publishedYear = item.publishedYear,
+                genres = item.genres.joinToString(","),
+                publisher = item.publisher,
+                language = item.language,
+                lastOpenedAt = lastOpenedAtById[item.id],
+                addedAt = item.addedAt ?: nowMs,
+                isbn = item.isbn,
+                asin = item.asin,
+            )
+        }
+        libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
+        return LibraryRefreshResult.Success
+    }
+
+    private suspend fun refreshAbsLibraryItems(source: com.riffle.core.models.Source, libraryId: String): LibraryRefreshResult {
         val token = tokenStorage.getToken(source.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = absLibraryApi.getLibraryItems(
             baseUrl = source.url.value,
@@ -160,7 +207,44 @@ class IosLibraryRefresherImpl(
 
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        if (source.type != SourceType.ABS) return LibraryRefreshResult.Success
+        if (source.type == SourceType.ABS) {
+            return refreshAbsSeries(source, libraryId)
+        }
+        // For Komga (and any future source with SeriesCapability): delegate to the catalog.
+        if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val seriesCap = catalog as? SeriesCapability ?: return LibraryRefreshResult.Success
+        val series = try {
+            seriesCap.listSeries(libraryId)
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        }
+        val seriesEntities = series.map { s ->
+            SeriesEntity(
+                id = s.id,
+                libraryId = s.rootId,
+                name = s.name,
+                coverUrl = s.coverUrl,
+                bookCount = s.bookCount,
+            )
+        }
+        val seriesItemEntities = series.flatMap { s ->
+            val maxNumeric = s.items.mapNotNull { it.sequence?.toFloatOrNull() }.maxOrNull() ?: 0f
+            s.items.mapIndexed { index, entry ->
+                SeriesItemEntity(
+                    seriesId = s.id,
+                    sourceId = source.id,
+                    itemId = entry.itemId,
+                    sequenceOrder = entry.sequence?.toFloatOrNull()
+                        ?: (maxNumeric + 1f + index.toFloat()),
+                )
+            }
+        }
+        seriesDao.replaceAllForLibrary(libraryId, seriesEntities, seriesItemEntities)
+        return LibraryRefreshResult.Success
+    }
+
+    private suspend fun refreshAbsSeries(source: com.riffle.core.models.Source, libraryId: String): LibraryRefreshResult {
         val token = tokenStorage.getToken(source.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = absLibraryApi.getSeries(
             baseUrl = source.url.value,
@@ -205,7 +289,36 @@ class IosLibraryRefresherImpl(
 
     override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        if (source.type != SourceType.ABS) return LibraryRefreshResult.Success
+        if (source.type == SourceType.ABS) {
+            return refreshAbsCollections(source, libraryId)
+        }
+        // For Komga (and any future source with CollectionsCapability): delegate to the catalog.
+        if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val collectionsCap = catalog as? CollectionsCapability ?: return LibraryRefreshResult.Success
+        val collections = try {
+            collectionsCap.listCollections(libraryId)
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        }
+        val collectionEntities = collections.map { c ->
+            CollectionEntity(
+                id = c.id,
+                libraryId = c.rootId,
+                name = c.name,
+                bookCount = c.bookCount,
+            )
+        }
+        val collectionItemEntities = collections.flatMap { c ->
+            c.itemIds.map { itemId ->
+                CollectionItemEntity(collectionId = c.id, sourceId = source.id, itemId = itemId)
+            }
+        }
+        collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
+        return LibraryRefreshResult.Success
+    }
+
+    private suspend fun refreshAbsCollections(source: com.riffle.core.models.Source, libraryId: String): LibraryRefreshResult {
         val token = tokenStorage.getToken(source.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = absLibraryApi.getCollections(
             baseUrl = source.url.value,
@@ -243,4 +356,12 @@ class IosLibraryRefresherImpl(
 
     override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult =
         LibraryRefreshResult.Success
+
+    private fun com.riffle.core.catalog.BookFormat.toEbookFormat(): EbookFormat = when (this) {
+        com.riffle.core.catalog.BookFormat.Epub -> EbookFormat.Epub
+        com.riffle.core.catalog.BookFormat.Pdf -> EbookFormat.Pdf
+        com.riffle.core.catalog.BookFormat.Cbz -> EbookFormat.Cbz
+        com.riffle.core.catalog.BookFormat.Audiobook -> EbookFormat.Unsupported
+        com.riffle.core.catalog.BookFormat.Unsupported -> EbookFormat.Unsupported
+    }
 }
