@@ -76,6 +76,13 @@ class NavigationDrawerViewModel constructor(
     // doesn't flicker the row in and out.
     // `is` check (not inline `has<T>()`) — see [LibraryItemsViewModel.tabVisibility] for the
     // JVM-target-boundary rationale.
+    // True whenever Riffle mode is active — meaning no source is selected and Riffle was the last
+    // chosen top-level destination. Derived from the data layer so it stays true when the user
+    // navigates within Riffle (e.g. to book details), even though currentRoute is no longer RIFFLE.
+    // The drawer uses this to show the "Riffle" header instead of "No source" in that window.
+    val isRiffleMode: StateFlow<Boolean> = lastOpenedLibraryStore.wasRiffleLastActive()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val showDownloadsLink: StateFlow<Boolean> = allServers
         .map { sources ->
             if (sources.isEmpty()) true
