@@ -432,14 +432,14 @@ private fun LibraryHost(
             seriesId = current.seriesId,
             libraryId = current.seriesLibraryId,
             seriesName = current.seriesName,
-            onItemSelected = {},
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
             onNavigateBack = { nav = LibraryNav.Items },
         )
         is LibraryNav.CollectionDetail -> CollectionDetailScreen(
             collectionId = current.collectionId,
             libraryId = current.collectionLibraryId,
             collectionName = current.collectionName,
-            onItemSelected = {},
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
             onNavigateBack = { nav = LibraryNav.Items },
         )
     }

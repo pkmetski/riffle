@@ -162,4 +162,91 @@ final class IosAppTests: XCTestCase {
         }
         XCTAssertTrue(anySection, "Navigating back from collection detail should return to library home")
     }
+
+    // MARK: - Scenario 4.5 — Item tap in Series detail opens item detail
+
+    /// 4.5 — Tapping a book tile inside a series detail screen opens the item detail screen.
+    /// Regression for onItemSelected = {} no-op bug: item taps inside SeriesDetailScreen
+    /// must navigate to LibraryItemDetailScreen, not remain on the series detail.
+    func testItemTapInSeriesDetailNavigatesToItemDetail() throws {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — series item tap test requires a connected server")
+        }
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+
+        guard app.staticTexts["Series"].waitForExistence(timeout: 5) else {
+            throw XCTSkip("No Series section visible — requires a server with series")
+        }
+
+        let seriesTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
+            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all", "☰"]
+        )).firstMatch
+        guard seriesTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No tappable series tile found")
+        }
+        seriesTile.tap()
+
+        // In series detail, tap the first item
+        let backArrow = app.staticTexts["←"].firstMatch
+        guard backArrow.waitForExistence(timeout: 5) else {
+            throw XCTSkip("Series detail did not open")
+        }
+
+        let itemTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
+            ["←", "See all"]
+        )).firstMatch
+        guard itemTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No item tile found in series detail")
+        }
+        itemTile.tap()
+
+        // Item detail opens — it shows a back arrow and the item cannot still be on the series detail
+        let itemDetailBack = app.buttons["← Back"].firstMatch
+        XCTAssertTrue(
+            itemDetailBack.waitForExistence(timeout: 10),
+            "Tapping a book in series detail must open item detail (← Back button), not stay on series"
+        )
+    }
+
+    // MARK: - Scenario 4.6 — Item tap in Collection detail opens item detail
+
+    /// 4.6 — Tapping a book tile inside a collection detail screen opens the item detail screen.
+    /// Regression for onItemSelected = {} no-op bug in CollectionDetailScreen.
+    func testItemTapInCollectionDetailNavigatesToItemDetail() throws {
+        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
+            throw XCTSkip("No source configured — collection item tap test requires a connected server")
+        }
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+
+        guard app.staticTexts["Collections"].waitForExistence(timeout: 5) else {
+            throw XCTSkip("No Collections section visible — requires a server with collections")
+        }
+
+        let collectionTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
+            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all", "☰"]
+        )).firstMatch
+        guard collectionTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No tappable collection tile found")
+        }
+        collectionTile.tap()
+
+        let backArrow = app.staticTexts["←"].firstMatch
+        guard backArrow.waitForExistence(timeout: 5) else {
+            throw XCTSkip("Collection detail did not open")
+        }
+
+        let itemTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
+            ["←", "See all"]
+        )).firstMatch
+        guard itemTile.waitForExistence(timeout: 5) else {
+            throw XCTSkip("No item tile found in collection detail")
+        }
+        itemTile.tap()
+
+        let itemDetailBack = app.buttons["← Back"].firstMatch
+        XCTAssertTrue(
+            itemDetailBack.waitForExistence(timeout: 10),
+            "Tapping a book in collection detail must open item detail (← Back button), not stay on collection"
+        )
+    }
 }

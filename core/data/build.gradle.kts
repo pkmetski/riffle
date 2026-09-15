@@ -65,6 +65,7 @@ kotlin {
             implementation(project(":core:database"))
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
+            implementation(project(":core:catalog"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)

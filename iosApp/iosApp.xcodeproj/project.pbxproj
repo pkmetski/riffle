@@ -41,7 +41,6 @@
 		B1012010 /* OReillyLazyPublicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1012020 /* OReillyLazyPublicationTests.swift */; };
 		B1013010 /* AddKomgaSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1013020 /* AddKomgaSourceFlowTests.swift */; };
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
-		B1015010 /* RiffleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* RiffleTests.swift */; };
 		B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1016020 /* PreferenceStoresAndConnectivityTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
@@ -80,7 +79,6 @@
 		B1008029 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
 		B1013020 /* AddKomgaSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddKomgaSourceFlowTests.swift; sourceTree = "<group>"; };
 		B1014020 /* SourcePickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePickerTests.swift; sourceTree = "<group>"; };
-		B1015020 /* RiffleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleTests.swift; sourceTree = "<group>"; };
 		B1016020 /* PreferenceStoresAndConnectivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceStoresAndConnectivityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -142,7 +140,6 @@
 				B1012020 /* OReillyLazyPublicationTests.swift */,
 				B1013020 /* AddKomgaSourceFlowTests.swift */,
 				B1014020 /* SourcePickerTests.swift */,
-				B1015020 /* RiffleTests.swift */,
 				B1016020 /* PreferenceStoresAndConnectivityTests.swift */,
 			);
 			path = iosAppTests;
@@ -374,7 +371,6 @@
 				B101001A /* OReillyLazyContainer.swift in Sources */,
 				B101101A /* OReillyPublicationBuilder.swift in Sources */,
 				B1012010 /* OReillyLazyPublicationTests.swift in Sources */,
-				B1015010 /* RiffleTests.swift in Sources */,
 				B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

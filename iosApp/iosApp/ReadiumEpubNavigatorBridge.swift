@@ -20,6 +20,9 @@ import ReadiumNavigator
     private var locatorCallback: ((String) -> Void)?
     private var pageLoadCallback: (() -> Void)?
     private var tapCallback: (() -> Void)?
+    // Track the last-loaded resource href so pageLoadCallback fires only on resource
+    // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
+    private var lastLoadedHref: String?
 
     // Test observation properties
     fileprivate var _lastAppliedDecorationsJson: String?
@@ -195,6 +198,11 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         guard let json = try? locator.jsonString() else { return }
         cachedLocatorJson = json
         locatorCallback?(json)
+        let href = locator.href.string
+        if href != lastLoadedHref {
+            lastLoadedHref = href
+            pageLoadCallback?()
+        }
     }
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
@@ -212,6 +220,7 @@ extension ReadiumEpubNavigatorBridge {
     @objc func simulateLocatorUpdate(_ json: String) {
         cachedLocatorJson = json
         locatorCallback?(json)
+        pageLoadCallback?()
     }
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
