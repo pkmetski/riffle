@@ -8,6 +8,7 @@ import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLoginUser
+import com.riffle.core.network.NetworkOfflineException
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerApi
 import kotlinx.coroutines.test.runTest
@@ -89,7 +90,7 @@ class AbsSourceAdapterTest {
 
     @Test fun `ABS Offline maps to NetworkError`() = runTest {
         val adapter = AbsSourceAdapter(
-            absApi = absApi(NetworkResult.Offline(java.io.IOException("offline"))),
+            absApi = absApi(NetworkResult.Offline(NetworkOfflineException("offline"))),
             libraryApi = libsApi(emptyList()),
             storytellerApi = storytellerNotCalled,
         )
