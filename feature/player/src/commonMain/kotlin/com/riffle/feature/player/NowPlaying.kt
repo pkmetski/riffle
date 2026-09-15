@@ -7,8 +7,8 @@ package com.riffle.feature.player
 sealed interface NowPlaying {
     val itemId: String
 
-    /** A full-screen ABS audiobook, opened at `audiobook_player/{itemId}`. */
-    data class Audiobook(override val itemId: String) : NowPlaying
+    /** A full-screen ABS audiobook, opened at `audiobook_player/{sourceId}/{itemId}`. */
+    data class Audiobook(val sourceId: String, override val itemId: String) : NowPlaying
 
     /** A readaloud session, which lives inside the EPUB reader at `epub_reader/{itemId}`. */
     data class Readaloud(override val itemId: String) : NowPlaying
