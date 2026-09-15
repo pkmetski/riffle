@@ -57,7 +57,6 @@ internal fun SourceBrowseHeader(
     onSearchQueryChange: (String) -> Unit,
     onOpenDrawer: () -> Unit,
     sourceIcon: (@Composable () -> Unit)? = null,
-    searchPlaceholder: String = stringResource(R.string.ui_search),
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     // Claim initial focus on an invisible focusable so the BasicTextField never auto-focuses
@@ -150,7 +149,7 @@ internal fun SourceBrowseHeader(
                     Box {
                         if (searchQuery.isEmpty()) {
                             Text(
-                                searchPlaceholder,
+                                stringResource(R.string.ui_search),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

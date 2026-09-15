@@ -83,7 +83,6 @@ fun OReillyBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = SourceType.OREILLY, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
-                searchPlaceholder = stringResource(R.string.ui_search_oreilly),
             )
         },
         bottomBar = {

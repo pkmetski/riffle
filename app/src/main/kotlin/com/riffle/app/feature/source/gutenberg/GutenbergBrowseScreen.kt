@@ -105,7 +105,6 @@ fun GutenbergBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = SourceType.GUTENBERG, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
-                searchPlaceholder = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search_project_gutenberg),
             )
         },
         bottomBar = {

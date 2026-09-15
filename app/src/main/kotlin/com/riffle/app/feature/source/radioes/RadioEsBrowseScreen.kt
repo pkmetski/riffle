@@ -94,7 +94,6 @@ fun RadioEsBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = SourceType.RADIO_ES, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
-                searchPlaceholder = stringResource(R.string.ui_search_radio_es),
             )
         },
         bottomBar = {
