@@ -39,8 +39,8 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
-import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.NavigatorNavigationTarget
+import com.riffle.feature.reader.NavigatorSearchMatch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
