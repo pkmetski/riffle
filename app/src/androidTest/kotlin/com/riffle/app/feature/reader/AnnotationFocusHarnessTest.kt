@@ -463,20 +463,41 @@ class AnnotationFocusHarnessTest : KoinTest {
     }
 
     /**
-     * Polls the primary reader WebView's scrollLeft until it stops changing, giving Readium time
-     * to finish its internal chapter-column scroll after a locator navigation. The Compose idle
-     * state does not track WebView animation, so [waitForReaderReady] alone is insufficient when
-     * navigating to a bookmark that lands partway through a chapter.
+     * Waits for Readium's WebView scroll to start moving (from the initial position) and then
+     * stabilize, covering both horizontal (paginated) and vertical scroll modes. The Compose idle
+     * state does not track WebView animation, so [waitForReaderReady] alone is insufficient.
+     *
+     * Two-phase: first waits for ANY scroll change (up to half the timeout), then waits for the
+     * position to stop changing for [quietMs]. This prevents a false-stable result when Readium
+     * hasn't fired its scroll yet on slow CI runners.
      */
-    private fun waitForWebViewScrollQuiet(quietMs: Long = 400, timeoutMs: Long = 5_000) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        var prev = -1
+    private fun waitForWebViewScrollQuiet(quietMs: Long = 400, timeoutMs: Long = 8_000) {
+        // Track BOTH axes: paginated mode uses scrollLeft (horizontal columns), vertical mode uses
+        // scrollTop. Checking only scrollLeft caused a false-stable verdict in vertical mode because
+        // scrollLeft never changes there, causing the function to return before Readium fired its scroll.
+        val scrollPosJs = "(function(){var e=document.scrollingElement||document.documentElement;" +
+            "return e.scrollLeft+','+e.scrollTop;})()"
+
+        fun sample(): String = visibleWebViews().firstOrNull()?.let { wv ->
+            evalJs(wv, scrollPosJs).takeIf { it.isNotBlank() && it != "null" }
+        } ?: ""
+
+        // Phase 1: wait until the scroll moves from the initial position, or until half the
+        // timeout elapses. This prevents a false-stable read when Readium hasn't started its
+        // scroll animation yet (e.g. vertical mode where scrollTop changes asynchronously).
+        val initialPos = sample()
+        val moveDeadline = System.currentTimeMillis() + timeoutMs / 2
+        while (System.currentTimeMillis() < moveDeadline) {
+            if (sample() != initialPos) break
+            Thread.sleep(100)
+        }
+
+        // Phase 2: wait for the scroll position to stop changing for quietMs.
+        val deadline = System.currentTimeMillis() + timeoutMs / 2
+        var prev = sample()
         var stableFor = 0L
         while (System.currentTimeMillis() < deadline) {
-            val cur = visibleWebViews().firstOrNull()?.let { wv ->
-                evalJs(wv, "(document.scrollingElement||document.documentElement).scrollLeft")
-                    .toDoubleOrNull()?.toInt() ?: -1
-            } ?: -1
+            val cur = sample()
             if (cur == prev) {
                 stableFor += 100
                 if (stableFor >= quietMs) return

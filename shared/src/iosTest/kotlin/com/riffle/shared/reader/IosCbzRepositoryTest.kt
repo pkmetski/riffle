@@ -1,16 +1,17 @@
 package com.riffle.shared.reader
 
-import com.riffle.core.domain.PositionStore
+import com.riffle.core.domain.CbzDownloadResult.NetworkError
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.domain.CbzDownloadResult
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.Source
 import com.riffle.core.network.KomgaCbzApi
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -26,9 +27,12 @@ import kotlin.test.assertIs
 class IosCbzRepositoryTest {
 
     private val noopSourceRepository = object : SourceRepository {
-        override fun observeAll(): Flow<List<com.riffle.core.models.Source>> = flowOf(emptyList())
-        override suspend fun getActive(): com.riffle.core.models.Source? = null
-        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>): com.riffle.core.domain.CommitSourceResult = com.riffle.core.domain.CommitSourceResult.Failure(UnsupportedOperationException())
+        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
+        override suspend fun getActive(): Source? = null
+        override suspend fun commit(
+            pending: PendingSource,
+            hiddenLibraryIds: Set<String>,
+        ): CommitSourceResult = CommitSourceResult.Failure(UnsupportedOperationException())
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
         override suspend fun getSourceVersion(sourceId: String): String? = null
@@ -41,8 +45,20 @@ class IosCbzRepositoryTest {
     }
 
     private val noopCbzApi = object : KomgaCbzApi {
-        override suspend fun fetchCbzPageCount(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): Int = 0
-        override suspend fun fetchCbzPage(baseUrl: String, bookId: String, pageIndex: Int, maxWidth: Int?, token: String, insecureAllowed: Boolean): ByteArray = byteArrayOf()
+        override suspend fun fetchCbzPageCount(
+            baseUrl: String,
+            bookId: String,
+            token: String,
+            insecureAllowed: Boolean,
+        ): Int = 0
+        override suspend fun fetchCbzPage(
+            baseUrl: String,
+            bookId: String,
+            pageIndex: Int,
+            maxWidth: Int?,
+            token: String,
+            insecureAllowed: Boolean,
+        ): ByteArray = byteArrayOf()
     }
 
     private val noopPositionStore = object : ReadingPositionStore {
@@ -51,7 +67,12 @@ class IosCbzRepositoryTest {
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
-        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) {}
+        override suspend fun acceptServer(
+            sourceId: String,
+            itemId: String,
+            payload: String,
+            serverStamp: Long,
+        ) {}
         override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {}
     }
 
@@ -96,7 +117,9 @@ class IosCbzRepositoryTest {
     @Test
     fun downloadCbzReturnsNetworkErrorNotSuccess() = runTest {
         val result = repo.downloadCbz(fakeItem) { _, _ -> }
-        assertIs<CbzDownloadResult.NetworkError>(result,
-            "iOS downloadCbz must return NetworkError — returning Success would silently skip the actual download")
+        assertIs<NetworkError>(
+            result,
+            "iOS downloadCbz must return NetworkError — returning Success would silently skip the actual download",
+        )
     }
 }

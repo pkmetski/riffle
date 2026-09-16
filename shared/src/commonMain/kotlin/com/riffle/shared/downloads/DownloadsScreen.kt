@@ -24,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.feature.downloads.DownloadsViewModel
@@ -155,7 +154,8 @@ private fun CacheSettingsDialog(
         text = {
             Column {
                 Text(
-                    text = "Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.",
+                    text = "Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long." +
+                        " Downloads are kept.",
                     modifier = Modifier.padding(bottom = 4.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
