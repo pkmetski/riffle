@@ -32,7 +32,6 @@ import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderFontFamily
-import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
