@@ -84,8 +84,8 @@ final class AddAbsSourceFlowTests: XCTestCase {
         if !removeFound {
             let allElements = app.descendants(matching: .any).allElementsBoundByIndex
             print("=== Settings screen elements (\(allElements.count)) ===")
-            for (i, el) in allElements.prefix(60).enumerated() {
-                print("[\(i)] type=\(el.elementType.rawValue) id='\(el.identifier)' label='\(el.label)'")
+            for (idx, element) in allElements.prefix(60).enumerated() {
+                print("[\(idx)] type=\(element.elementType.rawValue) id='\(element.identifier)' label='\(element.label)'")
             }
         }
         XCTAssertTrue(removeFound, "Settings must list the source with a Remove action")

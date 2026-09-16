@@ -64,6 +64,8 @@ import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
+import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.RefreshCollections
@@ -163,6 +165,8 @@ import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
+import com.riffle.shared.settings.IosNoOpLocalFilesFolderRepository
+import com.riffle.shared.settings.IosNoOpLocalFilesScannerInterface
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -360,6 +364,8 @@ private fun iosLibraryModule(
     single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
     single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
     single<AnnotationSyncConfigStore> { IosNoOpAnnotationSyncConfigStore }
+    single<LocalFilesScannerInterface> { IosNoOpLocalFilesScannerInterface }
+    single<LocalFilesFolderRepositoryInterface> { IosNoOpLocalFilesFolderRepository }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
     single {
         val bundle = NSBundle.mainBundle
