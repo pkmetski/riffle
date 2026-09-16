@@ -12,6 +12,8 @@ final class StubKomgaServer {
     static let testUserId = "komga-user-1"
     static let testLibraryId = "komga-lib-1"
     static let testLibraryName = "Test Comics"
+    static let testLibraryId2 = "komga-lib-2"
+    static let testLibraryName2 = "Test Comics 2"
     static let testCbzBookId = "komga-book-1"
     static let testCbzBookTitle = "Test CBZ"
     static let testCbzPageCount = 5
@@ -91,7 +93,10 @@ final class StubKomgaServer {
         }
         // Libraries
         if method == "GET" && path == "/api/v1/libraries" {
-            return json(200, #"[{"id":"\#(lib)","name":"\#(Self.testLibraryName)","unavailable":false}]"#)
+            return json(200, """
+            [{"id":"\(lib)","name":"\(Self.testLibraryName)","unavailable":false},
+             {"id":"\(Self.testLibraryId2)","name":"\(Self.testLibraryName2)","unavailable":false}]
+            """)
         }
         // Book detail (must come before the browse prefix match)
         if method == "GET" && path == "/api/v1/books/\(book)" {

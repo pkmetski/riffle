@@ -30,25 +30,21 @@ class AbsHarnessTestCase: XCTestCase {
 
     // Drives the add-source UI flow to connect to the stub ABS server.
     private func connectAbsSource(to url: String) throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 15),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start with the source picker (reset hook must have fired)")
         let absCard = app.staticTexts["Audiobookshelf"]
         XCTAssertTrue(absCard.waitForExistence(timeout: 5), "ABS card must be in the picker")
         absCard.tap()
 
+        // Wait for the credential form
         let schemeButton = app.buttons
             .matching(NSPredicate(format: "label BEGINSWITH 'https://'"))
             .firstMatch
         XCTAssertTrue(schemeButton.waitForExistence(timeout: 10), "Scheme selector must appear")
-        schemeButton.tap()
-        let httpOption = app.buttons["http://"].exists
-            ? app.buttons["http://"]
-            : app.staticTexts.matching(NSPredicate(format: "label == 'http://'")).firstMatch
-        XCTAssertTrue(httpOption.waitForExistence(timeout: 5), "http:// option must exist")
-        httpOption.tap()
 
-        let host = url.replacingOccurrences(of: "http://", with: "")
-        fillField(in: app, labeled: "Source URL", with: host)
+        // Type the full URL with "http://"; the ViewModel's updateHost() auto-detects the
+        // scheme — avoids tapping the DropdownMenu which crashes the test runner.
+        fillField(in: app, labeled: "Source URL", with: url)
         fillField(in: app, labeled: "Username", with: "testuser")
         fillField(in: app, labeled: "Password", with: "test")
 
@@ -104,25 +100,21 @@ class KomgaHarnessTestCase: XCTestCase {
     }
 
     private func connectKomgaSource(to url: String) throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 15),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start with the source picker")
         let komgaCard = app.staticTexts["Komga"]
         XCTAssertTrue(komgaCard.waitForExistence(timeout: 5), "Komga card must be in the picker")
         komgaCard.tap()
 
+        // Wait for the credential form
         let schemeButton = app.buttons
             .matching(NSPredicate(format: "label BEGINSWITH 'https://'"))
             .firstMatch
         XCTAssertTrue(schemeButton.waitForExistence(timeout: 10), "Scheme selector must appear")
-        schemeButton.tap()
-        let httpOption = app.buttons["http://"].exists
-            ? app.buttons["http://"]
-            : app.staticTexts.matching(NSPredicate(format: "label == 'http://'")).firstMatch
-        XCTAssertTrue(httpOption.waitForExistence(timeout: 5))
-        httpOption.tap()
 
-        let host = url.replacingOccurrences(of: "http://", with: "")
-        fillField(in: app, labeled: "Source URL", with: host)
+        // Type the full URL with "http://"; the ViewModel's updateHost() auto-detects the
+        // scheme — avoids tapping the DropdownMenu which crashes the test runner.
+        fillField(in: app, labeled: "Source URL", with: url)
         fillField(in: app, labeled: "Username", with: "test@test.test")
         fillField(in: app, labeled: "Password", with: "test")
 

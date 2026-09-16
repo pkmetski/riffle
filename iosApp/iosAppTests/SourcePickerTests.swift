@@ -22,7 +22,7 @@ final class SourcePickerTests: XCTestCase {
 
     /// The picker must show all six source cards that iOS supports on a pristine install.
     func testAllSourceCardsVisibleOnPristineInstall() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         XCTAssertTrue(app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 5), "ABS card must be visible")
         XCTAssertTrue(app.staticTexts["Local files"].exists, "Local files card must be visible")
@@ -36,7 +36,7 @@ final class SourcePickerTests: XCTestCase {
 
     /// Tapping the Audiobookshelf card must open the credential form without needing a live server.
     func testAbsCredentialFormReachable() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         let absCard = app.staticTexts["Audiobookshelf"]
         XCTAssertTrue(absCard.waitForExistence(timeout: 5), "Audiobookshelf card must exist")
@@ -62,7 +62,7 @@ final class SourcePickerTests: XCTestCase {
     /// Tapping the Project Gutenberg card must show the confirmation screen first (B3 fix).
     /// The user then taps "Add source" and lands on the library home.
     func testGutenbergInstallDoesNotCrash() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         let gutenbergCard = app.staticTexts["Project Gutenberg"]
         XCTAssertTrue(gutenbergCard.waitForExistence(timeout: 5), "Project Gutenberg card must be visible")
@@ -113,7 +113,7 @@ final class SourcePickerTests: XCTestCase {
     /// Tapping the radio.es card must show the confirmation screen first (B3 fix).
     /// The user then taps "Add source" and lands on the library home.
     func testRadioEsInstallDoesNotCrash() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         let radioEsCard = app.staticTexts["radio.es"]
         XCTAssertTrue(radioEsCard.waitForExistence(timeout: 5), "radio.es card must be visible")

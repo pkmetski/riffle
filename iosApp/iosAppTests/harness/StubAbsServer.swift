@@ -13,6 +13,8 @@ final class StubAbsServer {
     static let testToken = "test-token"
     static let testLibraryId = "lib-test-1"
     static let testLibraryName = "Test Library"
+    static let testLibraryId2 = "lib-test-2"
+    static let testLibraryName2 = "Test Library 2"
     static let testItemId = "item-test-1"
     static let testItemTitle = "Test EPUB"
     static let testItemAuthor = "Test Author"
@@ -109,9 +111,13 @@ final class StubAbsServer {
         if req.method == "POST" && path == "/login" { return loginResponse() }
         if req.method == "GET" && path == "/api/libraries" { return librariesResponse() }
         if req.method == "GET" && path == "/api/libraries/\(lib)/items" { return libraryItemsResponse() }
+        if req.method == "GET" && path == "/api/libraries/\(Self.testLibraryId2)/items" { return libraryItemsResponse() }
         if req.method == "GET" && path.hasPrefix("/api/libraries/\(lib)/series") { return seriesResponse() }
+        if req.method == "GET" && path.hasPrefix("/api/libraries/\(Self.testLibraryId2)/series") { return json(200, #"{"results":[]}"#) }
         if req.method == "GET" && path.hasPrefix("/api/libraries/\(lib)/collections") { return collectionsResponse() }
+        if req.method == "GET" && path.hasPrefix("/api/libraries/\(Self.testLibraryId2)/collections") { return json(200, #"{"results":[]}"#) }
         if req.method == "GET" && path.hasPrefix("/api/libraries/\(lib)/playlists") { return json(200, #"{"results":[]}"#) }
+        if req.method == "GET" && path.hasPrefix("/api/libraries/\(Self.testLibraryId2)/playlists") { return json(200, #"{"results":[]}"#) }
         if req.method == "GET" && path == "/api/items/\(Self.testItemId)" { return itemResponse(Self.testItemId, Self.testFileIno) }
         if req.method == "GET" && path == "/api/items/\(Self.testItemId)/ebook/\(Self.testFileIno)" { return epubResponse("test.epub") }
         if req.method == "GET" && path == "/api/items/\(Self.testStandaloneItemId)" { return itemResponse(Self.testStandaloneItemId, Self.testStandaloneFileIno) }
@@ -144,7 +150,10 @@ final class StubAbsServer {
 
     private func librariesResponse() -> Data {
         json(200, """
-        {"libraries":[{"id":"\(Self.testLibraryId)","name":"\(Self.testLibraryName)","mediaType":"book","settings":{"audiobooksOnly":false}}]}
+        {"libraries":[
+          {"id":"\(Self.testLibraryId)","name":"\(Self.testLibraryName)","mediaType":"book","settings":{"audiobooksOnly":false}},
+          {"id":"\(Self.testLibraryId2)","name":"\(Self.testLibraryName2)","mediaType":"book","settings":{"audiobooksOnly":false}}
+        ]}
         """)
     }
 

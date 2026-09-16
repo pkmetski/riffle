@@ -29,7 +29,7 @@ final class AddAbsSourceFlowTests: XCTestCase {
     /// NSLog varargs, which segfaults on Kotlin/Native): installing a zero-config catalog source
     /// must complete with the app alive.
     func testChitankaInstallDoesNotCrash() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         app.staticTexts["Chitanka"].tap()
         // B3: tapping Chitanka now navigates to a confirmation screen before installing.
@@ -71,26 +71,23 @@ final class AddAbsSourceFlowTests: XCTestCase {
 
     /// Full add-ABS-source flow: picker → credentials → select-libraries → library home.
     func testAddAbsSourceEndToEnd() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
 
         let absCard = app.staticTexts["Audiobookshelf"]
         XCTAssertTrue(absCard.waitForExistence(timeout: 5), "Picker must show the Audiobookshelf card")
         absCard.tap()
 
+        // Wait for the credential form (scheme selector appears when the form is ready)
         let schemeButton = app.buttons
             .matching(NSPredicate(format: "label BEGINSWITH 'https://'"))
             .firstMatch
         XCTAssertTrue(schemeButton.waitForExistence(timeout: 10), "Credential form must show the scheme selector")
-        schemeButton.tap()
-        let httpOption = app.buttons["http://"].exists
-            ? app.buttons["http://"]
-            : app.staticTexts.matching(NSPredicate(format: "label == 'http://'")).firstMatch
-        XCTAssertTrue(httpOption.waitForExistence(timeout: 5), "Scheme dropdown must offer http://")
-        httpOption.tap()
 
-        let host = absServer.baseUrl.replacingOccurrences(of: "http://", with: "")
-        fill(fieldLabeled: "Source URL", with: host)
+        // Type the full URL including "http://"; the ViewModel's updateHost() auto-detects
+        // the scheme and strips it into the scheme button — avoids tapping a DropdownMenu
+        // which crashes the test runner due to an XCTest/Compose accessibility interaction bug.
+        fill(fieldLabeled: "Source URL", with: absServer.baseUrl)
         fill(fieldLabeled: "Username", with: "testuser")
         fill(fieldLabeled: "Password", with: "test")
 

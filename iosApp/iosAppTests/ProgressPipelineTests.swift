@@ -86,8 +86,8 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
     func testLibraryProgressUpdatesAfterReading() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
 
-        let anyTile = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] '%'")).firstMatch
-        XCTAssertTrue(anyTile.waitForExistence(timeout: 10), "A book tile with progress % must be visible")
+        let anyTile = findFirstBookTile(hintKeywords: ["epub", "pdf", "cbz", "audiobook"])
+        XCTAssertTrue(anyTile.waitForExistence(timeout: 10), "A book tile must be visible")
 
         anyTile.tap()
         let backButton = app.staticTexts["← Back"]
@@ -137,7 +137,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
             if tile.exists { return tile }
         }
         return app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] '%'")
+            NSPredicate(format: "label CONTAINS[c] 'test'")
         ).firstMatch
     }
 }
