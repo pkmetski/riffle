@@ -24,8 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -625,8 +623,7 @@ private fun SettingsRow(
                 trailing,
                 style = TextStyle(fontSize = 13.sp, color = Color(0xFF1565C0)),
                 modifier = Modifier
-                    .semantics { role = Role.Button }
-                    .clickable { onTrailingClick?.invoke() }
+                    .clickable(role = Role.Button) { onTrailingClick?.invoke() }
                     .padding(start = 8.dp),
             )
         }
