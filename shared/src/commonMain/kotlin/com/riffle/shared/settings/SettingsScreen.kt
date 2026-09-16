@@ -638,11 +638,7 @@ private fun SettingsRow(
             leading()
             Spacer(Modifier.width(12.dp))
         }
-        Column(
-            Modifier
-                .weight(1f)
-                .then(if (onExpandToggle != null) Modifier.clickable { onExpandToggle() } else Modifier),
-        ) {
+        Column(Modifier.weight(1f)) {
             BasicText(label, style = TextStyle(fontSize = 14.sp))
             if (subtitle != null) {
                 BasicText(subtitle, style = TextStyle(fontSize = 12.sp, color = Color.Gray))
@@ -652,7 +648,9 @@ private fun SettingsRow(
             BasicText(
                 text = if (expand) "▲" else "▼",
                 style = TextStyle(fontSize = 12.sp, color = Color.Gray),
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier
+                    .clickable { onExpandToggle() }
+                    .padding(start = 8.dp),
             )
         }
         if (trailing != null) {

@@ -23,9 +23,9 @@ import com.riffle.core.data.IosReadingSpeedStoreImpl
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.IosWakeLockPreferencesStoreImpl
-import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
+import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.IosCopyInService
 import com.riffle.core.data.localfiles.IosFolderPicker
