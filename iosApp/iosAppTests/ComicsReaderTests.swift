@@ -1,38 +1,21 @@
 import XCTest
 
-// Covers scenarios from docs/testing/ios-scenarios/06-comics-reader.md
+// Covers comics reader scenarios (scenario 06-C). Uses KomgaHarnessTestCase so the stub Komga
+// server provides a "Test CBZ" item served page-by-page; no XCTSkip.
+final class ComicsReaderTests: KomgaHarnessTestCase {
 
-final class ComicsReaderTests: XCTestCase {
-
-    private var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-    }
-
-    override func tearDownWithError() throws {
-        app.terminate()
-        app = nil
+    private var cbzTile: XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'cbz'")
+        ).firstMatch
     }
 
     // MARK: - Scenario 06-C: Opening a CBZ
 
     /// 06-C.1 — Tapping a CBZ item opens the comics reader screen.
     func testComicsReaderOpensFromLibrary() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — comics reader test requires a connected server")
-        }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let cbzTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'cbz'")
-        ).firstMatch
-        guard cbzTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No CBZ tile found in library — requires a server with CBZ items")
-        }
-
+        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10), "CBZ tile must be visible in the library")
         cbzTile.tap()
 
         let backButton = app.buttons["← Back"].firstMatch
@@ -51,50 +34,30 @@ final class ComicsReaderTests: XCTestCase {
     /// DB with a stale (page 1) position. Fixed by flushing position on an app-lifetime scope in
     /// `onReaderClosed()` before the ViewModel is cleared.
     func testComicsPositionRestoredOnReopen() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — position-persistence test requires a connected server")
-        }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let cbzTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'cbz'")
-        ).firstMatch
-        guard cbzTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No CBZ tile found in library — requires a server with CBZ items")
-        }
+        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
         let bookLabel = cbzTile.label
 
-        // Open and advance a few pages.
         cbzTile.tap()
         let backButton = app.buttons["← Back"].firstMatch
-        guard backButton.waitForExistence(timeout: 15) else {
-            throw XCTSkip("Comics reader did not open")
-        }
-        // Advance 3 pages by swiping left.
+        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Comics reader must open")
+
         let readerArea = app.otherElements.firstMatch
         for _ in 0..<3 {
             readerArea.swipeLeft()
             Thread.sleep(forTimeInterval: 0.5)
         }
 
-        // Close the reader.
         backButton.tap()
         _ = app.staticTexts.firstMatch.waitForExistence(timeout: 5)
 
-        // Reopen the same book.
         let sameTile = app.buttons.matching(
             NSPredicate(format: "label == %@", bookLabel)
         ).firstMatch
-        guard sameTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("Could not find the same CBZ tile after closing reader")
-        }
+        XCTAssertTrue(sameTile.waitForExistence(timeout: 5), "CBZ tile must reappear after closing reader")
         sameTile.tap()
-        guard backButton.waitForExistence(timeout: 15) else {
-            throw XCTSkip("Comics reader did not reopen")
-        }
+        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Comics reader must reopen")
 
-        // The page indicator should NOT show "1 /" (page 1) — we advanced past that.
-        // If position was dropped the book would restart at page 1.
         let onPageOne = app.staticTexts.matching(
             NSPredicate(format: "label BEGINSWITH '1 /'")
         ).firstMatch.waitForExistence(timeout: 3)
@@ -108,25 +71,12 @@ final class ComicsReaderTests: XCTestCase {
 
     /// 06-G.1 — Tapping back from the comics reader returns to the library.
     func testComicsReaderBackNavigationReturnsToLibrary() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — comics reader test requires a connected server")
-        }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let cbzTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'cbz'")
-        ).firstMatch
-        guard cbzTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No CBZ tile found in library — requires a server with CBZ items")
-        }
-
+        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
         cbzTile.tap()
 
         let backButton = app.buttons["← Back"].firstMatch
-        guard backButton.waitForExistence(timeout: 15) else {
-            throw XCTSkip("Comics reader did not open")
-        }
-
+        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Comics reader must open")
         backButton.tap()
 
         let sectionLabels = ["In Progress", "Recently Added", "Finished", "All Books", "Series", "Collections"]
