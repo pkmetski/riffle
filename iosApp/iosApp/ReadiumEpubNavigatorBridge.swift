@@ -15,6 +15,8 @@ import ReadiumNavigator
     private var publication: Publication?
     // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
     private var cachedLocatorJson: String?
+    // TOC fetched asynchronously after open; getTocJson() returns from this cache.
+    private var cachedTocJson: String = "[]"
 
     // Callbacks registered by ReadiumSwiftNavigator
     private var locatorCallback: ((String) -> Void)?
@@ -53,6 +55,7 @@ import ReadiumNavigator
                 let pubResult = await opener.open(asset: asset, allowUserInteraction: false)
                 guard case .success(let pub) = pubResult else { return }
                 self.publication = pub
+                self.prefetchToc(pub)
 
                 var initialLocator: Locator?
                 if let json = locatorJson,
@@ -65,8 +68,8 @@ import ReadiumNavigator
                 )
                 let navigator = try EPUBNavigatorViewController(
                     publication: pub,
-                    config: config,
-                    initialLocation: initialLocator
+                    initialLocation: initialLocator,
+                    config: config
                 )
                 navigator.delegate = self
                 self.epubNavigator = navigator
@@ -115,6 +118,7 @@ import ReadiumNavigator
             do {
                 let (pub, _) = try OReillyPublicationBuilder.build(shapeJson: shapeJson, fetcher: fetcher)
                 self.publication = pub
+                self.prefetchToc(pub)
 
                 var initialLocator: Locator?
                 if let json = locatorJson,
@@ -127,8 +131,8 @@ import ReadiumNavigator
                 )
                 let navigator = try EPUBNavigatorViewController(
                     publication: pub,
-                    config: config,
-                    initialLocation: initialLocator
+                    initialLocation: initialLocator,
+                    config: config
                 )
                 navigator.delegate = self
                 self.epubNavigator = navigator
@@ -152,6 +156,7 @@ import ReadiumNavigator
             self.epubNavigator = nil
             self.publication = nil
             self.cachedLocatorJson = nil
+            self.cachedTocJson = "[]"
         }
     }
 
@@ -190,7 +195,6 @@ import ReadiumNavigator
 
         let prefs = EPUBPreferences(
             fontFamily: fontFamily,
-            fontOverride: fontFamily != nil,
             fontSize: Double(fontSizePercent),
             lineHeight: lineHeight,
             pageMargins: pageMargins > 0 ? pageMargins : nil,
@@ -200,13 +204,17 @@ import ReadiumNavigator
         )
         pendingPreferences = prefs
         Task { @MainActor in
-            epubNavigator?.apply(preferences: prefs)
+            epubNavigator?.submitPreferences(prefs)
         }
     }
 
-    func getTocJson() -> String {
-        guard let pub = publication, !pub.tableOfContents.isEmpty else { return "[]" }
-        return serializeTocLinks(pub.tableOfContents)
+    func getTocJson() -> String { cachedTocJson }
+
+    private func prefetchToc(_ pub: Publication) {
+        Task { @MainActor in
+            guard case .success(let links) = await pub.tableOfContents().get(), !links.isEmpty else { return }
+            self.cachedTocJson = self.serializeTocLinks(links)
+        }
     }
 
     func startSearch(
