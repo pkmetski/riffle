@@ -49,14 +49,14 @@ final class LibraryTabVisibilityTests: XCTestCase {
     // MARK: — Equality
 
     func testEqualityMatchesComponentValues() {
-        let a = LibraryTabVisibility(toRead: true, series: true, collections: false, annotations: true, playlists: false)
-        let b = LibraryTabVisibility(toRead: true, series: true, collections: false, annotations: true, playlists: false)
-        XCTAssertEqual(a, b)
+        let lhsVisibility = LibraryTabVisibility(toRead: true, series: true, collections: false, annotations: true, playlists: false)
+        let rhsVisibility = LibraryTabVisibility(toRead: true, series: true, collections: false, annotations: true, playlists: false)
+        XCTAssertEqual(lhsVisibility, rhsVisibility)
     }
 
     func testInequalityOnDifferentValues() {
-        let a = LibraryTabVisibility(toRead: true, series: false, collections: false, annotations: false, playlists: false)
-        let b = LibraryTabVisibility(toRead: false, series: false, collections: false, annotations: false, playlists: false)
-        XCTAssertNotEqual(a, b)
+        let lhsVisibility = LibraryTabVisibility(toRead: true, series: false, collections: false, annotations: false, playlists: false)
+        let rhsVisibility = LibraryTabVisibility(toRead: false, series: false, collections: false, annotations: false, playlists: false)
+        XCTAssertNotEqual(lhsVisibility, rhsVisibility)
     }
 }
