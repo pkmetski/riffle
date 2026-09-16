@@ -156,7 +156,7 @@ final class AddKomgaSourceFlowTests: XCTestCase {
         }
         continueButton.tap()
 
-        let burger = app.staticTexts["☰"]
+        let burger = app.buttons["Open menu"]
         XCTAssertTrue(
             burger.waitForExistence(timeout: 60),
             "Library home must render after adding the Komga source"

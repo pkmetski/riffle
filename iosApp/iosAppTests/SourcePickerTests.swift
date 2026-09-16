@@ -91,7 +91,7 @@ final class SourcePickerTests: XCTestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
         addButton.tap()
 
-        let burger = app.staticTexts["☰"]
+        let burger = app.buttons["Open menu"]
         XCTAssertTrue(
             burger.waitForExistence(timeout: 30),
             "Project Gutenberg install must land on the library home"
@@ -142,7 +142,7 @@ final class SourcePickerTests: XCTestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
         addButton.tap()
 
-        let burger = app.staticTexts["☰"]
+        let burger = app.buttons["Open menu"]
         XCTAssertTrue(
             burger.waitForExistence(timeout: 30),
             "radio.es install must land on the library home"

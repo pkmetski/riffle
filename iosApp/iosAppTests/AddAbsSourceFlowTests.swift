@@ -71,7 +71,7 @@ final class AddAbsSourceFlowTests: XCTestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
         addButton.tap()
         // Install writes the source + libraries and redirects to the library home.
-        let burger = app.staticTexts["☰"]
+        let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 30), "Chitanka install must land on the library home")
         XCTAssertTrue(app.state == .runningForeground, "App must survive Chitanka install")
 
@@ -167,7 +167,7 @@ final class AddAbsSourceFlowTests: XCTestCase {
 
         // The committed source becomes active: the library home top bar (burger + library title)
         // replaces the onboarding flow.
-        let burger = app.staticTexts["☰"]
+        let burger = app.buttons["Open menu"]
         XCTAssertTrue(
             burger.waitForExistence(timeout: 60),
             "Library home must render after adding the source",
