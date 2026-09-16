@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import UIKit
+import XCTest
 
 // In-process ABS HTTP stub backed by NWListener. Mirrors Android's StubAbsServer.kt so both
 // platforms test against an identical canned catalogue.
@@ -55,13 +56,15 @@ final class StubAbsServer {
             if case .ready = state {
                 self?.port = self?.listener?.port?.rawValue ?? 0
                 sem.signal()
-            } else if case .failed = state {
+            } else if case .failed(let err) = state {
+                XCTFail("StubAbsServer failed to start: \(err)")
                 sem.signal()
             }
         }
         listener?.newConnectionHandler = { [weak self] conn in self?.handle(conn) }
         listener?.start(queue: queue)
         sem.wait()
+        XCTAssertNotEqual(port, 0, "StubAbsServer must bind to a non-zero port")
     }
 
     func shutdown() {

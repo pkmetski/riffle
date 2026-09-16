@@ -48,9 +48,9 @@ class AbsHarnessTestCase: XCTestCase {
         httpOption.tap()
 
         let host = url.replacingOccurrences(of: "http://", with: "")
-        fillField(labeled: "Source URL", with: host)
-        fillField(labeled: "Username", with: "testuser")
-        fillField(labeled: "Password", with: "test")
+        fillField(in: app, labeled: "Source URL", with: host)
+        fillField(in: app, labeled: "Username", with: "testuser")
+        fillField(in: app, labeled: "Password", with: "test")
 
         let connect = app.buttons["Connect"]
         XCTAssertTrue(connect.waitForExistence(timeout: 5))
@@ -76,19 +76,6 @@ class AbsHarnessTestCase: XCTestCase {
                       "Library home must render after adding ABS source")
     }
 
-    func fillField(labeled label: String, with text: String) {
-        let fieldLabel = app.staticTexts[label]
-        XCTAssertTrue(fieldLabel.waitForExistence(timeout: 5), "\(label) field must exist")
-        fieldLabel.tap()
-        let focused = app.textFields.firstMatch.exists
-            ? app.textFields.firstMatch
-            : app.secureTextFields.firstMatch
-        if focused.exists {
-            focused.typeText(text)
-        } else {
-            app.typeText(text)
-        }
-    }
 }
 
 // Base class for harness tests that need a pre-configured Komga source.
@@ -135,9 +122,9 @@ class KomgaHarnessTestCase: XCTestCase {
         httpOption.tap()
 
         let host = url.replacingOccurrences(of: "http://", with: "")
-        fillField(labeled: "Source URL", with: host)
-        fillField(labeled: "Username", with: "test@test.test")
-        fillField(labeled: "Password", with: "test")
+        fillField(in: app, labeled: "Source URL", with: host)
+        fillField(in: app, labeled: "Username", with: "test@test.test")
+        fillField(in: app, labeled: "Password", with: "test")
 
         let connect = app.buttons["Connect"]
         XCTAssertTrue(connect.waitForExistence(timeout: 5))
@@ -163,17 +150,19 @@ class KomgaHarnessTestCase: XCTestCase {
                       "Library home must render after adding Komga source")
     }
 
-    func fillField(labeled label: String, with text: String) {
-        let fieldLabel = app.staticTexts[label]
-        XCTAssertTrue(fieldLabel.waitForExistence(timeout: 5), "\(label) field must exist")
-        fieldLabel.tap()
-        let focused = app.textFields.firstMatch.exists
-            ? app.textFields.firstMatch
-            : app.secureTextFields.firstMatch
-        if focused.exists {
-            focused.typeText(text)
-        } else {
-            app.typeText(text)
-        }
+}
+
+// Shared helper used by both harness base classes and standalone test classes.
+func fillField(in app: XCUIApplication, labeled label: String, with text: String) {
+    let fieldLabel = app.staticTexts[label]
+    XCTAssertTrue(fieldLabel.waitForExistence(timeout: 5), "\(label) field must exist")
+    fieldLabel.tap()
+    let focused = app.textFields.firstMatch.exists
+        ? app.textFields.firstMatch
+        : app.secureTextFields.firstMatch
+    if focused.exists {
+        focused.typeText(text)
+    } else {
+        app.typeText(text)
     }
 }

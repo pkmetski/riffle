@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import UIKit
+import XCTest
 
 // In-process Komga HTTP stub backed by NWListener. Serves the minimal Komga REST surface needed
 // for the add-source flow and comics-reader harness tests.
@@ -34,13 +35,15 @@ final class StubKomgaServer {
             if case .ready = state {
                 self?.port = self?.listener?.port?.rawValue ?? 0
                 sem.signal()
-            } else if case .failed = state {
+            } else if case .failed(let err) = state {
+                XCTFail("StubKomgaServer failed to start: \(err)")
                 sem.signal()
             }
         }
         listener?.newConnectionHandler = { [weak self] conn in self?.handle(conn) }
         listener?.start(queue: queue)
         sem.wait()
+        XCTAssertNotEqual(port, 0, "StubKomgaServer must bind to a non-zero port")
     }
 
     func shutdown() {
@@ -87,13 +90,13 @@ final class StubKomgaServer {
         if m == "GET" && p == "/api/v1/libraries" {
             return json(200, #"[{"id":"\#(lib)","name":"\#(Self.TEST_LIBRARY_NAME)","unavailable":false}]"#)
         }
-        // Books browse
-        if m == "GET" && p.hasPrefix("/api/v1/books") && p.contains("library_id") {
-            return json(200, booksPage())
-        }
-        // Book detail
+        // Book detail (must come before the browse prefix match)
         if m == "GET" && p == "/api/v1/books/\(book)" {
             return json(200, bookDto(book))
+        }
+        // Books browse (query params are stripped by parse(), so match bare path)
+        if m == "GET" && p == "/api/v1/books" {
+            return json(200, booksPage())
         }
         // Book pages (image)
         if m == "GET" && p.hasPrefix("/api/v1/books/\(book)/pages/") {
