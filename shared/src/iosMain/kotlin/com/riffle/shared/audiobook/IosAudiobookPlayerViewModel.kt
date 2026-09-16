@@ -184,7 +184,7 @@ class IosAudiobookPlayerViewModel(
         // viewModelScope is already cancelled before onCleared runs; use a standalone scope.
         CoroutineScope(SupervisorJob()).launch {
             if (positionSec > 0 && activeSourceId.isNotEmpty()) {
-                audiobookPositionStore.save(activeSourceId, itemId, positionSec)
+                runCatching { audiobookPositionStore.save(activeSourceId, itemId, positionSec) }
             }
             if (sid != null) {
                 runCatching {

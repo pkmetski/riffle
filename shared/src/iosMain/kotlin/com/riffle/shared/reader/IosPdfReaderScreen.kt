@@ -60,14 +60,16 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             val pageCount = bridge.pageCount()
             if (page > 0 || pageCount > 0) {
                 CoroutineScope(SupervisorJob()).launch {
-                    val locatorJson = encodePdfLocator(page, pageCount)
-                    val progress = if (pageCount > 0) page.toFloat() / pageCount else 0f
-                    positionStore.save(item.sourceId, item.id, locatorJson)
-                    val payload = SessionPayload(
-                        ebookLocation = locatorJson,
-                        ebookProgress = progress,
-                    )
-                    sessionRepository.runSyncCycle(item.id, payload)
+                    runCatching {
+                        val locatorJson = encodePdfLocator(page, pageCount)
+                        val progress = if (pageCount > 0) page.toFloat() / pageCount else 0f
+                        positionStore.save(item.sourceId, item.id, locatorJson)
+                        val payload = SessionPayload(
+                            ebookLocation = locatorJson,
+                            ebookProgress = progress,
+                        )
+                        sessionRepository.runSyncCycle(item.id, payload)
+                    }
                 }
             }
             bridge.disposePdf()
