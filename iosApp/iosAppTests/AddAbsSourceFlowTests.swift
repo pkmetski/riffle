@@ -64,6 +64,12 @@ final class AddAbsSourceFlowTests: XCTestCase {
             throw XCTSkip("A source is already configured — install test requires a pristine install")
         }
         app.staticTexts["Chitanka"].tap()
+        // B3: tapping Chitanka now navigates to a confirmation screen before installing.
+        let confirmTitle = app.staticTexts["Add Chitanka"]
+        XCTAssertTrue(confirmTitle.waitForExistence(timeout: 10), "Chitanka picker tap must show confirmation screen")
+        let addButton = app.buttons["Add source"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
+        addButton.tap()
         // Install writes the source + libraries and redirects to the library home.
         let burger = app.staticTexts["☰"]
         XCTAssertTrue(burger.waitForExistence(timeout: 30), "Chitanka install must land on the library home")
