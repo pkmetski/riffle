@@ -45,6 +45,8 @@
 		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B100E010 /* LibraryTabVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100E020 /* LibraryTabVisibilityTests.swift */; };
 		B1015010 /* ProgressPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* ProgressPipelineTests.swift */; };
+		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
+		B101901A /* PdfBridgeUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B101901B /* PdfBridgeUnitTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
 		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
@@ -85,6 +87,7 @@
 		B1014020 /* SourcePickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePickerTests.swift; sourceTree = "<group>"; };
 		B1016020 /* PreferenceStoresAndConnectivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceStoresAndConnectivityTests.swift; sourceTree = "<group>"; };
 		B1015020 /* ProgressPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPipelineTests.swift; sourceTree = "<group>"; };
+		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -148,6 +151,7 @@
 				B1014020 /* SourcePickerTests.swift */,
 				B1016020 /* PreferenceStoresAndConnectivityTests.swift */,
 				B1015020 /* ProgressPipelineTests.swift */,
+				B101901B /* PdfBridgeUnitTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -381,6 +385,8 @@
 				B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */,
 				B1017010 /* DownloadsTests.swift in Sources */,
 				B100E010 /* LibraryTabVisibilityTests.swift in Sources */,
+				B101801A /* PdfKitNavigatorBridge.swift in Sources */,
+				B101901A /* PdfBridgeUnitTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

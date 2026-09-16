@@ -47,6 +47,15 @@ import Riffle
     }
 }
 
+// MARK: - Test helpers
+
+extension PdfKitNavigatorBridgeImpl {
+    /// Simulate a page change as if PDFKit fired PDFViewPageChanged. Used in unit tests only.
+    @objc func simulatePageChange(_ pageIndex: Int) {
+        pageChangeCallback?.onPageChanged(page: Int32(pageIndex))
+    }
+}
+
 // MARK: - Factory
 
 @objc final class PdfKitNavigatorBridgeFactoryImpl: NSObject, IosPdfNavigatorBridgeFactory {

@@ -151,4 +151,24 @@ final class EpubReaderTests: XCTestCase {
         wait(for: [allDone], timeout: 3)
         XCTAssertEqual(doneCount, 2)
     }
+
+    // MARK: - Scenario 03-I: Orientation → scroll mode mapping (regression pin)
+
+    // ReaderOrientation.Continuous must map to scrollMode=true (scroll on, not paginated).
+    // Regression: previously `scrollMode = prefs.orientation == Vertical` which silently left
+    // Continuous in paginated columns with no user signal.
+    func testContinuousOrientationMapsToScrollMode() {
+        XCTAssertTrue(EpubOrientationMapperKt.epubScrollMode(orientation: .continuous),
+                      "Continuous mode must use Readium scroll (not paginated columns)")
+    }
+
+    func testVerticalOrientationMapsToScrollMode() {
+        XCTAssertTrue(EpubOrientationMapperKt.epubScrollMode(orientation: .vertical),
+                      "Vertical mode must use Readium scroll")
+    }
+
+    func testHorizontalOrientationMapsToPaginatedMode() {
+        XCTAssertFalse(EpubOrientationMapperKt.epubScrollMode(orientation: .horizontal),
+                       "Horizontal (paginated) mode must not use Readium scroll")
+    }
 }
