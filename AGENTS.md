@@ -151,7 +151,16 @@ When an Android implementation is being moved or a new feature is being added, c
 
 ### Tests must mirror both platforms
 
-For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test — no exceptions. If an Android test is added without an iOS counterpart, the PR will be sent back. This means:
+For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test — no exceptions. If an Android test is added without an iOS counterpart, the PR will be sent back.
+
+**The counterpart must execute the iOS code path.** An Android test that pins behaviour in `app`/`androidMain` proves nothing about iOS when iOS has its own implementation of that behaviour — every iOS defect found in the 2026-09-16 parity pass (#1044–#1049) sat in code only iOS executes while the relevant Android tests were green. Therefore:
+
+- **Preferred:** one implementation in `commonMain`, one test in `commonTest`. CI runs every module's `commonTest` on `iosSimulatorArm64Test`, so the same assertion covers both platforms.
+- **Platform-bound code** (Swift bridges, iOS DAOs, PDFKit/AVFoundation/Readium-Swift hosting) gets a real XCTest that drives the iOS implementation.
+- **Never acceptable as the iOS counterpart:** an `XCTSkip` placeholder, a skip that fires when no server/fixture is present (that is an assertion — use `XCTFail`), a Swift test that re-asserts a Kotlin `commonTest` already running on iOS, or a trivial non-nil/constant-echo check.
+- When adding any Android test, the PR body names the iOS test that covers the same behaviour on the iOS path, or adds it.
+
+This means:
 
 1. Identify the relevant Android test classes (harness tests in `app/src/androidTest`, unit tests in `**/test`).
 2. Implement each scenario as an XCTest in `iosApp/iosAppTests/`:
