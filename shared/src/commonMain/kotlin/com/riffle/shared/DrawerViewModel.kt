@@ -53,7 +53,7 @@ class DrawerViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val _lastActiveLibraryId = MutableStateFlow<String?>(null)
+    private val lastActiveLibraryId = MutableStateFlow<String?>(null)
 
     private val _redirectToLibrary = MutableSharedFlow<Library>(
         extraBufferCapacity = 1,
@@ -64,7 +64,7 @@ class DrawerViewModel(
     val redirectToLibrary: Flow<Library> = _redirectToLibrary
 
     fun setActiveLibrary(libraryId: String) {
-        _lastActiveLibraryId.value = libraryId
+        lastActiveLibraryId.value = libraryId
         viewModelScope.launch {
             val sourceId = sourceRepository.getActive()?.id ?: return@launch
             lastOpenedLibraryStore.setLastOpenedLibrary(sourceId, libraryId)
@@ -89,11 +89,11 @@ class DrawerViewModel(
         viewModelScope.launch {
             activeServer
                 .drop(1)
-                .collect { _lastActiveLibraryId.value = null }
+                .collect { lastActiveLibraryId.value = null }
         }
         viewModelScope.launch {
             visibleLibraries.collect { visible ->
-                val lastId = _lastActiveLibraryId.value ?: return@collect
+                val lastId = lastActiveLibraryId.value ?: return@collect
                 if (visible.isNotEmpty() && visible.none { it.id == lastId }) {
                     _redirectToLibrary.emit(visible.first())
                 }

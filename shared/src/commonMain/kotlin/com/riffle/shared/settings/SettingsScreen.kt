@@ -18,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,15 +46,19 @@ import org.koin.compose.koinInject
 
 private enum class SettingsPanel {
     None,
+
     // Source onboarding
     AddSource,
+
     // Reading panels
     Formatting,
     Display,
     AutoScroll,
     Cadence,
+
     // Listening
     Listening,
+
     // Comics
     ComicDisplay,
 }
@@ -140,7 +143,6 @@ private fun MainSettingsContent(
 ) {
     val appTheme by viewModel.appTheme.collectAsState()
     val servers by viewModel.servers.collectAsState()
-    val singletonWebSources by viewModel.singletonWebSources.collectAsState()
     val localFilesSource by viewModel.localFilesSource.collectAsState()
     val libraryUiItemsBySource by viewModel.libraryUiItemsBySource.collectAsState()
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
@@ -200,52 +202,25 @@ private fun MainSettingsContent(
         // ── Sources ───────────────────────────────────────────────────────────────────────
         SectionHeader("Sources")
         val nonLocalServers = servers.filter { it.id != localFilesSource?.id }
-        if (nonLocalServers.isEmpty() && singletonWebSources.isEmpty()) {
+        if (nonLocalServers.isEmpty()) {
             SettingsRow("No sources configured")
         } else {
             nonLocalServers.forEach { source ->
                 val libraryItems = libraryUiItemsBySource[source.id] ?: emptyList()
-                var expanded by remember(source.id) { mutableStateOf(false) }
                 SettingsRow(
                     label = source.serverType.label,
                     subtitle = source.url.authority(),
                     trailing = "Remove",
                     onTrailingClick = { viewModel.removeServer(source.id) },
                     leading = { SourceIcon(source = source, size = 28.dp) },
-                    expand = expanded,
-                    onExpandToggle = { expanded = !expanded },
                 )
-                if (expanded && libraryItems.isNotEmpty()) {
-                    libraryItems.forEach { item ->
-                        LibraryVisibilityRow(
-                            name = item.library.name,
-                            visible = item.isVisible,
-                            switchEnabled = item.switchEnabled,
-                            onToggle = { viewModel.setLibraryVisible(source.id, item.library.id, it) },
-                        )
-                    }
-                }
-            }
-            singletonWebSources.forEach { source ->
-                val libraryItems = libraryUiItemsBySource[source.id] ?: emptyList()
-                var expanded by remember(source.id) { mutableStateOf(false) }
-                SettingsRow(
-                    label = source.serverType.label,
-                    trailing = "Remove",
-                    onTrailingClick = { viewModel.removeServer(source.id) },
-                    leading = { SourceIcon(source = source, size = 28.dp) },
-                    expand = expanded,
-                    onExpandToggle = { expanded = !expanded },
-                )
-                if (expanded && libraryItems.isNotEmpty()) {
-                    libraryItems.forEach { item ->
-                        LibraryVisibilityRow(
-                            name = item.library.name,
-                            visible = item.isVisible,
-                            switchEnabled = item.switchEnabled,
-                            onToggle = { viewModel.setLibraryVisible(source.id, item.library.id, it) },
-                        )
-                    }
+                libraryItems.forEach { item ->
+                    LibraryVisibilityRow(
+                        name = item.library.name,
+                        visible = item.isVisible,
+                        switchEnabled = item.switchEnabled,
+                        onToggle = { viewModel.setLibraryVisible(source.id, item.library.id, it) },
+                    )
                 }
             }
         }
@@ -624,8 +599,6 @@ private fun SettingsRow(
     trailing: String? = null,
     onTrailingClick: (() -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
-    expand: Boolean = false,
-    onExpandToggle: (() -> Unit)? = null,
     indent: Boolean = false,
 ) {
     Row(
@@ -643,15 +616,6 @@ private fun SettingsRow(
             if (subtitle != null) {
                 BasicText(subtitle, style = TextStyle(fontSize = 12.sp, color = Color.Gray))
             }
-        }
-        if (onExpandToggle != null) {
-            BasicText(
-                text = if (expand) "▲" else "▼",
-                style = TextStyle(fontSize = 12.sp, color = Color.Gray),
-                modifier = Modifier
-                    .clickable { onExpandToggle() }
-                    .padding(start = 8.dp),
-            )
         }
         if (trailing != null) {
             BasicText(
@@ -862,11 +826,15 @@ private fun comicDisplaySummary(prefs: ComicFormattingPreferences): String = bui
     append(prefs.backgroundTheme.displayLabel())
     append(" · ")
     append(
-        if (prefs.panelViewOn) when (prefs.panelOverflow) {
-            PanelOverflowBehavior.SPLIT -> "Panel view · Split"
-            PanelOverflowBehavior.SMART_SPLIT -> "Panel view · Smart split"
-            PanelOverflowBehavior.OFF -> "Panel view · No split"
-        } else "Panel view off",
+        if (prefs.panelViewOn) {
+            when (prefs.panelOverflow) {
+                PanelOverflowBehavior.SPLIT -> "Panel view · Split"
+                PanelOverflowBehavior.SMART_SPLIT -> "Panel view · Smart split"
+                PanelOverflowBehavior.OFF -> "Panel view · No split"
+            }
+        } else {
+            "Panel view off"
+        },
     )
 }
 

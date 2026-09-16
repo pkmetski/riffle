@@ -52,7 +52,6 @@ import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -67,6 +66,7 @@ import com.riffle.core.domain.comic.panel.PanelDetectionConfig
 import com.riffle.core.domain.comic.panel.PanelEngine
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelStore
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import org.koin.dsl.module
 
 val iosDataModule = module {
