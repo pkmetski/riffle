@@ -163,6 +163,11 @@ class AnnotationFocusHarnessTest : KoinTest {
         composeTestRule.onNodeWithText(bookmark.bookmarkTitle).performClick()
         composeTestRule.waitForIdle()
         waitForReaderReady()
+        // waitForReaderReady checks Compose semantics, not Readium's internal chapter scroll.
+        // On slow CI runners the WebView may still be mid-animation to the bookmarked column when
+        // the Compose tree is already idle. Wait for the WebView scroll position to stabilize
+        // before sampling the phrase rect, to avoid a false "wrong column" failure.
+        waitForWebViewScrollQuiet()
 
         val result = waitForPhraseOnScreen(
             orientation,
@@ -454,6 +459,32 @@ class AnnotationFocusHarnessTest : KoinTest {
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_LOADING)
                 .fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    /**
+     * Polls the primary reader WebView's scrollLeft until it stops changing, giving Readium time
+     * to finish its internal chapter-column scroll after a locator navigation. The Compose idle
+     * state does not track WebView animation, so [waitForReaderReady] alone is insufficient when
+     * navigating to a bookmark that lands partway through a chapter.
+     */
+    private fun waitForWebViewScrollQuiet(quietMs: Long = 400, timeoutMs: Long = 5_000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var prev = -1
+        var stableFor = 0L
+        while (System.currentTimeMillis() < deadline) {
+            val cur = visibleWebViews().firstOrNull()?.let { wv ->
+                evalJs(wv, "(document.scrollingElement||document.documentElement).scrollLeft")
+                    .toDoubleOrNull()?.toInt() ?: -1
+            } ?: -1
+            if (cur == prev) {
+                stableFor += 100
+                if (stableFor >= quietMs) return
+            } else {
+                stableFor = 0
+                prev = cur
+            }
+            Thread.sleep(100)
         }
     }
 
