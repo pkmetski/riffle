@@ -134,6 +134,7 @@ final class StubAbsServer {
     }
 
     // MARK: - Response builders
+    // swiftlint:disable line_length
 
     private func loginResponse() -> Data {
         json(200, """
@@ -196,6 +197,8 @@ final class StubAbsServer {
         """)
     }
 
+    // swiftlint:enable line_length
+
     private func epubResponse(_ name: String) -> Data {
         let bytes = assetBytes(name)
         return StubHTTPResponse(status: 200, contentType: "application/epub+zip", body: bytes).toData()
@@ -243,8 +246,8 @@ final class StubAbsServer {
         var zip = Data()
         var centralDir = Data()
         var offsets = [UInt32]()
-        for i in 0..<pages {
-            let name = String(format: "%03d.png", i + 1)
+        for pageIndex in 0..<pages {
+            let name = String(format: "%03d.png", pageIndex + 1)
             let nameData = Data(name.utf8)
             offsets.append(UInt32(zip.count))
             let crc = crc32(png)
@@ -265,7 +268,7 @@ final class StubAbsServer {
             cd.appendLE(UInt32(png.count)); cd.appendLE(UInt32(png.count))
             cd.appendLE(UInt16(nameData.count)); cd.appendLE(UInt16(0)); cd.appendLE(UInt16(0))
             cd.appendLE(UInt16(0)); cd.appendLE(UInt16(0)); cd.appendLE(UInt32(0))
-            cd.appendLE(offsets[i]); cd.append(nameData)
+            cd.appendLE(offsets[pageIndex]); cd.append(nameData)
             centralDir.append(cd)
         }
         let cdOffset = UInt32(zip.count)
@@ -295,10 +298,10 @@ final class StubAbsServer {
         return crc ^ 0xffffffff
     }
 
-    private static let crc32Table: [UInt32] = (0..<256).map { i -> UInt32 in
-        var c = UInt32(i)
-        for _ in 0..<8 { c = c & 1 == 1 ? 0xedb88320 ^ (c >> 1) : c >> 1 }
-        return c
+    private static let crc32Table: [UInt32] = (0..<256).map { idx -> UInt32 in
+        var entry = UInt32(idx)
+        for _ in 0..<8 { entry = entry & 1 == 1 ? 0xedb88320 ^ (entry >> 1) : entry >> 1 }
+        return entry
     }
 }
 
@@ -342,12 +345,12 @@ struct StubHTTPResponse {
 }
 
 private extension Data {
-    mutating func appendLE(_ v: UInt16) {
-        var val = v.littleEndian
-        Swift.withUnsafeBytes(of: &val) { append(contentsOf: $0) }
+    mutating func appendLE(_ value: UInt16) {
+        var le = value.littleEndian
+        Swift.withUnsafeBytes(of: &le) { append(contentsOf: $0) }
     }
-    mutating func appendLE(_ v: UInt32) {
-        var val = v.littleEndian
-        Swift.withUnsafeBytes(of: &val) { append(contentsOf: $0) }
+    mutating func appendLE(_ value: UInt32) {
+        var le = value.littleEndian
+        Swift.withUnsafeBytes(of: &le) { append(contentsOf: $0) }
     }
 }
