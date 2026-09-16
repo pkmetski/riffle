@@ -5,18 +5,7 @@ import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
-enum class ContentCacheArtifactKind {
-    Epub,
-    Pdf,
-    Audiobook,
-    Cbz,
-}
-
-data class ContentCacheKey(
-    val sourceId: String,
-    val itemId: String,
-    val kind: ContentCacheArtifactKind,
-)
+// ContentCacheArtifactKind, ContentCacheKey, and ContentCacheAccessStore are in commonMain.
 
 data class ContentCacheArtifact(
     val key: ContentCacheKey,
@@ -24,14 +13,6 @@ data class ContentCacheArtifact(
     val sizeBytes: Long,
     val evidenceLastModifiedAtMs: Long?,
 )
-
-interface ContentCacheAccessStore {
-    suspend fun markAccessed(key: ContentCacheKey)
-    suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long)
-    suspend fun lastAccessedAt(key: ContentCacheKey): Long?
-    suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?>
-    suspend fun forget(key: ContentCacheKey)
-}
 
 interface ContentCacheArtifactScanner {
     fun listArtifacts(): List<ContentCacheArtifact>

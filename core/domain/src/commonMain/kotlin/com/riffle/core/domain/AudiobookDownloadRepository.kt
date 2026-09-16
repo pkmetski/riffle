@@ -13,4 +13,7 @@ interface AudiobookDownloadRepository {
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudiobookDownloadResult
     suspend fun remove(sourceId: String, itemId: String): Long
+
+    /** A playable session backed by the downloaded local files, or null when not downloaded / not supported. */
+    fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
 }

@@ -1,12 +1,15 @@
 package com.riffle.core.domain
 
-import java.io.File
 import com.riffle.core.models.AudiobookTrackSpan
 
 /**
  * A ready-to-play [Audiobook] session resolved from ABS (ADR 0035): the ordered, directly-streamable
  * track URLs paired with their timeline [tracks], the [timeline] (duration + chapter markers), and the
  * server-recorded resume position. Audio streams from ABS; nothing here comes from a Storyteller bundle.
+ *
+ * [localZipFilePath] is the absolute filesystem path to a bundle zip file for bundle-backed audio
+ * (e.g. a downloaded Storyteller bundle), or null when tracks are HTTP/file URLs. Stored as a String
+ * so this class lives in commonMain; the Android player converts it back to `java.io.File` internally.
  */
 data class AudiobookSession(
     val trackUrls: List<String>,
@@ -16,9 +19,9 @@ data class AudiobookSession(
     // ABS's server-side `lastUpdate` (ms) for this item's media-progress record, for last-update-wins
     // resume against the durable local store. 0 when unknown (offline / downloaded session).
     val serverLastUpdate: Long = 0,
-    // The local zip archive backing zip-entry track URLs (a downloaded bundle), or null when tracks
-    // are HTTP/file URLs. The player points the playback service at this file before preparing.
-    val localZipFile: File? = null,
+    // Absolute path to the local zip archive backing zip-entry track URLs (a downloaded bundle), or null
+    // when tracks are HTTP/file URLs. The player points the playback service at this file before preparing.
+    val localZipFilePath: String? = null,
     // Direct-download URLs for each track (same order as trackUrls), or null when trackUrls are
     // also byte-downloadable. Sources whose streaming format cannot be byte-downloaded (e.g. O'Reilly
     // HLS) populate this; download/cache paths use these instead of trackUrls.
