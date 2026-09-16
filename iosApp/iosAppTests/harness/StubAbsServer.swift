@@ -9,33 +9,33 @@ final class StubAbsServer {
 
     // MARK: - Constants
 
-    static let TEST_USER_ID = "test-user-id"
-    static let TEST_TOKEN = "test-token"
-    static let TEST_LIBRARY_ID = "lib-test-1"
-    static let TEST_LIBRARY_NAME = "Test Library"
-    static let TEST_ITEM_ID = "item-test-1"
-    static let TEST_ITEM_TITLE = "Test EPUB"
-    static let TEST_ITEM_AUTHOR = "Test Author"
-    static let TEST_FILE_INO = "ino-test-1"
-    static let TEST_SERIES_ID = "series-test-1"
-    static let TEST_SERIES_NAME = "Test Series"
-    static let TEST_COLLECTION_ID = "collection-test-1"
-    static let TEST_COLLECTION_NAME = "Test Collection"
-    static let TEST_STANDALONE_ITEM_ID = "item-test-2"
-    static let TEST_STANDALONE_ITEM_TITLE = "Test EPUB Standalone"
-    static let TEST_STANDALONE_FILE_INO = "ino-test-2"
-    static let TEST_PDF_ITEM_ID = "item-test-3"
-    static let TEST_PDF_ITEM_TITLE = "Test PDF"
-    static let TEST_PDF_FILE_INO = "ino-test-3"
-    static let TEST_FOOTNOTE_ITEM_ID = "item-test-4"
-    static let TEST_FOOTNOTE_ITEM_TITLE = "Test Footnotes EPUB"
-    static let TEST_FOOTNOTE_FILE_INO = "ino-test-4"
-    static let TEST_AUDIO_ITEM_ID = "item-audio-1"
-    static let TEST_AUDIO_ITEM_TITLE = "Test Audiobook"
-    static let TEST_CBZ_ITEM_ID = "item-cbz-1"
-    static let TEST_CBZ_ITEM_TITLE = "Test CBZ"
-    static let TEST_CBZ_FILE_INO = "ino-cbz-1"
-    static let TEST_SESSION_ID = "playback-session-1"
+    static let testUserId = "test-user-id"
+    static let testToken = "test-token"
+    static let testLibraryId = "lib-test-1"
+    static let testLibraryName = "Test Library"
+    static let testItemId = "item-test-1"
+    static let testItemTitle = "Test EPUB"
+    static let testItemAuthor = "Test Author"
+    static let testFileIno = "ino-test-1"
+    static let testSeriesId = "series-test-1"
+    static let testSeriesName = "Test Series"
+    static let testCollectionId = "collection-test-1"
+    static let testCollectionName = "Test Collection"
+    static let testStandaloneItemId = "item-test-2"
+    static let testStandaloneItemTitle = "Test EPUB Standalone"
+    static let testStandaloneFileIno = "ino-test-2"
+    static let testPdfItemId = "item-test-3"
+    static let testPdfItemTitle = "Test PDF"
+    static let testPdfFileIno = "ino-test-3"
+    static let testFootnoteItemId = "item-test-4"
+    static let testFootnoteItemTitle = "Test Footnotes EPUB"
+    static let testFootnoteFileIno = "ino-test-4"
+    static let testAudioItemId = "item-audio-1"
+    static let testAudioItemTitle = "Test Audiobook"
+    static let testCbzItemId = "item-cbz-1"
+    static let testCbzItemTitle = "Test CBZ"
+    static let testCbzFileIno = "ino-cbz-1"
+    static let testSessionId = "playback-session-1"
 
     // MARK: - State
 
@@ -50,7 +50,10 @@ final class StubAbsServer {
     func start() {
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: 0)
-        listener = try! NWListener(using: params)
+        guard let newListener = try? NWListener(using: params) else {
+            XCTFail("StubAbsServer: NWListener init failed"); return
+        }
+        listener = newListener
         let sem = DispatchSemaphore(value: 0)
         listener?.stateUpdateHandler = { [weak self] state in
             if case .ready = state {
@@ -97,36 +100,36 @@ final class StubAbsServer {
 
     // MARK: - Dispatch
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func dispatch(_ req: StubHTTPRequest) -> Data {
-        let lib = Self.TEST_LIBRARY_ID
-        let audioId = Self.TEST_AUDIO_ITEM_ID
-        let sessionId = Self.TEST_SESSION_ID
-        let p = req.path
+        let lib = Self.testLibraryId
+        let audioId = Self.testAudioItemId
+        let path = req.path
 
-        if req.method == "POST" && p == "/login" { return loginResponse() }
-        if req.method == "GET" && p == "/api/libraries" { return librariesResponse() }
-        if req.method == "GET" && p == "/api/libraries/\(lib)/items" { return libraryItemsResponse() }
-        if req.method == "GET" && p.hasPrefix("/api/libraries/\(lib)/series") { return seriesResponse() }
-        if req.method == "GET" && p.hasPrefix("/api/libraries/\(lib)/collections") { return collectionsResponse() }
-        if req.method == "GET" && p.hasPrefix("/api/libraries/\(lib)/playlists") { return json(200, #"{"results":[]}"#) }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_ITEM_ID)" { return itemResponse(Self.TEST_ITEM_ID, Self.TEST_FILE_INO) }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_ITEM_ID)/ebook/\(Self.TEST_FILE_INO)" { return epubResponse("test.epub") }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_STANDALONE_ITEM_ID)" { return itemResponse(Self.TEST_STANDALONE_ITEM_ID, Self.TEST_STANDALONE_FILE_INO) }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_STANDALONE_ITEM_ID)/ebook/\(Self.TEST_STANDALONE_FILE_INO)" { return epubResponse("test.epub") }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_PDF_ITEM_ID)" { return itemResponse(Self.TEST_PDF_ITEM_ID, Self.TEST_PDF_FILE_INO) }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_PDF_ITEM_ID)/ebook/\(Self.TEST_PDF_FILE_INO)" { return pdfResponse() }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_FOOTNOTE_ITEM_ID)" { return itemResponse(Self.TEST_FOOTNOTE_ITEM_ID, Self.TEST_FOOTNOTE_FILE_INO) }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_FOOTNOTE_ITEM_ID)/ebook/\(Self.TEST_FOOTNOTE_FILE_INO)" { return epubResponse("test-footnotes.epub") }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_CBZ_ITEM_ID)" { return cbzItemResponse() }
-        if req.method == "GET" && p == "/api/items/\(Self.TEST_CBZ_ITEM_ID)/ebook/\(Self.TEST_CBZ_FILE_INO)" { return cbzFileResponse() }
-        if req.method == "GET" && p == "/api/items/\(audioId)" { return audioItemResponse() }
-        if req.method == "POST" && p == "/api/items/\(audioId)/play" { return audioPlayResponse() }
-        if req.method == "GET" && p == "/api/items/\(audioId)/file/audio.mp3" { return mp3Response() }
-        if req.method == "GET" && p == "/api/me" { return json(200, #"{"mediaProgress":[]}"#) }
-        if req.method == "GET" && p.hasPrefix("/api/me/progress/") { return json(200, #"{"ebookLocation":"","ebookProgress":0.0,"lastUpdate":-1}"#) }
-        if req.method == "PATCH" && p.hasPrefix("/api/me/progress/") { return json(200, "{}") }
-        if req.method == "POST" && p.hasPrefix("/api/session/") { return json(200, "{}") }
-        if req.method == "GET" && p == "/status" { return json(200, #"{"serverVersion":"1.0.0"}"#) }
+        if req.method == "POST" && path == "/login" { return loginResponse() }
+        if req.method == "GET" && path == "/api/libraries" { return librariesResponse() }
+        if req.method == "GET" && path == "/api/libraries/\(lib)/items" { return libraryItemsResponse() }
+        if req.method == "GET" && path.hasPrefix("/api/libraries/\(lib)/series") { return seriesResponse() }
+        if req.method == "GET" && path.hasPrefix("/api/libraries/\(lib)/collections") { return collectionsResponse() }
+        if req.method == "GET" && path.hasPrefix("/api/libraries/\(lib)/playlists") { return json(200, #"{"results":[]}"#) }
+        if req.method == "GET" && path == "/api/items/\(Self.testItemId)" { return itemResponse(Self.testItemId, Self.testFileIno) }
+        if req.method == "GET" && path == "/api/items/\(Self.testItemId)/ebook/\(Self.testFileIno)" { return epubResponse("test.epub") }
+        if req.method == "GET" && path == "/api/items/\(Self.testStandaloneItemId)" { return itemResponse(Self.testStandaloneItemId, Self.testStandaloneFileIno) }
+        if req.method == "GET" && path == "/api/items/\(Self.testStandaloneItemId)/ebook/\(Self.testStandaloneFileIno)" { return epubResponse("test.epub") }
+        if req.method == "GET" && path == "/api/items/\(Self.testPdfItemId)" { return itemResponse(Self.testPdfItemId, Self.testPdfFileIno) }
+        if req.method == "GET" && path == "/api/items/\(Self.testPdfItemId)/ebook/\(Self.testPdfFileIno)" { return pdfResponse() }
+        if req.method == "GET" && path == "/api/items/\(Self.testFootnoteItemId)" { return itemResponse(Self.testFootnoteItemId, Self.testFootnoteFileIno) }
+        if req.method == "GET" && path == "/api/items/\(Self.testFootnoteItemId)/ebook/\(Self.testFootnoteFileIno)" { return epubResponse("test-footnotes.epub") }
+        if req.method == "GET" && path == "/api/items/\(Self.testCbzItemId)" { return cbzItemResponse() }
+        if req.method == "GET" && path == "/api/items/\(Self.testCbzItemId)/ebook/\(Self.testCbzFileIno)" { return cbzFileResponse() }
+        if req.method == "GET" && path == "/api/items/\(audioId)" { return audioItemResponse() }
+        if req.method == "POST" && path == "/api/items/\(audioId)/play" { return audioPlayResponse() }
+        if req.method == "GET" && path == "/api/items/\(audioId)/file/audio.mp3" { return mp3Response() }
+        if req.method == "GET" && path == "/api/me" { return json(200, #"{"mediaProgress":[]}"#) }
+        if req.method == "GET" && path.hasPrefix("/api/me/progress/") { return json(200, #"{"ebookLocation":"","ebookProgress":0.0,"lastUpdate":-1}"#) }
+        if req.method == "PATCH" && path.hasPrefix("/api/me/progress/") { return json(200, "{}") }
+        if req.method == "POST" && path.hasPrefix("/api/session/") { return json(200, "{}") }
+        if req.method == "GET" && path == "/status" { return json(200, #"{"serverVersion":"1.0.0"}"#) }
         return StubHTTPResponse(status: 404, contentType: "text/plain", body: Data("Not Found".utf8)).toData()
     }
 
@@ -134,26 +137,26 @@ final class StubAbsServer {
 
     private func loginResponse() -> Data {
         json(200, """
-        {"user":{"id":"\(Self.TEST_USER_ID)","username":"testuser","token":"\(Self.TEST_TOKEN)"}}
+        {"user":{"id":"\(Self.testUserId)","username":"testuser","token":"\(Self.testToken)"}}
         """)
     }
 
     private func librariesResponse() -> Data {
         json(200, """
-        {"libraries":[{"id":"\(Self.TEST_LIBRARY_ID)","name":"\(Self.TEST_LIBRARY_NAME)","mediaType":"book","settings":{"audiobooksOnly":false}}]}
+        {"libraries":[{"id":"\(Self.testLibraryId)","name":"\(Self.testLibraryName)","mediaType":"book","settings":{"audiobooksOnly":false}}]}
         """)
     }
 
     private func libraryItemsResponse() -> Data {
-        let lib = Self.TEST_LIBRARY_ID
+        let lib = Self.testLibraryId
         return json(200, """
         {"results":[
-          {"id":"\(Self.TEST_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.TEST_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null},
-          {"id":"\(Self.TEST_STANDALONE_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_STANDALONE_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.TEST_STANDALONE_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null},
-          {"id":"\(Self.TEST_PDF_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_PDF_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"\(Self.TEST_PDF_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null},
-          {"id":"\(Self.TEST_FOOTNOTE_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_FOOTNOTE_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.TEST_FOOTNOTE_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null},
-          {"id":"\(Self.TEST_AUDIO_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_AUDIO_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":null,"ebookFile":null,"numAudioFiles":1},"userMediaProgress":null},
-          {"id":"\(Self.TEST_CBZ_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_CBZ_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"cbz","ebookFile":{"ino":"\(Self.TEST_CBZ_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null}
+          {"id":"\(Self.testItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
+          {"id":"\(Self.testStandaloneItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testStandaloneItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testStandaloneFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
+          {"id":"\(Self.testPdfItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testPdfItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"\(Self.testPdfFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
+          {"id":"\(Self.testFootnoteItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testFootnoteItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testFootnoteFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
+          {"id":"\(Self.testAudioItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testAudioItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":null,"ebookFile":null,"numAudioFiles":1},"userMediaProgress":null},
+          {"id":"\(Self.testCbzItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testCbzItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"cbz","ebookFile":{"ino":"\(Self.testCbzFileIno)"},"numAudioFiles":0},"userMediaProgress":null}
         ]}
         """)
     }
@@ -163,32 +166,32 @@ final class StubAbsServer {
     }
 
     private func audioItemResponse() -> Data {
-        json(200, #"{"id":"\#(Self.TEST_AUDIO_ITEM_ID)","media":{"numAudioFiles":1,"audioFiles":[{"index":0,"ino":"audio-ino-1","duration":10.0,"mimeType":"audio/mpeg","metadata":{"filename":"audio.mp3"}}]}}"#)
+        json(200, #"{"id":"\#(Self.testAudioItemId)","media":{"numAudioFiles":1,"audioFiles":[{"index":0,"ino":"audio-ino-1","duration":10.0,"mimeType":"audio/mpeg","metadata":{"filename":"audio.mp3"}}]}}"#)
     }
 
     private func audioPlayResponse() -> Data {
-        let trackUrl = "/api/items/\(Self.TEST_AUDIO_ITEM_ID)/file/audio.mp3"
+        let trackUrl = "/api/items/\(Self.testAudioItemId)/file/audio.mp3"
         return json(200, """
-        {"id":"\(Self.TEST_SESSION_ID)","currentTime":0.0,"duration":10.0,
+        {"id":"\(Self.testSessionId)","currentTime":0.0,"duration":10.0,
          "audioTracks":[{"index":0,"startOffset":0.0,"duration":10.0,"contentUrl":"\(trackUrl)","mimeType":"audio/mpeg"}],
          "chapters":[]}
         """)
     }
 
     private func seriesResponse() -> Data {
-        let lib = Self.TEST_LIBRARY_ID
+        let lib = Self.testLibraryId
         return json(200, """
-        {"results":[{"id":"\(Self.TEST_SERIES_ID)","libraryId":"\(lib)","name":"\(Self.TEST_SERIES_NAME)","books":[
-          {"id":"\(Self.TEST_ITEM_ID)","libraryId":"\(lib)","seriesSequence":"1","media":{"metadata":{"title":"\(Self.TEST_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.TEST_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null}
+        {"results":[{"id":"\(Self.testSeriesId)","libraryId":"\(lib)","name":"\(Self.testSeriesName)","books":[
+          {"id":"\(Self.testItemId)","libraryId":"\(lib)","seriesSequence":"1","media":{"metadata":{"title":"\(Self.testItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testFileIno)"},"numAudioFiles":0},"userMediaProgress":null}
         ]}]}
         """)
     }
 
     private func collectionsResponse() -> Data {
-        let lib = Self.TEST_LIBRARY_ID
+        let lib = Self.testLibraryId
         return json(200, """
-        {"results":[{"id":"\(Self.TEST_COLLECTION_ID)","libraryId":"\(lib)","name":"\(Self.TEST_COLLECTION_NAME)","books":[
-          {"id":"\(Self.TEST_ITEM_ID)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.TEST_ITEM_TITLE)","authorName":"\(Self.TEST_ITEM_AUTHOR)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.TEST_FILE_INO)"},"numAudioFiles":0},"userMediaProgress":null}
+        {"results":[{"id":"\(Self.testCollectionId)","libraryId":"\(lib)","name":"\(Self.testCollectionName)","books":[
+          {"id":"\(Self.testItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testFileIno)"},"numAudioFiles":0},"userMediaProgress":null}
         ]}]}
         """)
     }
@@ -209,7 +212,7 @@ final class StubAbsServer {
     }
 
     private func cbzItemResponse() -> Data {
-        json(200, #"{"id":"\#(Self.TEST_CBZ_ITEM_ID)","media":{"ebookFile":{"ino":"\#(Self.TEST_CBZ_FILE_INO)"}}}"#)
+        json(200, #"{"id":"\#(Self.testCbzItemId)","media":{"ebookFile":{"ino":"\#(Self.testCbzFileIno)"}}}"#)
     }
 
     private func cbzFileResponse() -> Data {

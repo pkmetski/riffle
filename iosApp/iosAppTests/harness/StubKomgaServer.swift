@@ -9,12 +9,12 @@ final class StubKomgaServer {
 
     // MARK: - Constants
 
-    static let TEST_USER_ID = "komga-user-1"
-    static let TEST_LIBRARY_ID = "komga-lib-1"
-    static let TEST_LIBRARY_NAME = "Test Comics"
-    static let TEST_CBZ_BOOK_ID = "komga-book-1"
-    static let TEST_CBZ_BOOK_TITLE = "Test CBZ"
-    static let TEST_CBZ_PAGE_COUNT = 5
+    static let testUserId = "komga-user-1"
+    static let testLibraryId = "komga-lib-1"
+    static let testLibraryName = "Test Comics"
+    static let testCbzBookId = "komga-book-1"
+    static let testCbzBookTitle = "Test CBZ"
+    static let testCbzPageCount = 5
 
     // MARK: - State
 
@@ -29,7 +29,10 @@ final class StubKomgaServer {
     func start() {
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: 0)
-        listener = try! NWListener(using: params)
+        guard let newListener = try? NWListener(using: params) else {
+            XCTFail("StubKomgaServer: NWListener init failed"); return
+        }
+        listener = newListener
         let sem = DispatchSemaphore(value: 0)
         listener?.stateUpdateHandler = { [weak self] state in
             if case .ready = state {
@@ -77,49 +80,49 @@ final class StubKomgaServer {
     // MARK: - Dispatch
 
     private func dispatch(_ req: StubHTTPRequest) -> Data {
-        let lib = Self.TEST_LIBRARY_ID
-        let book = Self.TEST_CBZ_BOOK_ID
-        let p = req.path
-        let m = req.method
+        let lib = Self.testLibraryId
+        let book = Self.testCbzBookId
+        let path = req.path
+        let method = req.method
 
         // Auth probe — both v2 and v1 paths
-        if m == "GET" && (p == "/api/v2/users/me" || p == "/api/v1/users/me") {
-            return json(200, #"{"id":"\#(Self.TEST_USER_ID)"}"#)
+        if method == "GET" && (path == "/api/v2/users/me" || path == "/api/v1/users/me") {
+            return json(200, #"{"id":"\#(Self.testUserId)"}"#)
         }
         // Libraries
-        if m == "GET" && p == "/api/v1/libraries" {
-            return json(200, #"[{"id":"\#(lib)","name":"\#(Self.TEST_LIBRARY_NAME)","unavailable":false}]"#)
+        if method == "GET" && path == "/api/v1/libraries" {
+            return json(200, #"[{"id":"\#(lib)","name":"\#(Self.testLibraryName)","unavailable":false}]"#)
         }
         // Book detail (must come before the browse prefix match)
-        if m == "GET" && p == "/api/v1/books/\(book)" {
+        if method == "GET" && path == "/api/v1/books/\(book)" {
             return json(200, bookDto(book))
         }
         // Books browse (query params are stripped by parse(), so match bare path)
-        if m == "GET" && p == "/api/v1/books" {
+        if method == "GET" && path == "/api/v1/books" {
             return json(200, booksPage())
         }
         // Book pages (image)
-        if m == "GET" && p.hasPrefix("/api/v1/books/\(book)/pages/") {
+        if method == "GET" && path.hasPrefix("/api/v1/books/\(book)/pages/") {
             return pngResponse()
         }
         // Read-progress
-        if m == "PATCH" && p.hasPrefix("/api/v1/books/\(book)/read-progress") {
+        if method == "PATCH" && path.hasPrefix("/api/v1/books/\(book)/read-progress") {
             return json(200, "{}")
         }
         // Readlists
-        if m == "GET" && p.hasPrefix("/api/v1/readlists") {
+        if method == "GET" && path.hasPrefix("/api/v1/readlists") {
             return json(200, emptyPage())
         }
         // Series
-        if m == "GET" && p.hasPrefix("/api/v1/series") {
+        if method == "GET" && path.hasPrefix("/api/v1/series") {
             return json(200, emptyPage())
         }
         // Actuator
-        if m == "GET" && p == "/actuator/info" {
+        if method == "GET" && path == "/actuator/info" {
             return json(200, #"{"build":{"version":"1.0.0"}}"#)
         }
         // Server info probe (reachability check in test)
-        if m == "GET" && p == "/api/v1/settings" {
+        if method == "GET" && path == "/api/v1/settings" {
             return StubHTTPResponse(status: 401, contentType: "application/json", body: Data("{}".utf8)).toData()
         }
         return StubHTTPResponse(status: 404, contentType: "text/plain", body: Data("Not Found".utf8)).toData()
@@ -128,16 +131,22 @@ final class StubKomgaServer {
     // MARK: - Response builders
 
     private func booksPage() -> String {
-        let lib = Self.TEST_LIBRARY_ID
-        let book = Self.TEST_CBZ_BOOK_ID
+        let lib = Self.testLibraryId
+        let book = Self.testCbzBookId
         return """
         {"content":[\(bookDto(book))],"number":0,"size":20,"totalPages":1,"totalElements":1,"first":true,"last":true,"empty":false}
         """
     }
 
     private func bookDto(_ id: String) -> String {
-        let lib = Self.TEST_LIBRARY_ID
-        return #"{"id":"\#(id)","libraryId":"\#(lib)","name":"\#(Self.TEST_CBZ_BOOK_TITLE)","media":{"mediaProfile":"DIVINA","pagesCount":\#(Self.TEST_CBZ_PAGE_COUNT),"status":"READY"},"metadata":{"title":"\#(Self.TEST_CBZ_BOOK_TITLE)","authors":[]},"readProgress":null}"#
+        let lib = Self.testLibraryId
+        let title = Self.testCbzBookTitle
+        let pages = Self.testCbzPageCount
+        return """
+        {"id":"\(id)","libraryId":"\(lib)","name":"\(title)",
+         "media":{"mediaProfile":"DIVINA","pagesCount":\(pages),"status":"READY"},
+         "metadata":{"title":"\(title)","authors":[]},"readProgress":null}
+        """
     }
 
     private func emptyPage() -> String {

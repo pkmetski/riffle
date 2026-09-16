@@ -130,9 +130,9 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
     // MARK: - Helpers
 
     private func findFirstBookTile(hintKeywords: [String]) -> XCUIElement {
-        for kw in hintKeywords {
+        for keyword in hintKeywords {
             let tile = app.buttons.matching(
-                NSPredicate(format: "label CONTAINS[c] %@", kw)
+                NSPredicate(format: "label CONTAINS[c] %@", keyword)
             ).firstMatch
             if tile.exists { return tile }
         }

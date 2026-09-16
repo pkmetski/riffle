@@ -29,7 +29,7 @@ private func wipeAppState() {
     }
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "com.riffle.app",
+        kSecAttrService as String: "com.riffle.app"
     ]
     SecItemDelete(query as CFDictionary)
 }
