@@ -76,8 +76,13 @@ final class AddAbsSourceFlowTests: XCTestCase {
         let settingsEntry = app.staticTexts["Settings"]
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
         settingsEntry.tap()
-        let removeButton = app.buttons["Remove"].firstMatch
-        XCTAssertTrue(removeButton.waitForExistence(timeout: 10), "Settings must list the source with a Remove action")
+        // CMP exposes clickable elements as various types depending on the platform bridge version;
+        // match by label regardless of element type so the cleanup is robust.
+        let removeButton = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Remove")).firstMatch
+        let removeFound = removeButton.waitForExistence(timeout: 10)
+        if !removeFound { print("=== Accessibility tree ===\n\(app.debugDescription)") }
+        XCTAssertTrue(removeFound, "Settings must list the source with a Remove action")
         removeButton.tap()
         XCTAssertTrue(
             app.staticTexts["No sources configured"].waitForExistence(timeout: 10),
