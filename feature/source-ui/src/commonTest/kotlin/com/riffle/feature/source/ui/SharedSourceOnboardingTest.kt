@@ -227,8 +227,10 @@ class SharedSourceOnboardingTest {
         // LOCAL_FILES uses a folder picker; O'Reilly uses a WebView login — neither goes through
         // the SingletonWebSourceInstaller confirmation screen.
         val confirmableSingletons = WebSourceDescriptors.all.filter {
-            it.isSingleton && !it.hasCredentials &&
-                it.type != SourceType.LOCAL_FILES && it.type != SourceType.OREILLY
+            it.isSingleton &&
+                !it.hasCredentials &&
+                it.type != SourceType.LOCAL_FILES &&
+                it.type != SourceType.OREILLY
         }
         confirmableSingletons.forEach { descriptor ->
             assertTrue(

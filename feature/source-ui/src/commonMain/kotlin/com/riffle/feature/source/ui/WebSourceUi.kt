@@ -14,12 +14,6 @@ import com.riffle.feature.source.ui.generated.resources.source_komga_name
 import com.riffle.feature.source.ui.generated.resources.source_oreilly_name
 import com.riffle.feature.source.ui.generated.resources.source_project_gutenberg_name
 import com.riffle.feature.source.ui.generated.resources.source_radio_es_name
-import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_chitanka
-import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_gutenberg
-import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_radio_es
-import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_chitanka
-import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_gutenberg
-import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_radio_es
 import com.riffle.feature.source.ui.generated.resources.ui_add_audiobookshelf
 import com.riffle.feature.source.ui.generated.resources.ui_add_komga
 import com.riffle.feature.source.ui.generated.resources.ui_add_storyteller
@@ -29,6 +23,12 @@ import com.riffle.feature.source.ui.generated.resources.ui_edit_storyteller
 import com.riffle.feature.source.ui.generated.resources.ui_local_files
 import com.riffle.feature.source.ui.generated.resources.ui_remove_source
 import com.riffle.feature.source.ui.generated.resources.ui_remove_storyteller
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_chitanka
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_gutenberg
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_radio_es
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_chitanka
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_gutenberg
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_radio_es
 import com.riffle.feature.source.ui.generated.resources.ui_source_abs_help_text
 import com.riffle.feature.source.ui.generated.resources.ui_source_abs_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_chitanka_picker_blurb
@@ -136,13 +136,19 @@ fun localizedSourceDisplayName(descriptor: WebSourceDescriptor): String =
  */
 @Composable
 fun localizedSourceDisplayName(source: Source): String =
-    if (source.type == SourceType.ABS) source.serverType.label
-    else localizedSourceDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
+    if (source.type == SourceType.ABS) {
+        source.serverType.label
+    } else {
+        localizedSourceDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
+    }
 
 /** Non-composable variant used in tests and plain ViewModel logic. */
 fun sourceDisplayName(source: Source): String =
-    if (source.type == SourceType.ABS) source.serverType.label
-    else WebSourceDescriptors.forTypeOrError(source.type).displayName
+    if (source.type == SourceType.ABS) {
+        source.serverType.label
+    } else {
+        WebSourceDescriptors.forTypeOrError(source.type).displayName
+    }
 
 @Composable
 fun localizedSourceSubtitle(descriptor: WebSourceDescriptor): String? =

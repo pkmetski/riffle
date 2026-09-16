@@ -29,11 +29,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
-import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.source.ui.localizedSourceDisplayName

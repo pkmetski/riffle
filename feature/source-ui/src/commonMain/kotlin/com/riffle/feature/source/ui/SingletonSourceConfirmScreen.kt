@@ -31,8 +31,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.generated.resources.Res
-import com.riffle.feature.source.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
+import com.riffle.feature.source.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.ui_singleton_confirm_title
 import com.riffle.feature.source.ui.generated.resources.ui_try_again
 import kotlinx.coroutines.launch
