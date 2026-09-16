@@ -155,10 +155,10 @@ For every Android harness/integration/unit test that covers the changed behaviou
 
 1. Identify the relevant Android test classes (harness tests in `app/src/androidTest`, unit tests in `**/test`).
 2. Implement each scenario as an XCTest in `iosApp/iosAppTests/`:
-   - Non-`XCUIApplication` logic tests → `iosAppUnitTests` target (runs in `XCTest unit tests` CI job).
-   - `XCUIApplication`-based flows → `iosAppTests` target (runs in `Harness tests` CI job).
+   - Non-`XCUIApplication` logic tests → `iosAppUnitTests` target (runs in `Unit Tests` CI job alongside the KMP commonTest suite).
+   - `XCUIApplication`-based flows → `iosAppTests` target (runs in `Harness tests (phone)` CI job).
 
-The iOS XCTest suite runs in two CI jobs: `XCTest unit tests` (non-UI, `iosAppUnitTests` target) and `Harness tests` (full-app flows, `iosAppTests` target). A PR that adds Android tests without the corresponding iOS coverage will be sent back.
+The iOS XCTest suite runs in two CI tiers that mirror Android's: `Unit Tests` (KMP + XCTest unit tests, `iosAppUnitTests` target) and `Harness tests (phone)` (full-app flows, `iosAppTests` target). A PR that adds Android tests without the corresponding iOS coverage will be sent back.
 
 Likewise, if an iOS test is added, the equivalent Android coverage must also be present or already exist.
 

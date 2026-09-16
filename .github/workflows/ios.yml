@@ -36,19 +36,19 @@ jobs:
       - name: SwiftLint (iosApp/)
         run: swiftlint lint iosApp/
 
-  xctest-unit-test:
-    name: XCTest unit tests (iosAppUnitTests)
+  unit-test:
+    name: Unit Tests
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 35
     concurrency:
-      group: ios-xctest-unit-test-${{ github.ref }}
+      group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
         with:
+          java-version: '17'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-          cache-read-only: 'false'
 
       - name: Read Kotlin version
         id: kotlin-version
@@ -82,6 +82,60 @@ jobs:
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
+      # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
+      # verified on iOS, not just Android. core:database and core:data have their own jobs
+      # (mirroring Android's split between unit-test, integration-test, and database-test).
+      - name: Run iOS commonTest (all iOS-targeted modules)
+        run: |
+          ./gradlew \
+            :core:models:iosSimulatorArm64Test \
+            :core:net:iosSimulatorArm64Test \
+            :core:sources:iosSimulatorArm64Test \
+            :core:catalog-oreilly:iosSimulatorArm64Test \
+            :core:sync:iosSimulatorArm64Test \
+            :core:domain:iosSimulatorArm64Test \
+            :core:dictionary:iosSimulatorArm64Test \
+            :core:catalog:iosSimulatorArm64Test \
+            :core:catalog-komga:iosSimulatorArm64Test \
+            :core:catalog-gutenberg:iosSimulatorArm64Test \
+            :core:catalog-radio-es:iosSimulatorArm64Test \
+            :core:catalog-chitanka:iosSimulatorArm64Test \
+            :shared:iosSimulatorArm64Test \
+            :feature:library:iosSimulatorArm64Test \
+            :feature:player:iosSimulatorArm64Test \
+            :feature:reader:iosSimulatorArm64Test \
+            :feature:source:iosSimulatorArm64Test \
+            :feature:source-ui:iosSimulatorArm64Test \
+            :feature:settings:iosSimulatorArm64Test \
+            :feature:downloads:iosSimulatorArm64Test \
+            :core:logging:iosSimulatorArm64Test
+
+      - name: Upload iOS commonTest reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-commontest-reports
+          path: |
+            core/models/build/reports/tests/
+            core/net/build/reports/tests/
+            core/sources/build/reports/tests/
+            core/catalog-oreilly/build/reports/tests/
+            core/sync/build/reports/tests/
+            core/dictionary/build/reports/tests/
+            core/catalog/build/reports/tests/
+            core/catalog-komga/build/reports/tests/
+            core/catalog-gutenberg/build/reports/tests/
+            core/catalog-radio-es/build/reports/tests/
+            core/catalog-chitanka/build/reports/tests/
+            shared/build/reports/tests/
+            feature/library/build/reports/tests/
+            feature/player/build/reports/tests/
+            feature/reader/build/reports/tests/
+            feature/source/build/reports/tests/
+          if-no-files-found: ignore
+
+      # The K/N shared module is already compiled by iosSimulatorArm64Test above;
+      # assemble packages it into XCFramework format for Xcode to embed.
       - name: Assemble Riffle XCFramework
         run: ./gradlew assembleRiffleDebugXCFramework
 
@@ -99,7 +153,9 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-      - name: Run XCTest unit tests
+      # XCTest unit tests (iosAppUnitTests target): non-XCUIApplication logic tests —
+      # mirrors Android's JVM unit test suite.
+      - name: Run XCTest unit tests (iosAppUnitTests)
         run: |
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
@@ -110,7 +166,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild-unit-test.log; exit ${PIPESTATUS[0]}
 
-      - name: Upload test log
+      - name: Upload XCTest unit test log
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -118,12 +174,63 @@ jobs:
           path: xcodebuild-unit-test.log
           if-no-files-found: ignore
 
-  harness-tests:
-    name: Harness tests (iosAppTests)
+  integration-test:
+    name: Integration tests
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-integration-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # iOS mirror of the "Android integration tests (core:data)" job.
+      # Runs the core:data commonTest suite on the iOS simulator — covers DAO-backed stores
+      # and the reading-session repository, exercising the data layer end-to-end on iOS.
+      - name: Run iOS data-layer integration tests (core:data)
+        run: ./gradlew :core:data:iosSimulatorArm64Test
+      - name: Upload iOS integration test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-integration-test-reports
+          path: core/data/build/reports/tests/
+          if-no-files-found: ignore
+
+  database-test:
+    name: Database tests (core:database)
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-database-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # Dedicated iOS mirror of the "Android database tests (core:database)" job — the
+      # core:database (Room/SQLite) layer must be verified on iOS, not only Android.
+      - name: Run iOS database tests
+        run: ./gradlew :core:database:iosSimulatorArm64Test
+      - name: Upload iOS database test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-database-test-reports
+          path: core/database/build/reports/tests/
+          if-no-files-found: ignore
+
+  harness-test-phone:
+    name: Harness tests (phone)
     runs-on: macos-15
     timeout-minutes: 30
     concurrency:
-      group: ios-harness-tests-${{ github.ref }}
+      group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
@@ -181,6 +288,8 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
+      # XCUIApplication-based end-to-end harness tests (iosAppTests target) —
+      # mirrors Android's harness-test-phone job.
       - name: Run iOS harness tests
         run: |
           xcodebuild test \
@@ -192,7 +301,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild-harness-test.log; exit ${PIPESTATUS[0]}
 
-      - name: Upload test log
+      - name: Upload harness test log
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -224,92 +333,3 @@ jobs:
             ARCHS=arm64 \
             CODE_SIGNING_ALLOWED=NO \
             build
-
-  database-test:
-    name: Database tests (core:database)
-    runs-on: macos-15
-    timeout-minutes: 15
-    concurrency:
-      group: ios-database-test-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-gradle
-        with:
-          java-version: '17'
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      # Dedicated iOS mirror of the "Android database tests (core:database)" job — the
-      # core:database (Room/SQLite) layer must be verified on iOS, not only Android.
-      - name: Run iOS database tests
-        run: ./gradlew :core:database:iosSimulatorArm64Test
-      - name: Upload iOS database test reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-database-test-reports
-          path: core/database/build/reports/tests/
-          if-no-files-found: ignore
-
-  unit-test:
-    name: Unit Tests
-    runs-on: macos-15
-    timeout-minutes: 25
-    concurrency:
-      group: ios-unit-test-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-gradle
-        with:
-          java-version: '17'
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      # Run every other iOS-targeted module's commonTest on the iOS simulator target so shared
-      # (Kotlin Multiplatform) logic is verified on iOS, not just Android. (core:database has its
-      # own dedicated job above, mirroring Android.) See docs/testing/android-ios-parity-audit.md §3.
-      - name: Run iOS commonTest (all iOS-targeted modules)
-        run: |
-          ./gradlew \
-            :core:models:iosSimulatorArm64Test \
-            :core:net:iosSimulatorArm64Test \
-            :core:sources:iosSimulatorArm64Test \
-            :core:catalog-oreilly:iosSimulatorArm64Test \
-            :core:sync:iosSimulatorArm64Test \
-            :core:domain:iosSimulatorArm64Test \
-            :core:dictionary:iosSimulatorArm64Test \
-            :core:catalog:iosSimulatorArm64Test \
-            :core:catalog-komga:iosSimulatorArm64Test \
-            :core:catalog-gutenberg:iosSimulatorArm64Test \
-            :core:catalog-radio-es:iosSimulatorArm64Test \
-            :core:catalog-chitanka:iosSimulatorArm64Test \
-            :shared:iosSimulatorArm64Test \
-            :feature:library:iosSimulatorArm64Test \
-            :feature:player:iosSimulatorArm64Test \
-            :feature:reader:iosSimulatorArm64Test \
-            :feature:source:iosSimulatorArm64Test \
-            :feature:source-ui:iosSimulatorArm64Test \
-            :feature:settings:iosSimulatorArm64Test \
-            :feature:downloads:iosSimulatorArm64Test \
-            :core:logging:iosSimulatorArm64Test
-      - name: Upload iOS commonTest reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-commontest-reports
-          path: |
-            core/models/build/reports/tests/
-            core/net/build/reports/tests/
-            core/sources/build/reports/tests/
-            core/catalog-oreilly/build/reports/tests/
-            core/sync/build/reports/tests/
-            core/dictionary/build/reports/tests/
-            core/catalog/build/reports/tests/
-            core/catalog-komga/build/reports/tests/
-            core/catalog-gutenberg/build/reports/tests/
-            core/catalog-radio-es/build/reports/tests/
-            core/catalog-chitanka/build/reports/tests/
-            shared/build/reports/tests/
-            feature/library/build/reports/tests/
-            feature/player/build/reports/tests/
-            feature/reader/build/reports/tests/
-            feature/source/build/reports/tests/
-          if-no-files-found: ignore
