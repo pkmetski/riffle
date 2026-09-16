@@ -1,11 +1,15 @@
 package com.riffle.feature.source.ui
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -160,6 +164,82 @@ class SharedSourceOnboardingTest {
             "komga",
             AddSourceBackend.Credentialed(SourceType.KOMGA, ServerType.AUDIOBOOKSHELF).routeType,
         )
+    }
+
+    // ---- credential field keyboard options (B1) ----------------------------
+
+    @Test
+    fun passwordKeyboardOptionsHaveNoCapsAndNoAutoCorrect() {
+        assertEquals(
+            KeyboardCapitalization.None,
+            passwordKeyboardOptions.capitalization,
+            "Password field must disable iOS sentence capitalisation to prevent silent credential mangling",
+        )
+        assertEquals(
+            false,
+            passwordKeyboardOptions.autoCorrectEnabled,
+            "Password field must disable autocorrect",
+        )
+    }
+
+    // ---- source display name (B2) ------------------------------------------
+
+    @Test
+    fun absSourceDisplayNameUsesServerTypeLabel() {
+        val abs = source(SourceType.ABS, ServerType.AUDIOBOOKSHELF)
+        val storyteller = source(SourceType.ABS, ServerType.STORYTELLER_SERVICE)
+        assertEquals(ServerType.AUDIOBOOKSHELF.label, sourceDisplayName(abs))
+        assertEquals(ServerType.STORYTELLER_SERVICE.label, sourceDisplayName(storyteller))
+        assertNotEquals(sourceDisplayName(abs), sourceDisplayName(storyteller))
+    }
+
+    @Test
+    fun nonAbsSourceDisplayNameUsesDescriptorNameNotServerTypeLabel() {
+        val chitanka = source(SourceType.CHITANKA)
+        val gutenberg = source(SourceType.GUTENBERG)
+        val radioEs = source(SourceType.RADIO_ES)
+        val komga = source(SourceType.KOMGA)
+        assertEquals(WebSourceDescriptors.forTypeOrError(SourceType.CHITANKA).displayName, sourceDisplayName(chitanka))
+        assertEquals(WebSourceDescriptors.forTypeOrError(SourceType.GUTENBERG).displayName, sourceDisplayName(gutenberg))
+        assertEquals(WebSourceDescriptors.forTypeOrError(SourceType.RADIO_ES).displayName, sourceDisplayName(radioEs))
+        assertEquals(WebSourceDescriptors.forTypeOrError(SourceType.KOMGA).displayName, sourceDisplayName(komga))
+        // None of them should be "Audiobookshelf" regardless of the stored serverType field.
+        listOf(chitanka, gutenberg, radioEs, komga).forEach { src ->
+            assertFalse(
+                sourceDisplayName(src).contains("Audiobookshelf", ignoreCase = true),
+                "Non-ABS source ${src.type} should not display as 'Audiobookshelf'",
+            )
+        }
+    }
+
+    @Test
+    fun zeroConfigSourcesHaveNoCredentialsInDescriptor() {
+        listOf(SourceType.CHITANKA, SourceType.GUTENBERG, SourceType.RADIO_ES).forEach { type ->
+            assertFalse(
+                WebSourceDescriptors.forType(type)?.hasCredentials == true,
+                "$type should not require credentials (it would display a fake host otherwise)",
+            )
+        }
+    }
+
+    @Test
+    fun singletonSourceDescriptionAndAttributionAreDefinedForAllSingletons() {
+        // LOCAL_FILES uses a folder picker; O'Reilly uses a WebView login — neither goes through
+        // the SingletonWebSourceInstaller confirmation screen.
+        val confirmableSingletons = WebSourceDescriptors.all.filter {
+            it.isSingleton && !it.hasCredentials &&
+                it.type != SourceType.LOCAL_FILES && it.type != SourceType.OREILLY
+        }
+        confirmableSingletons.forEach { descriptor ->
+            assertTrue(
+                singletonSourceDescriptionRes(descriptor.type) != null,
+                "Singleton source ${descriptor.type} must have a description resource for the confirm screen",
+            )
+            assertTrue(
+                singletonSourceAttributionRes(descriptor.type) != null,
+                "Singleton source ${descriptor.type} must have an attribution resource for the confirm screen",
+            )
+        }
     }
 
     // ---- auth header --------------------------------------------------------

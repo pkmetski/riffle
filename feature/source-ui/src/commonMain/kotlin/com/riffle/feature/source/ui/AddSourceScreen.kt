@@ -226,7 +226,7 @@ fun AddSourceScreen(
                     label = { Text(stringResource(Res.string.ui_password)) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    keyboardOptions = passwordKeyboardOptions,
                     singleLine = true,
                 )
                 viewModel.error?.let {

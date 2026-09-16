@@ -86,4 +86,13 @@
     <string name="source_oreilly_name">O'Reilly</string>
     <string name="ui_source_oreilly_subtitle">learning.oreilly.com</string>
     <string name="ui_source_oreilly_picker_blurb">Browse and read ebooks and audiobooks from your O'Reilly account.</string>
+    <!-- Zero-config singleton confirmation screens (B3: shared across Android and iOS) -->
+    <string name="ui_singleton_confirm_title">Add %1$s</string>
+    <string name="ui_try_again">Try again</string>
+    <string name="ui_singleton_description_chitanka">Browse Bulgarian ebooks and audiobooks from two public digital libraries. No account is needed — everything is read directly from the public sites.</string>
+    <string name="ui_singleton_description_gutenberg">Browse tens of thousands of free public-domain ebooks. No account is needed — everything is read directly from the public catalogue.</string>
+    <string name="ui_singleton_description_radio_es">Browse and listen to podcasts from the radio.es directory. No account is needed — everything streams directly from the public catalog.</string>
+    <string name="ui_singleton_attribution_chitanka">Content is provided by chitanka.info and gramofonche.chitanka.info.</string>
+    <string name="ui_singleton_attribution_gutenberg">Content is provided by gutenberg.org via the gutendex.com API.</string>
+    <string name="ui_singleton_attribution_radio_es">Content is provided by radio.es via prod.radio-api.net.</string>
 </resources>

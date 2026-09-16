@@ -20,6 +20,7 @@ import com.riffle.feature.source.ui.AddSourceScreen
 import com.riffle.feature.source.ui.AddSourceViewModel
 import com.riffle.feature.source.ui.SelectLibrariesScreen
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
+import com.riffle.feature.source.ui.SingletonSourceConfirmScreen
 import com.riffle.feature.source.ui.SourceTypePickerScreen
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -66,12 +67,11 @@ fun SourceOnboardingHost(
                                 .onSuccess { onFinished() }
                         }
                     }
-                    // Zero-config public catalogues (Chitanka, Gutenberg, radio.es): there is no
-                    // form to show — materialise the singleton source row and we're done.
-                    WebSourceDescriptors.forType(type)?.isSingleton == true -> scope.launch {
-                        runCatching { singletonInstaller.install(type) }
-                            .onSuccess { onFinished() }
-                    }
+                    // Zero-config public catalogues (Chitanka, Gutenberg, radio.es): show a
+                    // confirmation screen (mirroring Android's AddChitankaScreen etc.) before
+                    // materialising the singleton source row.
+                    WebSourceDescriptors.forType(type)?.isSingleton == true ->
+                        step = OnboardingStep.Confirm(type)
                     else -> step = OnboardingStep.Credentials(type)
                 }
             },
@@ -92,6 +92,16 @@ fun SourceOnboardingHost(
             )
         }
 
+        is OnboardingStep.Confirm -> SingletonSourceConfirmScreen(
+            type = current.type,
+            isExpandedWidth = false,
+            onNavigateBack = { step = OnboardingStep.Picker },
+            onInstall = {
+                singletonInstaller.install(current.type)
+                onFinished()
+            },
+        )
+
         is OnboardingStep.SelectLibraries -> {
             val viewModel = remember { selectLibrariesViewModel() }
             SelectLibrariesScreen(
@@ -107,6 +117,7 @@ fun SourceOnboardingHost(
 
 private sealed interface OnboardingStep {
     data object Picker : OnboardingStep
+    data class Confirm(val type: SourceType) : OnboardingStep
     data class Credentials(val type: SourceType) : OnboardingStep
     data class SelectLibraries(val pending: PendingSource) : OnboardingStep
 }
