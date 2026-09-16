@@ -106,3 +106,60 @@ internal class IosNoOpDownloadsRepository : DownloadsRepository {
     override suspend fun removeAllDownloads() {}
     override suspend fun clearAllCached() {}
 }
+
+// ── Audiobook player extras ──────────────────────────────────────────────────────────────────────
+
+internal class IosNoOpAudioPlaybackPreferencesStore : com.riffle.core.domain.AudioPlaybackPreferencesStore {
+    override suspend fun load(identity: com.riffle.core.models.AudioIdentity): Float? = null
+    override suspend fun save(identity: com.riffle.core.models.AudioIdentity, speed: Float) = Unit
+    override suspend fun clear(identity: com.riffle.core.models.AudioIdentity) = Unit
+    override suspend fun rekey(old: com.riffle.core.models.AudioIdentity, new: com.riffle.core.models.AudioIdentity) = Unit
+}
+
+internal object IosNoOpAudioIdentityResolver : com.riffle.core.domain.AudioIdentityResolver {
+    override suspend fun resolveForStorytellerBook(
+        storytellerSourceId: String,
+        storytellerBookId: String,
+    ): com.riffle.core.models.AudioIdentity = com.riffle.core.models.AudioIdentity(storytellerSourceId, storytellerBookId)
+}
+
+internal object IosNoOpContentCacheAccessStore : com.riffle.core.domain.ContentCacheAccessStore {
+    override suspend fun markAccessed(key: com.riffle.core.domain.ContentCacheKey) = Unit
+    override suspend fun markAccessedAt(key: com.riffle.core.domain.ContentCacheKey, timestampMs: Long) = Unit
+    override suspend fun lastAccessedAt(key: com.riffle.core.domain.ContentCacheKey): Long? = null
+    override suspend fun lastAccessedAtBulk(keys: Set<com.riffle.core.domain.ContentCacheKey>): Map<com.riffle.core.domain.ContentCacheKey, Long?> = emptyMap()
+    override suspend fun forget(key: com.riffle.core.domain.ContentCacheKey) = Unit
+}
+
+internal object IosNoOpReaderSyncFactory : com.riffle.feature.reader.ReaderSyncFactoryInterface {
+    override suspend fun createIfApplicable(itemId: String): com.riffle.feature.reader.ReaderSyncCoordinatorInterface? = null
+    override suspend fun createAudiobookFollowIfApplicable(itemId: String): com.riffle.feature.reader.AudiobookFollowInterface? = null
+}
+
+internal object IosNoOpBundleAudiobookSource : com.riffle.core.domain.BundleAudiobookSource {
+    override suspend fun localSession(sourceId: String, itemId: String): com.riffle.core.domain.AudiobookSession? = null
+    override fun isAvailableOffline(sourceId: String, itemId: String): Boolean = false
+}
+
+internal object IosNoOpReadaloudHandoff : com.riffle.feature.player.ReadaloudHandoff {
+    override fun preWarmSeek(globalSec: Double) = Unit
+    override fun cancelPreWarm() = Unit
+}
+
+internal object IosNoOpAudioSyncPositionStore : com.riffle.core.domain.SyncPositionStore<Double> {
+    override suspend fun snapshot(sourceId: String, itemId: String) =
+        com.riffle.core.domain.PositionSnapshot<Double>(null, 0L, 0L)
+    override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
+    override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+    override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+    override suspend fun mirror(sourceId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) = Unit
+}
+
+internal object IosNoOpReadingSyncPositionStore : com.riffle.core.domain.SyncPositionStore<String> {
+    override suspend fun snapshot(sourceId: String, itemId: String) =
+        com.riffle.core.domain.PositionSnapshot<String>(null, 0L, 0L)
+    override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = false
+    override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+    override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+    override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) = Unit
+}

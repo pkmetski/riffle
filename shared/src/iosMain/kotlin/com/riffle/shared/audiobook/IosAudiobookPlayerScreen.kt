@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.player.AudiobookPlayerUiState
+import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.shared.library.DefaultCoverPlaceholder
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -43,20 +45,10 @@ import org.koin.core.parameter.parametersOf
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
-    val vm: IosAudiobookPlayerViewModel = koinInject(
-        parameters = { parametersOf(item.id, item.sourceId.ifEmpty { null }) },
+    val vm: AudiobookPlayerViewModel = koinInject(
+        parameters = { parametersOf(item.id, item.sourceId) },
     )
-    val state by vm.state.collectAsState()
-
-    LaunchedEffect(state.title, state.positionSec) {
-        if (!state.loading && !state.failed) {
-            vm.updateNowPlaying(
-                title = state.title.ifEmpty { item.title },
-                author = state.author.ifEmpty { item.author },
-                coverUrl = state.coverUrl,
-            )
-        }
-    }
+    val state by vm.uiState.collectAsState()
 
     DisposableEffect(item.id) { onDispose {} }
 
@@ -135,7 +127,7 @@ private fun FailedContent(onBack: () -> Unit) {
 @Suppress("ktlint:standard:function-naming")
 @Composable
 private fun PlayerContent(
-    state: IosAudiobookPlayerState,
+    state: AudiobookPlayerUiState,
     itemTitle: String,
     itemAuthor: String,
     onTogglePlayPause: () -> Unit,

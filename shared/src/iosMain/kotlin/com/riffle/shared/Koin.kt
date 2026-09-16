@@ -122,8 +122,31 @@ import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
+import com.riffle.core.data.AudiobookRepositoryImpl
+import com.riffle.core.domain.AudiobookRepository
+import com.riffle.core.domain.BundleAudiobookSource
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.SyncPositionStore
+import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.feature.player.AudiobookHandoffState
+import com.riffle.feature.player.AudiobookPlayerViewModel
+import com.riffle.feature.player.AudiobookReconciliationCoordinator
+import com.riffle.feature.player.AudiobookResumeResolver
+import com.riffle.feature.player.FollowLoopOrchestrator
+import com.riffle.feature.player.NowPlayingStore
+import com.riffle.feature.player.ProgressSweepRunner
+import com.riffle.feature.player.ReadaloudHandoff
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
-import com.riffle.shared.audiobook.IosAudiobookPlayerViewModel
+import com.riffle.shared.audiobook.IosAudioPlayerController
+import com.riffle.shared.library.IosNoOpAudioIdentityResolver
+import com.riffle.shared.library.IosNoOpAudioPlaybackPreferencesStore
+import com.riffle.shared.library.IosNoOpAudioSyncPositionStore
+import com.riffle.shared.library.IosNoOpBundleAudiobookSource
+import com.riffle.shared.library.IosNoOpContentCacheAccessStore
+import com.riffle.shared.library.IosNoOpReadingSyncPositionStore
+import com.riffle.shared.library.IosNoOpReadaloudHandoff
+import com.riffle.shared.library.IosNoOpReaderSyncFactory
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
@@ -325,15 +348,67 @@ private fun iosLibraryModule(
     // Audiobook player
     single<AbsPlaybackApi> { get<AbsApiClient>() }
     single<IosAudioPlayerBridgeFactory> { audioPlayerBridgeFactory }
+    single<AudiobookRepository> { AudiobookRepositoryImpl(get(), get()) }
+    single<BundleAudiobookSource> { IosNoOpBundleAudiobookSource }
+    single<ContentCacheAccessStore> { IosNoOpContentCacheAccessStore }
+    single<com.riffle.core.domain.AudioIdentityResolver> { IosNoOpAudioIdentityResolver }
+    single<com.riffle.core.domain.AudioPlaybackPreferencesStore> { IosNoOpAudioPlaybackPreferencesStore() }
+    single { NowPlayingStore() }
+    single { AudiobookHandoffState() }
+    single { OpenReconcileTargets() }
+    single { ProgressFlushScope(applicationScope = get()) }
+    single<SyncPositionStore<Double>> { IosNoOpAudioSyncPositionStore }
+    single<SyncPositionStore<String>> { IosNoOpReadingSyncPositionStore }
+    single<ReadaloudHandoff> { IosNoOpReadaloudHandoff }
+    single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
+    single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
+    single {
+        AudiobookReconciliationCoordinator(
+            readerSyncFactory = IosNoOpReaderSyncFactory,
+            openReconcileTargets = get(),
+            audioSyncStore = get(),
+            readingSyncStore = get(),
+            readaloudResumeStore = get(),
+        )
+    }
     factory { params ->
-        IosAudiobookPlayerViewModel(
-            itemId = params.get(),
-            sourceId = params.get(),
-            bridgeFactory = get(),
-            absPlaybackApi = get(),
+        val bridge = get<IosAudioPlayerBridgeFactory>().create()
+        AudiobookPlayerViewModel(
+            navItemId = params.get(0),
+            navSourceId = params.get(1),
+            navPlaylistId = null,
+            navPlaylistLibraryId = null,
+            navStartAtSec = -1f,
+            audiobookRepository = get(),
+            audiobookDownloadRepository = get(),
+            audiobookCacheRepository = get(),
+            bundleAudiobookSource = get(),
+            libraryObserver = get(),
+            updateReadingProgressUseCase = get(),
             sourceRepository = get(),
             tokenStorage = get(),
+            controller = IosAudioPlayerController(bridge),
+            readaloudHandoff = get(),
+            audioPlaybackPreferencesStore = get(),
+            listeningPreferencesStore = get(),
+            audioIdentityResolver = get(),
+            readaloudLinkRepository = get(),
+            readaloudAudioRepository = get(),
+            nowPlayingStore = get(),
             audiobookPositionStore = get(),
+            openReconcileTargets = get(),
+            progressFlushScope = get(),
+            bookmarkStore = get(),
+            connectivityObserver = get(),
+            audiobookHandoffState = get(),
+            followLoopOrchestrator = get(),
+            resumeResolver = get(),
+            reconciliationCoordinator = get(),
+            clock = get(),
+            logger = get(),
+            playlistsRepository = get(),
+            contentCacheAccessStore = get(),
+            progressSweep = ProgressSweepRunner.NOOP,
         )
     }
 
