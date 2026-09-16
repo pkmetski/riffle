@@ -23,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -182,24 +181,6 @@ private fun MainSettingsContent(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
 
-        // ── Appearance ───────────────────────────────────────────────────────────────────
-        SectionHeader("Appearance")
-        SettingsRow(label = "App Theme", subtitle = appTheme.label())
-        Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, bottom = 8.dp)) {
-            AppTheme.entries.forEach { theme ->
-                BasicText(
-                    text = theme.label(),
-                    style = TextStyle(
-                        fontSize = 13.sp,
-                        color = if (appTheme == theme) Color(0xFF1565C0) else Color.DarkGray,
-                    ),
-                    modifier = Modifier
-                        .clickable { viewModel.setAppTheme(theme) }
-                        .padding(end = 12.dp, top = 4.dp, bottom = 4.dp),
-                )
-            }
-        }
-
         // ── Sources ───────────────────────────────────────────────────────────────────────
         SectionHeader("Sources")
         val nonLocalServers = servers.filter { it.id != localFilesSource?.id }
@@ -226,6 +207,24 @@ private fun MainSettingsContent(
             }
         }
         SettingsRow(label = "Add source", trailing = "Add", onTrailingClick = onAddSource)
+
+        // ── Appearance ───────────────────────────────────────────────────────────────────
+        SectionHeader("Appearance")
+        SettingsRow(label = "App Theme", subtitle = appTheme.label())
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, bottom = 8.dp)) {
+            AppTheme.entries.forEach { theme ->
+                BasicText(
+                    text = theme.label(),
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        color = if (appTheme == theme) Color(0xFF1565C0) else Color.DarkGray,
+                    ),
+                    modifier = Modifier
+                        .clickable { viewModel.setAppTheme(theme) }
+                        .padding(end = 12.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
+        }
 
         // ── Reading ───────────────────────────────────────────────────────────────────────
         SectionHeader("Reading")
@@ -623,7 +622,7 @@ private fun SettingsRow(
                 trailing,
                 style = TextStyle(fontSize = 13.sp, color = Color(0xFF1565C0)),
                 modifier = Modifier
-                    .clickable(role = Role.Button) { onTrailingClick?.invoke() }
+                    .clickable { onTrailingClick?.invoke() }
                     .padding(start = 8.dp),
             )
         }
