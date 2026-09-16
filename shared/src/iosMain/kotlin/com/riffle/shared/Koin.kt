@@ -169,8 +169,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
-import org.koin.core.context.startKoin as koinStartKoin
 import platform.Foundation.NSBundle
+import org.koin.core.context.startKoin as koinStartKoin
 
 private fun iosLibraryModule(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
