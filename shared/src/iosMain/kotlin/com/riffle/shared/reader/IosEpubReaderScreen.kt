@@ -174,12 +174,14 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 // rememberCoroutineScope is cancelled during composition teardown; use an
                 // independent scope so the DB write and sync survive past onDispose.
                 CoroutineScope(SupervisorJob()).launch {
-                    positionStore.save(item.sourceId, item.id, position.locatorJson)
-                    val payload = SessionPayload(
-                        ebookLocation = position.locatorJson,
-                        ebookProgress = position.totalProgression ?: position.progression,
-                    )
-                    sessionRepository.runSyncCycle(item.id, payload)
+                    runCatching {
+                        positionStore.save(item.sourceId, item.id, position.locatorJson)
+                        val payload = SessionPayload(
+                            ebookLocation = position.locatorJson,
+                            ebookProgress = position.totalProgression ?: position.progression,
+                        )
+                        sessionRepository.runSyncCycle(item.id, payload)
+                    }
                 }
             }
             navigator.close()

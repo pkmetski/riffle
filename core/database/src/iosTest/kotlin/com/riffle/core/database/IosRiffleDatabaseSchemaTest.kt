@@ -4,10 +4,18 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import co.touchlab.sqliter.DatabaseFileContext
+import com.riffle.core.database.dao.IosAudiobookPositionDao
+import com.riffle.core.database.dao.IosBookComicFormattingPreferencesDao
+import com.riffle.core.database.dao.IosBookFormattingPreferencesDao
+import com.riffle.core.database.dao.IosReadingPositionDao
+import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSUUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -199,6 +207,8 @@ class IosRiffleDatabaseSchemaTest {
             "playlists", "playlist_items", "annotations",
             "series", "series_items", "collections", "collection_items",
             "local_files_folders", "local_files_files", "local_files_file_folders",
+            "reading_positions", "audiobook_positions",
+            "book_formatting_preferences", "book_comic_formatting_preferences",
         )
         val actual = allTableNames()
         val missing = expected - actual
@@ -213,10 +223,73 @@ class IosRiffleDatabaseSchemaTest {
             "series", "series_items", "collections", "collection_items",
             "toc_cache", "playlists", "playlist_items", "annotations",
             "local_files_folders", "local_files_files", "local_files_file_folders",
+            "reading_positions", "audiobook_positions",
+            "book_formatting_preferences", "book_comic_formatting_preferences",
         )
         val actual = allTableNames()
         val unknown = actual - knownTables
         assertTrue(unknown.isEmpty(), "Unexpected tables created by DDL: $unknown")
+    }
+
+    // ── Table: reading_positions ──────────────────────────────────────────────
+
+    @Test
+    fun readingPositionsTableHasAllRequiredColumns() {
+        val cols = tableColumns("reading_positions")
+        assertTrue(
+            cols.containsAll(
+                listOf("sourceId", "itemId", "cfi", "localUpdatedAt", "lastSyncedAt", "deleted")
+            ),
+            "reading_positions columns: $cols"
+        )
+    }
+
+    // ── Table: audiobook_positions ────────────────────────────────────────────
+
+    @Test
+    fun audiobookPositionsTableHasAllRequiredColumns() {
+        val cols = tableColumns("audiobook_positions")
+        assertTrue(
+            cols.containsAll(
+                listOf("sourceId", "itemId", "positionSec", "localUpdatedAt", "lastSyncedAt", "deleted")
+            ),
+            "audiobook_positions columns: $cols"
+        )
+    }
+
+    // ── Table: book_formatting_preferences ────────────────────────────────────
+
+    @Test
+    fun bookFormattingPreferencesTableHasAllRequiredColumns() {
+        val cols = tableColumns("book_formatting_preferences")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "sourceId", "itemId", "screenDimensionBucket",
+                    "fontSize", "theme", "fontFamily", "lineSpacing", "margins",
+                    "orientation", "showChapterMap", "coloredChapterMap",
+                    "showReadingProgressLabels", "showCurrentChapterLabel",
+                    "doublePageSpread", "justifyText", "showReadingTimeEstimate",
+                )
+            ),
+            "book_formatting_preferences columns: $cols"
+        )
+    }
+
+    // ── Table: book_comic_formatting_preferences ──────────────────────────────
+
+    @Test
+    fun bookComicFormattingPreferencesTableHasAllRequiredColumns() {
+        val cols = tableColumns("book_comic_formatting_preferences")
+        assertTrue(
+            cols.containsAll(
+                listOf(
+                    "source_id", "item_id", "background_theme",
+                    "panel_view_on", "panel_overflow", "panel_animation_speed_ms",
+                )
+            ),
+            "book_comic_formatting_preferences columns: $cols"
+        )
     }
 
     // ── Tables: local_files_* ─────────────────────────────────────────────────
@@ -344,7 +417,124 @@ class IosRiffleDatabaseSchemaTest {
         )
     }
 
+    // ── Migration: v3 → v4 ───────────────────────────────────────────────────
+
+    @Test
+    fun migrateV3ToV4CreatesPositionAndPreferencesTables() {
+        // Start from a genuine v3 state: drop all four tables that v4 creates so that
+        // CREATE TABLE IF NOT EXISTS in the migration body is actually exercised.
+        val v4Tables = listOf(
+            "reading_positions",
+            "audiobook_positions",
+            "book_formatting_preferences",
+            "book_comic_formatting_preferences",
+        )
+        v4Tables.forEach { table ->
+            driver.execute(null, "DROP TABLE IF EXISTS $table", 0)
+        }
+        val beforeMigration = allTableNames()
+        v4Tables.forEach { table ->
+            assertTrue(table !in beforeMigration, "$table must be absent before the v3→v4 migration runs")
+        }
+
+        IosRiffleDatabaseSchema.migrate(driver, 3L, 4L)
+
+        val tables = allTableNames()
+        v4Tables.forEach { table ->
+            assertTrue(table in tables, "$table must exist after v3→v4 migration")
+        }
+    }
+
+    // ── DAO round-trips on a fresh schema ────────────────────────────────────
+    //
+    // These are the assertions that would have failed on v3, proving the tables exist and the
+    // DAO SQL matches the DDL. Each test upserts a row and reads it back to confirm both the
+    // table and the column set are correct.
+
+    @Test
+    fun readingPositionDaoRoundTrip() = runTest {
+        // Insert a source row first (FK constraint).
+        insertSource("src1")
+        val dao = IosReadingPositionDao(driver, IosInvalidator())
+        val entity = ReadingPositionEntity(
+            sourceId = "src1",
+            itemId = "item1",
+            cfi = "epubcfi(/6/4[c01]!/4/2/1:0)",
+            localUpdatedAt = 1000L,
+            lastSyncedAt = 900L,
+            deleted = false,
+        )
+        dao.upsert(entity)
+        val fetched = dao.getByItemId("src1", "item1")
+        assertNotNull(fetched, "Row must be readable after upsert")
+        assertEquals(entity, fetched)
+        assertNull(dao.getByItemId("src1", "missing"), "Non-existent row must return null")
+    }
+
+    @Test
+    fun audiobookPositionDaoRoundTrip() = runTest {
+        insertSource("src2")
+        val dao = IosAudiobookPositionDao(driver, IosInvalidator())
+        val entity = AudiobookPositionEntity(
+            sourceId = "src2",
+            itemId = "item2",
+            positionSec = 123.456,
+            localUpdatedAt = 2000L,
+            lastSyncedAt = 1900L,
+            deleted = false,
+        )
+        dao.upsert(entity)
+        val fetched = dao.getByItemId("src2", "item2")
+        assertNotNull(fetched, "Row must be readable after upsert")
+        assertEquals(entity, fetched)
+    }
+
+    @Test
+    fun bookFormattingPreferencesDaoRoundTrip() = runTest {
+        insertSource("src3")
+        val dao = IosBookFormattingPreferencesDao(driver, IosInvalidator())
+        val entity = BookFormattingPreferencesEntity(
+            sourceId = "src3",
+            itemId = "item3",
+            screenDimensionBucket = "Compact_Medium",
+            fontSize = 1.2f,
+            theme = "dark",
+            fontFamily = "serif",
+        )
+        dao.upsert(entity)
+        val fetched = dao.getByItemId("src3", "item3", "Compact_Medium")
+        assertNotNull(fetched, "Row must be readable after upsert")
+        assertEquals(entity, fetched)
+        assertNull(dao.getByItemId("src3", "item3", "Expanded_Medium"), "Different bucket must return null")
+    }
+
+    @Test
+    fun bookComicFormattingPreferencesDaoRoundTrip() = runTest {
+        insertSource("src4")
+        val dao = IosBookComicFormattingPreferencesDao(driver, IosInvalidator())
+        val entity = BookComicFormattingPreferencesEntity(
+            sourceId = "src4",
+            itemId = "item4",
+            backgroundTheme = "dark",
+            panelViewOn = true,
+            panelOverflow = "scroll",
+            panelAnimationSpeedMs = 300,
+        )
+        dao.upsert(entity)
+        val fetched = dao.getByItemId("src4", "item4")
+        assertNotNull(fetched, "Row must be readable after upsert")
+        assertEquals(entity, fetched)
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private fun insertSource(id: String) {
+        driver.execute(
+            null,
+            "INSERT OR IGNORE INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, type) VALUES (?, '', 0, 0, '', 'AUDIOBOOKSHELF', 'ABS')",
+            1,
+        ) { bindString(0, id) }
+    }
 
     private fun tableColumns(table: String): Set<String> =
         driver.executeQuery(

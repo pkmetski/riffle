@@ -8,10 +8,10 @@ import app.cash.sqldelight.db.SqlSchema
 internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     // Tracks the iOS schema version independently of the Android Room schema version.
     // Bumped only when the iOS-side DDL changes; Android Room migrations are irrelevant here.
-    override val version: Long = 3L
+    override val version: Long = 4L
 
     override fun create(driver: SqlDriver): QueryResult.Value<Unit> {
-        (DDL + LOCAL_FILES_DDL).forEach { driver.execute(null, it, 0) }
+        (DDL + LOCAL_FILES_DDL + POSITION_AND_PREFS_DDL).forEach { driver.execute(null, it, 0) }
         return QueryResult.Value(Unit)
     }
 
@@ -29,6 +29,11 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
             // (a fabricated NOT NULL sourceId column, missing coverUrl/bookCount) — every insert
             // failed, so the tables are guaranteed empty and can be rebuilt in place.
             SERIES_COLLECTIONS_REBUILD_DDL.forEach { driver.execute(null, it, 0) }
+        }
+        if (oldVersion < 4L) {
+            // v3 had no reading_positions, audiobook_positions, book_formatting_preferences, or
+            // book_comic_formatting_preferences tables, causing every book close to crash on iOS.
+            POSITION_AND_PREFS_DDL.forEach { driver.execute(null, it, 0) }
         }
         return QueryResult.Value(Unit)
     }
@@ -222,6 +227,68 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
         )""",
         "CREATE INDEX IF NOT EXISTS index_local_files_file_folders_sourceId ON local_files_file_folders(sourceId)",
         "CREATE INDEX IF NOT EXISTS index_local_files_file_folders_folder ON local_files_file_folders(sourceId, folderTreeUri)",
+    )
+
+    // v3 -> v4: add tables for reading positions, audiobook positions and per-book formatting.
+    // DDL mirrors the Room entities column-for-column (schema v73 / Room entity definitions).
+    private val POSITION_AND_PREFS_DDL = listOf(
+        """CREATE TABLE IF NOT EXISTS reading_positions (
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            cfi TEXT NOT NULL,
+            localUpdatedAt INTEGER NOT NULL DEFAULT 0,
+            lastSyncedAt INTEGER NOT NULL DEFAULT 0,
+            deleted INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (sourceId, itemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_reading_positions_sourceId ON reading_positions(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS audiobook_positions (
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            positionSec REAL NOT NULL,
+            localUpdatedAt INTEGER NOT NULL DEFAULT 0,
+            lastSyncedAt INTEGER NOT NULL DEFAULT 0,
+            deleted INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (sourceId, itemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_audiobook_positions_sourceId ON audiobook_positions(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS book_formatting_preferences (
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            screenDimensionBucket TEXT NOT NULL,
+            fontSize REAL,
+            theme TEXT,
+            fontFamily TEXT,
+            lineSpacing REAL,
+            margins REAL,
+            orientation TEXT,
+            showChapterMap INTEGER,
+            coloredChapterMap INTEGER,
+            showReadingProgressLabels INTEGER,
+            showCurrentChapterLabel INTEGER,
+            doublePageSpread INTEGER,
+            justifyText INTEGER,
+            showReadingTimeEstimate INTEGER,
+            PRIMARY KEY (sourceId, itemId, screenDimensionBucket),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_book_formatting_preferences_sourceId ON book_formatting_preferences(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS book_comic_formatting_preferences (
+            source_id TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            background_theme TEXT,
+            panel_view_on INTEGER,
+            panel_overflow TEXT,
+            panel_animation_speed_ms INTEGER,
+            PRIMARY KEY (source_id, item_id),
+            FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_book_comic_formatting_preferences_source_id ON book_comic_formatting_preferences(source_id)",
     )
 
     // v2 -> v3: rebuild series/collections with the Room-entity shape (see migrate()).

@@ -572,6 +572,16 @@ internal object ContinuousStyleInjector {
                         window.RiffleChapter.onAnnotationNoteTap(id, r.left, r.top, r.right, r.bottom);
                     });
                     blockEl.appendChild(s);
+                    // Correct for reflow: if blockEl shifted after we measured it, the glyph's
+                    // viewport-left drifts below NOTE_GLYPH_VIEWPORT_INSET_PX. Re-clamp after one
+                    // layout frame so the settled position is always >= the inset.
+                    requestAnimationFrame(function() {
+                        var br2 = blockEl.getBoundingClientRect();
+                        var sr = s.getBoundingClientRect();
+                        if (sr.left < $NOTE_GLYPH_VIEWPORT_INSET_PX) {
+                            s.style.left = Math.max(0, $NOTE_GLYPH_VIEWPORT_INSET_PX - br2.left) + 'px';
+                        }
+                    });
                 };
                 // Build a flat text index of the document (text nodes outside existing marks),
                 // used to resolve the right occurrence when an annotation's text repeats. Built
