@@ -1,14 +1,14 @@
-package com.riffle.app.feature.audiobook
+package com.riffle.feature.player
 
-import com.riffle.app.feature.reader.AudioLedCycleResult
-import com.riffle.app.feature.reader.AudiobookFollow
-import com.riffle.app.feature.reader.ReaderSyncCoordinator
-import com.riffle.app.feature.reader.ReaderSyncFactory
-import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.SyncPositionStore
+import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.feature.reader.AudioLedCycleResult
+import com.riffle.feature.reader.AudiobookFollowInterface
+import com.riffle.feature.reader.ReaderSyncCoordinatorInterface
+import com.riffle.feature.reader.ReaderSyncFactoryInterface
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -61,7 +61,7 @@ class AudiobookReconciliationCoordinatorTest {
     )
 
     private fun coordinator(
-        factory: ReaderSyncFactory = mockk(relaxed = true),
+        factory: ReaderSyncFactoryInterface = mockk(relaxed = true),
         targets: OpenReconcileTargets = OpenReconcileTargets(),
         audio: FakeAudioSyncStore = FakeAudioSyncStore(),
         reading: FakeReadingSyncStore = FakeReadingSyncStore(),
@@ -78,9 +78,9 @@ class AudiobookReconciliationCoordinatorTest {
     }
 
     @Test
-    fun `attach with factory returning null → fallback follow marked open, not attached`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val follow = mockk<AudiobookFollow>()
+    fun `attach with factory returning null fallback follow marked open not attached`() = runTest {
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val follow = mockk<AudiobookFollowInterface>()
         every { follow.ebookItemId } returns "ebook-x"
         coEvery { factory.createIfApplicable("book") } returns null
         coEvery { factory.createAudiobookFollowIfApplicable("book") } returns follow
@@ -97,9 +97,9 @@ class AudiobookReconciliationCoordinatorTest {
     }
 
     @Test
-    fun `attach with factory returning coordinator → runs cycle, marks ebook open, adopts result`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+    fun `attach with factory returning coordinator runs cycle marks ebook open adopts result`() = runTest {
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         every { rs.ebookItemId } returns "ebook-y"
         coEvery { rs.runAudioLedCycle(15.0, 100L) } returns
             AudioLedCycleResult(jumpToAudioSec = 200.0, canonicalLastUpdate = 500L)
@@ -119,8 +119,8 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `attach is idempotent once attached`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         every { rs.ebookItemId } returns "ebook-y"
         coEvery { rs.runAudioLedCycle(any(), any()) } returns
             AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 1L)
@@ -135,7 +135,7 @@ class AudiobookReconciliationCoordinatorTest {
     }
 
     @Test
-    fun `mirrorListeningToReading with no follow → no write`() = runTest {
+    fun `mirrorListeningToReading with no follow no write`() = runTest {
         val (coord, deps) = coordinator()
         coord.mirrorListeningToReading("srv", "book", 50.0)
         assertTrue(deps.second.mirrors.isEmpty())
@@ -143,8 +143,8 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `mirrorListeningToReading with fallback follow writes locator with audio row stamps`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val follow = mockk<AudiobookFollow>()
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val follow = mockk<AudiobookFollowInterface>()
         every { follow.ebookItemId } returns "ebook-z"
         coEvery { follow.ebookLocatorForAudioSeconds(50.0) } returns "cfi:/at/50"
         coEvery { factory.createIfApplicable(any()) } returns null
@@ -166,8 +166,8 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `writeListeningToReadaloud persists anchor under ebook item id`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val follow = mockk<AudiobookFollow>()
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val follow = mockk<AudiobookFollowInterface>()
         val anchor = ReadaloudResumePosition(href = "ch1.xhtml", progression = 0.5, fragmentRef = "ch1#s7")
         every { follow.ebookItemId } returns "ebook-w"
         coEvery { follow.readaloudAnchorForAudioSeconds(75.0) } returns anchor
@@ -186,8 +186,8 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `writeListeningToReadaloud with no anchor is a no-op`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val follow = mockk<AudiobookFollow>()
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val follow = mockk<AudiobookFollowInterface>()
         every { follow.ebookItemId } returns "ebook-w"
         coEvery { follow.readaloudAnchorForAudioSeconds(any()) } returns null
         coEvery { factory.createIfApplicable(any()) } returns null
@@ -202,8 +202,8 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `ebookItemIdForMarkClosed prefers readerSync over fallback follow`() = runTest {
-        val factory = mockk<ReaderSyncFactory>()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+        val factory = mockk<ReaderSyncFactoryInterface>()
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         every { rs.ebookItemId } returns "ebook-from-rs"
         coEvery { rs.runAudioLedCycle(any(), any()) } returns
             AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 0L)

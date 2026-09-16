@@ -1,21 +1,24 @@
-package com.riffle.app.feature.audiobook
+package com.riffle.feature.player
 
-import com.riffle.app.feature.reader.AudioLedCycleResult
-import com.riffle.app.feature.reader.ProgressFlushScope
-import com.riffle.app.feature.reader.ReaderSyncCoordinator
-import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.common.Clock
+import com.riffle.core.domain.ApplicationScope
+import com.riffle.feature.reader.AudioLedCycleResult
+import com.riffle.feature.reader.ProgressFlushScope
+import com.riffle.feature.reader.ReaderSyncCoordinatorInterface
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Test
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FollowLoopOrchestratorTest {
@@ -25,10 +28,16 @@ class FollowLoopOrchestratorTest {
         override fun nowNs(): Long = ms * 1_000_000L
     }
 
+    private class TestApplicationScope(private val scope: CoroutineScope) : ApplicationScope {
+        override val coroutineScope: CoroutineScope = scope
+        override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job = scope.launch(block = block)
+        override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T = scope.async(block = block).await()
+    }
+
     private class FakeContext(
         override var reconciledResumeSec: Double = 0.0,
         override var localUpdatedAt: Long = 0L,
-        override var readerSync: ReaderSyncCoordinator? = null,
+        override var readerSync: ReaderSyncCoordinatorInterface? = null,
     ) : FollowContext {
         var currentSec: Double = 0.0
         var playing: Boolean = false
@@ -70,9 +79,9 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `matched tick above floor + playing → advances floor and adopts canonical stamp`() = runTest {
+    fun `matched tick above floor + playing advances floor and adopts canonical stamp`() = runTest {
         val (orch, ctx, clock) = setup()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         coEvery { rs.runAudioLedCycle(any(), any()) } returns
             AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 5_000L)
         ctx.readerSync = rs
@@ -92,9 +101,9 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `matched tick below floor → inbound-only cycle, floor untouched`() = runTest {
+    fun `matched tick below floor inbound-only cycle floor untouched`() = runTest {
         val (orch, ctx, clock) = setup()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         coEvery { rs.runAudioLedCycle(any(), any()) } returns
             AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 42L)
         ctx.readerSync = rs
@@ -116,13 +125,13 @@ class FollowLoopOrchestratorTest {
     @Test
     fun `inbound jump seeks the player and moves floor to the jump`() = runTest {
         val (orch, ctx, _) = setup()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         coEvery { rs.runAudioLedCycle(any(), any()) } returns
             AudioLedCycleResult(jumpToAudioSec = 250.0, canonicalLastUpdate = 999L)
         ctx.readerSync = rs
         ctx.currentSec = 10.0
         ctx.reconciledResumeSec = 100.0
-        ctx.playing = false // below-floor path handles the inbound jump
+        ctx.playing = false
 
         orch.start(this, ctx)
         advanceTimeBy(FollowLoopOrchestrator.FOLLOW_INTERVAL_MS + 100)
@@ -149,7 +158,7 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `single-peer tick above floor + playing → writes and advances`() = runTest {
+    fun `single-peer tick above floor + playing writes and advances`() = runTest {
         val (orch, ctx, _) = setup()
         ctx.readerSync = null
         ctx.currentSec = 300.0
@@ -166,7 +175,7 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `single-peer tick below floor → no write`() = runTest {
+    fun `single-peer tick below floor no write`() = runTest {
         val (orch, ctx, _) = setup()
         ctx.readerSync = null
         ctx.currentSec = 10.0
@@ -183,7 +192,7 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `single-peer tick not playing → no write`() = runTest {
+    fun `single-peer tick not playing no write`() = runTest {
         val (orch, ctx, _) = setup()
         ctx.readerSync = null
         ctx.currentSec = 300.0
@@ -200,7 +209,7 @@ class FollowLoopOrchestratorTest {
     @Test
     fun `stopWithFinalFlush on matched runs clock-stamped cycle + closeFlush`() = runTest {
         val (orch, ctx, clock) = setup()
-        val rs = mockk<ReaderSyncCoordinator>(relaxed = true)
+        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
         coEvery { rs.runAudioLedCycle(any(), any()) } returns
             AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 7_000L)
         ctx.readerSync = rs
@@ -209,7 +218,6 @@ class FollowLoopOrchestratorTest {
         clock.ms = 3_500L
         ctx.progressFractionOf = 0.55f
 
-        // The orchestrator needs a context to have been latched; use start-then-cancel to prime it.
         orch.start(this, ctx)
         orch.cancel()
 
@@ -240,7 +248,7 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `stopWithFinalFlush below-floor → no writes`() = runTest {
+    fun `stopWithFinalFlush below-floor no writes`() = runTest {
         val (orch, ctx, _) = setup()
         ctx.readerSync = null
         ctx.currentSec = 10.0
@@ -257,7 +265,7 @@ class FollowLoopOrchestratorTest {
     }
 
     @Test
-    fun `stopWithFinalFlush no server → no-op`() = runTest {
+    fun `stopWithFinalFlush no server no-op`() = runTest {
         val (orch, ctx, _) = setup()
         ctx.hasServer = false
         ctx.currentSec = 500.0
