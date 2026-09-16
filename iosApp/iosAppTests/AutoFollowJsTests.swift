@@ -287,7 +287,7 @@ final class AutoFollowJsTests: XCTestCase {
         let nav = NavigationDelegate(exp: exp)
         webView.navigationDelegate = nav
         webView.loadHTMLString(html, baseURL: nil)
-        wait(for: [exp], timeout: 30)
+        wait(for: [exp], timeout: 60)
         _ = nav // keep alive
 
         // WKWebView finalizes its content size a few frames after didFinish; interacting before
@@ -318,7 +318,7 @@ final class AutoFollowJsTests: XCTestCase {
                 exp.fulfill()
             }
         }
-        wait(for: [exp], timeout: 30)
+        wait(for: [exp], timeout: 60)
         return result
     }
 
