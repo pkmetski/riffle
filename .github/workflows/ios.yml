@@ -265,13 +265,13 @@ jobs:
           path: core/database/build/reports/tests/
           if-no-files-found: ignore
 
-  harness-test-phone-readers:
+  harness-test-phone:
     name: Harness tests (phone)
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 40
     needs: [build]
     concurrency:
-      group: ios-harness-test-phone-readers-${{ github.ref }}
+      group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
@@ -320,9 +320,7 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-      # Reader/player harness tests: AudiobookPlayerTests, ComicsReaderTests, PdfReaderTests,
-      # ProgressPipelineTests — run in parallel with the sources/library job below.
-      - name: Run iOS harness tests (readers/player)
+      - name: Run iOS harness tests
         run: |
           RIFFLE_SKIP_GRADLE_EMBED=1 xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
@@ -331,99 +329,13 @@ jobs:
             -clonedSourcePackagesDirPath "$HOME/spm-packages" \
             -derivedDataPath "$HOME/derived-data" \
             -parallel-testing-enabled YES \
-            -only-testing iosAppTests/AudiobookPlayerTests \
-            -only-testing iosAppTests/ComicsReaderTests \
-            -only-testing iosAppTests/PdfReaderTests \
-            -only-testing iosAppTests/ProgressPipelineTests \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee xcodebuild-harness-readers.log; exit ${PIPESTATUS[0]}
+            2>&1 | tee xcodebuild-harness.log; exit ${PIPESTATUS[0]}
 
-      - name: Upload harness readers log
+      - name: Upload harness log
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-harness-readers-log
-          path: xcodebuild-harness-readers.log
-          if-no-files-found: ignore
-
-  harness-test-phone-sources:
-    name: Harness tests (phone)
-    runs-on: macos-15
-    timeout-minutes: 20
-    needs: [build]
-    concurrency:
-      group: ios-harness-test-phone-sources-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-gradle
-        with:
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-          cache-read-only: 'false'
-
-      - name: Read Xcode version
-        id: xcode-version
-        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
-
-      - name: Cache SPM SourcePackages
-        uses: actions/cache@v6
-        with:
-          path: ~/spm-packages
-          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-
-
-      - name: Cache DerivedData
-        uses: actions/cache@v6
-        with:
-          path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: |
-            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
-
-      - name: Download Riffle simulator framework
-        uses: actions/download-artifact@v7
-        with:
-          name: riffle-framework-debug-simulator
-          path: shared/build/bin/iosSimulatorArm64/debugFramework/Riffle.framework
-
-      - name: Select and pre-boot simulator
-        run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime_key in sorted(data['devices'].keys(), reverse=True):
-            for d in data['devices'][runtime_key]:
-              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
-                print(d['udid']); exit()
-          ")
-          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-
-      # Sources/library harness tests: AddAbsSourceFlowTests, AddKomgaSourceFlowTests,
-      # SourcePickerTests, LocalFilesTests, IosAppTests — run in parallel with the readers job.
-      - name: Run iOS harness tests (sources/library)
-        run: |
-          RIFFLE_SKIP_GRADLE_EMBED=1 xcodebuild test \
-            -project iosApp/iosApp.xcodeproj \
-            -scheme iosApp \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
-            -derivedDataPath "$HOME/derived-data" \
-            -parallel-testing-enabled YES \
-            -only-testing iosAppTests/AddAbsSourceFlowTests \
-            -only-testing iosAppTests/AddKomgaSourceFlowTests \
-            -only-testing iosAppTests/SourcePickerTests \
-            -only-testing iosAppTests/LocalFilesTests \
-            -only-testing iosAppTests/IosAppTests \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee xcodebuild-harness-sources.log; exit ${PIPESTATUS[0]}
-
-      - name: Upload harness sources log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-harness-sources-log
-          path: xcodebuild-harness-sources.log
+          name: ios-harness-log
+          path: xcodebuild-harness.log
           if-no-files-found: ignore
