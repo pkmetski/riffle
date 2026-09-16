@@ -7,6 +7,7 @@ import com.riffle.feature.player.SleepTimerMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -49,19 +50,19 @@ class IosAudioPlayerController(
         })
         bridge.setPlayingCallback(object : IosPlayingCallback {
             override fun onPlaying(isPlaying: Boolean) {
-                val prev = _state.value
-                _state.value = prev.copy(isPlaying = isPlaying)
-                if (!isPlaying && prev.isPlaying) {
-                    val pos = prev.positionSec
-                    val dur = totalDurationSec
-                    if (dur > 0.0 && pos >= dur - END_OF_BOOK_EPS_SEC) {
-                        scope.launch { _playbackEnded.emit(Unit) }
-                    }
-                }
+                _state.value = _state.value.copy(isPlaying = isPlaying)
+            }
+        })
+        // Only emit playbackEnded on natural end-of-book — not on user pause near the end.
+        // The bridge fires this exclusively via AVPlayerItemDidPlayToEndTime for the last track.
+        bridge.setEndOfBookCallback(object : IosEndOfBookCallback {
+            override fun onEndOfBook() {
+                scope.launch { _playbackEnded.emit(Unit) }
             }
         })
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override suspend fun prepare(
         trackUrls: List<String>,
         spans: List<AudiobookTrackSpan>,
@@ -72,6 +73,9 @@ class IosAudioPlayerController(
         bookTitle: String?,
         chapters: List<AudiobookChapter>,
     ) {
+        // Flush any stale end-of-book event from a prior session before loading new tracks,
+        // mirroring Android AudiobookController.resetReplayCache() before prepare().
+        _playbackEnded.resetReplayCache()
         totalDurationSec = durationSec
         _state.value = AudioPlayerInterface.PlaybackState(
             connected = true,
@@ -171,6 +175,7 @@ class IosAudioPlayerController(
         _sleepTimer.value = SleepTimerMode.None
         bridge.dispose()
         _state.value = AudioPlayerInterface.PlaybackState()
+        scope.cancel()
     }
 
     override fun releaseForHandoff() {
@@ -184,7 +189,6 @@ class IosAudioPlayerController(
     }
 
     companion object {
-        private const val END_OF_BOOK_EPS_SEC = 3.0
         private const val SLEEP_TICK_MS = 1_000L
     }
 }
