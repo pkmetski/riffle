@@ -294,7 +294,10 @@ jobs:
                 print(d['udid']); exit()
           ")
           echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
-          xcrun simctl boot "$UDID" || true
+          # Erase before boot to avoid stale data-migration state that causes xcodebuild to hang.
+          xcrun simctl shutdown "$UDID" 2>/dev/null || true
+          xcrun simctl erase "$UDID"
+          xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
 
       - name: Run iOS harness tests
