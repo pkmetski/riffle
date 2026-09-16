@@ -328,10 +328,13 @@ final class AutoFollowJsTests: XCTestCase {
 
         // WKWebView finalizes its content size a few frames after didFinish; interacting before
         // that can be undone by a scroll reset to 0. Wait until the document height is stable.
+        // Use evalIntFast (0.5 s semaphore) so a slow/throttled WebContent process cannot block
+        // this loop for 100 × 60 s = 6000 s (the evalSync timeout). Height stabilises in ~1–3
+        // frames on a warm process; 30 attempts at 0.5 s each = 15 s worst case.
         var previousHeight = -1
         var stableFor = 0
-        for _ in 0..<100 {
-            let height = evalInt(webView: webView, script: "document.scrollingElement.scrollHeight") ?? -1
+        for _ in 0..<30 {
+            let height = evalIntFast(webView: webView, script: "document.scrollingElement.scrollHeight") ?? -1
             if height == previousHeight && height > 0 {
                 stableFor += 1
                 if stableFor >= 5 { break }
@@ -342,6 +345,20 @@ final class AutoFollowJsTests: XCTestCase {
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
         }
         return webView
+    }
+
+    /// Evaluates [script] with a 0.5 s timeout — fast enough for layout-probe polls where the
+    /// page is expected to already be loaded. Returns nil on timeout or JS error.
+    private func evalIntFast(webView: WKWebView, script: String) -> Int? {
+        var result: Int?
+        let sem = DispatchSemaphore(value: 0)
+        webView.evaluateJavaScript(script) { value, _ in
+            result = (value as? NSNumber).map(Int.init(truncating:))
+                ?? (value.map { "\($0)" }).flatMap { Int($0) }
+            sem.signal()
+        }
+        _ = sem.wait(timeout: .now() + 0.5)
+        return result
     }
 
     /// Runs [script] synchronously on the main thread and returns the raw string result.
