@@ -68,7 +68,7 @@ class AbsHarnessTestCase: XCTestCase {
         }
         continueButton.tap()
 
-        XCTAssertTrue(app.staticTexts["☰"].waitForExistence(timeout: 60),
+        XCTAssertTrue(app.buttons["Open menu"].waitForExistence(timeout: 60),
                       "Library home must render after adding ABS source")
     }
 
@@ -138,7 +138,7 @@ class KomgaHarnessTestCase: XCTestCase {
         }
         continueButton.tap()
 
-        XCTAssertTrue(app.staticTexts["☰"].waitForExistence(timeout: 60),
+        XCTAssertTrue(app.buttons["Open menu"].waitForExistence(timeout: 60),
                       "Library home must render after adding Komga source")
     }
 
