@@ -65,6 +65,11 @@ class StreamingPlaybackAndroidTest {
     @After
     fun tearDown() {
         instrumentation.runOnMainSync { player?.release() }
+        // Give OkHttp / ExoPlayer background threads a moment to drain their in-flight I/O
+        // before MockWebServer closes the listening socket. Without this, a thread that is
+        // still processing a chunk response at teardown time hits a closed socket, which
+        // shows up as a SIGSEGV in the next (unrelated) test's process.
+        Thread.sleep(200)
         SharedBundle.streaming = null
         server.shutdown()
     }
