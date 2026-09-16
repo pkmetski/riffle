@@ -36,12 +36,12 @@ jobs:
       - name: SwiftLint (iosApp/)
         run: swiftlint lint iosApp/
 
-  integration-tests:
-    name: Integration tests
+  xctest-unit-test:
+    name: XCTest unit tests (iosAppUnitTests)
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 20
     concurrency:
-      group: ios-integration-tests-${{ github.ref }}
+      group: ios-xctest-unit-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
@@ -99,7 +99,89 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-      - name: Run iOS integration tests
+      - name: Run XCTest unit tests
+        run: |
+          xcodebuild test \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosAppUnitTests \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
+            -derivedDataPath "$HOME/derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee xcodebuild-unit-test.log; exit ${PIPESTATUS[0]}
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-xctest-unit-test-log
+          path: xcodebuild-unit-test.log
+          if-no-files-found: ignore
+
+  harness-tests:
+    name: Harness tests (iosAppTests)
+    runs-on: macos-15
+    timeout-minutes: 30
+    concurrency:
+      group: ios-harness-tests-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: 'false'
+
+      - name: Read Kotlin version
+        id: kotlin-version
+        run: |
+          echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Read Xcode version
+        id: xcode-version
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
+      - name: Cache SPM SourcePackages
+        uses: actions/cache@v6
+        with:
+          path: ~/spm-packages
+          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v6
+        with:
+          path: ~/derived-data
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ steps.kotlin-version.outputs.version }}
+          restore-keys: |
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
+
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
+
+      - name: Select and pre-boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+            for d in data['devices'][runtime_key]:
+              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                print(d['udid']); exit()
+          ")
+          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run iOS harness tests
         run: |
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
@@ -108,14 +190,14 @@ jobs:
             -clonedSourcePackagesDirPath "$HOME/spm-packages" \
             -derivedDataPath "$HOME/derived-data" \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee xcodebuild-test.log; exit ${PIPESTATUS[0]}
+            2>&1 | tee xcodebuild-harness-test.log; exit ${PIPESTATUS[0]}
 
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-integration-test-log
-          path: xcodebuild-test.log
+          name: ios-harness-test-log
+          path: xcodebuild-harness-test.log
           if-no-files-found: ignore
 
   build:
