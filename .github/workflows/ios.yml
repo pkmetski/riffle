@@ -36,34 +36,61 @@ jobs:
       - name: SwiftLint (iosApp/)
         run: swiftlint lint iosApp/
 
-  integration-tests:
-    name: Integration tests
+  build:
+    name: Build
     runs-on: macos-15
     timeout-minutes: 30
     concurrency:
-      group: ios-integration-tests-${{ github.ref }}
+      group: ios-build-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-          cache-read-only: 'false'
 
       - name: Read Kotlin version
         id: kotlin-version
         run: |
           echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
 
-      - name: Read Xcode version
-        id: xcode-version
-        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
-
       - name: Cache Kotlin/Native toolchain
         uses: actions/cache@v6
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
+
+      - name: Build Xcode project (simulator)
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme Riffle \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  unit-test:
+    name: Unit Tests
+    runs-on: macos-15
+    timeout-minutes: 35
+    concurrency:
+      group: ios-unit-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Read Xcode version
+        id: xcode-version
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
 
       - name: Cache SPM SourcePackages
         uses: actions/cache@v6
@@ -77,113 +104,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ steps.kotlin-version.outputs.version }}
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: |
-            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
-      - name: Assemble Riffle XCFramework
-        run: ./gradlew assembleRiffleDebugXCFramework
-
-      - name: Select and pre-boot simulator
-        run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime_key in sorted(data['devices'].keys(), reverse=True):
-            for d in data['devices'][runtime_key]:
-              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
-                print(d['udid']); exit()
-          ")
-          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-
-      - name: Run iOS integration tests
-        run: |
-          xcodebuild test \
-            -project iosApp/iosApp.xcodeproj \
-            -scheme iosApp \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
-            -derivedDataPath "$HOME/derived-data" \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee xcodebuild-test.log; exit ${PIPESTATUS[0]}
-
-      - name: Upload test log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-integration-test-log
-          path: xcodebuild-test.log
-          if-no-files-found: ignore
-
-  build:
-    name: Build
-    runs-on: macos-15
-    timeout-minutes: 30
-    concurrency:
-      group: ios-build-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-gradle
-        with:
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      - name: Assemble Riffle XCFramework
-        run: ./gradlew assembleRiffleDebugXCFramework
-      - name: Build Xcode project (simulator)
-        run: |
-          xcodebuild \
-            -project iosApp/iosApp.xcodeproj \
-            -scheme Riffle \
-            -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug \
-            ARCHS=arm64 \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
-  database-test:
-    name: Database tests (core:database)
-    runs-on: macos-15
-    timeout-minutes: 15
-    concurrency:
-      group: ios-database-test-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-gradle
-        with:
-          java-version: '17'
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      # Dedicated iOS mirror of the "Android database tests (core:database)" job — the
-      # core:database (Room/SQLite) layer must be verified on iOS, not only Android.
-      - name: Run iOS database tests
-        run: ./gradlew :core:database:iosSimulatorArm64Test
-      - name: Upload iOS database test reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-database-test-reports
-          path: core/database/build/reports/tests/
-          if-no-files-found: ignore
-
-  unit-test:
-    name: Unit Tests
-    runs-on: macos-15
-    timeout-minutes: 25
-    concurrency:
-      group: ios-unit-test-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-gradle
-        with:
-          java-version: '17'
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      # Run every other iOS-targeted module's commonTest on the iOS simulator target so shared
-      # (Kotlin Multiplatform) logic is verified on iOS, not just Android. (core:database has its
-      # own dedicated job above, mirroring Android.) See docs/testing/android-ios-parity-audit.md §3.
+      # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
+      # verified on iOS, not just Android. core:database and core:data have their own jobs.
       - name: Run iOS commonTest (all iOS-targeted modules)
         run: |
           ./gradlew \
@@ -208,6 +134,7 @@ jobs:
             :feature:settings:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
             :core:logging:iosSimulatorArm64Test
+
       - name: Upload iOS commonTest reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -230,4 +157,162 @@ jobs:
             feature/player/build/reports/tests/
             feature/reader/build/reports/tests/
             feature/source/build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
+
+      - name: Select and pre-boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+            for d in data['devices'][runtime_key]:
+              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                print(d['udid']); exit()
+          ")
+          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run XCTest unit tests (iosAppUnitTests)
+        run: |
+          xcodebuild test \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosAppUnitTests \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
+            -derivedDataPath "$HOME/derived-data" \
+            -parallel-testing-enabled YES \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee xcodebuild-unit-test.log; exit ${PIPESTATUS[0]}
+
+      - name: Upload XCTest unit test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-xctest-unit-test-log
+          path: xcodebuild-unit-test.log
+          if-no-files-found: ignore
+
+  integration-test:
+    name: Integration tests
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-integration-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # iOS mirror of the "Android integration tests (core:data)" job.
+      # Runs the core:data commonTest suite on the iOS simulator — covers DAO-backed stores
+      # and the reading-session repository, exercising the data layer end-to-end on iOS.
+      - name: Run iOS data-layer integration tests (core:data)
+        run: ./gradlew :core:data:iosSimulatorArm64Test
+      - name: Upload iOS integration test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-integration-test-reports
+          path: core/data/build/reports/tests/
+          if-no-files-found: ignore
+
+  database-test:
+    name: Database tests (core:database)
+    runs-on: macos-15
+    timeout-minutes: 15
+    concurrency:
+      group: ios-database-test-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # Dedicated iOS mirror of the "Android database tests (core:database)" job.
+      - name: Run iOS database tests
+        run: ./gradlew :core:database:iosSimulatorArm64Test
+      - name: Upload iOS database test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-database-test-reports
+          path: core/database/build/reports/tests/
+          if-no-files-found: ignore
+
+  harness-test-phone:
+    name: Harness tests (phone)
+    runs-on: macos-15
+    timeout-minutes: 40
+    concurrency:
+      group: ios-harness-test-phone-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: 'false'
+
+      - name: Read Xcode version
+        id: xcode-version
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Cache SPM SourcePackages
+        uses: actions/cache@v6
+        with:
+          path: ~/spm-packages
+          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v6
+        with:
+          path: ~/derived-data
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
+
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
+
+      - name: Select and pre-boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+            for d in data['devices'][runtime_key]:
+              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                print(d['udid']); exit()
+          ")
+          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run iOS harness tests
+        run: |
+          xcodebuild test \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
+            -derivedDataPath "$HOME/derived-data" \
+            -parallel-testing-enabled YES \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee xcodebuild-harness.log; exit ${PIPESTATUS[0]}
+
+      - name: Upload harness log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-harness-log
+          path: xcodebuild-harness.log
           if-no-files-found: ignore

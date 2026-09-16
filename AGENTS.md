@@ -154,9 +154,11 @@ When an Android implementation is being moved or a new feature is being added, c
 For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test — no exceptions. If an Android test is added without an iOS counterpart, the PR will be sent back. This means:
 
 1. Identify the relevant Android test classes (harness tests in `app/src/androidTest`, unit tests in `**/test`).
-2. Implement each scenario as an `XCTest` UI test in `iosApp/iosAppTests/`.
+2. Implement each scenario as an XCTest in `iosApp/iosAppTests/`:
+   - Non-`XCUIApplication` logic tests → `iosAppUnitTests` target (runs in `Unit Tests` CI job alongside the KMP commonTest suite).
+   - `XCUIApplication`-based flows → `iosAppTests` target (runs in `Harness tests (phone)` CI job).
 
-The iOS XCTest suite runs in CI (`iOS integration tests` job). A PR that adds Android tests without the corresponding iOS coverage will be sent back.
+The iOS XCTest suite runs in two CI tiers that mirror Android's: `Unit Tests` (KMP + XCTest unit tests, `iosAppUnitTests` target) and `Harness tests (phone)` (full-app flows, `iosAppTests` target). A PR that adds Android tests without the corresponding iOS coverage will be sent back.
 
 Likewise, if an iOS test is added, the equivalent Android coverage must also be present or already exist.
 
@@ -165,8 +167,8 @@ Likewise, if an iOS test is added, the equivalent Android coverage must also be 
 - [ ] Feature/fix logic lives in `commonMain` (or has a documented reason it cannot).
 - [ ] Android harness tests (and/or JVM unit tests) pass: `make harness-test` / `./gradlew test jvmTest`.
 - [ ] iOS implementation present — even for changes that originated on Android.
-- [ ] iOS XCTest scenarios implemented in `iosApp/iosAppTests/`.
-- [ ] `xcodebuild test` passes on iOS simulator.
+- [ ] iOS XCTest scenarios implemented in `iosApp/iosAppTests/` in the correct target (`iosAppUnitTests` for logic, `iosAppTests` for UI flows).
+- [ ] `xcodebuild test` passes on iOS simulator for both targets.
 - [ ] If a change cannot be made on iOS (genuine platform constraint), this is documented in the PR body with a justification and a follow-up issue opened.
 
 ## Agent skills
