@@ -63,18 +63,9 @@ jobs:
       - name: Assemble Riffle XCFramework
         run: ./gradlew assembleRiffleDebugXCFramework
 
-      # Upload the compiled simulator framework so test jobs can download it and skip K/N
-      # recompilation (~8 min). The build phase checks RIFFLE_SKIP_GRADLE_EMBED=1 to skip Gradle.
-      - name: Upload Riffle simulator framework
-        uses: actions/upload-artifact@v7
-        with:
-          name: riffle-framework-debug-simulator
-          path: shared/build/bin/iosSimulatorArm64/debugFramework/Riffle.framework
-          retention-days: 1
-
       - name: Build Xcode project (simulator)
         run: |
-          RIFFLE_SKIP_GRADLE_EMBED=1 xcodebuild \
+          xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -scheme Riffle \
             -destination 'generic/platform=iOS Simulator' \
@@ -87,7 +78,6 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     timeout-minutes: 35
-    needs: [build]
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -169,15 +159,8 @@ jobs:
             feature/source/build/reports/tests/
           if-no-files-found: ignore
 
-      # Download the pre-built framework from the build job. The iosSimulatorArm64Test steps
-      # above already compiled the K/N klibs; assembleRiffleDebugXCFramework only needs to link
-      # the framework from those klibs (fast). Downloading also satisfies the embed build phase
-      # on cache-miss runs when xcodebuild starts before Gradle finishes linking.
-      - name: Download Riffle simulator framework
-        uses: actions/download-artifact@v7
-        with:
-          name: riffle-framework-debug-simulator
-          path: shared/build/bin/iosSimulatorArm64/debugFramework/Riffle.framework
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
 
       - name: Select and pre-boot simulator
         run: |
@@ -193,11 +176,9 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-      # RIFFLE_SKIP_GRADLE_EMBED=1: the embed build phase skips Gradle since the framework is
-      # already at the expected path. -parallel-testing-enabled YES runs test classes concurrently.
       - name: Run XCTest unit tests (iosAppUnitTests)
         run: |
-          RIFFLE_SKIP_GRADLE_EMBED=1 xcodebuild test \
+          xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosAppUnitTests \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
@@ -269,7 +250,6 @@ jobs:
     name: Harness tests (phone)
     runs-on: macos-15
     timeout-minutes: 40
-    needs: [build]
     concurrency:
       group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
@@ -300,11 +280,8 @@ jobs:
           restore-keys: |
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
-      - name: Download Riffle simulator framework
-        uses: actions/download-artifact@v7
-        with:
-          name: riffle-framework-debug-simulator
-          path: shared/build/bin/iosSimulatorArm64/debugFramework/Riffle.framework
+      - name: Assemble Riffle XCFramework
+        run: ./gradlew assembleRiffleDebugXCFramework
 
       - name: Select and pre-boot simulator
         run: |
@@ -322,7 +299,7 @@ jobs:
 
       - name: Run iOS harness tests
         run: |
-          RIFFLE_SKIP_GRADLE_EMBED=1 xcodebuild test \
+          xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
