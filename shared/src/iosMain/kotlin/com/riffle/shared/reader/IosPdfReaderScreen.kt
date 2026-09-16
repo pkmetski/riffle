@@ -41,6 +41,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     val bridge = remember { bridgeFactory.create() }
+    var lastTrackedPage by remember { mutableStateOf(0) }
 
     LaunchedEffect(item.id) {
         val path = downloader.localPath(item)
@@ -51,12 +52,19 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         localPath = path
         val savedLocator = positionStore.load(item.sourceId, item.id)
         val savedPage = savedLocator?.let { decodePdfPage(it) } ?: 0
+        lastTrackedPage = savedPage
+        bridge.setPageChangeCallback(object : IosPdfPageChangeCallback {
+            override fun onPageChanged(page: Int) {
+                lastTrackedPage = page
+            }
+        })
         bridge.openPdf(path, savedPage)
     }
 
     DisposableEffect(item.id) {
         onDispose {
-            val page = bridge.currentPage()
+            bridge.setPageChangeCallback(null)
+            val page = lastTrackedPage.takeIf { it > 0 } ?: bridge.currentPage()
             val pageCount = bridge.pageCount()
             if (page > 0 || pageCount > 0) {
                 CoroutineScope(SupervisorJob()).launch {

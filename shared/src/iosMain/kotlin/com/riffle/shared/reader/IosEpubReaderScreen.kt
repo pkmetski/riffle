@@ -136,7 +136,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             }
             navigator.applyReaderPreferences(
                 fontSizePercent = prefs.fontSize,
-                scrollMode = prefs.orientation == ReaderOrientation.Vertical,
+                scrollMode = epubScrollMode(prefs.orientation),
                 theme = theme,
                 fontFamilyCss = fontFamilyCss,
                 lineHeightMultiplier = prefs.lineSpacing,
