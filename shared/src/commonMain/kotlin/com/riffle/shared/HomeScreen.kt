@@ -1,19 +1,23 @@
 package com.riffle.shared
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,10 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
@@ -55,10 +56,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.compose.koinInject
 
-/**
- * Top-level section — mirrors Android's nav graph routes (Library/Settings/Downloads).
- * Tapping Settings or Downloads in the drawer closes it and navigates here, exactly as on Android.
- */
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
 internal sealed interface LibraryNav {
@@ -73,10 +70,6 @@ internal sealed interface LibraryNav {
     data class AudiobookPlayer(val item: LibraryItem) : LibraryNav
 }
 
-/**
- * Decides which reader destination to open for [item] when the detail screen triggers "open reader".
- * Returns null when the item has no supported playback format.
- */
 internal fun readerNavForItem(item: LibraryItem): LibraryNav? = when {
     item.isListenable -> LibraryNav.AudiobookPlayer(item)
     item.ebookFormat == EbookFormat.Pdf -> LibraryNav.PdfReader(item)
@@ -95,7 +88,7 @@ fun HomeScreen() {
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var activeLibraryId by remember { mutableStateOf<String?>(null) }
-    var drawerOpen by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
     val allServers by drawerViewModel.allServers.collectAsState()
     val activeServer by drawerViewModel.activeServer.collectAsState()
@@ -118,65 +111,13 @@ fun HomeScreen() {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        // Main content — Settings and Downloads are full-screen, same as Android
-        when (appSection) {
-            AppSection.Settings -> SettingsScreen(
-                onBack = { appSection = AppSection.Library },
-            )
-            AppSection.Downloads -> DownloadsScreen(
-                onBack = { appSection = AppSection.Library },
-            )
-            AppSection.Riffle -> RiffleScreen(
-                onOpenDrawer = { drawerOpen = true },
-                onBack = { appSection = AppSection.Library },
-            )
-            AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                when (val dest = destination) {
-                    null -> BasicText("Loading…")
-                    is HomeViewModel.StartDestination.AddSource ->
-                        // The real Add-Source picker (shared with Android via :feature:source-ui).
-                        // There is nothing behind this destination to go "back" to, so cancelling
-                        // just re-renders the picker.
-                        SourceOnboardingHost(
-                            onFinished = { refreshKey++ },
-                            onCancelled = { refreshKey++ },
-                        )
-                    is HomeViewModel.StartDestination.Riffle -> {
-                        LaunchedEffect(Unit) { appSection = AppSection.Riffle }
-                    }
-                    is HomeViewModel.StartDestination.NoLibraries -> BasicText("No libraries found")
-                    is HomeViewModel.StartDestination.Library -> {
-                        LaunchedEffect(dest.libraryId) {
-                            if (activeLibraryId == null) activeLibraryId = dest.libraryId
-                        }
-                        LibraryHost(
-                            libraryId = dest.libraryId,
-                            libraryName = dest.libraryName,
-                            onOpenDrawer = { drawerOpen = true },
-                        )
-                    }
-                }
-            }
-        }
+    val drawerEnabled = appSection == AppSection.Library || appSection == AppSection.Riffle
 
-        // Drawer overlay — shown over Library and Riffle (same behaviour as Android ModalNavigationDrawer)
-        if (drawerOpen && (appSection == AppSection.Library || appSection == AppSection.Riffle)) {
-            // Scrim
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .clickable { drawerOpen = false },
-            )
-            // Drawer panel
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .width(280.dp)
-                    .background(Color.White)
-                    .align(Alignment.TopStart),
-            ) {
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerEnabled,
+        drawerContent = {
+            ModalDrawerSheet {
                 DrawerSheetContent(
                     activeServer = activeServer,
                     allServers = allServers,
@@ -184,21 +125,15 @@ fun HomeScreen() {
                     activeLibraryId = activeLibraryId,
                     isRiffleActive = appSection == AppSection.Riffle,
                     onNavigateToRiffle = {
-                        drawerOpen = false
+                        scope.launch { drawerState.close() }
                         drawerViewModel.setRiffleActive()
                         appSection = AppSection.Riffle
                     },
                     onServerSelected = { source ->
-                        drawerOpen = false
+                        scope.launch { drawerState.close() }
                         appSection = AppSection.Library
                         drawerViewModel.setActiveServer(source.id)
-                        // Wait for setActiveServer's coroutine to complete (clearRiffleActive +
-                        // setActive) before triggering getStartDestination(). Without this,
-                        // refreshKey++ fires before clearRiffleActive() runs and
-                        // wasRiffleLastActive() returns true, sending the user back to Riffle.
                         scope.launch {
-                            // 5 s safety valve: if source was deleted between drawer-open and tap,
-                            // activeServer never emits a matching value; timeout lets us proceed.
                             withTimeoutOrNull(5_000) {
                                 drawerViewModel.activeServer.first { it?.id == source.id }
                             }
@@ -206,7 +141,7 @@ fun HomeScreen() {
                         }
                     },
                     onLibrarySelected = { library ->
-                        drawerOpen = false
+                        scope.launch { drawerState.close() }
                         activeLibraryId = library.id
                         drawerViewModel.setActiveLibrary(library.id)
                         destination = HomeViewModel.StartDestination.Library(
@@ -216,14 +151,47 @@ fun HomeScreen() {
                         )
                     },
                     onNavigateToSettings = {
-                        drawerOpen = false
+                        scope.launch { drawerState.close() }
                         appSection = AppSection.Settings
                     },
                     onNavigateToDownloads = {
-                        drawerOpen = false
+                        scope.launch { drawerState.close() }
                         appSection = AppSection.Downloads
                     },
                 )
+            }
+        },
+    ) {
+        when (appSection) {
+            AppSection.Settings -> SettingsScreen(onBack = { appSection = AppSection.Library })
+            AppSection.Downloads -> DownloadsScreen(onBack = { appSection = AppSection.Library })
+            AppSection.Riffle -> RiffleScreen(
+                onOpenDrawer = { scope.launch { drawerState.open() } },
+                onBack = { appSection = AppSection.Library },
+            )
+            AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                when (val dest = destination) {
+                    null -> Text("Loading…")
+                    is HomeViewModel.StartDestination.AddSource ->
+                        SourceOnboardingHost(
+                            onFinished = { refreshKey++ },
+                            onCancelled = { refreshKey++ },
+                        )
+                    is HomeViewModel.StartDestination.Riffle -> {
+                        LaunchedEffect(Unit) { appSection = AppSection.Riffle }
+                    }
+                    is HomeViewModel.StartDestination.NoLibraries -> Text("No libraries found")
+                    is HomeViewModel.StartDestination.Library -> {
+                        LaunchedEffect(dest.libraryId) {
+                            if (activeLibraryId == null) activeLibraryId = dest.libraryId
+                        }
+                        LibraryHost(
+                            libraryId = dest.libraryId,
+                            libraryName = dest.libraryName,
+                            onOpenDrawer = { scope.launch { drawerState.open() } },
+                        )
+                    }
+                }
             }
         }
     }
@@ -244,37 +212,33 @@ private fun DrawerSheetContent(
 ) {
     var switcherExpanded by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxHeight()) {
-        // Riffle entry — pinned at the top, only when 2+ sources are configured
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Spacer(Modifier.height(12.dp))
+
         if (allServers.size >= 2) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(if (isRiffleActive) Color(0xFFE8E8E8) else Color.Transparent)
-                    .clickable { onNavigateToRiffle() }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BasicText("Riffle", style = TextStyle(fontSize = 15.sp))
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Color(0xFFDDDDDD)),
+            NavigationDrawerItem(
+                label = { Text("Riffle") },
+                selected = isRiffleActive,
+                onClick = onNavigateToRiffle,
+                modifier = Modifier.padding(horizontal = 12.dp),
             )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
 
-        // Server header
+        // Server switcher header
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { switcherExpanded = !switcherExpanded }
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            BasicText(
+            Text(
                 text = activeServer?.let { localizedSourceDisplayName(it) } ?: "No source",
-                style = TextStyle(fontSize = 16.sp),
+                style = MaterialTheme.typography.titleMedium,
             )
             // Only show the host for sources that have a real network address; zero-config
             // singletons (Chitanka, Gutenberg, radio.es) carry a fake `.invalid` host.
@@ -282,100 +246,66 @@ private fun DrawerSheetContent(
                 ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                 ?.url?.authority()
             if (host != null) {
-                BasicText(
+                Text(
                     text = host,
-                    style = TextStyle(fontSize = 13.sp, color = Color.Gray),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            BasicText(
+            Text(
                 text = if (switcherExpanded) "▲ Switch source" else "▼ Switch source",
-                style = TextStyle(fontSize = 12.sp, color = Color.Gray),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         if (switcherExpanded) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFF5F5F5)),
-            ) {
-                allServers.forEach { server ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onServerSelected(server) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            BasicText(
-                                text = localizedSourceDisplayName(server),
-                                style = TextStyle(fontSize = 14.sp),
-                            )
+            allServers.forEach { server ->
+                NavigationDrawerItem(
+                    label = {
+                        Column {
+                            Text(localizedSourceDisplayName(server), style = MaterialTheme.typography.bodyMedium)
                             val rowHost = server
                                 .takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                                 ?.url?.authority()
                             if (rowHost != null) {
-                                BasicText(
-                                    text = rowHost,
-                                    style = TextStyle(fontSize = 12.sp, color = Color.Gray),
-                                )
+                                Text(rowHost, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        if (server.isActive) {
-                            BasicText(
-                                text = "✓",
-                                style = TextStyle(fontSize = 14.sp),
-                            )
-                        }
-                    }
-                }
+                    },
+                    selected = server.isActive,
+                    onClick = { onServerSelected(server) },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
             }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
 
         // Library list
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Column(Modifier.fillMaxWidth()) {
-                visibleLibraries.forEach { library ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                if (library.id == activeLibraryId) Color(0xFFE8E8E8) else Color.Transparent,
-                            )
-                            .clickable { onLibrarySelected(library) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) {
-                        BasicText(
-                            text = library.name,
-                            style = TextStyle(fontSize = 15.sp),
-                        )
-                    }
-                }
-            }
+        visibleLibraries.forEach { library ->
+            NavigationDrawerItem(
+                label = { Text(library.name) },
+                selected = library.id == activeLibraryId,
+                onClick = { onLibrarySelected(library) },
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
         }
 
-        // Bottom nav rows — same position as Android's ModalNavigationDrawer footer items
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToDownloads() }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            BasicText("Downloads", style = TextStyle(fontSize = 15.sp))
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToSettings() }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            BasicText("Settings", style = TextStyle(fontSize = 15.sp))
-        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        NavigationDrawerItem(
+            label = { Text("Downloads") },
+            selected = false,
+            onClick = onNavigateToDownloads,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        NavigationDrawerItem(
+            label = { Text("Settings") },
+            selected = false,
+            onClick = onNavigateToSettings,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        Spacer(Modifier.height(12.dp))
     }
 }
 

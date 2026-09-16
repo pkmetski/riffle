@@ -43,6 +43,7 @@
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
 		B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1016020 /* PreferenceStoresAndConnectivityTests.swift */; };
 		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
+		B100E010 /* LibraryTabVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100E020 /* LibraryTabVisibilityTests.swift */; };
 		B1015010 /* ProgressPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* ProgressPipelineTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
@@ -68,6 +69,7 @@
 		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
 		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
 		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
+		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B1008000 /* iosAppUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1008020 /* AnnotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTests.swift; sourceTree = "<group>"; };
 		B1008021 /* AudiobookPlayerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerViewModelTests.swift; sourceTree = "<group>"; };
@@ -130,6 +132,7 @@
 				B1009020 /* LocalFilesTests.swift */,
 				B100B020 /* AddAbsSourceFlowTests.swift */,
 				B100C020 /* DownloadsTests.swift */,
+				B100E020 /* LibraryTabVisibilityTests.swift */,
 				B1008020 /* AnnotationTests.swift */,
 				B1008021 /* AudiobookPlayerViewModelTests.swift */,
 				B1008022 /* AutoFollowJsTests.swift */,
@@ -377,6 +380,7 @@
 				B1012010 /* OReillyLazyPublicationTests.swift in Sources */,
 				B1016010 /* PreferenceStoresAndConnectivityTests.swift in Sources */,
 				B1017010 /* DownloadsTests.swift in Sources */,
+				B100E010 /* LibraryTabVisibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -179,7 +179,8 @@ final class IosAppTests: XCTestCase {
         }
 
         let seriesTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all", "☰"]
+            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all",
+             "Open menu", "Home", "To Read", "Annotations", "Playlists"]
         )).firstMatch
         guard seriesTile.waitForExistence(timeout: 5) else {
             throw XCTSkip("No tappable series tile found")
@@ -223,7 +224,8 @@ final class IosAppTests: XCTestCase {
         }
 
         let collectionTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all", "☰"]
+            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all",
+             "Open menu", "Home", "To Read", "Annotations", "Playlists"]
         )).firstMatch
         guard collectionTile.waitForExistence(timeout: 5) else {
             throw XCTSkip("No tappable collection tile found")

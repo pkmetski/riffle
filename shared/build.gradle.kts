@@ -26,6 +26,7 @@ kotlin {
         ":core:domain",
         ":core:models",
         ":core:sync",
+        ":feature:library",
         ":feature:player",
         ":feature:reader",
         ":feature:settings",
@@ -63,7 +64,7 @@ kotlin {
             implementation(project(":core:logging"))
             implementation(project(":core:net"))
             implementation(project(":feature:downloads"))
-            implementation(project(":feature:library"))
+            api(project(":feature:library"))
             implementation(project(":core:sources"))
             implementation(project(":feature:source"))
             implementation(project(":feature:source-ui"))
