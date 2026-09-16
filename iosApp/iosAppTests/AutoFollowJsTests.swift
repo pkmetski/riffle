@@ -12,6 +12,41 @@ import Riffle
 
 final class AutoFollowJsTests: XCTestCase {
 
+    // MARK: - Class-level WebContent process warm-up
+
+    // Holds the warm-up window for the lifetime of the test class so the WebContent process
+    // stays alive between tests and is not throttled (NearSuspended) at process launch.
+    private static var warmUpWindow: UIWindow?
+
+    override class func setUp() {
+        super.setUp()
+        // The first WKWebView created in a test target must spin up the WebContent process
+        // from scratch. On a loaded CI runner this takes >30 s — enough to time-out any test
+        // that happens to be first alphabetically. Pre-warm once here, before any test runs,
+        // with a 60-second budget; every subsequent loadedWebView() call inherits the live
+        // process and completes in under 2 s.
+        let exp = XCTestExpectation(description: "warmup-page-loaded")
+        let wv = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let nav = NavigationDelegate(exp: exp)
+        wv.navigationDelegate = nav
+        let host = UIViewController()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        host.view.addSubview(wv)
+        window.isHidden = false
+        window.makeKeyAndVisible()
+        warmUpWindow = window
+        wv.loadHTMLString("<html><body></body></html>", baseURL: nil)
+        XCTWaiter().wait(for: [exp], timeout: 60)
+        _ = nav
+    }
+
+    override class func tearDown() {
+        warmUpWindow?.isHidden = true
+        warmUpWindow = nil
+        super.tearDown()
+    }
+
     // MARK: - Fixture strings (mirror AutoFollowJsTest.kt)
 
     private let onPageText = "Onpage visible sentence to follow"

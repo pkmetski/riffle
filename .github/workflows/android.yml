@@ -127,6 +127,28 @@ jobs:
           target: google_apis
           arch: x86_64
           script: ./gradlew :core:database:connectedAndroidDeviceTest
+      - name: Print failed database connected tests
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          found = False
+          for f in sorted(glob.glob('core/database/build/reports/androidTests/**/*.xml', recursive=True)):
+              try:
+                  tree = ET.parse(f)
+              except ET.ParseError:
+                  continue
+              for tc in tree.findall('.//testcase'):
+                  fail = tc.find('failure') or tc.find('error')
+                  if fail is not None:
+                      found = True
+                      cls = tc.get('classname', '?')
+                      name = tc.get('name', '?')
+                      print(f'\n=== FAILED: {cls}.{name} ===')
+                      print(fail.text or '(no message)')
+          if not found:
+              print('No test-result XML found — check the artifact for the HTML report.')
+          EOF
       - name: Upload connected-test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -173,6 +195,28 @@ jobs:
             adb logcat -G 16M || true
             adb logcat -c || true
             rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-phone.txt || true; exit $rc
+      - name: Print failed phone harness tests
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          found = False
+          for f in sorted(glob.glob('app/build/reports/androidTests/connected/debug/*.xml')):
+              try:
+                  tree = ET.parse(f)
+              except ET.ParseError:
+                  continue
+              for tc in tree.findall('.//testcase'):
+                  fail = tc.find('failure') or tc.find('error')
+                  if fail is not None:
+                      found = True
+                      cls = tc.get('classname', '?')
+                      name = tc.get('name', '?')
+                      print(f'\n=== FAILED: {cls}.{name} ===')
+                      print(fail.text or '(no message)')
+          if not found:
+              print('No test-result XML found — check the artifact for the HTML report.')
+          EOF
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -191,7 +235,7 @@ jobs:
   harness-test-tablet:
     name: Harness tests (tablet)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     concurrency:
       group: android-harness-tablet-${{ github.ref }}
       cancel-in-progress: true
@@ -218,6 +262,28 @@ jobs:
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
+      - name: Print failed tablet harness tests
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          found = False
+          for f in sorted(glob.glob('app/build/reports/androidTests/connected/debug/*.xml')):
+              try:
+                  tree = ET.parse(f)
+              except ET.ParseError:
+                  continue
+              for tc in tree.findall('.//testcase'):
+                  fail = tc.find('failure') or tc.find('error')
+                  if fail is not None:
+                      found = True
+                      cls = tc.get('classname', '?')
+                      name = tc.get('name', '?')
+                      print(f'\n=== FAILED: {cls}.{name} ===')
+                      print(fail.text or '(no message)')
+          if not found:
+              print('No test-result XML found — check the artifact for the HTML report.')
+          EOF
       - name: Upload harness tablet reports
         if: always()
         uses: actions/upload-artifact@v7
