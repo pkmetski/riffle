@@ -131,7 +131,9 @@ When a named constant exists for a value (e.g. `AnnotationEntity.TYPE_BOOKMARK =
 
 ## iOS/Android multi-platform parity
 
-**Every change — new features, bug fixes, tests, refactors, UI tweaks, and behaviour adjustments — must be implemented on both Android and iOS.** There are no exceptions based on perceived scope or platform origin. A fix introduced in `androidMain` still requires the equivalent in `iosMain` (or `commonMain` if the logic can be shared). A test added for Android still requires a matching iOS scenario. This rule is not optional and applies equally to fixes in `androidMain`, `commonMain`, and `iosMain`.
+**Every bug fix, feature implementation, or modification — including tests, refactors, UI tweaks, and behaviour adjustments — must be applied to both Android and iOS, in the same PR.** There are no exceptions based on perceived scope or platform origin. A fix introduced in `androidMain` still requires the equivalent in `iosMain` (or `commonMain` if the logic can be shared). A test added for Android still requires a matching iOS scenario. This rule is not optional and applies equally to fixes in `androidMain`, `commonMain`, and `iosMain`.
+
+"Applied to iOS" means the behaviour **works on iOS**, not that it compiles or that an interface is bound. Binding an `IosNoOp*` stub, leaving a `TODO`, or routing a preference to a store that nothing reads does not satisfy the rule. The iOS side must be exercised by a test that runs the iOS code path (see "Tests must mirror both platforms") and, for anything user-visible, checked on the simulator.
 
 The following rationalisations are wrong and will result in the PR being sent back:
 
@@ -139,6 +141,9 @@ The following rationalisations are wrong and will result in the PR being sent ba
 - "The bug only manifests on Android." → Verify it doesn't exist on iOS; document findings either way.
 - "I'll do the iOS side in a follow-up." → No. Both platforms ship together or neither ships.
 - "The logic is in `commonMain` so iOS is covered." → Only if iOS actually exercises that code path. Verify it and add a test.
+- "iOS has an implementation of that interface." → A no-op or stub is not an implementation. The 2026-09-16 parity pass found ~30 such bindings behind features that looked complete on paper (#1044–#1049).
+- "This is a modification to an existing Android screen, not a new feature." → Modifications count. If the iOS screen lacks the surface being modified, that gap is part of the change.
+- "iOS doesn't support X." → Only OS-level constraints qualify, and only with an ADR saying so. A PR body note is not an exemption.
 
 ### Code reuse comes first
 
