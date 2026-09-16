@@ -3,7 +3,6 @@ package com.riffle.shared.source
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.SourceType
 import kotlin.test.Test
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**

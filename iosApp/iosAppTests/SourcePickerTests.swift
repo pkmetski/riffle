@@ -65,8 +65,8 @@ final class SourcePickerTests: XCTestCase {
 
     // MARK: - 17.3  Project Gutenberg install (zero-config, no server)
 
-    /// Tapping the Project Gutenberg card must install the source without any credential form and
-    /// land on the library home.  Mirrors the Chitanka regression in AddAbsSourceFlowTests.
+    /// Tapping the Project Gutenberg card must show the confirmation screen first (B3 fix).
+    /// The user then taps "Add source" and lands on the library home.
     func testGutenbergInstallDoesNotCrash() throws {
         guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
             throw XCTSkip("A source is already configured — install test requires a pristine install")
@@ -78,8 +78,19 @@ final class SourcePickerTests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: gutenbergCard)], timeout: 10)
         gutenbergCard.tap()
 
-        // Zero-config install: no credential form is shown; the source row is committed and the
-        // library home renders immediately.
+        // B3: a confirmation screen must appear — not an immediate install.
+        // The top bar title says "Add Project Gutenberg".
+        let confirmTitle = app.staticTexts["Add Project Gutenberg"]
+        XCTAssertTrue(
+            confirmTitle.waitForExistence(timeout: 10),
+            "Tapping Gutenberg card must show the confirmation screen, not install immediately"
+        )
+
+        // Tapping "Add source" confirms the install and lands on library home.
+        let addButton = app.buttons["Add source"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
+        addButton.tap()
+
         let burger = app.staticTexts["☰"]
         XCTAssertTrue(
             burger.waitForExistence(timeout: 30),
@@ -107,8 +118,8 @@ final class SourcePickerTests: XCTestCase {
 
     // MARK: - 17.6  radio.es install (zero-config, no server)
 
-    /// Tapping the radio.es card must install the source without any credential form and land on
-    /// the library home.
+    /// Tapping the radio.es card must show the confirmation screen first (B3 fix).
+    /// The user then taps "Add source" and lands on the library home.
     func testRadioEsInstallDoesNotCrash() throws {
         guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
             throw XCTSkip("A source is already configured — install test requires a pristine install")
@@ -119,6 +130,17 @@ final class SourcePickerTests: XCTestCase {
         let hittable = NSPredicate(format: "hittable == true")
         wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: radioEsCard)], timeout: 10)
         radioEsCard.tap()
+
+        // B3: a confirmation screen must appear before the install completes.
+        let confirmTitle = app.staticTexts["Add radio.es"]
+        XCTAssertTrue(
+            confirmTitle.waitForExistence(timeout: 10),
+            "Tapping radio.es card must show the confirmation screen, not install immediately"
+        )
+
+        let addButton = app.buttons["Add source"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
+        addButton.tap()
 
         let burger = app.staticTexts["☰"]
         XCTAssertTrue(

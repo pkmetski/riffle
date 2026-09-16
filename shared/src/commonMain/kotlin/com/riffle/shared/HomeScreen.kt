@@ -29,12 +29,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.downloads.DownloadsScreen
 import com.riffle.shared.library.CollectionDetailScreen
@@ -271,10 +273,14 @@ private fun DrawerSheetContent(
                 .padding(16.dp),
         ) {
             BasicText(
-                text = activeServer?.serverType?.label ?: "No source",
+                text = activeServer?.let { localizedSourceDisplayName(it) } ?: "No source",
                 style = TextStyle(fontSize = 16.sp),
             )
-            val host = activeServer?.url?.authority()
+            // Only show the host for sources that have a real network address; zero-config
+            // singletons (Chitanka, Gutenberg, radio.es) carry a fake `.invalid` host.
+            val host = activeServer
+                ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
+                ?.url?.authority()
             if (host != null) {
                 BasicText(
                     text = host,
@@ -303,13 +309,18 @@ private fun DrawerSheetContent(
                     ) {
                         Column(Modifier.weight(1f)) {
                             BasicText(
-                                text = server.serverType.label,
+                                text = localizedSourceDisplayName(server),
                                 style = TextStyle(fontSize = 14.sp),
                             )
-                            BasicText(
-                                text = server.url.authority(),
-                                style = TextStyle(fontSize = 12.sp, color = Color.Gray),
-                            )
+                            val rowHost = server
+                                .takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
+                                ?.url?.authority()
+                            if (rowHost != null) {
+                                BasicText(
+                                    text = rowHost,
+                                    style = TextStyle(fontSize = 12.sp, color = Color.Gray),
+                                )
+                            }
                         }
                         if (server.isActive) {
                             BasicText(

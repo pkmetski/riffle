@@ -3,7 +3,9 @@ package com.riffle.feature.source.ui
 import androidx.compose.runtime.Composable
 import com.riffle.core.domain.AddSourceCopy
 import com.riffle.core.domain.WebSourceDescriptor
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.source_audiobookshelf_name
@@ -21,6 +23,12 @@ import com.riffle.feature.source.ui.generated.resources.ui_edit_storyteller
 import com.riffle.feature.source.ui.generated.resources.ui_local_files
 import com.riffle.feature.source.ui.generated.resources.ui_remove_source
 import com.riffle.feature.source.ui.generated.resources.ui_remove_storyteller
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_chitanka
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_gutenberg
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_attribution_radio_es
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_chitanka
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_gutenberg
+import com.riffle.feature.source.ui.generated.resources.ui_singleton_description_radio_es
 import com.riffle.feature.source.ui.generated.resources.ui_source_abs_help_text
 import com.riffle.feature.source.ui.generated.resources.ui_source_abs_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_chitanka_picker_blurb
@@ -121,6 +129,27 @@ internal fun addSourceFormResources(type: SourceType, serverType: ServerType): A
 fun localizedSourceDisplayName(descriptor: WebSourceDescriptor): String =
     stringResource(sourceDisplayNameRes(descriptor.type))
 
+/**
+ * Display name for a live [Source]. ABS carries a server-type discriminator (Audiobookshelf vs
+ * Storyteller) that lives on the [Source] itself; all other source types derive their name from
+ * the [WebSourceDescriptor] so the label stays consistent with the picker card.
+ */
+@Composable
+fun localizedSourceDisplayName(source: Source): String =
+    if (source.type == SourceType.ABS) {
+        source.serverType.label
+    } else {
+        localizedSourceDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
+    }
+
+/** Non-composable variant used in tests and plain ViewModel logic. */
+fun sourceDisplayName(source: Source): String =
+    if (source.type == SourceType.ABS) {
+        source.serverType.label
+    } else {
+        WebSourceDescriptors.forTypeOrError(source.type).displayName
+    }
+
 @Composable
 fun localizedSourceSubtitle(descriptor: WebSourceDescriptor): String? =
     sourceSubtitleRes(descriptor.type)?.let { stringResource(it) }
@@ -128,6 +157,22 @@ fun localizedSourceSubtitle(descriptor: WebSourceDescriptor): String? =
 @Composable
 internal fun localizedSourcePickerBlurb(type: SourceType): String =
     stringResource(sourcePickerBlurbRes(type))
+
+/** Per-type description shown on the singleton-source confirmation screen (B3). */
+internal fun singletonSourceDescriptionRes(type: SourceType): StringResource? = when (type) {
+    SourceType.CHITANKA -> Res.string.ui_singleton_description_chitanka
+    SourceType.GUTENBERG -> Res.string.ui_singleton_description_gutenberg
+    SourceType.RADIO_ES -> Res.string.ui_singleton_description_radio_es
+    else -> null
+}
+
+/** Per-type attribution shown on the singleton-source confirmation screen (B3). */
+internal fun singletonSourceAttributionRes(type: SourceType): StringResource? = when (type) {
+    SourceType.CHITANKA -> Res.string.ui_singleton_attribution_chitanka
+    SourceType.GUTENBERG -> Res.string.ui_singleton_attribution_gutenberg
+    SourceType.RADIO_ES -> Res.string.ui_singleton_attribution_radio_es
+    else -> null
+}
 
 @Composable
 internal fun localizedAddSourceCopy(
