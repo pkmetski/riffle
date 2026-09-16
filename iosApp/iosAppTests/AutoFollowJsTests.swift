@@ -23,8 +23,9 @@ final class AutoFollowJsTests: XCTestCase {
         // The first WKWebView created in a test target must spin up the WebContent process
         // from scratch. On a loaded CI runner this takes >30 s — enough to time-out any test
         // that happens to be first alphabetically. Pre-warm once here, before any test runs,
-        // with a 60-second budget; every subsequent loadedWebView() call inherits the live
-        // process and completes in under 2 s.
+        // with a 120-second budget (doubled from 60 s to cover degraded CI runners where
+        // process launch can take 60–90 s); every subsequent loadedWebView() call inherits the
+        // live process and completes in under 2 s.
         let exp = XCTestExpectation(description: "warmup-page-loaded")
         let wv = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         let nav = NavigationDelegate(exp: exp)
@@ -37,7 +38,7 @@ final class AutoFollowJsTests: XCTestCase {
         window.makeKeyAndVisible()
         warmUpWindow = window
         wv.loadHTMLString("<html><body></body></html>", baseURL: nil)
-        XCTWaiter().wait(for: [exp], timeout: 60)
+        XCTWaiter().wait(for: [exp], timeout: 120)
         _ = nav
     }
 
