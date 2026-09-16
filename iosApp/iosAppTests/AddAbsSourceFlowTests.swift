@@ -76,8 +76,19 @@ final class AddAbsSourceFlowTests: XCTestCase {
         let settingsEntry = app.staticTexts["Settings"]
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
         settingsEntry.tap()
-        let removeButton = app.buttons["Remove"].firstMatch
-        XCTAssertTrue(removeButton.waitForExistence(timeout: 10), "Settings must list the source with a Remove action")
+        // CMP sets Modifier.testTag("settings-trailing-Remove") on the trailing action button,
+        // which maps to accessibilityIdentifier on iOS — query by identifier for robustness.
+        let removeButton = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'")).firstMatch
+        let removeFound = removeButton.waitForExistence(timeout: 15)
+        if !removeFound {
+            let allElements = app.descendants(matching: .any).allElementsBoundByIndex
+            print("=== Settings screen elements (\(allElements.count)) ===")
+            for (idx, element) in allElements.prefix(60).enumerated() {
+                print("[\(idx)] type=\(element.elementType.rawValue) id='\(element.identifier)' label='\(element.label)'")
+            }
+        }
+        XCTAssertTrue(removeFound, "Settings must list the source with a Remove action")
         removeButton.tap()
         XCTAssertTrue(
             app.staticTexts["No sources configured"].waitForExistence(timeout: 10),

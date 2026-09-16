@@ -52,7 +52,6 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
@@ -65,7 +64,8 @@ import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
-import com.riffle.core.domain.developer.DeveloperOptionsRepository
+import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.RefreshCollections
@@ -164,18 +164,16 @@ import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
 import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
-import com.riffle.shared.settings.IosNoOpDeveloperOptionsRepository
-import com.riffle.shared.settings.IosNoOpLocalFilesFolderDao
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderRepository
 import com.riffle.shared.settings.IosNoOpLocalFilesScannerInterface
-import com.riffle.shared.settings.IosNoOpReadaloudPreferencesStore
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import platform.Foundation.NSBundle
 import org.koin.core.context.startKoin as koinStartKoin
 
 private fun iosLibraryModule(
@@ -364,14 +362,17 @@ private fun iosLibraryModule(
     single<CrashReportRepository> { IosNoOpCrashReportRepository }
     single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
     single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
-    single<ReadaloudPreferencesStore> { IosNoOpReadaloudPreferencesStore() }
     single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
-    single<DeveloperOptionsRepository> { IosNoOpDeveloperOptionsRepository() }
     single<AnnotationSyncConfigStore> { IosNoOpAnnotationSyncConfigStore }
+    single<LocalFilesScannerInterface> { IosNoOpLocalFilesScannerInterface }
+    single<LocalFilesFolderRepositoryInterface> { IosNoOpLocalFilesFolderRepository }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
     single {
+        val bundle = NSBundle.mainBundle
+        val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
+        val buildNumber = (bundle.infoDictionary?.get("CFBundleVersion") as? String)?.toIntOrNull() ?: 0
         SettingsViewModel(
-            appVersion = AppVersion(name = "iOS", code = 0),
+            appVersion = AppVersion(name = versionName, code = buildNumber),
             crashReportRepository = get(),
             formattingPreferencesStore = get(),
             sourceRepository = get(),
@@ -387,9 +388,9 @@ private fun iosLibraryModule(
             appUpdateRepository = get(),
             appUpdatePreferencesStore = get(),
             readaloudPreferencesStore = get(),
-            localFilesFolderDao = IosNoOpLocalFilesFolderDao,
-            localFilesFolderRepository = IosNoOpLocalFilesFolderRepository,
-            localFilesScanner = IosNoOpLocalFilesScannerInterface,
+            localFilesFolderDao = get(),
+            localFilesFolderRepository = get(),
+            localFilesScanner = get(),
             localFilesFolderHealthChecker = IosNoOpLocalFilesFolderHealthChecker,
             comicFormattingPreferencesStore = get(),
             developerOptionsRepository = get(),
