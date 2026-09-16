@@ -127,6 +127,28 @@ jobs:
           target: google_apis
           arch: x86_64
           script: ./gradlew :core:database:connectedAndroidDeviceTest
+      - name: Print failed database connected tests
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          found = False
+          for f in sorted(glob.glob('core/database/build/reports/androidTests/**/*.xml', recursive=True)):
+              try:
+                  tree = ET.parse(f)
+              except ET.ParseError:
+                  continue
+              for tc in tree.findall('.//testcase'):
+                  fail = tc.find('failure') or tc.find('error')
+                  if fail is not None:
+                      found = True
+                      cls = tc.get('classname', '?')
+                      name = tc.get('name', '?')
+                      print(f'\n=== FAILED: {cls}.{name} ===')
+                      print(fail.text or '(no message)')
+          if not found:
+              print('No test-result XML found — check the artifact for the HTML report.')
+          EOF
       - name: Upload connected-test reports
         if: always()
         uses: actions/upload-artifact@v7
