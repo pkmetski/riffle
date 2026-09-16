@@ -1,5 +1,6 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.EpubNavigatorInterface
 import com.riffle.feature.reader.LocatorJson
 import com.riffle.feature.reader.NavigatorDecoration
@@ -16,10 +17,14 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
+import platform.Foundation.NSArray
 import platform.Foundation.NSData
+import platform.Foundation.NSDictionary
 import platform.Foundation.NSJSONSerialization
 import platform.Foundation.create
 
@@ -142,7 +147,17 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
     override suspend fun measureCadenceColumns(fragmentId: String): List<Double> = emptyList()
     override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {}
 
-    override suspend fun search(query: String): Flow<List<NavigatorSearchMatch>> = emptyFlow()
+    override suspend fun search(query: String): Flow<List<NavigatorSearchMatch>> = callbackFlow {
+        bridge.startSearch(
+            query = query,
+            onBatch = { json -> trySend(parseSearchMatches(json)) },
+            onDone = { close() },
+        )
+        awaitClose { bridge.cancelSearch() }
+    }
+
+    /** Fetch the TOC from the open publication. Returns empty list if no publication is open. */
+    fun getToc(): List<TocEntry> = parseTocJson(bridge.getTocJson())
 
     override fun snapshotPosition(): NavigatorPosition? = lastPosition
         ?: bridge.snapshotLocatorJson()?.let { parseLocatorJson(it) }
@@ -150,6 +165,26 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
     override suspend fun getChapterBytes(href: String): ByteArray? = null
 
     override suspend fun scrollBoundary(): NavigatorScrollBoundary = NavigatorScrollBoundary.None
+
+    fun applyReaderPreferences(
+        fontSizePercent: Float,
+        scrollMode: Boolean,
+        theme: String,
+        fontFamilyCss: String,
+        lineHeightMultiplier: Float,
+        pageMargins: Double,
+        justifyText: Boolean,
+    ) {
+        bridge.applyReaderPreferences(
+            fontSizePercent = fontSizePercent,
+            scrollMode = scrollMode,
+            theme = theme,
+            fontFamilyCss = fontFamilyCss,
+            lineHeightMultiplier = lineHeightMultiplier,
+            pageMargins = pageMargins,
+            justifyText = justifyText,
+        )
+    }
 
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     private fun parseLocatorJson(json: String): NavigatorPosition? {
@@ -179,4 +214,46 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
     }
 
     private fun String.escapeForJson() = replace("\\", "\\\\").replace("\"", "\\\"")
+
+    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+    private fun parseSearchMatches(json: String): List<NavigatorSearchMatch> {
+        val bytes = json.encodeToByteArray()
+        val data = bytes.usePinned { p ->
+            NSData.create(bytes = p.addressOf(0), length = bytes.size.toULong())
+        }
+        val array = NSJSONSerialization.JSONObjectWithData(data = data, options = 0u, error = null)
+            as? NSArray ?: return emptyList()
+        val result = mutableListOf<NavigatorSearchMatch>()
+        for (i in 0 until array.count.toLong()) {
+            val dict = array.objectAtIndex(i.toULong()) as? NSDictionary ?: continue
+            val locatorJson = dict.objectForKey("locatorJson") as? String ?: continue
+            val snippet = dict.objectForKey("snippet") as? String ?: ""
+            result += NavigatorSearchMatch(locatorJson = locatorJson, snippet = snippet)
+        }
+        return result
+    }
+
+    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+    private fun parseTocJson(json: String): List<TocEntry> {
+        val bytes = json.encodeToByteArray()
+        val data = bytes.usePinned { p ->
+            NSData.create(bytes = p.addressOf(0), length = bytes.size.toULong())
+        }
+        val array = NSJSONSerialization.JSONObjectWithData(data = data, options = 0u, error = null)
+            as? NSArray ?: return emptyList()
+        return parseTocArray(array)
+    }
+
+    private fun parseTocArray(array: NSArray): List<TocEntry> {
+        val result = mutableListOf<TocEntry>()
+        for (i in 0 until array.count.toLong()) {
+            val dict = array.objectAtIndex(i.toULong()) as? NSDictionary ?: continue
+            val title = dict.objectForKey("title") as? String ?: continue
+            val href = dict.objectForKey("href") as? String ?: continue
+            val childrenArray = dict.objectForKey("children") as? NSArray
+            val children = childrenArray?.let { parseTocArray(it) } ?: emptyList()
+            result += TocEntry(title = title, href = href, children = children)
+        }
+        return result
+    }
 }

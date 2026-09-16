@@ -56,6 +56,49 @@ interface IosEpubNavigatorBridge {
      * [shapeJson] must be the JSON produced by [IosLazyChapterFetcherImpl.serializeShape].
      */
     fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher)
+
+    /**
+     * Apply formatting preferences to the Readium Swift navigator.
+     *
+     * Call before [openEpub]/[openLazyEpub] so the initial render uses the right settings, and
+     * again whenever preferences change while a book is open. Thread-safe — the Swift
+     * implementation dispatches to the main actor internally.
+     *
+     * @param fontSizePercent Scale factor relative to the EPUB's default font size (1.0 = 100%).
+     * @param scrollMode True for vertical scroll (Readium "scroll" preference), false for paginated columns.
+     * @param theme One of: "light", "dark", "sepia". "dim" maps to "dark" (Readium has no Dim variant).
+     * @param fontFamilyCss CSS font-family string, or empty string to keep the publisher's font.
+     * @param lineHeightMultiplier CSS line-height multiplier (e.g. 1.2). 0.0 means use Readium default.
+     * @param pageMargins Margin scale factor (1.0 = default). Maps to Readium pageMargins preference.
+     * @param justifyText True to apply `text-align: justify`.
+     */
+    fun applyReaderPreferences(
+        fontSizePercent: Float,
+        scrollMode: Boolean,
+        theme: String,
+        fontFamilyCss: String,
+        lineHeightMultiplier: Float,
+        pageMargins: Double,
+        justifyText: Boolean,
+    )
+
+    /**
+     * Returns the table of contents of the open publication serialised as a JSON array.
+     * Each entry: `{"title":"…","href":"…","children":[…]}`.
+     * Returns `"[]"` if no publication is open or the TOC is empty.
+     */
+    fun getTocJson(): String
+
+    /**
+     * Start a full-text search over the open publication. [onBatch] is called on the main thread
+     * with a JSON array of matches each time Readium returns a page:
+     * `[{"locatorJson":"…","snippet":"…"},…]`. [onDone] is called when the search finishes or is
+     * cancelled. Call [cancelSearch] to abort early.
+     */
+    fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?)
+
+    /** Cancel the in-progress search started by [startSearch]. No-op if idle. */
+    fun cancelSearch()
 }
 
 /** Factory so Koin can produce one bridge instance per reader open. */
