@@ -2,16 +2,25 @@ package com.riffle.shared.reader
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,13 +31,16 @@ import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.NavigatorNavigationTarget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -53,6 +65,12 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
+    var tocOpen by remember { mutableStateOf(false) }
+    var tocEntries by remember { mutableStateOf<List<TocEntry>>(emptyList()) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<NavigatorSearchMatch>>(emptyList()) }
+    val scope = rememberCoroutineScope()
     val bridge = remember { bridgeFactory.create() }
     val navigator = remember(bridge) { ReadiumSwiftNavigator(bridge) }
     val coordinator = remember(navigator) {
@@ -103,7 +121,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     LaunchedEffect(item.id) {
         formattingPreferencesStore.preferences.collect { prefs ->
             val theme = when (prefs.theme) {
-                ReaderTheme.Dark, ReaderTheme.Dim -> "dark"
+                ReaderTheme.Dark, ReaderTheme.DarkDim -> "dark"
                 ReaderTheme.Sepia -> "sepia"
                 else -> "light"
             }
@@ -125,6 +143,14 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 pageMargins = prefs.margins.toDouble(),
                 justifyText = prefs.justifyText,
             )
+        }
+    }
+
+    // Load TOC once the book is open (localPath becomes non-null).
+    LaunchedEffect(localPath) {
+        if (localPath != null) {
+            val toc = navigator.getToc()
+            if (toc.isNotEmpty()) tocEntries = toc
         }
     }
 
@@ -177,27 +203,121 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             )
         }
 
-        Box(
+        // Top chrome row
+        Row(
             modifier = Modifier
                 .systemBarsPadding()
-                .padding(12.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .fillMaxWidth()
                 .align(Alignment.TopStart),
         ) {
-            BasicText(
-                text = "← Back",
-                modifier = Modifier.clickable(onClick = onBack),
-            )
+            BasicText(text = "← Back", modifier = Modifier.clickable(onClick = onBack))
+            Spacer(modifier = Modifier.weight(1f))
+            if (localPath != null) {
+                if (tocEntries.isNotEmpty()) {
+                    BasicText(
+                        text = "TOC",
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable { tocOpen = !tocOpen; searchOpen = false },
+                    )
+                }
+                BasicText(
+                    text = if (searchOpen) "✕" else "⌕",
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .clickable { searchOpen = !searchOpen; tocOpen = false; searchQuery = ""; searchResults = emptyList() },
+                )
+            }
         }
 
-        if (isLazyPublication && localPath != null) {
+        // TOC sheet
+        if (tocOpen && tocEntries.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .systemBarsPadding()
-                    .padding(12.dp)
-                    .align(Alignment.TopEnd),
+                    .fillMaxSize()
+                    .padding(top = 56.dp),
             ) {
-                BasicText("Download to search")
+                LazyColumn(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .fillMaxWidth(0.75f)
+                        .padding(8.dp),
+                ) {
+                    items(flattenToc(tocEntries)) { (entry, depth) ->
+                        BasicText(
+                            text = "  ".repeat(depth) + entry.title,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp)
+                                .clickable {
+                                    tocOpen = false
+                                    scope.launch {
+                                        navigator.navigateTo(
+                                            NavigatorNavigationTarget.ToHref(
+                                                href = entry.href.substringBefore("#"),
+                                                fragment = entry.href.substringAfter("#", "").ifEmpty { null },
+                                            ),
+                                        )
+                                    }
+                                },
+                        )
+                    }
+                }
+            }
+        }
+
+        // Search bar + results
+        if (searchOpen) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 56.dp)
+                    .align(Alignment.TopCenter),
+            ) {
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { q ->
+                        searchQuery = q
+                        searchResults = emptyList()
+                        if (q.length >= 2) {
+                            scope.launch {
+                                navigator.search(q).collect { batch ->
+                                    searchResults = searchResults + batch
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                LazyColumn(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    items(searchResults) { match ->
+                        BasicText(
+                            text = match.snippet.take(120),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    scope.launch {
+                                        navigator.navigateTo(
+                                            NavigatorNavigationTarget.ToLocatorJson(match.locatorJson),
+                                        )
+                                    }
+                                },
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+private fun flattenToc(entries: List<TocEntry>, depth: Int = 0): List<Pair<TocEntry, Int>> {
+    val result = mutableListOf<Pair<TocEntry, Int>>()
+    for (entry in entries) {
+        result += entry to depth
+        result += flattenToc(entry.children, depth + 1)
+    }
+    return result
 }

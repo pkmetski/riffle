@@ -81,6 +81,24 @@ interface IosEpubNavigatorBridge {
         pageMargins: Double,
         justifyText: Boolean,
     )
+
+    /**
+     * Returns the table of contents of the open publication serialised as a JSON array.
+     * Each entry: `{"title":"…","href":"…","children":[…]}`.
+     * Returns `"[]"` if no publication is open or the TOC is empty.
+     */
+    fun getTocJson(): String
+
+    /**
+     * Start a full-text search over the open publication. [onBatch] is called on the main thread
+     * with a JSON array of matches each time Readium returns a page:
+     * `[{"locatorJson":"…","snippet":"…"},…]`. [onDone] is called when the search finishes or is
+     * cancelled. Call [cancelSearch] to abort early.
+     */
+    fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?)
+
+    /** Cancel the in-progress search started by [startSearch]. No-op if idle. */
+    fun cancelSearch()
 }
 
 /** Factory so Koin can produce one bridge instance per reader open. */
