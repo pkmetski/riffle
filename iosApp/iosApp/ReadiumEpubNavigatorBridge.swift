@@ -212,7 +212,7 @@ import ReadiumNavigator
 
     private func prefetchToc(_ pub: Publication) {
         Task { @MainActor in
-            guard case .success(let links) = await pub.tableOfContents().get(), !links.isEmpty else { return }
+            guard case .success(let links) = await pub.tableOfContents(), !links.isEmpty else { return }
             self.cachedTocJson = self.serializeTocLinks(links)
         }
     }
