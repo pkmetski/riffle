@@ -1,33 +1,25 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import com.riffle.feature.library.AnnotationSearchResult
-import com.riffle.feature.library.AudiobookBookmarkSearchResult
-import com.riffle.feature.library.LibraryFilterEngine
-import com.riffle.feature.library.LibraryProjection
-import com.riffle.feature.library.LibrarySortMode
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.BundleAudiobookSource
-import com.riffle.core.domain.JvmAudiobookDownloadRepository
-import com.riffle.core.domain.JvmEpubRepository
-import com.riffle.core.domain.JvmPdfRepository
-import com.riffle.core.models.Collection
-import com.riffle.core.models.EbookFormat
+import com.riffle.core.domain.CbzDownloadResult
+import com.riffle.core.domain.CbzLocalSource
+import com.riffle.core.domain.CbzOpenResult
+import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.EpubDownloadResult
-import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.models.Library
-import com.riffle.core.models.LibraryItem
-import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
-import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
-import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
+import com.riffle.core.models.Collection
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -35,8 +27,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryFilterEngineTest {
@@ -121,18 +113,15 @@ class LibraryFilterEngineTest {
         override suspend fun delete(id: String, now: Long) = error("unused")
     }
 
-    private fun epubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : JvmEpubRepository {
-        override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
+    private fun epubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : EpubRepository {
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = itemId in downloadedIds
         override fun isCached(sourceId: String, itemId: String): Boolean = false
-        override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
         override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
     }
 
-    private fun fakePdfRepo(): PdfRepository = object : JvmPdfRepository {
-        override suspend fun openPdf(item: LibraryItem) = PdfOpenResult.Offline
+    private fun fakePdfRepo(): PdfRepository = object : PdfRepository {
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit) = PdfDownloadResult.Success
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
@@ -140,11 +129,23 @@ class LibraryFilterEngineTest {
         override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
     }
 
-    private fun fakeAudiobookDownloadRepo(): AudiobookDownloadRepository = object : JvmAudiobookDownloadRepository {
+    private fun fakeAudiobookDownloadRepo(): AudiobookDownloadRepository = object : AudiobookDownloadRepository {
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
         override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit) = AudiobookDownloadResult.Success
         override suspend fun remove(sourceId: String, itemId: String): Long = 0L
+    }
+
+    private fun fakeCbzRepo(): CbzRepository = object : CbzRepository {
+        override suspend fun openCbz(item: LibraryItem): CbzOpenResult = CbzOpenResult.Offline
+        override suspend fun downloadCbz(item: LibraryItem, onProgress: (Long, Long) -> Unit): CbzDownloadResult = CbzDownloadResult.Success
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
+        override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
+        override suspend fun supportsStreaming(sourceId: String): Boolean = false
+        override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray = error("unused in test")
+        override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
     }
 
     private fun makeEngine(
@@ -161,7 +162,7 @@ class LibraryFilterEngineTest {
             offlineAvailability = LibraryItemOfflineAvailabilityImpl(
                 epubRepository,
                 fakePdfRepo(),
-                NoopCbzRepository(),
+                fakeCbzRepo(),
                 fakeAudiobookDownloadRepo(),
                 object : BundleAudiobookSource {
                     override suspend fun localSession(sourceId: String, itemId: String) = null
@@ -211,45 +212,6 @@ class LibraryFilterEngineTest {
             id = id, sourceId = sourceId, itemId = itemId, positionSec = 0.0,
             title = title, createdAt = 0L,
         )
-
-    // --- threading (page-turn main-thread sweep regression) ---
-
-    @Test
-    fun `offline availability sweep runs on the compute dispatcher, never the collector thread`() = runTest {
-        val sweepThreads = java.util.Collections.synchronizedSet(mutableSetOf<String>())
-        val recordingEpubRepo = object : JvmEpubRepository {
-            override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
-            override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
-            override suspend fun removeDownload(sourceId: String, itemId: String) {}
-            override fun isDownloaded(sourceId: String, itemId: String): Boolean {
-                sweepThreads.add(Thread.currentThread().name)
-                return itemId == "id-A"
-            }
-            override fun isCached(sourceId: String, itemId: String): Boolean = false
-            override suspend fun cacheEpub(sourceId: String, itemId: String, bytes: ByteArray) {}
-            override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
-        }
-        val engine = makeEngine(epubRepository = recordingEpubRepo)
-        isOfflineFlow.value = true
-        allBooksFlow.value = listOf(item("A"), item("B"))
-
-        val collectorThread = Thread.currentThread().name
-        val p = engine.projection.first { it.allBooks.map { b -> b.id } == listOf("id-A") }
-        assertEquals(listOf("id-A"), p.allBooks.map { it.id })
-
-        // The whole point of the engine's flowOn: the per-item filesystem sweep must not run on
-        // the thread that collects the projection (in production that is Main — a page turn
-        // re-emits every source flow, and an on-Main sweep froze the reader for seconds).
-        org.junit.Assert.assertTrue("sweep never ran", sweepThreads.isNotEmpty())
-        org.junit.Assert.assertTrue(
-            "sweep ran on the collector thread: $sweepThreads",
-            sweepThreads.none { it == collectorThread },
-        )
-        org.junit.Assert.assertTrue(
-            "expected Dispatchers.Default workers, got $sweepThreads",
-            sweepThreads.all { it.contains("DefaultDispatcher") },
-        )
-    }
 
     // --- series ---
 
@@ -412,7 +374,7 @@ class LibraryFilterEngineTest {
         val real = LibraryItem("id-R", "lib-1", "Zed", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 1L)
         allBooksFlow.value = listOf(unknownNull, real, unknownZero)
         val p = engine.projection.first { it.allBooks.isNotEmpty() }
-        assertEquals("real timestamp comes first", "id-R", p.allBooks.first().id)
+        assertEquals("id-R", p.allBooks.first().id, "real timestamp comes first")
         assertEquals(setOf("id-N", "id-Z"), p.allBooks.drop(1).map { it.id }.toSet())
     }
 

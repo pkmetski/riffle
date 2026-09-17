@@ -179,6 +179,8 @@ import ReadiumNavigator
         pageMargins: Double,
         justifyText: Bool
     ) {
+        // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
+        // This switch is a Readium-Swift type adapter only — move any string-value logic there.
         let resolvedTheme: Theme? = switch theme {
         case "dark": .dark
         case "sepia": .sepia
@@ -347,6 +349,9 @@ extension ReadiumEpubNavigatorBridge {
 
 // MARK: - String JSON-escape helper
 
+// Mirror of the canonical Kotlin implementation in JsonStringUtils.kt (commonMain).
+// Kept here because it operates on Readium-Swift types (Link, Locator) that never cross
+// the KMP boundary.  Any change to the escaping logic must be applied to both sides.
 private extension String {
     var jsonEscaped: String {
         replacingOccurrences(of: "\\", with: "\\\\")

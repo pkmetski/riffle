@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
+import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.VolumeNavEvent
 
 import android.content.res.Configuration
