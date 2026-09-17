@@ -177,7 +177,12 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
 
       - name: Run XCTest unit tests (iosAppUnitTests)
+        # Riffle.framework is a static K/N framework that the KMP Embed Framework script phase
+        # rsyncs into Products. Xcode's linker has no dependency edge to it, so on a warm
+        # DerivedData cache a Kotlin-only change does NOT relink the app or the test bundles and
+        # the tests run the previous build's Kotlin. Drop the linked products so Ld always runs.
         run: |
+          rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosAppUnitTests \
@@ -307,6 +312,8 @@ jobs:
         # persists the ABS/Komga token, the library refresh finds no token and the harness
         # sees an empty library after adding a source.
         run: |
+          # See the unit-test step: force a relink so a warm DerivedData cache cannot ship stale Kotlin.
+          rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \

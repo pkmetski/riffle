@@ -91,6 +91,9 @@ final class StubAbsServer {
             if let chunk { buf.append(chunk) }
             if let req = StubHTTPRequest.parse(buf) {
                 let resp = self.dispatch(req)
+                // Surfaces in the xcodebuild log so a failing harness run shows which endpoints
+                // the app actually requested (simulator clones' unified logs vanish with the clone).
+                print("STUB-ABS \(req.method) \(req.path) -> \(StubHTTPResponse.statusCode(of: resp))")
                 conn.send(content: resp, completion: .contentProcessed { _ in conn.cancel() })
             } else if !done {
                 self.receive(conn, buffer: buf)
@@ -341,6 +344,11 @@ struct StubHTTPResponse {
     let status: Int
     let contentType: String
     let body: Data
+
+    static func statusCode(of response: Data) -> Int {
+        let head = String(bytes: response.prefix(16), encoding: .utf8) ?? ""
+        return Int(head.split(separator: " ").dropFirst().first ?? "") ?? -1
+    }
 
     func toData() -> Data {
         let statusLine = "HTTP/1.1 \(status) \(statusText(status))\r\n"
