@@ -67,6 +67,12 @@ kotlin {
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
         }
+        // Shared JVM-only test helpers visible to both jvmTest and androidHostTest.
+        // OkHttp/System.getenv prevent these from living in commonTest (iOS target would reject them).
+        val sharedJvmTestDir = "src/sharedJvmTest/kotlin"
+        jvmTest.kotlin.srcDirs(sharedJvmTestDir)
+        getByName("androidHostTest").kotlin.srcDirs(sharedJvmTestDir)
+
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)
             implementation(libs.kotlinx.coroutines.test)
