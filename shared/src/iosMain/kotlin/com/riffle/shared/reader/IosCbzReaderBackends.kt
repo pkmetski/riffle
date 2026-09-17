@@ -4,7 +4,6 @@ import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
-import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -12,8 +11,6 @@ import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
 import com.riffle.core.domain.appearance.ResolvedAppearance
-import com.riffle.core.domain.comic.BookComicFormattingOverrides
-import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
@@ -138,17 +135,6 @@ internal class IosCbzRepository(
     override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
 }
 
-/**
- * Lets Koin build [com.riffle.core.domain.usecase.UpdateReadingProgress] with a no-op mutator —
- * iOS does not yet persist reading progress to a local library cache.
- */
-internal object IosNoOpLibraryMutator : LibraryMutator {
-    override suspend fun markItemOpened(itemId: String) {}
-    override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
-    override suspend fun deleteItem(sourceId: String, itemId: String) {}
-}
-
 internal object IosNoOpPanelMaskService : PanelMaskService {
     override suspend fun generateMask(
         pageIndex: Int,
@@ -161,14 +147,6 @@ internal object IosNoOpPanelViewPreferencesStore : PanelViewPreferencesStore {
         flowOf(PanelViewPreferencesStore.State())
 
     override suspend fun setPanelViewOn(bookId: String, on: Boolean) {}
-}
-
-internal object IosNoOpBookComicFormattingPreferencesStore : BookComicFormattingPreferencesStore {
-    override fun overrides(bookId: String): Flow<BookComicFormattingOverrides> =
-        flowOf(BookComicFormattingOverrides())
-
-    override suspend fun save(bookId: String, overrides: BookComicFormattingOverrides) {}
-    override suspend fun reset(bookId: String) {}
 }
 
 internal object IosNoOpAppearanceCoordinator : AppearanceCoordinator {

@@ -67,9 +67,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 
-// -------- Domain no-ops --------
-
-internal class IosNoOpEpubRepository : EpubRepository {
+internal class FakeEpubRepository : EpubRepository {
     override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): EpubDownloadResult =
         EpubDownloadResult.AlreadyDownloaded
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -78,11 +76,11 @@ internal class IosNoOpEpubRepository : EpubRepository {
     override suspend fun saveReadingPosition(sourceId: String, itemId: String, cfi: String) {}
 }
 
-internal object IosNoOpEbookCfiTranslatorFactory : EbookCfiTranslatorFactory {
+internal object FakeEbookCfiTranslatorFactory : EbookCfiTranslatorFactory {
     override fun forItem(sourceId: String, itemId: String): EbookCfiTranslator? = null
 }
 
-internal class IosNoOpAudiobookPositionStore : AudiobookPositionStore {
+internal class FakeAudiobookPositionStore : AudiobookPositionStore {
     override suspend fun save(sourceId: String, itemId: String, payload: Double) {}
     override suspend fun load(sourceId: String, itemId: String): Double? = null
     override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
@@ -92,7 +90,7 @@ internal class IosNoOpAudiobookPositionStore : AudiobookPositionStore {
     override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {}
 }
 
-internal class IosNoOpPdfRepository : PdfRepository {
+internal class FakePdfRepository : PdfRepository {
     override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): PdfDownloadResult =
         PdfDownloadResult.AlreadyDownloaded
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
@@ -101,7 +99,7 @@ internal class IosNoOpPdfRepository : PdfRepository {
     override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
 }
 
-internal class IosNoOpCbzRepository : CbzRepository {
+internal class FakeCbzRepository : CbzRepository {
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult = CbzOpenResult.Offline
     override suspend fun downloadCbz(item: LibraryItem, onProgress: (Long, Long) -> Unit): CbzDownloadResult =
         CbzDownloadResult.AlreadyDownloaded
@@ -115,7 +113,7 @@ internal class IosNoOpCbzRepository : CbzRepository {
     override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
 }
 
-internal class IosNoOpReadaloudAudioRepository : ReadaloudAudioRepository {
+internal class FakeReadaloudAudioRepository : ReadaloudAudioRepository {
     override fun isAudioAvailable(sourceId: String, itemId: String): Boolean = false
     override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? = null
     override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult =
@@ -123,52 +121,50 @@ internal class IosNoOpReadaloudAudioRepository : ReadaloudAudioRepository {
     override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0L
 }
 
-internal class IosNoOpAudiobookDownloadRepository : AudiobookDownloadRepository {
+internal class FakeAudiobookDownloadRepository : AudiobookDownloadRepository {
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
     override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit): AudiobookDownloadResult =
-        AudiobookDownloadResult.NetworkError(UnsupportedOperationException("iOS no-op"))
+        AudiobookDownloadResult.NetworkError(UnsupportedOperationException("test fake"))
     override suspend fun remove(sourceId: String, itemId: String): Long = 0L
 }
 
-internal class IosNoOpAudiobookCacheRepository : AudiobookCacheRepository {
+internal class FakeAudiobookCacheRepository : AudiobookCacheRepository {
     override fun isCached(sourceId: String, itemId: String): Boolean = false
     override suspend fun remove(sourceId: String, itemId: String): Long = 0L
 }
 
-internal class IosNoOpLocalAvailabilityEvents : LocalAvailabilityEvents {
+internal class FakeLocalAvailabilityEvents : LocalAvailabilityEvents {
     override val changes: MutableSharedFlow<StoredItemRef> = MutableSharedFlow()
     override fun notifyChanged(sourceId: String, itemId: String) {}
 }
 
-internal object IosNoOpCrossEpubIndexBuildTrigger : CrossEpubIndexBuildTrigger {
+internal object FakeCrossEpubIndexBuildTrigger : CrossEpubIndexBuildTrigger {
     override fun enqueueBuild(link: ReadaloudLink) {}
 }
 
-internal class IosNoOpReadingSpeedStore : ReadingSpeedStore {
+internal class FakeReadingSpeedStore : ReadingSpeedStore {
     override val speedSecPerPosition: Flow<Double> = flowOf(0.0)
     override suspend fun updateSpeed(newSecPerPosition: Double) {}
 }
 
-internal object IosNoOpCatalogRegistry : CatalogRegistry {
+internal object FakeCatalogRegistry : CatalogRegistry {
     override suspend fun forActive(): Catalog? = null
     override suspend fun forSource(source: Source): Catalog? = null
     override suspend fun forSourceId(sourceId: String): Catalog? = null
 }
 
-internal object IosNoOpReadaloudSidecarPrefetcher : ReadaloudSidecarPrefetcher {
+internal object FakeReadaloudSidecarPrefetcher : ReadaloudSidecarPrefetcher {
     override fun prepare(storytellerSourceId: String, storytellerBookId: String) {}
 }
 
-// -------- Use case no-ops --------
-
-private object NoOpLibraryMutator : LibraryMutator {
+private object FakeLibraryMutator : LibraryMutator {
     override suspend fun markItemOpened(itemId: String) {}
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
     override suspend fun deleteItem(sourceId: String, itemId: String) {}
 }
 
-private object NoOpReadingSessionRepository : ReadingSessionRepository {
+private object FakeReadingSessionRepository : ReadingSessionRepository {
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult =
         SyncSessionResult.Success
     override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult =
@@ -177,7 +173,7 @@ private object NoOpReadingSessionRepository : ReadingSessionRepository {
     override suspend fun touchOpenTimestamp(itemId: String) {}
 }
 
-private object NoOpReadaloudLinkRepository : ReadaloudLinkRepository {
+private object FakeReadaloudLinkRepository : ReadaloudLinkRepository {
     override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(emptyList())
     override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(emptySet())
     override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null
@@ -187,46 +183,42 @@ private object NoOpReadaloudLinkRepository : ReadaloudLinkRepository {
     override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
 }
 
-private object NoOpSourceRepository : SourceRepository {
+private object FakeSourceRepository : SourceRepository {
     override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
     override suspend fun getActive(): Source? = null
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-        CommitSourceResult.Failure(UnsupportedOperationException("iOS no-op"))
+        CommitSourceResult.Failure(UnsupportedOperationException("test fake"))
     override suspend fun setActive(sourceId: String) {}
     override suspend fun remove(sourceId: String) {}
     override suspend fun getSourceVersion(sourceId: String): String? = null
-    override suspend fun ensureSyncNamespace(sourceId: String): SyncNamespace = SyncNamespace.LocalOnly("iOS no-op")
+    override suspend fun ensureSyncNamespace(sourceId: String): SyncNamespace = SyncNamespace.LocalOnly("test")
 }
 
-internal class IosNoOpRecordItemOpened : RecordItemOpened(NoOpLibraryMutator, NoOpReadingSessionRepository) {
+internal class FakeRecordItemOpened : RecordItemOpened(FakeLibraryMutator, FakeReadingSessionRepository) {
     override suspend fun invoke(itemId: String) {}
 }
 
-internal class IosNoOpUpdateReadingProgress : UpdateReadingProgress(NoOpLibraryMutator) {
+internal class FakeUpdateReadingProgress : UpdateReadingProgress(FakeLibraryMutator) {
     override suspend fun invoke(itemId: String, progress: Float) {}
     override suspend fun invoke(sourceId: String, itemId: String, progress: Float) {}
 }
 
-internal class IosNoOpMarkReadAcrossDimensions : MarkReadAcrossDimensions(
-    NoOpLibraryMutator,
-    NoOpReadingSessionRepository,
-    NoOpReadaloudLinkRepository,
-    NoOpSourceRepository,
+internal class FakeMarkReadAcrossDimensions : MarkReadAcrossDimensions(
+    FakeLibraryMutator,
+    FakeReadingSessionRepository,
+    FakeReadaloudLinkRepository,
+    FakeSourceRepository,
 ) {
     override suspend fun invoke(itemId: String, finished: Boolean) {}
 }
 
-// -------- AudiobookChapterCacheRepository no-op --------
-
-internal class IosNoOpAudiobookChapterCacheRepository : AudiobookChapterCacheRepository {
+internal class FakeAudiobookChapterCacheRepository : AudiobookChapterCacheRepository {
     override suspend fun getCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? = null
     override suspend fun getStaleCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? = null
     override suspend fun fetchAndCacheChapters(sourceId: String, itemId: String): List<AudiobookChapter> = emptyList()
 }
 
-// -------- Feature library no-ops --------
-
-internal object IosNoOpReadaloudOfflineDownloader : ReadaloudOfflineDownloader {
+internal object FakeReadaloudOfflineDownloader : ReadaloudOfflineDownloader {
     override suspend fun download(
         storytellerSourceId: String,
         storytellerBookId: String,
@@ -234,7 +226,7 @@ internal object IosNoOpReadaloudOfflineDownloader : ReadaloudOfflineDownloader {
     ): Boolean? = null
 }
 
-internal class IosNoOpDownloadManager : DownloadManager {
+internal class FakeDownloadManager : DownloadManager {
     override val states: StateFlow<Map<String, DownloadState>> = MutableStateFlow(emptyMap())
     override fun start(key: String, work: suspend (onProgress: (Long, Long) -> Unit) -> DownloadState) {}
     override fun startWithoutProgress(key: String, stateWhileRunning: DownloadState, work: suspend () -> DownloadState) {}
@@ -242,7 +234,7 @@ internal class IosNoOpDownloadManager : DownloadManager {
     override fun clear(key: String) {}
 }
 
-internal class IosNoOpBookImportManager : BookImportManager {
+internal class FakeBookImportManager : BookImportManager {
     override val states: StateFlow<Map<String, BookImportState>> = MutableStateFlow(emptyMap())
     override fun start(
         key: String,
@@ -253,16 +245,16 @@ internal class IosNoOpBookImportManager : BookImportManager {
     ) {}
 }
 
-internal class IosNoOpEpubTocExtractor : EpubTocExtractor {
+internal class FakeEpubTocExtractor : EpubTocExtractor {
     override suspend fun extract(item: LibraryItem): List<TocEntry> = emptyList()
     override suspend fun extractDetails(item: LibraryItem): EpubDetails = EpubDetails(emptyList(), null)
 }
 
-internal object IosNoOpPdfPageCountExtractor : PdfPageCountExtractor {
+internal object FakePdfPageCountExtractor : PdfPageCountExtractor {
     override suspend fun extract(item: LibraryItem): Int? = null
 }
 
-internal object IosNoOpLocalFileMetadataOverrideSaver : LocalFileMetadataOverrideSaver {
+internal object FakeLocalFileMetadataOverrideSaver : LocalFileMetadataOverrideSaver {
     override suspend fun invoke(
         sourceId: String,
         sourceItemId: String,
@@ -274,27 +266,25 @@ internal object IosNoOpLocalFileMetadataOverrideSaver : LocalFileMetadataOverrid
     ) {}
 }
 
-internal object IosNoOpCoverImageCopier : CoverImageCopier {
+internal object FakeCoverImageCopier : CoverImageCopier {
     override suspend fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? = null
 }
 
-internal object IosNoOpWebSourceLibraryItemUpserter : WebSourceLibraryItemUpserter {
+internal object FakeWebSourceLibraryItemUpserter : WebSourceLibraryItemUpserter {
     override suspend fun upsert(sourceId: String, item: CatalogItem) {}
 }
 
-// -------- PlaylistsRepository and LibraryRefresher no-ops --------
-
-internal class IosNoOpPlaylistsRepository : PlaylistsRepository {
+internal class FakePlaylistsRepository : PlaylistsRepository {
     override fun observePlaylists(rootId: String): Flow<List<CatalogPlaylist>> = flowOf(emptyList())
     override suspend fun refresh(rootId: String): Boolean = false
     override suspend fun getPlaylist(rootId: String, playlistId: String): CatalogPlaylist? = null
     override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist =
-        throw UnsupportedOperationException("iOS no-op")
+        throw UnsupportedOperationException("test fake")
     override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String): Boolean = false
     override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String): Boolean = false
 }
 
-internal class IosNoOpLibraryRefresher : LibraryRefresher {
+internal class FakeLibraryRefresher : LibraryRefresher {
     override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.NoActiveServer
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.NoActiveServer
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.NoActiveServer

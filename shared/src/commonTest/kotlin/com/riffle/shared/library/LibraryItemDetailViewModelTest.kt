@@ -27,13 +27,12 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlin.experimental.ExperimentalNativeApi
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertIs
 
-@OptIn(ExperimentalNativeApi::class, ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTest {
 
     // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
@@ -128,38 +127,38 @@ class LibraryItemDetailViewModelTest {
         itemId = itemId,
         sourceId = sourceId,
         libraryObserver = makeLibraryObserver(item),
-        recordItemOpened = IosNoOpRecordItemOpened(),
-        updateReadingProgressUseCase = IosNoOpUpdateReadingProgress(),
-        markReadAcrossDimensions = IosNoOpMarkReadAcrossDimensions(),
+        recordItemOpened = FakeRecordItemOpened(),
+        updateReadingProgressUseCase = FakeUpdateReadingProgress(),
+        markReadAcrossDimensions = FakeMarkReadAcrossDimensions(),
         sourceRepository = makeSourceRepository(),
         tokenStorage = makeTokenStorage(),
-        epubRepository = IosNoOpEpubRepository(),
-        ebookCfiTranslatorFactory = IosNoOpEbookCfiTranslatorFactory,
-        audiobookPositionStore = IosNoOpAudiobookPositionStore(),
-        pdfRepository = IosNoOpPdfRepository(),
-        cbzRepository = IosNoOpCbzRepository(),
+        epubRepository = FakeEpubRepository(),
+        ebookCfiTranslatorFactory = FakeEbookCfiTranslatorFactory,
+        audiobookPositionStore = FakeAudiobookPositionStore(),
+        pdfRepository = FakePdfRepository(),
+        cbzRepository = FakeCbzRepository(),
         toReadRepository = makeToReadRepository(inToRead),
-        playlistsRepository = IosNoOpPlaylistsRepository(),
-        readaloudLinkRepository = IosNoOpReadaloudLinkRepository(),
-        readaloudAudioRepository = IosNoOpReadaloudAudioRepository(),
-        audiobookDownloadRepository = IosNoOpAudiobookDownloadRepository(),
-        audiobookCacheRepository = IosNoOpAudiobookCacheRepository(),
-        localAvailabilityEvents = IosNoOpLocalAvailabilityEvents(),
-        readaloudOfflineDownloader = IosNoOpReadaloudOfflineDownloader,
+        playlistsRepository = FakePlaylistsRepository(),
+        readaloudLinkRepository = FakeReadaloudLinkRepository,
+        readaloudAudioRepository = FakeReadaloudAudioRepository(),
+        audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+        audiobookCacheRepository = FakeAudiobookCacheRepository(),
+        localAvailabilityEvents = FakeLocalAvailabilityEvents(),
+        readaloudOfflineDownloader = FakeReadaloudOfflineDownloader,
         connectivityObserver = makeConnectivityObserver(),
-        downloadManager = IosNoOpDownloadManager(),
-        bookImportManager = IosNoOpBookImportManager(),
-        crossEpubIndexBuildTrigger = IosNoOpCrossEpubIndexBuildTrigger,
-        sidecarPrefetcher = IosNoOpReadaloudSidecarPrefetcher,
-        epubTocExtractor = IosNoOpEpubTocExtractor(),
-        pdfPageCountExtractor = IosNoOpPdfPageCountExtractor,
-        fetchAudiobookChaptersUseCase = FetchAudiobookChaptersUseCase(IosNoOpAudiobookChapterCacheRepository()),
-        catalogRegistry = IosNoOpCatalogRegistry,
-        libraryRefresher = IosNoOpLibraryRefresher(),
-        saveLocalFileMetadataOverride = IosNoOpLocalFileMetadataOverrideSaver,
-        copyCoverImage = IosNoOpCoverImageCopier,
-        readingSpeedStore = IosNoOpReadingSpeedStore(),
-        webSourceLibraryItemUpserter = IosNoOpWebSourceLibraryItemUpserter,
+        downloadManager = FakeDownloadManager(),
+        bookImportManager = FakeBookImportManager(),
+        crossEpubIndexBuildTrigger = FakeCrossEpubIndexBuildTrigger,
+        sidecarPrefetcher = FakeReadaloudSidecarPrefetcher,
+        epubTocExtractor = FakeEpubTocExtractor(),
+        pdfPageCountExtractor = FakePdfPageCountExtractor,
+        fetchAudiobookChaptersUseCase = FetchAudiobookChaptersUseCase(FakeAudiobookChapterCacheRepository()),
+        catalogRegistry = FakeCatalogRegistry,
+        libraryRefresher = FakeLibraryRefresher(),
+        saveLocalFileMetadataOverride = FakeLocalFileMetadataOverrideSaver,
+        copyCoverImage = FakeCoverImageCopier,
+        readingSpeedStore = FakeReadingSpeedStore(),
+        webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
     )
 
     @Test

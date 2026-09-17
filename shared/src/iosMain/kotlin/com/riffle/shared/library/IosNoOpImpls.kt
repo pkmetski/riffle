@@ -1,24 +1,14 @@
 package com.riffle.shared.library
 
-import com.riffle.core.domain.AppTheme
-import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
-import com.riffle.core.domain.ContentCacheAutoClear
-import com.riffle.core.domain.ContentCacheSettingsStore
-import com.riffle.core.domain.CoverGridDensityStore
-import com.riffle.core.domain.DownloadsRepository
-import com.riffle.core.domain.LibraryFilterPreferences
-import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
-import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.models.AudiobookIdentityResult
 import com.riffle.core.models.ReadaloudLink
-import com.riffle.core.models.ScreenDimensionBucket
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -46,22 +36,6 @@ internal object IosNoOpApplicationScope : ApplicationScope {
         CoroutineScope(supervisor + dispatcher)
 }
 
-internal class IosNoOpCoverGridDensityStore : CoverGridDensityStore {
-    override val scale: Flow<Float> = flowOf(1f)
-    override suspend fun setScale(value: Float) {}
-    override fun scale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket): Flow<Float> = flowOf(1f)
-    override suspend fun setScale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket, value: Float) {}
-}
-
-internal class IosNoOpLibraryFilterPreferencesStore : LibraryFilterPreferencesStore {
-    override fun preferences(sourceId: String, libraryId: String): Flow<LibraryFilterPreferences> =
-        flowOf(LibraryFilterPreferences())
-    override suspend fun setSelectedFacetKey(sourceId: String, libraryId: String, key: String?) {}
-    override suspend fun setNotStartedFilterActive(sourceId: String, libraryId: String, active: Boolean) {}
-    override suspend fun setUnownedFilterActive(sourceId: String, libraryId: String, active: Boolean) {}
-    override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {}
-}
-
 internal class IosNoOpAudiobookBookmarkStore : AudiobookBookmarkStore {
     override fun observe(sourceId: String, itemId: String): Flow<List<AudiobookBookmark>> = flowOf(emptyList())
     override fun observeForSource(sourceId: String): Flow<List<AudiobookBookmark>> = flowOf(emptyList())
@@ -81,30 +55,10 @@ internal class IosNoOpReadaloudLinkRepository : ReadaloudLinkRepository {
     override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
 }
 
-internal class IosNoOpAppThemeStore : AppThemeStore {
-    override val appTheme: Flow<AppTheme> = flowOf(AppTheme.System)
-    override suspend fun setAppTheme(value: AppTheme) {}
-}
-
-internal class IosNoOpContentCacheSettingsStore : ContentCacheSettingsStore {
-    override val autoClear: Flow<ContentCacheAutoClear> = flowOf(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR)
-    override suspend fun setAutoClear(value: ContentCacheAutoClear) {}
-}
-
 internal object IosNoOpReadaloudSidecarDownloads : ReadaloudSidecarDownloads {
     override fun listCached() = emptyList<ReadaloudSidecarDownloads.CachedSidecar>()
     override fun clearAll() {}
     override fun remove(storytellerSourceId: String, storytellerBookId: String) {}
-}
-
-internal class IosNoOpDownloadsRepository : DownloadsRepository {
-    override fun getDownloadedArtifacts(): List<StoredItemArtifact> = emptyList()
-    override fun getCachedArtifacts(): List<StoredItemArtifact> = emptyList()
-    override fun sizeOf(sourceId: String, itemId: String): Long = 0L
-    override suspend fun removeDownload(sourceId: String, itemId: String) {}
-    override suspend fun removeCached(sourceId: String, itemId: String) {}
-    override suspend fun removeAllDownloads() {}
-    override suspend fun clearAllCached() {}
 }
 
 // ── Audiobook player extras ──────────────────────────────────────────────────────────────────────
