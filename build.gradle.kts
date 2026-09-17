@@ -441,6 +441,71 @@ tasks.register<CreateTranslationTask>("createTranslation") {
     locale.set(translationLocale)
 }
 
+// Parity mirror guardrail: every new test class added to app/src/test must have a counterpart
+// in a commonTest or iOS XCTest location. This prevents the pattern where Android tests grow
+// without matching iOS coverage. Declare intentional Android-only tests with a commit trailer
+// `Parity-skip: <ClassName>` and justify the omission in the commit body / PR description.
+tasks.register("checkParityMirror") {
+    group = "verification"
+    description = "Fails if a new @Test class in app/src/test has no commonTest or XCTest counterpart."
+    notCompatibleWithConfigurationCache("invokes git at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        fun git(vararg args: String): String? {
+            val process = ProcessBuilder(listOf("git") + args)
+                .directory(projectRoot)
+                .start()
+            val stdout = process.inputStream.bufferedReader().readText()
+            process.errorStream.bufferedReader().readText()
+            return if (process.waitFor() == 0) stdout else null
+        }
+
+        val base = git("merge-base", "HEAD", "origin/main")?.trim()
+            ?: git("merge-base", "HEAD", "main")?.trim()
+        if (base == null) {
+            logger.warn("checkParityMirror: no merge base with origin/main (shallow clone or missing remote) — skipping.")
+            return@doLast
+        }
+        val head = git("rev-parse", "HEAD")?.trim()
+        if (head == null || base == head) return@doLast
+
+        // Collect newly added files in app/src/test.
+        val addedAppTestFiles = mutableSetOf<String>()
+        val nameStatus = git("diff", "--name-status", "-M", base, "HEAD") ?: return@doLast
+        for (line in nameStatus.lineSequence().filter { it.isNotBlank() }) {
+            val parts = line.split('\t')
+            val status = parts[0]
+            val path = if (status.startsWith("R") || status.startsWith("C")) parts.getOrNull(2) else parts.getOrNull(1)
+            if (path != null && status.startsWith("A") && TestGuardrailLint.APP_TEST_DIR.containsMatchIn(path)) {
+                addedAppTestFiles += path
+            }
+        }
+        if (addedAppTestFiles.isEmpty()) return@doLast
+
+        // Collect all current test files in counterpart locations (commonTest, iosTest, XCTest).
+        val allCurrentFiles = git("ls-tree", "-r", "--name-only", head)
+            ?.lineSequence()
+            ?.filter { TestGuardrailLint.isCounterpartTestFile(it) }
+            ?.toSet()
+            ?: return@doLast
+
+        val declared = TestGuardrailLint.parseDeclaredParitySkips(
+            git("log", "--format=%B", "$base..HEAD").orEmpty(),
+        )
+        val violations = TestGuardrailLint.checkParityMirror(addedAppTestFiles, allCurrentFiles, declared)
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "Parity mirror: these test classes were added to app/src/test without a counterpart " +
+                    "in commonTest or the iOS XCTest suites. Add a matching test in commonTest or " +
+                    "iosApp/*Tests/, or declare the class as Android-only with a commit trailer " +
+                    "`Parity-skip: <ClassName>` and justify the omission in the commit body / PR:\n" +
+                    violations.joinToString("\n") { "  ${it.render()}" },
+            )
+        }
+    }
+}
+
 // Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
@@ -457,6 +522,7 @@ tasks.register("riffleChecks") {
         "checkNoOkHttpOutsideCoreNet",
         "checkTranslations",
         "checkTestGuardrails",
+        "checkParityMirror",
     )
 }
 

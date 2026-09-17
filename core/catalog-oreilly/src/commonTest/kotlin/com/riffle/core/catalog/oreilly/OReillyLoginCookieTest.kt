@@ -1,8 +1,8 @@
-package com.riffle.app.feature.source.oreilly
+package com.riffle.core.catalog.oreilly
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class OReillyLoginCookieTest {
 
@@ -27,7 +27,6 @@ class OReillyLoginCookieTest {
 
     @Test
     fun `does not confuse a cookie whose name merely contains orm-jwt`() {
-        // A cookie named "not-orm-jwt" must not match the "orm-jwt=" prefix check.
         assertNull(parseOrmJwtFromCookieHeader("not-orm-jwt=nope"))
     }
 }

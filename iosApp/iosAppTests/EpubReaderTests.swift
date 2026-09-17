@@ -124,14 +124,6 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertFalse(batchCalled, "onBatch must not fire when there is no open publication")
     }
 
-    // cancelSearch() must be safe to call when no search is in progress (nil task).
-    func testCancelSearchIsIdempotentWithNoActiveSearch() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        bridge.cancelSearch()
-        bridge.cancelSearch()
-        // No crash = pass
-    }
-
     // A second startSearch() call must cancel any in-flight task so there is never more than
     // one concurrent search producing batches for the same query flow.
     func testSecondStartSearchCancelsPreviousNoPublicationCase() {

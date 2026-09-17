@@ -1,9 +1,8 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import com.riffle.app.feature.library.listenStartAtSecForFinished
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class ListenStartAtSecForFinishedTest {
 

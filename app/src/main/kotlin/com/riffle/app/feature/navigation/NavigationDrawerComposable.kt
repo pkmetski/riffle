@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.app.BuildConfig
 import com.riffle.app.ui.theme.RiffleAppIcon
+import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
@@ -476,5 +477,3 @@ private fun localizedSourceSwitcherSubtitle(source: Source, version: String?): S
         localizedDescriptorSubtitle(descriptor)
     }
 }
-
-internal fun shouldShowRiffleSource(sourceCount: Int): Boolean = sourceCount >= 2

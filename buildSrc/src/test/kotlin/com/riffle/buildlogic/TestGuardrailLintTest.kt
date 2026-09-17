@@ -134,4 +134,67 @@ class TestGuardrailLintTest {
             TestGuardrailLint.findUndeclaredRemovals(old, new, declared = emptySet()),
         )
     }
+
+    // ── checkParityMirror ─────────────────────────────────────────────────
+
+    @Test
+    fun `flags app-test-only file with no counterpart`() {
+        val added = setOf("app/src/test/kotlin/com/riffle/app/FooTest.kt")
+        val all = setOf("feature/bar/src/commonTest/kotlin/BarTest.kt")
+        assertEquals(
+            listOf(TestGuardrailLint.ParityViolation("app/src/test/kotlin/com/riffle/app/FooTest.kt", "FooTest")),
+            TestGuardrailLint.checkParityMirror(added, all),
+        )
+    }
+
+    @Test
+    fun `accepts commonTest counterpart with same filename`() {
+        val added = setOf("app/src/test/kotlin/com/riffle/app/FooTest.kt")
+        val all = setOf("feature/foo/src/commonTest/kotlin/com/riffle/feature/foo/FooTest.kt")
+        assertEquals(emptyList<TestGuardrailLint.ParityViolation>(), TestGuardrailLint.checkParityMirror(added, all))
+    }
+
+    @Test
+    fun `accepts iOS XCTest counterpart with plural name`() {
+        val added = setOf("app/src/test/kotlin/com/riffle/app/BarTest.kt")
+        val all = setOf("iosApp/iosAppTests/BarTests.swift")
+        assertEquals(emptyList<TestGuardrailLint.ParityViolation>(), TestGuardrailLint.checkParityMirror(added, all))
+    }
+
+    @Test
+    fun `accepts declared parity-skip`() {
+        val added = setOf("app/src/test/kotlin/com/riffle/app/FooTest.kt")
+        val all = emptySet<String>()
+        assertEquals(
+            emptyList<TestGuardrailLint.ParityViolation>(),
+            TestGuardrailLint.checkParityMirror(added, all, declared = setOf("FooTest")),
+        )
+    }
+
+    @Test
+    fun `ignores non-app-test files`() {
+        val added = setOf("feature/x/src/commonTest/kotlin/XTest.kt")
+        val all = emptySet<String>()
+        assertEquals(emptyList<TestGuardrailLint.ParityViolation>(), TestGuardrailLint.checkParityMirror(added, all))
+    }
+
+    @Test
+    fun `parseDeclaredParitySkips strips backticks`() {
+        val log = "Parity-skip: `FooTest`\nParity-skip: BarTest"
+        assertEquals(setOf("FooTest", "BarTest"), TestGuardrailLint.parseDeclaredParitySkips(log))
+    }
+
+    @Test
+    fun `isCounterpartTestFile matches commonTest and iosTest kotlin files`() {
+        assertTrue(TestGuardrailLint.isCounterpartTestFile("feature/x/src/commonTest/kotlin/XTest.kt"))
+        assertTrue(TestGuardrailLint.isCounterpartTestFile("core/y/src/iosTest/kotlin/YTest.kt"))
+        assertFalse(TestGuardrailLint.isCounterpartTestFile("app/src/test/kotlin/ZTest.kt"))
+    }
+
+    @Test
+    fun `isCounterpartTestFile matches swift files in iosApp XCTest targets`() {
+        assertTrue(TestGuardrailLint.isCounterpartTestFile("iosApp/iosAppTests/FooTests.swift"))
+        assertTrue(TestGuardrailLint.isCounterpartTestFile("iosApp/iosAppUnitTests/BarTest.swift"))
+        assertFalse(TestGuardrailLint.isCounterpartTestFile("iosApp/iosApp/SomeView.swift"))
+    }
 }
