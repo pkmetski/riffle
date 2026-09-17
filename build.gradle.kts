@@ -164,7 +164,7 @@ tasks.register("checkRiffleInfraSeams") {
             .flatMap { it.walkTopDown().toList() }
             .filter { it.isFile && it.extension == "kt" }
             // Only enforce on production source — tests legitimately reference the literals in fakes.
-            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") || it.absolutePath.contains("/src/androidHostTest/") || it.absolutePath.contains("/src/jvmTest/") || it.absolutePath.contains("/src/commonTest/") }
+            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") || it.absolutePath.contains("/src/androidHostTest/") || it.absolutePath.contains("/src/jvmTest/") || it.absolutePath.contains("/src/commonTest/") || it.absolutePath.contains("/src/sharedJvmTest/") }
             .forEach { f ->
                 val rel = f.relativeTo(layout.projectDirectory.asFile).path
                 if (rel in allowlist) return@forEach
