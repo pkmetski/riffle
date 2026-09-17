@@ -158,7 +158,7 @@ class NavigationDrawerViewModelTest {
         connectivityObserver = fakeConnectivity(),
         catalogRegistry = catalogRegistry,
         nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
-        nowPlayingStore = com.riffle.app.playback.NowPlayingStore(),
+        nowPlayingStore = com.riffle.feature.player.NowPlayingStore(),
     )
 
     private fun fakeCatalogRegistry(catalog: com.riffle.core.catalog.Catalog? = null): com.riffle.core.catalog.CatalogRegistry =

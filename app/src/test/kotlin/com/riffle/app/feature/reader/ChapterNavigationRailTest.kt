@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.RailSegment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals

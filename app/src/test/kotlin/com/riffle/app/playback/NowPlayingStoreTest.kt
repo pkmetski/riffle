@@ -1,6 +1,7 @@
 package com.riffle.app.playback
 
 import com.riffle.feature.player.NowPlaying
+import com.riffle.feature.player.NowPlayingStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

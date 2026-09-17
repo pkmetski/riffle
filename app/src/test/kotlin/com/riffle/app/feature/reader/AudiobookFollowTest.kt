@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.AudiobookFollow
+import com.riffle.feature.reader.CatalogAudioEndpoint
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.ProgressPeerCapability

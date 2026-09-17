@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.session
 
 import android.net.FakeUri
-import com.riffle.app.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.core.domain.ReadingPositionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
+import com.riffle.feature.reader.RailSegment
 import com.riffle.core.domain.ReaderTheme
 import kotlin.math.roundToInt
 

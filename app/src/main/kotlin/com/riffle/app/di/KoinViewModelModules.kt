@@ -2,7 +2,7 @@ package com.riffle.app.di
 
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.BuildConfig
-import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
+import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel

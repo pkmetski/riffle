@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader.session
 
 import android.net.FakeUri
 import com.riffle.app.feature.reader.EpubReaderViewModel
-import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome

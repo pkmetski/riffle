@@ -1,6 +1,6 @@
 package com.riffle.app.feature.library
 
-import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
+import com.riffle.feature.player.CompactDurationLabelTemplates
 import com.riffle.core.models.EbookFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

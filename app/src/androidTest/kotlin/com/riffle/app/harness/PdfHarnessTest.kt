@@ -16,7 +16,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
 import com.riffle.feature.reader.VolumeNavEvent
-import com.riffle.app.feature.reader.VolumeNavigationController
+import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilOnPdfPage
