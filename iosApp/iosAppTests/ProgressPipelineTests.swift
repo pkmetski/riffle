@@ -15,69 +15,21 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
     /// PP-A.1 — Opening and leaving an EPUB book restores the reading position on next open.
     func testEpubPositionRestoredOnReopen() throws {
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let epubTile = findFirstBookTile(hintKeywords: ["epub"])
-        XCTAssertTrue(epubTile.waitForExistence(timeout: 10), "EPUB tile must be visible")
-
-        epubTile.tap()
-        let backButton = app.staticTexts["← Back"]
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "EPUB reader must open")
-        Thread.sleep(forTimeInterval: 2)
-        backButton.tap()
-
-        XCTAssertTrue(epubTile.waitForExistence(timeout: 10), "EPUB tile must reappear after close")
-        epubTile.tap()
-        XCTAssertTrue(
-            app.staticTexts["← Back"].waitForExistence(timeout: 15),
-            "EPUB reader should re-open — position restore doesn't crash the screen"
-        )
+        try assertReaderReopens(hintKeywords: ["epub"], kind: "EPUB reader")
     }
 
     // MARK: - Scenario PP-B: PDF position is restored after re-opening
 
     /// PP-B.1 — Opening and leaving a PDF book restores the page on next open.
     func testPdfPositionRestoredOnReopen() throws {
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let pdfTile = findFirstBookTile(hintKeywords: ["pdf"])
-        XCTAssertTrue(pdfTile.waitForExistence(timeout: 10), "PDF tile must be visible")
-
-        pdfTile.tap()
-        let backButton = app.staticTexts["← Back"]
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "PDF reader must open")
-        Thread.sleep(forTimeInterval: 2)
-        backButton.tap()
-
-        XCTAssertTrue(pdfTile.waitForExistence(timeout: 10), "PDF tile must reappear after close")
-        pdfTile.tap()
-        XCTAssertTrue(
-            app.staticTexts["← Back"].waitForExistence(timeout: 15),
-            "PDF reader should re-open — position restore doesn't crash the screen"
-        )
+        try assertReaderReopens(hintKeywords: ["pdf"], kind: "PDF reader")
     }
 
     // MARK: - Scenario PP-C: CBZ position is restored after re-opening
 
     /// PP-C.1 — Opening and leaving a CBZ book restores the page on next open.
     func testCbzPositionRestoredOnReopen() throws {
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let cbzTile = findFirstBookTile(hintKeywords: ["cbz"])
-        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10), "CBZ tile must be visible (stub provides Test CBZ)")
-
-        cbzTile.tap()
-        let backButton = app.staticTexts["← Back"]
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "CBZ reader must open")
-        Thread.sleep(forTimeInterval: 2)
-        backButton.tap()
-
-        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10), "CBZ tile must reappear after close")
-        cbzTile.tap()
-        XCTAssertTrue(
-            app.staticTexts["← Back"].waitForExistence(timeout: 15),
-            "CBZ reader should re-open — position restore doesn't crash the screen"
-        )
+        try assertReaderReopens(hintKeywords: ["cbz"], kind: "CBZ reader")
     }
 
     // MARK: - Scenario PP-D: Library progress updates after reading
@@ -88,15 +40,17 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
         let anyTile = findFirstBookTile(hintKeywords: ["epub", "pdf", "cbz", "audiobook"])
         XCTAssertTrue(anyTile.waitForExistence(timeout: 10), "A book tile must be visible")
+        let tileLabel = anyTile.label
 
-        anyTile.tap()
-        let backButton = app.staticTexts["← Back"]
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Reader must open")
+        let backButton = openReader(from: anyTile, in: app)
+        XCTAssertTrue(backButton.exists, "Reader must open")
         Thread.sleep(forTimeInterval: 2)
         backButton.tap()
 
+        XCTAssertTrue(waitForLibraryHome(in: app), "Closing the reader must return to the library")
+        let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
         XCTAssertTrue(
-            anyTile.waitForExistence(timeout: 10),
+            sameTile.waitForExistence(timeout: 10),
             "Library tile should be visible after returning from reader"
         )
     }
@@ -105,29 +59,32 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
     /// PP-E.1 — Leaving the audiobook player and reopening it starts at the last position.
     func testAudiobookPositionRestoredOnReopen() throws {
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let audiobookTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'audiobook'")
-        ).firstMatch
-        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10),
-                      "Audiobook tile must be visible (stub provides Test Audiobook)")
-
-        audiobookTile.tap()
-        let backButton = app.staticTexts["← Back"]
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Audiobook player must open")
-        Thread.sleep(forTimeInterval: 2)
-        backButton.tap()
-
-        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10), "Audiobook tile must reappear after close")
-        audiobookTile.tap()
-        XCTAssertTrue(
-            app.staticTexts["← Back"].waitForExistence(timeout: 15),
-            "Audiobook player should re-open without crashing"
-        )
+        try assertReaderReopens(hintKeywords: ["audiobook"], kind: "Audiobook player")
     }
 
     // MARK: - Helpers
+
+    /// Opens the first tile matching `hintKeywords`, closes the reader, and re-opens the same book:
+    /// the position-restore path on second open must land in the reader without crashing.
+    private func assertReaderReopens(hintKeywords: [String], kind: String) throws {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+
+        let tile = findFirstBookTile(hintKeywords: hintKeywords)
+        XCTAssertTrue(tile.waitForExistence(timeout: 10), "\(kind) tile must be visible")
+        let tileLabel = tile.label
+
+        let backButton = openReader(from: tile, in: app)
+        XCTAssertTrue(backButton.exists, "\(kind) must open")
+        Thread.sleep(forTimeInterval: 2)
+        backButton.tap()
+
+        XCTAssertTrue(waitForLibraryHome(in: app), "Closing the \(kind) must return to the library")
+        let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
+        XCTAssertTrue(sameTile.waitForExistence(timeout: 10), "\(kind) tile must reappear after close")
+
+        let reopenedBack = openReader(from: sameTile, in: app)
+        XCTAssertTrue(reopenedBack.exists, "\(kind) should re-open — position restore doesn't crash the screen")
+    }
 
     private func findFirstBookTile(hintKeywords: [String]) -> XCUIElement {
         for keyword in hintKeywords {

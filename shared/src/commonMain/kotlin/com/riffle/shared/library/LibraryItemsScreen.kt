@@ -43,9 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
@@ -563,6 +563,7 @@ private fun CollectionTile(
 ) {
     Box(
         modifier = modifier
+            .semantics(mergeDescendants = true) { contentDescription = collection.name }
             .clip(RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.BottomStart,

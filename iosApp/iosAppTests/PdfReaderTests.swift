@@ -12,17 +12,14 @@ final class PdfReaderTests: AbsHarnessTestCase {
 
     // MARK: - Scenario 06-B: Opening a PDF
 
-    /// 06-B.1 — Tapping a PDF item opens the PDF reader screen.
+    /// 06-B.1 — Tapping a PDF item and choosing Read opens the PDF reader screen.
     func testPdfReaderOpensFromLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
         XCTAssertTrue(pdfTile.waitForExistence(timeout: 10), "PDF tile must be visible in the library")
-        pdfTile.tap()
 
-        let backButton = app.buttons["Back"].firstMatch
-        XCTAssertTrue(
-            backButton.waitForExistence(timeout: 15),
-            "PDF reader should show a Back button after opening"
-        )
+        let backButton = openReader(from: pdfTile, in: app)
+        XCTAssertTrue(backButton.exists, "PDF reader should show a Back button after opening")
+        XCTAssertFalse(app.staticTexts["Error"].exists, "PDF reader must not show a load error")
     }
 
     // MARK: - Scenario 06-G: Back navigation
@@ -31,14 +28,11 @@ final class PdfReaderTests: AbsHarnessTestCase {
     func testPdfReaderBackNavigationReturnsToLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
         XCTAssertTrue(pdfTile.waitForExistence(timeout: 10))
-        pdfTile.tap()
 
-        let backButton = app.buttons["Back"].firstMatch
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "PDF reader must open")
+        let backButton = openReader(from: pdfTile, in: app)
+        XCTAssertTrue(backButton.exists, "PDF reader must open")
         backButton.tap()
 
-        let sectionLabels = ["In Progress", "Recently Added", "Finished", "All Books", "Series", "Collections"]
-        let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
-        XCTAssertTrue(backOnHome, "Tapping Back from PDF reader should return to library home")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping Back from PDF reader should return to library home")
     }
 }

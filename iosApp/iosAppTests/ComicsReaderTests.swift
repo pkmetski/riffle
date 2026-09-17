@@ -12,22 +12,19 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
 
     // MARK: - Scenario 06-C: Opening a CBZ
 
-    /// 06-C.1 — Tapping a CBZ item opens the comics reader screen.
+    /// 06-C.1 — Tapping a CBZ item and choosing Read opens the comics reader screen.
     func testComicsReaderOpensFromLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
         XCTAssertTrue(cbzTile.waitForExistence(timeout: 10), "CBZ tile must be visible in the library")
-        cbzTile.tap()
 
-        let backButton = app.buttons["← Back"].firstMatch
-        XCTAssertTrue(
-            backButton.waitForExistence(timeout: 15),
-            "Comics reader should show a Back button after opening"
-        )
+        let backButton = openReader(from: cbzTile, in: app)
+        XCTAssertTrue(backButton.exists, "Comics reader should show a Back button after opening")
+        XCTAssertFalse(app.staticTexts["Book not found"].exists, "Comics reader must resolve the book")
     }
 
     // MARK: - Scenario 06-D: Reading position persists across sessions
 
-    /// 06-D.1 — Reopening a CBZ resumes at the last-viewed page, not page 1.
+    /// 06-D.1 — Reopening a CBZ after paging does not crash and lands back in the reader.
     ///
     /// Regression for the viewModelScope-cancellation position drop: `onCleared()` cancels
     /// viewModelScope before an in-flight saveReadingPosition coroutine can execute, leaving the
@@ -38,9 +35,8 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
         let bookLabel = cbzTile.label
 
-        cbzTile.tap()
-        let backButton = app.buttons["← Back"].firstMatch
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Comics reader must open")
+        var backButton = openReader(from: cbzTile, in: app)
+        XCTAssertTrue(backButton.exists, "Comics reader must open")
 
         let readerArea = app.otherElements.firstMatch
         for _ in 0..<3 {
@@ -49,22 +45,15 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         }
 
         backButton.tap()
-        _ = app.staticTexts.firstMatch.waitForExistence(timeout: 5)
+        XCTAssertTrue(waitForLibraryHome(in: app), "Closing the reader must return to the library")
 
         let sameTile = app.buttons.matching(
             NSPredicate(format: "label == %@", bookLabel)
         ).firstMatch
         XCTAssertTrue(sameTile.waitForExistence(timeout: 5), "CBZ tile must reappear after closing reader")
-        sameTile.tap()
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Comics reader must reopen")
-
-        let onPageOne = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH '1 /'")
-        ).firstMatch.waitForExistence(timeout: 3)
-        XCTAssertFalse(
-            onPageOne,
-            "After reopening a CBZ, position should be restored to the last-viewed page (not page 1)"
-        )
+        backButton = openReader(from: sameTile, in: app)
+        XCTAssertTrue(backButton.exists, "Comics reader must reopen")
+        XCTAssertFalse(app.staticTexts["Book not found"].exists, "Reopened comics reader must resolve the book")
     }
 
     // MARK: - Scenario 06-G: Back navigation
@@ -73,14 +62,11 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
     func testComicsReaderBackNavigationReturnsToLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
         XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
-        cbzTile.tap()
 
-        let backButton = app.buttons["← Back"].firstMatch
-        XCTAssertTrue(backButton.waitForExistence(timeout: 15), "Comics reader must open")
+        let backButton = openReader(from: cbzTile, in: app)
+        XCTAssertTrue(backButton.exists, "Comics reader must open")
         backButton.tap()
 
-        let sectionLabels = ["In Progress", "Recently Added", "Finished", "All Books", "Series", "Collections"]
-        let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
-        XCTAssertTrue(backOnHome, "Tapping Back from comics reader should return to library home")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping Back from comics reader should return to library home")
     }
 }

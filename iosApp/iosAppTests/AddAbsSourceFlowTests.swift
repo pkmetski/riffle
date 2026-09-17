@@ -91,8 +91,8 @@ final class AddAbsSourceFlowTests: XCTestCase {
         fill(fieldLabeled: "Username", with: "testuser")
         fill(fieldLabeled: "Password", with: "test")
 
-        let connect = app.buttons["Connect"]
-        XCTAssertTrue(connect.waitForExistence(timeout: 5))
+        let connect = revealConnectButton(in: app)
+        XCTAssertTrue(connect.exists, "Connect button must be reachable once fields are filled")
         XCTAssertTrue(connect.isEnabled, "Connect must be enabled once all fields are filled")
         connect.tap()
 

@@ -81,8 +81,8 @@ final class AddKomgaSourceFlowTests: XCTestCase {
         fill(fieldLabeled: "Username", with: "test@test.test")
         fill(fieldLabeled: "Password", with: "test")
 
-        let connect = app.buttons["Connect"]
-        XCTAssertTrue(connect.waitForExistence(timeout: 5))
+        let connect = revealConnectButton(in: app)
+        XCTAssertTrue(connect.exists, "Connect button must be reachable once fields are filled")
         XCTAssertTrue(connect.isEnabled)
         connect.tap()
 

@@ -301,6 +301,11 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
 
       - name: Run iOS harness tests
+        # Code signing stays enabled (ad-hoc "Sign to Run Locally", no team needed on the
+        # simulator): an unsigned app has no application-identifier entitlement, so every
+        # Keychain write fails with errSecMissingEntitlement. IosTokenStorage then never
+        # persists the ABS/Komga token, the library refresh finds no token and the harness
+        # sees an empty library after adding a source.
         run: |
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
@@ -309,7 +314,6 @@ jobs:
             -clonedSourcePackagesDirPath "$HOME/spm-packages" \
             -derivedDataPath "$HOME/derived-data" \
             -parallel-testing-enabled YES \
-            CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild-harness.log; exit ${PIPESTATUS[0]}
 
       - name: Upload harness log

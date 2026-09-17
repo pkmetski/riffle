@@ -106,7 +106,13 @@ final class StubAbsServer {
     private func dispatch(_ req: StubHTTPRequest) -> Data {
         let lib = Self.testLibraryId
         let audioId = Self.testAudioItemId
-        let path = req.path
+        // ABS serves an ebook file under both `/api/items/{id}/ebook/{ino}` (used by the Android
+        // client) and `/api/items/{id}/file/{ino}` (used by the iOS downloaders). Fold the latter
+        // onto the former so both platforms hit one canned response; audio keeps its own route.
+        var path = req.path
+        if path.hasPrefix("/api/items/") && path.contains("/file/") && !path.hasSuffix("/audio.mp3") {
+            path = path.replacingOccurrences(of: "/file/", with: "/ebook/")
+        }
 
         if req.method == "POST" && path == "/login" { return loginResponse() }
         if req.method == "GET" && path == "/api/libraries" { return librariesResponse() }
