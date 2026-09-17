@@ -84,6 +84,7 @@ import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
+import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
@@ -137,6 +138,7 @@ import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
+import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
@@ -347,8 +349,21 @@ private fun iosLibraryModule(
 
     // Audiobook player
     single<AbsPlaybackApi> { get<AbsApiClient>() }
+    single<AbsSessionApi> { get<AbsApiClient>() }
     single<IosAudioPlayerBridgeFactory> { audioPlayerBridgeFactory }
-    single<AudiobookRepository> { AudiobookRepositoryImpl(get(), get()) }
+    // iOS registers no ABS Catalog (AbsCatalog is JVM-only), so the catalog-backed
+    // AudiobookRepositoryImpl cannot open ABS sessions; IosAbsAudiobookRepository opens them
+    // through AbsPlaybackApi directly and delegates every other source (regression fix for #1054).
+    single<AudiobookRepository> {
+        IosAbsAudiobookRepository(
+            sourceRepository = get(),
+            tokenStorage = get(),
+            playbackApi = get(),
+            sessionApi = get(),
+            deviceIdStore = get(),
+            delegate = AudiobookRepositoryImpl(get(), get()),
+        )
+    }
     single<BundleAudiobookSource> { IosNoOpBundleAudiobookSource }
     single<ContentCacheAccessStore> { IosNoOpContentCacheAccessStore }
     single<com.riffle.core.domain.AudioIdentityResolver> { IosNoOpAudioIdentityResolver }

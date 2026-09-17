@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -148,9 +150,13 @@ fun AddSourceScreen(
             isExpandedWidth = isExpandedWidth,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+            // Scrollable so the submit button stays reachable when the software keyboard
+            // shrinks the available height (iOS root applies safeDrawingPadding, which
+            // includes the IME inset; a fixed-height Column clipped the Connect button).
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {

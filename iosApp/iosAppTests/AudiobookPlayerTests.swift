@@ -1,77 +1,45 @@
 import XCTest
 
-// Covers scenarios from docs/testing/ios-scenarios/04-audiobook-player.md
+// Covers audiobook player scenarios (issue #909 / scenario 04). Uses AbsHarnessTestCase so
+// the stub ABS server provides a listenable "Test Audiobook" item; no XCTSkip.
+final class AudiobookPlayerTests: AbsHarnessTestCase {
 
-final class AudiobookPlayerTests: XCTestCase {
-
-    private var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
+    private var audiobookTile: XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'audiobook'")
+        ).firstMatch
     }
 
-    override func tearDownWithError() throws {
-        app.terminate()
-        app = nil
+    private var playPause: XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "label == '▶' OR label == '⏸'")
+        ).firstMatch
     }
 
     // MARK: - Scenario 04-A: Player opens from library
 
-    /// 04-A.1 — Tapping a listenable item opens the audiobook player screen.
+    /// 04-A.1 — Opening a listenable item lands on the audiobook player screen.
     func testAudiobookPlayerOpensFromLibrary() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — audiobook player test requires a connected server")
-        }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10),
+                      "Audiobook tile must be visible in the library")
 
-        // Look for "In Progress" or any section that might contain audiobooks.
-        // Skip if no audiobook item with a headphone/speaker accessibility hint is found.
-        let audiobookTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'audiobook' OR label CONTAINS[c] 'listen'")
-        ).firstMatch
-        guard audiobookTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No audiobook tile found in library — requires a server with audiobook items")
-        }
-
-        audiobookTile.tap()
-
-        // The player screen should show a back arrow and playback controls.
-        let backArrow = app.staticTexts["← Back"].firstMatch
-        XCTAssertTrue(
-            backArrow.waitForExistence(timeout: 10),
-            "Audiobook player screen should show '← Back'"
-        )
+        let backButton = openReader(from: audiobookTile, in: app)
+        XCTAssertTrue(backButton.exists, "Audiobook player screen should show '← Back'")
+        XCTAssertTrue(playPause.waitForExistence(timeout: 15), "Player screen must show its play/pause control")
     }
 
     // MARK: - Scenario 04-C: Player controls visible
 
-    /// 04-C.1 — Player screen shows play/pause control and chapter navigation.
+    /// 04-C.1 — Player screen shows play/pause control.
     func testAudiobookPlayerControlsVisible() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — audiobook player test requires a connected server")
-        }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10))
 
-        let audiobookTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'audiobook' OR label CONTAINS[c] 'listen'")
-        ).firstMatch
-        guard audiobookTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No audiobook tile found in library — requires a server with audiobook items")
-        }
-        audiobookTile.tap()
-
-        guard app.staticTexts["← Back"].waitForExistence(timeout: 10) else {
-            throw XCTSkip("Player screen did not open")
-        }
-
-        // Play/pause button (▶ or ⏸)
-        let playPause = app.buttons.matching(
-            NSPredicate(format: "label == '▶' OR label == '⏸'")
-        ).firstMatch
+        let backButton = openReader(from: audiobookTile, in: app)
+        XCTAssertTrue(backButton.exists, "Player screen must open")
         XCTAssertTrue(
-            playPause.waitForExistence(timeout: 5),
+            playPause.waitForExistence(timeout: 15),
             "Play/pause button should be visible on the player screen"
         )
     }
@@ -80,29 +48,13 @@ final class AudiobookPlayerTests: XCTestCase {
 
     /// 04-G.1 — Tapping '← Back' from the player returns to the library.
     func testAudiobookPlayerBackNavigationReturnsToLibrary() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — audiobook player test requires a connected server")
-        }
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10))
 
-        let audiobookTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'audiobook' OR label CONTAINS[c] 'listen'")
-        ).firstMatch
-        guard audiobookTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No audiobook tile found in library — requires a server with audiobook items")
-        }
-        audiobookTile.tap()
+        let backButton = openReader(from: audiobookTile, in: app)
+        XCTAssertTrue(backButton.exists, "Player screen must open")
+        backButton.tap()
 
-        let backArrow = app.staticTexts["← Back"].firstMatch
-        guard backArrow.waitForExistence(timeout: 10) else {
-            throw XCTSkip("Player screen did not open")
-        }
-
-        backArrow.tap()
-
-        // Library home should reappear
-        let sectionLabels = ["In Progress", "Recently Added", "Finished", "All Books", "Series", "Collections"]
-        let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
-        XCTAssertTrue(backOnHome, "Tapping '← Back' from player should return to library home")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping '← Back' from player should return to library home")
     }
 }

@@ -1,8 +1,7 @@
 import XCTest
 
 // Server-free coverage for the Add-Source picker (scenario 17-source-picker).
-// Every test here runs in CI without any backend server.  Server-backed e2e flows live in
-// AddAbsSourceFlowTests (ABS) and AddKomgaSourceFlowTests (Komga).
+// Requires a pristine install — guaranteed by --RIFFLE_RESET_FOR_TESTS launch arg; no XCTSkip.
 final class SourcePickerTests: XCTestCase {
 
     private var app: XCUIApplication!
@@ -10,6 +9,7 @@ final class SourcePickerTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        app.launchArguments += ["--RIFFLE_RESET_FOR_TESTS"]
         app.launch()
     }
 
@@ -22,9 +22,8 @@ final class SourcePickerTests: XCTestCase {
 
     /// The picker must show all six source cards that iOS supports on a pristine install.
     func testAllSourceCardsVisibleOnPristineInstall() throws {
-        guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
-            throw XCTSkip("A source is already configured — picker card visibility test requires a pristine install")
-        }
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+                      "App must start on the source picker")
         XCTAssertTrue(app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 5), "ABS card must be visible")
         XCTAssertTrue(app.staticTexts["Local files"].exists, "Local files card must be visible")
         XCTAssertTrue(app.staticTexts["Chitanka"].exists, "Chitanka card must be visible")
@@ -37,15 +36,12 @@ final class SourcePickerTests: XCTestCase {
 
     /// Tapping the Audiobookshelf card must open the credential form without needing a live server.
     func testAbsCredentialFormReachable() throws {
-        guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
-            throw XCTSkip("A source is already configured — credential form test requires a pristine install")
-        }
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+                      "App must start on the source picker")
         let absCard = app.staticTexts["Audiobookshelf"]
         XCTAssertTrue(absCard.waitForExistence(timeout: 5), "Audiobookshelf card must exist")
         absCard.tap()
 
-        // The credential form must appear with URL + Username + Password fields and a scheme
-        // selector. No server connection is made until Connect is tapped.
         let schemeButton = app.buttons
             .matching(NSPredicate(format: "label BEGINSWITH 'https://'"))
             .firstMatch
@@ -56,8 +52,6 @@ final class SourcePickerTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Source URL"].exists, "Credential form must show a Source URL field")
         XCTAssertTrue(app.staticTexts["Username"].exists, "Credential form must show a Username field")
 
-        // Connect must be disabled until the user fills in the required fields — tapping an
-        // empty form must not send any network request.
         let connect = app.buttons["Connect"]
         XCTAssertTrue(connect.waitForExistence(timeout: 5), "Connect button must exist")
         XCTAssertFalse(connect.isEnabled, "Connect must be disabled when the URL field is empty")
@@ -68,9 +62,8 @@ final class SourcePickerTests: XCTestCase {
     /// Tapping the Project Gutenberg card must show the confirmation screen first (B3 fix).
     /// The user then taps "Add source" and lands on the library home.
     func testGutenbergInstallDoesNotCrash() throws {
-        guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
-            throw XCTSkip("A source is already configured — install test requires a pristine install")
-        }
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+                      "App must start on the source picker")
         let gutenbergCard = app.staticTexts["Project Gutenberg"]
         XCTAssertTrue(gutenbergCard.waitForExistence(timeout: 5), "Project Gutenberg card must be visible")
 
@@ -98,7 +91,6 @@ final class SourcePickerTests: XCTestCase {
         )
         XCTAssertTrue(app.state == .runningForeground, "App must survive Project Gutenberg install")
 
-        // Clean up so subsequent tests see a pristine no-source state.
         burger.tap()
         let settingsEntry = app.staticTexts["Settings"]
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
@@ -121,9 +113,8 @@ final class SourcePickerTests: XCTestCase {
     /// Tapping the radio.es card must show the confirmation screen first (B3 fix).
     /// The user then taps "Add source" and lands on the library home.
     func testRadioEsInstallDoesNotCrash() throws {
-        guard app.staticTexts["Add source"].waitForExistence(timeout: 10) else {
-            throw XCTSkip("A source is already configured — install test requires a pristine install")
-        }
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+                      "App must start on the source picker")
         let radioEsCard = app.staticTexts["radio.es"]
         XCTAssertTrue(radioEsCard.waitForExistence(timeout: 5), "radio.es card must be visible")
 

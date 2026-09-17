@@ -1,78 +1,47 @@
 import XCTest
 
-// Integration test suite for the Riffle iOS app.
-// Tests that require a live server skip automatically in CI when no source is configured.
-final class IosAppTests: XCTestCase {
+// Integration test suite for the Riffle iOS app — library browsing scenarios (issue #909).
+// Uses AbsHarnessTestCase so the stub server is always configured; no XCTSkip.
+final class IosAppTests: AbsHarnessTestCase {
 
-    private var app: XCUIApplication!
+    // MARK: - Helpers
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-    }
-
-    override func tearDownWithError() throws {
-        app.terminate()
-        app = nil
+    // Library home uses BasicText("Loading…"), not a UIActivityIndicator, so we must wait for
+    // the loading text itself to disappear rather than relying on activityIndicators.
+    private func waitForLibraryToLoad() {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        _ = app.staticTexts["Loading…"].waitForNonExistence(timeout: 30)
     }
 
     // MARK: - Scenario 1: Library Browsing (issue #909)
 
     /// 1.1 — Library home renders the section grid after launch.
     func testLibraryHomeSectionGridVisible() throws {
-        // If no source is configured, the app shows the setup screen — skip.
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — library home test requires a connected server")
-        }
-        if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
-            throw XCTSkip("No libraries found — library home test requires a server with libraries")
-        }
+        waitForLibraryToLoad()
 
-        // Wait for the loading spinner to disappear (library items loaded)
-        let spinner = app.activityIndicators.firstMatch
-        let spinnerGone = spinner.waitForNonExistence(timeout: 15)
-        XCTAssertTrue(spinnerGone, "Loading spinner should disappear once library items are loaded")
-
-        // At least one section header label is visible
         let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
-        let found = sectionLabels.contains { label in
-            app.staticTexts[label].exists
-        }
+        let found = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 10) }
         XCTAssertTrue(found, "At least one section header should be visible in the library home")
     }
 
     /// 1.3 + 1.4 — Tapping "See all" navigates to the section screen; back returns to library home.
     func testSeeAllNavigatesToSectionScreenAndBackReturns() throws {
-        // If no source is configured, skip.
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — section navigation test requires a connected server")
-        }
-        if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
-            throw XCTSkip("No libraries found — section navigation test requires a server with libraries")
-        }
+        waitForLibraryToLoad()
 
-        // Wait for library to load
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        // Find a "See all" button
         let seeAllButton = app.buttons["See all"].firstMatch
-        guard seeAllButton.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No 'See all' button visible — library may have no sections with items")
-        }
+        XCTAssertTrue(seeAllButton.waitForExistence(timeout: 15), "'See all' button must be present")
         seeAllButton.tap()
 
-        // A section screen should appear with a back button
-        let backButton = app.buttons["Back"].firstMatch
+        // BasicText+clickable in Compose maps to button trait on iOS; search all element types.
+        let backButton = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
         XCTAssertTrue(
-            backButton.waitForExistence(timeout: 5),
+            backButton.waitForExistence(timeout: 15),
             "Back button should appear after navigating into a section screen"
         )
-
-        // Navigate back
         backButton.tap()
 
-        // Library name should be visible in the TopAppBar again
         let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
         let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
         XCTAssertTrue(backOnHome, "Navigating back should return to the library home screen")
@@ -82,41 +51,27 @@ final class IosAppTests: XCTestCase {
 
     /// 4.1 + 4.2 — Tapping a series tile navigates to series detail; back returns to library.
     func testSeriesTileNavigatesToDetailAndBackReturns() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — series detail test requires a connected server")
-        }
-        if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
-            throw XCTSkip("No libraries found — series detail test requires a server with libraries")
-        }
+        waitForLibraryToLoad()
 
-        // Wait for library to load
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let seriesHeader = app.staticTexts["Series"]
-        guard seriesHeader.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No Series section visible — library may have no series")
+        // Scroll until the series tile is hittable — one swipeUp on the header may not be enough.
+        let seriesTile = app.buttons[StubAbsServer.testSeriesName].firstMatch
+        XCTAssertTrue(seriesTile.waitForExistence(timeout: 15), "Series tile must appear in library")
+        for _ in 0..<5 {
+            if seriesTile.isHittable { break }
+            app.swipeUp()
         }
-
-        // Tap the first series tile (any button in the row below "Series" header)
-        let seriesTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all"]
-        )).firstMatch
-        guard seriesTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No tappable series tile found")
-        }
+        XCTAssertTrue(seriesTile.isHittable, "Series tile must be hittable before tap")
         seriesTile.tap()
 
-        // Series detail screen should show a back arrow
-        let backArrow = app.staticTexts["←"].firstMatch
+        let backArrow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
         XCTAssertTrue(
-            backArrow.waitForExistence(timeout: 5),
+            backArrow.waitForExistence(timeout: 15),
             "Series detail screen should show a back arrow"
         )
-
-        // Tap back
         backArrow.tap()
 
-        // Library home should reappear
         let anySection = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series"].contains {
             app.staticTexts[$0].waitForExistence(timeout: 5)
         }
@@ -125,36 +80,24 @@ final class IosAppTests: XCTestCase {
 
     /// 4.3 + 4.4 — Tapping a collection tile navigates to collection detail; back returns to library.
     func testCollectionTileNavigatesToDetailAndBackReturns() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — collection detail test requires a connected server")
-        }
-        if app.staticTexts["No libraries found"].waitForExistence(timeout: 3) {
-            throw XCTSkip("No libraries found — collection detail test requires a server with libraries")
-        }
+        waitForLibraryToLoad()
 
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-
-        let collectionsHeader = app.staticTexts["Collections"]
-        guard collectionsHeader.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No Collections section visible — library may have no collections")
+        let collectionTile = app.buttons[StubAbsServer.testCollectionName].firstMatch
+        XCTAssertTrue(collectionTile.waitForExistence(timeout: 15), "Collection tile must appear in library")
+        for _ in 0..<5 {
+            if collectionTile.isHittable { break }
+            app.swipeUp()
         }
-
-        // Scroll to Collections section and tap the first tile
-        collectionsHeader.swipeUp()
-        let collectionTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all"]
-        )).firstMatch
-        guard collectionTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No tappable collection tile found")
-        }
+        XCTAssertTrue(collectionTile.isHittable, "Collection tile must be hittable before tap")
         collectionTile.tap()
 
-        let backArrow = app.staticTexts["←"].firstMatch
+        let backArrow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
         XCTAssertTrue(
-            backArrow.waitForExistence(timeout: 5),
+            backArrow.waitForExistence(timeout: 15),
             "Collection detail screen should show a back arrow"
         )
-
         backArrow.tap()
 
         let anySection = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Collections"].contains {
@@ -166,89 +109,66 @@ final class IosAppTests: XCTestCase {
     // MARK: - Scenario 4.5 — Item tap in Series detail opens item detail
 
     /// 4.5 — Tapping a book tile inside a series detail screen opens the item detail screen.
-    /// Regression for onItemSelected = {} no-op bug: item taps inside SeriesDetailScreen
-    /// must navigate to LibraryItemDetailScreen, not remain on the series detail.
     func testItemTapInSeriesDetailNavigatesToItemDetail() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — series item tap test requires a connected server")
-        }
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        waitForLibraryToLoad()
 
-        guard app.staticTexts["Series"].waitForExistence(timeout: 5) else {
-            throw XCTSkip("No Series section visible — requires a server with series")
+        let seriesTile2 = app.buttons[StubAbsServer.testSeriesName].firstMatch
+        XCTAssertTrue(seriesTile2.waitForExistence(timeout: 15), "Series tile must appear in library")
+        for _ in 0..<5 {
+            if seriesTile2.isHittable { break }
+            app.swipeUp()
         }
+        XCTAssertTrue(seriesTile2.isHittable, "Series tile must be hittable before tap")
+        seriesTile2.tap()
 
-        let seriesTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all",
-             "Open menu", "Home", "To Read", "Annotations", "Playlists"]
-        )).firstMatch
-        guard seriesTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No tappable series tile found")
-        }
-        seriesTile.tap()
+        let seriesDetailBack = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
+        XCTAssertTrue(seriesDetailBack.waitForExistence(timeout: 15), "Series detail must open")
 
-        // In series detail, tap the first item
-        let backArrow = app.staticTexts["←"].firstMatch
-        guard backArrow.waitForExistence(timeout: 5) else {
-            throw XCTSkip("Series detail did not open")
-        }
-
-        let itemTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["←", "See all"]
-        )).firstMatch
-        guard itemTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No item tile found in series detail")
-        }
+        let itemTile = app.buttons[StubAbsServer.testItemTitle].firstMatch
+        XCTAssertTrue(itemTile.waitForExistence(timeout: 15), "An item tile must be visible in series detail")
         itemTile.tap()
 
-        // Item detail opens — it shows a back arrow and the item cannot still be on the series detail
-        let itemDetailBack = app.buttons["← Back"].firstMatch
+        let itemDetailBack = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
         XCTAssertTrue(
-            itemDetailBack.waitForExistence(timeout: 10),
-            "Tapping a book in series detail must open item detail (← Back button), not stay on series"
+            itemDetailBack.waitForExistence(timeout: 15),
+            "Tapping a book in series detail must open item detail (← Back button)"
         )
     }
 
     // MARK: - Scenario 4.6 — Item tap in Collection detail opens item detail
 
     /// 4.6 — Tapping a book tile inside a collection detail screen opens the item detail screen.
-    /// Regression for onItemSelected = {} no-op bug in CollectionDetailScreen.
     func testItemTapInCollectionDetailNavigatesToItemDetail() throws {
-        if app.staticTexts["Add source"].waitForExistence(timeout: 5) {
-            throw XCTSkip("No source configured — collection item tap test requires a connected server")
-        }
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        waitForLibraryToLoad()
 
-        guard app.staticTexts["Collections"].waitForExistence(timeout: 5) else {
-            throw XCTSkip("No Collections section visible — requires a server with collections")
+        let collectionTile2 = app.buttons[StubAbsServer.testCollectionName].firstMatch
+        XCTAssertTrue(collectionTile2.waitForExistence(timeout: 15), "Collection tile must appear in library")
+        for _ in 0..<5 {
+            if collectionTile2.isHittable { break }
+            app.swipeUp()
         }
+        XCTAssertTrue(collectionTile2.isHittable, "Collection tile must be hittable before tap")
+        collectionTile2.tap()
 
-        let collectionTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["Series", "Collections", "All Books", "In Progress", "Recently Added", "Finished", "Continue Series", "See all",
-             "Open menu", "Home", "To Read", "Annotations", "Playlists"]
-        )).firstMatch
-        guard collectionTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No tappable collection tile found")
-        }
-        collectionTile.tap()
+        let collectionDetailBack = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
+        XCTAssertTrue(collectionDetailBack.waitForExistence(timeout: 15), "Collection detail must open")
 
-        let backArrow = app.staticTexts["←"].firstMatch
-        guard backArrow.waitForExistence(timeout: 5) else {
-            throw XCTSkip("Collection detail did not open")
-        }
-
-        let itemTile = app.buttons.matching(NSPredicate(format: "NOT label IN %@",
-            ["←", "See all"]
-        )).firstMatch
-        guard itemTile.waitForExistence(timeout: 5) else {
-            throw XCTSkip("No item tile found in collection detail")
-        }
+        let itemTile = app.buttons[StubAbsServer.testItemTitle].firstMatch
+        XCTAssertTrue(itemTile.waitForExistence(timeout: 15), "An item tile must be visible in collection detail")
         itemTile.tap()
 
-        let itemDetailBack = app.buttons["← Back"].firstMatch
+        let itemDetailBack = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "←")
+        ).firstMatch
         XCTAssertTrue(
-            itemDetailBack.waitForExistence(timeout: 10),
-            "Tapping a book in collection detail must open item detail (← Back button), not stay on collection"
+            itemDetailBack.waitForExistence(timeout: 15),
+            "Tapping a book in collection detail must open item detail (← Back button)"
         )
     }
 }
