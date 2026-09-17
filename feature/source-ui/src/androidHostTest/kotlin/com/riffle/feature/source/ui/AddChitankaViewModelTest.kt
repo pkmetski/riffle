@@ -35,9 +35,15 @@ class AddChitankaViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
 
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `install transitions Idle to Installing to Success on happy path`() = runTest(dispatcher) {
@@ -72,12 +78,15 @@ class AddChitankaViewModelTest {
     fun `double-invocation while Installing is a no-op — installer runs exactly once`() = runTest(dispatcher) {
         val installer = mockk<SingletonWebSourceInstaller>()
         var calls = 0
-        coEvery { installer.install(SourceType.CHITANKA) } coAnswers { calls++; "chit-1" }
+        coEvery { installer.install(SourceType.CHITANKA) } coAnswers {
+            calls++
+            "chit-1"
+        }
         val vm = AddChitankaViewModel(installer)
 
-        vm.install()  // enters Installing
-        vm.install()  // ignored — still Installing
-        vm.install()  // ignored — still Installing
+        vm.install() // enters Installing
+        vm.install() // ignored — still Installing
+        vm.install() // ignored — still Installing
         advanceUntilIdle()
 
         assertEquals(1, calls)
@@ -88,11 +97,16 @@ class AddChitankaViewModelTest {
     fun `re-invocation after Success is a no-op — no re-install`() = runTest(dispatcher) {
         val installer = mockk<SingletonWebSourceInstaller>()
         var calls = 0
-        coEvery { installer.install(SourceType.CHITANKA) } coAnswers { calls++; "chit-1" }
+        coEvery { installer.install(SourceType.CHITANKA) } coAnswers {
+            calls++
+            "chit-1"
+        }
         val vm = AddChitankaViewModel(installer)
 
-        vm.install(); advanceUntilIdle()
-        vm.install(); advanceUntilIdle()
+        vm.install()
+        advanceUntilIdle()
+        vm.install()
+        advanceUntilIdle()
 
         assertEquals(1, calls)
     }

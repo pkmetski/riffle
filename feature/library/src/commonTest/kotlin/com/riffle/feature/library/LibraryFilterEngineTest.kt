@@ -5,14 +5,13 @@ import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
@@ -159,16 +158,9 @@ class LibraryFilterEngineTest {
             libraryObserver = fakeRepo(),
             annotationStore = annotationStore,
             audiobookBookmarkStore = audiobookBookmarkStore,
-            offlineAvailability = LibraryItemOfflineAvailabilityImpl(
-                epubRepository,
-                fakePdfRepo(),
-                fakeCbzRepo(),
-                fakeAudiobookDownloadRepo(),
-                object : BundleAudiobookSource {
-                    override suspend fun localSession(sourceId: String, itemId: String) = null
-                    override fun isAvailableOffline(sourceId: String, itemId: String) = false
-                },
-            ),
+            offlineAvailability = object : LibraryItemOfflineAvailability {
+                override fun isAvailableOffline(item: LibraryItem) = false
+            },
             seriesSource = seriesFlow,
             collectionsSource = collectionsFlow,
             ungroupedSource = ungroupedFlow,
