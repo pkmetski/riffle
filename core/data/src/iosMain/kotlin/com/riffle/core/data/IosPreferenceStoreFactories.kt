@@ -5,7 +5,6 @@ import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.WakeLockPreferencesStore
-import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIApplication
 
 /**
