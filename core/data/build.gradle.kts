@@ -17,6 +17,7 @@ kotlin {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
+    jvm()
     iosArm64()
     iosSimulatorArm64()
 
@@ -74,6 +75,20 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+        }
+        jvmTest.dependencies {
+            implementation(libs.junit)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okhttp.mockwebserver)
+            implementation(libs.mockk)
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            // Production dependencies only in androidMain that jvmTest tests also need
+            implementation(project(":core:database"))
+            implementation(project(":core:network"))
+            implementation(project(":core:sync"))
+            implementation(project(":core:sources"))
         }
     }
 }
