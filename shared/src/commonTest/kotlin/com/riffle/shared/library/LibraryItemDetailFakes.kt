@@ -173,7 +173,7 @@ private object FakeReadingSessionRepository : ReadingSessionRepository {
     override suspend fun touchOpenTimestamp(itemId: String) {}
 }
 
-private object FakeReadaloudLinkRepository : ReadaloudLinkRepository {
+internal object FakeReadaloudLinkRepository : ReadaloudLinkRepository {
     override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(emptyList())
     override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(emptySet())
     override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null

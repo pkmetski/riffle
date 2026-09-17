@@ -31,6 +31,8 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertIs
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTest {
@@ -187,12 +189,12 @@ class LibraryItemDetailViewModelTest {
         val vm = makeViewModel(inToRead = false)
         testScheduler.advanceUntilIdle()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
-        assert(!ready.isInToRead) { "Expected isInToRead=false before toggle" }
+        assertFalse(ready.isInToRead, "Expected isInToRead=false before toggle")
 
         vm.toggleToRead()
         testScheduler.advanceUntilIdle()
 
         val toggled = vm.uiState.value as LibraryItemDetailUiState.Ready
-        assert(toggled.isInToRead) { "Expected isInToRead=true after toggle" }
+        assertTrue(toggled.isInToRead, "Expected isInToRead=true after toggle")
     }
 }
