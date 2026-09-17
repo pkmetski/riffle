@@ -79,7 +79,7 @@ class StorytellerBundleAudiobookSourceTest {
             val session = source.localSession("abs", "item-1")!!
 
             assertEquals(listOf("audio/0.mp3"), session.trackUrls)
-            assertEquals(bundle, session.localZipFile)
+            assertEquals(bundle.absolutePath, session.localZipFilePath)
             assertEquals(30.0, session.timeline.durationSec, 1e-9)
         } finally {
             appScope.coroutineScope.cancel()

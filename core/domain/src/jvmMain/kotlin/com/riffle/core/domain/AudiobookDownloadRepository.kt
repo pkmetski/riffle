@@ -1,10 +1,10 @@
 package com.riffle.core.domain
 
 /**
- * JVM extension of [AudiobookDownloadRepository] that exposes [localSession] — backed by
- * [AudiobookSession] which carries a [java.io.File] ref and therefore cannot be in commonMain.
+ * JVM extension of [AudiobookDownloadRepository] that overrides [localSession]. The default
+ * implementation in the common interface returns null; this extension provides a real impl.
+ * Kept for backward compatibility with Android callers that inject the specific subtype.
  */
 interface JvmAudiobookDownloadRepository : AudiobookDownloadRepository {
-    /** A playable session backed by the downloaded local files (`file://` track URLs), or null. */
-    fun localSession(sourceId: String, itemId: String): AudiobookSession?
+    override fun localSession(sourceId: String, itemId: String): AudiobookSession?
 }

@@ -54,6 +54,14 @@ interface IosAudioPlayerBridge {
     fun setPlayingCallback(callback: IosPlayingCallback?)
 
     /**
+     * Called when the player naturally exhausts all tracks (natural end-of-book).
+     * Distinct from [setPlayingCallback]: that fires for any pause (user tap, interruption,
+     * phone call); this fires only when AVQueuePlayer emits AVPlayerItemDidPlayToEndTime
+     * for the last item.
+     */
+    fun setEndOfBookCallback(callback: IosEndOfBookCallback?)
+
+    /**
      * Push Now Playing / lock-screen metadata.  Call after [preparePlayer] and whenever
      * the displayed chapter or cover changes.
      */
@@ -84,6 +92,15 @@ interface IosPositionCallback {
  */
 interface IosPlayingCallback {
     fun onPlaying(isPlaying: Boolean)
+}
+
+/**
+ * Callback fired only on natural end-of-book playback (AVPlayerItemDidPlayToEndTime for the
+ * last track), not on user pause or audio interruption. Avoids false end-of-book detection
+ * when the user pauses within END_OF_BOOK_EPS_SEC of the end.
+ */
+interface IosEndOfBookCallback {
+    fun onEndOfBook()
 }
 
 /** Factory so Koin can produce one bridge instance per player open. */

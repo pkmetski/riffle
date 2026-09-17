@@ -53,6 +53,8 @@ class KoinModuleVerificationTest {
         "com.riffle.core.data.dictionary.PackDownloader.converter",
         // Built inline from SavedStateHandle in the viewModel{} lambda (nav arg), not from get().
         "com.riffle.feature.library.LibrarySectionViewModel.sectionType",
+        // Constructed inline as ProgressSweepRunner { get<ProgressSweep>().run() }, not via get().
+        "com.riffle.feature.player.AudiobookPlayerViewModel.progressSweep",
     )
 
     @OptIn(KoinInternalApi::class)

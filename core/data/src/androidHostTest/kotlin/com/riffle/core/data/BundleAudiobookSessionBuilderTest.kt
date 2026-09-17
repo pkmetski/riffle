@@ -33,7 +33,7 @@ class BundleAudiobookSessionBuilderTest {
         assertEquals(60.0, session.tracks[1].startOffsetSec, 1e-9)
         assertEquals(45.0, session.tracks[1].durationSec, 1e-9)
         assertEquals(105.0, session.timeline.durationSec, 1e-9)
-        assertEquals(bundle, session.localZipFile)
+        assertEquals(bundle.absolutePath, session.localZipFilePath)
         assertEquals(0.0, session.serverCurrentTimeSec, 1e-9)
         assertEquals(0L, session.serverLastUpdate)
     }

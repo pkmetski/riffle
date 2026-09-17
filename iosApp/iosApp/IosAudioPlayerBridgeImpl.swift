@@ -1,6 +1,7 @@
 import AVFoundation
 import MediaPlayer
 import Riffle
+import UIKit
 
 /// Swift implementation of IosAudioPlayerBridge, backed by AVQueuePlayer.
 /// One instance per audiobook player open — created by IosAudioPlayerBridgeFactoryImpl.
@@ -17,6 +18,10 @@ import Riffle
     private var playingCallback: (any IosPlayingCallback)?
 
     private var isDisposed = false
+    private var pendingRate: Float = 1.0
+    private var endOfBookCallback: (any IosEndOfBookCallback)?
+    // Tracks the most recently requested cover URL so stale fetch completions are discarded.
+    private var currentArtworkUrl: String?
 
     // MARK: - IosAudioPlayerBridge
 
@@ -70,11 +75,30 @@ import Riffle
         if startAtSec > 0 {
             seekTo(positionSec: startAtSec)
         }
+
+        // Natural end-of-book: fired only when AVQueuePlayer exhausts the last item.
+        if let lastItem = items.last {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(lastItemDidFinish(_:)),
+                name: .AVPlayerItemDidPlayToEndTime,
+                object: lastItem
+            )
+        }
+    }
+
+    @objc private func lastItemDidFinish(_ notification: Notification) {
+        guard !isDisposed else { return }
+        endOfBookCallback?.onEndOfBook()
     }
 
     func play() {
         guard !isDisposed else { return }
         player?.play()
+        // Apply saved rate after play() since setting rate while paused restarts playback.
+        if pendingRate != 1.0 {
+            player?.rate = pendingRate
+        }
     }
 
     func pause() {
@@ -113,7 +137,12 @@ import Riffle
     }
 
     func setSpeed(speed: Float) {
-        player?.rate = speed > 0 ? speed : 1.0
+        let rate = speed > 0 ? speed : 1.0
+        pendingRate = rate
+        // Only apply immediately when already playing; when paused, setting rate starts playback.
+        if (player?.rate ?? 0) > 0 {
+            player?.rate = rate
+        }
     }
 
     func currentPositionSec() -> Double {
@@ -137,6 +166,10 @@ import Riffle
         playingCallback = callback
     }
 
+    func setEndOfBookCallback(callback: (any IosEndOfBookCallback)?) {
+        endOfBookCallback = callback
+    }
+
     func setNowPlayingInfo(
         title: String,
         author: String,
@@ -144,14 +177,29 @@ import Riffle
         positionSec: Double,
         coverUrl: String?
     ) {
-        let info: [String: Any] = [
+        var info: [String: Any] = [
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: author,
             MPMediaItemPropertyPlaybackDuration: durationSec,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: positionSec,
-            MPNowPlayingInfoPropertyPlaybackRate: Double(player?.rate ?? 1)
+            MPNowPlayingInfoPropertyPlaybackRate: Double(player?.rate ?? 1),
         ]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+
+        guard let urlStr = coverUrl, let url = URL(string: urlStr) else { return }
+        currentArtworkUrl = urlStr
+        let requestedUrl = urlStr
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let self, self.currentArtworkUrl == requestedUrl else { return }
+            guard let data, let uiImage = UIImage(data: data) else { return }
+            let artwork = MPMediaItemArtwork(boundsSize: uiImage.size) { _ in uiImage }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.currentArtworkUrl == requestedUrl else { return }
+                var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                updated[MPMediaItemPropertyArtwork] = artwork
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
+            }
+        }.resume()
     }
 
     func dispose() {
@@ -165,13 +213,17 @@ import Riffle
         statusObservations.forEach { $0.invalidate() }
         statusObservations.removeAll()
 
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+
         player?.pause()
         player = nil
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
 
+        currentArtworkUrl = nil
         positionCallback = nil
         playingCallback = nil
+        endOfBookCallback = nil
     }
 
     // MARK: - Simulate helpers for tests
@@ -211,16 +263,34 @@ import Riffle
     private func setupRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
         center.playCommand.addTarget { [weak self] _ in
-            self?.player?.play()
+            self?.play()
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
-            self?.player?.pause()
+            self?.pause()
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             self?.seekTo(positionSec: event.positionTime)
+            return .success
+        }
+        center.skipForwardCommand.preferredIntervals = [30]
+        center.skipForwardCommand.addTarget { [weak self] event in
+            guard let self, let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
+            let newPos = self.currentPositionSec() + event.interval
+            self.seekTo(positionSec: newPos)
+            // Emit immediately so the Kotlin state (and UI progress bar) reflects the seek at once,
+            // rather than waiting up to 0.5 s for the next periodic position tick.
+            self.positionCallback?.onPosition(positionSec: newPos)
+            return .success
+        }
+        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipBackwardCommand.addTarget { [weak self] event in
+            guard let self, let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
+            let newPos = max(0, self.currentPositionSec() - event.interval)
+            self.seekTo(positionSec: newPos)
+            self.positionCallback?.onPosition(positionSec: newPos)
             return .success
         }
     }

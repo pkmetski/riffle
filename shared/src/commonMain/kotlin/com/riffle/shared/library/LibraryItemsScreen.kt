@@ -31,7 +31,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import com.riffle.shared.SharedUiIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -54,6 +53,7 @@ import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibraryTabVisibility
+import com.riffle.shared.SharedUiIcons
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 

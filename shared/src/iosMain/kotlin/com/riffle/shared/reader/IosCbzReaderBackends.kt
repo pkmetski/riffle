@@ -101,7 +101,7 @@ internal class IosCbzRepository(
     override suspend fun downloadCbz(
         item: LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit,
-    ): CbzDownloadResult = CbzDownloadResult.Success
+    ): CbzDownloadResult = CbzDownloadResult.NetworkError(UnsupportedOperationException("CBZ offline download is not supported on iOS"))
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {}
 

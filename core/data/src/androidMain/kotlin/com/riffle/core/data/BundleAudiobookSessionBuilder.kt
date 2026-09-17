@@ -5,7 +5,6 @@ import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.ReadaloudTrack
-import java.io.File
 
 /**
  * Maps a bundle's Media Overlay [ReadaloudTrack] to a playable [AudiobookSession]: one span per
@@ -21,7 +20,7 @@ import java.io.File
  * Chapter titles are numbered ("Chapter N") — the SMIL overlay carries chapter hrefs and timings but
  * not display titles. This is the accepted v1 offline degradation.
  */
-internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundle: File): AudiobookSession? {
+internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundle: java.io.File): AudiobookSession? {
     val files = track.clips.map { it.audioSrc }.distinct()
     if (files.isEmpty()) return null
 
@@ -52,6 +51,6 @@ internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundle: File): A
         timeline = AudiobookTimeline(durationSec = totalDuration, chapters = chapters),
         serverCurrentTimeSec = 0.0,
         serverLastUpdate = 0L,
-        localZipFile = bundle,
+        localZipFilePath = bundle.absolutePath,
     )
 }

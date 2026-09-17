@@ -12,7 +12,7 @@ import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.domain.JvmAudiobookCacheRepository
+
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
@@ -50,8 +50,8 @@ class AudiobookPlayerViewModel constructor(
     navPlaylistLibraryId: String?,
     navStartAtSec: Float,
     private val audiobookRepository: AudiobookRepository,
-    private val audiobookDownloadRepository: com.riffle.core.domain.JvmAudiobookDownloadRepository,
-    private val audiobookCacheRepository: JvmAudiobookCacheRepository,
+    private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
+    private val audiobookCacheRepository: com.riffle.core.domain.AudiobookCacheRepository,
     private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
     private val libraryObserver: LibraryObserver,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
@@ -63,7 +63,7 @@ class AudiobookPlayerViewModel constructor(
     private val listeningPreferencesStore: ListeningPreferencesStore,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
-    private val readaloudAudioRepository: com.riffle.core.domain.JvmReadaloudAudioRepository,
+    private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val nowPlayingStore: NowPlayingStore,
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
     private val openReconcileTargets: com.riffle.core.sync.OpenReconcileTargets,
@@ -78,7 +78,7 @@ class AudiobookPlayerViewModel constructor(
     private val logger: Logger,
     private val playlistsRepository: com.riffle.core.domain.PlaylistsRepository,
     private val contentCacheAccessStore: ContentCacheAccessStore,
-    private val progressSweep: com.riffle.core.sync.ProgressSweep,
+    private val progressSweep: ProgressSweepRunner,
 ) : ViewModel() {
 
     private val itemId: String = navItemId
@@ -329,7 +329,7 @@ class AudiobookPlayerViewModel constructor(
                     spans = session.tracks,
                     durationSec = session.timeline.durationSec,
                     startAtSec = playbackStartSec,
-                    localZipFilePath = session.localZipFile?.absolutePath,
+                    localZipFilePath = session.localZipFilePath,
                     coverUri = item.coverUrl,
                     bookTitle = item.title,
                     chapters = session.timeline.chapters,
@@ -532,7 +532,7 @@ class AudiobookPlayerViewModel constructor(
             spans = session.tracks,
             durationSec = session.timeline.durationSec,
             startAtSec = finalSec,
-            localZipFilePath = session.localZipFile?.absolutePath,
+            localZipFilePath = session.localZipFilePath,
             coverUri = resolvedCoverUri,
             bookTitle = resolvedBookTitle,
             chapters = session.timeline.chapters,
