@@ -159,7 +159,8 @@ class LibraryFilterEngineTest {
             annotationStore = annotationStore,
             audiobookBookmarkStore = audiobookBookmarkStore,
             offlineAvailability = object : LibraryItemOfflineAvailability {
-                override fun isAvailableOffline(item: LibraryItem) = false
+                override fun isAvailableOffline(item: LibraryItem) =
+                    epubRepository.isDownloaded(item.sourceId, item.id)
             },
             seriesSource = seriesFlow,
             collectionsSource = collectionsFlow,
