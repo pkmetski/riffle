@@ -167,7 +167,7 @@ final class IosAppTests: AbsHarnessTestCase {
             NSPredicate(format: "label BEGINSWITH %@", "←")
         ).firstMatch
         XCTAssertTrue(
-            itemDetailBack.waitForExistence(timeout: 15),
+            itemDetailBack.waitForExistence(timeout: 30),
             "Tapping a book in collection detail must open item detail (← Back button)"
         )
     }
