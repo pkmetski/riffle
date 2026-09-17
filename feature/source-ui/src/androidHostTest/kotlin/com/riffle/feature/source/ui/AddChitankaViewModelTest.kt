@@ -1,4 +1,4 @@
-package com.riffle.app.feature.source.chitanka
+package com.riffle.feature.source.ui
 
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.models.SourceType

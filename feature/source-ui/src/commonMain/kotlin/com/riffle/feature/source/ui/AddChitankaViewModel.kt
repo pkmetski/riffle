@@ -1,4 +1,4 @@
-package com.riffle.app.feature.source.chitanka
+package com.riffle.feature.source.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

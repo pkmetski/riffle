@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.feature.source.ui.AddChitankaViewModel
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.core.models.SourceType
 
