@@ -216,7 +216,7 @@ class LibraryFilterEngineTest {
     // --- series ---
 
     @Test
-    fun `series passes through when no query, online`() = runTest {
+    fun `series passes through when no query and online`() = runTest {
         val engine = makeEngine()
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
         val p = engine.projection.first { it.series.isNotEmpty() }
@@ -356,7 +356,7 @@ class LibraryFilterEngineTest {
     }
 
     @Test
-    fun `allBooks default sort is addedAt descending, newest first`() = runTest {
+    fun `allBooks default sort is addedAt descending newest first`() = runTest {
         val engine = makeEngine()
         val older = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 100L)
         val middle = LibraryItem("id-B", "lib-1", "Beta", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 200L)
@@ -427,7 +427,7 @@ class LibraryFilterEngineTest {
     }
 
     @Test
-    fun `allBooks ADDED_ASC sort orders oldest first, unknown timestamps last`() = runTest {
+    fun `allBooks ADDED_ASC sort orders oldest first unknown timestamps last`() = runTest {
         val engine = makeEngine()
         val oldest = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 100L)
         val newer = LibraryItem("id-B", "lib-1", "Beta", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 500L)

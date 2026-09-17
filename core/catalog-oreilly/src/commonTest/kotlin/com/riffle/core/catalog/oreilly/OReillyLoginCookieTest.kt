@@ -18,7 +18,7 @@ class OReillyLoginCookieTest {
     }
 
     @Test
-    fun `returns null when orm-jwt absent, blank, or header null`() {
+    fun `returns null when orm-jwt absent or blank or header null`() {
         assertNull(parseOrmJwtFromCookieHeader("sessionid=abc; other=1"))
         assertNull(parseOrmJwtFromCookieHeader("orm-jwt=; sessionid=abc"))
         assertNull(parseOrmJwtFromCookieHeader(""))
