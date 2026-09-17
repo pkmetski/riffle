@@ -93,8 +93,8 @@ import coil3.compose.AsyncImage
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
-import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
-import com.riffle.app.feature.audiobook.formatCompactDuration
+import com.riffle.feature.player.CompactDurationLabelTemplates
+import com.riffle.feature.player.formatCompactDuration
 import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
@@ -103,6 +103,7 @@ import com.riffle.feature.source.ui.asAuthHeader
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.BookImportState
+import com.riffle.feature.library.listenStartAtSecForFinished
 import com.riffle.feature.library.ChaptersState
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
@@ -1443,13 +1444,6 @@ private fun FacetValue(
     )
 }
 
-/**
- * Returns 0.0 when [readingProgress] indicates a finished audiobook (so "Listen" reopens from the
- * start and auto-plays rather than being suppressed by the wasFinishedOnOpen guard), or null when
- * the book is still in progress and the normal resume path should be used.
- */
-internal fun listenStartAtSecForFinished(readingProgress: Float): Double? =
-    if (readingProgress >= 1.0f) 0.0 else null
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

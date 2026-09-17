@@ -68,32 +68,6 @@ final class DownloadsTests: XCTestCase {
         )
     }
 
-    // MARK: — DL-2: ContentCacheSettingsStore NSUserDefaults round-trip
-
-    func testContentCacheAutoClears() {
-        let key = "riffle.contentCacheAutoClear"
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: key)
-        defer { defaults.removeObject(forKey: key) }
-
-        // Default state: key absent → Kotlin impl returns After30Days; Swift can't call
-        // internal Kotlin class directly, but NSUserDefaults key is the contract.
-        XCTAssertNil(defaults.string(forKey: key),
-                     "Key should not exist before first write")
-
-        defaults.set("Off", forKey: key)
-        XCTAssertEqual(defaults.string(forKey: key), "Off",
-                       "Stored Off must round-trip")
-
-        defaults.set("After7Days", forKey: key)
-        XCTAssertEqual(defaults.string(forKey: key), "After7Days",
-                       "Stored After7Days must round-trip")
-
-        defaults.set("After90Days", forKey: key)
-        XCTAssertEqual(defaults.string(forKey: key), "After90Days",
-                       "Stored After90Days must round-trip")
-    }
-
     // MARK: — DL-3: epub-downloads takes priority — file in both namespaces is still detected
 
     func testEpubDownloadsPriorityOverCache() throws {

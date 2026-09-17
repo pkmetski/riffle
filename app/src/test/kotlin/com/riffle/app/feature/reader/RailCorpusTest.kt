@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.RailSegment
 import com.riffle.core.models.TocEntry
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json

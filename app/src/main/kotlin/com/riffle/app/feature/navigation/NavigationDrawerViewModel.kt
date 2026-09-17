@@ -16,9 +16,9 @@ import com.riffle.core.models.isReadaloud
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DownloadsCapability
-import com.riffle.app.playback.NowPlaying
+import com.riffle.feature.player.NowPlaying
 import com.riffle.app.playback.NowPlayingNavigator
-import com.riffle.app.playback.NowPlayingStore
+import com.riffle.feature.player.NowPlayingStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow

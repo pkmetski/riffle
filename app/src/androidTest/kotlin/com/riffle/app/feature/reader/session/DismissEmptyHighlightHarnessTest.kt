@@ -15,7 +15,7 @@ import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.app.feature.reader.EpubReaderViewModel
-import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.core.domain.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job

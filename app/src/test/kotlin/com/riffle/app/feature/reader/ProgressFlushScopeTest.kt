@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi

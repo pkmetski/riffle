@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.PdfTocEntry
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.session
 
 import com.riffle.app.feature.reader.EpubReaderViewModel
-import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.database.AnnotationEntity

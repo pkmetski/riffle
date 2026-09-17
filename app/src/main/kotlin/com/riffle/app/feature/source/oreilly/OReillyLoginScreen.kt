@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.riffle.app.R
+import com.riffle.core.catalog.oreilly.parseOrmJwtFromCookieHeader
 import com.riffle.core.domain.OReillyWebSourceDescriptor
 import org.koin.androidx.compose.koinViewModel
 
@@ -156,19 +157,3 @@ private fun ErrorOverlay(onRetry: () -> Unit) {
     }
 }
 
-/**
- * Extracts the `orm-jwt` value from a `CookieManager.getCookie` header string of the form
- * `"a=1; orm-jwt=<jwt>; b=2"`. Returns null when absent or blank. Top-level + internal so it's
- * unit-testable without a WebView.
- */
-internal fun parseOrmJwtFromCookieHeader(header: String?): String? {
-    if (header.isNullOrBlank()) return null
-    for (part in header.split(';')) {
-        val trimmed = part.trim()
-        if (trimmed.startsWith("orm-jwt=")) {
-            val value = trimmed.removePrefix("orm-jwt=").trim()
-            if (value.isNotBlank()) return value
-        }
-    }
-    return null
-}

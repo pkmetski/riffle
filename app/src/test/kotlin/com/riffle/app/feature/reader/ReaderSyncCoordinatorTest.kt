@@ -1,5 +1,9 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.CatalogEbookEndpoint
+import com.riffle.feature.reader.CatalogAudioEndpoint
+import com.riffle.feature.reader.ReaderSyncCoordinator
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress

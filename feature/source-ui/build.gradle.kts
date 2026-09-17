@@ -40,6 +40,7 @@ kotlin {
             implementation(project(":core:database-api"))
             api(project(":core:domain"))
             api(project(":core:models"))
+            implementation(project(":core:data"))
             implementation(project(":core:sources"))
             implementation(project(":core:sync"))
             implementation(project(":feature:settings"))
@@ -66,6 +67,7 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.junit)
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.mockk)
         }
     }
 }

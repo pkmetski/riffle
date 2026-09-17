@@ -1,5 +1,8 @@
 package com.riffle.app.feature.audiobook
 
+import com.riffle.feature.player.AUDIOBOOK_FINISHED_EPS_SEC
+import com.riffle.feature.player.audiobookResumeSec
+import com.riffle.feature.player.audiobookStartSec
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

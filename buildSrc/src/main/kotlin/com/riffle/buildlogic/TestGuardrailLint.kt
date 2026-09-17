@@ -73,4 +73,65 @@ object TestGuardrailLint {
             .filterNot { it.name in newNames || it.name in declared }
             .sortedWith(compareBy({ it.file }, { it.name }))
     }
+
+    // ── Parity mirror ─────────────────────────────────────────────────────────────────────────────
+
+    val APP_TEST_DIR = Regex("""(^|/)app/src/test/""")
+
+    /**
+     * A test class exists in app/src/test that has no counterpart in commonTest, iosTest, or the
+     * iOS XCTest suites. A "counterpart" is any file whose simple filename matches the class's
+     * filename (FooTest.kt ↔ FooTest.kt in commonTest, or FooTests.swift anywhere under
+     * iosApp/iosApp*Tests/).
+     */
+    data class ParityViolation(val appTestFile: String, val className: String) {
+        fun render(): String =
+            "$className  (app/src/test only — add a counterpart in commonTest or iosApp/*Tests/)"
+    }
+
+    /**
+     * Finds test classes newly added to `app/src/test` on this branch ([addedAppTestFiles]) that
+     * have no matching file in a counterpart location among [allCurrentTestFiles]. A skip can be
+     * declared with a `Parity-skip: <ClassName>` commit-message trailer when a test is genuinely
+     * Android-only (platform API dependency with no KMP equivalent).
+     */
+    fun checkParityMirror(
+        addedAppTestFiles: Set<String>,
+        allCurrentTestFiles: Set<String>,
+        declared: Set<String> = emptySet(),
+    ): List<ParityViolation> {
+        // Simple filenames (no path) of files in any counterpart location.
+        val counterpartNames = allCurrentTestFiles
+            .filter { isCounterpartTestFile(it) }
+            .map { it.substringAfterLast('/') }
+            .toSet()
+
+        return addedAppTestFiles
+            .filter { APP_TEST_DIR.containsMatchIn(it) && it.endsWith(".kt") }
+            .mapNotNull { file ->
+                val simpleFile = file.substringAfterLast('/')
+                val className = simpleFile.removeSuffix(".kt")
+                if (className in declared) return@mapNotNull null
+                // Accept a Kotlin commonTest/iosTest counterpart OR a Swift XCTest counterpart
+                // (XCTest convention: FooTest.kt ↔ FooTests.swift or FooTest.swift).
+                val hasCounterpart = simpleFile in counterpartNames ||
+                    "${className}s.swift" in counterpartNames ||
+                    "$simpleFile.swift".replace(".kt.swift", ".swift") in counterpartNames
+                if (hasCounterpart) null else ParityViolation(file, className)
+            }
+            .sortedBy { it.appTestFile }
+    }
+
+    /** Returns true for files in commonTest, iosTest, or iOS XCTest target directories. */
+    fun isCounterpartTestFile(path: String): Boolean {
+        return path.endsWith(".kt") && Regex("""(^|/)src/(commonTest|iosTest)/""").containsMatchIn(path) ||
+            path.endsWith(".swift") && Regex("""(^|/)iosApp/iosApp(Unit)?Tests/""").containsMatchIn(path)
+    }
+
+    /** Parses `Parity-skip: <ClassName>` trailer lines from commit messages. */
+    fun parseDeclaredParitySkips(commitMessages: String): Set<String> =
+        Regex("""^Parity-skip:\s*(.+)$""", RegexOption.MULTILINE)
+            .findAll(commitMessages)
+            .map { it.groupValues[1].trim().removeSurrounding("`") }
+            .toSet()
 }

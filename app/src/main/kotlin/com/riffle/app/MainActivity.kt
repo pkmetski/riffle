@@ -26,12 +26,12 @@ import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentFactory
-import com.riffle.app.feature.reader.ReaderStateHolder
+import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.feature.reader.VolumeKeyAction
 import com.riffle.app.feature.reader.VolumeKeyEventHandler
 import com.riffle.feature.reader.VolumeNavEvent
-import com.riffle.app.feature.reader.VolumeNavigationController
+import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.app.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed

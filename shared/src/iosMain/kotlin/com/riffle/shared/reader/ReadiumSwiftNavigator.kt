@@ -213,7 +213,8 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         )
     }
 
-    private fun String.escapeForJson() = replace("\\", "\\\\").replace("\"", "\\\"")
+    // Delegate to the shared utility in JsonStringUtils.kt (commonMain).
+    private fun String.escapeForJson() = jsonEscaped()
 
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     private fun parseSearchMatches(json: String): List<NavigatorSearchMatch> {

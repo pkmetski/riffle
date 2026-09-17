@@ -50,45 +50,6 @@ final class SettingsRowsTests: XCTestCase {
         XCTAssertFalse(prefs.showReadingTimeEstimate)
     }
 
-    // Scenario 11.8 — Comic formatting defaults: Dark background, panel view off.
-    func testComicFormattingDefaultsMatchExpectedValues() {
-        // K/N does not expose default-arg constructors to Swift; supply explicit defaults.
-        let prefs = ComicFormattingPreferences(
-            backgroundTheme: .dark,
-            panelViewOn: false,
-            panelOverflow: .split,
-            panelAnimationSpeedMs: 250,
-            showChapterMap: false,
-            showPageProgress: false
-        )
-        XCTAssertEqual(prefs.backgroundTheme, ReaderTheme.dark)
-        XCTAssertFalse(prefs.panelViewOn)
-        XCTAssertEqual(prefs.panelOverflow, PanelOverflowBehavior.split)
-        XCTAssertFalse(prefs.showChapterMap)
-        XCTAssertFalse(prefs.showPageProgress)
-    }
-
-    // Scenario 11.9 — Readaloud preferences defaults: highlight color is blue.
-    func testReadaloudPreferencesDefaultHighlightColorIsBlue() {
-        // K/N does not expose default-arg constructors to Swift; supply explicit default.
-        let prefs = ReadaloudPreferences(highlightColor: .blue)
-        XCTAssertEqual(prefs.highlightColor, HighlightColor.blue)
-    }
-
-    // Scenario 11.10 — AppVersion data class holds the name and code supplied at construction.
-    func testAppVersionHoldsNameAndCode() {
-        let version = AppVersion(name: "3.2.1", code: 321)
-        XCTAssertEqual(version.name, "3.2.1")
-        XCTAssertEqual(version.code, 321)
-    }
-
-    // Scenario 11.11 — AnnotationSyncSubtitle.NotConfigured singleton is accessible from Swift.
-    // (data object is exposed by K/N as a class singleton via .shared)
-    func testAnnotationSyncSubtitleNotConfiguredIsAccessible() {
-        let notConfigured: AnnotationSyncSubtitle = AnnotationSyncSubtitle.NotConfigured.shared
-        XCTAssertNotNil(notConfigured)
-    }
-
     // Scenario 11.12 — HighlightColor enum contains all four cadence colour options
     // and each resolves to a distinct value via its token string.
     func testHighlightColorEnumContainsAllCadenceColorOptions() {

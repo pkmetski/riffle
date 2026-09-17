@@ -2,7 +2,7 @@ package com.riffle.app.di
 
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.BuildConfig
-import com.riffle.app.feature.audiobook.AudiobookPlayerViewModel
+import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
@@ -43,14 +43,14 @@ import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceV
 import com.riffle.app.feature.settings.debug.DebugLogViewModel
 import com.riffle.app.feature.settings.dictionary.DictionaryPacksViewModel
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesViewModel
-import com.riffle.app.feature.source.chitanka.AddChitankaViewModel
+import com.riffle.feature.source.ui.AddChitankaViewModel
 import com.riffle.app.feature.source.chitanka.ChitankaBrowseViewModel
 import com.riffle.app.feature.source.chitanka.friendlyErrorMessage as chitankaFriendlyError
 import com.riffle.app.feature.source.gutenberg.AddGutenbergViewModel
 import com.riffle.app.feature.source.gutenberg.GutenbergBrowseViewModel
 import com.riffle.app.feature.source.gutenberg.friendlyErrorMessage as gutenbergFriendlyError
 import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
-import com.riffle.app.feature.source.radioes.AddRadioEsViewModel
+import com.riffle.feature.source.ui.AddRadioEsViewModel
 import com.riffle.app.feature.source.radioes.RadioEsBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel

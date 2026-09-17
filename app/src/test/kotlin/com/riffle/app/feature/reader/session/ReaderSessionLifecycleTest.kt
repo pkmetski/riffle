@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.session
 
+import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.models.Annotation
 import com.riffle.core.database.AnnotationEntity
@@ -279,7 +280,7 @@ class ReaderSessionLifecycleTest {
         cfiResolver: suspend (String) -> Locator? = { null },
         itemProgressPuller: com.riffle.core.data.ItemProgressPuller = com.riffle.core.data.NoopItemProgressPuller,
     ): Pair<ReaderSessionLifecycle, OpenReconcileTargets> {
-        val readerSyncFactory = mockk<com.riffle.app.feature.reader.ReaderSyncFactory>(relaxed = true).also {
+        val readerSyncFactory = mockk<com.riffle.feature.reader.ReaderSyncFactory>(relaxed = true).also {
             io.mockk.coEvery { it.createIfApplicable(any()) } returns null
             io.mockk.coEvery { it.createAudiobookFollowIfApplicable(any()) } returns null
         }

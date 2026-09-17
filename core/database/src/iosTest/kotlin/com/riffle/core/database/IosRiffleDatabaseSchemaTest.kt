@@ -51,15 +51,18 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun sourcesTableHasAllRequiredColumns() {
-        val cols = tableColumns("sources")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "id", "url", "isActive", "insecureConnectionAllowed",
-                    "username", "serverType", "absUserId", "type",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("url", "TEXT", true),
+                ColumnSpec("isActive", "INTEGER", true),
+                ColumnSpec("insecureConnectionAllowed", "INTEGER", true),
+                ColumnSpec("username", "TEXT", true),
+                ColumnSpec("serverType", "TEXT", true),
+                ColumnSpec("absUserId", "TEXT", false),
+                ColumnSpec("type", "TEXT", true),
             ),
-            "sources columns: $cols"
+            tableColumnSpecs("sources"),
         )
     }
 
@@ -67,14 +70,15 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun librariesTableHasAllRequiredColumns() {
-        val cols = tableColumns("libraries")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "id", "name", "mediaType", "sourceId", "isUnsupported",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("name", "TEXT", true),
+                ColumnSpec("mediaType", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("isUnsupported", "INTEGER", true),
             ),
-            "libraries columns: $cols"
+            tableColumnSpecs("libraries"),
         )
     }
 
@@ -82,18 +86,34 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun libraryItemsTableHasAllRequiredColumns() {
-        val cols = tableColumns("library_items")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "sourceId", "id", "libraryId", "title", "author", "coverUrl",
-                    "readingProgress", "ebookFileIno", "ebookFormat", "hasAudio",
-                    "audioDurationSec", "description", "seriesName", "seriesSequence",
-                    "publishedYear", "genres", "publisher", "language", "lastOpenedAt",
-                    "addedAt", "isbn", "asin", "finishedAt", "pageCount",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("libraryId", "TEXT", true),
+                ColumnSpec("title", "TEXT", true),
+                ColumnSpec("author", "TEXT", true),
+                ColumnSpec("coverUrl", "TEXT", false),
+                ColumnSpec("readingProgress", "REAL", true),
+                ColumnSpec("ebookFileIno", "TEXT", false),
+                ColumnSpec("ebookFormat", "TEXT", true),
+                ColumnSpec("hasAudio", "INTEGER", true),
+                ColumnSpec("audioDurationSec", "REAL", true),
+                ColumnSpec("description", "TEXT", false),
+                ColumnSpec("seriesName", "TEXT", false),
+                ColumnSpec("seriesSequence", "TEXT", false),
+                ColumnSpec("publishedYear", "TEXT", false),
+                ColumnSpec("genres", "TEXT", true),
+                ColumnSpec("publisher", "TEXT", false),
+                ColumnSpec("language", "TEXT", false),
+                ColumnSpec("lastOpenedAt", "INTEGER", false),
+                ColumnSpec("addedAt", "INTEGER", true),
+                ColumnSpec("isbn", "TEXT", false),
+                ColumnSpec("asin", "TEXT", false),
+                ColumnSpec("finishedAt", "INTEGER", false),
+                ColumnSpec("pageCount", "INTEGER", false),
             ),
-            "library_items columns: $cols"
+            tableColumnSpecs("library_items"),
         )
     }
 
@@ -101,14 +121,15 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun tocCacheTableHasAllRequiredColumns() {
-        val cols = tableColumns("toc_cache")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "sourceId", "itemId", "ebookFileIno", "entriesJson", "cachedAt",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("ebookFileIno", "TEXT", true),
+                ColumnSpec("entriesJson", "TEXT", true),
+                ColumnSpec("cachedAt", "INTEGER", true),
             ),
-            "toc_cache columns: $cols"
+            tableColumnSpecs("toc_cache"),
         )
     }
 
@@ -116,27 +137,28 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun playlistsTableHasAllRequiredColumns() {
-        val cols = tableColumns("playlists")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "id", "sourceId", "rootId", "name", "bookCount",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("rootId", "TEXT", true),
+                ColumnSpec("name", "TEXT", true),
+                ColumnSpec("bookCount", "INTEGER", true),
             ),
-            "playlists columns: $cols"
+            tableColumnSpecs("playlists"),
         )
     }
 
     @Test
     fun playlistItemsTableHasAllRequiredColumns() {
-        val cols = tableColumns("playlist_items")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "playlistId", "sourceId", "itemId", "orderIndex",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("playlistId", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("orderIndex", "INTEGER", true),
             ),
-            "playlist_items columns: $cols"
+            tableColumnSpecs("playlist_items"),
         )
     }
 
@@ -144,19 +166,38 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun annotationsTableHasAllRequiredColumns() {
-        val cols = tableColumns("annotations")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "id", "sourceId", "itemId", "type", "cfi", "color", "note",
-                    "textSnippet", "textBefore", "textAfter", "chapterHref", "spineIndex",
-                    "progression", "bookmarkTitle", "createdAt", "updatedAt",
-                    "originDeviceId", "lastModifiedByDeviceId", "deleted", "lastSyncedAt",
-                    "embeddedFigures", "imageHref", "imageSvg", "imageBytes",
-                    "originFontFamily", "emphasisStyles", "textSnippetHtml", "fragmentAnchor",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("type", "TEXT", true),
+                ColumnSpec("cfi", "TEXT", true),
+                ColumnSpec("color", "TEXT", true),
+                ColumnSpec("note", "TEXT", false),
+                ColumnSpec("textSnippet", "TEXT", true),
+                ColumnSpec("textBefore", "TEXT", true),
+                ColumnSpec("textAfter", "TEXT", true),
+                ColumnSpec("chapterHref", "TEXT", true),
+                ColumnSpec("spineIndex", "INTEGER", true),
+                ColumnSpec("progression", "REAL", true),
+                ColumnSpec("bookmarkTitle", "TEXT", true),
+                ColumnSpec("createdAt", "INTEGER", true),
+                ColumnSpec("updatedAt", "INTEGER", true),
+                ColumnSpec("originDeviceId", "TEXT", true),
+                ColumnSpec("lastModifiedByDeviceId", "TEXT", true),
+                ColumnSpec("deleted", "INTEGER", true),
+                ColumnSpec("lastSyncedAt", "INTEGER", true),
+                ColumnSpec("embeddedFigures", "TEXT", false),
+                ColumnSpec("imageHref", "TEXT", false),
+                ColumnSpec("imageSvg", "TEXT", false),
+                ColumnSpec("imageBytes", "TEXT", false),
+                ColumnSpec("originFontFamily", "TEXT", false),
+                ColumnSpec("emphasisStyles", "TEXT", false),
+                ColumnSpec("textSnippetHtml", "TEXT", false),
+                ColumnSpec("fragmentAnchor", "TEXT", false),
             ),
-            "annotations columns: $cols"
+            tableColumnSpecs("annotations"),
         )
     }
 
@@ -166,37 +207,53 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun seriesTableHasRequiredColumns() {
-        val cols = tableColumns("series")
-        assertTrue(
-            cols.containsAll(listOf("id", "libraryId", "name", "coverUrl", "bookCount")),
-            "series columns: $cols"
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("libraryId", "TEXT", true),
+                ColumnSpec("name", "TEXT", true),
+                ColumnSpec("coverUrl", "TEXT", false),
+                ColumnSpec("bookCount", "INTEGER", true),
+            ),
+            tableColumnSpecs("series"),
         )
     }
 
     @Test
     fun seriesItemsTableHasRequiredColumns() {
-        val cols = tableColumns("series_items")
-        assertTrue(
-            cols.containsAll(listOf("seriesId", "sourceId", "itemId", "sequenceOrder")),
-            "series_items columns: $cols"
+        assertEquals(
+            setOf(
+                ColumnSpec("seriesId", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("sequenceOrder", "REAL", false),
+            ),
+            tableColumnSpecs("series_items"),
         )
     }
 
     @Test
     fun collectionsTableHasRequiredColumns() {
-        val cols = tableColumns("collections")
-        assertTrue(
-            cols.containsAll(listOf("id", "libraryId", "name", "bookCount")),
-            "collections columns: $cols"
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("libraryId", "TEXT", true),
+                ColumnSpec("name", "TEXT", true),
+                ColumnSpec("bookCount", "INTEGER", true),
+            ),
+            tableColumnSpecs("collections"),
         )
     }
 
     @Test
     fun collectionItemsTableHasRequiredColumns() {
-        val cols = tableColumns("collection_items")
-        assertTrue(
-            cols.containsAll(listOf("collectionId", "sourceId", "itemId")),
-            "collection_items columns: $cols"
+        assertEquals(
+            setOf(
+                ColumnSpec("collectionId", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+            ),
+            tableColumnSpecs("collection_items"),
         )
     }
 
@@ -235,12 +292,16 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun readingPositionsTableHasAllRequiredColumns() {
-        val cols = tableColumns("reading_positions")
-        assertTrue(
-            cols.containsAll(
-                listOf("sourceId", "itemId", "cfi", "localUpdatedAt", "lastSyncedAt", "deleted")
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("cfi", "TEXT", true),
+                ColumnSpec("localUpdatedAt", "INTEGER", true),
+                ColumnSpec("lastSyncedAt", "INTEGER", true),
+                ColumnSpec("deleted", "INTEGER", true),
             ),
-            "reading_positions columns: $cols"
+            tableColumnSpecs("reading_positions"),
         )
     }
 
@@ -248,12 +309,16 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun audiobookPositionsTableHasAllRequiredColumns() {
-        val cols = tableColumns("audiobook_positions")
-        assertTrue(
-            cols.containsAll(
-                listOf("sourceId", "itemId", "positionSec", "localUpdatedAt", "lastSyncedAt", "deleted")
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("positionSec", "REAL", true),
+                ColumnSpec("localUpdatedAt", "INTEGER", true),
+                ColumnSpec("lastSyncedAt", "INTEGER", true),
+                ColumnSpec("deleted", "INTEGER", true),
             ),
-            "audiobook_positions columns: $cols"
+            tableColumnSpecs("audiobook_positions"),
         )
     }
 
@@ -261,18 +326,26 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun bookFormattingPreferencesTableHasAllRequiredColumns() {
-        val cols = tableColumns("book_formatting_preferences")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "sourceId", "itemId", "screenDimensionBucket",
-                    "fontSize", "theme", "fontFamily", "lineSpacing", "margins",
-                    "orientation", "showChapterMap", "coloredChapterMap",
-                    "showReadingProgressLabels", "showCurrentChapterLabel",
-                    "doublePageSpread", "justifyText", "showReadingTimeEstimate",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("screenDimensionBucket", "TEXT", true),
+                ColumnSpec("fontSize", "REAL", false),
+                ColumnSpec("theme", "TEXT", false),
+                ColumnSpec("fontFamily", "TEXT", false),
+                ColumnSpec("lineSpacing", "REAL", false),
+                ColumnSpec("margins", "REAL", false),
+                ColumnSpec("orientation", "TEXT", false),
+                ColumnSpec("showChapterMap", "INTEGER", false),
+                ColumnSpec("coloredChapterMap", "INTEGER", false),
+                ColumnSpec("showReadingProgressLabels", "INTEGER", false),
+                ColumnSpec("showCurrentChapterLabel", "INTEGER", false),
+                ColumnSpec("doublePageSpread", "INTEGER", false),
+                ColumnSpec("justifyText", "INTEGER", false),
+                ColumnSpec("showReadingTimeEstimate", "INTEGER", false),
             ),
-            "book_formatting_preferences columns: $cols"
+            tableColumnSpecs("book_formatting_preferences"),
         )
     }
 
@@ -280,15 +353,16 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun bookComicFormattingPreferencesTableHasAllRequiredColumns() {
-        val cols = tableColumns("book_comic_formatting_preferences")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "source_id", "item_id", "background_theme",
-                    "panel_view_on", "panel_overflow", "panel_animation_speed_ms",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("source_id", "TEXT", true),
+                ColumnSpec("item_id", "TEXT", true),
+                ColumnSpec("background_theme", "TEXT", false),
+                ColumnSpec("panel_view_on", "INTEGER", false),
+                ColumnSpec("panel_overflow", "TEXT", false),
+                ColumnSpec("panel_animation_speed_ms", "INTEGER", false),
             ),
-            "book_comic_formatting_preferences columns: $cols"
+            tableColumnSpecs("book_comic_formatting_preferences"),
         )
     }
 
@@ -301,41 +375,47 @@ class IosRiffleDatabaseSchemaTest {
 
     @Test
     fun localFilesFoldersTableHasAllRequiredColumns() {
-        val cols = tableColumns("local_files_folders")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "sourceId", "treeUri", "displayName", "addedAtEpochMs", "libraryId",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("treeUri", "TEXT", true),
+                ColumnSpec("displayName", "TEXT", true),
+                ColumnSpec("addedAtEpochMs", "INTEGER", true),
+                ColumnSpec("libraryId", "TEXT", true),
             ),
-            "local_files_folders columns: $cols"
+            tableColumnSpecs("local_files_folders"),
         )
     }
 
     @Test
     fun localFilesFilesTableHasAllRequiredColumns() {
-        val cols = tableColumns("local_files_files")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "sourceId", "sourceItemId", "originalUri", "copiedPath", "coverPath",
-                    "format", "sizeBytes", "mtimeEpochMs", "lastSeenAtEpochMs", "displayName",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("sourceItemId", "TEXT", true),
+                ColumnSpec("originalUri", "TEXT", true),
+                ColumnSpec("copiedPath", "TEXT", true),
+                ColumnSpec("coverPath", "TEXT", false),
+                ColumnSpec("format", "TEXT", true),
+                ColumnSpec("sizeBytes", "INTEGER", true),
+                ColumnSpec("mtimeEpochMs", "INTEGER", true),
+                ColumnSpec("lastSeenAtEpochMs", "INTEGER", true),
+                ColumnSpec("displayName", "TEXT", true),
             ),
-            "local_files_files columns: $cols"
+            tableColumnSpecs("local_files_files"),
         )
     }
 
     @Test
     fun localFilesFileFoldersTableHasAllRequiredColumns() {
-        val cols = tableColumns("local_files_file_folders")
-        assertTrue(
-            cols.containsAll(
-                listOf(
-                    "sourceId", "sourceItemId", "folderTreeUri", "lastSeenAtEpochMs",
-                )
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("sourceItemId", "TEXT", true),
+                ColumnSpec("folderTreeUri", "TEXT", true),
+                ColumnSpec("lastSeenAtEpochMs", "INTEGER", true),
             ),
-            "local_files_file_folders columns: $cols"
+            tableColumnSpecs("local_files_file_folders"),
         )
     }
 
@@ -528,13 +608,32 @@ class IosRiffleDatabaseSchemaTest {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private fun insertSource(id: String) {
-        driver.execute(
+    /** Name + SQLite type + NOT NULL constraint for a single column. */
+    private data class ColumnSpec(val name: String, val type: String, val notNull: Boolean)
+
+    /**
+     * Returns the full [ColumnSpec] set for [table] by querying PRAGMA table_info.
+     * PRAGMA columns: cid(0), name(1), type(2), notnull(3), dflt_value(4), pk(5).
+     */
+    private fun tableColumnSpecs(table: String): Set<ColumnSpec> =
+        driver.executeQuery(
             null,
-            "INSERT OR IGNORE INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, type) VALUES (?, '', 0, 0, '', 'AUDIOBOOKSHELF', 'ABS')",
-            1,
-        ) { bindString(0, id) }
-    }
+            "PRAGMA table_info($table)",
+            { cursor ->
+                val specs = mutableSetOf<ColumnSpec>()
+                while (cursor.next().value) {
+                    specs.add(
+                        ColumnSpec(
+                            name = cursor.getString(1)!!,
+                            type = cursor.getString(2) ?: "",
+                            notNull = cursor.getLong(3) == 1L,
+                        )
+                    )
+                }
+                QueryResult.Value(specs)
+            },
+            0,
+        ).value
 
     private fun tableColumns(table: String): Set<String> =
         driver.executeQuery(
@@ -559,4 +658,12 @@ class IosRiffleDatabaseSchemaTest {
             },
             0,
         ).value
+
+    private fun insertSource(id: String) {
+        driver.execute(
+            null,
+            "INSERT OR IGNORE INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, type) VALUES (?, '', 0, 0, '', 'AUDIOBOOKSHELF', 'ABS')",
+            1,
+        ) { bindString(0, id) }
+    }
 }

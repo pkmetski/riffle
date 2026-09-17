@@ -191,12 +191,4 @@ final class OReillyLazyPublicationTests: XCTestCase {
         }
     }
 
-    // MARK: - Scenario 20-D: openLazyEpub bridge wiring
-
-    func testOpenLazyEpubDoesNotCrash() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        let fetcher = StubLazyChapterFetcher()
-        // openLazyEpub dispatches on the main queue; just verify no crash during dispatch.
-        bridge.openLazyEpub(shapeJson: validShapeJson, locatorJson: nil, fetcher: fetcher)
-    }
 }

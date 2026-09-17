@@ -1,15 +1,16 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.audiobook.AudiobookHandoffState
-import com.riffle.app.feature.reader.AudiobookFollow
-import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.feature.player.AudiobookHandoffState
+
+import com.riffle.feature.reader.AudiobookFollow
+import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.app.playback.NowPlayingStore
+import com.riffle.feature.player.NowPlayingStore
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.models.AudioIdentity

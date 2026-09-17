@@ -52,6 +52,8 @@ import com.riffle.app.feature.audio.formatHms
 import com.riffle.app.feature.reader.CornerBookmarkIndicator
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.feature.player.AudiobookPlayerEvent
+import com.riffle.feature.player.AudiobookPlayerViewModel
+import com.riffle.feature.player.CompactDurationLabelTemplates
 import com.riffle.feature.player.buildAudiobookFacts
 
 /**

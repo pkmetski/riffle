@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.controllers
 
+import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.core.domain.VolumeKeyPreferencesStore

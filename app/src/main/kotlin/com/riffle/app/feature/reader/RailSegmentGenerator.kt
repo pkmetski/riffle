@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.RailSegment
 
 // The rail-segment logic has moved to feature:reader (commonMain, shared with iOS). These
 // forwarders keep the historical com.riffle.app.feature.reader entry points working unchanged.

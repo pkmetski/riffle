@@ -13,8 +13,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.radioes.RadioEsHttpException
-import java.io.IOException
-import java.net.UnknownHostException
+import com.riffle.core.catalog.radioes.radioEsFriendlyErrorMessage
 
 class RadioEsBrowseViewModel constructor(
     savedStateHandle: SavedStateHandle,
@@ -41,16 +40,3 @@ class RadioEsBrowseViewModel constructor(
     pageSize = 20,
     friendlyError = ::radioEsFriendlyErrorMessage,
 )
-
-internal fun radioEsFriendlyErrorMessage(t: Throwable): String {
-    val chain = generateSequence(t) { it.cause }.toList()
-    return when {
-        chain.any { it is UnknownHostException } ->
-            "You appear to be offline. Connect to the internet and try again."
-        chain.any { it is IOException } ->
-            "Couldn't reach radio.es. Check your connection and try again."
-        chain.any { it is RadioEsHttpException } ->
-            "Couldn't reach radio.es. Check your connection and try again."
-        else -> t.message ?: t::class.simpleName ?: "Error"
-    }
-}

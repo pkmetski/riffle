@@ -2,7 +2,6 @@ package com.riffle.core.data.di
 
 import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
-import com.riffle.core.data.IosAppThemeStoreImpl
 import com.riffle.core.data.IosAudiobookPositionStoreImpl
 import com.riffle.core.data.IosBookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
@@ -19,10 +18,8 @@ import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosNoOpReadaloudResumeStore
 import com.riffle.core.data.IosReadaloudPreferencesStoreImpl
 import com.riffle.core.data.IosReadingPositionStoreImpl
-import com.riffle.core.data.IosReadingSpeedStoreImpl
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
-import com.riffle.core.data.IosWakeLockPreferencesStoreImpl
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
 import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
@@ -95,13 +92,16 @@ val iosDataModule = module {
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
     single<LibraryMutator> { IosLibraryMutatorImpl(get<LibraryItemDao>(), get<SourceRepository>(), get<Clock>()) }
 
-    single<AppThemeStore> { IosAppThemeStoreImpl() }
+    // These three are unified with Android via the PreferenceStore seam in commonMain.
+    // Fully-qualified to disambiguate from the domain interfaces of the same name.
+    single<AppThemeStore> { com.riffle.core.data.AppThemeStore() }
+    single<ReadingSpeedStore> { com.riffle.core.data.ReadingSpeedStore() }
+    single<WakeLockPreferencesStore> { com.riffle.core.data.WakeLockPreferencesStore() }
+
     single<CoverGridDensityStore> { IosCoverGridDensityStoreImpl() }
     single<LibraryFilterPreferencesStore> { IosLibraryFilterPreferencesStoreImpl() }
     single<LibraryOrderPreferencesStore> { IosLibraryOrderPreferencesStoreImpl() }
     single<ListeningPreferencesStore> { IosListeningPreferencesStoreImpl() }
-    single<ReadingSpeedStore> { IosReadingSpeedStoreImpl() }
-    single<WakeLockPreferencesStore> { IosWakeLockPreferencesStoreImpl() }
     single<VolumeKeyPreferencesStore> { IosVolumeKeyPreferencesStoreImpl() }
     single<ReadaloudPreferencesStore> { IosReadaloudPreferencesStoreImpl() }
     single<DeveloperOptionsRepository> { IosDeveloperOptionsRepositoryImpl() }
