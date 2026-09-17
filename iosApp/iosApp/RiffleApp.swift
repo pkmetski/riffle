@@ -13,6 +13,9 @@ struct RiffleApp: App {
             audioPlayerBridgeFactory: IosAudioPlayerBridgeFactoryImpl(),
             pdfNavigatorBridgeFactory: PdfKitNavigatorBridgeFactoryImpl()
         )
+        // UI-test harness: add a stub source through the production authenticate → commit path so
+        // tests start on the library home without driving the add-source screens (no-op otherwise).
+        IosTestSourceSeederKt.seedTestSourceFromLaunchArguments()
     }
     var body: some Scene {
         WindowGroup {

@@ -69,21 +69,18 @@ final class AddKomgaSourceFlowTests: XCTestCase {
             .matching(NSPredicate(format: "label BEGINSWITH 'https://'"))
             .firstMatch
         XCTAssertTrue(schemeButton.waitForExistence(timeout: 10), "Credential form must show the scheme selector")
-        schemeButton.tap()
-        let httpOption = app.buttons["http://"].exists
-            ? app.buttons["http://"]
-            : app.staticTexts.matching(NSPredicate(format: "label == 'http://'")).firstMatch
-        XCTAssertTrue(httpOption.waitForExistence(timeout: 5))
-        httpOption.tap()
 
-        let host = komgaServer.baseUrl.replacingOccurrences(of: "http://", with: "")
-        fill(fieldLabeled: "Source URL", with: host)
+        // Type the full URL including "http://"; the ViewModel's updateHost() auto-detects the
+        // scheme and moves it into the scheme button — the same path AddAbsSourceFlowTests uses.
+        // Driving the DropdownMenu through XCTest is flaky (Compose accessibility interaction bug)
+        // and intermittently left the form with an empty field and a disabled Connect button.
+        fill(fieldLabeled: "Source URL", with: komgaServer.baseUrl)
         fill(fieldLabeled: "Username", with: "test@test.test")
         fill(fieldLabeled: "Password", with: "test")
 
         let connect = revealConnectButton(in: app)
         XCTAssertTrue(connect.exists, "Connect button must be reachable once fields are filled")
-        XCTAssertTrue(connect.isEnabled)
+        XCTAssertTrue(connect.isEnabled, "Connect must be enabled once all fields are filled")
         connect.tap()
 
         if app.buttons["Connect anyway"].waitForExistence(timeout: 10) {

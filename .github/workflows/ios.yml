@@ -159,8 +159,11 @@ jobs:
             feature/source/build/reports/tests/
           if-no-files-found: ignore
 
-      - name: Assemble Riffle XCFramework
-        run: ./gradlew assembleRiffleDebugXCFramework
+      # Only the simulator slice is needed here: xcodebuild's embed phase links from
+      # shared/build/bin/iosSimulatorArm64/debugFramework. assembleRiffleDebugXCFramework also
+      # linked the arm64 device framework (~5 min) that nothing in this job uses.
+      - name: Link Riffle simulator framework
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Select and pre-boot simulator
         run: |
@@ -303,8 +306,11 @@ jobs:
           restore-keys: |
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
-      - name: Assemble Riffle XCFramework
-        run: ./gradlew assembleRiffleDebugXCFramework
+      # Only the simulator slice is needed here: xcodebuild's embed phase links from
+      # shared/build/bin/iosSimulatorArm64/debugFramework. assembleRiffleDebugXCFramework also
+      # linked the arm64 device framework (~5 min) that nothing in this job uses.
+      - name: Link Riffle simulator framework
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Select and pre-boot simulator
         run: |
