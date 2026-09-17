@@ -164,17 +164,35 @@ jobs:
 
       - name: Select and pre-boot simulator
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
+          # Prefer the simulator runtime that matches the selected Xcode's iOS SDK. The runner image
+          # also carries newer runtimes (e.g. iOS 26.x for Xcode 26); pairing Xcode 16.4 with an
+          # iOS 26 device is unsupported and produced clone launch failures ("Failed to launch app
+          # with identifier ...xctrunner") that serialised the whole suite onto one clone.
+          SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          UDID=$(xcrun simctl list devices available -j | SDK_VERSION="$SDK_VERSION" python3 -c "
+          import json, os, re, sys
           data = json.load(sys.stdin)
-          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+          sdk = os.environ['SDK_VERSION']
+          def version(key):
+            m = re.search(r'iOS-(\d+)-(\d+)', key)
+            return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          sdk_major = int(sdk.split('.')[0])
+          keys = [k for k in data['devices'] if 'iOS' in k]
+          exact = [k for k in keys if version(k) == tuple(int(x) for x in sdk.split('.')[:2])]
+          same_major = [k for k in keys if version(k)[0] == sdk_major]
+          ordered = exact + sorted(set(same_major) - set(exact), key=version, reverse=True) + sorted(set(keys) - set(same_major), key=version, reverse=True)
+          for runtime_key in ordered:
             for d in data['devices'][runtime_key]:
               if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
-                print(d['udid']); exit()
+                print(d['udid'], runtime_key, d['name'], sep='|'); sys.exit()
           ")
+          echo "Selected simulator: $UDID (SDK $SDK_VERSION)"
+          UDID=${UDID%%|*}
           echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
+          # Parallel testing boots clones of this device; hand the runner's cores to them.
+          xcrun simctl shutdown "$UDID"
 
       - name: Run XCTest unit tests (iosAppUnitTests)
         # Riffle.framework is a static K/N framework that the KMP Embed Framework script phase
@@ -290,20 +308,40 @@ jobs:
 
       - name: Select and pre-boot simulator
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
+          # Prefer the simulator runtime that matches the selected Xcode's iOS SDK. The runner image
+          # also carries newer runtimes (e.g. iOS 26.x for Xcode 26); pairing Xcode 16.4 with an
+          # iOS 26 device is unsupported and produced clone launch failures ("Failed to launch app
+          # with identifier ...xctrunner") that serialised the whole suite onto one clone.
+          SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          UDID=$(xcrun simctl list devices available -j | SDK_VERSION="$SDK_VERSION" python3 -c "
+          import json, os, re, sys
           data = json.load(sys.stdin)
-          for runtime_key in sorted(data['devices'].keys(), reverse=True):
+          sdk = os.environ['SDK_VERSION']
+          def version(key):
+            m = re.search(r'iOS-(\d+)-(\d+)', key)
+            return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          sdk_major = int(sdk.split('.')[0])
+          keys = [k for k in data['devices'] if 'iOS' in k]
+          exact = [k for k in keys if version(k) == tuple(int(x) for x in sdk.split('.')[:2])]
+          same_major = [k for k in keys if version(k)[0] == sdk_major]
+          ordered = exact + sorted(set(same_major) - set(exact), key=version, reverse=True) + sorted(set(keys) - set(same_major), key=version, reverse=True)
+          for runtime_key in ordered:
             for d in data['devices'][runtime_key]:
               if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
-                print(d['udid']); exit()
+                print(d['udid'], runtime_key, d['name'], sep='|'); sys.exit()
           ")
+          echo "Selected simulator: $UDID (SDK $SDK_VERSION)"
+          UDID=${UDID%%|*}
           echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
           # Erase before boot to avoid stale data-migration state that causes xcodebuild to hang.
           xcrun simctl shutdown "$UDID" 2>/dev/null || true
           xcrun simctl erase "$UDID"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          # Parallel testing boots two clones of this device. Leaving the original booted makes
+          # three simulators compete for the runner's three cores and has stalled app launch for
+          # 10+ minutes; the warm-up above is enough, so hand the cores to the clones.
+          xcrun simctl shutdown "$UDID"
 
       - name: Run iOS harness tests
         # Code signing stays enabled (ad-hoc "Sign to Run Locally", no team needed on the
