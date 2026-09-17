@@ -2,6 +2,10 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.ProgressFlushScope
+import com.riffle.feature.reader.RailSegment
+import com.riffle.feature.reader.ReaderStateHolder
+import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.VolumeNavEvent
 
 import com.riffle.core.domain.epubCfiToSpineIndex
@@ -12,8 +16,8 @@ import androidx.compose.ui.unit.IntRect
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.feature.audiobook.AudiobookHandoffState
-import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
+import com.riffle.feature.player.AudiobookHandoffState
+import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.core.data.ReadaloudSidecarStore
@@ -286,7 +290,7 @@ class EpubReaderViewModel constructor(
     private val annotationStore: AnnotationStore,
     private val emphasisPreferencesStore: com.riffle.core.domain.EmphasisPreferencesStore,
     private val annotationSyncController: com.riffle.core.data.AnnotationSyncController,
-    private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
+    private val nowPlayingStore: com.riffle.feature.player.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val readingSpeedStore: ReadingSpeedStore,
@@ -297,7 +301,7 @@ class EpubReaderViewModel constructor(
     private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
     private val wakeLockControllerFactory: com.riffle.app.feature.reader.controllers.WakeLockController.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
-    private val cadenceController: com.riffle.app.feature.reader.cadence.CadenceController,
+    private val cadenceController: com.riffle.feature.reader.cadence.CadenceController,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
@@ -730,7 +734,7 @@ class EpubReaderViewModel constructor(
         logger.d(com.riffle.core.logging.LogChannel.Cadence) {
             "VM.onCadenceChapterTokenised chapterQuotes=${quotes.size} totalQuotes=${merged.size}"
         }
-        val source = com.riffle.app.feature.reader.cadence.DomSentenceSource().apply {
+        val source = com.riffle.feature.reader.cadence.DomSentenceSource().apply {
             supplyResult(merged, mergedHrefs)
         }
         viewModelScope.launch {

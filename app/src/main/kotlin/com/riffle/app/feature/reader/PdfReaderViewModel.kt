@@ -1,12 +1,18 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.RailSegment
+import com.riffle.feature.reader.ReaderStateHolder
+import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.buildPdfRailSegments
+import com.riffle.feature.reader.findActivePdfSegmentIndex
+import com.riffle.feature.reader.pdfProgressionWithinActiveSegment
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
+import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore

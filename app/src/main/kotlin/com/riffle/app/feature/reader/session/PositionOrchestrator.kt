@@ -2,7 +2,7 @@
 
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.app.feature.reader.computeTotalProgression
 import com.riffle.core.domain.ReadingPositionStore
 import kotlinx.coroutines.CoroutineScope

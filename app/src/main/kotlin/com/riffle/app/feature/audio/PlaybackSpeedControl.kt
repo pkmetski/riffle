@@ -27,7 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.riffle.app.feature.readersettings.PlaybackSpeed
+import com.riffle.feature.player.PlaybackSpeed
 
 private val SHEET_PRESETS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f, 3f)
 

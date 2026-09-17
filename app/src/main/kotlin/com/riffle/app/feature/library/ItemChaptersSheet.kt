@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
-import com.riffle.app.feature.audiobook.formatCompactDuration
+import com.riffle.feature.player.CompactDurationLabelTemplates
+import com.riffle.feature.player.formatCompactDuration
 import com.riffle.core.domain.AudiobookChapter
 import kotlin.math.roundToInt
 

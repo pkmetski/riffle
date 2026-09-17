@@ -93,8 +93,8 @@ import coil3.compose.AsyncImage
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
-import com.riffle.app.feature.audiobook.CompactDurationLabelTemplates
-import com.riffle.app.feature.audiobook.formatCompactDuration
+import com.riffle.feature.player.CompactDurationLabelTemplates
+import com.riffle.feature.player.formatCompactDuration
 import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape

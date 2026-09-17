@@ -68,7 +68,7 @@ import coil3.request.ImageRequest
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.feature.player.SleepTimerMode
 import com.riffle.feature.player.formatCountdown
-import com.riffle.app.feature.readersettings.PlaybackSpeed
+import com.riffle.feature.player.PlaybackSpeed
 
 /**
  * How far down (as a fraction of the icon size) to nudge the "15"/"30" interval number so it lands in
