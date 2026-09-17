@@ -525,7 +525,14 @@ object ColumnSnap {
             "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
             "snap();" +
             "var rangeDone=rangeMatched&&rangeStable>=60;" +
-            "var ordinaryDone=!focusAnnotationId&&!rangeMatched&&stable>=3&&frames>=2;" +
+            // Don't declare done until scrollWidth > innerWidth — that's Readium's signal that
+            // multicol layout has been applied. Without this guard, the loop can exit in the
+            // pre-multicol window (scrollWidth still equals innerWidth), the progression/element
+            // snap runs with incorrect layout, and multicol then expands the chapter leaving the
+            // reader on the wrong column permanently. The fallback (frames >= 24) handles the rare
+            // case of a single-page chapter where scrollWidth never grows past innerWidth.
+            "var multicolReady=se.scrollWidth>window.innerWidth||frames>=24;" +
+            "var ordinaryDone=!focusAnnotationId&&!rangeMatched&&stable>=3&&frames>=2&&multicolReady;" +
             "var cap=focusAnnotationId?600:72;" +
             "if(rangeDone||ordinaryDone||frames++>cap){" +
             "snap();window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=null;return;}" +
