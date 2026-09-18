@@ -1,5 +1,6 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LocalFilesFileDao
@@ -15,7 +16,6 @@ import kotlinx.coroutines.withContext
 import platform.posix.fclose
 import platform.posix.fopen
 import platform.posix.fread
-import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
 class IosLocalFilesScanner(
@@ -26,6 +26,7 @@ class IosLocalFilesScanner(
     private val walker: IosFolderWalker,
     private val copyIn: IosCopyInService,
     private val dispatchers: DispatcherProvider,
+    private val clock: Clock,
 ) {
 
     data class ScanReport(val added: Int, val refreshed: Int, val removed: Int, val failures: List<ScanFailure>,)
@@ -33,7 +34,7 @@ class IosLocalFilesScanner(
     data class ScanFailure(val displayName: String, val reason: String)
 
     suspend fun scan(sourceId: String): ScanReport = withContext(dispatchers.io) {
-        val scanStart = nowMs()
+        val scanStart = clock.nowMs()
         val folders = folderDao.forSource(sourceId)
         var added = 0
         var refreshed = 0
@@ -170,8 +171,6 @@ class IosLocalFilesScanner(
             fclose(f)
         }
     }
-
-    private fun nowMs(): Long = time(null).toLong() * 1000L
 
     companion object {
         private const val HEAD_BYTES = 64 * 1024L

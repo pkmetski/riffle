@@ -23,6 +23,8 @@ import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
+import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
+import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSweepEnqueuer
@@ -190,8 +192,6 @@ import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
-import com.riffle.shared.settings.IosNoOpLocalFilesFolderRepository
-import com.riffle.shared.settings.IosNoOpLocalFilesScannerInterface
 import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -454,8 +454,19 @@ private fun iosLibraryModule(
     single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
     single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
     single<AnnotationSyncConfigStore> { IosNoOpAnnotationSyncConfigStore }
-    single<LocalFilesScannerInterface> { IosNoOpLocalFilesScannerInterface }
-    single<LocalFilesFolderRepositoryInterface> { IosNoOpLocalFilesFolderRepository }
+    single<LocalFilesScannerInterface> {
+        val scanner = get<IosLocalFilesScanner>()
+        object : LocalFilesScannerInterface {
+            override suspend fun scan(sourceId: String) { scanner.scan(sourceId) }
+        }
+    }
+    single<LocalFilesFolderRepositoryInterface> {
+        val folderRepo = get<IosLocalFilesFolderRepository>()
+        object : LocalFilesFolderRepositoryInterface {
+            override suspend fun removeFolder(sourceId: String, treeUri: String) =
+                folderRepo.removeFolder(sourceId, treeUri)
+        }
+    }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
     single {
         val bundle = NSBundle.mainBundle

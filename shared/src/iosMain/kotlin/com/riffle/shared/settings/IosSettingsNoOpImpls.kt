@@ -11,8 +11,6 @@ import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
-import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
-import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.models.CrashReport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,14 +51,6 @@ internal object IosNoOpAnnotationSyncConfigStore : AnnotationSyncConfigStore {
     override fun observe(): StateFlow<AnnotationSyncConfig?> = MutableStateFlow(null)
     override suspend fun save(config: AnnotationSyncConfig) {}
     override suspend fun clear() {}
-}
-
-internal object IosNoOpLocalFilesScannerInterface : LocalFilesScannerInterface {
-    override suspend fun scan(sourceId: String) {}
-}
-
-internal object IosNoOpLocalFilesFolderRepository : LocalFilesFolderRepositoryInterface {
-    override suspend fun removeFolder(sourceId: String, treeUri: String) {}
 }
 
 internal object IosNoOpLocalFilesFolderHealthChecker : LocalFilesFolderHealthCheckerInterface {

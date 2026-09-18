@@ -1,5 +1,6 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
@@ -7,13 +8,13 @@ import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSUUID
-import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
 class IosLocalFilesFolderRepository(
     private val folderDao: LocalFilesFolderDao,
     private val libraryDao: LibraryDao,
     private val fileFolderDao: LocalFilesFileFolderDao,
+    private val clock: Clock,
 ) {
 
     suspend fun addFolder(sourceId: String, folderUri: FolderUri): String {
@@ -26,7 +27,7 @@ class IosLocalFilesFolderRepository(
                 sourceId = sourceId,
                 treeUri = uriStr,
                 displayName = displayName,
-                addedAtEpochMs = existing?.addedAtEpochMs ?: nowMs(),
+                addedAtEpochMs = existing?.addedAtEpochMs ?: clock.nowMs(),
                 libraryId = libraryId,
             ),
         )
@@ -42,8 +43,6 @@ class IosLocalFilesFolderRepository(
         folderDao.delete(sourceId, treeUri)
         folder?.let { libraryDao.deleteById(sourceId, it.libraryId) }
     }
-
-    private fun nowMs(): Long = time(null).toLong() * 1000L
 
     companion object {
         const val LOCAL_FILES_LIBRARY_ID_PREFIX = "local:folder:"

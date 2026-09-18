@@ -75,8 +75,8 @@ val iosDataModule = module {
     single<FolderPickerInterface> { IosFolderPicker() }
     single { IosFolderWalker(get()) }
     single { IosCopyInService(get()) }
-    single { IosLocalFilesScanner(get(), get(), get(), get(), get(), get(), get()) }
-    single { IosLocalFilesFolderRepository(get(), get(), get()) }
+    single { IosLocalFilesScanner(get(), get(), get(), get(), get(), get(), get(), get()) }
+    single { IosLocalFilesFolderRepository(get(), get(), get(), get()) }
     single<LocalFilesInstallerInterface> { IosLocalFilesSourceInstaller(get(), get(), get()) }
     single<DeviceIdStore> { IosDeviceIdStoreImpl() }
     single<ColorPageDecoder> { IosColorPageDecoder() }
