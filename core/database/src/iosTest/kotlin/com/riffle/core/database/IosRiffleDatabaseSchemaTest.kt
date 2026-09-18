@@ -4,10 +4,25 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import co.touchlab.sqliter.DatabaseFileContext
+import com.riffle.core.database.dao.IosAudioPlaybackPreferencesDao
+import com.riffle.core.database.dao.IosAudiobookBookmarkDao
+import com.riffle.core.database.dao.IosAudiobookChapterCacheDao
 import com.riffle.core.database.dao.IosAudiobookPositionDao
 import com.riffle.core.database.dao.IosBookComicFormattingPreferencesDao
 import com.riffle.core.database.dao.IosBookFormattingPreferencesDao
+import com.riffle.core.database.dao.IosCoverGridScaleDao
+import com.riffle.core.database.dao.IosCrossEpubIndexDao
+import com.riffle.core.database.dao.IosDictionaryPackDao
+import com.riffle.core.database.dao.IosLocalFileMetadataOverrideDao
+import com.riffle.core.database.dao.IosLookupHistoryDao
+import com.riffle.core.database.dao.IosPublicationMetricsCacheDao
+import com.riffle.core.database.dao.IosReadaloudCandidateDao
+import com.riffle.core.database.dao.IosReadaloudDismissalDao
+import com.riffle.core.database.dao.IosReadaloudLinkDao
+import com.riffle.core.database.dao.IosReadaloudResumePositionDao
 import com.riffle.core.database.dao.IosReadingPositionDao
+import com.riffle.core.database.dao.IosRemoteItemFreshnessDao
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSUUID
 import kotlin.test.AfterTest
@@ -266,6 +281,10 @@ class IosRiffleDatabaseSchemaTest {
             "local_files_folders", "local_files_files", "local_files_file_folders",
             "reading_positions", "audiobook_positions",
             "book_formatting_preferences", "book_comic_formatting_preferences",
+            "readaloud_links", "readaloud_candidates", "readaloud_dismissals", "cross_epub_index",
+            "readaloud_resume_positions", "audio_playback_preferences", "audiobook_bookmarks",
+            "audiobook_chapter_cache", "local_file_metadata_overrides", "remote_item_freshness",
+            "publication_metrics_cache", "dictionary_packs", "lookup_history", "cover_grid_scale",
         )
         val actual = allTableNames()
         val missing = expected - actual
@@ -282,10 +301,219 @@ class IosRiffleDatabaseSchemaTest {
             "local_files_folders", "local_files_files", "local_files_file_folders",
             "reading_positions", "audiobook_positions",
             "book_formatting_preferences", "book_comic_formatting_preferences",
+            "readaloud_links", "readaloud_candidates", "readaloud_dismissals", "cross_epub_index",
+            "readaloud_resume_positions", "audio_playback_preferences", "audiobook_bookmarks",
+            "audiobook_chapter_cache", "local_file_metadata_overrides", "remote_item_freshness",
+            "publication_metrics_cache", "dictionary_packs", "lookup_history", "cover_grid_scale",
         )
         val actual = allTableNames()
         val unknown = actual - knownTables
         assertTrue(unknown.isEmpty(), "Unexpected tables created by DDL: $unknown")
+    }
+
+    // ── Tables added by issue #1057 (formerly no-op DAOs) ─────────────────────
+
+    @Test
+    fun readaloudLinksTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("absSourceId", "TEXT", true),
+                ColumnSpec("absLibraryItemId", "TEXT", true),
+                ColumnSpec("storytellerSourceId", "TEXT", true),
+                ColumnSpec("storytellerBookId", "TEXT", true),
+                ColumnSpec("state", "TEXT", true),
+                ColumnSpec("userConfirmed", "INTEGER", true),
+                ColumnSpec("createdAt", "INTEGER", true),
+                ColumnSpec("updatedAt", "INTEGER", true),
+                ColumnSpec("identityResult", "TEXT", true),
+            ),
+            tableColumnSpecs("readaloud_links"),
+        )
+    }
+
+    @Test
+    fun readaloudCandidatesTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("storytellerSourceId", "TEXT", true),
+                ColumnSpec("storytellerBookId", "TEXT", true),
+                ColumnSpec("absSourceId", "TEXT", true),
+                ColumnSpec("absLibraryItemId", "TEXT", true),
+                ColumnSpec("score", "REAL", true),
+            ),
+            tableColumnSpecs("readaloud_candidates"),
+        )
+    }
+
+    @Test
+    fun readaloudDismissalsTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("storytellerSourceId", "TEXT", true),
+                ColumnSpec("storytellerBookId", "TEXT", true),
+                ColumnSpec("scope", "TEXT", true),
+                ColumnSpec("absSourceId", "TEXT", true),
+                ColumnSpec("absLibraryItemId", "TEXT", true),
+            ),
+            tableColumnSpecs("readaloud_dismissals"),
+        )
+    }
+
+    @Test
+    fun crossEpubIndexTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("absEpubChecksum", "TEXT", true),
+                ColumnSpec("storytellerEpubChecksum", "TEXT", true),
+                ColumnSpec("perChapterMapsBlob", "TEXT", true),
+                ColumnSpec("builtAt", "INTEGER", true),
+            ),
+            tableColumnSpecs("cross_epub_index"),
+        )
+    }
+
+    @Test
+    fun readaloudResumePositionsTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("href", "TEXT", true),
+                ColumnSpec("progression", "REAL", false),
+                ColumnSpec("fragmentRef", "TEXT", false),
+                ColumnSpec("localUpdatedAt", "INTEGER", true),
+            ),
+            tableColumnSpecs("readaloud_resume_positions"),
+        )
+    }
+
+    @Test
+    fun audioPlaybackPreferencesTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("bookId", "TEXT", true),
+                ColumnSpec("speed", "REAL", false),
+            ),
+            tableColumnSpecs("audio_playback_preferences"),
+        )
+    }
+
+    @Test
+    fun audiobookBookmarksTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "TEXT", true),
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("positionSec", "REAL", true),
+                ColumnSpec("title", "TEXT", true),
+                ColumnSpec("createdAt", "INTEGER", true),
+                ColumnSpec("localUpdatedAt", "INTEGER", true),
+                ColumnSpec("lastSyncedAt", "INTEGER", true),
+                ColumnSpec("deleted", "INTEGER", true),
+            ),
+            tableColumnSpecs("audiobook_bookmarks"),
+        )
+    }
+
+    @Test
+    fun audiobookChapterCacheTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("chaptersJson", "TEXT", true),
+                ColumnSpec("cachedAt", "INTEGER", true),
+            ),
+            tableColumnSpecs("audiobook_chapter_cache"),
+        )
+    }
+
+    @Test
+    fun localFileMetadataOverridesTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("sourceItemId", "TEXT", true),
+                ColumnSpec("title", "TEXT", false),
+                ColumnSpec("author", "TEXT", false),
+                ColumnSpec("seriesName", "TEXT", false),
+                ColumnSpec("seriesIndex", "REAL", false),
+                ColumnSpec("coverUrl", "TEXT", false),
+            ),
+            tableColumnSpecs("local_file_metadata_overrides"),
+        )
+    }
+
+    @Test
+    fun remoteItemFreshnessTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("sourceItemId", "TEXT", true),
+                ColumnSpec("lastFetchedAt", "INTEGER", true),
+            ),
+            tableColumnSpecs("remote_item_freshness"),
+        )
+    }
+
+    @Test
+    fun publicationMetricsCacheTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("itemId", "TEXT", true),
+                ColumnSpec("ebookFileIno", "TEXT", true),
+                ColumnSpec("totalPositions", "INTEGER", false),
+                ColumnSpec("pageCount", "INTEGER", false),
+                ColumnSpec("cachedAt", "INTEGER", true),
+                ColumnSpec("epubVersion", "TEXT", false),
+            ),
+            tableColumnSpecs("publication_metrics_cache"),
+        )
+    }
+
+    @Test
+    fun dictionaryPacksTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("languageTag", "TEXT", true),
+                ColumnSpec("packVersion", "TEXT", true),
+                ColumnSpec("installedAt", "INTEGER", true),
+                ColumnSpec("sizeBytes", "INTEGER", true),
+                ColumnSpec("attributionHtml", "TEXT", true),
+                ColumnSpec("licenseUrl", "TEXT", true),
+                ColumnSpec("state", "TEXT", true),
+            ),
+            tableColumnSpecs("dictionary_packs"),
+        )
+    }
+
+    @Test
+    fun lookupHistoryTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("id", "INTEGER", true),
+                ColumnSpec("languageTag", "TEXT", true),
+                ColumnSpec("form", "TEXT", true),
+                ColumnSpec("lookedUpAt", "INTEGER", true),
+            ),
+            tableColumnSpecs("lookup_history"),
+        )
+    }
+
+    @Test
+    fun coverGridScaleTableHasAllRequiredColumns() {
+        assertEquals(
+            setOf(
+                ColumnSpec("sourceId", "TEXT", true),
+                ColumnSpec("libraryId", "TEXT", true),
+                ColumnSpec("screenDimensionBucket", "TEXT", true),
+                ColumnSpec("scale", "REAL", true),
+            ),
+            tableColumnSpecs("cover_grid_scale"),
+        )
     }
 
     // ── Table: reading_positions ──────────────────────────────────────────────
@@ -525,6 +753,32 @@ class IosRiffleDatabaseSchemaTest {
         }
     }
 
+    // ── Migration: v4 → v5 ───────────────────────────────────────────────────
+
+    @Test
+    fun migrateV4ToV5CreatesFormerlyNoOpDaoTables() {
+        val v5Tables = listOf(
+            "readaloud_links", "readaloud_candidates", "readaloud_dismissals", "cross_epub_index",
+            "readaloud_resume_positions", "audio_playback_preferences", "audiobook_bookmarks",
+            "audiobook_chapter_cache", "local_file_metadata_overrides", "remote_item_freshness",
+            "publication_metrics_cache", "dictionary_packs", "lookup_history", "cover_grid_scale",
+        )
+        v5Tables.forEach { table ->
+            driver.execute(null, "DROP TABLE IF EXISTS $table", 0)
+        }
+        val beforeMigration = allTableNames()
+        v5Tables.forEach { table ->
+            assertTrue(table !in beforeMigration, "$table must be absent before the v4→v5 migration runs")
+        }
+
+        IosRiffleDatabaseSchema.migrate(driver, 4L, 5L)
+
+        val tables = allTableNames()
+        v5Tables.forEach { table ->
+            assertTrue(table in tables, "$table must exist after v4→v5 migration")
+        }
+    }
+
     // ── DAO round-trips on a fresh schema ────────────────────────────────────
     //
     // These are the assertions that would have failed on v3, proving the tables exist and the
@@ -604,6 +858,221 @@ class IosRiffleDatabaseSchemaTest {
         val fetched = dao.getByItemId("src4", "item4")
         assertNotNull(fetched, "Row must be readable after upsert")
         assertEquals(entity, fetched)
+    }
+
+    // ── DAO round-trips for tables added by issue #1057 ──────────────────────
+
+    @Test
+    fun readaloudLinkDaoRoundTrip() = runTest {
+        insertSource("src5")
+        val dao = IosReadaloudLinkDao(driver, IosInvalidator())
+        val entity = ReadaloudLinkEntity(
+            absSourceId = "src5",
+            absLibraryItemId = "item5",
+            storytellerSourceId = "src5",
+            storytellerBookId = "stbook5",
+            userConfirmed = true,
+            createdAt = 1000L,
+            updatedAt = 1000L,
+        )
+        dao.upsert(entity)
+        val fetched = dao.findByAbsItem("src5", "item5")
+        assertNotNull(fetched, "Row must be readable after upsert")
+        assertEquals(entity, fetched)
+        dao.updateIdentityResult("src5", "item5", "VERIFIED")
+        assertEquals("VERIFIED", dao.findByAbsItem("src5", "item5")?.identityResult)
+        dao.deleteByAbsItem("src5", "item5")
+        assertNull(dao.findByAbsItem("src5", "item5"), "Row must be gone after delete")
+    }
+
+    @Test
+    fun readaloudCandidateDaoRoundTrip() = runTest {
+        insertSource("src6")
+        val dao = IosReadaloudCandidateDao(driver, IosInvalidator())
+        val entity = ReadaloudCandidateEntity(
+            storytellerSourceId = "src6",
+            storytellerBookId = "stbook6",
+            absSourceId = "src6",
+            absLibraryItemId = "item6",
+            score = 0.87,
+        )
+        dao.upsert(entity)
+        assertEquals(listOf(entity), dao.allRows())
+        dao.clearAll()
+        assertTrue(dao.allRows().isEmpty(), "Table must be empty after clearAll")
+    }
+
+    @Test
+    fun readaloudDismissalDaoRoundTrip() = runTest {
+        insertSource("src7")
+        val dao = IosReadaloudDismissalDao(driver, IosInvalidator())
+        val entity = ReadaloudDismissalEntity(
+            storytellerSourceId = "src7",
+            storytellerBookId = "stbook7",
+            scope = ReadaloudDismissalEntity.SCOPE_BOOK,
+        )
+        dao.upsert(entity)
+        assertTrue(dao.isBookDismissed("src7", "stbook7"))
+        dao.clearBookDismissal("src7", "stbook7")
+        assertTrue(!dao.isBookDismissed("src7", "stbook7"))
+    }
+
+    @Test
+    fun crossEpubIndexDaoRoundTrip() = runTest {
+        val dao = IosCrossEpubIndexDao(driver, IosInvalidator())
+        val entity = CrossEpubIndexEntity(
+            absEpubChecksum = "abs-checksum",
+            storytellerEpubChecksum = "st-checksum",
+            perChapterMapsBlob = "{}",
+            builtAt = 1000L,
+        )
+        dao.upsert(entity)
+        assertEquals(entity, dao.find("abs-checksum", "st-checksum"))
+        dao.clear()
+        assertNull(dao.find("abs-checksum", "st-checksum"), "Row must be gone after clear")
+    }
+
+    @Test
+    fun readaloudResumePositionDaoRoundTrip() = runTest {
+        insertSource("src8")
+        val dao = IosReadaloudResumePositionDao(driver, IosInvalidator())
+        val entity = ReadaloudResumePositionEntity(
+            sourceId = "src8",
+            itemId = "item8",
+            href = "chapter1.xhtml",
+            progression = 0.5,
+            fragmentRef = "para3",
+            localUpdatedAt = 500L,
+        )
+        dao.upsert(entity)
+        assertEquals(entity, dao.getByItemId("src8", "item8"))
+        dao.deleteByItemId("src8", "item8")
+        assertNull(dao.getByItemId("src8", "item8"), "Row must be gone after delete")
+    }
+
+    @Test
+    fun audioPlaybackPreferencesDaoRoundTrip() = runTest {
+        insertSource("src9")
+        val dao = IosAudioPlaybackPreferencesDao(driver, IosInvalidator())
+        val entity = AudioPlaybackPreferencesEntity(sourceId = "src9", bookId = "book9", speed = 1.5f)
+        dao.upsert(entity)
+        assertEquals(entity, dao.get("src9", "book9"))
+        dao.delete("src9", "book9")
+        assertNull(dao.get("src9", "book9"), "Row must be gone after delete")
+    }
+
+    @Test
+    fun audiobookBookmarkDaoRoundTrip() = runTest {
+        insertSource("src10")
+        val dao = IosAudiobookBookmarkDao(driver, IosInvalidator())
+        val entity = AudiobookBookmarkEntity(
+            id = "bm1",
+            sourceId = "src10",
+            itemId = "item10",
+            positionSec = 123.0,
+            title = "Chapter start",
+            createdAt = 1000L,
+            localUpdatedAt = 1000L,
+            lastSyncedAt = 0L,
+        )
+        dao.upsert(entity)
+        assertEquals(entity, dao.getById("bm1"))
+        assertEquals(listOf("src10"), dao.sourcesWithDirtyRows())
+        assertEquals(1, dao.confirmPushedIfUnchanged("bm1", 2000L, 1000L))
+        assertTrue(dao.sourcesWithDirtyRows().isEmpty(), "Row must be clean after confirmPushedIfUnchanged")
+        dao.hardDelete("bm1")
+        assertNull(dao.getById("bm1"), "Row must be gone after hardDelete")
+    }
+
+    @Test
+    fun audiobookChapterCacheDaoRoundTrip() = runTest {
+        insertSource("src11")
+        val dao = IosAudiobookChapterCacheDao(driver, IosInvalidator())
+        val entity = AudiobookChapterCacheEntity(sourceId = "src11", itemId = "item11", chaptersJson = "[]", cachedAt = 1000L)
+        dao.upsert(entity)
+        assertEquals(entity, dao.get("src11", "item11"))
+    }
+
+    @Test
+    fun localFileMetadataOverrideDaoRoundTrip() = runTest {
+        insertSource("src12")
+        val dao = IosLocalFileMetadataOverrideDao(driver, IosInvalidator())
+        val entity = LocalFileMetadataOverrideEntity(
+            sourceId = "src12",
+            sourceItemId = "item12",
+            title = "Custom Title",
+            author = "Custom Author",
+            seriesName = null,
+            seriesIndex = null,
+        )
+        dao.upsert(entity)
+        assertEquals(entity, dao.getForItem("src12", "item12"))
+        assertEquals(listOf(entity), dao.getForItems("src12", listOf("item12", "missing")))
+        dao.delete("src12", "item12")
+        assertNull(dao.getForItem("src12", "item12"), "Row must be gone after delete")
+    }
+
+    @Test
+    fun remoteItemFreshnessDaoRoundTrip() = runTest {
+        insertSource("src13")
+        val dao = IosRemoteItemFreshnessDao(driver, IosInvalidator())
+        dao.upsert(RemoteItemFreshnessEntity(sourceId = "src13", sourceItemId = "item13", lastFetchedAt = 1000L))
+        assertEquals(1000L, dao.lastFetchedAt("src13", "item13"))
+        dao.clear("src13", "item13")
+        assertNull(dao.lastFetchedAt("src13", "item13"), "Row must be gone after clear")
+    }
+
+    @Test
+    fun publicationMetricsCacheDaoRoundTrip() = runTest {
+        insertSource("src14")
+        val dao = IosPublicationMetricsCacheDao(driver, IosInvalidator())
+        val entity = PublicationMetricsCacheEntity(
+            sourceId = "src14",
+            itemId = "item14",
+            ebookFileIno = "ino1",
+            totalPositions = 500,
+            pageCount = 200,
+            cachedAt = 1000L,
+        )
+        dao.upsert(entity)
+        assertEquals(entity, dao.get("src14", "item14"))
+    }
+
+    @Test
+    fun dictionaryPackDaoRoundTrip() = runTest {
+        val dao = IosDictionaryPackDao(driver, IosInvalidator())
+        val entity = DictionaryPackEntity(
+            languageTag = "en",
+            packVersion = "1.0",
+            installedAt = 1000L,
+            sizeBytes = 2048L,
+            attributionHtml = "<p>Attribution</p>",
+            licenseUrl = "https://example.com/license",
+            state = "INSTALLED",
+        )
+        dao.upsert(entity)
+        assertEquals(entity, dao.observeForLanguage("en").first())
+        dao.updateState("en", "REMOVING")
+        assertEquals("REMOVING", dao.observeForLanguage("en").first()?.state)
+        dao.delete("en")
+        assertNull(dao.observeForLanguage("en").first(), "Row must be gone after delete")
+    }
+
+    @Test
+    fun lookupHistoryDaoRoundTrip() = runTest {
+        val dao = IosLookupHistoryDao(driver, IosInvalidator())
+        dao.insert(LookupHistoryEntity(languageTag = "en", form = "run", lookedUpAt = 1000L))
+        dao.insert(LookupHistoryEntity(languageTag = "en", form = "running", lookedUpAt = 2000L))
+        assertEquals(listOf("running", "run"), dao.observeRecent("en", 10).first())
+    }
+
+    @Test
+    fun coverGridScaleDaoRoundTrip() = runTest {
+        insertSource("src15")
+        val dao = IosCoverGridScaleDao(driver, IosInvalidator())
+        dao.upsert(CoverGridScaleEntity(sourceId = "src15", libraryId = "lib15", screenDimensionBucket = "Compact_Medium", scale = 1.4f))
+        assertEquals(1.4f, dao.observeScale("src15", "lib15", "Compact_Medium").first())
+        assertNull(dao.observeScale("src15", "lib15", "Expanded_Medium").first(), "Different bucket must return null")
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

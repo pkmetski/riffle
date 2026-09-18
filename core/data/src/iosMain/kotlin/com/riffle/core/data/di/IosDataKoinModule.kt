@@ -33,6 +33,7 @@ import com.riffle.core.data.localfiles.IosLocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookComicFormattingPreferencesDao
+import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.domain.AppThemeStore
@@ -98,7 +99,7 @@ val iosDataModule = module {
     single<ReadingSpeedStore> { com.riffle.core.data.ReadingSpeedStore() }
     single<WakeLockPreferencesStore> { com.riffle.core.data.WakeLockPreferencesStore() }
 
-    single<CoverGridDensityStore> { IosCoverGridDensityStoreImpl() }
+    single<CoverGridDensityStore> { IosCoverGridDensityStoreImpl(get<CoverGridScaleDao>()) }
     single<LibraryFilterPreferencesStore> { IosLibraryFilterPreferencesStoreImpl() }
     single<LibraryOrderPreferencesStore> { IosLibraryOrderPreferencesStoreImpl() }
     single<ListeningPreferencesStore> { IosListeningPreferencesStoreImpl() }

@@ -98,9 +98,21 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
 
     // deleteSourceGraph calls these; tables that don't exist on iOS are no-ops.
 
-    override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
-    override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
-    override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
+    override suspend fun deleteReadaloudLinksForSource(id: String) {
+        driver.execute(null, "DELETE FROM readaloud_links WHERE storytellerSourceId = ? OR absSourceId = ?", 2) {
+            bindString(0, id); bindString(1, id)
+        }
+    }
+
+    override suspend fun deleteReadaloudCandidatesForSource(id: String) {
+        driver.execute(null, "DELETE FROM readaloud_candidates WHERE storytellerSourceId = ? OR absSourceId = ?", 2) {
+            bindString(0, id); bindString(1, id)
+        }
+    }
+
+    override suspend fun deleteReadaloudDismissalsForSource(id: String) {
+        driver.execute(null, "DELETE FROM readaloud_dismissals WHERE storytellerSourceId = ?", 1) { bindString(0, id) }
+    }
 
     override suspend fun deleteSeriesForSource(id: String) {
         driver.execute(null, "DELETE FROM series WHERE id IN (SELECT seriesId FROM series_items WHERE sourceId = ?)", 1) { bindString(0, id) }
@@ -133,22 +145,43 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
         driver.execute(null, "DELETE FROM annotations WHERE sourceId = ?", 1) { bindString(0, id) }
     }
 
-    override suspend fun deleteReadaloudResumePositionsForSource(id: String) = Unit
-    override suspend fun deleteAudioPlaybackPreferencesForSource(id: String) = Unit
+    override suspend fun deleteReadaloudResumePositionsForSource(id: String) {
+        driver.execute(null, "DELETE FROM readaloud_resume_positions WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
+    override suspend fun deleteAudioPlaybackPreferencesForSource(id: String) {
+        driver.execute(null, "DELETE FROM audio_playback_preferences WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
     override suspend fun deleteAudiobookPositionsForSource(id: String) = Unit
-    override suspend fun deleteAudiobookBookmarksForSource(id: String) = Unit
+
+    override suspend fun deleteAudiobookBookmarksForSource(id: String) {
+        driver.execute(null, "DELETE FROM audiobook_bookmarks WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
 
     override suspend fun deleteTocCacheForSource(id: String) {
         driver.execute(null, "DELETE FROM toc_cache WHERE sourceId = ?", 1) { bindString(0, id) }
     }
 
-    override suspend fun deleteAudiobookChapterCacheForSource(id: String) = Unit
+    override suspend fun deleteAudiobookChapterCacheForSource(id: String) {
+        driver.execute(null, "DELETE FROM audiobook_chapter_cache WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
     override suspend fun deleteLocalFilesFileFoldersForSource(id: String) = Unit
     override suspend fun deleteLocalFilesFilesForSource(id: String) = Unit
     override suspend fun deleteLocalFilesFoldersForSource(id: String) = Unit
-    override suspend fun deleteLocalFileMetadataOverridesForSource(id: String) = Unit
-    override suspend fun deleteRemoteItemFreshnessForSource(id: String) = Unit
-    override suspend fun deletePublicationMetricsCacheForSource(id: String) = Unit
+
+    override suspend fun deleteLocalFileMetadataOverridesForSource(id: String) {
+        driver.execute(null, "DELETE FROM local_file_metadata_overrides WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
+    override suspend fun deleteRemoteItemFreshnessForSource(id: String) {
+        driver.execute(null, "DELETE FROM remote_item_freshness WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
+    override suspend fun deletePublicationMetricsCacheForSource(id: String) {
+        driver.execute(null, "DELETE FROM publication_metrics_cache WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
 
     override suspend fun deleteLibraryItemsForSource(id: String) {
         driver.execute(null, "DELETE FROM library_items WHERE sourceId = ?", 1) { bindString(0, id) }

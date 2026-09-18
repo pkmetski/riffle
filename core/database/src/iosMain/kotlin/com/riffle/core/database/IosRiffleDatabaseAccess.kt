@@ -2,31 +2,31 @@ package com.riffle.core.database
 
 import app.cash.sqldelight.db.SqlDriver
 import com.riffle.core.database.dao.IosAnnotationDao
+import com.riffle.core.database.dao.IosAudioPlaybackPreferencesDao
+import com.riffle.core.database.dao.IosAudiobookBookmarkDao
+import com.riffle.core.database.dao.IosAudiobookChapterCacheDao
 import com.riffle.core.database.dao.IosAudiobookPositionDao
 import com.riffle.core.database.dao.IosBookComicFormattingPreferencesDao
 import com.riffle.core.database.dao.IosBookFormattingPreferencesDao
 import com.riffle.core.database.dao.IosCollectionDao
+import com.riffle.core.database.dao.IosCoverGridScaleDao
+import com.riffle.core.database.dao.IosCrossEpubIndexDao
+import com.riffle.core.database.dao.IosDictionaryPackDao
 import com.riffle.core.database.dao.IosLibraryDao
 import com.riffle.core.database.dao.IosLibraryItemDao
+import com.riffle.core.database.dao.IosLocalFileMetadataOverrideDao
 import com.riffle.core.database.dao.IosLocalFilesFileDao
 import com.riffle.core.database.dao.IosLocalFilesFileFolderDao
 import com.riffle.core.database.dao.IosLocalFilesFolderDao
-import com.riffle.core.database.dao.IosNoOpAudioPlaybackPreferencesDao
-import com.riffle.core.database.dao.IosNoOpAudiobookBookmarkDao
-import com.riffle.core.database.dao.IosNoOpAudiobookChapterCacheDao
-import com.riffle.core.database.dao.IosNoOpCoverGridScaleDao
-import com.riffle.core.database.dao.IosNoOpCrossEpubIndexDao
-import com.riffle.core.database.dao.IosNoOpDictionaryPackDao
-import com.riffle.core.database.dao.IosNoOpLocalFileMetadataOverrideDao
-import com.riffle.core.database.dao.IosNoOpLookupHistoryDao
-import com.riffle.core.database.dao.IosNoOpPublicationMetricsCacheDao
-import com.riffle.core.database.dao.IosNoOpReadaloudCandidateDao
-import com.riffle.core.database.dao.IosNoOpReadaloudDismissalDao
-import com.riffle.core.database.dao.IosNoOpReadaloudLinkDao
-import com.riffle.core.database.dao.IosNoOpReadaloudResumePositionDao
-import com.riffle.core.database.dao.IosNoOpRemoteItemFreshnessDao
+import com.riffle.core.database.dao.IosLookupHistoryDao
 import com.riffle.core.database.dao.IosPlaylistDao
+import com.riffle.core.database.dao.IosPublicationMetricsCacheDao
+import com.riffle.core.database.dao.IosReadaloudCandidateDao
+import com.riffle.core.database.dao.IosReadaloudDismissalDao
+import com.riffle.core.database.dao.IosReadaloudLinkDao
+import com.riffle.core.database.dao.IosReadaloudResumePositionDao
 import com.riffle.core.database.dao.IosReadingPositionDao
+import com.riffle.core.database.dao.IosRemoteItemFreshnessDao
 import com.riffle.core.database.dao.IosSeriesDao
 import com.riffle.core.database.dao.IosSourceDao
 import com.riffle.core.database.dao.IosTocCacheDao
@@ -49,6 +49,20 @@ internal class IosRiffleDatabaseAccess(private val driver: SqlDriver) : RiffleDa
     private val audiobookPositionDao = IosAudiobookPositionDao(driver, invalidator)
     private val bookFormattingPreferencesDao = IosBookFormattingPreferencesDao(driver, invalidator)
     private val bookComicFormattingPreferencesDao = IosBookComicFormattingPreferencesDao(driver, invalidator)
+    private val readaloudLinkDao = IosReadaloudLinkDao(driver, invalidator)
+    private val readaloudCandidateDao = IosReadaloudCandidateDao(driver, invalidator)
+    private val readaloudDismissalDao = IosReadaloudDismissalDao(driver, invalidator)
+    private val crossEpubIndexDao = IosCrossEpubIndexDao(driver, invalidator)
+    private val readaloudResumePositionDao = IosReadaloudResumePositionDao(driver, invalidator)
+    private val audioPlaybackPreferencesDao = IosAudioPlaybackPreferencesDao(driver, invalidator)
+    private val audiobookBookmarkDao = IosAudiobookBookmarkDao(driver, invalidator)
+    private val audiobookChapterCacheDao = IosAudiobookChapterCacheDao(driver, invalidator)
+    private val localFileMetadataOverrideDao = IosLocalFileMetadataOverrideDao(driver, invalidator)
+    private val remoteItemFreshnessDao = IosRemoteItemFreshnessDao(driver, invalidator)
+    private val publicationMetricsCacheDao = IosPublicationMetricsCacheDao(driver, invalidator)
+    private val dictionaryPackDao = IosDictionaryPackDao(driver, invalidator)
+    private val lookupHistoryDao = IosLookupHistoryDao(driver, invalidator)
+    private val coverGridScaleDao = IosCoverGridScaleDao(driver, invalidator)
 
     override fun close() = driver.close()
     override fun sourceDao() = sourceDao
@@ -58,26 +72,26 @@ internal class IosRiffleDatabaseAccess(private val driver: SqlDriver) : RiffleDa
     override fun collectionDao() = collectionDao
     override fun readingPositionDao() = readingPositionDao
     override fun bookFormattingPreferencesDao() = bookFormattingPreferencesDao
-    override fun readaloudLinkDao() = IosNoOpReadaloudLinkDao
-    override fun readaloudCandidateDao() = IosNoOpReadaloudCandidateDao
-    override fun readaloudDismissalDao() = IosNoOpReadaloudDismissalDao
-    override fun crossEpubIndexDao() = IosNoOpCrossEpubIndexDao
+    override fun readaloudLinkDao() = readaloudLinkDao
+    override fun readaloudCandidateDao() = readaloudCandidateDao
+    override fun readaloudDismissalDao() = readaloudDismissalDao
+    override fun crossEpubIndexDao() = crossEpubIndexDao
     override fun annotationDao() = annotationDao
-    override fun readaloudResumePositionDao() = IosNoOpReadaloudResumePositionDao
-    override fun audioPlaybackPreferencesDao() = IosNoOpAudioPlaybackPreferencesDao
+    override fun readaloudResumePositionDao() = readaloudResumePositionDao
+    override fun audioPlaybackPreferencesDao() = audioPlaybackPreferencesDao
     override fun audiobookPositionDao() = audiobookPositionDao
-    override fun audiobookBookmarkDao() = IosNoOpAudiobookBookmarkDao
+    override fun audiobookBookmarkDao() = audiobookBookmarkDao
     override fun tocCacheDao() = tocCacheDao
-    override fun audiobookChapterCacheDao() = IosNoOpAudiobookChapterCacheDao
+    override fun audiobookChapterCacheDao() = audiobookChapterCacheDao
     override fun localFilesFolderDao() = localFilesFolderDao
     override fun localFilesFileDao() = localFilesFileDao
     override fun localFilesFileFolderDao() = localFilesFileFolderDao
-    override fun localFileMetadataOverrideDao() = IosNoOpLocalFileMetadataOverrideDao
-    override fun remoteItemFreshnessDao() = IosNoOpRemoteItemFreshnessDao
+    override fun localFileMetadataOverrideDao() = localFileMetadataOverrideDao
+    override fun remoteItemFreshnessDao() = remoteItemFreshnessDao
     override fun playlistDao() = playlistDao
-    override fun publicationMetricsCacheDao() = IosNoOpPublicationMetricsCacheDao
+    override fun publicationMetricsCacheDao() = publicationMetricsCacheDao
     override fun bookComicFormattingPreferencesDao() = bookComicFormattingPreferencesDao
-    override fun dictionaryPackDao() = IosNoOpDictionaryPackDao
-    override fun lookupHistoryDao() = IosNoOpLookupHistoryDao
-    override fun coverGridScaleDao() = IosNoOpCoverGridScaleDao
+    override fun dictionaryPackDao() = dictionaryPackDao
+    override fun lookupHistoryDao() = lookupHistoryDao
+    override fun coverGridScaleDao() = coverGridScaleDao
 }

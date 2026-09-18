@@ -8,10 +8,10 @@ import app.cash.sqldelight.db.SqlSchema
 internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     // Tracks the iOS schema version independently of the Android Room schema version.
     // Bumped only when the iOS-side DDL changes; Android Room migrations are irrelevant here.
-    override val version: Long = 4L
+    override val version: Long = 5L
 
     override fun create(driver: SqlDriver): QueryResult.Value<Unit> {
-        (DDL + LOCAL_FILES_DDL + POSITION_AND_PREFS_DDL).forEach { driver.execute(null, it, 0) }
+        (DDL + LOCAL_FILES_DDL + POSITION_AND_PREFS_DDL + FORMERLY_NOOP_DAO_DDL).forEach { driver.execute(null, it, 0) }
         return QueryResult.Value(Unit)
     }
 
@@ -34,6 +34,13 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
             // v3 had no reading_positions, audiobook_positions, book_formatting_preferences, or
             // book_comic_formatting_preferences tables, causing every book close to crash on iOS.
             POSITION_AND_PREFS_DDL.forEach { driver.execute(null, it, 0) }
+        }
+        if (oldVersion < 5L) {
+            // v4 had no tables for the 14 DAOs that were bound to no-op stubs (issue #1057):
+            // readaloud linking/matching, per-book audio prefs, audiobook bookmarks/chapter
+            // cache, local-file metadata overrides, remote freshness, publication metrics,
+            // dictionary packs, lookup history, and cover-grid scale.
+            FORMERLY_NOOP_DAO_DDL.forEach { driver.execute(null, it, 0) }
         }
         return QueryResult.Value(Unit)
     }
@@ -289,6 +296,162 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
             FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
         )""",
         "CREATE INDEX IF NOT EXISTS index_book_comic_formatting_preferences_source_id ON book_comic_formatting_preferences(source_id)",
+    )
+
+    // v4 -> v5: add tables for the 14 DAOs that were bound to no-op stubs (issue #1057).
+    // DDL mirrors the Room entities column-for-column (schema v73 / Room entity definitions).
+    private val FORMERLY_NOOP_DAO_DDL = listOf(
+        """CREATE TABLE IF NOT EXISTS readaloud_links (
+            absSourceId TEXT NOT NULL,
+            absLibraryItemId TEXT NOT NULL,
+            storytellerSourceId TEXT NOT NULL,
+            storytellerBookId TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'CONFIRMED',
+            userConfirmed INTEGER NOT NULL,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            identityResult TEXT NOT NULL DEFAULT 'UNKNOWN',
+            PRIMARY KEY (absSourceId, absLibraryItemId),
+            FOREIGN KEY (storytellerSourceId) REFERENCES sources(id) ON DELETE CASCADE,
+            FOREIGN KEY (absSourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_readaloud_links_storytellerSourceId_storytellerBookId ON readaloud_links(storytellerSourceId, storytellerBookId)",
+        "CREATE INDEX IF NOT EXISTS index_readaloud_links_storytellerSourceId ON readaloud_links(storytellerSourceId)",
+
+        """CREATE TABLE IF NOT EXISTS readaloud_candidates (
+            storytellerSourceId TEXT NOT NULL,
+            storytellerBookId TEXT NOT NULL,
+            absSourceId TEXT NOT NULL,
+            absLibraryItemId TEXT NOT NULL,
+            score REAL NOT NULL,
+            PRIMARY KEY (storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId),
+            FOREIGN KEY (storytellerSourceId) REFERENCES sources(id) ON DELETE CASCADE,
+            FOREIGN KEY (absSourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_readaloud_candidates_absSourceId ON readaloud_candidates(absSourceId)",
+
+        """CREATE TABLE IF NOT EXISTS readaloud_dismissals (
+            storytellerSourceId TEXT NOT NULL,
+            storytellerBookId TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            absSourceId TEXT NOT NULL DEFAULT '',
+            absLibraryItemId TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId),
+            FOREIGN KEY (storytellerSourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS cross_epub_index (
+            absEpubChecksum TEXT NOT NULL,
+            storytellerEpubChecksum TEXT NOT NULL,
+            perChapterMapsBlob TEXT NOT NULL,
+            builtAt INTEGER NOT NULL,
+            PRIMARY KEY (absEpubChecksum, storytellerEpubChecksum)
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS readaloud_resume_positions (
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            href TEXT NOT NULL,
+            progression REAL,
+            fragmentRef TEXT,
+            localUpdatedAt INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (sourceId, itemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_readaloud_resume_positions_sourceId ON readaloud_resume_positions(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS audio_playback_preferences (
+            sourceId TEXT NOT NULL,
+            bookId TEXT NOT NULL,
+            speed REAL,
+            PRIMARY KEY (sourceId, bookId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_audio_playback_preferences_sourceId ON audio_playback_preferences(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS audiobook_bookmarks (
+            id TEXT NOT NULL PRIMARY KEY,
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            positionSec REAL NOT NULL,
+            title TEXT NOT NULL,
+            createdAt INTEGER NOT NULL,
+            localUpdatedAt INTEGER NOT NULL DEFAULT 0,
+            lastSyncedAt INTEGER NOT NULL DEFAULT 0,
+            deleted INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_audiobook_bookmarks_sourceId ON audiobook_bookmarks(sourceId)",
+        "CREATE INDEX IF NOT EXISTS index_audiobook_bookmarks_sourceId_itemId ON audiobook_bookmarks(sourceId, itemId)",
+
+        """CREATE TABLE IF NOT EXISTS audiobook_chapter_cache (
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            chaptersJson TEXT NOT NULL,
+            cachedAt INTEGER NOT NULL,
+            PRIMARY KEY (sourceId, itemId)
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS local_file_metadata_overrides (
+            sourceId TEXT NOT NULL,
+            sourceItemId TEXT NOT NULL,
+            title TEXT,
+            author TEXT,
+            seriesName TEXT,
+            seriesIndex REAL,
+            coverUrl TEXT,
+            PRIMARY KEY (sourceId, sourceItemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_local_file_metadata_overrides_sourceId ON local_file_metadata_overrides(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS remote_item_freshness (
+            sourceId TEXT NOT NULL,
+            sourceItemId TEXT NOT NULL,
+            lastFetchedAt INTEGER NOT NULL,
+            PRIMARY KEY (sourceId, sourceItemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS publication_metrics_cache (
+            sourceId TEXT NOT NULL,
+            itemId TEXT NOT NULL,
+            ebookFileIno TEXT NOT NULL,
+            totalPositions INTEGER,
+            pageCount INTEGER,
+            cachedAt INTEGER NOT NULL,
+            epubVersion TEXT,
+            PRIMARY KEY (sourceId, itemId),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_publication_metrics_cache_sourceId ON publication_metrics_cache(sourceId)",
+
+        """CREATE TABLE IF NOT EXISTS dictionary_packs (
+            languageTag TEXT NOT NULL PRIMARY KEY,
+            packVersion TEXT NOT NULL,
+            installedAt INTEGER NOT NULL,
+            sizeBytes INTEGER NOT NULL,
+            attributionHtml TEXT NOT NULL,
+            licenseUrl TEXT NOT NULL,
+            state TEXT NOT NULL
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS lookup_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            languageTag TEXT NOT NULL,
+            form TEXT NOT NULL,
+            lookedUpAt INTEGER NOT NULL
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS cover_grid_scale (
+            sourceId TEXT NOT NULL,
+            libraryId TEXT NOT NULL,
+            screenDimensionBucket TEXT NOT NULL,
+            scale REAL NOT NULL,
+            PRIMARY KEY (sourceId, libraryId, screenDimensionBucket),
+            FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS index_cover_grid_scale_sourceId ON cover_grid_scale(sourceId)",
     )
 
     // v2 -> v3: rebuild series/collections with the Room-entity shape (see migrate()).
