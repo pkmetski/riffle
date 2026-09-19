@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit
 import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
 
 /**
  * Real end-to-end verification that tapping an annotation FOCUSES it on screen — i.e. the reader

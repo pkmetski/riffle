@@ -48,10 +48,18 @@ final class ReaderHighlightsTests: XCTestCase {
         return config.tint
     }
 
-    private func rgba(_ color: UIColor) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
-        return (r, g, b, a)
+    /// A colour's four channels, named so the assertions below read as claims about colour.
+    private struct Channels: Equatable {
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+        let alpha: CGFloat
+    }
+
+    private func rgba(_ color: UIColor) -> Channels {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return Channels(red: red, green: green, blue: blue, alpha: alpha)
     }
 
     // MARK: - Well-formed input
@@ -69,22 +77,22 @@ final class ReaderHighlightsTests: XCTestCase {
         let json = decorationJson(extra: ",\"color\":\"#FF0000\",\"alpha\":0.5")
 
         let decoration = try XCTUnwrap(bridge().parseDecorations(json).first)
-        let (r, g, b, a) = rgba(try XCTUnwrap(tint(of: decoration)))
+        let channels = rgba(try XCTUnwrap(tint(of: decoration)))
 
-        XCTAssertEqual(r, 1.0, accuracy: 0.01, "red channel must come from the supplied hex")
-        XCTAssertEqual(g, 0.0, accuracy: 0.01)
-        XCTAssertEqual(b, 0.0, accuracy: 0.01)
-        XCTAssertEqual(a, 0.5, accuracy: 0.01, "alpha must come from the supplied value, not the default")
+        XCTAssertEqual(channels.red, 1.0, accuracy: 0.01, "red channel must come from the supplied hex")
+        XCTAssertEqual(channels.green, 0.0, accuracy: 0.01)
+        XCTAssertEqual(channels.blue, 0.0, accuracy: 0.01)
+        XCTAssertEqual(channels.alpha, 0.5, accuracy: 0.01, "alpha must come from the supplied value, not the default")
     }
 
     func testHighlightWithoutColourFallsBackToYellowAtDefaultAlpha() throws {
         let decoration = try XCTUnwrap(bridge().parseDecorations(decorationJson()).first)
-        let (r, g, b, a) = rgba(try XCTUnwrap(tint(of: decoration)))
+        let channels = rgba(try XCTUnwrap(tint(of: decoration)))
 
-        XCTAssertEqual(r, 1.0, accuracy: 0.01, "documented fallback is #FFFF00")
-        XCTAssertEqual(g, 1.0, accuracy: 0.01)
-        XCTAssertEqual(b, 0.0, accuracy: 0.01)
-        XCTAssertEqual(a, 0.4, accuracy: 0.01, "documented fallback alpha is 0.4")
+        XCTAssertEqual(channels.red, 1.0, accuracy: 0.01, "documented fallback is #FFFF00")
+        XCTAssertEqual(channels.green, 1.0, accuracy: 0.01)
+        XCTAssertEqual(channels.blue, 0.0, accuracy: 0.01)
+        XCTAssertEqual(channels.alpha, 0.4, accuracy: 0.01, "documented fallback alpha is 0.4")
     }
 
     func testEveryDecorationTypeResolvesToADistinctTint() throws {
@@ -98,7 +106,10 @@ final class ReaderHighlightsTests: XCTestCase {
         }
 
         // Bookmarks, note glyphs and search marks must not be indistinguishable on the page.
-        let distinct = Set(tints.values.map { rgba($0).0.description + rgba($0).1.description + rgba($0).2.description })
+        let distinct = Set(tints.values.map { tint -> String in
+            let ch = rgba(tint)
+            return "\(ch.red),\(ch.green),\(ch.blue)"
+        })
         XCTAssertEqual(distinct.count, tints.count, "each decoration type must render a different colour")
     }
 
@@ -110,10 +121,9 @@ final class ReaderHighlightsTests: XCTestCase {
             bridge().parseDecorations(decorationJson(type: "searchMark", extra: ",\"isCurrent\":false")).first
         )
 
-        let a = rgba(try XCTUnwrap(tint(of: current)))
-        let b = rgba(try XCTUnwrap(tint(of: other)))
-        XCTAssertFalse(
-            a == b,
+        XCTAssertNotEqual(
+            rgba(try XCTUnwrap(tint(of: current))),
+            rgba(try XCTUnwrap(tint(of: other))),
             "the active search hit must be distinguishable from the other matches"
         )
     }
@@ -160,12 +170,12 @@ final class ReaderHighlightsTests: XCTestCase {
     // MARK: - applyDecorations bookkeeping
 
     func testApplyDecorationsRecordsWhatWasLastApplied() {
-        let b = bridge()
+        let navigatorBridge = bridge()
         let json = decorationJson(id: "annotation-7")
 
-        b.applyDecorations(decorationsJson: json, group: "highlights")
+        navigatorBridge.applyDecorations(decorationsJson: json, group: "highlights")
 
-        XCTAssertEqual(b.lastAppliedDecorationsJson, json)
-        XCTAssertEqual(b.lastAppliedGroup, "highlights")
+        XCTAssertEqual(navigatorBridge.lastAppliedDecorationsJson, json)
+        XCTAssertEqual(navigatorBridge.lastAppliedGroup, "highlights")
     }
 }

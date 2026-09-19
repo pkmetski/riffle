@@ -161,11 +161,12 @@ final class EpubProgressionLocatorTests: XCTestCase {
             XCTAssertNotEqual(first.href, second.href)
             return
         }
-        let a = try XCTUnwrap(first.withinChapter)
-        let b = try XCTUnwrap(second.withinChapter)
+        let firstWithin = try XCTUnwrap(first.withinChapter)
+        let secondWithin = try XCTUnwrap(second.withinChapter)
         XCTAssertGreaterThan(
-            abs(a - b), 0.001,
-            "Two distinct total progressions inside \(first.href) must differ; got \(a) and \(b)"
+            abs(firstWithin - secondWithin), 0.001,
+            "Two distinct total progressions inside \(first.href) must differ; " +
+                "got \(firstWithin) and \(secondWithin)"
         )
     }
 

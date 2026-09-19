@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit
 import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
 
 /**
  * Regression: in continuous mode, persisted highlights must render as `<mark data-riffle-ann>`
