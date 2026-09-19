@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.epubCfiForSpineIndex
 import com.riffle.core.domain.normalizeEpubHref
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Url
@@ -20,11 +21,5 @@ internal fun buildEpubCfi(readingOrder: List<Link>, href: Url): String {
         linkStr == hrefStr || normalizeEpubHref(linkStr) == hrefNorm
     }
     if (spineIndex == -1) return ""
-    return "epubcfi(/6/${(spineIndex + 1) * 2}!/4/2)"
-}
-
-internal fun buildEpubCfi(readingOrderHrefs: List<String>, hrefString: String): String {
-    val spineIndex = readingOrderHrefs.indexOf(hrefString)
-    if (spineIndex == -1) return ""
-    return "epubcfi(/6/${(spineIndex + 1) * 2}!/4/2)"
+    return epubCfiForSpineIndex(spineIndex)
 }

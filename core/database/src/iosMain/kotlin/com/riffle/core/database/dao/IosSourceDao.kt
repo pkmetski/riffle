@@ -183,6 +183,10 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
         driver.execute(null, "DELETE FROM publication_metrics_cache WHERE sourceId = ?", 1) { bindString(0, id) }
     }
 
+    override suspend fun deleteCoverGridScaleForSource(id: String) {
+        driver.execute(null, "DELETE FROM cover_grid_scale WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
     override suspend fun deleteLibraryItemsForSource(id: String) {
         driver.execute(null, "DELETE FROM library_items WHERE sourceId = ?", 1) { bindString(0, id) }
     }

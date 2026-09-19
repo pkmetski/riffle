@@ -2,6 +2,7 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.navigation.EPUB_READER
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.RailSegment
@@ -115,6 +116,33 @@ import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
+import com.riffle.feature.reader.AdjacentCreateMerge
+import com.riffle.feature.reader.MergeAnchor
+import com.riffle.feature.reader.MergeSide
+import com.riffle.feature.reader.MergedDraftFields
+import com.riffle.feature.reader.anchorRangeToSnippet
+import com.riffle.feature.reader.applyMerge
+import com.riffle.feature.reader.buildHighlightCfiRange
+import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
+import com.riffle.feature.reader.buildMergedDraftFields
+import com.riffle.feature.reader.collectMergedEmphasisStyles
+import com.riffle.feature.reader.computeAdjacentCreateMerge
+import com.riffle.feature.reader.computeOverlapMerge
+import com.riffle.feature.reader.figureHrefFilename
+import com.riffle.feature.reader.findAdjacency
+import com.riffle.feature.reader.findAnyMergeableNeighbor
+import com.riffle.feature.reader.findEnclosedFiguresInHtml
+import com.riffle.feature.reader.highlightStartProgression
+import com.riffle.feature.reader.highlightsWithEmphasisStyles
+import com.riffle.feature.reader.locateSnippetInBody
+import com.riffle.feature.reader.mergeEnclosedFigures
+import com.riffle.feature.reader.readableBodyText
+import com.riffle.feature.reader.readableTextBetween
+import com.riffle.feature.reader.snippetEndCharInBody
+import com.riffle.feature.reader.toMergeAnchor
+import com.riffle.feature.reader.validatedMergedSnippet
+import com.riffle.feature.reader.toCssRgba
+import com.riffle.feature.reader.highlightOverlapsAtSamePosition
 
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
@@ -217,7 +245,6 @@ internal fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
         ?.key
 // Characters of textAfter used to build each highlight's context window for position
 // disambiguation in the overlap-detection logic (see createHighlight).
-private const val OVERLAP_CONTEXT_LEN = 60
 
 /**
  * Whether Reading-Session tracking, ABS progress-sync PATCHes, and highlight/bookmark creation
@@ -4332,37 +4359,3 @@ internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>,
     return nonEmptyChapters.getOrNull(index)?.highlights?.firstOrNull()?.id
 }
 
-
-/**
- * Returns true when [newSnippet]/[newAfter] and [existSnippet]/[existAfter] refer to the same
- * region of text — i.e. one highlight should be replaced by the other.
- *
- * Two conditions must BOTH hold:
- *  1. **Text overlap** — one snippet contains the other (substring test, case-insensitive).
- *  2. **Position match** — the "snippet + after-text" context window of each highlight must
- *     contain the other's window. After-text is used (not before-text) so that the check still
- *     passes when the new selection starts earlier than the existing one (a larger selection
- *     covering a smaller word). If [existAfter] is empty (pre-context annotation), position
- *     matching is skipped and text overlap alone is sufficient.
- *
- * The function is `internal` so it can be unit-tested from `app:test`.
- */
-internal fun highlightOverlapsAtSamePosition(
-    newSnippet: String,
-    newAfter: String,
-    existSnippet: String,
-    existAfter: String,
-    contextLen: Int = OVERLAP_CONTEXT_LEN,
-): Boolean {
-    val newTrimmed = newSnippet.trim().takeIf { it.isNotBlank() } ?: return false
-    val existTrimmed = existSnippet.trim().takeIf { it.isNotBlank() } ?: return false
-    val textOverlap = newTrimmed.contains(existTrimmed, ignoreCase = true) ||
-        existTrimmed.contains(newTrimmed, ignoreCase = true)
-    if (!textOverlap) return false
-    val existAfterStart = existAfter.take(contextLen)
-    if (existAfterStart.isEmpty()) return true
-    val newContext = newTrimmed + newAfter.take(contextLen)
-    val existContext = existTrimmed + existAfterStart
-    return newContext.contains(existContext, ignoreCase = true) ||
-        existContext.contains(newContext, ignoreCase = true)
-}

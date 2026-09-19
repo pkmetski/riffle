@@ -233,28 +233,4 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         }
         return result
     }
-
-    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-    private fun parseTocJson(json: String): List<TocEntry> {
-        val bytes = json.encodeToByteArray()
-        val data = bytes.usePinned { p ->
-            NSData.create(bytes = p.addressOf(0), length = bytes.size.toULong())
-        }
-        val array = NSJSONSerialization.JSONObjectWithData(data = data, options = 0u, error = null)
-            as? NSArray ?: return emptyList()
-        return parseTocArray(array)
-    }
-
-    private fun parseTocArray(array: NSArray): List<TocEntry> {
-        val result = mutableListOf<TocEntry>()
-        for (i in 0 until array.count.toLong()) {
-            val dict = array.objectAtIndex(i.toULong()) as? NSDictionary ?: continue
-            val title = dict.objectForKey("title") as? String ?: continue
-            val href = dict.objectForKey("href") as? String ?: continue
-            val childrenArray = dict.objectForKey("children") as? NSArray
-            val children = childrenArray?.let { parseTocArray(it) } ?: emptyList()
-            result += TocEntry(title = title, href = href, children = children)
-        }
-        return result
-    }
 }

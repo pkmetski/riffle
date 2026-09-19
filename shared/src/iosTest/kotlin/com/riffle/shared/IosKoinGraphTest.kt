@@ -74,6 +74,12 @@ class IosKoinGraphTest {
 
     private object StubPublicationInspector : IosPublicationInspector {
         override fun inspectEpub(filePath: String, onResult: (resultJson: String?) -> Unit) = onResult(null)
+
+        override fun locateProgression(
+            filePath: String,
+            totalProgression: Double,
+            onResult: (locatorJson: String?) -> Unit,
+        ) = onResult(null)
     }
 
     @Test

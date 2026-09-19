@@ -50,6 +50,9 @@
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
 		B1015010 /* ProgressPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* ProgressPipelineTests.swift */; };
 		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
+		B1051010 /* NavDrawerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1051020 /* NavDrawerTests.swift */; };
+		B1052010 /* LibraryGridAndTabsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1052020 /* LibraryGridAndTabsUITests.swift */; };
+		B1053010 /* EpubProgressionLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1053020 /* EpubProgressionLocatorTests.swift */; };
 		B1018010 /* StubAbsServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1018020 /* StubAbsServer.swift */; };
 		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1019010 /* StubKomgaServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1019020 /* StubKomgaServer.swift */; };
@@ -98,6 +101,9 @@
 		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
 		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
 		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
+		B1051020 /* NavDrawerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavDrawerTests.swift; sourceTree = "<group>"; };
+		B1052020 /* LibraryGridAndTabsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGridAndTabsUITests.swift; sourceTree = "<group>"; };
+		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
 		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
 		B1011030 /* OReillyPublicationBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyPublicationBuilder.swift; sourceTree = "<group>"; };
@@ -188,6 +194,9 @@
 				B1009020 /* LocalFilesTests.swift */,
 				B100B020 /* AddAbsSourceFlowTests.swift */,
 				B100C020 /* DownloadsTests.swift */,
+				B1051020 /* NavDrawerTests.swift */,
+				B1052020 /* LibraryGridAndTabsUITests.swift */,
+				B1053020 /* EpubProgressionLocatorTests.swift */,
 				B100E020 /* LibraryTabVisibilityTests.swift */,
 				B1008020 /* AnnotationTests.swift */,
 				B1008021 /* AudiobookPlayerViewModelTests.swift */,
@@ -425,6 +434,8 @@
 				B1013010 /* AddKomgaSourceFlowTests.swift in Sources */,
 				B1014010 /* SourcePickerTests.swift in Sources */,
 				B1015010 /* ProgressPipelineTests.swift in Sources */,
+				B1051010 /* NavDrawerTests.swift in Sources */,
+				B1052010 /* LibraryGridAndTabsUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -452,6 +463,7 @@
 				B101901A /* PdfBridgeUnitTests.swift in Sources */,
 				A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */,
 				64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */,
+				B1053010 /* EpubProgressionLocatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

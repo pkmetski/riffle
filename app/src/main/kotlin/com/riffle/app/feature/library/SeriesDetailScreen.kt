@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.SeriesDetailViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,10 +108,5 @@ internal fun SeriesDetailGrid(
  * A series detail screen already names the series in its app bar, so only the position belongs on
  * each cover.
  */
-internal fun seriesPositionBadge(seriesName: String?): String? {
-    val sequence = seriesName
-        ?.substringAfterLast(" #", missingDelimiterValue = "")
-        ?.trim()
-        .orEmpty()
-    return sequence.takeIf { it.isNotEmpty() }?.let { "#$it" }
-}
+internal fun seriesPositionBadge(seriesName: String?): String? =
+    CoverGridLayout.seriesPositionBadge(seriesName)

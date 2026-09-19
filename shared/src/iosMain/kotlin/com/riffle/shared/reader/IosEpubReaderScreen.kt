@@ -40,6 +40,7 @@ import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.flattenToc
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -61,6 +62,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
+    val publicationInspector = koinInject<IosPublicationInspector>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -111,7 +113,13 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             return@LaunchedEffect
         }
         localPath = path
-        navigator.open(path, savedLocator)
+        // Fallback inbound-sync path (ADR-0013): with no locally-saved locator, a server position
+        // that arrived as a bare `readingProgress` float is all we have. Resolve it through
+        // Readium's locate(progression:) so the book opens where the other device left off
+        // instead of at page one. The primary CFI path, when present, still wins.
+        val openAt = savedLocator
+            ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
+        navigator.open(path, openAt)
         coordinator.start()
     }
 
@@ -245,9 +253,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         .fillMaxWidth(0.75f)
                         .padding(8.dp),
                 ) {
-                    items(flattenToc(tocEntries)) { (entry, depth) ->
+                    items(flattenToc(tocEntries)) { row ->
                         BasicText(
-                            text = "  ".repeat(depth) + entry.title,
+                            text = "  ".repeat(row.depth) + row.entry.title,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp)
@@ -256,8 +264,8 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                                     scope.launch {
                                         navigator.navigateTo(
                                             NavigatorNavigationTarget.ToHref(
-                                                href = entry.href.substringBefore("#"),
-                                                fragment = entry.href.substringAfter("#", "").ifEmpty { null },
+                                                href = row.entry.href.substringBefore("#"),
+                                                fragment = row.entry.href.substringAfter("#", "").ifEmpty { null },
                                             ),
                                         )
                                     }
@@ -312,13 +320,4 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             }
         }
     }
-}
-
-private fun flattenToc(entries: List<TocEntry>, depth: Int = 0): List<Pair<TocEntry, Int>> {
-    val result = mutableListOf<Pair<TocEntry, Int>>()
-    for (entry in entries) {
-        result += entry to depth
-        result += flattenToc(entry.children, depth + 1)
-    }
-    return result
 }

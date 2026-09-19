@@ -1,9 +1,10 @@
 package com.riffle.app.feature.reader.session
 
 import com.riffle.app.feature.reader.EpubReaderViewModel
+import com.riffle.feature.reader.AnnotationSyncBanner
+import com.riffle.feature.reader.AnnotationSyncCoordinator
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.core.sync.AnnotationSyncStatusStore
-import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
@@ -26,19 +27,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.readium.r2.shared.publication.Locator
 
-/**
- * Banner that communicates annotation-sync status to the reader chrome.
- *
- * Derived from [AnnotationSyncStatusStore.lastCycleOutcome]; the session maps domain outcomes to
- * these UI tokens so the screen stays decoupled from the sync internals.
- */
-sealed class AnnotationSyncBanner {
-    /** Last cycle succeeded. */
-    object Synced : AnnotationSyncBanner()
-
-    /** Last cycle failed (network, auth, etc.). */
-    data class Failed(val message: String?) : AnnotationSyncBanner()
-}
+// `AnnotationSyncBanner` moved to `feature:reader` commonMain alongside
+// [AnnotationSyncCoordinator] (issue #1066) so iOS derives the same banner from the same
+// `CycleOutcome` mapping. Re-exported here via the import above.
 
 /**
  * Owns all annotation UI state and sync lifecycle for one open book.
@@ -261,47 +252,30 @@ class AnnotationSession constructor(
     private val _lastUsedEmphasisStyles = MutableStateFlow<Set<EmphasisStyle>>(emptySet())
     val lastUsedEmphasisStyles: StateFlow<Set<EmphasisStyle>> = _lastUsedEmphasisStyles
 
+    // ---- Bind-time state ---------------------------------------------------------------------
+
+    /**
+     * Book identity, namespace gating and the single-flight live-pull [Job] — everything about
+     * the sync *lifecycle*. Lives in `feature:reader` commonMain (issue #1066) because none of it
+     * is platform-bound; this session delegates wholly to it.
+     */
+    private val syncCoordinator = AnnotationSyncCoordinator(
+        scope = scope,
+        progressFlushScope = progressFlushScope,
+        startLiveSync = startLiveSync,
+        scheduleSync = scheduleSync,
+        syncOnOpen = syncOnOpen,
+        syncOnClose = syncOnClose,
+    )
+
     /**
      * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
      * (initial state; nothing to show). Derived from [AnnotationSyncStatusStore].
      */
-    val syncBanner: StateFlow<AnnotationSyncBanner?> = annotationStatusStore.lastCycleOutcome
-        .map { outcome ->
-            when (outcome) {
-                is CycleOutcome.NeverRun -> null
-                is CycleOutcome.Success -> AnnotationSyncBanner.Synced
-                is CycleOutcome.Failed -> AnnotationSyncBanner.Failed(
-                    when (outcome) {
-                        is CycleOutcome.Failed.Network -> outcome.message
-                        is CycleOutcome.Failed.Auth -> "Authentication failed (${outcome.code})"
-                        is CycleOutcome.Failed.Tls -> outcome.message
-                        is CycleOutcome.Failed.Server -> "Source error (${outcome.code})"
-                        is CycleOutcome.Failed.Unknown -> outcome.message
-                    }
-                )
-            }
-        }
-        .stateIn(scope, SharingStarted.Eagerly, null)
-
-    // ---- Bind-time state ---------------------------------------------------------------------
-
-    /** Active book identity, set by [bind]. Null between books. */
-    private var boundServerId: String? = null
-    /**
-     * Cross-device sync namespace for the bound book. May be left blank at [bind] time when the
-     * caller resolves the namespace off the critical path (see [updateNamespace]) — sync scheduling
-     * treats a null/blank value as "not yet ready" and no-ops until [updateNamespace] fills it in.
-     * The observer path never reads this, so binding early with a blank still starts the annotation
-     * Flow subscription correctly.
-     */
-    private var boundNamespace: String? = null
-    private var boundItemId: String? = null
+    val syncBanner: StateFlow<AnnotationSyncBanner?> = syncCoordinator.syncBanner(annotationStatusStore)
 
     /** Resolver from CFI string to [Locator]; provided at [bind] by the VM. Needs publication. */
     private var cfiLocatorResolverFn: (suspend (String) -> Locator?)? = null
-
-    /** The live-pull job for the current book. Cancelled on [bind] / [onBookClosed]. */
-    private var annotationLiveSyncJob: Job? = null
 
     /** Coroutine jobs for observing highlights and all-annotations. Cancelled on [bind]. */
     private var highlightObserveJob: Job? = null
@@ -331,8 +305,10 @@ class AnnotationSession constructor(
         cfiLocatorResolver: suspend (String) -> Locator?,
     ) {
         // Cancel previous book's jobs before starting new ones (single-flight guarantee).
-        annotationLiveSyncJob?.cancel()
-        annotationLiveSyncJob = null
+        // Empty namespace = "not resolved yet" — sync-schedule sites no-op until
+        // [updateNamespace] lands the real value, so the caller can start the observer eagerly
+        // and resolve the namespace off the reader's critical path.
+        syncCoordinator.bind(sourceId, namespace, itemId)
         highlightObserveJob?.cancel()
         lastUsedColorObserveJob?.cancel()
         lastUsedEmphasisObserveJob?.cancel()
@@ -346,13 +322,6 @@ class AnnotationSession constructor(
         _highlightToEdit.value = null
         _annotationsAvailable.value = false
 
-        boundServerId = sourceId
-        // Empty namespace = "not resolved yet" — sync-schedule sites read boundNamespace with a
-        // null-check, so nulling it here keeps them no-op until [updateNamespace] lands the real
-        // value. Lets the caller start the observer eagerly and resolve the namespace off the
-        // reader's critical path.
-        boundNamespace = namespace.takeIf { it.isNotEmpty() }
-        boundItemId = itemId
         cfiLocatorResolverFn = cfiLocatorResolver
 
         // Mark annotations as available now that we have an ABS server id.
@@ -445,17 +414,10 @@ class AnnotationSession constructor(
             }
         }
 
-        // Sync on open: pull peer annotations, then start the live-pull loop. Skipped when the
-        // caller invoked [bind] with an empty namespace and hasn't yet supplied a real one via
-        // [updateNamespace] — the reader-open path uses that pattern to start the annotation
-        // observer eagerly while the namespace resolves in parallel. Once updateNamespace lands
-        // a real namespace, THIS block is re-run from there.
-        if (namespace.isNotEmpty()) {
-            scope.launch {
-                syncOnOpen(sourceId, namespace, itemId)
-                annotationLiveSyncJob = startLiveSync(sourceId, namespace, itemId)
-            }
-        }
+        // Sync on open: pull peer annotations, then start the live-pull loop. Runs AFTER the
+        // observers above are wired — the ordering is observable under an unconfined dispatcher.
+        // No-op when the caller bound with an empty namespace; [updateNamespace] re-runs it.
+        syncCoordinator.startSyncForBoundBook()
     }
 
     /**
@@ -464,30 +426,7 @@ class AnnotationSession constructor(
      * `EpubReaderViewModel.onOpenReady`). No-op if the value hasn't changed or the caller passes
      * blank. Kicks off the same syncOnOpen + startLiveSync bootstrap the eager-bind path runs.
      */
-    fun updateNamespace(namespace: String?) {
-        val fresh = namespace?.takeIf { it.isNotEmpty() }
-        val sourceId = boundServerId ?: return
-        val itemId = boundItemId ?: return
-        val previous = boundNamespace
-        if (fresh == previous) return
-        boundNamespace = fresh
-        // Only bootstrap sync if this is the transition from "no namespace" → "have namespace".
-        // A namespace CHANGE mid-session (unlikely — same book, same server) intentionally does
-        // not restart the live-sync loop; only a full [bind] does.
-        if (fresh != null && previous == null && annotationLiveSyncJob == null) {
-            scope.launch {
-                syncOnOpen(sourceId, fresh, itemId)
-                // Nudge a debounced push after arrival: any user mutation (createHighlight,
-                // deleteAnnotation, recolour, note edit) that happened in the race window between
-                // bind(namespace="") and this updateNamespace call short-circuited its
-                // scheduleSync at `boundNamespace ?: return`. Its Room write persists, but the
-                // remote push was never queued. Firing scheduleSync here restarts the debounce
-                // so the pending local writes get pushed on the next natural tick.
-                scheduleSync(sourceId, fresh, itemId)
-                annotationLiveSyncJob = startLiveSync(sourceId, fresh, itemId)
-            }
-        }
-    }
+    fun updateNamespace(namespace: String?) = syncCoordinator.updateNamespace(namespace)
 
     // ---- Highlight actions -------------------------------------------------------------------
 
@@ -552,10 +491,10 @@ class AnnotationSession constructor(
         _noteEditorTarget.value = null
         val row = _annotations.value.firstOrNull { it.id == id }
         val color = row?.color ?: run {
-            scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+            syncCoordinator.scheduleSyncIfReady()
             return
         }
-        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        syncCoordinator.scheduleSyncIfReady()
         mergeAfterEdit(id, color, normalized)
     }
 
@@ -623,7 +562,7 @@ class AnnotationSession constructor(
                 _emphasisPool.value.none { it.cfi == row.cfi }
             ) {
                 annotationStore.delete(id)
-                scheduleSync(boundServerId ?: return@launch, boundNamespace ?: return@launch, boundItemId ?: return@launch)
+                syncCoordinator.scheduleSyncIfReady()
                 return@launch
             }
             // BOTH TYPE_HIGHLIGHT and TYPE_IMAGE anchors fire the merge check — annotations do
@@ -684,8 +623,8 @@ class AnnotationSession constructor(
      * "last was none" flag so the next popup opens with ∅.
      */
     suspend fun persistLastUsedColorToken(colorToken: String) {
-        val sid = boundServerId ?: return
-        val iid = boundItemId ?: return
+        val sid = syncCoordinator.sourceId ?: return
+        val iid = syncCoordinator.itemId ?: return
         if (colorToken.isEmpty()) {
             // Optimistic update so dismissHighlightActions reads the correct value immediately,
             // without waiting for DataStore to propagate through the Flow collector.
@@ -701,15 +640,15 @@ class AnnotationSession constructor(
 
     suspend fun recolorHighlight(id: String, color: HighlightColor) {
         annotationStore.recolor(id, color.token)
-        val sid = boundServerId ?: return
-        val iid = boundItemId ?: return
+        val sid = syncCoordinator.sourceId ?: return
+        val iid = syncCoordinator.itemId ?: return
         highlightColorPreferencesStore.setLastUsedColor(sid, iid, color)
         // ADR 0056 §4: any real-colour pick clears the "last was ∅" flag.
         highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, false)
         // Merge check is deferred to [dismissHighlightActions] — the popup close is the commit
         // point. Firing here would absorb a neighbour mid-iteration while the user is still
         // deciding on colour/note.
-        scheduleSync(sid, boundNamespace ?: return, iid)
+        syncCoordinator.scheduleSyncIfReady()
     }
 
     /** ADR 0056 §4: recolor to an arbitrary raw token — supports the `∅` swatch which passes ""
@@ -717,18 +656,18 @@ class AnnotationSession constructor(
      *  "last used is none" flag so a subsequent new annotation on this book opens with `∅`. */
     suspend fun recolorHighlightRaw(id: String, colorToken: String) {
         annotationStore.recolor(id, colorToken)
-        val sid = boundServerId ?: return
-        val iid = boundItemId ?: return
+        val sid = syncCoordinator.sourceId ?: return
+        val iid = syncCoordinator.itemId ?: return
         if (colorToken.isEmpty()) {
             highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, true)
         }
-        scheduleSync(sid, boundNamespace ?: return, iid)
+        syncCoordinator.scheduleSyncIfReady()
     }
 
     /** Soft-delete a highlight; [annotationStore] re-emits without it → decoration removed. */
     suspend fun deleteHighlight(id: String) {
         annotationStore.delete(id)
-        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        syncCoordinator.scheduleSyncIfReady()
         if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
     }
 
@@ -737,7 +676,7 @@ class AnnotationSession constructor(
         val normalized = note?.takeIf { it.isNotBlank() }
         annotationStore.updateNote(id, normalized)
         // Merge check is deferred to [dismissHighlightActions] — see recolorHighlight.
-        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        syncCoordinator.scheduleSyncIfReady()
     }
 
     // ---- Annotations panel ------------------------------------------------------------------
@@ -802,7 +741,7 @@ class AnnotationSession constructor(
                 .forEach { annotationStore.delete(it.id) }
         }
         annotationStore.delete(id)
-        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        syncCoordinator.scheduleSyncIfReady()
         if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
     }
 
@@ -815,38 +754,21 @@ class AnnotationSession constructor(
      *
      * No-op if [bind] has not been called for a synced book.
      */
-    fun onReaderClosed() {
-        annotationLiveSyncJob?.cancel()
-        annotationLiveSyncJob = null
-    }
+    fun onReaderClosed() = syncCoordinator.onReaderClosed()
 
     /**
      * Called when the reader is resumed from background. Re-arms the live-pull loop so peer
      * annotations remain fresh throughout a foreground session. The open-time [syncOnOpen] is
      * NOT repeated — only the periodic live-pull is restarted.
      *
-     * No-op if [bind] has not been called for a synced book (no [boundServerId]).
+     * No-op if [bind] has not been called for a synced book (no bound source).
      */
-    fun onReaderResumed() {
-        val sid = boundServerId ?: return
-        val ns = boundNamespace ?: return
-        val iid = boundItemId ?: return
-        if (ns.isBlank()) return  // namespace not resolved — sync not configured this session
-        annotationLiveSyncJob?.cancel()
-        annotationLiveSyncJob = startLiveSync(sid, ns, iid)
-    }
+    fun onReaderResumed() = syncCoordinator.onReaderResumed()
 
     /**
      * Called when the reader is closed (VM cleared). Cancels the live-sync loop and pushes
      * any pending annotations on [ProgressFlushScope] so the write survives viewModelScope
      * cancellation at teardown.
      */
-    fun onBookClosed() {
-        annotationLiveSyncJob?.cancel()
-        annotationLiveSyncJob = null
-        val sid = boundServerId ?: return
-        val ns = boundNamespace ?: return
-        val iid = boundItemId ?: return
-        progressFlushScope.flush { syncOnClose(sid, ns, iid) }
-    }
+    fun onBookClosed() = syncCoordinator.onBookClosed()
 }

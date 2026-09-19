@@ -41,3 +41,6 @@ docs/superpowers/
 
 # Xcode per-user state (scheme order, breakpoints)
 xcuserdata/
+
+# Local git worktrees (per-developer, never committed).
+.worktrees/

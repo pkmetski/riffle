@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.highlights
 
 import android.net.FakeUri
-import com.riffle.app.feature.reader.toCssRgba
+import com.riffle.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.HighlightColor

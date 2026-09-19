@@ -1,5 +1,12 @@
 package com.riffle.app.navigation
 
+import com.riffle.feature.navigation.committedTopRoute
+import com.riffle.feature.navigation.guardedNavigateBack
+import com.riffle.feature.navigation.isReaderRoute
+import com.riffle.feature.navigation.libraryEntryRoute
+import com.riffle.feature.navigation.libraryItemsBackEnabled
+import com.riffle.feature.navigation.NavigationDrawerViewModel
+import com.riffle.feature.navigation.shouldInterceptBackForDrawer
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -23,7 +30,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.HomeViewModel
-import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.feature.player.NowPlaying
 import com.riffle.app.ui.isTabletLayout
@@ -51,12 +57,6 @@ internal const val ADD_OREILLY = "add_oreilly"
 internal const val ADD_SOURCE = "add_source"
 internal const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 
-/**
- * Where the "Add source" picker routes each [SourceType] to — delegated to the descriptor
- * (ADR 0053). Adding a new source needs no edit here.
- */
-internal fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
-    com.riffle.core.domain.WebSourceDescriptors.forTypeOrError(type).addRoute
 internal const val SELECT_LIBRARIES = "select_libraries"
 internal const val SETTINGS = "settings"
 internal const val READALOUD_SETTINGS = "settings/readaloud"
@@ -75,68 +75,9 @@ internal const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectio
 internal const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}?sourceId={sourceId}"
 internal const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
-internal const val EPUB_READER =
-    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
-internal const val PDF_READER = "pdf_reader/{itemId}?sourceId={sourceId}"
-internal const val CBZ_READER = "cbz_reader/{itemId}?sourceId={sourceId}"
 internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 internal const val AUDIOBOOK_PLAYER = "audiobook_player/{sourceId}/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
 
-/**
- * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
- * series ids contain slashes (`serie/foo` per ADR 0051) and would otherwise splay across the
- * fixed [SERIES_DETAIL] template's `{seriesId}` slot, producing the "destination cannot be
- * found in the navigation graph" crash. Nav Compose auto-decodes path arguments so the receiver
- * (SeriesDetailViewModel) sees the original id.
- */
-internal fun seriesDetailRoute(libraryId: String, seriesId: String, seriesName: String): String =
-    "series_detail/$libraryId/${URLEncoder.encode(seriesId, "UTF-8")}/${URLEncoder.encode(seriesName, "UTF-8")}"
-
-/** Same reasoning as [seriesDetailRoute] but for collection ids. */
-internal fun collectionDetailRoute(libraryId: String, collectionId: String, collectionName: String): String =
-    "collection_detail/$libraryId/${URLEncoder.encode(collectionId, "UTF-8")}/${URLEncoder.encode(collectionName, "UTF-8")}"
-
-internal fun librarySectionRoute(
-    libraryId: String,
-    libraryName: String,
-    sectionType: LibrarySectionType,
-): String =
-    "library_section/${URLEncoder.encode(libraryId, "UTF-8")}/${URLEncoder.encode(libraryName, "UTF-8")}/${sectionType.name}"
-
-internal fun libraryItemDetailRoute(item: LibraryItem): String {
-    val encodedId = URLEncoder.encode(item.id, "UTF-8")
-    val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
-    return if (item.sourceId.isBlank()) {
-        "library_item_detail/$encodedId"
-    } else {
-        "library_item_detail/$encodedId?sourceId=$encodedSourceId"
-    }
-}
-
-/**
- * Dispatches to the correct library entry point for [sourceType]:
- *   - Room-mirrored catalogues (ABS, LocalFiles) → `library_items/…`
- *   - Unbounded catalogues → the source's dedicated browse screen. Each unbounded Source owns
- *     its own remote-browse route (Chitanka, Gutenberg, …) because their pagination, chip
- *     strip, and item-cards diverge enough that a single generic screen would leak per-Source
- *     branches everywhere.
- *
- * Adding a new unbounded Source means: (1) flip [SourceType.isUnboundedCatalog], (2) add a
- * branch to this `when`, (3) register the composable at the NavHost. A null [sourceType]
- * (activeServer hasn't resolved yet on cold start) falls back to `library_items`; the drawer
- * will correct on the next selection.
- */
-internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libraryName: String): String {
-    val encoded = URLEncoder.encode(libraryName, "UTF-8")
-    val prefix = sourceType
-        ?.takeIf { it.isUnboundedCatalog }
-        ?.let { com.riffle.core.domain.WebSourceDescriptors.forType(it) }
-        ?.browseRoutePrefix
-    return if (prefix != null) "$prefix/$libraryId/$encoded" else "library_items/$libraryId/$encoded"
-}
-
-internal fun libraryEntryRoute(destination: HomeViewModel.StartDestination.Library): String =
-    libraryEntryRoute(destination.sourceType, destination.libraryId, destination.libraryName)
 
 @Composable
 fun MainScreen(
@@ -367,67 +308,6 @@ internal fun NavController.navigateAsRoot(route: String) {
     }
 }
 
-/**
- * Whether the top-level BackHandler (and the library screen's backEnabled) should intercept
- * Back and close the drawer instead of letting the NavHost pop the current destination.
- *
- * Both [drawerCurrentOpen] and [drawerTargetOpen] must be checked:
- * - [drawerTargetOpen] flips true the instant `drawerState.open()` is called → covers Back
- *   pressed during the open animation.
- * - [drawerCurrentOpen] stays true until the close animation finishes → covers Back pressed
- *   during the close animation (targetValue is already Closed at that point).
- */
-internal fun shouldInterceptBackForDrawer(
-    usePermanentDrawer: Boolean,
-    drawerCurrentOpen: Boolean,
-    drawerTargetOpen: Boolean,
-): Boolean = !usePermanentDrawer && (drawerCurrentOpen || drawerTargetOpen)
-
-/**
- * Whether [LibraryItemsScreen]'s BackHandler should be enabled.
- *
- * Two conditions must both hold:
- * 1. [committedRoute] (top of [NavController.currentBackStack]) is the library-items
- *    destination. Using the COMMITTED route (not the preview from
- *    [currentBackStackEntryAsState()]) keeps the handler armed even while a predictive-back
- *    gesture FROM library_items is in progress — the committed top stays library_items until
- *    the gesture commits, so the handler intercepts and runs ClearSearch/ResetTab/Exit instead
- *    of letting NavHost pop library_items and flash the HOME spinner. When library_item_detail
- *    is the committed top (user navigated into a sub-screen), the handler is disabled and NavHost
- *    handles its own predictive-back pop animation for the sub-screen. The [isCommittedOnLibraryItems]
- *    runtime check inside the handler is a safety net for any residual lag edge cases.
- * 2. The drawer is not open or animating — when it is, the top-level drawer BackHandler must
- *    take Back to close the drawer (see [shouldInterceptBackForDrawer]).
- */
-internal fun libraryItemsBackEnabled(
-    committedRoute: String?,
-    usePermanentDrawer: Boolean,
-    drawerCurrentOpen: Boolean,
-    drawerTargetOpen: Boolean,
-): Boolean = committedRoute?.startsWith("library_items/") == true &&
-    !shouldInterceptBackForDrawer(usePermanentDrawer, drawerCurrentOpen, drawerTargetOpen)
-
-// Extract the committed top route from a back stack, ignoring graph-root entries that have
-// no route string. Used by [libraryItemsBackEnabled] so it operates on the COMMITTED top, not
-// the predictive-back preview destination that [currentBackStackEntryAsState] temporarily reflects.
-internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
-    backStackRoutes.lastOrNull { it != null }
-
-/**
- * Calls [action] only if [isStillTop] returns true.
- *
- * Guards back-navigation callbacks in sub-screens against double-pops during Compose exit
- * animations. When a screen exits, its composable stays alive for the animation duration
- * (~300ms). A second tap on the ← button during that window re-fires [onNavigateBack], but the
- * committed back stack has already advanced — [isStillTop] catches this and skips the pop to
- * prevent removing the wrong entry (e.g. library_items → HOME spinner).
- */
-internal fun guardedNavigateBack(isStillTop: () -> Boolean, action: () -> Unit): Boolean {
-    if (!isStillTop()) return false
-    action()
-    return true
-}
-
 private fun NavController.isCommittedTop(backStackEntry: NavBackStackEntry): Boolean =
     currentBackStackEntry == backStackEntry
 
@@ -450,11 +330,6 @@ internal fun NavController.popCommittedTopFromLibraryPreview(): Boolean = popBac
 // Navigating to HOME on every source switch lets getStartDestination() pick the correct library
 // for the new source (last-opened per source, falling back to the first in the list).
 internal fun shouldNavigateHomeOnSourceSwitch(): Boolean = true
-
-internal fun isReaderRoute(route: String?): Boolean =
-    route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
-        route?.startsWith(PDF_READER.substringBefore("{")) == true ||
-        route?.startsWith(CBZ_READER.substringBefore("{")) == true
 
 /**
  * Returns the committed top route as Compose state, recomposing whenever the back stack changes.

@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.SeriesDetailViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -47,7 +48,7 @@ fun SeriesDetailScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(120.dp),
+                columns = GridCells.Adaptive(coverGridMinCell()),
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
@@ -63,6 +64,8 @@ fun SeriesDetailScreen(
                         item = item,
                         modifier = Modifier.aspectRatio(2f / 3f),
                         onClick = { onItemSelected(item) },
+                        // The app bar already names the series, so only the position goes on the cover.
+                        seriesNameBadge = CoverGridLayout.seriesPositionBadge(item.seriesName),
                     )
                 }
             }

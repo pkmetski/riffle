@@ -113,6 +113,7 @@ jobs:
       - name: Run iOS commonTest (all iOS-targeted modules)
         run: |
           ./gradlew \
+            :core:common:iosSimulatorArm64Test \
             :core:models:iosSimulatorArm64Test \
             :core:net:iosSimulatorArm64Test \
             :core:sources:iosSimulatorArm64Test \
@@ -127,6 +128,7 @@ jobs:
             :core:catalog-chitanka:iosSimulatorArm64Test \
             :shared:iosSimulatorArm64Test \
             :feature:library:iosSimulatorArm64Test \
+            :feature:navigation:iosSimulatorArm64Test \
             :feature:player:iosSimulatorArm64Test \
             :feature:reader:iosSimulatorArm64Test \
             :feature:source:iosSimulatorArm64Test \

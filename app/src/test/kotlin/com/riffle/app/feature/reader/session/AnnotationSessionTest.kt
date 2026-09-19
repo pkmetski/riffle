@@ -1242,106 +1242,6 @@ class AnnotationSessionTest {
         sessionScope.coroutineContext[Job]?.cancel()
     }
 
-    /**
-     * Test 5: syncBanner reflects annotationStatusStore states (Syncing/Synced/Failed)
-     */
-    @Test
-    fun `syncBanner reflects annotationStatusStore states`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val statusStore = AnnotationSyncStatusStore()
-        val syncOps = FakeSyncOps()
-        val session = makeSession(
-            syncOps = syncOps,
-            scope = sessionScope,
-            statusStore = statusStore,
-        )
-
-        // Initial: NeverRun → null banner
-        assertNull(session.syncBanner.value)
-
-        statusStore.report(CycleOutcome.Success(1000L))
-        assertEquals(AnnotationSyncBanner.Synced, session.syncBanner.value)
-
-        statusStore.report(CycleOutcome.Failed.Network(2000L, "timeout"))
-        assertTrue(session.syncBanner.value is AnnotationSyncBanner.Failed)
-
-        sessionScope.coroutineContext[Job]?.cancel()
-    }
-
-    /**
-     * Test 6: bind triggers syncOnOpen and startLiveSync
-     */
-    @Test
-    fun `bind triggers syncOnOpen and startLiveSync`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val syncOps = FakeSyncOps()
-        val session = makeSession(syncOps = syncOps, scope = sessionScope)
-
-        defaultBind(session)
-
-        assertTrue("syncOnOpen should be called on bind", syncOps.syncOnOpenCalled)
-        assertTrue("startLiveSync should be called on bind", syncOps.startLiveSyncCalled)
-
-        sessionScope.coroutineContext[Job]?.cancel()
-    }
-
-    /**
-     * Test 7: onBookClosed triggers syncOnClose and cancels live-sync job
-     */
-    @Test
-    fun `onBookClosed triggers syncOnClose and cancels live-sync job`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val syncOps = FakeSyncOps()
-        // Use a real ProgressFlushScope backed by a test dispatcher
-        val flushScope = ProgressFlushScope(
-            TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
-        )
-        val session = makeSession(syncOps = syncOps, scope = sessionScope, flushScope = flushScope)
-
-        defaultBind(session)
-
-        val liveSyncJob = syncOps.lastLiveSyncJob
-        assertFalse("Live-sync job should be active before close", liveSyncJob?.isCancelled ?: true)
-
-        session.onBookClosed()
-
-        assertTrue("syncOnClose should be called on book closed", syncOps.syncOnCloseCalled)
-        assertTrue("Live-sync job should be cancelled after onBookClosed", liveSyncJob?.isCancelled == true)
-
-        sessionScope.coroutineContext[Job]?.cancel()
-    }
-
-    /**
-     * Test 8: live-sync job is single-flight per book (rebind cancels the previous job)
-     */
-    @Test
-    fun `live-sync job is single-flight per book`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val syncOps = FakeSyncOps()
-        val session = makeSession(syncOps = syncOps, scope = sessionScope)
-
-        defaultBind(session)
-        val firstJob = syncOps.lastLiveSyncJob
-
-        // Rebind to a different item — should cancel the first live-sync job
-        session.bind(
-            sourceId = "srv1",
-            namespace = "ns1",
-            itemId = "item2",
-            highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { null },
-        )
-        val secondJob = syncOps.lastLiveSyncJob
-
-        assertTrue("Previous live-sync job should be cancelled on rebind", firstJob?.isCancelled == true)
-        assertTrue("New live-sync job should be active", secondJob?.isActive == true)
-
-        sessionScope.coroutineContext[Job]?.cancel()
-    }
 
     /**
      * Test 9: updateHighlightNote persists note and schedules debounce sync
@@ -1364,28 +1264,6 @@ class AnnotationSessionTest {
         sessionScope.coroutineContext[Job]?.cancel()
     }
 
-    /**
-     * Test 11: onReaderClosed cancels the live-sync job (regression: the original VM cancelled
-     * annotationLiveSyncJob in onReaderClosed; the extraction removed that call).
-     */
-    @Test
-    fun `onReaderClosed cancels live-sync job`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val syncOps = FakeSyncOps()
-        val session = makeSession(syncOps = syncOps, scope = sessionScope)
-
-        defaultBind(session)
-
-        val liveSyncJob = syncOps.lastLiveSyncJob
-        assertTrue("Live-sync job should be active after bind", liveSyncJob?.isActive == true)
-
-        session.onReaderClosed()
-
-        assertTrue("Live-sync job should be cancelled after onReaderClosed", liveSyncJob?.isCancelled == true)
-
-        sessionScope.coroutineContext[Job]?.cancel()
-    }
 
     /**
      * Test 10: deleteAnnotation removes from store and clears highlightToEdit if needed
@@ -1409,6 +1287,80 @@ class AnnotationSessionTest {
         assertTrue(store.deletedIds.contains("h1"))
         assertNull("highlightToEdit should be cleared when its annotation is deleted", session.highlightToEdit.value)
         assertEquals(1, syncOps.scheduleDebounceCount)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+
+    // ---- Unresolved-namespace behaviour (issue #1066 AnnotationSyncCoordinator extraction) ----
+    //
+    // Before the extraction these paths read
+    //     scheduleSync(boundSourceId ?: return, boundNamespace ?: return, boundItemId ?: return)
+    // whose `?: return` exited the *enclosing function*, so everything after it was skipped
+    // whenever the namespace had not resolved. `EpubReaderViewModel` binds with `namespace = ""`
+    // for any source where `ensureSyncNamespace` returns null (local files, non-syncing sources),
+    // and the coordinator stores that as null — so on those sources it was skipped for the whole
+    // session. That was an accident of expression style, not intent: clearing the edit target for
+    // an annotation the user just deleted, and merging after a note edit, have nothing to do with
+    // whether the annotation syncs to a server. `scheduleSyncIfReady()` now no-ops and execution
+    // continues. These pin that, so the old skip cannot come back unnoticed.
+
+    @Test
+    fun `deleteHighlight clears highlightToEdit even when the namespace never resolved`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        assertEquals("h1", session.highlightToEdit.value?.id)
+
+        session.deleteHighlight("h1")
+
+        assertTrue(store.deletedIds.contains("h1"))
+        assertNull(
+            "A deleted highlight must not stay the edit target just because the book does not sync",
+            session.highlightToEdit.value,
+        )
+        assertEquals("An unresolved namespace must not schedule a push", 0, syncOps.scheduleDebounceCount)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `deleteAnnotation clears highlightToEdit even when the namespace never resolved`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        assertEquals("h1", session.highlightToEdit.value?.id)
+
+        session.deleteAnnotation("h1")
+
+        assertTrue(store.deletedIds.contains("h1"))
+        assertNull(
+            "A deleted annotation must not stay the edit target just because the book does not sync",
+            session.highlightToEdit.value,
+        )
+        assertEquals("An unresolved namespace must not schedule a push", 0, syncOps.scheduleDebounceCount)
 
         sessionScope.coroutineContext[Job]?.cancel()
     }
@@ -1458,24 +1410,6 @@ class AnnotationSessionTest {
     // onOpenReady would either regress sync (no syncOnOpen when namespace is late-supplied) or
     // regress the eager subscription (bind gated behind ensureSyncNamespace's IO wait again).
 
-    @Test
-    fun `bind with empty namespace does NOT trigger syncOnOpen or startLiveSync`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val syncOps = FakeSyncOps()
-        val session = makeSession(syncOps = syncOps, scope = sessionScope)
-
-        session.bind(
-            sourceId = "srv1",
-            namespace = "",
-            itemId = "item1",
-            highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { null },
-        )
-
-        assertFalse("empty-namespace bind must not run syncOnOpen", syncOps.syncOnOpenCalled)
-        assertFalse("empty-namespace bind must not start live-sync loop", syncOps.startLiveSyncCalled)
-    }
 
     @Test
     fun `bind with empty namespace still starts the annotation Flow observer`() = runTest {
@@ -1501,78 +1435,44 @@ class AnnotationSessionTest {
         assertEquals(listOf(render), session.highlightRenders.value)
     }
 
+    // ------ AnnotationSyncCoordinator wiring ----------------------------------------------
+    //
+    // The sync lifecycle itself (namespace gating, single-flight live-pull job, close-time
+    // flush) is pinned by `feature:reader`'s AnnotationSyncCoordinatorTest, which runs on JVM
+    // *and* iOS. These two tests pin only the wiring — that AnnotationSession actually drives
+    // the coordinator — so dropping `syncCoordinator.startSyncForBoundBook()` out of `bind`, or
+    // un-delegating `onBookClosed`, still flips a test red on the Android side.
+
     @Test
-    fun `updateNamespace after empty-namespace bind kicks off syncOnOpen and startLiveSync`() = runTest {
+    fun `bind drives the sync coordinator so syncOnOpen and startLiveSync fire`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
         val syncOps = FakeSyncOps()
         val session = makeSession(syncOps = syncOps, scope = sessionScope)
 
-        session.bind(
-            sourceId = "srv1",
-            namespace = "",
-            itemId = "item1",
-            highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { null },
-        )
-        assertFalse(syncOps.syncOnOpenCalled)
-        assertFalse(syncOps.startLiveSyncCalled)
+        defaultBind(session)
 
-        session.updateNamespace("ns-real")
+        assertTrue("bind must drive the coordinator's syncOnOpen", syncOps.syncOnOpenCalled)
+        assertTrue("bind must drive the coordinator's startLiveSync", syncOps.startLiveSyncCalled)
 
-        assertTrue("updateNamespace(non-empty) must run syncOnOpen", syncOps.syncOnOpenCalled)
-        assertTrue("updateNamespace(non-empty) must start live-sync", syncOps.startLiveSyncCalled)
-    }
-
-    // Race-window regression: any user mutation between bind(namespace="") and updateNamespace
-    // (createHighlight, delete, recolour, note-edit) hits `boundNamespace ?: return` in
-    // scheduleSync and silently doesn't queue a push. The Room write persists but the remote
-    // push is missed. updateNamespace must fire a scheduleSync on the null→non-null transition
-    // to flush any pending queued writes. Flips red if that flush is removed.
-    @Test
-    fun `updateNamespace bootstrap fires scheduleSync to flush pre-namespace-window writes`() = runTest {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val sessionScope = CoroutineScope(dispatcher)
-        val syncOps = FakeSyncOps()
-        val session = makeSession(syncOps = syncOps, scope = sessionScope)
-
-        session.bind(
-            sourceId = "srv1",
-            namespace = "",
-            itemId = "item1",
-            highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { null },
-        )
-        // Nothing scheduled yet.
-        assertEquals(0, syncOps.scheduleDebounceCount)
-
-        session.updateNamespace("ns-real")
-
-        assertEquals(
-            "null→non-null transition must nudge scheduleSync to flush the race window",
-            1,
-            syncOps.scheduleDebounceCount,
-        )
+        sessionScope.coroutineContext[Job]?.cancel()
     }
 
     @Test
-    fun `updateNamespace(null) after empty-namespace bind stays no-op`() = runTest {
+    fun `onBookClosed delegates to the sync coordinator`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
         val syncOps = FakeSyncOps()
         val session = makeSession(syncOps = syncOps, scope = sessionScope)
 
-        session.bind(
-            sourceId = "srv1",
-            namespace = "",
-            itemId = "item1",
-            highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { null },
-        )
-        session.updateNamespace(null)
+        defaultBind(session)
+        val liveSyncJob = syncOps.lastLiveSyncJob
 
-        // Local-only source: ensureSyncNamespace returns null → session stays in no-sync mode.
-        assertFalse("updateNamespace(null) must not run syncOnOpen", syncOps.syncOnOpenCalled)
-        assertFalse("updateNamespace(null) must not start live-sync", syncOps.startLiveSyncCalled)
+        session.onBookClosed()
+
+        assertTrue("onBookClosed must delegate the close-time push", syncOps.syncOnCloseCalled)
+        assertTrue("onBookClosed must cancel the live-sync job", liveSyncJob?.isCancelled == true)
+
+        sessionScope.coroutineContext[Job]?.cancel()
     }
 }

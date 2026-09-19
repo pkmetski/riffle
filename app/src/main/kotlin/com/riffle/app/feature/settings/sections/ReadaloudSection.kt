@@ -9,6 +9,7 @@ import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.feature.settings.ReadaloudMatchSummary
+import com.riffle.feature.settings.displayHost
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.StorytellerBadge
 import com.riffle.core.models.ServerType
@@ -64,63 +65,13 @@ internal fun localizedReadaloudRowSummary(
     val version = serverVersions[storyteller.id]
     val summary = readaloudSummaries[storyteller.id]
     val head = if (username != null) {
-        "$username@${shortHost(storyteller.url.value)}"
+        "$username@${storyteller.url.displayHost()}"
     } else {
-        shortHost(storyteller.url.value)
+        storyteller.url.displayHost()
     }
     val parts = mutableListOf(head)
     if (version != null) parts += "v$version"
     if (summary != null) parts += localizedMatchCountsFragment(summary)
-    return parts.joinToString(" · ")
-}
-
-/** Subtitle text for the collapsed Readaloud row — mirrors the pre-collapse per-row details. */
-internal fun readaloudRowSummary(
-    storyteller: Source?,
-    serverVersions: Map<String, String>,
-    readaloudSummaries: Map<String, ReadaloudMatchSummary>,
-): String {
-    if (storyteller == null) return "Storyteller not configured · tap to set up"
-    val username = storyteller.username.takeIf { it.isNotEmpty() }
-    val version = serverVersions[storyteller.id]
-    val summary = readaloudSummaries[storyteller.id]
-    return buildString {
-        if (username != null) {
-            append(username)
-            append('@')
-        }
-        append(shortHost(storyteller.url.value))
-        if (version != null) {
-            append(" · v")
-            append(version)
-        }
-        if (summary != null) {
-            append(" · ")
-            append(matchCountsFragment(summary))
-        }
-    }
-}
-
-/**
- * Compact string surfacing every non-zero count from a [ReadaloudMatchSummary]. Silent counts
- * (zero) are dropped so the subtitle stays short — "12 matched" reads cleaner than
- * "0 unmatched · 0 suggested · 0 partial · 12 matched" and matches the pre-collapse behaviour
- * where the "Review matches" row showed the four counts only when there were partial/unmatched
- * ones to act on.
- *
- * All four counts zero (fresh install, no readalouds discovered yet) collapses to a friendlier
- * "no readalouds yet".
- */
-internal fun matchCountsFragment(summary: ReadaloudMatchSummary): String {
-    val total = summary.unmatchedCount + summary.suggestedCount +
-        summary.partiallyMatchedCount + summary.matchedCount
-    if (total == 0) return "no readalouds yet"
-    val parts = buildList {
-        if (summary.unmatchedCount > 0) add("${summary.unmatchedCount} unmatched")
-        if (summary.suggestedCount > 0) add("${summary.suggestedCount} suggested")
-        if (summary.partiallyMatchedCount > 0) add("${summary.partiallyMatchedCount} partial")
-        if (summary.matchedCount > 0) add("${summary.matchedCount} matched")
-    }
     return parts.joinToString(" · ")
 }
 
@@ -136,6 +87,3 @@ internal fun localizedMatchCountsFragment(summary: ReadaloudMatchSummary): Strin
     if (summary.matchedCount > 0) parts += stringResource(R.string.ui_matched_count, summary.matchedCount)
     return parts.joinToString(" · ")
 }
-
-private fun shortHost(rawUrl: String): String =
-    runCatching { java.net.URI(rawUrl).host ?: rawUrl }.getOrDefault(rawUrl)

@@ -1,97 +1,16 @@
 package com.riffle.app.feature.library
 
-import com.riffle.feature.library.DownloadState
+import com.riffle.feature.library.DefaultDownloadManager
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 /**
- * Owns in-flight downloads on an application-scoped [CoroutineScope] so they survive navigation away
- * from the screen that started them — the detail screen's ViewModel (and its `viewModelScope`) is
- * cleared on back, which previously cancelled the download mid-transfer. State is keyed by an opaque
- * string so the originating screen, or a freshly recreated one, can observe progress and completion.
+ * Android host for the shared [DefaultDownloadManager].
+ *
+ * The behaviour (app-scoped work that survives navigation, duplicate-tap idempotence, terminal
+ * state on throw, silent promotion runs) lives in `feature:library/commonMain` so the iOS app
+ * runs the identical implementation instead of a hand-maintained port. This class exists only so
+ * Android's Koin graph and its unit tests keep their `DownloadManager(scope)` entry point.
  */
-class DownloadManager constructor(
-    private val scope: CoroutineScope,
-) : com.riffle.feature.library.DownloadManager {
-    private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
-    override val states: StateFlow<Map<String, DownloadState>> = _states
-    private val lock = Any()
-    private val silentKeys = mutableSetOf<String>()
-    private val jobs = mutableMapOf<String, Job>()
-
-    /**
-     * Starts [work] for [key] on the application scope unless a download for [key] is already in
-     * progress (idempotent — a duplicate tap is a no-op). [work] receives a progress callback and
-     * returns the terminal [DownloadState].
-     */
-    override fun start(key: String, work: suspend (onProgress: (Long, Long) -> Unit) -> DownloadState) {
-        if (_states.value[key] is DownloadState.InProgress) return
-        set(key, DownloadState.InProgress())
-        val job = scope.launch {
-            val terminal = try {
-                work { downloaded, total ->
-                    set(key, DownloadState.InProgress(if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else null))
-                }
-            } catch (e: Throwable) {
-                // A repo that lets something escape must not leave the key stuck on a spinner.
-                // Catches Error subclasses (e.g. OutOfMemoryError) that Exception misses.
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                DownloadState.NotDownloaded
-            }
-            synchronized(lock) { jobs.remove(key) }
-            set(key, terminal)
-        }
-        synchronized(lock) { jobs[key] = job }
-    }
-
-    /**
-     * Runs local promotion work in the same app scope as network downloads, but keeps the visible
-     * state stable until the terminal state arrives. Cached-to-downloaded promotion should not look
-     * like a fresh download.
-     */
-    override fun startWithoutProgress(
-        key: String,
-        stateWhileRunning: DownloadState,
-        work: suspend () -> DownloadState,
-    ) {
-        val shouldStart = synchronized(lock) {
-            if (_states.value[key] is DownloadState.InProgress || !silentKeys.add(key)) {
-                false
-            } else {
-                true
-            }
-        }
-        if (!shouldStart) return
-        set(key, stateWhileRunning)
-        scope.launch {
-            val terminal = try {
-                work()
-            } catch (e: Throwable) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                DownloadState.NotDownloaded
-            } finally {
-                synchronized(lock) { silentKeys -= key }
-            }
-            set(key, terminal)
-        }
-    }
-
-    /** Cancels an in-flight download for [key] and clears its state. */
-    override fun cancel(key: String) {
-        synchronized(lock) { jobs.remove(key) }?.cancel()
-        _states.update { it - key }
-    }
-
-    /** Drops any tracked state for [key], e.g. after the user removes the download. */
-    override fun clear(key: String) {
-        _states.update { it - key }
-    }
-
-    private fun set(key: String, state: DownloadState) {
-        _states.update { it + (key to state) }
-    }
-}
+class DownloadManager(
+    scope: CoroutineScope,
+) : com.riffle.feature.library.DownloadManager by DefaultDownloadManager(scope)

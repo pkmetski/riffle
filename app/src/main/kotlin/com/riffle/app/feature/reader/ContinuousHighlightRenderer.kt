@@ -3,6 +3,8 @@ package com.riffle.app.feature.reader
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import org.readium.r2.shared.publication.Locator
+import com.riffle.feature.reader.toCssRgbaWithAlpha
+import com.riffle.feature.reader.toCssRgba
 
 /**
  * [HighlightRenderer] for continuous mode.

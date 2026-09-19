@@ -8,6 +8,13 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.MergeAnchor
+import com.riffle.feature.reader.MergeCandidate
+import com.riffle.feature.reader.MergeSide
+import com.riffle.feature.reader.applyMerge
+import com.riffle.feature.reader.collectMergedEmphasisStyles
+import com.riffle.feature.reader.findAnyMergeableNeighbor
+import com.riffle.feature.reader.isMergeEligible
 
 /**
  * Regression tests for emphasis auto-merge (ADR 0056). Mirrors [HighlightMergeTest]'s shape:
