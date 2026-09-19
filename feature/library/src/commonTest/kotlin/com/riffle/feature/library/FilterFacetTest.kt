@@ -1,14 +1,14 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.facetMatches
 import com.riffle.feature.library.facetTitle
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class FilterFacetTest {
 

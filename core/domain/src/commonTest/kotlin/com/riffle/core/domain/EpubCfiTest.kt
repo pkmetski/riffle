@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.core.domain
 
 import com.riffle.core.domain.epubCfiToSpineIndex
 import com.riffle.core.domain.normalizeEpubHref
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class EpubCfiTest {
 
