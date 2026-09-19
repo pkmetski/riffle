@@ -6,7 +6,7 @@ import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.app.feature.library.AnnotationSearchViewModel
-import com.riffle.app.feature.library.BookImportManager
+import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.ExtractPdfPageCountUseCase

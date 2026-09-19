@@ -19,7 +19,7 @@ import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.player.AudiobookReconciliationCoordinator
 import com.riffle.feature.player.AudiobookResumeResolver
 import com.riffle.feature.player.FollowLoopOrchestrator
-import com.riffle.app.feature.library.BookImportManager
+import com.riffle.feature.library.BookImportManagerImpl
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
@@ -366,7 +366,7 @@ val appKoinModule: Module = module {
     // ---- Download/Import managers -----------------------------------------------------------
 
     single { DownloadManager(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.DownloadManager::class
-    single { BookImportManager(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.BookImportManager::class
+    single { BookImportManagerImpl(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.BookImportManager::class
 
     // ---- AssistedFactory replacements -------------------------------------------------------
 

@@ -48,6 +48,7 @@ import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
+import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
@@ -140,6 +141,7 @@ import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
+import com.riffle.feature.library.BookImportManagerImpl
 import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.DownloadManager
@@ -188,7 +190,6 @@ import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
-import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpReadaloudHandoff
 import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
@@ -209,7 +210,6 @@ import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
-import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -578,7 +578,7 @@ private fun iosLibraryModule(
             localFilesFolderDao = get(),
             localFilesFolderRepository = get(),
             localFilesScanner = get(),
-            localFilesFolderHealthChecker = IosNoOpLocalFilesFolderHealthChecker,
+            localFilesFolderHealthChecker = IosLocalFilesFolderHealthChecker(),
             comicFormattingPreferencesStore = get(),
             developerOptionsRepository = get(),
             annotationSyncConfigStore = get(),
@@ -644,7 +644,7 @@ private fun iosLibraryModule(
     single { FetchAudiobookChaptersUseCase(get<AudiobookChapterCacheRepository>()) }
     single<ReadaloudOfflineDownloader> { IosNoOpReadaloudOfflineDownloader }
     single<DownloadManager> { IosDownloadManagerImpl(get()) }
-    single<BookImportManager> { IosNoOpBookImportManager() }
+    single<BookImportManager> { BookImportManagerImpl(scope = get<ApplicationScope>().coroutineScope, logger = get()) }
     single<PdfPageCountExtractor> {
         val pdfRepository = get<IosPdfRepositoryImpl>()
         IosPdfPageCountExtractor({ sourceId, itemId -> pdfRepository.localPath(sourceId, itemId) }, get())

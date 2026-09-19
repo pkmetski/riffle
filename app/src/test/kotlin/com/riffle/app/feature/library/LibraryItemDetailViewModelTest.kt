@@ -72,6 +72,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.riffle.feature.library.BookImportManager
+import com.riffle.feature.library.BookImportManagerImpl
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTest {
@@ -368,7 +370,7 @@ class LibraryItemDetailViewModelTest {
         sourceRepository: SourceRepository = noOpServerRepo,
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         downloadManager: DownloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
-        bookImportManager: BookImportManager = BookImportManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
+        bookImportManager: BookImportManager = BookImportManagerImpl(kotlinx.coroutines.CoroutineScope(testDispatcher)),
         sessionRepository: ReadingSessionRepository = noOpSessionRepository,
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,

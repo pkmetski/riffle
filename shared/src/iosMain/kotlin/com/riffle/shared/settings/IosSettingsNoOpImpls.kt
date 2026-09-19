@@ -5,7 +5,6 @@ import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
-import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.models.CrashReport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -30,9 +29,8 @@ internal object IosNoOpAppUpdateRepository : AppUpdateRepository {
 // AnnotationSyncConfigStoreImpl (core:data commonMain) + IosEncryptedKeyValueStore
 // (Keychain-backed) via Koin.kt.
 
-internal object IosNoOpLocalFilesFolderHealthChecker : LocalFilesFolderHealthCheckerInterface {
-    override fun healthFor(treeUris: Collection<String>): Map<String, Boolean> = emptyMap()
-}
-
 // IosNoOpAppUpdatePreferencesStore removed (issue #1065): iOS now binds
 // IosAppUpdatePreferencesStoreImpl (NSUserDefaults-backed, replays current value).
+
+// IosNoOpLocalFilesFolderHealthChecker removed (issue #1065): iOS now binds
+// IosLocalFilesFolderHealthChecker (NSFileManager readable-directory check).
