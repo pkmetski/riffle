@@ -1,12 +1,9 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.JvmAudiobookCacheRepository
-import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalAvailabilityEvents
-import com.riffle.core.models.AudiobookTrackSpan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -48,15 +45,7 @@ class AudiobookCacheRepositoryImpl constructor(
             return null
         }
         val dir = itemDir(sourceId, itemId)
-        return AudiobookSession(
-            trackUrls = manifest.tracks.map { File(dir, it.file).toURI().toString() },
-            tracks = manifest.tracks.map { AudiobookTrackSpan(it.index, it.startOffsetSec, it.durationSec) },
-            timeline = AudiobookTimeline(
-                durationSec = manifest.durationSec,
-                chapters = manifest.chapters.map { AudiobookChapter(it.index, it.startSec, it.endSec, it.title) },
-            ),
-            serverCurrentTimeSec = 0.0,
-        )
+        return manifest.toSession { fileName -> File(dir, fileName).toURI().toString() }
     }
 
     override suspend fun awaitCachedAudiobook(
@@ -77,13 +66,7 @@ class AudiobookCacheRepositoryImpl constructor(
             val interTrackDelay = if (minInterTrackDelayMs >= maxInterTrackDelayMs) minInterTrackDelayMs
             else minInterTrackDelayMs + kotlin.random.Random.nextLong(maxInterTrackDelayMs - minInterTrackDelayMs + 1)
             val manifestTracks = trackDownloader.download(downloadSession, dir, progress, interTrackDelay)
-            val manifest = AudiobookDownloadManifest(
-                durationSec = session.timeline.durationSec,
-                tracks = manifestTracks.sortedBy { it.index },
-                chapters = session.timeline.chapters.map {
-                    AudiobookDownloadManifest.ManifestChapter(it.index, it.startSec, it.endSec, it.title)
-                },
-            )
+            val manifest = AudiobookDownloadManifest.from(session, manifestTracks)
             // Written last → atomic completion marker (same pattern as AudiobookDownloadRepositoryImpl).
             manifestFile(sourceId, itemId).writeText(json.encodeToString(manifest))
             localAvailabilityEvents.notifyChanged(sourceId, itemId)

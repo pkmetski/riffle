@@ -1,34 +1,16 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.JvmAudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalAvailabilityEvents
-import com.riffle.core.models.AudiobookTrackSpan
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
-
-/** On-disk manifest written after a successful download so the book plays offline (ADR 0035). */
-@Serializable
-internal data class AudiobookDownloadManifest(
-    val durationSec: Double,
-    val tracks: List<ManifestTrack>,
-    val chapters: List<ManifestChapter>,
-) {
-    @Serializable
-    data class ManifestTrack(val index: Int, val file: String, val startOffsetSec: Double, val durationSec: Double)
-
-    @Serializable
-    data class ManifestChapter(val index: Int, val startSec: Double, val endSec: Double, val title: String)
-}
 
 /**
  * Downloads an [com.riffle.core.domain.Audiobook]'s ABS tracks to a permanent per-item directory and
@@ -63,15 +45,7 @@ class AudiobookDownloadRepositoryImpl constructor(
         val manifest = runCatching { json.decodeFromString<AudiobookDownloadManifest>(mf.readText()) }.getOrNull()
             ?: return null
         val dir = itemDir(sourceId, itemId)
-        return AudiobookSession(
-            trackUrls = manifest.tracks.map { File(dir, it.file).toURI().toString() }, // file:// URLs
-            tracks = manifest.tracks.map { AudiobookTrackSpan(it.index, it.startOffsetSec, it.durationSec) },
-            timeline = AudiobookTimeline(
-                durationSec = manifest.durationSec,
-                chapters = manifest.chapters.map { AudiobookChapter(it.index, it.startSec, it.endSec, it.title) },
-            ),
-            serverCurrentTimeSec = 0.0, // resume position comes from progress sync, not the manifest
-        )
+        return manifest.toSession { fileName -> File(dir, fileName).toURI().toString() }
     }
 
     override suspend fun download(
@@ -97,13 +71,7 @@ class AudiobookDownloadRepositoryImpl constructor(
             ?: session
         try {
             val manifestTracks = trackDownloader.download(downloadSession, dir, progress)
-            val manifest = AudiobookDownloadManifest(
-                durationSec = session.timeline.durationSec,
-                tracks = manifestTracks.sortedBy { it.index },
-                chapters = session.timeline.chapters.map {
-                    AudiobookDownloadManifest.ManifestChapter(it.index, it.startSec, it.endSec, it.title)
-                },
-            )
+            val manifest = AudiobookDownloadManifest.from(session, manifestTracks)
             // Written last → atomic completion marker.
             manifestFile(sourceId, itemId).writeText(json.encodeToString(manifest))
             localAvailabilityEvents.notifyChanged(sourceId, itemId)

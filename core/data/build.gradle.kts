@@ -70,6 +70,11 @@ kotlin {
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
         }
+        iosTest.dependencies {
+            // Ktor's MockEngine is the KMP stand-in for the JVM tests' MockWebServer — it lets the
+            // iOS audiobook download/cache tests drive the real Ktor streaming path (issue #1065).
+            implementation(libs.ktor.client.mock)
+        }
         // Shared JVM-only test helpers visible to both jvmTest and androidHostTest.
         // OkHttp/System.getenv prevent these from living in commonTest (iOS target would reject them).
         val sharedJvmTestDir = "src/sharedJvmTest/kotlin"

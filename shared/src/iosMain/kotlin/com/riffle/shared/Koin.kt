@@ -15,7 +15,11 @@ import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
+import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
+import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
+import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
+import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheAccessStoreImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
@@ -27,6 +31,7 @@ import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosToReadRepositoryImpl
+import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
@@ -53,6 +58,7 @@ import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookCacheRepository
+import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.BundleAudiobookSource
@@ -170,14 +176,10 @@ import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpApplicationScope
-import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
-import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
-import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpBundleAudiobookSource
 import com.riffle.shared.library.IosNoOpCoverImageCopier
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
-import com.riffle.shared.library.IosNoOpLocalAvailabilityEvents
 import com.riffle.shared.library.IosNoOpPdfPageCountExtractor
 import com.riffle.shared.library.IosNoOpPdfRepository
 import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
@@ -551,9 +553,27 @@ private fun iosLibraryModule(
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
     single<PdfRepository> { IosNoOpPdfRepository() }
     single<ReadaloudAudioRepository> { IosNoOpReadaloudAudioRepository() }
-    single<AudiobookDownloadRepository> { IosNoOpAudiobookDownloadRepository() }
-    single<AudiobookCacheRepository> { IosNoOpAudiobookCacheRepository() }
-    single<LocalAvailabilityEvents> { IosNoOpLocalAvailabilityEvents() }
+    // Offline audiobooks (ADR 0035), mirroring CoreDataKoinModules' coreDataStreamingAudioModule:
+    // one shared track downloader feeds both the explicit user download and the background cache.
+    single { IosAudiobookTrackDownloader(get(), get()) }
+    single<AudiobookDownloadRepository> {
+        IosAudiobookDownloadRepositoryImpl(
+            audiobookRepository = get(),
+            trackDownloader = get(),
+            fileStore = get(),
+            dispatchers = get(),
+            localAvailabilityEvents = get(),
+        )
+    }
+    single<AudiobookCacheRepository> {
+        IosAudiobookCacheRepositoryImpl(
+            trackDownloader = get(),
+            fileStore = get(),
+            dispatchers = get(),
+            localAvailabilityEvents = get(),
+        )
+    }
+    single<LocalAvailabilityEvents> { LocalAvailabilityEventsImpl() }
     single<CrossEpubIndexBuildTrigger> { IosNoOpCrossEpubIndexBuildTrigger }
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
@@ -570,8 +590,8 @@ private fun iosLibraryModule(
     single<ReadaloudSidecarPrefetcher> { IosNoOpReadaloudSidecarPrefetcher }
     single<RecordItemOpened> { RecordItemOpened(get(), get()) }
     single<MarkReadAcrossDimensions> { MarkReadAcrossDimensions(get(), get(), get(), get()) }
-    single { IosNoOpAudiobookChapterCacheRepository() }
-    single { FetchAudiobookChaptersUseCase(get<IosNoOpAudiobookChapterCacheRepository>()) }
+    single<AudiobookChapterCacheRepository> { AudiobookChapterCacheRepositoryImpl(get(), get(), get()) }
+    single { FetchAudiobookChaptersUseCase(get<AudiobookChapterCacheRepository>()) }
     single<ReadaloudOfflineDownloader> { IosNoOpReadaloudOfflineDownloader }
     single<DownloadManager> { IosDownloadManagerImpl(get()) }
     single<BookImportManager> { IosNoOpBookImportManager() }
