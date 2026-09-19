@@ -29,8 +29,10 @@ class ReadingPositionStoreImpl constructor(
         dao.upsert(ReadingPositionEntity(sourceId, itemId, existing?.cfi ?: "", stamp, stamp))
     }
 
+    // A soft-deleted (tombstoned) row must never surface as a resume position — the reader
+    // treats it as "no saved position", not the stale value from before the delete.
     override suspend fun readPayload(sourceId: String, itemId: String): String? =
-        dao.getByItemId(sourceId, itemId)?.cfi
+        dao.getByItemId(sourceId, itemId)?.takeIf { !it.deleted }?.cfi
 
     override suspend fun readUpdatedAt(sourceId: String, itemId: String): Long? =
         dao.getByItemId(sourceId, itemId)?.localUpdatedAt

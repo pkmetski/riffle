@@ -100,26 +100,6 @@ internal object IosNoOpReadaloudHandoff : com.riffle.feature.player.ReadaloudHan
     override fun cancelPreWarm() = Unit
 }
 
-internal object IosNoOpAudioSyncPositionStore : com.riffle.core.domain.SyncPositionStore<Double> {
-    override suspend fun snapshot(sourceId: String, itemId: String) =
-        com.riffle.core.domain.PositionSnapshot<Double>(null, 0L, 0L)
-    override suspend fun acceptServerPosition(
-        sourceId: String, itemId: String, position: Double,
-        serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
-    ) = false
-    override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-    override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
-    override suspend fun mirror(sourceId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) = Unit
-}
-
-internal object IosNoOpReadingSyncPositionStore : com.riffle.core.domain.SyncPositionStore<String> {
-    override suspend fun snapshot(sourceId: String, itemId: String) =
-        com.riffle.core.domain.PositionSnapshot<String>(null, 0L, 0L)
-    override suspend fun acceptServerPosition(
-        sourceId: String, itemId: String, position: String,
-        serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
-    ) = false
-    override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-    override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
-    override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) = Unit
-}
+// IosNoOpAudioSyncPositionStore / IosNoOpReadingSyncPositionStore removed (issue #1065): iOS now
+// binds the real ReadingPositionStoreImpl/AudiobookPositionStoreImpl as SyncPositionStore in
+// iosDataModule (core:data), matching Android's wiring.

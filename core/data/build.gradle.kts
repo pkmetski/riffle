@@ -37,10 +37,13 @@ kotlin {
             // SingletonWebSourceInstaller (commonMain since the Add-Source picker went shared)
             // logs through the typed Logger channels.
             implementation(project(":core:logging"))
+            // ItemProgressPuller / IosCatalogProgressRemoteFactory (issue #1065) use the
+            // ProgressReconciler primitives (ProgressRemoteFactory, ReconcileLocks) shared with
+            // Android's server-sync wiring.
+            implementation(project(":core:sync"))
         }
         androidMain.dependencies {
             implementation(project(":core:dictionary"))
-            implementation(project(":core:sync"))
             implementation(project(":core:sources"))
             implementation(project(":core:network"))
             implementation(project(":core:database"))

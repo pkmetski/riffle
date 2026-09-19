@@ -150,7 +150,6 @@ import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpAudioIdentityResolver
 import com.riffle.shared.library.IosNoOpAudioPlaybackPreferencesStore
-import com.riffle.shared.library.IosNoOpAudioSyncPositionStore
 import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
@@ -174,7 +173,6 @@ import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReaderSyncFactory
-import com.riffle.shared.library.IosNoOpReadingSyncPositionStore
 import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.reader.IosCbzDownloader
@@ -372,8 +370,8 @@ private fun iosLibraryModule(
     single { AudiobookHandoffState() }
     single { OpenReconcileTargets() }
     single { ProgressFlushScope(applicationScope = get()) }
-    single<SyncPositionStore<Double>> { IosNoOpAudioSyncPositionStore }
-    single<SyncPositionStore<String>> { IosNoOpReadingSyncPositionStore }
+    // SyncPositionStore<Double>/<String> are bound in iosDataModule (core:data), backed by the
+    // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
     single<ReadaloudHandoff> { IosNoOpReadaloudHandoff }
     single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
     single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
