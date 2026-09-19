@@ -27,11 +27,13 @@ import com.riffle.core.data.IosContentCacheAccessStoreImpl
 import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
 import com.riffle.core.data.IosEncryptedKeyValueStore
+import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
+import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
@@ -88,6 +90,7 @@ import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.IosDispatcherProvider
+import com.riffle.core.domain.IosReadaloudEpubTextOps
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
@@ -117,6 +120,7 @@ import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
+import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
@@ -174,6 +178,8 @@ import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReaderStateHolder
+import com.riffle.feature.reader.ReaderSyncFactory
+import com.riffle.feature.reader.ReaderSyncFactoryInterface
 import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
@@ -436,6 +442,23 @@ private fun iosLibraryModule(
     // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
     single { IosReadaloudHandoff() }
     single<ReadaloudHandoff> { get<IosReadaloudHandoff>() }
+    // Same ReaderSyncFactory Android binds (ADR 0023), now that it is commonMain: reader <->
+    // audiobook position sync for a matched book, over iOS's EPUB locator/analyzer.
+    single<ReaderSyncFactoryInterface> {
+        ReaderSyncFactory(
+            linkRepository = get(),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            indexStore = get(),
+            libraryObserver = get(),
+            epubLocator = IosLocalEpubLocator(get(), get()),
+            epubAnalyzer = IosEpubAnalyzer,
+            textOps = IosReadaloudEpubTextOps,
+            crossEpubIndexBuildTrigger = get(),
+            clock = get(),
+            logger = get(),
+        )
+    }
     single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
     single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
     single {
@@ -544,6 +567,7 @@ private fun iosLibraryModule(
     single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
     single<EncryptedKeyValueStore> { IosEncryptedKeyValueStore() }
     single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
+    single<LocalFilesFolderHealthCheckerInterface> { IosLocalFilesFolderHealthChecker() }
     single<LocalFilesScannerInterface> {
         val scanner = get<IosLocalFilesScanner>()
         object : LocalFilesScannerInterface {
@@ -582,7 +606,7 @@ private fun iosLibraryModule(
             localFilesFolderDao = get(),
             localFilesFolderRepository = get(),
             localFilesScanner = get(),
-            localFilesFolderHealthChecker = IosLocalFilesFolderHealthChecker(),
+            localFilesFolderHealthChecker = get(),
             comicFormattingPreferencesStore = get(),
             developerOptionsRepository = get(),
             annotationSyncConfigStore = get(),
