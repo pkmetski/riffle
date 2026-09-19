@@ -27,7 +27,7 @@ final class AddKomgaSourceFlowTests: XCTestCase {
 
     /// The Komga card must appear in the source picker.
     func testKomgaCardVisibleAndEnabled() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         let komgaCard = app.staticTexts["Komga"]
         XCTAssertTrue(komgaCard.waitForExistence(timeout: 5), "Picker must show a Komga card")
@@ -38,7 +38,7 @@ final class AddKomgaSourceFlowTests: XCTestCase {
 
     /// Tapping the Komga card must open the credential form, not crash or show an error.
     func testKomgaCredentialFormReachable() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
         let komgaCard = app.staticTexts["Komga"]
         XCTAssertTrue(komgaCard.waitForExistence(timeout: 5))
@@ -58,7 +58,7 @@ final class AddKomgaSourceFlowTests: XCTestCase {
 
     /// Full add-Komga-source flow: picker → credentials → select-libraries → library home.
     func testAddKomgaSourceEndToEnd() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
 
         let komgaCard = app.staticTexts["Komga"]
@@ -87,8 +87,13 @@ final class AddKomgaSourceFlowTests: XCTestCase {
             app.buttons["Connect anyway"].tap()
         }
 
+        // 60s, not 30s: on CI this step (login → fetch libraries → render) runs on a contended
+        // parallel simulator clone. Measured end-to-end cost of this test is ~24s standalone but
+        // ~42s with parallel clones on a fast machine, so a 30s budget for the slowest single step
+        // leaves no headroom on slower CI hardware — it expired there while every assertion in the
+        // flow still held. The waits below already use 60s for the same reason.
         let selectLibraries = app.staticTexts["Select libraries"]
-        if !selectLibraries.waitForExistence(timeout: 30) {
+        if !selectLibraries.waitForExistence(timeout: 60) {
             print("RIFFLE-E2E-HIERARCHY-BEGIN\n\(app.debugDescription)\nRIFFLE-E2E-HIERARCHY-END")
         }
         XCTAssertTrue(selectLibraries.exists, "Successful login must land on the select-libraries step")
