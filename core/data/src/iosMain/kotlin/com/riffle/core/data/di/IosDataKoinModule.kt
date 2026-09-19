@@ -27,6 +27,7 @@ import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
+import com.riffle.core.data.comic.panel.IosPanelMaskServiceImpl
 import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.IosCopyInService
@@ -71,6 +72,7 @@ import com.riffle.core.domain.comic.panel.InMemoryPanelStore
 import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PanelDetectionConfig
 import com.riffle.core.domain.comic.panel.PanelEngine
+import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
@@ -95,6 +97,7 @@ val iosDataModule = module {
     single<PageImageDecoder> { IosPageImageDecoder() }
     single<PanelStore> { InMemoryPanelStore() }
     single<PanelEngine> { PanelOrchestrator(PanelDetectionConfig(), get(), get<PageImageDecoder>()) }
+    single<PanelMaskService> { IosPanelMaskServiceImpl(PanelDetectionConfig(), get<PageImageDecoder>(), get()) }
 
     // ReadingPositionStoreImpl/AudiobookPositionStoreImpl (core:data commonMain) implement both the
     // reader-facing store interface AND SyncPositionStore, exactly matching Android's wiring — see

@@ -90,7 +90,6 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
-import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
@@ -196,7 +195,6 @@ import com.riffle.shared.reader.IosEbookCfiTranslatorFactory
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosEpubTocExtractor
-import com.riffle.shared.reader.IosNoOpPanelMaskService
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
@@ -334,7 +332,6 @@ private fun iosLibraryModule(
         )
     }
     single { UpdateReadingProgress(get()) }
-    single<PanelMaskService> { IosNoOpPanelMaskService }
     single<PanelViewPreferencesStore> { IosPanelViewPreferencesStoreImpl() }
     single<AppearanceCoordinator> {
         AppearanceCoordinatorImpl(

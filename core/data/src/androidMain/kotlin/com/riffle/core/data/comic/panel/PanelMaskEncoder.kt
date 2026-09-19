@@ -1,8 +1,8 @@
 package com.riffle.core.data.comic.panel
 
 import android.graphics.Bitmap
-import android.graphics.Color
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
+import com.riffle.core.domain.comic.panel.panelMaskToArgbPixels
 import java.io.ByteArrayOutputStream
 
 /**
@@ -13,13 +13,7 @@ import java.io.ByteArrayOutputStream
 object PanelMaskEncoder {
 
     /** Exposed for unit testing — converts mask to ARGB pixel array without Bitmap. */
-    fun toArgbPixels(mask: PanelBinaryMask): IntArray {
-        val pixels = IntArray(mask.width * mask.height)
-        for (i in pixels.indices) {
-            pixels[i] = if (mask.data[i] == 1.toByte()) Color.BLACK else Color.WHITE
-        }
-        return pixels
-    }
+    fun toArgbPixels(mask: PanelBinaryMask): IntArray = panelMaskToArgbPixels(mask)
 
     fun encode(mask: PanelBinaryMask): ByteArray {
         val pixels = toArgbPixels(mask)

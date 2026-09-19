@@ -9,8 +9,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.domain.comic.ComicPageSource
-import com.riffle.core.domain.comic.panel.PanelBinaryMask
-import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.KomgaCbzApi
 
@@ -124,14 +122,9 @@ internal class IosCbzRepository(
     override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
 }
 
-internal object IosNoOpPanelMaskService : PanelMaskService {
-    override suspend fun generateMask(
-        pageIndex: Int,
-        rawImageBytes: ByteArray,
-    ): Pair<PanelBinaryMask, ByteArray>? = null
-}
-
-// IosNoOpPanelViewPreferencesStore / IosNoOpAppearanceCoordinator / IosNoOpPanelReportRepository
-// removed (issue #1065): iOS now binds IosPanelViewPreferencesStoreImpl (core:data),
-// AppearanceCoordinatorImpl (core:data commonMain, previously Android-only), and
-// GitHubPanelReportRepository (core:data commonMain, previously Android-only) via Koin.kt.
+// IosNoOpPanelMaskService / IosNoOpPanelViewPreferencesStore / IosNoOpAppearanceCoordinator /
+// IosNoOpPanelReportRepository removed (issue #1065): iOS now binds IosPanelMaskServiceImpl
+// (core:data, CoreGraphics decode + shared PanelMaskBinarizer + PNG encode),
+// IosPanelViewPreferencesStoreImpl (core:data), AppearanceCoordinatorImpl (core:data commonMain,
+// previously Android-only), and GitHubPanelReportRepository (core:data commonMain, previously
+// Android-only) via Koin.
