@@ -31,6 +31,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.core.domain.JvmEpubCfiOps
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReaderSyncCoordinatorTest {
@@ -47,6 +48,7 @@ class ReaderSyncCoordinatorTest {
         absChapterHtml = { if (it == 0) absHtml else null },
         storytellerSpineHrefs = listOf("c1.xhtml"),
         storytellerChapterHtml = { if (it == 0) absHtml else null },
+        cfiOps = JvmEpubCfiOps,
     )
 
     private val state = BookSyncState(

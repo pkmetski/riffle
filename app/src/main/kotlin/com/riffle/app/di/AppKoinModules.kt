@@ -73,6 +73,12 @@ import com.riffle.core.domain.SystemTimeProvider
 import com.riffle.core.domain.TimeProvider
 import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.ReadaloudEpubTextOps
+import com.riffle.core.domain.LocalEpubLocator
+import com.riffle.core.domain.EpubAnalyzer
+import com.riffle.core.domain.JvmReadaloudEpubTextOps
+import com.riffle.core.data.JvmLocalEpubLocator
+import com.riffle.core.data.JvmEpubAnalyzer
 import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AnnotationSweepEnqueuer
@@ -315,6 +321,19 @@ val appKoinModule: Module = module {
 
     // ---- Audiobook state --------------------------------------------------------------------
 
+    // ReaderSyncFactory moved to commonMain (issue #1065) and takes these three platform seams by
+    // type, so they are registered rather than constructed inline — the Koin graph verifier checks
+    // constructor parameter types, and a runtime miss here is an InstanceCreationException.
+    single<LocalEpubLocator> {
+        JvmLocalEpubLocator(
+            cacheStore = get(named("epubCacheStore")),
+            downloadsStore = get(named("epubDownloadsStore")),
+            sidecarCache = get(),
+        )
+    }
+    single<EpubAnalyzer> { JvmEpubAnalyzer }
+    single<ReadaloudEpubTextOps> { JvmReadaloudEpubTextOps }
+
     factory {
         ReaderSyncFactory(
             linkRepository = get(),
@@ -322,10 +341,10 @@ val appKoinModule: Module = module {
             catalogRegistry = get(),
             indexStore = get(),
             libraryObserver = get(),
-            cacheStore = get(named("epubCacheStore")),
-            downloadsStore = get(named("epubDownloadsStore")),
+            epubLocator = get(),
+            epubAnalyzer = get(),
+            textOps = get(),
             crossEpubIndexBuildTrigger = get(),
-            sidecarCache = get(),
             clock = get(),
             logger = get(),
         )

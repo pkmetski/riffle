@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.session
 
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EpubContentExtractor
+import com.riffle.core.domain.JvmSentenceSpanReader
 import com.riffle.core.domain.ReadaloudTextQuotes
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.logging.LogChannel
@@ -48,8 +49,8 @@ internal class ReadaloudQuoteBuilder(
         buildJob = scope.launch(dispatchers.io) {
             try {
                 val chapters = EpubContentExtractor.extract(bundle)?.chapters ?: return@launch
-                _sentenceQuotes.value = ReadaloudTextQuotes.build(chapters)
-                _sentenceChapters.value = ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
+                _sentenceQuotes.value = ReadaloudTextQuotes.build(chapters, JvmSentenceSpanReader)
+                _sentenceChapters.value = ReadaloudTextQuotes.sentenceChapterHrefs(chapters, JvmSentenceSpanReader)
             } catch (e: Throwable) {
                 logger.e(LogChannel.Readaloud, e) { "buildSentenceQuotes failed" }
             }

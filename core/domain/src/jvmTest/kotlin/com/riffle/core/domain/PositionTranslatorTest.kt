@@ -38,6 +38,7 @@ class PositionTranslatorTest {
         absChapterHtml = { listOf(ch0Html, ch1Html).getOrNull(it) },
         storytellerSpineHrefs = stHrefs,
         storytellerChapterHtml = { listOf(ch0Html, ch1Html).getOrNull(it) },
+        cfiOps = JvmEpubCfiOps,
     )
 
     // ── ABS CFI ↔ canonical ────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ class PositionTranslatorTest {
             smilClips = listOf(
                 MediaOverlayClip("c0.xhtml#s1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
             ),
+            cfiOps = JvmEpubCfiOps,
         )
         assertEquals(5.0, bundleOnly.fragmentRefToAudioSeconds("c0.xhtml#s1")!!, 0.001)
         assertEquals(bundleOnly.audioSecondsToTextFragment(7.0), "c0.xhtml#s1")
@@ -112,6 +114,7 @@ class PositionTranslatorTest {
                 MediaOverlayClip("c0.xhtml#a", "f1.mp3", clipBeginSec = 0.0, clipEndSec = 100.0),
                 MediaOverlayClip("c1.xhtml#b", "f2.mp3", clipBeginSec = 0.0, clipEndSec = 50.0),
             ),
+            cfiOps = JvmEpubCfiOps,
         )
         // The second file's clip begins at file-local 0s, which is absolute 100s.
         assertEquals(100.0, t.fragmentRefToAudioSeconds("c1.xhtml#b")!!, 0.001)
@@ -143,6 +146,7 @@ class PositionTranslatorTest {
             crossEpubIndex = CrossEpubIndex(listOf(
                 ChapterCharMap(absChars = 100, storytellerChars = 200),
             )),
+            cfiOps = JvmEpubCfiOps,
         )
         // Storyteller mid-chapter (0.5 of 200 chars = char 100) is char 100/100 of the ABS chapter.
         val result = skewed.storytellerToAbsProgression(ChapterProgression(0, 0.5))!!
@@ -155,6 +159,7 @@ class PositionTranslatorTest {
             crossEpubIndex = CrossEpubIndex(listOf(
                 ChapterCharMap(absChars = 200, storytellerChars = 100),
             )),
+            cfiOps = JvmEpubCfiOps,
         )
         val result = skewed.absToStorytellerProgression(ChapterProgression(0, 0.5))!!
         assertEquals(1.0, result.progression, 0.001)
@@ -168,6 +173,7 @@ class PositionTranslatorTest {
                 ChapterCharMap(absChars = 300, storytellerChars = 300), // long middle chapter
                 ChapterCharMap(absChars = 100, storytellerChars = 100),
             )),
+            cfiOps = JvmEpubCfiOps,
         )
         // Mid-chapter-2 sits 100 + 150 = 250 chars in, out of 500 total = 0.5 of the book.
         // With equal weighting it would be (1 + 0.5) / 3 ≈ 0.5 by coincidence — pick a
@@ -184,8 +190,7 @@ class PositionTranslatorTest {
         val twoEntries = DefaultPositionTranslator(
             smilClips = emptyList(),
             absSpineHrefs = listOf("c0.xhtml", "c1.xhtml", "c0.xhtml"),
-            absChapterHtml = { listOf(ch0Html, ch1Html, null).getOrNull(it) },
-        )
+            absChapterHtml = { listOf(ch0Html, ch1Html, null).getOrNull(it) }, cfiOps = JvmEpubCfiOps)
         val canonical = twoEntries.absCfiToCanonical("epubcfi(/6/2!/4/2/1:0)")
         // step 2 → spine index 0 — should resolve and read chapter 0's html, not skip to index 2.
         assertNotNull(canonical)

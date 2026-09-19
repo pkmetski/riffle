@@ -1,6 +1,5 @@
 package com.riffle.core.domain
 
-import org.jsoup.Jsoup
 
 /**
  * Builds `fragmentRef → SentenceQuote` for a readaloud EPUB, so the synced highlight can be anchored
@@ -17,6 +16,11 @@ import org.jsoup.Jsoup
  *
  * Pure given the spine chapter HTML; an unparseable chapter contributes nothing rather than failing
  * the whole book.
+ *
+ * The one DOM-bound step — pulling each sentence span's (id, text) out of a chapter — is supplied
+ * by the caller as [SentenceSpanReader], because the parser differs per platform (jsoup on JVM,
+ * ksoup on Kotlin/Native). Everything downstream of that, including the neighbour-context
+ * windowing, is shared so both platforms anchor highlights to identical quotes.
  */
 object ReadaloudTextQuotes {
 
@@ -34,10 +38,10 @@ object ReadaloudTextQuotes {
      * (root-relative `OEBPS/xhtml/…`) than the EPUB's manifest does (OPF-relative `xhtml/…`), so
      * matching on the id alone sidesteps that prefix mismatch. Callers look up by `ref` after `#`.
      */
-    fun build(chapters: List<EpubChapterHtml>): Map<String, SentenceQuote> {
+    fun build(chapters: List<EpubChapterHtml>, spans: SentenceSpanReader): Map<String, SentenceQuote> {
         val out = LinkedHashMap<String, SentenceQuote>()
         for (chapter in chapters) {
-            for ((id, quote) in quotesForChapter(chapter.html)) {
+            for ((id, quote) in quotesForChapter(chapter.html, spans)) {
                 out[id] = quote
             }
         }
@@ -54,30 +58,39 @@ object ReadaloudTextQuotes {
      * narration there. Scoping the candidate sentences to the chapter being read removes the cross-chapter
      * matches, so the resolver can only land on a sentence that genuinely belongs to this page.
      */
-    fun sentenceChapterHrefs(chapters: List<EpubChapterHtml>): Map<String, String> {
+    fun sentenceChapterHrefs(chapters: List<EpubChapterHtml>, spans: SentenceSpanReader): Map<String, String> {
         val out = LinkedHashMap<String, String>()
         for (chapter in chapters) {
-            for (id in quotesForChapter(chapter.html).keys) out[id] = chapter.href
+            for (id in quotesForChapter(chapter.html, spans).keys) out[id] = chapter.href
         }
         return out
     }
 
     /** Map each sentence span's id → its [SentenceQuote] within one chapter's [html]. */
-    fun quotesForChapter(html: String): Map<String, SentenceQuote> {
-        val doc = try { Jsoup.parse(html) } catch (_: Exception) { return emptyMap() }
+    fun quotesForChapter(html: String, spans: SentenceSpanReader): Map<String, SentenceQuote> {
         // Document order is preserved, so neighbours in this list are neighbours in the prose.
-        val spans = doc.select("span[id]").filter { SENTENCE_ID.matches(it.id()) }
-        val texts = spans.map { it.text() }
+        val sentences = spans.read(html).filter { SENTENCE_ID.matches(it.id) }
         val out = LinkedHashMap<String, SentenceQuote>()
-        spans.forEachIndexed { i, span ->
-            val highlight = texts[i]
+        sentences.forEachIndexed { i, span ->
+            val highlight = span.text
             if (highlight.isBlank()) return@forEachIndexed
-            out[span.id()] = SentenceQuote(
-                before = if (i > 0) texts[i - 1].takeLast(CONTEXT_CHARS) else "",
+            out[span.id] = SentenceQuote(
+                before = if (i > 0) sentences[i - 1].text.takeLast(CONTEXT_CHARS) else "",
                 highlight = highlight,
-                after = if (i < texts.lastIndex) texts[i + 1].take(CONTEXT_CHARS) else "",
+                after = if (i < sentences.lastIndex) sentences[i + 1].text.take(CONTEXT_CHARS) else "",
             )
         }
         return out
     }
+}
+
+/** One `<span id="…">` of a chapter: its id and its rendered text. */
+data class SentenceSpan(val id: String, val text: String)
+
+/**
+ * Reads a chapter's id-bearing spans in document order. Implemented per platform because the HTML
+ * parser differs; an unparseable chapter returns an empty list rather than failing the whole book.
+ */
+fun interface SentenceSpanReader {
+    fun read(html: String): List<SentenceSpan>
 }

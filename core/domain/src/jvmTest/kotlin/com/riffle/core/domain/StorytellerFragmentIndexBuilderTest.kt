@@ -23,7 +23,7 @@ class StorytellerFragmentIndexBuilderTest {
             MediaOverlayClip("chapter2.xhtml#sent1", "b.mp3", 2.0, 3.0),
         )
 
-        val map = StorytellerFragmentIndexBuilder.build(chapters, clips)
+        val map = StorytellerFragmentIndexBuilder.build(chapters, clips, EpubTextChars::progressionsOfElementIds)
 
         assertEquals(
             mapOf(
@@ -51,7 +51,7 @@ class StorytellerFragmentIndexBuilderTest {
             MediaOverlayClip("../text/part0006_split_001.html#id191-s1", "a.mp3", 1.0, 2.0),
         )
 
-        val map = StorytellerFragmentIndexBuilder.build(chapters, clips)
+        val map = StorytellerFragmentIndexBuilder.build(chapters, clips, EpubTextChars::progressionsOfElementIds)
 
         assertEquals(
             mapOf(
@@ -96,7 +96,7 @@ class StorytellerFragmentIndexBuilderTest {
             MediaOverlayClip("nochapter.xhtml#sent1", "a.mp3", 2.0, 3.0), // href absent
         )
 
-        val map = StorytellerFragmentIndexBuilder.build(chapters, clips)
+        val map = StorytellerFragmentIndexBuilder.build(chapters, clips, EpubTextChars::progressionsOfElementIds)
 
         assertEquals(mapOf("chapter1.xhtml#sent1" to ChapterProgression(0, 0.0)), map)
     }

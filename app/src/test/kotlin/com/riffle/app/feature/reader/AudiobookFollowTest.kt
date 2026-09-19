@@ -15,6 +15,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.core.domain.JvmEpubCfiOps
 
 /**
  * The bundle-SMIL-only [AudiobookFollow] (ADR 0037): readaloud→audiobook works from the bundle alone
@@ -32,7 +33,7 @@ class AudiobookFollowTest {
         "c1.html#s2" to ChapterProgression(0, 0.5),
         "c2.html#s1" to ChapterProgression(1, 0.0),
     )
-    private fun translator() = DefaultPositionTranslator(clips, fragmentProgressions = fragmentProgressions)
+    private fun translator() = DefaultPositionTranslator(clips, fragmentProgressions = fragmentProgressions, cfiOps = JvmEpubCfiOps)
 
     private class FakePeer(val stamp: Long = 4242L) : ProgressPeerCapability, AudiobookProgressPeerCapability {
         var sentSeconds: Double? = null

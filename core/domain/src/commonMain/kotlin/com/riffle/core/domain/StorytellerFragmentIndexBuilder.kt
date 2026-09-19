@@ -11,15 +11,14 @@ object StorytellerFragmentIndexBuilder {
 
     /**
      * @param resolveProgressions resolves a chapter's HTML + the element ids it needs to each id's
-     *   within-chapter progression. Invoked **once per chapter** (not once per clip) — overridable
-     *   so tests can assert that O(chapters), not O(clips), parses happen. Defaults to the
-     *   single-parse [EpubTextChars.progressionsOfElementIds].
+     *   within-chapter progression. Invoked **once per chapter** (not once per clip) — injected
+     *   so tests can assert that O(chapters), not O(clips), parses happen, and so each platform
+     *   supplies its own DOM-backed resolver (EpubTextChars on JVM, IosEpubTextChars on iOS).
      */
     fun build(
         chapters: List<EpubChapterHtml>,
         clips: List<MediaOverlayClip>,
-        resolveProgressions: (html: String, elementIds: Set<String>) -> Map<String, Double> =
-            EpubTextChars::progressionsOfElementIds,
+        resolveProgressions: (html: String, elementIds: Set<String>) -> Map<String, Double>,
     ): Map<String, ChapterProgression> {
         // Storyteller's SMIL files live in their own directory, so their fragment refs are written
         // relative to it (e.g. "../text/part6.html#s0") while spine chapter hrefs are root-relative

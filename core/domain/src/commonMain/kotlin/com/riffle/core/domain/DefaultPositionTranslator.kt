@@ -29,6 +29,8 @@ class DefaultPositionTranslator(
     private val absChapterHtml: (Int) -> String? = { null },
     private val storytellerSpineHrefs: List<String> = emptyList(),
     private val storytellerChapterHtml: (Int) -> String? = { null },
+    // Platform's CFI primitives: JvmEpubCfiOps (jsoup) or IosEpubCfiOps (ksoup).
+    private val cfiOps: EpubCfiOps,
 ) : PositionTranslator {
 
     /**
@@ -63,8 +65,9 @@ class DefaultPositionTranslator(
     private val storytellerIndexByHref: Map<String, Int> = firstIndexByHref(storytellerSpineHrefs)
 
     private fun firstIndexByHref(hrefs: List<String>): Map<String, Int> {
+        // First occurrence wins (putIfAbsent on JVM; getOrPut is the multiplatform equivalent).
         val out = HashMap<String, Int>(hrefs.size)
-        hrefs.forEachIndexed { i, h -> out.putIfAbsent(normalizeEpubHref(h), i) }
+        hrefs.forEachIndexed { i, h -> out.getOrPut(normalizeEpubHref(h)) { i } }
         return out
     }
 
@@ -149,16 +152,16 @@ class DefaultPositionTranslator(
 
     override fun absCfiToCanonical(cfi: String): String? {
         val idx = epubCfiToSpineIndex(cfi) ?: return null
-        val docPath = extractCfiDocPath(cfi) ?: return null
+        val docPath = cfiOps.extractDocPath(cfi) ?: return null
         val html = absChapterHtml(idx) ?: return null
-        val progression = cfiDocPathToProgression(docPath, html) ?: return null
+        val progression = cfiOps.docPathToProgression(docPath, html) ?: return null
         return absProgressionToCanonical(ChapterProgression(idx, progression))
     }
 
     override fun canonicalToAbsCfi(locatorJson: String): String? {
         val p = canonicalToAbsProgression(locatorJson) ?: return null
         val html = absChapterHtml(p.chapterIndex) ?: return null
-        val docPath = progressionToCfiDocPath(p.progression, html) ?: return null
+        val docPath = cfiOps.progressionToDocPath(p.progression, html) ?: return null
         val spineStep = (p.chapterIndex + 1) * 2
         return "epubcfi(/6/$spineStep!$docPath)"
     }

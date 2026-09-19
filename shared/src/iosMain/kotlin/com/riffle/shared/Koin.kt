@@ -194,7 +194,6 @@ import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
-import com.riffle.shared.library.IosNoOpReaderSyncFactory
 import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosPdfRepositoryImpl
 import com.riffle.shared.library.IosReadaloudHandoff
@@ -441,7 +440,7 @@ private fun iosLibraryModule(
     single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
     single {
         AudiobookReconciliationCoordinator(
-            readerSyncFactory = IosNoOpReaderSyncFactory,
+            readerSyncFactory = get(),
             openReconcileTargets = get(),
             audioSyncStore = get(),
             readingSyncStore = get(),

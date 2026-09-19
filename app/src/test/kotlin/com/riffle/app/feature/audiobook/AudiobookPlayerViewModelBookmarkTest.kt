@@ -1024,13 +1024,16 @@ class AudiobookPlayerViewModelBookmarkTest {
         StubCatalogRegistry,
         StubIndexStore,
         StubLibrary,
-        StubLocalStore,
-        StubLocalStore,
-        StubBuildTrigger,
-        sidecarCache = object : com.riffle.core.domain.ReadaloudSidecarCache {
-            override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): java.io.File? = null
-            override fun purgeSource(storytellerSourceId: String) = Unit
+        epubLocator = object : com.riffle.core.domain.LocalEpubLocator {
+            override fun localEpubPath(sourceId: String, itemId: String): String? = null
+            override fun sidecarEpubPath(storytellerSourceId: String, storytellerBookId: String): String? = null
         },
+        epubAnalyzer = object : com.riffle.core.domain.EpubAnalyzer {
+            override fun checksum(path: String): String? = null
+            override fun extract(path: String): com.riffle.core.domain.ExtractedEpub? = null
+        },
+        textOps = com.riffle.core.domain.JvmReadaloudEpubTextOps,
+        crossEpubIndexBuildTrigger = StubBuildTrigger,
         clock = object : com.riffle.core.common.Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
         logger = RecordingLogger(),
     ) {
