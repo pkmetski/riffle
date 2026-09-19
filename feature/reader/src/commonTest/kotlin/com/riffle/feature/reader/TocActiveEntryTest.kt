@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.TocEntry
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertNull
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class TocActiveEntryTest {
 

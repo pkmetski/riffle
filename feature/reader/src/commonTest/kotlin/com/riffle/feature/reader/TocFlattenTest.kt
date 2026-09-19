@@ -1,12 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.app.feature.readersettings.TocRow
-import com.riffle.app.feature.readersettings.findActiveFlatIndex
-import com.riffle.app.feature.readersettings.flattenToc
 import com.riffle.core.models.TocEntry
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertNull
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class TocFlattenTest {
 
