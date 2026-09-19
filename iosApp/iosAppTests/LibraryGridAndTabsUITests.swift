@@ -40,12 +40,16 @@ final class LibraryGridAndTabsUITests: AbsHarnessTestCase {
         allBooks.tap()
 
         // Cover tiles expose the book title as their accessibility label (BookCoverTile merges its
-        // descendants under `contentDescription = item.title`).
+        // descendants under `contentDescription = item.title`). Measure every item the stub
+        // catalogue serves — the grid's ordering is not part of this claim, so picking a subset
+        // would only test where those particular books happened to land.
         let titles = [
             StubAbsServer.testItemTitle,
             StubAbsServer.testStandaloneItemTitle,
             StubAbsServer.testPdfItemTitle,
             StubAbsServer.testFootnoteItemTitle,
+            StubAbsServer.testAudioItemTitle,
+            StubAbsServer.testCbzItemTitle,
         ]
         let firstTile = app.buttons[titles[0]].firstMatch
         XCTAssertTrue(firstTile.waitForExistence(timeout: 30), "The All Books grid must render cover tiles")
@@ -55,16 +59,19 @@ final class LibraryGridAndTabsUITests: AbsHarnessTestCase {
             let tile = app.buttons[title].firstMatch
             if tile.exists { frames.append(tile.frame) }
         }
-        XCTAssertGreaterThanOrEqual(frames.count, 2, "Need at least two tiles to measure a row, got \(frames.count)")
+        XCTAssertGreaterThanOrEqual(frames.count, 4, "Need several tiles to measure a row, got \(frames.count)")
 
-        guard let topRowY = frames.map({ $0.minY }).min() else {
-            return XCTFail("No tile frames were measurable")
+        // Group tiles into rows by their top edge, tolerating sub-pixel differences, and take the
+        // widest row. One column means every row holds exactly one tile.
+        var rows: [CGFloat: Int] = [:]
+        for frame in frames {
+            let key = (rows.keys.first { abs($0 - frame.minY) < 2 }) ?? frame.minY
+            rows[key, default: 0] += 1
         }
-        // Tolerate sub-pixel differences between tiles that are genuinely on the same row.
-        let inTopRow = frames.filter { abs($0.minY - topRowY) < 2 }
+        let widestRow = rows.values.max() ?? 0
         XCTAssertGreaterThanOrEqual(
-            inTopRow.count, 2,
-            "The cover grid must place ≥ 2 covers on its first row; frames were \(frames.map { $0.minY })"
+            widestRow, 2,
+            "The cover grid must place ≥ 2 covers on a row; tile tops were \(frames.map { $0.minY }.sorted())"
         )
     }
 

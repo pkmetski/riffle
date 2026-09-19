@@ -16,13 +16,29 @@ import XCTest
 // time" — so these drive iOS's own implementation through XCUIApplication.
 final class NavDrawerTests: AbsHarnessTestCase {
 
+    /// iOS's Settings screen labels its back affordance "← Libraries" (SettingsScreen.kt's back
+    /// header); the nested panels and the reader use "← Back". These three tests had never
+    /// executed — NavDrawerTests.swift was a member of no Xcode target until this change — so the
+    /// original "← Back" lookup silently fell through to an edge swipe that does nothing in
+    /// Compose Multiplatform, and the screen never went back.
+    private func leaveSettings() {
+        for label in ["← Libraries", "← Back"] {
+            let control = app.buttons[label].firstMatch
+            if control.waitForExistence(timeout: 5) && control.isHittable {
+                control.tap()
+                return
+            }
+        }
+        XCTFail("The Settings screen must offer a tappable back control")
+    }
+
     // MARK: - ND-1  Back from Settings returns to library home (blank-screen regression)
 
     /// Popping the Settings root surface must land on the library home — not a blank or empty screen.
     ///
-    /// Regression for the "burger menu blank" bug: if Settings is the sole back-stack entry when
-    /// the user presses back, an empty NavHost is rendered instead of the home surface.
-    /// navigateAsRoot keeps HOME beneath every root so popping Settings always reveals home.
+    /// Same user-visible claim as Android's "burger menu blank" regression, against iOS's own
+    /// implementation: leaving the Settings section must restore the library surface underneath
+    /// it rather than an empty screen.
     func testBackFromSettingsReturnsToLibraryHome() throws {
         // The harness base class already lands us on the library home with the burger visible.
         let burger = app.buttons["Open menu"]
@@ -34,31 +50,15 @@ final class NavDrawerTests: AbsHarnessTestCase {
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must show a Settings entry")
         settingsEntry.tap()
 
-        // Settings screen must be visible (has at least a "Sources" or "Remove" element).
-        let settingsVisible = NSPredicate { _, _ in
-            self.app.staticTexts["Settings"].exists ||
-            self.app.navigationBars["Settings"].exists ||
-            self.app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'"))
-                .firstMatch.exists
-        }
-        let appeared = XCTWaiter.wait(
-            for: [XCTNSPredicateExpectation(predicate: settingsVisible, object: nil)],
-            timeout: 15
+        // The Settings screen is identified by its own back header, which only that screen shows —
+        // the word "Settings" alone is ambiguous with the drawer entry that is still on screen
+        // while the drawer animates shut.
+        XCTAssertTrue(
+            app.buttons["← Libraries"].waitForExistence(timeout: 15),
+            "Settings must open after tapping the drawer entry"
         )
-        XCTAssertEqual(appeared, .completed, "Settings must open after tapping the drawer entry")
 
-        // Press back. The ← Back button in CMP is labelled "← Back"; it may also appear as a
-        // system back gesture. Prefer the accessibility button if present; fall back to a swipe.
-        let backButton = app.buttons["← Back"].firstMatch
-        if backButton.waitForExistence(timeout: 5) && backButton.isHittable {
-            backButton.tap()
-        } else {
-            // Swipe from the leading edge to trigger a back gesture.
-            let leading = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
-            let mid = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            leading.press(forDuration: 0.1, thenDragTo: mid)
-        }
+        leaveSettings()
 
         // After back we must be on the library home — the burger must be visible — not blank.
         XCTAssertTrue(
@@ -73,9 +73,9 @@ final class NavDrawerTests: AbsHarnessTestCase {
     /// Opening Settings from the drawer repeatedly then pressing back must always land one hop
     /// from the library home — never deeper in a growing stack.
     ///
-    /// Counterpart to switchingRootsNeverAccumulatesOrEmptiesBackStack: each navigateAsRoot call
-    /// replaces the current root surface. After three trips to Settings (and back), only one hop
-    /// is needed to return to the library home.
+    /// Counterpart to switchingRootsNeverAccumulatesOrEmptiesBackStack. iOS switches an
+    /// `AppSection` enum rather than pushing nav entries, so the claim here is that the section
+    /// switch stays idempotent: after three trips to Settings, one back still lands on home.
     func testRepeatedDrawerNavigationDoesNotAccumulateSettingsEntries() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
@@ -91,24 +91,13 @@ final class NavDrawerTests: AbsHarnessTestCase {
             )
             settingsEntry.tap()
 
-            // Wait for Settings to appear.
-            let settingsScreen = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'"))
-                .firstMatch
-            // Accept either the Remove action or a "Settings" title being visible as proof of arrival.
-            let reachedSettings = settingsScreen.waitForExistence(timeout: 15) ||
-                app.navigationBars["Settings"].waitForExistence(timeout: 5)
-            XCTAssertTrue(reachedSettings, "Settings must be reachable on round \(round)")
+            XCTAssertTrue(
+                app.buttons["← Libraries"].waitForExistence(timeout: 15),
+                "Settings must be reachable on round \(round)"
+            )
 
             // One back press must return to library home.
-            let backButton = app.buttons["← Back"].firstMatch
-            if backButton.waitForExistence(timeout: 5) && backButton.isHittable {
-                backButton.tap()
-            } else {
-                let leading = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
-                let mid = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-                leading.press(forDuration: 0.1, thenDragTo: mid)
-            }
+            leaveSettings()
 
             XCTAssertTrue(
                 burger.waitForExistence(timeout: 15),
