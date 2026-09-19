@@ -16,17 +16,34 @@ import platform.posix.lstat
 @OptIn(ExperimentalForeignApi::class)
 class IosFolderWalker(private val dispatchers: DispatcherProvider) {
 
+    /**
+     * Walks [folderPath] recursively.
+     *
+     * Throws when the *root* folder cannot be listed — it was deleted, moved, replaced by a plain
+     * file, or lives on a volume that is no longer mounted. This mirrors [SafFolderWalker], which
+     * throws when the tree URI no longer resolves, and it matters: `IosLocalFilesScanner` only runs
+     * its stale sweep when every folder walked cleanly. Returning an empty list for an unreadable
+     * folder would look indistinguishable from "the user emptied the folder", and the sweep would
+     * hard-delete every book that folder had ever contributed — library rows, junction rows, and
+     * the copied bytes on disk.
+     *
+     * An unreadable *sub*directory is skipped rather than fatal, matching Android's
+     * `DocumentFile.listFiles()`, which returns an empty array for children it cannot enumerate.
+     */
     suspend fun walk(folderPath: String): List<IosWalkedFile> = withContext(dispatchers.io) {
         val out = mutableListOf<IosWalkedFile>()
-        walkDirectory(folderPath, out)
+        if (!walkDirectory(folderPath, out)) {
+            throw IllegalStateException("Cannot list folder: $folderPath")
+        }
         out
     }
 
-    private fun walkDirectory(dirPath: String, out: MutableList<IosWalkedFile>) {
+    /** Returns false when [dirPath] could not be enumerated at all. */
+    private fun walkDirectory(dirPath: String, out: MutableList<IosWalkedFile>): Boolean {
         val manager = NSFileManager.defaultManager
 
         @Suppress("UNCHECKED_CAST")
-        val names = manager.contentsOfDirectoryAtPath(dirPath, error = null) as? List<String> ?: return
+        val names = manager.contentsOfDirectoryAtPath(dirPath, error = null) as? List<String> ?: return false
         for (name in names) {
             if (name.startsWith(".")) continue
             val childPath = "$dirPath/$name"
@@ -52,5 +69,6 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
                 )
             }
         }
+        return true
     }
 }
