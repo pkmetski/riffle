@@ -27,7 +27,12 @@ final class AddKomgaSourceFlowTests: XCTestCase {
 
     /// The Komga card must appear in the source picker.
     func testKomgaCardVisibleAndEnabled() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+        // Cold-launch budget. This is the first thing a harness test does on a fresh app,
+        // and on CI it competes with the other simulator clone; issue #1066 grew the suite
+        // from 29 to 39 tests across the same two clones and pushed the old 40s past the
+        // edge for whichever test runs first in its suite. Later tests in the same class
+        // reach this in under 10s because the app is warm.
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
                       "App must start on the source picker")
         let komgaCard = app.staticTexts["Komga"]
         XCTAssertTrue(komgaCard.waitForExistence(timeout: 5), "Picker must show a Komga card")
@@ -38,7 +43,7 @@ final class AddKomgaSourceFlowTests: XCTestCase {
 
     /// Tapping the Komga card must open the credential form, not crash or show an error.
     func testKomgaCredentialFormReachable() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
                       "App must start on the source picker")
         let komgaCard = app.staticTexts["Komga"]
         XCTAssertTrue(komgaCard.waitForExistence(timeout: 5))
@@ -58,7 +63,7 @@ final class AddKomgaSourceFlowTests: XCTestCase {
 
     /// Full add-Komga-source flow: picker → credentials → select-libraries → library home.
     func testAddKomgaSourceEndToEnd() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
                       "App must start on the source picker")
 
         let komgaCard = app.staticTexts["Komga"]
