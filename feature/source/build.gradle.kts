@@ -10,7 +10,11 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":core:domain"))
-            implementation(project(":core:models"))
+            // OwnedItemMatcher's public API takes LibraryItem/CatalogItem, so both must stay on
+            // the consumer's compile classpath (`api`, not `implementation`).
+            api(project(":core:models"))
+            api(project(":core:catalog"))
+            implementation(project(":core:common"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.lifecycle.viewmodel)
         }

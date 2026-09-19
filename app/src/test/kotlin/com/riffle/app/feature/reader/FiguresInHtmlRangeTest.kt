@@ -7,6 +7,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.anchorRangeToSnippet
+import com.riffle.feature.reader.findEnclosedFiguresInHtml
+import com.riffle.feature.reader.mergeEnclosedFigures
 
 class FiguresInHtmlRangeTest {
 

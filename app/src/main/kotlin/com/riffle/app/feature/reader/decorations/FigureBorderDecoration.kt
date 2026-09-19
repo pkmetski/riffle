@@ -1,10 +1,11 @@
 package com.riffle.app.feature.reader.decorations
 
 import com.riffle.app.feature.reader.normalizeCaptionText
-import com.riffle.app.feature.reader.toCssRgba
+import com.riffle.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.reader.toCssRgba
 
 /**
  * Builds the CSS + JS that draws a coloured border around figures covered by an annotation, so an

@@ -1,5 +1,11 @@
 package com.riffle.app.navigation
 
+import com.riffle.feature.navigation.collectionDetailRoute
+import com.riffle.feature.navigation.committedTopRoute
+import com.riffle.feature.navigation.libraryEntryRoute
+import com.riffle.feature.navigation.libraryItemDetailRoute
+import com.riffle.feature.navigation.librarySectionRoute
+import com.riffle.feature.navigation.seriesDetailRoute
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.windowsizeclass.WindowSizeClass

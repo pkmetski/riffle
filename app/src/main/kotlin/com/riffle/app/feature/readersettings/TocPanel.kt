@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.fadingScrollbar
-import com.riffle.app.feature.reader.findActiveEntry
+import com.riffle.feature.reader.findActiveEntry
+import com.riffle.feature.reader.findActiveFlatIndex
+import com.riffle.feature.reader.flattenToc
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,57 +70,6 @@ fun TocPanel(
             }
         }
     }
-}
-
-internal data class TocRow(val entry: TocEntry, val depth: Int, val orderIndex: Int)
-
-internal fun flattenToc(entries: List<TocEntry>): List<TocRow> {
-    val out = ArrayList<TocRow>()
-    fun walk(list: List<TocEntry>, depth: Int) {
-        for (e in list) {
-            if (e.title.isNotBlank()) {
-                out.add(TocRow(e, depth, out.size))
-                walk(e.children, depth + 1)
-            } else {
-                // Preserve legacy behaviour: skip blank-title container, descend at same depth.
-                walk(e.children, depth)
-            }
-        }
-    }
-    walk(entries, 0)
-    return out
-}
-
-internal fun findActiveFlatIndex(
-    entries: List<TocEntry>,
-    flat: List<TocRow>,
-    activeHref: String?,
-): Int? {
-    if (activeHref == null) return null
-    // Match the tree-walking rules of findActiveEntry, then locate the resulting entry in flat.
-    // This handles blank-title containers (skipped in flat) by promoting to their first
-    // descendant that matches, and keeps the exact-href-first / subtree-fallback behaviour.
-    val entry = findActiveEntry(entries, activeHref) ?: return null
-    val normalizedEntryHref = entry.href.trimStart('/')
-    val exact = flat.indexOfFirst { it.entry.href.trimStart('/') == normalizedEntryHref }
-    if (exact >= 0) return exact
-    // The matched entry itself was skipped (blank title). Fall through to its first descendant
-    // that survived flattening.
-    val descendantHrefs = collectHrefs(entry.children).mapTo(HashSet()) { it.trimStart('/') }
-    val idx = flat.indexOfFirst { it.entry.href.trimStart('/') in descendantHrefs }
-    return if (idx >= 0) idx else null
-}
-
-private fun collectHrefs(entries: List<TocEntry>): List<String> {
-    val out = ArrayList<String>()
-    fun walk(list: List<TocEntry>) {
-        for (e in list) {
-            out.add(e.href)
-            walk(e.children)
-        }
-    }
-    walk(entries)
-    return out
 }
 
 @Composable

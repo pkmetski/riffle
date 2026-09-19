@@ -28,6 +28,7 @@ import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.settings.ReaderSettingsSections
 
 /**
  * Theme + view + on-screen-info controls. Reused by the in-reader settings sheet (Display tab)
@@ -60,9 +61,9 @@ fun DisplaySection(
                 labelForTheme = { it.localizedLabel() },
                 contentDescriptionForTheme = { _, label -> stringResource(R.string.ui_theme_named, label) },
             )
-            if (prefs.theme == ReaderTheme.Auto) {
+            if (ReaderSettingsSections.showsAutoThemeBlock(prefs.theme)) {
                 Spacer(Modifier.height(12.dp))
-                if (scheduleEditable) {
+                if (ReaderSettingsSections.showsAutoThemeEditor(prefs.theme, scheduleEditable)) {
                     AutoThemeControls(
                         schedule = prefs.themeSchedule,
                         autoMode = prefs.autoReaderThemeMode,
@@ -85,7 +86,7 @@ fun DisplaySection(
         }
 
         // View — only render the header if any of its sub-controls are visible.
-        if (capabilities.supportsReadingModeSwitch || capabilities.supportsDoublePage) {
+        if (ReaderSettingsSections.showsViewSectionHeader(capabilities)) {
             Text(stringResource(R.string.ui_view), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
         }
@@ -123,7 +124,7 @@ fun DisplaySection(
         if (capabilities.supportsDoublePage) {
             // Active when paginated is the base mode, or when forcePaginatedInLandscape will
             // promote to paginated in landscape — in both cases the setting has a rendering effect.
-            val doublePageEnabled = prefs.orientation == ReaderOrientation.Horizontal || prefs.forcePaginatedInLandscape
+            val doublePageEnabled = ReaderSettingsSections.doublePageToggleEnabled(prefs.orientation, prefs.forcePaginatedInLandscape)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().alpha(if (doublePageEnabled) 1f else 0.38f),
@@ -145,7 +146,7 @@ fun DisplaySection(
         ToggleRow(
             label = stringResource(R.string.ui_colored_chapter_map),
             checked = prefs.coloredChapterMap,
-            enabled = prefs.showChapterMap,
+            enabled = ReaderSettingsSections.coloredChapterMapEnabled(prefs.showChapterMap),
             modifier = Modifier.padding(start = 16.dp),
             testTag = "colored_chapter_map_toggle",
             onChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },

@@ -54,8 +54,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.fadingScrollbar
-import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
+import com.riffle.feature.reader.RowKind
+import com.riffle.feature.reader.maxLinesForAnnotationTitle
+import com.riffle.feature.reader.rowKindFor
 import com.riffle.feature.reader.splitSnippetForFigures as splitSnippetForFiguresShared
 import com.riffle.feature.reader.splitSnippetForFiguresAt as splitSnippetForFiguresAtShared
 import com.riffle.core.models.HighlightColor
@@ -120,27 +122,9 @@ fun AnnotationsPanel(
     }
 }
 
-/**
- * Which visual variant an [AnnotationRow] renders, derived from [Annotation.type].
- */
-internal enum class RowKind { Bookmark, Highlight, Image }
-
-/**
- * Pure type→row-variant selector, extracted so the routing decision is unit-testable without
- * standing up Compose. Unknown/legacy types fall back to [RowKind.Highlight].
- */
-internal fun rowKindFor(annotation: Annotation): RowKind = when (annotation.type) {
-    AnnotationEntity.TYPE_BOOKMARK -> RowKind.Bookmark
-    // A HIGHLIGHT whose selection enclosed a figure with captured bytes gets the Image row so
-    // the panel shows the figure thumbnail — same visual weight as a standalone TYPE_IMAGE. The
-    // text snippet still renders alongside via the row's title column. Highlights without a
-    // captured figure (or figures without bytes) fall back to the plain color-dot row.
-    AnnotationEntity.TYPE_HIGHLIGHT ->
-        if (annotation.embeddedFigures.orEmpty().any { !it.imageBytes.isNullOrBlank() })
-            RowKind.Image else RowKind.Highlight
-    AnnotationEntity.TYPE_IMAGE -> RowKind.Image
-    else -> RowKind.Highlight
-}
+// `RowKind` / `rowKindFor` now live in `feature:reader` commonMain
+// (`com.riffle.feature.reader.AnnotationsPanelRowKind`) so iOS's annotations panel routes rows
+// through the same decision. Imported at the top of this file.
 
 @Composable
 private fun AnnotationRow(
@@ -409,11 +393,8 @@ private fun AnnotationOverflow(
     }
 }
 
-internal const val BOOKMARK_TITLE_MAX_LINES = 2
-internal const val HIGHLIGHT_SNIPPET_MAX_LINES = 6
-
-internal fun maxLinesForAnnotationTitle(type: String): Int =
-    if (type == AnnotationEntity.TYPE_BOOKMARK) BOOKMARK_TITLE_MAX_LINES else HIGHLIGHT_SNIPPET_MAX_LINES
+// `BOOKMARK_TITLE_MAX_LINES`, `HIGHLIGHT_SNIPPET_MAX_LINES` and `maxLinesForAnnotationTitle`
+// moved to `feature:reader` commonMain alongside `rowKindFor`.
 
 /**
  * Decode a `data:image/…;base64,…` URI into a [android.graphics.Bitmap]. Null on malformed input

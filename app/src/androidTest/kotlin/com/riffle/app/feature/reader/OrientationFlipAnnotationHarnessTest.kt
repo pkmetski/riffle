@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit
 import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
 
 /**
  * Regression: an annotation created (or visible) in CONTINUOUS mode used to "disappear" when the

@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.highlights
 
-import com.riffle.app.feature.reader.toCssRgba
+import com.riffle.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.EmphasisStyle
@@ -22,6 +22,7 @@ import org.readium.r2.shared.util.data.Container
 import org.readium.r2.shared.util.data.ReadError
 import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.resource.Resource
+import com.riffle.feature.reader.toCssRgba
 
 /**
  * Sentinel `originFontFamily` value written on annotation entities when the WebView had no live

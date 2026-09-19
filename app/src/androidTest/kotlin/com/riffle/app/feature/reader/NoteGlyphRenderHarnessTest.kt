@@ -40,6 +40,7 @@ import org.junit.runner.RunWith
 import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
 
 /**
  * End-to-end regression loop for noted-highlight glyphs. Unlike the renderer unit tests, this

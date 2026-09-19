@@ -29,7 +29,12 @@ final class AddAbsSourceFlowTests: XCTestCase {
     /// NSLog varargs, which segfaults on Kotlin/Native): installing a zero-config catalog source
     /// must complete with the app alive.
     func testChitankaInstallDoesNotCrash() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+        // Cold-launch budget. This is the first thing a harness test does on a fresh app,
+        // and on CI it competes with the other simulator clone; issue #1066 grew the suite
+        // from 29 to 39 tests across the same two clones and pushed the old 40s past the
+        // edge for whichever test runs first in its suite. Later tests in the same class
+        // reach this in under 10s because the app is warm.
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
                       "App must start on the source picker")
         app.staticTexts["Chitanka"].tap()
         // B3: tapping Chitanka now navigates to a confirmation screen before installing.
@@ -71,7 +76,7 @@ final class AddAbsSourceFlowTests: XCTestCase {
 
     /// Full add-ABS-source flow: picker → credentials → select-libraries → library home.
     func testAddAbsSourceEndToEnd() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
                       "App must start on the source picker")
 
         let absCard = app.staticTexts["Audiobookshelf"]

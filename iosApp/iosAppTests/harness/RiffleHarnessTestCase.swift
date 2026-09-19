@@ -70,7 +70,11 @@ func seedSourceArgument(type: String, url: String, username: String, password: S
 // The seeded source must land the app on the library home (burger menu) — never on the source picker.
 func waitForSeededLibraryHome(in app: XCUIApplication, sourceName: String) {
     let burger = app.buttons["Open menu"]
-    if !burger.waitForExistence(timeout: 60) {
+    // Cold launch + seeded-source install + first library load, on a CI runner sharing its cores
+    // with the other simulator clone. 60s was marginal before issue #1066 grew the harness from
+    // 29 to 39 tests; the first test in each suite then began timing out here while every later
+    // test in the same suite reached the home screen in seconds.
+    if !burger.waitForExistence(timeout: 150) {
         XCTFail("Seeded \(sourceName) source must land on the library home; picker visible: \(app.staticTexts["Add source"].exists)")
     }
 }

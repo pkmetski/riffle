@@ -44,7 +44,7 @@ fun LibrarySectionScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(120.dp),
+            columns = GridCells.Adaptive(coverGridMinCell()),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,

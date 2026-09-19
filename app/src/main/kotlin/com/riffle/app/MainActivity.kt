@@ -1,5 +1,6 @@
 package com.riffle.app
 
+import com.riffle.feature.navigation.NowPlayingNavigator
 import android.content.Intent
 import android.content.Context
 import android.os.Build
@@ -37,7 +38,6 @@ import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
 import com.riffle.app.navigation.MainScreen
-import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.ui.BottomNavBarScrim
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.VolumeKeyPreferencesStore

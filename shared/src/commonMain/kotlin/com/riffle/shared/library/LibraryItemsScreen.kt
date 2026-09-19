@@ -43,14 +43,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.library.LibrarySectionType
@@ -61,6 +64,19 @@ import org.koin.core.parameter.parametersOf
 
 private const val SECTION_ROW_HEIGHT = 200
 private const val SECTION_CELL_WIDTH = 120
+
+/**
+ * Minimum adaptive cell for the full-page cover grids, indexed on the window width per ADR 0019
+ * exactly as Android's `coverGridMinCellSize()` is. Both read the numbers from
+ * [CoverGridLayout], so a tablet-sized iPad lays its covers out on the same breakpoint an Android
+ * tablet does instead of staying on the phone-sized cell.
+ */
+@Composable
+internal fun coverGridMinCell(): Dp {
+    val widthPx = LocalWindowInfo.current.containerSize.width
+    val widthDp = with(LocalDensity.current) { widthPx.toDp() }
+    return CoverGridLayout.minCellSizeDp(widthDp.value, 1f).dp
+}
 
 /** Index of the Annotations tab — single source of truth shared by the bar and content switch. */
 internal fun tabIndexForAnnotations(): Int = 2
@@ -127,6 +143,7 @@ fun LibraryItemsScreen(
     val projection by viewModel.projection.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
+    val linkedItemIds by viewModel.linkedItemIds.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -154,13 +171,13 @@ fun LibraryItemsScreen(
                 }
             } else {
                 when (selectedTab) {
-                    0 -> HomeTabContent(projection, coversAreSquare, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+                    0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
                     1 -> SimpleItemList(projection.toRead, "To Read", onItemSelected)
                     tabIndexForAnnotations() -> AnnotationsTabContent(projection.annotations)
                     3 -> SeriesTabContent(projection.series, onSeriesSelected)
                     4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
-                    5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, onItemSelected)
-                    else -> HomeTabContent(projection, coversAreSquare, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+                    5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
+                    else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
                 }
             }
         }
@@ -239,6 +256,7 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
 private fun HomeTabContent(
     projection: LibraryProjection,
     coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
     onItemSelected: (LibraryItem) -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
@@ -247,19 +265,19 @@ private fun HomeTabContent(
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         if (projection.inProgress.isNotEmpty()) {
             item { SectionHeader("In Progress") { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) } }
-            item { HorizontalBookRow(items = projection.inProgress.take(10), onItemClick = onItemSelected) }
+            item { HorizontalBookRow(items = projection.inProgress.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.continueSeries.isNotEmpty()) {
             item { SectionHeader("Continue Series") { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) } }
-            item { HorizontalBookRow(items = projection.continueSeries.take(10), onItemClick = onItemSelected) }
+            item { HorizontalBookRow(items = projection.continueSeries.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.recentlyAdded.isNotEmpty()) {
             item { SectionHeader("Recently Added") { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) } }
-            item { HorizontalBookRow(items = projection.recentlyAdded.take(10), onItemClick = onItemSelected) }
+            item { HorizontalBookRow(items = projection.recentlyAdded.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.finished.isNotEmpty()) {
             item { SectionHeader("Finished") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
-            item { HorizontalBookRow(items = projection.finished.take(10), onItemClick = onItemSelected) }
+            item { HorizontalBookRow(items = projection.finished.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.series.isNotEmpty()) {
             item { SectionHeader("Series", onSeeAll = null) }
@@ -271,7 +289,7 @@ private fun HomeTabContent(
         }
         if (projection.allBooks.isNotEmpty()) {
             item { SectionHeader("All Books", onSeeAll = null) }
-            item { BookGrid(items = projection.allBooks, coversAreSquare = coversAreSquare, onItemClick = onItemSelected) }
+            item { BookGrid(items = projection.allBooks, coversAreSquare = coversAreSquare, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
     }
 }
@@ -374,7 +392,12 @@ private fun CollectionsTabContent(collections: List<Collection>, onCollectionSel
 }
 
 @Composable
-private fun AllBooksTabContent(items: List<LibraryItem>, coversAreSquare: Boolean, onItemSelected: (LibraryItem) -> Unit) {
+private fun AllBooksTabContent(
+    items: List<LibraryItem>,
+    coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
     if (items.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No books", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -383,7 +406,7 @@ private fun AllBooksTabContent(items: List<LibraryItem>, coversAreSquare: Boolea
     }
     val aspect = if (coversAreSquare) 1f else 2f / 3f
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(120.dp),
+        columns = GridCells.Adaptive(coverGridMinCell()),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -394,6 +417,7 @@ private fun AllBooksTabContent(items: List<LibraryItem>, coversAreSquare: Boolea
                 item = item,
                 modifier = Modifier.aspectRatio(aspect),
                 onClick = { onItemSelected(item) },
+                hasReadaloudLink = item.id in linkedItemIds,
             )
         }
     }
@@ -421,6 +445,7 @@ private fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = {}) {
 @Composable
 private fun HorizontalBookRow(
     items: List<LibraryItem>,
+    linkedItemIds: Set<String>,
     onItemClick: (LibraryItem) -> Unit,
 ) {
     LazyRow(
@@ -433,6 +458,7 @@ private fun HorizontalBookRow(
                 item = item,
                 modifier = Modifier.width(SECTION_CELL_WIDTH.dp),
                 onClick = { onItemClick(item) },
+                hasReadaloudLink = item.id in linkedItemIds,
             )
         }
     }
@@ -442,11 +468,12 @@ private fun HorizontalBookRow(
 private fun BookGrid(
     items: List<LibraryItem>,
     coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
     onItemClick: (LibraryItem) -> Unit,
 ) {
     val aspect = if (coversAreSquare) 1f else 2f / 3f
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(120.dp),
+        columns = GridCells.Adaptive(coverGridMinCell()),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -457,32 +484,81 @@ private fun BookGrid(
                 item = item,
                 modifier = Modifier.aspectRatio(aspect),
                 onClick = { onItemClick(item) },
+                hasReadaloudLink = item.id in linkedItemIds,
             )
         }
     }
 }
+
+/**
+ * Accessibility label for the readaloud badge. Mirrors Android's
+ * `R.string.ui_has_readaloud_synced_narration`; the iOS harness matches on it.
+ */
+internal const val READALOUD_BADGE_CONTENT_DESCRIPTION = "Has readaloud (synced narration)"
 
 @Composable
 fun BookCoverTile(
     item: LibraryItem,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
+    hasReadaloudLink: Boolean = false,
+    seriesNameBadge: String? = null,
 ) {
-    Box(
-        modifier = modifier
-            .semantics(mergeDescendants = true) { contentDescription = item.title }
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick),
-    ) {
-        DefaultCoverPlaceholder(
-            isAudiobook = item.isListenable && !item.isReadable,
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (item.isDownloaded || item.isCached) {
-            DownloadedBadge(
-                downloaded = item.isDownloaded,
-                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+    // The cover itself keeps the merged `contentDescription = title` node every harness test
+    // locates tiles by. The badges sit outside that merge so they stay individually addressable
+    // (a merged node would swallow the series position text).
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics(mergeDescendants = true) { contentDescription = item.title }
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = onClick),
+        ) {
+            DefaultCoverPlaceholder(
+                isAudiobook = item.isListenable && !item.isReadable,
+                modifier = Modifier.fillMaxSize(),
             )
+            if (item.isDownloaded || item.isCached) {
+                DownloadedBadge(
+                    downloaded = item.isDownloaded,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                )
+            }
+        }
+        if (hasReadaloudLink) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.55f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = SharedUiIcons.Headphones,
+                    contentDescription = READALOUD_BADGE_CONTENT_DESCRIPTION,
+                    tint = Color.White,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+        }
+        if (seriesNameBadge != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 5.dp, start = 5.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.70f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = seriesNameBadge,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                )
+            }
         }
     }
 }

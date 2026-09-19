@@ -8,6 +8,9 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
+import com.riffle.feature.reader.buildHighlightCfiRange
+import com.riffle.feature.reader.figureHrefFilename
+import com.riffle.feature.reader.locateSnippetInBody
 
 /**
  * Opportunistically upgrades legacy `TYPE_IMAGE` annotations (figure long-presses whose caption

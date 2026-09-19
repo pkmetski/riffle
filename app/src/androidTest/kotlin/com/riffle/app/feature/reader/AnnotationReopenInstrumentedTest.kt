@@ -28,6 +28,8 @@ import java.io.File
 import java.util.zip.ZipFile
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
+import com.riffle.feature.reader.highlightStartProgression
 
 /**
  * End-to-end re-render-on-reopen for highlights against a real EPUB, without driving WebView text

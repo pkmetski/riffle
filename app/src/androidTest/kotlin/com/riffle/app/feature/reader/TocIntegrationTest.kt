@@ -17,6 +17,7 @@ import org.readium.r2.streamer.PublicationOpener
 import java.io.File
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.findActiveEntry
 
 /**
  * Integration test: extract TOC from the bundled test EPUB and verify active entry detection.

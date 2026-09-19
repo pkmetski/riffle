@@ -14,8 +14,11 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
 
     /// 06-C.1 — Tapping a CBZ item and choosing Read opens the comics reader screen.
     func testComicsReaderOpensFromLibrary() throws {
-        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10), "CBZ tile must be visible in the library")
+        // Generous because this is the first test in the suite: the library is still populating
+        // from the stub server behind a cold launch. `testComicsPositionRestoredOnReopen` below
+        // finds the same tile immediately once the app is warm.
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 45)
+        XCTAssertTrue(cbzTile.waitForExistence(timeout: 45), "CBZ tile must be visible in the library")
 
         let backButton = openReader(from: cbzTile, in: app)
         XCTAssertTrue(backButton.exists, "Comics reader should show a Back button after opening")

@@ -20,6 +20,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipInputStream
+import com.riffle.feature.reader.buildHighlightCfiRange
+import com.riffle.feature.reader.computeOverlapMerge
+import com.riffle.feature.reader.readableBodyText
 
 /**
  * On-device regression for the 2026-07-24 recording: a plain green annotation partially

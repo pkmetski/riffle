@@ -135,6 +135,7 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":feature:downloads"))
     implementation(project(":feature:library"))
+    implementation(project(":feature:navigation"))
     implementation(project(":feature:reader"))
     implementation(project(":feature:player"))
     implementation(project(":feature:settings"))

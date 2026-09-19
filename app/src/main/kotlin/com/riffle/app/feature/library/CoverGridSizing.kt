@@ -12,19 +12,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.library.CoverGridLayout
 
-private val PhoneCoverMinCellSize = 112.dp
-private val ExpandedCoverMinCellSize = 160.dp
-
-// Base sizes at scale 1.0; the user's pinch zoom multiplies them via
-// [LocalCoverGridScale]. Phone matches the browse tabs (~3 per row); tablet packs
-// a little tighter (~5-6) so the wider screen isn't dominated by huge covers.
-private val PhoneShelfCoverMinCellSize = 112.dp
-private val ExpandedShelfCoverMinCellSize = 140.dp
+// Base sizes at scale 1.0 and the size-class breakpoint live in
+// [CoverGridLayout] (feature:library/commonMain) so the Compose-Multiplatform
+// grids the iOS app renders reach the same numbers. Phone matches the browse
+// tabs (~3 per row); tablet packs a little tighter (~5-6) so the wider screen
+// isn't dominated by huge covers.
 
 /** Lower/upper bounds for the user's pinch-to-zoom multiplier. */
-const val MIN_COVER_SCALE = 0.7f
-const val MAX_COVER_SCALE = 1.6f
+const val MIN_COVER_SCALE = CoverGridLayout.MIN_COVER_SCALE
+const val MAX_COVER_SCALE = CoverGridLayout.MAX_COVER_SCALE
 
 /**
  * The user's persisted cover-grid zoom multiplier (1.0 = shipped defaults).
@@ -45,8 +43,7 @@ val LocalCoverGridScale = compositionLocalOf { 1f }
 @ReadOnlyComposable
 fun coverGridMinCellSize(): Dp {
     val widthDp = LocalConfiguration.current.screenWidthDp
-    val base = if (widthDp >= 840) ExpandedCoverMinCellSize else PhoneCoverMinCellSize
-    return base * LocalCoverGridScale.current
+    return CoverGridLayout.minCellSizeDp(widthDp.toFloat(), LocalCoverGridScale.current).dp
 }
 
 /**
@@ -59,8 +56,7 @@ fun coverGridMinCellSize(): Dp {
 @ReadOnlyComposable
 fun shelfCoverMinCellSize(): Dp {
     val widthDp = LocalConfiguration.current.screenWidthDp
-    val base = if (widthDp >= 840) ExpandedShelfCoverMinCellSize else PhoneShelfCoverMinCellSize
-    return base * LocalCoverGridScale.current
+    return CoverGridLayout.shelfMinCellSizeDp(widthDp.toFloat(), LocalCoverGridScale.current).dp
 }
 
 /**

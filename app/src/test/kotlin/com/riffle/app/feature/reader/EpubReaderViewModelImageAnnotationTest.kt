@@ -15,6 +15,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.buildHighlightCfiRange
+import com.riffle.feature.reader.locateSnippetInBody
 
 /**
  * Regression coverage for [EpubReaderViewModel.onFigureLongPress]. The ViewModel itself can't be

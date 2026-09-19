@@ -9,6 +9,7 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.models.EbookFormat
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -111,9 +112,9 @@ class IosLocalFilesScanner(
         }
 
         val extension = when (kind) {
-            FileClassifier.Kind.EPUB -> "epub"
-            FileClassifier.Kind.PDF -> "pdf"
-            FileClassifier.Kind.CBZ -> "cbz"
+            FileClassifier.Kind.EPUB -> EbookFormat.STORAGE_EPUB
+            FileClassifier.Kind.PDF -> EbookFormat.STORAGE_PDF
+            FileClassifier.Kind.CBZ -> EbookFormat.STORAGE_CBZ
             FileClassifier.Kind.UNKNOWN -> return Outcome.SKIPPED
         }
 
