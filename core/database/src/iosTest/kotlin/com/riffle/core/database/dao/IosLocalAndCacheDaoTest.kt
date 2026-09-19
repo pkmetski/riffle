@@ -312,9 +312,10 @@ class IosLocalAndCacheDaoTest : IosDaoTestBase() {
         db.sourceDao().deleteSourceGraph(SOURCE_ID)
 
         // Android leans on CoverGridScaleEntity's ON DELETE CASCADE, but the iOS driver runs with
-        // foreign-key enforcement off, so this row outlived its source: re-adding a source with
-        // the same id silently resurrected its old pinch-zoom, and every add/remove cycle leaked
-        // another row. deleteSourceGraph now deletes it explicitly.
+        // foreign-key enforcement off, so this row outlived its source and every add/remove cycle
+        // leaked another one. deleteSourceGraph now deletes it explicitly. (iOS passes a fixed
+        // scale of 1f today, so a stale row is not yet user-visible — it would be inherited by a
+        // re-added source as soon as pinch-zoom is wired on iOS.)
         assertNull(
             dao.observeScale(SOURCE_ID, libraryId, bucket).first(),
             "Removing a source must drop its cover-grid zoom, not leave it to be inherited",

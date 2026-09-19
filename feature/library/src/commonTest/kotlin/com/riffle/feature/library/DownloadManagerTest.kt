@@ -1,4 +1,4 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import com.riffle.feature.library.DownloadState
 import kotlinx.coroutines.CompletableDeferred
@@ -6,18 +6,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertNull
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DownloadManagerTest {
 
     @Test
-    fun `start marks the key InProgress immediately, before the work runs`() = runTest {
+    fun `start marks the key InProgress immediately — before the work runs`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
 
         manager.start("k") { DownloadState.Downloaded }
 
@@ -28,7 +28,7 @@ class DownloadManagerTest {
     @Test
     fun `start reaches the terminal state returned by work once it completes`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
 
         manager.start("k") { DownloadState.Downloaded }
         testScheduler.advanceUntilIdle()
@@ -39,7 +39,7 @@ class DownloadManagerTest {
     @Test
     fun `startWithoutProgress keeps the visible state stable until work completes`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
         val gate = CompletableDeferred<Unit>()
 
         manager.startWithoutProgress("k", DownloadState.Cached) {
@@ -60,7 +60,7 @@ class DownloadManagerTest {
     @Test
     fun `startWithoutProgress ignores duplicate work for a silently running key`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
         val gate = CompletableDeferred<Unit>()
         var runs = 0
 
@@ -86,7 +86,7 @@ class DownloadManagerTest {
     @Test
     fun `progress callbacks surface as InProgress percentages`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
 
         manager.start("k") { onProgress ->
             onProgress(50, 100)
@@ -101,7 +101,7 @@ class DownloadManagerTest {
     @Test
     fun `a second start for an in-progress key is ignored`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
         val gate = CompletableDeferred<Unit>()
         var runs = 0
 
@@ -125,7 +125,7 @@ class DownloadManagerTest {
     @Test
     fun `work that throws resolves the key to NotDownloaded instead of a stuck spinner`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
 
         manager.start("k") { throw RuntimeException("boom") }
         testScheduler.advanceUntilIdle()
@@ -139,7 +139,7 @@ class DownloadManagerTest {
     @Test
     fun `work that throws an Error resolves the key to NotDownloaded instead of a stuck spinner`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
 
         manager.start("k") { throw OutOfMemoryError("simulated OOM") }
         testScheduler.advanceUntilIdle()
@@ -150,7 +150,7 @@ class DownloadManagerTest {
     @Test
     fun `clear drops the tracked state for a key`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val manager = DefaultDownloadManager(CoroutineScope(dispatcher))
 
         manager.start("k") { DownloadState.Downloaded }
         testScheduler.advanceUntilIdle()

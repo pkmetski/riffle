@@ -127,9 +127,12 @@ interface SourceDao {
     suspend fun deletePublicationMetricsCacheForSource(id: String)
 
     // Room cascades this one on Android via CoverGridScaleEntity's ON DELETE CASCADE, but the
-    // iOS driver runs with foreign-key enforcement off, so the rows outlived the source and a
-    // re-added source silently inherited its old pinch-zoom. Delete it explicitly like every
-    // other table here, so the graph does not depend on who enforces constraints.
+    // iOS driver runs with foreign-key enforcement off, so the rows outlived the source and
+    // leaked one per add/remove cycle with nothing to ever collect them. (iOS does not read the
+    // persisted scale yet — LibraryItemsScreen passes a fixed 1f — so the stale value is not
+    // user-visible today, but it would be inherited the moment pinch-zoom is wired there.)
+    // Delete it explicitly like every other table here, so the graph does not depend on who
+    // enforces constraints.
     @Query("DELETE FROM cover_grid_scale WHERE sourceId = :id")
     suspend fun deleteCoverGridScaleForSource(id: String)
 

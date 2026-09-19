@@ -71,6 +71,7 @@ fun TocPanel(
         }
     }
 }
+
 @Composable
 private fun TocEntryRow(
     entry: TocEntry,

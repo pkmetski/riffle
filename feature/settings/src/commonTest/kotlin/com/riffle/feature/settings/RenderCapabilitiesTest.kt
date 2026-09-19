@@ -1,9 +1,8 @@
-package com.riffle.app.feature.reader.formatting
+package com.riffle.feature.settings
 
-import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import kotlin.test.Test
 
 class RenderCapabilitiesTest {
     @Test
@@ -19,7 +18,7 @@ class RenderCapabilitiesTest {
     }
 
     @Test
-    fun `pdf disables font family, publisher styles, mode switch, and double page`() {
+    fun `pdf disables font family — publisher styles — mode switch — and double page`() {
         val caps = RenderCapabilities.PDF
         assertFalse(caps.supportsFontFamily)
         assertFalse(caps.supportsTextTypography)

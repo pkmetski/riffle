@@ -44,6 +44,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import com.riffle.feature.reader.flattenToc
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via
@@ -252,9 +253,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         .fillMaxWidth(0.75f)
                         .padding(8.dp),
                 ) {
-                    items(flattenToc(tocEntries)) { (entry, depth) ->
+                    items(flattenToc(tocEntries)) { row ->
                         BasicText(
-                            text = "  ".repeat(depth) + entry.title,
+                            text = "  ".repeat(row.depth) + row.entry.title,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp)
@@ -263,8 +264,8 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                                     scope.launch {
                                         navigator.navigateTo(
                                             NavigatorNavigationTarget.ToHref(
-                                                href = entry.href.substringBefore("#"),
-                                                fragment = entry.href.substringAfter("#", "").ifEmpty { null },
+                                                href = row.entry.href.substringBefore("#"),
+                                                fragment = row.entry.href.substringAfter("#", "").ifEmpty { null },
                                             ),
                                         )
                                     }
@@ -319,13 +320,4 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             }
         }
     }
-}
-
-private fun flattenToc(entries: List<TocEntry>, depth: Int = 0): List<Pair<TocEntry, Int>> {
-    val result = mutableListOf<Pair<TocEntry, Int>>()
-    for (entry in entries) {
-        result += entry to depth
-        result += flattenToc(entry.children, depth + 1)
-    }
-    return result
 }

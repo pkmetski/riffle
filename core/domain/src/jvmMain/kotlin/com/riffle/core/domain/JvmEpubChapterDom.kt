@@ -23,6 +23,10 @@ object JvmEpubChapterDomOps : EpubChapterDomOps {
     override fun figures(html: String): List<RawChapterFigure> {
         val body = Jsoup.parse(html).body()
         val out = mutableListOf<RawChapterFigure>()
+        // Keyed on jsoup's identity-based Node.equals/hashCode — two structurally identical
+        // elements (say a repeated `<img src="x.png">`) must stay distinct figures. The ksoup twin
+        // cannot use a map at all because ksoup's Element equality is structural; see
+        // IosEpubChapterDomOps.idOf.
         val ids = HashMap<Element, Int>()
         var running = 0L
 

@@ -64,7 +64,7 @@ class IosTocJsonTest {
 
         assertEquals(1, entries.size)
         assertEquals("", entries[0].title)
-        assertTrue(entries[0].href.contains("chapter1"))
+        assertEquals("chapter1.xhtml", entries[0].href)
     }
 
     @Test
@@ -89,10 +89,7 @@ class IosTocJsonTest {
     fun hrefIsPreservedInTocEntry() {
         val entries = parseTocJson("""[{"title":"Chapter 3","href":"chapter3.xhtml"}]""")
 
-        assertTrue(
-            entries.first().href.contains("chapter3"),
-            "Expected href to contain 'chapter3' but was '${entries.first().href}'",
-        )
+        assertEquals("chapter3.xhtml", entries.first().href, "parseTocArray must not transform the href")
     }
 
     @Test

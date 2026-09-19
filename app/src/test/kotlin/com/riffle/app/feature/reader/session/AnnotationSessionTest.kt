@@ -1291,6 +1291,80 @@ class AnnotationSessionTest {
         sessionScope.coroutineContext[Job]?.cancel()
     }
 
+
+    // ---- Unresolved-namespace behaviour (issue #1066 AnnotationSyncCoordinator extraction) ----
+    //
+    // Before the extraction these paths read
+    //     scheduleSync(boundSourceId ?: return, boundNamespace ?: return, boundItemId ?: return)
+    // whose `?: return` exited the *enclosing function*, so everything after it was skipped
+    // whenever the namespace had not resolved. `EpubReaderViewModel` binds with `namespace = ""`
+    // for any source where `ensureSyncNamespace` returns null (local files, non-syncing sources),
+    // and the coordinator stores that as null — so on those sources it was skipped for the whole
+    // session. That was an accident of expression style, not intent: clearing the edit target for
+    // an annotation the user just deleted, and merging after a note edit, have nothing to do with
+    // whether the annotation syncs to a server. `scheduleSyncIfReady()` now no-ops and execution
+    // continues. These pin that, so the old skip cannot come back unnoticed.
+
+    @Test
+    fun `deleteHighlight clears highlightToEdit even when the namespace never resolved`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        assertEquals("h1", session.highlightToEdit.value?.id)
+
+        session.deleteHighlight("h1")
+
+        assertTrue(store.deletedIds.contains("h1"))
+        assertNull(
+            "A deleted highlight must not stay the edit target just because the book does not sync",
+            session.highlightToEdit.value,
+        )
+        assertEquals("An unresolved namespace must not schedule a push", 0, syncOps.scheduleDebounceCount)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `deleteAnnotation clears highlightToEdit even when the namespace never resolved`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        assertEquals("h1", session.highlightToEdit.value?.id)
+
+        session.deleteAnnotation("h1")
+
+        assertTrue(store.deletedIds.contains("h1"))
+        assertNull(
+            "A deleted annotation must not stay the edit target just because the book does not sync",
+            session.highlightToEdit.value,
+        )
+        assertEquals("An unresolved namespace must not schedule a push", 0, syncOps.scheduleDebounceCount)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
     /**
      * Test 12: createHighlight stores snippet derived from selection text, textBefore, textAfter.
      *

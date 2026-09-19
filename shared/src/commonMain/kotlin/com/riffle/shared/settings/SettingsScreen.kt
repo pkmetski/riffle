@@ -45,6 +45,7 @@ import com.riffle.feature.settings.comicDisplaySummary
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.shared.source.SourceOnboardingHost
 import org.koin.compose.koinInject
+import com.riffle.feature.settings.ReaderSettingsSummaries
 
 private enum class SettingsPanel {
     None,
@@ -781,6 +782,12 @@ private fun ChipRow(options: List<String>, selected: String, onSelect: (String) 
 }
 
 // ── Summary helpers ───────────────────────────────────────────────────────────────────────────────
+//
+// These forward to feature:settings' ReaderSettingsSummaries so this screen renders exactly what
+// Android's settings rows do. They used to be independent copies here, and had drifted: the font
+// labels read "Sans-serif"/"Monospace"/"OpenDyslexic" against Android's "Sans serif"/"Mono"/
+// "Dyslexic"; the formatting row showed line spacing where Android shows margins; and the font
+// size used toInt() instead of roundToInt(), so 1.15f rendered 114% here and 115% there (#1066).
 
 private fun AppTheme.label(): String = when (this) {
     AppTheme.Light -> "Light"
@@ -788,42 +795,23 @@ private fun AppTheme.label(): String = when (this) {
     AppTheme.System -> "System"
 }
 
-private fun ReaderFontFamily.label(): String = when (this) {
-    ReaderFontFamily.Original -> "Original"
-    ReaderFontFamily.Serif -> "Serif"
-    ReaderFontFamily.SansSerif -> "Sans-serif"
-    ReaderFontFamily.Monospace -> "Monospace"
-    ReaderFontFamily.Literata -> "Literata"
-    ReaderFontFamily.Merriweather -> "Merriweather"
-    ReaderFontFamily.OpenDyslexic -> "OpenDyslexic"
-}
+private fun ReaderFontFamily.label(): String = ReaderSettingsSummaries.fontFamilyLabel(this)
 
-private fun ReaderOrientation.displayLabel(): String = when (this) {
-    ReaderOrientation.Horizontal -> "Paginated"
-    ReaderOrientation.Vertical -> "Scroll"
-    ReaderOrientation.Continuous -> "Continuous"
-}
+private fun ReaderOrientation.displayLabel(): String = ReaderSettingsSummaries.orientationWord(this)
 
-private fun ReaderTheme.displayLabel(): String = when (this) {
-    ReaderTheme.Light -> "Light"
-    ReaderTheme.Dark -> "Dark"
-    ReaderTheme.DarkDim -> "Dim"
-    ReaderTheme.Sepia -> "Sepia"
-    ReaderTheme.Auto -> "Auto"
-}
+private fun ReaderTheme.displayLabel(): String = ReaderSettingsSummaries.themeLabel(this)
 
 private fun formattingSummary(prefs: FormattingPreferences): String =
-    "${prefs.fontFamily.label()} · ${(prefs.fontSize * 100).toInt()}% · " +
-        "Spacing ${prefs.lineSpacing.to1dp()}"
+    ReaderSettingsSummaries.formattingSummary(prefs)
 
 private fun displaySummary(prefs: FormattingPreferences): String =
-    "${prefs.orientation.displayLabel()} · ${prefs.theme.displayLabel()}"
+    ReaderSettingsSummaries.displaySummary(prefs)
 
 private fun autoScrollSummary(prefs: FormattingPreferences): String =
-    if (prefs.showAutoScroll) "${prefs.autoScrollWpm} WPM" else "Off"
+    ReaderSettingsSummaries.autoScrollSummary(prefs)
 
 private fun cadenceSummary(prefs: FormattingPreferences): String =
-    if (prefs.showCadence) "${prefs.cadenceWpm} WPM" else "Off"
+    ReaderSettingsSummaries.cadenceSummary(prefs)
 
 private fun formatSpeed(speed: Float): String {
     val rounded = (speed * 10).toInt() / 10.0f
