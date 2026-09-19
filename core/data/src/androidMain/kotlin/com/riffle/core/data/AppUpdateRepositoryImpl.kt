@@ -3,6 +3,8 @@ package com.riffle.core.data
 import android.content.Context
 import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AppUpdateRepository
+import com.riffle.core.domain.ReleaseCandidate
+import com.riffle.core.domain.AppUpdateVersions
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReleaseInfo
@@ -60,55 +62,24 @@ class AppUpdateRepositoryImpl constructor(
         const val REPO = "pkmetski/riffle"
         const val UPDATE_DIR_NAME = "updates"
 
-        /**
-         * Pure comparison of [release] against the installed [currentVersionCode]. An unparseable tag
-         * is a [UpdateCheckResult.Failed]; an equal-or-lower code (e.g. a dev build at a higher code)
-         * is [UpdateCheckResult.UpToDate].
-         */
-        fun evaluate(currentVersionCode: Int, release: GitHubRelease): UpdateCheckResult {
-            val versionName = release.tagName.removePrefix("v")
-            val versionCode = versionCodeOf(versionName)
-                ?: return UpdateCheckResult.Failed("Unrecognized release tag '${release.tagName}'")
-            return if (versionCode <= currentVersionCode) {
-                UpdateCheckResult.UpToDate
-            } else {
-                UpdateCheckResult.UpdateAvailable(
-                    AvailableUpdate(
-                        versionName = versionName,
-                        versionCode = versionCode,
-                        downloadUrl = release.apkUrl,
-                        sizeBytes = release.apkSizeBytes,
-                    )
-                )
-            }
-        }
+        /** Maps core:network's release model onto the shared [ReleaseCandidate] shape. */
+        private fun GitHubRelease.asCandidate() = ReleaseCandidate(
+            tagName = tagName,
+            downloadUrl = apkUrl,
+            sizeBytes = apkSizeBytes,
+            body = body,
+            htmlUrl = htmlUrl,
+            publishedAt = publishedAt,
+        )
+
+        // Version arithmetic lives in core:domain's AppUpdateVersions so Android and iOS cannot
+        // disagree on what counts as a newer release; these stay as the Android-facing entry points.
+        fun evaluate(currentVersionCode: Int, release: GitHubRelease): UpdateCheckResult =
+            AppUpdateVersions.evaluate(currentVersionCode, release.asCandidate())
 
         fun listReleasesSince(releases: List<GitHubRelease>, sinceVersionCode: Int): List<ReleaseInfo> =
-            releases.mapNotNull { release ->
-                val versionName = release.tagName.removePrefix("v")
-                val versionCode = versionCodeOf(versionName) ?: return@mapNotNull null
-                if (versionCode <= sinceVersionCode) return@mapNotNull null
-                ReleaseInfo(
-                    versionName = versionName,
-                    versionCode = versionCode,
-                    changelog = release.body,
-                    downloadUrl = release.apkUrl,
-                    sizeBytes = release.apkSizeBytes,
-                    releaseUrl = release.htmlUrl,
-                    publishedAt = release.publishedAt,
-                )
-            }
+            AppUpdateVersions.listReleasesSince(releases.map { it.asCandidate() }, sinceVersionCode)
 
-        /**
-         * Mirrors the release workflow's tag→code formula:
-         * vMAJOR.MINOR.PATCH → MAJOR*10000 + MINOR*100 + PATCH. Returns null for any tag that is not
-         * three numeric dot-separated parts.
-         */
-        fun versionCodeOf(versionName: String): Int? {
-            val parts = versionName.trim().split(".")
-            if (parts.size != 3) return null
-            val (maj, min, pat) = parts.map { it.toIntOrNull() ?: return null }
-            return maj * 10000 + min * 100 + pat
-        }
+        fun versionCodeOf(versionName: String): Int? = AppUpdateVersions.versionCodeOf(versionName)
     }
 }

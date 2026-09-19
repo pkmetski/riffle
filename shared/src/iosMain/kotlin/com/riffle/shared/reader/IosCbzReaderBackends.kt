@@ -13,10 +13,9 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.KomgaCbzApi
 
 /**
- * iOS Koin backends for the shared [com.riffle.feature.reader.CbzReaderViewModel]. Most are no-ops
- * mirroring the [com.riffle.shared.library.IosNoOpStorytellerSyncer] pattern — iOS does not yet
- * persist reader preferences or sync reading sessions. [IosCbzRepository] is a real implementation
- * lifted from the logic that previously lived inline in [CbzReaderScreen].
+ * iOS Koin backends for the shared [com.riffle.feature.reader.CbzReaderViewModel].
+ * [IosCbzRepository] is a real implementation lifted from the logic that previously lived inline
+ * in [CbzReaderScreen]; CBZ offline download remains unsupported on iOS (see downloadCbz).
  */
 
 /** Wraps a plain [ComicImageSource] as a [ComicPageSource] (close is a no-op; nothing to release). */

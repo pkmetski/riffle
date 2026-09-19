@@ -19,10 +19,12 @@ import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
+import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheAccessStoreImpl
+import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
@@ -208,8 +210,6 @@ import com.riffle.shared.reader.IosEpubTocExtractor
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
-import com.riffle.shared.settings.IosNoOpAppUpdateRepository
-import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -534,8 +534,9 @@ private fun iosLibraryModule(
             contentCacheSettingsStore = get(),
         )
     }
-    single<CrashReportRepository> { IosNoOpCrashReportRepository }
-    single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
+    single { IosCrashReportRepositoryImpl(get()) }
+    single<CrashReportRepository> { get<IosCrashReportRepositoryImpl>() }
+    single<AppUpdateRepository> { IosAppUpdateRepositoryImpl(get()) }
     single<AppUpdatePreferencesStore> { IosAppUpdatePreferencesStoreImpl() }
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
     single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }
