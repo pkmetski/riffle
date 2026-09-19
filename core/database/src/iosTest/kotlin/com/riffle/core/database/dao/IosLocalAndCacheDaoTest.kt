@@ -300,4 +300,29 @@ class IosLocalAndCacheDaoTest : IosDaoTestBase() {
             "Two sources may use the same library id; their zoom levels must not cross",
         )
     }
+
+    @Test
+    fun coverGridScaleRowsAreRemovedByTheSourceDeleteGraph() = runTest {
+        seedSource(SOURCE_ID)
+        seedSource(OTHER_SOURCE_ID)
+        val dao = db.coverGridScaleDao()
+        dao.upsert(CoverGridScaleEntity(SOURCE_ID, libraryId, bucket, 1.4f))
+        dao.upsert(CoverGridScaleEntity(OTHER_SOURCE_ID, libraryId, bucket, 0.9f))
+
+        db.sourceDao().deleteSourceGraph(SOURCE_ID)
+
+        // Android leans on CoverGridScaleEntity's ON DELETE CASCADE, but the iOS driver runs with
+        // foreign-key enforcement off, so this row outlived its source: re-adding a source with
+        // the same id silently resurrected its old pinch-zoom, and every add/remove cycle leaked
+        // another row. deleteSourceGraph now deletes it explicitly.
+        assertNull(
+            dao.observeScale(SOURCE_ID, libraryId, bucket).first(),
+            "Removing a source must drop its cover-grid zoom, not leave it to be inherited",
+        )
+        assertEquals(
+            0.9f,
+            dao.observeScale(OTHER_SOURCE_ID, libraryId, bucket).first(),
+            "Another source's zoom must survive",
+        )
+    }
 }
