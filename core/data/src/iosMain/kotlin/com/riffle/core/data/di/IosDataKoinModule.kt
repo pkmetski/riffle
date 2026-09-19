@@ -17,12 +17,12 @@ import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
-import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.IosReadaloudPreferencesStoreImpl
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.LibraryItemUiProgressSink
+import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
 import com.riffle.core.data.comic.panel.IosColorPageDecoder

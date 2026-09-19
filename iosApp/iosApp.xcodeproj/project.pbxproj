@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
+		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
+		8528A47455B6399D5B23B630 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
+		A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
 		B1000010 /* RiffleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* RiffleApp.swift */; };
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
@@ -20,9 +24,6 @@
 		B1005020 /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1006010 /* PdfReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1006020 /* PdfReaderTests.swift */; };
 		B1007010 /* ComicsReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1007020 /* ComicsReaderTests.swift */; };
-		B1009010 /* LocalFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1009020 /* LocalFilesTests.swift */; };
-		B100B010 /* AddAbsSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100B020 /* AddAbsSourceFlowTests.swift */; };
-		B100C010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B1008010 /* AnnotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008020 /* AnnotationTests.swift */; };
 		B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008021 /* AudiobookPlayerViewModelTests.swift */; };
 		B1008012 /* AutoFollowJsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008022 /* AutoFollowJsTests.swift */; };
@@ -34,29 +35,41 @@
 		B1008018 /* SettingsRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008028 /* SettingsRowsTests.swift */; };
 		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
 		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
-		B1010020 /* OReillyLazyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1010030 /* OReillyLazyContainer.swift */; };
-		B1011020 /* OReillyPublicationBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1011030 /* OReillyPublicationBuilder.swift */; };
+		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
+		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
+		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
+		B1009010 /* LocalFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1009020 /* LocalFilesTests.swift */; };
+		B100B010 /* AddAbsSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100B020 /* AddAbsSourceFlowTests.swift */; };
+		B100E010 /* LibraryTabVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100E020 /* LibraryTabVisibilityTests.swift */; };
 		B101001A /* OReillyLazyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1010030 /* OReillyLazyContainer.swift */; };
+		B1010020 /* OReillyLazyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1010030 /* OReillyLazyContainer.swift */; };
 		B101101A /* OReillyPublicationBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1011030 /* OReillyPublicationBuilder.swift */; };
+		B1011020 /* OReillyPublicationBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1011030 /* OReillyPublicationBuilder.swift */; };
 		B1012010 /* OReillyLazyPublicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1012020 /* OReillyLazyPublicationTests.swift */; };
 		B1013010 /* AddKomgaSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1013020 /* AddKomgaSourceFlowTests.swift */; };
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
-		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
-		B100E010 /* LibraryTabVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100E020 /* LibraryTabVisibilityTests.swift */; };
 		B1015010 /* ProgressPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* ProgressPipelineTests.swift */; };
-		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
-		B101901A /* PdfBridgeUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B101901B /* PdfBridgeUnitTests.swift */; };
+		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B1018010 /* StubAbsServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1018020 /* StubAbsServer.swift */; };
+		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1019010 /* StubKomgaServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1019020 /* StubKomgaServer.swift */; };
+		B101901A /* PdfBridgeUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B101901B /* PdfBridgeUnitTests.swift */; };
 		B1020010 /* RiffleHarnessTestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1020020 /* RiffleHarnessTestCase.swift */; };
 		B1021010 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
 		B1022010 /* test-footnotes.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1022020 /* test-footnotes.epub */; };
 		B1023010 /* test.pdf in Resources */ = {isa = PBXBuildFile; fileRef = B1023020 /* test.pdf */; };
 		B1024010 /* test_tone.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B1024020 /* test_tone.mp3 */; };
-		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
-		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
-		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B1008061 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B1000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B1000005;
+			remoteInfo = Riffle;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -67,17 +80,10 @@
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
 		B1002030 /* ReadiumEpubNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadiumEpubNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1003030 /* IosAudioPlayerBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosAudioPlayerBridgeImpl.swift; sourceTree = "<group>"; };
-		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
-		B1011030 /* OReillyPublicationBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyPublicationBuilder.swift; sourceTree = "<group>"; };
-		B1012020 /* OReillyLazyPublicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyPublicationTests.swift; sourceTree = "<group>"; };
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
 		B1007020 /* ComicsReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicsReaderTests.swift; sourceTree = "<group>"; };
-		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
-		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
-		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
-		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B1008000 /* iosAppUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1008020 /* AnnotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTests.swift; sourceTree = "<group>"; };
 		B1008021 /* AudiobookPlayerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerViewModelTests.swift; sourceTree = "<group>"; };
@@ -89,21 +95,53 @@
 		B1008027 /* ReaderSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSettingsTests.swift; sourceTree = "<group>"; };
 		B1008028 /* SettingsRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRowsTests.swift; sourceTree = "<group>"; };
 		B1008029 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
+		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
+		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
+		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
+		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
+		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
+		B1011030 /* OReillyPublicationBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyPublicationBuilder.swift; sourceTree = "<group>"; };
+		B1012020 /* OReillyLazyPublicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyPublicationTests.swift; sourceTree = "<group>"; };
 		B1013020 /* AddKomgaSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddKomgaSourceFlowTests.swift; sourceTree = "<group>"; };
 		B1014020 /* SourcePickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePickerTests.swift; sourceTree = "<group>"; };
 		B1015020 /* ProgressPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPipelineTests.swift; sourceTree = "<group>"; };
-		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
 		B1018020 /* StubAbsServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubAbsServer.swift; sourceTree = "<group>"; };
+		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
 		B1019020 /* StubKomgaServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubKomgaServer.swift; sourceTree = "<group>"; };
 		B1020020 /* RiffleHarnessTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleHarnessTestCase.swift; sourceTree = "<group>"; };
-		B1021020 /* test.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = "test.epub"; sourceTree = "<group>"; };
+		B1021020 /* test.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.epub; sourceTree = "<group>"; };
 		B1022020 /* test-footnotes.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = "test-footnotes.epub"; sourceTree = "<group>"; };
-		B1023020 /* test.pdf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "test.pdf"; sourceTree = "<group>"; };
+		B1023020 /* test.pdf */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.pdf; sourceTree = "<group>"; };
 		B1024020 /* test_tone.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = test_tone.mp3; sourceTree = "<group>"; };
+		E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspectorTests.swift; sourceTree = "<group>"; };
+		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		B1002040 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1002010 /* ReadiumShared in Frameworks */,
+				B1002011 /* ReadiumStreamer in Frameworks */,
+				B1002012 /* ReadiumNavigator in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1008041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1008030 /* ReadiumShared in Frameworks */,
+				B1008031 /* ReadiumStreamer in Frameworks */,
+				B1008032 /* ReadiumNavigator in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
-		B1000002 /* MainGroup */ = {
+		B1000002 = {
 			isa = PBXGroup;
 			children = (
 				B1000003 /* iosApp */,
@@ -123,6 +161,7 @@
 				B1005030 /* PdfKitNavigatorBridge.swift */,
 				B1010030 /* OReillyLazyContainer.swift */,
 				B1011030 /* OReillyPublicationBuilder.swift */,
+				FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -165,6 +204,7 @@
 				B1014020 /* SourcePickerTests.swift */,
 				B1015020 /* ProgressPipelineTests.swift */,
 				B101901B /* PdfBridgeUnitTests.swift */,
+				E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -193,36 +233,40 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		B1000005 /* iosApp */ = {
+		B1000005 /* Riffle */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B1000050;
+			buildConfigurationList = B1000050 /* Build configuration list for PBXNativeTarget "Riffle" */;
 			buildPhases = (
 				B1000041 /* KMP Embed Framework */,
 				B1000040 /* Sources */,
 				B1000042 /* Resources */,
 				B1002040 /* Frameworks */,
 			);
-			buildRules = ();
-			dependencies = ();
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Riffle;
 			packageProductDependencies = (
 				B1002001 /* ReadiumShared */,
 				B1002002 /* ReadiumStreamer */,
 				B1002003 /* ReadiumNavigator */,
 			);
-			name = Riffle;
 			productName = Riffle;
 			productReference = B1000001 /* iosApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 		B1001005 /* iosAppTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B1001050;
+			buildConfigurationList = B1001050 /* Build configuration list for PBXNativeTarget "iosAppTests" */;
 			buildPhases = (
 				B1001040 /* Sources */,
 				B1001041 /* Resources */,
 			);
-			buildRules = ();
-			dependencies = ();
+			buildRules = (
+			);
+			dependencies = (
+			);
 			name = iosAppTests;
 			productName = iosAppTests;
 			productReference = B1001001 /* iosAppTests.xctest */;
@@ -230,57 +274,28 @@
 		};
 		B1008005 /* iosAppUnitTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B1008050;
+			buildConfigurationList = B1008050 /* Build configuration list for PBXNativeTarget "iosAppUnitTests" */;
 			buildPhases = (
 				B1008040 /* Sources */,
 				B1008041 /* Frameworks */,
+				50994FB0B77A169E7AF6E236 /* Resources */,
 			);
-			buildRules = ();
+			buildRules = (
+			);
 			dependencies = (
 				B1008060 /* PBXTargetDependency */,
 			);
+			name = iosAppUnitTests;
 			packageProductDependencies = (
 				B1008001 /* ReadiumShared */,
 				B1008002 /* ReadiumStreamer */,
 				B1008003 /* ReadiumNavigator */,
 			);
-			name = iosAppUnitTests;
 			productName = iosAppUnitTests;
 			productReference = B1008000 /* iosAppUnitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
-
-/* Begin PBXContainerItemProxy section */
-		B1008061 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = B1000000 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = B1000005;
-			remoteInfo = Riffle;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		B1008060 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = B1000005 /* iosApp */;
-			targetProxy = B1008061 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		B1008041 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B1008030 /* ReadiumShared in Frameworks */,
-				B1008031 /* ReadiumStreamer in Frameworks */,
-				B1008032 /* ReadiumNavigator in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXProject section */
 		B1000000 /* Project object */ = {
@@ -302,7 +317,7 @@
 					};
 				};
 			};
-			buildConfigurationList = B1000060;
+			buildConfigurationList = B1000060 /* Build configuration list for PBXProject "iosApp" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -311,53 +326,29 @@
 				Base,
 			);
 			mainGroup = B1000002;
-			productRefGroup = B1000004 /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
 			packageReferences = (
 				B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */,
 			);
+			productRefGroup = B1000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
 			targets = (
-				B1000005 /* iosApp */,
+				B1000005 /* Riffle */,
 				B1001005 /* iosAppTests */,
 				B1008005 /* iosAppUnitTests */,
 			);
 		};
 /* End PBXProject section */
 
-/* Begin PBXFrameworksBuildPhase section */
-		B1002040 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
+/* Begin PBXResourcesBuildPhase section */
+		50994FB0B77A169E7AF6E236 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B1002010 /* ReadiumShared in Frameworks */,
-				B1002011 /* ReadiumStreamer in Frameworks */,
-				B1002012 /* ReadiumNavigator in Frameworks */,
+				8528A47455B6399D5B23B630 /* test.epub in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		B1000041 /* KMP Embed Framework */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = ();
-			inputFileListPaths = ();
-			inputPaths = ();
-			name = "KMP Embed Framework";
-			outputFileListPaths = ();
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/Riffle.framework/Riffle",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n# Copy the freshly linked framework into BUILT_PRODUCTS_DIR. Xcode's build system only\n# tracks nodes it owns: linking straight from shared/build/bin means Ld never notices the\n# gradle-side relink and ships the previous build's Kotlin (one-build-behind staleness).\ncase \"$SDK_NAME\" in\n  iphonesimulator*) KOTLIN_FRAMEWORK_DIR=\"$SRCROOT/../shared/build/bin/iosSimulatorArm64/debugFramework\" ;;\n  *) KOTLIN_FRAMEWORK_DIR=\"$SRCROOT/../shared/build/bin/iosArm64/debugFramework\" ;;\nesac\nrsync -a --delete \"$KOTLIN_FRAMEWORK_DIR/Riffle.framework\" \"$BUILT_PRODUCTS_DIR/\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
-/* Begin PBXResourcesBuildPhase section */
 		B1000042 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -379,6 +370,29 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		B1000041 /* KMP Embed Framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "KMP Embed Framework";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/Riffle.framework/Riffle",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n# Copy the freshly linked framework into BUILT_PRODUCTS_DIR. Xcode's build system only\n# tracks nodes it owns: linking straight from shared/build/bin means Ld never notices the\n# gradle-side relink and ships the previous build's Kotlin (one-build-behind staleness).\ncase \"$SDK_NAME\" in\n  iphonesimulator*) KOTLIN_FRAMEWORK_DIR=\"$SRCROOT/../shared/build/bin/iosSimulatorArm64/debugFramework\" ;;\n  *) KOTLIN_FRAMEWORK_DIR=\"$SRCROOT/../shared/build/bin/iosArm64/debugFramework\" ;;\nesac\nrsync -a --delete \"$KOTLIN_FRAMEWORK_DIR/Riffle.framework\" \"$BUILT_PRODUCTS_DIR/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		B1000040 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -391,6 +405,7 @@
 				B1005020 /* PdfKitNavigatorBridge.swift in Sources */,
 				B1010020 /* OReillyLazyContainer.swift in Sources */,
 				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
+				7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -435,10 +450,20 @@
 				B100E010 /* LibraryTabVisibilityTests.swift in Sources */,
 				B101801A /* PdfKitNavigatorBridge.swift in Sources */,
 				B101901A /* PdfBridgeUnitTests.swift in Sources */,
+				A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */,
+				64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B1008060 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B1000005 /* Riffle */;
+			targetProxy = B1008061 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		B1000070 /* Debug */ = {
@@ -606,8 +631,8 @@
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
-				TEST_TARGET_NAME = Riffle;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Riffle;
 			};
 			name = Release;
 		};
@@ -659,6 +684,45 @@
 		};
 /* End XCBuildConfiguration section */
 
+/* Begin XCConfigurationList section */
+		B1000050 /* Build configuration list for PBXNativeTarget "Riffle" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1000072 /* Debug */,
+				B1000073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1000060 /* Build configuration list for PBXProject "iosApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1000070 /* Debug */,
+				B1000071 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1001050 /* Build configuration list for PBXNativeTarget "iosAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1001072 /* Debug */,
+				B1001073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1008050 /* Build configuration list for PBXNativeTarget "iosAppUnitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1008072 /* Debug */,
+				B1008073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		B1002000 /* XCRemoteSwiftPackageReference "swift-toolkit" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -702,46 +766,6 @@
 			productName = ReadiumNavigator;
 		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCConfigurationList section */
-		B1000050 /* Build configuration list for PBXNativeTarget "iosApp" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B1000072 /* Debug */,
-				B1000073 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B1000060 /* Build configuration list for PBXProject "iosApp" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B1000070 /* Debug */,
-				B1000071 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B1001050 /* Build configuration list for PBXNativeTarget "iosAppTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B1001072 /* Debug */,
-				B1001073 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B1008050 /* Build configuration list for PBXNativeTarget "iosAppUnitTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B1008072 /* Debug */,
-				B1008073 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-/* End XCConfigurationList section */
-
 	};
 	rootObject = B1000000 /* Project object */;
 }

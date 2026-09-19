@@ -9,8 +9,6 @@ import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
-import com.riffle.core.domain.EbookCfiTranslator
-import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
@@ -19,21 +17,17 @@ import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ReadaloudLink
-import com.riffle.core.models.TocEntry
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.CoverImageCopier
-import com.riffle.feature.library.EpubDetails
-import com.riffle.feature.library.EpubTocExtractor
 import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-internal object IosNoOpEbookCfiTranslatorFactory : EbookCfiTranslatorFactory {
-    override fun forItem(sourceId: String, itemId: String): EbookCfiTranslator? = null
-}
+// IosNoOpEbookCfiTranslatorFactory removed (issue #1065): iOS now binds
+// IosEbookCfiTranslatorFactory (shared), backed by a ksoup-based DOM-walking CFI translator.
 
 internal class IosNoOpPdfRepository : PdfRepository {
     override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): PdfDownloadResult =
@@ -102,10 +96,8 @@ internal class IosNoOpBookImportManager : BookImportManager {
     ) {}
 }
 
-internal class IosNoOpEpubTocExtractor : EpubTocExtractor {
-    override suspend fun extract(item: LibraryItem): List<TocEntry> = emptyList()
-    override suspend fun extractDetails(item: LibraryItem): EpubDetails = EpubDetails(emptyList(), null)
-}
+// IosNoOpEpubTocExtractor removed (issue #1065): iOS now binds IosEpubTocExtractor (shared),
+// backed by a headless Readium Swift publication inspector.
 
 internal object IosNoOpPdfPageCountExtractor : PdfPageCountExtractor {
     override suspend fun extract(item: LibraryItem): Int? = null
