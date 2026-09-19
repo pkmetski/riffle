@@ -1,7 +1,6 @@
 package com.riffle.shared.library
 
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
-import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 
@@ -16,10 +15,6 @@ import com.riffle.feature.library.ReadaloudOfflineDownloader
 
 internal object IosNoOpCrossEpubIndexBuildTrigger : CrossEpubIndexBuildTrigger {
     override fun enqueueBuild(link: ReadaloudLink) {}
-}
-
-internal object IosNoOpReadaloudSidecarPrefetcher : ReadaloudSidecarPrefetcher {
-    override fun prepare(storytellerSourceId: String, storytellerBookId: String) {}
 }
 
 internal object IosNoOpReadaloudOfflineDownloader : ReadaloudOfflineDownloader {
@@ -43,3 +38,7 @@ internal object IosNoOpReadaloudOfflineDownloader : ReadaloudOfflineDownloader {
 
 // IosNoOpBookImportManager removed (issue #1065): iOS now binds the shared
 // BookImportManagerImpl (feature:library commonMain, previously Android-only).
+
+// IosNoOpReadaloudSidecarDownloads / IosNoOpReadaloudSidecarPrefetcher removed (issue #1065):
+// iOS now binds IosReadaloudSidecarStore, which caches the /synced bundle minus its audio
+// (ADR 0040) on the survivable scope and serves both the prefetch and downloads-listing roles.

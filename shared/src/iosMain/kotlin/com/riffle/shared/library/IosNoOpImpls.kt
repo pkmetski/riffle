@@ -1,7 +1,5 @@
 package com.riffle.shared.library
 
-import com.riffle.core.domain.ReadaloudSidecarDownloads
-
 // IosNoOpApplicationScope removed (issue #1065): iOS now binds the shared
 // DefaultApplicationScope (core:domain commonMain) — the stub's withSurvivable ran the block
 // inline in the caller's context, so terminal writes were cancelled with the ViewModel.
@@ -9,12 +7,6 @@ import com.riffle.core.domain.ReadaloudSidecarDownloads
 // IosNoOpAudiobookBookmarkStore / IosNoOpReadaloudLinkRepository removed (issue #1065): iOS now
 // binds the real AudiobookBookmarkStoreImpl/ReadaloudLinkRepositoryImpl (core:data commonMain),
 // backed by the DAOs added in #1057.
-
-internal object IosNoOpReadaloudSidecarDownloads : ReadaloudSidecarDownloads {
-    override fun listCached() = emptyList<ReadaloudSidecarDownloads.CachedSidecar>()
-    override fun clearAll() {}
-    override fun remove(storytellerSourceId: String, storytellerBookId: String) {}
-}
 
 // ── Audiobook player extras ──────────────────────────────────────────────────────────────────────
 

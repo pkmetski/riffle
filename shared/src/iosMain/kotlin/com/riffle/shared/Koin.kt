@@ -31,6 +31,7 @@ import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
+import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
@@ -193,8 +194,6 @@ import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpReadaloudHandoff
 import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
-import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
-import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReaderSyncFactory
 import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosPdfRepositoryImpl
@@ -520,7 +519,9 @@ private fun iosLibraryModule(
     single { RefreshSeries(get()) }
     single<DownloadsRepository> { IosDownloadsRepositoryImpl(get()) }
     single<ContentCacheSettingsStore> { IosContentCacheSettingsStoreImpl() }
-    single<ReadaloudSidecarDownloads> { IosNoOpReadaloudSidecarDownloads }
+    // One IosReadaloudSidecarStore serves both roles, as ReadaloudSidecarStore does on Android.
+    single { IosReadaloudSidecarStore(get(), get(), get(), get(), get()) }
+    single<ReadaloudSidecarDownloads> { get<IosReadaloudSidecarStore>() }
     single {
         DownloadsViewModel(
             downloadsRepository = get(),
@@ -637,7 +638,7 @@ private fun iosLibraryModule(
     single<CatalogRegistry> {
         DefaultCatalogRegistry(get(named("catalogFactoriesBySourceType")), get())
     }
-    single<ReadaloudSidecarPrefetcher> { IosNoOpReadaloudSidecarPrefetcher }
+    single<ReadaloudSidecarPrefetcher> { get<IosReadaloudSidecarStore>() }
     single<RecordItemOpened> { RecordItemOpened(get(), get()) }
     single<MarkReadAcrossDimensions> { MarkReadAcrossDimensions(get(), get(), get(), get()) }
     single<AudiobookChapterCacheRepository> { AudiobookChapterCacheRepositoryImpl(get(), get(), get()) }
