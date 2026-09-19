@@ -27,11 +27,6 @@ internal object IosNoOpReaderSyncFactory : com.riffle.feature.reader.ReaderSyncF
     override suspend fun createAudiobookFollowIfApplicable(itemId: String): com.riffle.feature.reader.AudiobookFollowInterface? = null
 }
 
-internal object IosNoOpBundleAudiobookSource : com.riffle.core.domain.BundleAudiobookSource {
-    override suspend fun localSession(sourceId: String, itemId: String): com.riffle.core.domain.AudiobookSession? = null
-    override fun isAvailableOffline(sourceId: String, itemId: String): Boolean = false
-}
-
 internal object IosNoOpReadaloudHandoff : com.riffle.feature.player.ReadaloudHandoff {
     override fun preWarmSeek(globalSec: Double) = Unit
     override fun cancelPreWarm() = Unit
@@ -44,3 +39,7 @@ internal object IosNoOpReadaloudHandoff : com.riffle.feature.player.ReadaloudHan
 // IosNoOpStorytellerSyncer / IosNoOpReadaloudReconciler removed (issue #1065): iOS now binds
 // StorytellerReadaloudSyncer and ReadaloudMatchingService (core:data commonMain, previously
 // Android-only) against the readaloud DAOs from #1057.
+
+// IosNoOpBundleAudiobookSource / IosNoOpReadaloudAudioRepository removed (issue #1065): iOS now
+// binds IosReadaloudAudioRepositoryImpl (IosZipArchive + ksoup SMIL parsing of the Storyteller
+// bundle) and the shared StorytellerBundleAudiobookSource.

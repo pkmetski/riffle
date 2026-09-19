@@ -2,9 +2,7 @@ package com.riffle.shared.library
 
 import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportResult
-import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
-import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.feature.library.BookImportManager
@@ -21,14 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 // #1065): iOS now binds IosAudiobookDownloadRepositoryImpl + IosAudiobookCacheRepositoryImpl
 // (core:data, NSFileManager + the shared AudiobookDownloadManifest), and the commonMain
 // AudiobookChapterCacheRepositoryImpl / LocalAvailabilityEventsImpl.
-
-internal class IosNoOpReadaloudAudioRepository : ReadaloudAudioRepository {
-    override fun isAudioAvailable(sourceId: String, itemId: String): Boolean = false
-    override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? = null
-    override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult =
-        AudioDownloadResult.NoBundle
-    override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0L
-}
 
 internal object IosNoOpCrossEpubIndexBuildTrigger : CrossEpubIndexBuildTrigger {
     override fun enqueueBuild(link: ReadaloudLink) {}

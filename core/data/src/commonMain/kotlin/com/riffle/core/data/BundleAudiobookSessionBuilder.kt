@@ -14,13 +14,13 @@ import com.riffle.core.domain.ReadaloudTrack
  * contiguous — covering of the book timeline; the player's seek math works on any such covering.
  *
  * Track URLs are the audio files' zip-entry paths (a clip's `audioSrc`); the playback service routes
- * any non-http/file mediaId through `ZipAudioDataSource`, reading from [bundle] via `SharedBundle`.
+ * any non-http/file mediaId through `ZipAudioDataSource`, reading from [bundlePath] via `SharedBundle`.
  * Returns null when the bundle has no Media Overlay clips.
  *
  * Chapter titles are numbered ("Chapter N") — the SMIL overlay carries chapter hrefs and timings but
  * not display titles. This is the accepted v1 offline degradation.
  */
-internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundle: java.io.File): AudiobookSession? {
+internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundlePath: String): AudiobookSession? {
     val files = track.clips.map { it.audioSrc }.distinct()
     if (files.isEmpty()) return null
 
@@ -51,6 +51,6 @@ internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundle: java.io.
         timeline = AudiobookTimeline(durationSec = totalDuration, chapters = chapters),
         serverCurrentTimeSec = 0.0,
         serverLastUpdate = 0L,
-        localZipFilePath = bundle.absolutePath,
+        localZipFilePath = bundlePath,
     )
 }

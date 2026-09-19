@@ -25,7 +25,7 @@ import platform.zlib.z_stream
  * (by name vs. by sorted index) don't overlap enough to be worth a common base.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal class IosZipArchive(private val archiveBytes: ByteArray) {
+class IosZipArchive(private val archiveBytes: ByteArray) {
 
     private data class Entry(
         val name: String,
@@ -51,6 +51,9 @@ internal class IosZipArchive(private val archiveBytes: ByteArray) {
     }
 
     fun readEntryAsText(path: String): String? = readEntry(path)?.decodeToString()
+
+    /** Names of every entry in the archive, in central-directory order. */
+    fun entryNames(): List<String> = entriesByName.keys.toList()
 
     private fun parseCentralDirectory(): List<Entry> {
         val eocdOffset = findEocdOffset() ?: return emptyList()

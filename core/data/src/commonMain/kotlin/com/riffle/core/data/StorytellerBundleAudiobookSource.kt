@@ -2,7 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.BundleAudiobookSource
-import com.riffle.core.domain.JvmReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudBundleReader
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 
@@ -18,13 +19,14 @@ import com.riffle.core.domain.ReadaloudLinkRepository
  */
 class StorytellerBundleAudiobookSource(
     private val readaloudLinkRepository: ReadaloudLinkRepository,
-    private val readaloudAudioRepository: JvmReadaloudAudioRepository,
+    private val readaloudAudioRepository: ReadaloudBundleReader,
+    private val audioAvailability: ReadaloudAudioRepository,
     private val linksByAbsItem: OfflineAvailabilitySnapshot<String, ReadaloudLink>,
 ) : BundleAudiobookSource {
 
     override suspend fun localSession(sourceId: String, itemId: String): AudiobookSession? {
         val link = readaloudLinkRepository.findByAbsItem(sourceId, itemId) ?: return null
-        val bundle = readaloudAudioRepository.bundleFile(link.storytellerSourceId, link.storytellerBookId)
+        val bundle = readaloudAudioRepository.bundlePath(link.storytellerSourceId, link.storytellerBookId)
             ?: return null
         val track = readaloudAudioRepository.readTrack(link.storytellerSourceId, link.storytellerBookId)
             ?: return null
@@ -33,7 +35,7 @@ class StorytellerBundleAudiobookSource(
 
     override fun isAvailableOffline(sourceId: String, itemId: String): Boolean {
         val link = linksByAbsItem[absItemKey(sourceId, itemId)] ?: return false
-        return readaloudAudioRepository.isAudioAvailable(link.storytellerSourceId, link.storytellerBookId)
+        return audioAvailability.isAudioAvailable(link.storytellerSourceId, link.storytellerBookId)
     }
 }
 

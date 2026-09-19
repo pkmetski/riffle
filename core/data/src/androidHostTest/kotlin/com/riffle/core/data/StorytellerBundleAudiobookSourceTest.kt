@@ -73,6 +73,7 @@ class StorytellerBundleAudiobookSourceTest {
             val source = StorytellerBundleAudiobookSource(
                 readaloudLinkRepository = links,
                 readaloudAudioRepository = FakeAudio(bundle, track),
+                audioAvailability = FakeAudio(bundle, track),
                 linksByAbsItem = snapshotFor(links, appScope),
             )
 
@@ -92,16 +93,16 @@ class StorytellerBundleAudiobookSourceTest {
         try {
             val noLink = FakeLinks(emptyList())
             assertNull(
-                StorytellerBundleAudiobookSource(noLink, FakeAudio(bundle, track), snapshotFor(noLink, appScope))
+                StorytellerBundleAudiobookSource(noLink, FakeAudio(bundle, track), FakeAudio(bundle, track), snapshotFor(noLink, appScope))
                     .localSession("abs", "item-1"),
             )
             val withLink = FakeLinks(listOf(link))
             assertNull(
-                StorytellerBundleAudiobookSource(withLink, FakeAudio(null, track), snapshotFor(withLink, appScope))
+                StorytellerBundleAudiobookSource(withLink, FakeAudio(null, track), FakeAudio(null, track), snapshotFor(withLink, appScope))
                     .localSession("abs", "item-1"),
             )
             assertNull(
-                StorytellerBundleAudiobookSource(withLink, FakeAudio(bundle, null), snapshotFor(withLink, appScope))
+                StorytellerBundleAudiobookSource(withLink, FakeAudio(bundle, null), FakeAudio(bundle, null), snapshotFor(withLink, appScope))
                     .localSession("abs", "item-1"),
             )
         } finally {
@@ -116,14 +117,16 @@ class StorytellerBundleAudiobookSourceTest {
             // Unconfined → the init collector runs eagerly to the StateFlow's first (current) value, so
             // the snapshot is populated synchronously before these assertions, no scheduler advance needed.
             val withLink = FakeLinks(listOf(link))
+            val presentAudio = FakeAudio(bundle, track)
             val present = StorytellerBundleAudiobookSource(
-                withLink, FakeAudio(bundle, track), snapshotFor(withLink, appScope),
+                withLink, presentAudio, presentAudio, snapshotFor(withLink, appScope),
             )
             assertTrue(present.isAvailableOffline("abs", "item-1"))
             assertFalse(present.isAvailableOffline("abs", "other"))
 
+            val noBundleAudio = FakeAudio(null, track)
             val noBundle = StorytellerBundleAudiobookSource(
-                withLink, FakeAudio(null, track), snapshotFor(withLink, appScope),
+                withLink, noBundleAudio, noBundleAudio, snapshotFor(withLink, appScope),
             )
             assertFalse(noBundle.isAvailableOffline("abs", "item-1"))
         } finally {

@@ -30,15 +30,18 @@ import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.core.data.IosPlaylistsRepositoryImpl
+import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
+import com.riffle.core.data.OfflineAvailabilitySnapshot
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
+import com.riffle.core.data.StorytellerBundleAudiobookSource
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.TocRepositoryImpl
@@ -48,6 +51,7 @@ import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
@@ -86,6 +90,7 @@ import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudBundleReader
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudReviewMutator
@@ -184,9 +189,7 @@ import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpBookImportManager
-import com.riffle.shared.library.IosNoOpBundleAudiobookSource
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
-import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
 import com.riffle.shared.library.IosNoOpReadaloudHandoff
 import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
@@ -214,6 +217,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import platform.Foundation.NSBundle
@@ -405,7 +409,20 @@ private fun iosLibraryModule(
             delegate = AudiobookRepositoryImpl(get(), get()),
         )
     }
-    single<BundleAudiobookSource> { IosNoOpBundleAudiobookSource }
+    // Same StorytellerBundleAudiobookSource Android binds (ADR 0027): a downloaded readaloud
+    // bundle doubles as the offline audiobook, resolved ABS item -> Storyteller book via the link.
+    single<BundleAudiobookSource> {
+        val readaloudLinkRepository = get<ReadaloudLinkRepository>()
+        StorytellerBundleAudiobookSource(
+            readaloudLinkRepository = readaloudLinkRepository,
+            readaloudAudioRepository = get<ReadaloudBundleReader>(),
+            audioAvailability = get<ReadaloudAudioRepository>(),
+            linksByAbsItem = OfflineAvailabilitySnapshot(
+                applicationScope = get(),
+                source = readaloudLinkRepository.observeAll().map(::readaloudLinksByAbsItemKey),
+            ),
+        )
+    }
     single<ContentCacheAccessStore> { IosContentCacheAccessStoreImpl(get()) }
     single<com.riffle.core.domain.AudioIdentityResolver> {
         AudioIdentityResolverImpl(get<ReadaloudLinkDao>(), get<LibraryItemDao>())
@@ -583,7 +600,9 @@ private fun iosLibraryModule(
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
     single { IosPdfRepositoryImpl(get(), get(), get(), get(), get()) }
     single<PdfRepository> { get<IosPdfRepositoryImpl>() }
-    single<ReadaloudAudioRepository> { IosNoOpReadaloudAudioRepository() }
+    single { IosReadaloudAudioRepositoryImpl(get(), get(), get(), get(), get()) }
+    single<ReadaloudAudioRepository> { get<IosReadaloudAudioRepositoryImpl>() }
+    single<ReadaloudBundleReader> { get<IosReadaloudAudioRepositoryImpl>() }
     // Offline audiobooks (ADR 0035), mirroring CoreDataKoinModules' coreDataStreamingAudioModule:
     // one shared track downloader feeds both the explicit user download and the background cache.
     single { IosAudiobookTrackDownloader(get(), get()) }

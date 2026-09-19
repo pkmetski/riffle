@@ -927,6 +927,7 @@ private val coreDataStreamingAudioModule = module {
         StorytellerBundleAudiobookSource(
             readaloudLinkRepository = readaloudLinkRepository,
             readaloudAudioRepository = readaloudAudioRepository,
+            audioAvailability = readaloudAudioRepository,
             linksByAbsItem = OfflineAvailabilitySnapshot(
                 applicationScope = applicationScope,
                 source = readaloudLinkRepository.observeAll().map(::readaloudLinksByAbsItemKey),
