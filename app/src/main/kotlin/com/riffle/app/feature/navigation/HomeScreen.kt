@@ -27,8 +27,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
 import com.riffle.core.models.SourceType
 import com.riffle.feature.library.HomeViewModel
-import kotlinx.coroutines.yield
-import kotlinx.coroutines.withContext
+import com.riffle.feature.library.awaitGenuinelyResumedWith
+import com.riffle.feature.library.navigateFromHome
 
 @Composable
 fun HomeScreen(
@@ -98,32 +98,3 @@ internal suspend fun awaitGenuinelyResumed(lifecycle: Lifecycle) {
     )
 }
 
-// Separated so tests can simulate the lifecycle transitions without a real Lifecycle object
-// and the Dispatchers.Main dependency that lifecycle.withResumed requires.
-internal suspend fun awaitGenuinelyResumedWith(
-    waitForResumed: suspend () -> Unit,
-    isStillResumed: () -> Boolean,
-) {
-    while (true) {
-        waitForResumed()
-        yield()
-        if (isStillResumed()) break
-    }
-}
-
-// Compose Navigation 2.8+ keeps the previous back-stack entry in composition simultaneously
-// for its own predictive-back animations. HOME can therefore be in STARTED state while
-// library_items is the foreground destination. awaitResumed (backed by awaitGenuinelyResumed in
-// production) suspends until HOME is genuinely the foreground destination. In tests it is a
-// plain suspend lambda so the test controls exactly when navigation is unblocked.
-internal suspend fun navigateFromHome(
-    awaitResumed: suspend () -> Unit,
-    viewModel: HomeViewModel,
-    onDestination: suspend (HomeViewModel.StartDestination) -> Unit,
-) {
-    awaitResumed()
-    val dest = viewModel.getStartDestination()
-    withContext(viewModel.dispatchers.mainImmediate) {
-        onDestination(dest)
-    }
-}

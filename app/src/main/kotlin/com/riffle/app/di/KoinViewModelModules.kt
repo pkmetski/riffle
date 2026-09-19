@@ -1,5 +1,6 @@
 package com.riffle.app.di
 
+import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.BuildConfig
 import com.riffle.feature.player.AudiobookPlayerViewModel
@@ -21,7 +22,6 @@ import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
-import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.app.feature.reader.PdfReaderViewModel

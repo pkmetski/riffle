@@ -1,11 +1,10 @@
-package com.riffle.app.feature.navigation
+package com.riffle.feature.navigation
 
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingSource
-import java.io.IOException
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
@@ -31,19 +30,19 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertEquals
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NavigationDrawerViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @BeforeTest fun setUp() { Dispatchers.setMain(testDispatcher) }
+    @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
@@ -70,7 +69,7 @@ class NavigationDrawerViewModelTest {
         override fun observeAll(): Flow<List<Source>> = serversFlow
         override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-            CommitSourceResult.Failure(IOException())
+            CommitSourceResult.Failure(Exception("commit failed"))
         override suspend fun setActive(sourceId: String) {
             serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
@@ -157,7 +156,7 @@ class NavigationDrawerViewModelTest {
         lastOpenedLibraryStore = fakeLastOpenedStore(),
         connectivityObserver = fakeConnectivity(),
         catalogRegistry = catalogRegistry,
-        nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
+        nowPlayingNavigator = NowPlayingNavigator(),
         nowPlayingStore = com.riffle.feature.player.NowPlayingStore(),
     )
 
@@ -204,7 +203,7 @@ class NavigationDrawerViewModelTest {
         val redirect = async { vm.redirectToLibrary.first() }
         testScheduler.advanceUntilIdle()
 
-        assertTrue("no redirect while lib-1 is still visible", !redirect.isCompleted)
+        assertTrue(!redirect.isCompleted, "no redirect while lib-1 is still visible")
 
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
         testScheduler.advanceUntilIdle()
@@ -213,7 +212,7 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
-    fun `setActiveLibrary persists under the repository's active server, not the lagging StateFlow`() = runTest(testDispatcher) {
+    fun `setActiveLibrary persists under the repository's active server — not the lagging StateFlow`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
 
@@ -276,14 +275,12 @@ class NavigationDrawerViewModelTest {
         backgroundScope.launch { vm.visibleLibraries.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("visibleLibraries should have both initially",
-            listOf(library("lib-1"), library("lib-2")), vm.visibleLibraries.value)
+        assertEquals(listOf(library("lib-1"), library("lib-2")), vm.visibleLibraries.value, "visibleLibraries should have both initially")
 
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("visibleLibraries should only have lib-2 after hiding lib-1",
-            listOf(library("lib-2")), vm.visibleLibraries.value)
+        assertEquals(listOf(library("lib-2")), vm.visibleLibraries.value, "visibleLibraries should only have lib-2 after hiding lib-1")
     }
 
     @Test
@@ -386,7 +383,7 @@ class NavigationDrawerViewModelTest {
         val redirects = mutableListOf<Library>()
         backgroundScope.launch { vm.redirectToLibrary.collect { redirects.add(it) } }
         testScheduler.advanceUntilIdle()
-        assertTrue("no redirect before server switch", redirects.isEmpty())
+        assertTrue(redirects.isEmpty(), "no redirect before server switch")
 
         // Switch to srv-2 whose libraries don't include lib-A.
         vm.setActiveServer("srv-2")
@@ -395,7 +392,7 @@ class NavigationDrawerViewModelTest {
         testScheduler.advanceUntilIdle()
 
         // redirectToLibrary must NOT emit — navigateAsRoot(HOME) in MainScreen handles the switch.
-        assertTrue("redirectToLibrary must not emit on source switch", redirects.isEmpty())
+        assertTrue(redirects.isEmpty(), "redirectToLibrary must not emit on source switch")
     }
 
     @Test

@@ -1,12 +1,12 @@
-package com.riffle.app.navigation
+package com.riffle.feature.navigation
 
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Regression: chitanka series/collection ids contain slashes (`serie/foo`, per ADR 0051) so the
@@ -166,7 +166,7 @@ class DetailRouteEncodingTest {
     }
 
     @Test
-    fun `slash-free ids pass through unchanged (except URL-safe reencoding)`() {
+    fun `slash-free ids pass through unchanged — except URL-safe reencoding`() {
         // ABS series ids are UUIDs with no reserved characters — encoding is a no-op for them.
         val route = seriesDetailRoute(
             libraryId = "lib-1",

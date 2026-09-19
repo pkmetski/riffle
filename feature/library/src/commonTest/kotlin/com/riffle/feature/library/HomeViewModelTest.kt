@@ -1,4 +1,4 @@
-package com.riffle.app.feature.navigation
+package com.riffle.feature.library
 
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
@@ -11,15 +11,14 @@ import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.feature.library.HomeViewModel
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -34,18 +33,18 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import kotlin.test.assertEquals
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
-    @Before fun setUp() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @BeforeTest fun setUp() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
+    @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
@@ -71,7 +70,7 @@ class HomeViewModelTest {
         override fun observeAll(): Flow<List<Source>> = serversFlow
         override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-            CommitSourceResult.Failure(IOException())
+            CommitSourceResult.Failure(Exception("commit failed"))
         override suspend fun setActive(sourceId: String) {
             serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
@@ -84,7 +83,7 @@ class HomeViewModelTest {
     private class FakeRefreshLibraries(
         val onRefresh: () -> Unit = {},
         val refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
-    ) : com.riffle.core.domain.usecase.RefreshLibraries(com.riffle.app.testing.NoopLibraryRefresher) {
+    ) : com.riffle.core.domain.usecase.RefreshLibraries(HomeViewModelTestRefresher) {
         override suspend fun invoke(): LibraryRefreshResult { onRefresh(); return refreshResult }
     }
 
@@ -202,7 +201,7 @@ class HomeViewModelTest {
     @Test
     fun `getStartDestination returns NoLibraries when refresh fails with network error`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
-        val refresh = FakeRefreshLibraries(refreshResult = LibraryRefreshResult.NetworkError(IOException("Connection refused")))
+        val refresh = FakeRefreshLibraries(refreshResult = LibraryRefreshResult.NetworkError(Exception("Connection refused")))
 
         val result = makeVm(refreshLibraries = refresh).getStartDestination()
 
@@ -274,11 +273,11 @@ class HomeViewModelTest {
         }
 
         advanceUntilIdle()
-        assertFalse("navigateFromHome must not fire before awaitResumed completes", navigated)
+        assertFalse(navigated, "navigateFromHome must not fire before awaitResumed completes")
 
         gate.complete(Unit)
         advanceUntilIdle()
-        assertTrue("navigateFromHome must fire once awaitResumed completes", navigated)
+        assertTrue(navigated, "navigateFromHome must fire once awaitResumed completes")
 
         job.cancelAndJoin()
     }
@@ -291,7 +290,7 @@ class HomeViewModelTest {
         var navigated = false
         navigateFromHome(awaitResumed = {}, viewModel = makeVm()) { navigated = true }
 
-        assertTrue("navigateFromHome must fire immediately when awaitResumed does not suspend", navigated)
+        assertTrue(navigated, "navigateFromHome must fire immediately when awaitResumed does not suspend")
     }
 
     @Test
@@ -333,7 +332,7 @@ class HomeViewModelTest {
     // Assertion that flips red if the isStillResumed loop is removed from awaitGenuinelyResumedWith:
     // `unblocked` would be true even when isStillResumed returns false.
     @Test
-    fun `awaitGenuinelyResumedWith does not unblock when isStillResumed is false (transient RESUMED pulse)`() = runTest {
+    fun `awaitGenuinelyResumedWith does not unblock when isStillResumed is false — transient RESUMED pulse`() = runTest {
         // Use Channel (not CompletableDeferred): after one receive(), the channel blocks on the
         // next call — CompletableDeferred.await() returns immediately once completed, which would
         // spin the loop infinitely and hang the test.
@@ -350,7 +349,7 @@ class HomeViewModelTest {
         }
 
         advanceUntilIdle()
-        assertFalse("must not fire before signal is sent", unblocked)
+        assertFalse(unblocked, "must not fire before signal is sent")
 
         // Send a signal with isStillResumed=false — simulates popUpTo(HOME) firing withResumed
         // while navigate(library_route) has already demoted HOME back to STARTED.
@@ -359,7 +358,7 @@ class HomeViewModelTest {
         isResumedNow = false
         resumeSignal.send(Unit)
 
-        assertFalse("must not unblock when isStillResumed returns false after waitForResumed", unblocked)
+        assertFalse(unblocked, "must not unblock when isStillResumed returns false after waitForResumed")
         job.cancelAndJoin()
     }
 
@@ -394,7 +393,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `awaitGenuinelyResumedWith unblocks when isStillResumed is true (genuine RESUMED)`() = runTest {
+    fun `awaitGenuinelyResumedWith unblocks when isStillResumed is true — genuine RESUMED`() = runTest {
         val resumeSignal = Channel<Unit>()
         var isResumedNow = false
         var unblocked = false
@@ -414,7 +413,19 @@ class HomeViewModelTest {
         // lets that continuation run so isStillResumed()=true → break → unblocked=true.
         advanceUntilIdle()
 
-        assertTrue("must unblock when isStillResumed returns true", unblocked)
+        assertTrue(unblocked, "must unblock when isStillResumed returns true")
         job.cancelAndJoin()
     }
+}
+
+/**
+ * Quiet [LibraryRefresher] stub: every [FakeRefreshLibraries] instance overrides `invoke()`, so
+ * the refresher it is constructed with is never actually consulted.
+ */
+private object HomeViewModelTestRefresher : LibraryRefresher {
+    override suspend fun refreshLibraries() = LibraryRefreshResult.Success
+    override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshItemProgress(sourceId: String, itemId: String) = LibraryRefreshResult.Success
 }

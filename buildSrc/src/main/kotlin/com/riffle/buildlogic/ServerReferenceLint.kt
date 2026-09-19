@@ -104,7 +104,9 @@ object ServerReferenceLint {
         "app/src/main/kotlin/com/riffle/app/feature/settings/readaloud/ReadaloudSettingsScreen.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/readaloud/ReadaloudMatchesViewModel.kt",
         "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
-        "app/src/main/kotlin/com/riffle/app/feature/navigation/NavigationDrawerViewModel.kt",
+        // NavigationDrawerViewModel moved to the shared :feature:navigation commonMain source set
+        // (Android↔iOS test parity). It still filters on the grandfathered ServerType enum.
+        "feature/navigation/src/commonMain/kotlin/com/riffle/feature/navigation/NavigationDrawerViewModel.kt",
         "app/src/main/kotlin/com/riffle/app/feature/navigation/NavigationDrawerComposable.kt",
         "app/src/main/kotlin/com/riffle/app/feature/server/AddSourceViewModel.kt",
         // Resource-ID resolver for add-source copy maps ServerType → string resource per ABS variant.

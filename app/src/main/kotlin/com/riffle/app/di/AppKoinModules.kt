@@ -2,6 +2,7 @@
 
 package com.riffle.app.di
 
+import com.riffle.feature.navigation.NowPlayingNavigator
 import com.riffle.app.feature.audio.AudiobookHttpItemRestorer
 import com.riffle.app.feature.audio.BundleAudioSourceFactory
 import com.riffle.app.feature.audio.BundleZipItemRestorer
@@ -60,7 +61,6 @@ import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.app.sync.WebDavTargetConnectionTester
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.app.feature.update.isDevVersionName
-import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.app.sync.AnnotationSweepEnqueuerImpl
 import com.riffle.app.sync.ProgressSyncScheduler

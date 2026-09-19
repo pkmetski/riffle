@@ -1,5 +1,8 @@
 package com.riffle.app.navigation
 
+import com.riffle.feature.navigation.CBZ_READER
+import com.riffle.feature.navigation.EPUB_READER
+import com.riffle.feature.navigation.PDF_READER
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.material3.windowsizeclass.WindowSizeClass

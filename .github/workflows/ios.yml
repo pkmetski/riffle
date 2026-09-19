@@ -127,6 +127,7 @@ jobs:
             :core:catalog-chitanka:iosSimulatorArm64Test \
             :shared:iosSimulatorArm64Test \
             :feature:library:iosSimulatorArm64Test \
+            :feature:navigation:iosSimulatorArm64Test \
             :feature:player:iosSimulatorArm64Test \
             :feature:reader:iosSimulatorArm64Test \
             :feature:source:iosSimulatorArm64Test \
