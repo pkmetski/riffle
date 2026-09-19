@@ -8,6 +8,7 @@ import com.riffle.app.feature.readersettings.cadenceSummary
 import com.riffle.app.feature.readersettings.displaySummary
 import com.riffle.app.feature.readersettings.formattingSummary
 import com.riffle.app.feature.readersettings.label
+import com.riffle.feature.settings.label
 import com.riffle.app.feature.readersettings.lineSpacingWord
 import com.riffle.app.feature.readersettings.marginsWord
 import com.riffle.core.domain.FormattingPreferences

@@ -1,23 +1,24 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
-import com.riffle.core.data.ToReadRepository
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -27,10 +28,10 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Pins [LibraryTabVisibilityObserver] — the source-agnostic feed screens use to hide the
@@ -44,8 +45,8 @@ class LibraryTabVisibilityObserverTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @BeforeTest fun setUp() { Dispatchers.setMain(dispatcher) }
+    @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     private val activeSource = Source(
         id = "src-1",
@@ -154,12 +155,59 @@ class LibraryTabVisibilityObserverTest {
         override fun observeAll() = flowOf(listOfNotNull(active))
         override suspend fun getActive(): Source? = active
         override suspend fun commit(
-            pending: com.riffle.core.domain.PendingSource,
+            pending: PendingSource,
             hiddenLibraryIds: Set<String>,
-        ) = throw UnsupportedOperationException()
+        ): CommitSourceResult = throw UnsupportedOperationException()
         override suspend fun setActive(sourceId: String) { }
         override suspend fun remove(sourceId: String) { }
         override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
+
+    /**
+     * Stands in for the mockk-relaxed [LibraryObserver] the JVM-only version of this test used.
+     * Only the three streams the observer reads are configurable; everything else returns an
+     * empty flow so the fake compiles against the full interface.
+     */
+    private class FakeLibraryObserver(
+        private val allBooks: Flow<List<LibraryItem>>,
+        private val series: Flow<List<Series>>,
+        private val collections: Flow<List<Collection>>,
+    ) : LibraryObserver {
+        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooks
+        override fun observeSeries(libraryId: String): Flow<List<Series>> = series
+        override fun observeCollections(libraryId: String): Flow<List<Collection>> = collections
+        override fun observeLibraries(): Flow<List<Library>> = flowOf(emptyList())
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = flowOf(emptyList())
+        override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override suspend fun getItem(itemId: String): LibraryItem? = null
+        override fun observeItem(itemId: String): Flow<LibraryItem?> = flowOf(null)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
+        override suspend fun getLibrary(libraryId: String): Library? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
+    }
+
+    private class FakeToReadRepository(private val ids: Flow<Set<String>>) : ToReadRepository {
+        override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = ids
+        override suspend fun refresh(libraryId: String): Boolean = true
+        override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
+        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
+        override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
+        override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
+    }
+
+    private class FakeAnnotationsLibraryRepository(
+        private val annotated: Flow<List<AnnotatedBook>>,
+    ) : AnnotationsLibraryRepository {
+        override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> = annotated
+        override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> =
+            annotated
     }
 
     private fun buildObserver(
@@ -169,25 +217,12 @@ class LibraryTabVisibilityObserverTest {
         series: MutableStateFlow<List<Series>> = MutableStateFlow(emptyList()),
         collections: MutableStateFlow<List<Collection>> = MutableStateFlow(emptyList()),
         annotated: MutableStateFlow<List<AnnotatedBook>> = MutableStateFlow(emptyList()),
-    ): LibraryTabVisibilityObserver {
-        val libraryObserver = mockk<LibraryObserver>(relaxed = true).also {
-            every { it.observeAllBooks(LIB) } returns allBooks
-            every { it.observeSeries(LIB) } returns series
-            every { it.observeCollections(LIB) } returns collections
-        }
-        val toReadRepo = mockk<ToReadRepository>(relaxed = true).also {
-            every { it.observeToReadItemIds(LIB) } returns toReadIds
-        }
-        val annotationsRepo = mockk<AnnotationsLibraryRepository>(relaxed = true).also {
-            every { it.observeAnnotatedBooks(any(), LIB) } returns annotated
-        }
-        return LibraryTabVisibilityObserver(
-            libraryObserver = libraryObserver,
-            toReadRepository = toReadRepo,
-            annotationsLibraryRepository = annotationsRepo,
-            sourceRepository = fakeSourceRepo(active),
-        )
-    }
+    ): LibraryTabVisibilityObserver = LibraryTabVisibilityObserver(
+        libraryObserver = FakeLibraryObserver(allBooks, series, collections),
+        toReadRepository = FakeToReadRepository(toReadIds),
+        annotationsLibraryRepository = FakeAnnotationsLibraryRepository(annotated),
+        sourceRepository = fakeSourceRepo(active),
+    )
 
     private companion object {
         const val LIB = "library-1"

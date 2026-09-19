@@ -22,7 +22,7 @@ import com.riffle.feature.player.AudiobookResumeResolver
 import com.riffle.feature.player.FollowLoopOrchestrator
 import com.riffle.feature.library.BookImportManagerImpl
 import com.riffle.app.feature.library.DownloadManager
-import com.riffle.app.feature.library.LibraryTabVisibilityObserver
+import com.riffle.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReaderStateHolder

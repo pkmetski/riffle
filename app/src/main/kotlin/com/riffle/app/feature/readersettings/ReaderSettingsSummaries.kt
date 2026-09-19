@@ -11,15 +11,8 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.feature.settings.label
 import kotlin.math.roundToInt
-
-fun ReaderTheme.label(): String = when (this) {
-    ReaderTheme.Light -> "Light"
-    ReaderTheme.Dark -> "Dark"
-    ReaderTheme.DarkDim -> "Dim"
-    ReaderTheme.Sepia -> "Sepia"
-    ReaderTheme.Auto -> "Auto"
-}
 
 fun AutoReaderThemeMode.label(): String = when (this) {
     AutoReaderThemeMode.Schedule -> "Time based"

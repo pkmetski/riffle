@@ -1,13 +1,13 @@
-package com.riffle.app.feature.source.websource
+package com.riffle.feature.source.websource
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class OwnedItemMatcherTest {
 
@@ -154,7 +154,7 @@ class OwnedItemMatcherTest {
     }
 
     @Test
-    fun `no prefix match for short candidate titles (under 8 chars)`() {
+    fun `no prefix match for short candidate titles — under 8 chars`() {
         val idx = index(serverItem("Басни и разкази", "Лафонтен"))
         assertFalse(idx.isOwned(catalogItem("Басни", "Лафонтен")))
     }
@@ -166,7 +166,7 @@ class OwnedItemMatcherTest {
     }
 
     @Test
-    fun `matches when ABS title has suffix metadata and no author field (title-only prefix)`() {
+    fun `matches when ABS title has suffix metadata and no author field — title-only prefix`() {
         // ABS upload stored "Клан, клан-недоклан :НароднаПриказка :БалканТон" with author=""
         // Strategy 5 fails (authorsOverlap against "" rejects); strategy 5b should catch it.
         val idx = index(serverItem("Клан, клан-недоклан :НароднаПриказка :БалканТон", ""))
@@ -174,7 +174,7 @@ class OwnedItemMatcherTest {
     }
 
     @Test
-    fun `no title-only prefix match for short candidate titles (under 8 chars)`() {
+    fun `no title-only prefix match for short candidate titles — under 8 chars`() {
         val idx = index(serverItem("Клан :НароднаПриказка :БалканТон", ""))
         assertFalse(idx.isOwned(catalogItem("Клан", "Народна Приказка")))
     }
@@ -196,7 +196,7 @@ class OwnedItemMatcherTest {
     }
 
     @Test
-    fun `no false positive on inverted-order check — different author, same director`() {
+    fun `no false positive on inverted-order check — different author — same director`() {
         val idx = index(serverItem("Аладин и вълшебната лампа", "реж.МарияНанчева Шехерезада"))
         assertFalse(idx.isOwned(catalogItem("Аладин и вълшебната лампа", "Братя Грим, реж. Мария Нанчева")))
     }
@@ -204,7 +204,7 @@ class OwnedItemMatcherTest {
     // ─── No false positives on partial title overlap ──────────────────────────────────────────────
 
     @Test
-    fun `does NOT match series name against a specific volume in ABS (no author)`() {
+    fun `does NOT match series name against a specific volume in ABS — no author`() {
         val idx = index(serverItem("Приказните светове на Николай Райнов Книга 7", ""))
         assertFalse(idx.isOwned(catalogItem("Приказните светове на Николай Райнов", "")))
     }

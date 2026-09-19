@@ -1,10 +1,10 @@
-package com.riffle.app.feature.source.websource
+package com.riffle.feature.source.websource
 
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.common.normalizeToNfd
 import com.riffle.core.models.LibraryItem
-import java.text.Normalizer
 
-internal const val NORM_KEY_SEP = "|||"
+const val NORM_KEY_SEP = "|||"
 
 /**
  * Pre-built index of a user's server-source library items for the "Unowned" catalog filter.
@@ -24,7 +24,7 @@ internal const val NORM_KEY_SEP = "|||"
  *
  * Ported from https://github.com/pkmetski/chitanka-to-audiobookshelf/blob/main/lib/abs/matching.ts
  */
-internal class OwnedItemIndex(
+class OwnedItemIndex(
     private val isbns: Set<String>,
     private val exactKeys: Set<String>,
     private val scanList: List<AbsEntry>,
@@ -33,7 +33,7 @@ internal class OwnedItemIndex(
     // Stored separately so strategy 5b can do an O(1) lookup without touching series volumes.
     private val titlesWithMeta: Set<String> = emptySet(),
 ) {
-    internal data class AbsEntry(val normTitle: String, val normAuthor: String)
+    data class AbsEntry(val normTitle: String, val normAuthor: String)
 
     fun isOwned(item: CatalogItem): Boolean {
         // 1. ISBN
@@ -95,7 +95,7 @@ internal class OwnedItemIndex(
  *   - `"$normTitle$NORM_KEY_SEP$normAuthor"` — combined key (when author is non-empty)
  *   - `"$normTitle"` — title-only key (always stored as fallback)
  */
-internal fun buildProgressByNormKey(items: List<LibraryItem>): Map<String, Float> {
+fun buildProgressByNormKey(items: List<LibraryItem>): Map<String, Float> {
     val result = mutableMapOf<String, Float>()
     for (item in items) {
         val progress = item.readingProgress
@@ -104,15 +104,24 @@ internal fun buildProgressByNormKey(items: List<LibraryItem>): Map<String, Float
         if (normTitle.isEmpty()) continue
         val normAuthor = normalizeTitle(item.author)
         // Title-only key — always stored so items with no author field in ABS still match.
-        result.merge(normTitle, progress, ::maxOf)
+        result.mergeMax(normTitle, progress)
         if (normAuthor.isNotEmpty()) {
-            result.merge("$normTitle$NORM_KEY_SEP$normAuthor", progress, ::maxOf)
+            result.mergeMax("$normTitle$NORM_KEY_SEP$normAuthor", progress)
         }
     }
     return result
 }
 
-internal fun buildOwnedItemIndex(items: List<LibraryItem>): OwnedItemIndex {
+/**
+ * `java.util.Map.merge(key, value, ::maxOf)` — spelled out because `Map.merge` is a JDK API with
+ * no Kotlin/Native counterpart. Absent key stores [value]; present key keeps the larger of the two.
+ */
+private fun MutableMap<String, Float>.mergeMax(key: String, value: Float) {
+    val existing = this[key]
+    this[key] = if (existing == null) value else maxOf(existing, value)
+}
+
+fun buildOwnedItemIndex(items: List<LibraryItem>): OwnedItemIndex {
     val isbns = mutableSetOf<String>()
     val exactKeys = mutableSetOf<String>()
     val scanList = mutableListOf<OwnedItemIndex.AbsEntry>()
@@ -143,8 +152,8 @@ internal fun buildOwnedItemIndex(items: List<LibraryItem>): OwnedItemIndex {
     return OwnedItemIndex(isbns, exactKeys, scanList, titlesWithMeta)
 }
 
-internal fun normalizeTitle(s: String): String =
-    Normalizer.normalize(s, Normalizer.Form.NFD)
+fun normalizeTitle(s: String): String =
+    normalizeToNfd(s)
         .replace(Regex("[\\u0300-\\u036f]"), "")
         .replace(Regex("[-–—]"), " ")
         .replace(Regex("[^\\p{L}\\p{N}\\s]"), "")

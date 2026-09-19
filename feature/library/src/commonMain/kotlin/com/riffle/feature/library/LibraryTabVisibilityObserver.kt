@@ -1,24 +1,16 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.riffle.feature.library.LibraryItemsViewModel
-import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.core.domain.AnnotationsLibraryRepository
-import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.ToReadRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 
 /**
  * Source-agnostic feed of [LibraryTabVisibility] for a given library. The four optional tabs
@@ -26,13 +18,12 @@ import kotlinx.coroutines.flow.stateIn
  * — no source-type or Catalog-capability gating.
  *
  * Any screen with a `libraryId` can wire tab visibility with one line via
- * [LibraryTabVisibilityViewModel]; a new source doesn't need to reinvent (or copy-paste) the
+ * `LibraryTabVisibilityViewModel`; a new source doesn't need to reinvent (or copy-paste) the
  * per-flow "is this list empty?" plumbing. `LibraryItemsViewModel` (ABS/Komga) still owns its
  * own bespoke computation because it also folds the offline/search filters into visibility —
  * that filter-awareness is server-source-specific and doesn't belong in this shared observer.
  */
-
-class LibraryTabVisibilityObserver constructor(
+class LibraryTabVisibilityObserver(
     private val libraryObserver: LibraryObserver,
     private val toReadRepository: ToReadRepository,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
@@ -52,9 +43,8 @@ class LibraryTabVisibilityObserver constructor(
             .map { sources -> sources.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
 
-        // Same query the Annotations tab content uses
-        // ([com.riffle.feature.library.AnnotationsListViewModel]) so tab visibility can't
-        // disagree with what the tab would render.
+        // Same query the Annotations tab content uses ([AnnotationsListViewModel]) so tab
+        // visibility can't disagree with what the tab would render.
         val hasAnnotations = activeSourceId.flatMapLatest { sourceId ->
             if (sourceId == null) flowOf(false)
             else annotationsLibraryRepository.observeAnnotatedBooks(sourceId, libraryId)
@@ -75,24 +65,4 @@ class LibraryTabVisibilityObserver constructor(
             )
         }.distinctUntilChanged()
     }
-}
-
-/**
- * Thin Hilt-scoped wrapper that reads `libraryId` from `SavedStateHandle` and exposes the
- * observer's flow as a lifecycle-bound `StateFlow`. Any screen — server-source or web-source —
- * can wire tab visibility in one line:
- *
- * ```
- * val visibility by koinViewModel<LibraryTabVisibilityViewModel>().visibility.collectAsState()
- * ```
- */
-class LibraryTabVisibilityViewModel constructor(
-    savedStateHandle: SavedStateHandle,
-    observer: LibraryTabVisibilityObserver,
-) : ViewModel() {
-
-    private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
-
-    val visibility: StateFlow<LibraryTabVisibility> = observer.observe(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryTabVisibility.Empty)
 }

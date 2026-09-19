@@ -1,13 +1,11 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
-import com.riffle.feature.settings.ReadaloudMatchSummary
-import com.riffle.app.feature.settings.sections.readaloudRowSummary
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Regression tests for the collapsed Readaloud row's subtitle. The pre-collapse layout showed
@@ -46,11 +44,8 @@ class ReadaloudRowSummaryTest {
             serverVersions = emptyMap(),
             readaloudSummaries = emptyMap(),
         )
-        assertTrue(
-            "summary must contain the storyteller host: $summary",
-            summary.contains("storyteller.example.com"),
-        )
-        assertTrue("summary must include the username when set: $summary", summary.contains("alice"))
+        assertTrue(summary.contains("storyteller.example.com"), "summary must contain the storyteller host: $summary")
+        assertTrue(summary.contains("alice"), "summary must include the username when set: $summary")
     }
 
     @Test
@@ -60,7 +55,7 @@ class ReadaloudRowSummaryTest {
             serverVersions = mapOf("sty-1" to "0.6.2"),
             readaloudSummaries = emptyMap(),
         )
-        assertTrue("summary must include server version: $summary", summary.contains("v0.6.2"))
+        assertTrue(summary.contains("v0.6.2"), "summary must include server version: $summary")
     }
 
     @Test
@@ -77,8 +72,8 @@ class ReadaloudRowSummaryTest {
                 ),
             ),
         )
-        assertTrue("summary must surface unmatched count: $summary", summary.contains("3 unmatched"))
-        assertTrue("summary must surface matched count: $summary", summary.contains("12 matched"))
+        assertTrue(summary.contains("3 unmatched"), "summary must surface unmatched count: $summary")
+        assertTrue(summary.contains("12 matched"), "summary must surface matched count: $summary")
     }
 
     @Test
@@ -95,14 +90,8 @@ class ReadaloudRowSummaryTest {
                 ),
             ),
         )
-        assertTrue(
-            "when everything is matched, subtitle should just say '5 matched': $summary",
-            summary.endsWith("5 matched"),
-        )
-        assertTrue(
-            "when everything is matched, subtitle should NOT show '0 unmatched': $summary",
-            !summary.contains("unmatched"),
-        )
+        assertTrue(summary.endsWith("5 matched"), "when everything is matched, subtitle should just say '5 matched': $summary")
+        assertTrue(!summary.contains("unmatched"), "when everything is matched, subtitle should NOT show '0 unmatched': $summary")
     }
 
     @Test
@@ -122,11 +111,8 @@ class ReadaloudRowSummaryTest {
                 ),
             ),
         )
-        assertTrue("suggested count must surface: $summary", summary.contains("3 suggested"))
-        assertTrue(
-            "must not fall back to '0 matched' when nothing is matched: $summary",
-            !summary.contains("0 matched"),
-        )
+        assertTrue(summary.contains("3 suggested"), "suggested count must surface: $summary")
+        assertTrue(!summary.contains("0 matched"), "must not fall back to '0 matched' when nothing is matched: $summary")
     }
 
     @Test
@@ -143,7 +129,7 @@ class ReadaloudRowSummaryTest {
                 ),
             ),
         )
-        assertTrue("partial count must surface: $summary", summary.contains("2 partial"))
+        assertTrue(summary.contains("2 partial"), "partial count must surface: $summary")
     }
 
     @Test
@@ -160,9 +146,6 @@ class ReadaloudRowSummaryTest {
                 ),
             ),
         )
-        assertTrue(
-            "empty summary should collapse to 'no readalouds yet': $summary",
-            summary.endsWith("no readalouds yet"),
-        )
+        assertTrue(summary.endsWith("no readalouds yet"), "empty summary should collapse to 'no readalouds yet': $summary")
     }
 }

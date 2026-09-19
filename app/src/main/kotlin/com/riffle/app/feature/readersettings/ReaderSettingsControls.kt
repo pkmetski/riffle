@@ -62,6 +62,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.feature.settings.label
 import kotlin.math.roundToInt
 
 internal enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }

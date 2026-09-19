@@ -16,6 +16,11 @@ import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
+import com.riffle.feature.source.websource.NORM_KEY_SEP
+import com.riffle.feature.source.websource.OwnedItemIndex
+import com.riffle.feature.source.websource.buildOwnedItemIndex
+import com.riffle.feature.source.websource.buildProgressByNormKey
+import com.riffle.feature.source.websource.normalizeTitle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job

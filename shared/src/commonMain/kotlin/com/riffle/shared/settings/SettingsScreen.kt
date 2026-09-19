@@ -41,6 +41,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.feature.settings.AnnotationSyncSubtitle
 import com.riffle.feature.settings.AppUpdateUiState
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.comicDisplaySummary
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.shared.source.SourceOnboardingHost
 import org.koin.compose.koinInject
@@ -823,22 +824,6 @@ private fun autoScrollSummary(prefs: FormattingPreferences): String =
 
 private fun cadenceSummary(prefs: FormattingPreferences): String =
     if (prefs.showCadence) "${prefs.cadenceWpm} WPM" else "Off"
-
-private fun comicDisplaySummary(prefs: ComicFormattingPreferences): String = buildString {
-    append(prefs.backgroundTheme.displayLabel())
-    append(" · ")
-    append(
-        if (prefs.panelViewOn) {
-            when (prefs.panelOverflow) {
-                PanelOverflowBehavior.SPLIT -> "Panel view · Split"
-                PanelOverflowBehavior.SMART_SPLIT -> "Panel view · Smart split"
-                PanelOverflowBehavior.OFF -> "Panel view · No split"
-            }
-        } else {
-            "Panel view off"
-        },
-    )
-}
 
 private fun formatSpeed(speed: Float): String {
     val rounded = (speed * 10).toInt() / 10.0f

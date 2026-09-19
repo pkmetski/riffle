@@ -3,17 +3,14 @@ package com.riffle.app.feature.readersettings
 import androidx.compose.ui.graphics.Color
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.reader.DARK_DIM_TEXT_ARGB
+import com.riffle.feature.reader.argbPalette
+import com.riffle.feature.reader.swatchBackdropArgb
 
-// Single source of truth for what each reader theme paints. Readium owns the actual page
-// rendering (see FormattingPreferencesMapper.toEpubPreferences → Theme.LIGHT/DARK/SEPIA),
-// but the app surfaces this palette in three places that must stay in lock-step with what
-// Readium draws: the formatting-panel theme swatches, the chapter-rail overlay backdrop,
-// and the DarkDim foreground override the mapper hands back to Readium.
-//
-// Values mirror the `--RS__backgroundColor` / `--RS__textColor` declarations Readium ships
-// in its CSS (assets/readium/readium-css/ReadiumCSS-after.css inside readium-navigator.aar,
-// rules `readium-night-on` and `readium-sepia-on`; default values are from
-// ReadiumCSS-before.css). Update this table if you bump Readium and the colours move.
+// Compose façade over the shared reader-theme colour table in
+// `com.riffle.feature.reader.ReaderThemeArgbPalette`. The table itself lives in commonMain so
+// iOS renders the same paper as Android; this file only widens the 0xAARRGGBB longs into
+// Compose `Color`s for the Android UI. Add or change a colour in the shared table, never here.
 data class ReaderThemePalette(
     val background: Color,
     val foreground: Color,
@@ -22,33 +19,10 @@ data class ReaderThemePalette(
 // Riffle's "dark dim" mode reuses Readium's Theme.DARK background but overrides the body
 // text colour to a softer grey. The override is passed to Readium via
 // EpubPreferences.textColor in FormattingPreferencesMapper.
-internal val DARK_DIM_TEXT: Color = Color(0xFFAAAAAA)
+internal val DARK_DIM_TEXT: Color = Color(DARK_DIM_TEXT_ARGB)
 
 val ReaderTheme.palette: ReaderThemePalette
-    get() = when (this) {
-        ReaderTheme.Light -> ReaderThemePalette(
-            background = Color(0xFFFFFFFF),
-            foreground = Color(0xFF121212),
-        )
-        ReaderTheme.Dark -> ReaderThemePalette(
-            background = Color(0xFF000000),
-            foreground = Color(0xFFFEFEFE),
-        )
-        ReaderTheme.DarkDim -> ReaderThemePalette(
-            background = Color(0xFF000000),
-            foreground = DARK_DIM_TEXT,
-        )
-        ReaderTheme.Sepia -> ReaderThemePalette(
-            background = Color(0xFFFAF4E8),
-            foreground = Color(0xFF121212),
-        )
-        // Defensive: Auto must be resolved to a concrete theme via
-        // FormattingPreferences.withResolvedTheme() before reaching this palette.
-        // Fall back to Light so a missed resolution doesn't crash the reader; every
-        // production call site should resolve first. Delegating to Light keeps the
-        // two in lock-step if Light's colours ever move.
-        ReaderTheme.Auto -> ReaderTheme.Light.palette
-    }
+    get() = argbPalette.let { ReaderThemePalette(Color(it.background), Color(it.foreground)) }
 
 /**
  * The opaque backdrop colour every highlight-colour swatch must composite over so the alpha-0x80
@@ -58,4 +32,4 @@ val ReaderTheme.palette: ReaderThemePalette
  * dark-app / light-reader combo makes yellow look muddy in the picker, bright yellow in the book).
  */
 val FormattingPreferences.swatchBackdropColor: Color
-    get() = theme.palette.background
+    get() = Color(swatchBackdropArgb)

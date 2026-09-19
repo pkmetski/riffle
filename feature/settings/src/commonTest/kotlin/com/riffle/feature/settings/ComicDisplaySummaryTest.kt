@@ -1,11 +1,10 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
-import com.riffle.app.feature.settings.sections.comicDisplaySummary
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class ComicDisplaySummaryTest {
 
