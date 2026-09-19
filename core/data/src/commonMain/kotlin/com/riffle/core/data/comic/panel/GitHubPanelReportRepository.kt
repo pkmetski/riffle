@@ -17,7 +17,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.IOException
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 class GitHubPanelReportRepository(
     private val pat: String,
@@ -29,9 +30,10 @@ class GitHubPanelReportRepository(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    @OptIn(ExperimentalEncodingApi::class)
     override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
         runCatching {
-            val pngBase64 = java.util.Base64.getEncoder().encodeToString(maskPng)
+            val pngBase64 = Base64.Default.encode(maskPng)
 
             // 1. Create gist with mask (base64) and metadata
             val gistResponse = post("$apiBase/gists", buildGistBody(report, pngBase64))
@@ -96,7 +98,7 @@ class GitHubPanelReportRepository(
         val obj = json.parseToJsonElement(bodyStr).jsonObject
         if (!response.status.isSuccess()) {
             val msg = obj["message"]?.jsonPrimitive?.content ?: response.status.description
-            throw IOException("GitHub ${response.status.value}: $msg")
+            throw RuntimeException("GitHub ${response.status.value}: $msg")
         }
         return obj
     }

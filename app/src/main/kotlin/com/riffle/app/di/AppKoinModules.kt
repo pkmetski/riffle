@@ -69,8 +69,8 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.RandomProvider
 import com.riffle.core.common.SystemClock
 import com.riffle.core.common.SystemRandomProvider
-import com.riffle.core.common.SystemTimeProvider
-import com.riffle.core.common.TimeProvider
+import com.riffle.core.domain.SystemTimeProvider
+import com.riffle.core.domain.TimeProvider
 import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ApkInstaller

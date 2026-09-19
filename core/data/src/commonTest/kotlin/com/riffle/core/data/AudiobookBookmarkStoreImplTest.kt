@@ -7,9 +7,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AudiobookBookmarkStoreImplTest {
 
@@ -43,7 +43,7 @@ class AudiobookBookmarkStoreImplTest {
         assertEquals(765.0, row.positionSec, 0.0001)
         assertEquals("The Egg · 12:45", row.title)
         assertEquals(1000L, row.createdAt)
-        assertTrue("new row must be dirty", row.localUpdatedAt > row.lastSyncedAt)
+        assertTrue(row.localUpdatedAt > row.lastSyncedAt, "new row must be dirty")
         assertEquals(false, row.deleted)
     }
 
@@ -62,7 +62,7 @@ class AudiobookBookmarkStoreImplTest {
         store.delete(id, now = 3000L)
         val row = dao.getById(id)!!
         assertEquals(true, row.deleted); assertEquals(3000L, row.localUpdatedAt)
-        assertTrue("tombstone must be dirty", row.localUpdatedAt > row.lastSyncedAt)
+        assertTrue(row.localUpdatedAt > row.lastSyncedAt, "tombstone must be dirty")
     }
 
     @Test fun observeMapsToDomain() = runTest {

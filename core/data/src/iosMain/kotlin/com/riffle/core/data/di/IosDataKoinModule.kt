@@ -17,7 +17,7 @@ import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
-import com.riffle.core.data.IosNoOpReadaloudResumeStore
+import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.IosReadaloudPreferencesStoreImpl
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
@@ -41,6 +41,7 @@ import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AudiobookPositionStore
@@ -104,7 +105,7 @@ val iosDataModule = module {
     single { AudiobookPositionStoreImpl(get<AudiobookPositionDao>(), get<Clock>()) }
     single<AudiobookPositionStore> { get<AudiobookPositionStoreImpl>() }
     single<SyncPositionStore<Double>> { get<AudiobookPositionStoreImpl>() }
-    single<ReadaloudResumeStore> { IosNoOpReadaloudResumeStore }
+    single<ReadaloudResumeStore> { ReadaloudResumeStoreImpl(get<ReadaloudResumePositionDao>(), get<Clock>()) }
 
     single { ReconcileLocks() }
     single { WebSourceLibraryItemUpserter(get<LibraryItemDao>()) }

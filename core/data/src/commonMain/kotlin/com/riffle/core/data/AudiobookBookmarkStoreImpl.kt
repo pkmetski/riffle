@@ -4,9 +4,10 @@ import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.AudiobookBookmarkStore
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class AudiobookBookmarkStoreImpl constructor(
     private val dao: AudiobookBookmarkDao,
@@ -24,8 +25,9 @@ class AudiobookBookmarkStoreImpl constructor(
     override fun observeHasUnsynced(sourceId: String, itemId: String): Flow<Boolean> =
         dao.observeDirtyCountForItem(sourceId, itemId).map { it > 0 }
 
+    @OptIn(ExperimentalUuidApi::class)
     override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long): String {
-        val id = UUID.randomUUID().toString()
+        val id = Uuid.random().toString()
         dao.upsert(
             AudiobookBookmarkEntity(
                 id = id, sourceId = sourceId, itemId = itemId, positionSec = positionSec,

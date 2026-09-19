@@ -9,7 +9,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import com.riffle.core.common.TimeProvider
+import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
 import kotlinx.coroutines.CoroutineScope
@@ -21,12 +21,11 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
-import java.time.LocalTime
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
- * JVM tests for AppearanceCoordinatorImpl. Exercises:
+ * Tests for AppearanceCoordinatorImpl. Exercises:
  * - app-chrome resolution from (AppTheme × systemDark)
  * - reader-theme resolution from Auto + ThemeSchedule
  * - the boundary-tick timer that flips Auto live across day/night crossings (ADR 0026)
@@ -53,9 +52,9 @@ class AppearanceCoordinatorImplTest {
         fun set(value: FormattingPreferences) { _flow.value = value }
     }
 
-    private class FakeTimeProvider(private var time: LocalTime = LocalTime.of(12, 0)) : TimeProvider {
-        override fun nowLocalTime(): LocalTime = time
-        fun setTime(t: LocalTime) { time = t }
+    private class FakeTimeProvider(private var time: LocalMinuteTime = LocalMinuteTime.of(12, 0)) : TimeProvider {
+        override fun nowLocalTime(): LocalMinuteTime = time
+        fun setTime(t: LocalMinuteTime) { time = t }
     }
 
     @Test
@@ -77,9 +76,9 @@ class AppearanceCoordinatorImplTest {
 
             appThemeStore.set(AppTheme.Light)
             assertEquals(
-                "explicit Light overrides systemDark",
                 ChromeTheme.Light,
                 coord.resolved.value.appChrome,
+                "explicit Light overrides systemDark",
             )
         } finally {
             scope.cancel()
@@ -101,7 +100,7 @@ class AppearanceCoordinatorImplTest {
             formattingPreferencesStore = FakeFormattingPreferencesStore(
                 FormattingPreferences(theme = ReaderTheme.Auto, themeSchedule = schedule),
             ),
-            timeProvider = FakeTimeProvider(LocalTime.of(22, 0)),
+            timeProvider = FakeTimeProvider(LocalMinuteTime.of(22, 0)),
             scope = scope,
         )
         try {
@@ -120,7 +119,7 @@ class AppearanceCoordinatorImplTest {
             formattingPreferencesStore = FakeFormattingPreferencesStore(
                 FormattingPreferences(theme = ReaderTheme.Sepia),
             ),
-            timeProvider = FakeTimeProvider(LocalTime.of(22, 0)),
+            timeProvider = FakeTimeProvider(LocalMinuteTime.of(22, 0)),
             scope = scope,
         )
         try {
@@ -152,7 +151,7 @@ class AppearanceCoordinatorImplTest {
                     ),
                 ),
             ),
-            timeProvider = FakeTimeProvider(LocalTime.of(12, 0)),
+            timeProvider = FakeTimeProvider(LocalMinuteTime.of(12, 0)),
             scope = scope,
         )
         try {
@@ -178,7 +177,7 @@ class AppearanceCoordinatorImplTest {
                     ),
                 ),
             ),
-            timeProvider = FakeTimeProvider(LocalTime.of(12, 0)),
+            timeProvider = FakeTimeProvider(LocalMinuteTime.of(12, 0)),
             scope = scope,
         )
         try {
@@ -202,7 +201,7 @@ class AppearanceCoordinatorImplTest {
             nightTheme = ReaderTheme.Dark,
         )
         val prefs = FormattingPreferences(theme = ReaderTheme.Auto, themeSchedule = schedule)
-        val fakeTime = FakeTimeProvider(LocalTime.of(20, 59))
+        val fakeTime = FakeTimeProvider(LocalMinuteTime.of(20, 59))
         val coord = AppearanceCoordinatorImpl(
             appThemeStore = FakeAppThemeStore(),
             formattingPreferencesStore = FakeFormattingPreferencesStore(prefs),
@@ -215,7 +214,7 @@ class AppearanceCoordinatorImplTest {
             assertEquals(ConcreteReaderTheme.Light, coord.resolved.value.readerTheme)
 
             // Move the fake clock to the boundary and let the ~60s delay elapse.
-            fakeTime.setTime(LocalTime.of(21, 0))
+            fakeTime.setTime(LocalMinuteTime.of(21, 0))
             advanceTimeBy(61_000)
 
             assertEquals(ConcreteReaderTheme.Dark, coord.resolved.value.readerTheme)
@@ -238,7 +237,7 @@ class AppearanceCoordinatorImplTest {
         val coord = AppearanceCoordinatorImpl(
             appThemeStore = FakeAppThemeStore(),
             formattingPreferencesStore = FakeFormattingPreferencesStore(prefs),
-            timeProvider = FakeTimeProvider(LocalTime.of(23, 59)),
+            timeProvider = FakeTimeProvider(LocalMinuteTime.of(23, 59)),
             scope = scope,
         )
         try {

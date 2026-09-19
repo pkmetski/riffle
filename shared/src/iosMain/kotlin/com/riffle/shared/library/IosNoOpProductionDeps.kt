@@ -25,7 +25,6 @@ import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubDetails
 import com.riffle.feature.library.EpubTocExtractor
-import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -112,17 +111,8 @@ internal object IosNoOpPdfPageCountExtractor : PdfPageCountExtractor {
     override suspend fun extract(item: LibraryItem): Int? = null
 }
 
-internal object IosNoOpLocalFileMetadataOverrideSaver : LocalFileMetadataOverrideSaver {
-    override suspend fun invoke(
-        sourceId: String,
-        sourceItemId: String,
-        title: String?,
-        author: String?,
-        seriesName: String?,
-        seriesIndex: Double?,
-        coverUrl: String?,
-    ) {}
-}
+// IosNoOpLocalFileMetadataOverrideSaver removed (issue #1065): iOS now binds
+// SaveLocalFileMetadataOverrideUseCase (core:data commonMain) via Koin.kt.
 
 internal object IosNoOpCoverImageCopier : CoverImageCopier {
     override suspend fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? = null

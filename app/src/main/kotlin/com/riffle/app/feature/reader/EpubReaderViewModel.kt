@@ -63,7 +63,7 @@ import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.models.SessionPayload
-import com.riffle.core.common.TimeProvider
+import com.riffle.core.domain.TimeProvider
 import com.riffle.core.common.TimeRemaining
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.TocEntry

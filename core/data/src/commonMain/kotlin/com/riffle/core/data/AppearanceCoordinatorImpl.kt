@@ -5,7 +5,7 @@ import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.resolveAutoReaderTheme
-import com.riffle.core.common.TimeProvider
+import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.riffle.core.domain.LocalMinuteTime
-import java.time.LocalTime
 
 /**
  * Production [AppearanceCoordinator]. Combines [AppThemeStore], [FormattingPreferencesStore] and
@@ -52,7 +51,7 @@ class AppearanceCoordinatorImpl(
         systemDark,
         scheduleTick,
     ) { appTheme, prefs, sysDark, _ ->
-        val now = timeProvider.nowLocalTime().toLocalMinuteTime()
+        val now = timeProvider.nowLocalTime()
         val resolvedReader = if (prefs.theme == ReaderTheme.Auto) {
             prefs.resolveAutoReaderTheme(now, appTheme, sysDark)
         } else {
@@ -93,7 +92,7 @@ class AppearanceCoordinatorImpl(
                         awaitCancellation()
                     }
                     while (true) {
-                        val now = timeProvider.nowLocalTime().toLocalMinuteTime()
+                        val now = timeProvider.nowLocalTime()
                         val next = schedule.nextBoundaryAfter(now)
                         val delayMs = msUntilOnClockCircle(now, next)
                         delay(delayMs)
@@ -106,8 +105,6 @@ class AppearanceCoordinatorImpl(
     override fun setSystemDark(isDark: Boolean) {
         systemDark.value = isDark
     }
-
-    private fun LocalTime.toLocalMinuteTime(): LocalMinuteTime = LocalMinuteTime(hour, minute)
 
     private fun msUntilOnClockCircle(now: LocalMinuteTime, next: LocalMinuteTime): Long {
         val nowMin = (now.hour * 60 + now.minute).toLong()

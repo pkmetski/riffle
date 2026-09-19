@@ -7,23 +7,12 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.domain.appearance.AppearanceCoordinator
-import com.riffle.core.domain.appearance.ChromeTheme
-import com.riffle.core.domain.appearance.ConcreteReaderTheme
-import com.riffle.core.domain.appearance.ResolvedAppearance
 import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
-import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelMaskService
-import com.riffle.core.domain.comic.panel.PanelReportRepository
-import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.KomgaCbzApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOf
 
 /**
  * iOS Koin backends for the shared [com.riffle.feature.reader.CbzReaderViewModel]. Most are no-ops
@@ -142,26 +131,7 @@ internal object IosNoOpPanelMaskService : PanelMaskService {
     ): Pair<PanelBinaryMask, ByteArray>? = null
 }
 
-internal object IosNoOpPanelViewPreferencesStore : PanelViewPreferencesStore {
-    override fun state(bookId: String): Flow<PanelViewPreferencesStore.State> =
-        flowOf(PanelViewPreferencesStore.State())
-
-    override suspend fun setPanelViewOn(bookId: String, on: Boolean) {}
-}
-
-internal object IosNoOpAppearanceCoordinator : AppearanceCoordinator {
-    override val resolved: StateFlow<ResolvedAppearance> = MutableStateFlow(
-        ResolvedAppearance(
-            appChrome = ChromeTheme.Dark,
-            readerTheme = ConcreteReaderTheme.Dark,
-            isSystemDark = true,
-        ),
-    )
-
-    override fun setSystemDark(isDark: Boolean) {}
-}
-
-internal object IosNoOpPanelReportRepository : PanelReportRepository {
-    override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
-        Result.failure(UnsupportedOperationException("Panel reporting is not available on iOS"))
-}
+// IosNoOpPanelViewPreferencesStore / IosNoOpAppearanceCoordinator / IosNoOpPanelReportRepository
+// removed (issue #1065): iOS now binds IosPanelViewPreferencesStoreImpl (core:data),
+// AppearanceCoordinatorImpl (core:data commonMain, previously Android-only), and
+// GitHubPanelReportRepository (core:data commonMain, previously Android-only) via Koin.kt.

@@ -5,9 +5,9 @@ import com.riffle.core.database.LocalFileMetadataOverrideEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class SaveLocalFileMetadataOverrideUseCaseTest {
 

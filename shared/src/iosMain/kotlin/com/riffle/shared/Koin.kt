@@ -1,6 +1,17 @@
 package com.riffle.shared
 
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.core.data.AppearanceCoordinatorImpl
+import com.riffle.core.data.AudiobookBookmarkStoreImpl
+import com.riffle.core.data.AudioIdentityResolverImpl
+import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
+import com.riffle.core.data.IosContentCacheAccessStoreImpl
+import com.riffle.core.data.ReadaloudLinkRepositoryImpl
+import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.database.AudioPlaybackPreferencesDao
+import com.riffle.core.database.AudiobookBookmarkDao
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
@@ -33,6 +44,8 @@ import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.SystemTimeProvider
+import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
@@ -68,6 +81,7 @@ import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
@@ -92,7 +106,10 @@ import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
+import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.network.createDefaultHttpClient
+import io.ktor.client.HttpClient
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
@@ -148,26 +165,20 @@ import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosNoOpApplicationScope
-import com.riffle.shared.library.IosNoOpAudioIdentityResolver
-import com.riffle.shared.library.IosNoOpAudioPlaybackPreferencesStore
-import com.riffle.shared.library.IosNoOpAudiobookBookmarkStore
 import com.riffle.shared.library.IosNoOpAudiobookCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookChapterCacheRepository
 import com.riffle.shared.library.IosNoOpAudiobookDownloadRepository
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpBundleAudiobookSource
-import com.riffle.shared.library.IosNoOpContentCacheAccessStore
 import com.riffle.shared.library.IosNoOpCoverImageCopier
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
 import com.riffle.shared.library.IosNoOpEbookCfiTranslatorFactory
 import com.riffle.shared.library.IosNoOpEpubTocExtractor
 import com.riffle.shared.library.IosNoOpLocalAvailabilityEvents
-import com.riffle.shared.library.IosNoOpLocalFileMetadataOverrideSaver
 import com.riffle.shared.library.IosNoOpPdfPageCountExtractor
 import com.riffle.shared.library.IosNoOpPdfRepository
 import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
 import com.riffle.shared.library.IosNoOpReadaloudHandoff
-import com.riffle.shared.library.IosNoOpReadaloudLinkRepository
 import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
 import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
@@ -179,10 +190,8 @@ import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
-import com.riffle.shared.reader.IosNoOpAppearanceCoordinator
 import com.riffle.shared.reader.IosNoOpPanelMaskService
-import com.riffle.shared.reader.IosNoOpPanelReportRepository
-import com.riffle.shared.reader.IosNoOpPanelViewPreferencesStore
+import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
@@ -313,9 +322,26 @@ private fun iosLibraryModule(
     }
     single { UpdateReadingProgress(get()) }
     single<PanelMaskService> { IosNoOpPanelMaskService }
-    single<PanelViewPreferencesStore> { IosNoOpPanelViewPreferencesStore }
-    single<AppearanceCoordinator> { IosNoOpAppearanceCoordinator }
-    single<PanelReportRepository> { IosNoOpPanelReportRepository }
+    single<PanelViewPreferencesStore> { IosPanelViewPreferencesStoreImpl() }
+    single<AppearanceCoordinator> {
+        AppearanceCoordinatorImpl(
+            appThemeStore = get(),
+            formattingPreferencesStore = get(),
+            timeProvider = get(),
+            scope = get<ApplicationScope>().coroutineScope,
+        )
+    }
+    single<PanelReportRepository> {
+        val developerOptionsRepository = get<DeveloperOptionsRepository>()
+        val httpClient = get<HttpClient>()
+        object : PanelReportRepository {
+            override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> {
+                val pat = developerOptionsRepository.getGithubPat()
+                    ?: return Result.failure(IllegalStateException("No GitHub PAT configured"))
+                return GitHubPanelReportRepository(pat = pat, client = httpClient).submit(report, maskPng)
+            }
+        }
+    }
     single { VolumeNavigationController() }
     single { VolumeKeyDispatcher(get(), get()) }
     single { ReaderStateHolder() }
@@ -363,9 +389,11 @@ private fun iosLibraryModule(
         )
     }
     single<BundleAudiobookSource> { IosNoOpBundleAudiobookSource }
-    single<ContentCacheAccessStore> { IosNoOpContentCacheAccessStore }
-    single<com.riffle.core.domain.AudioIdentityResolver> { IosNoOpAudioIdentityResolver }
-    single<com.riffle.core.domain.AudioPlaybackPreferencesStore> { IosNoOpAudioPlaybackPreferencesStore() }
+    single<ContentCacheAccessStore> { IosContentCacheAccessStoreImpl(get()) }
+    single<com.riffle.core.domain.AudioIdentityResolver> {
+        AudioIdentityResolverImpl(get<ReadaloudLinkDao>(), get<LibraryItemDao>())
+    }
+    single<com.riffle.core.domain.AudioPlaybackPreferencesStore> { AudioPlaybackPreferencesStoreImpl(get<AudioPlaybackPreferencesDao>()) }
     single { NowPlayingStore() }
     single { AudiobookHandoffState() }
     single { OpenReconcileTargets() }
@@ -499,9 +527,10 @@ private fun iosLibraryModule(
         )
     }
     single<Clock> { IosSystemClock }
+    single<TimeProvider> { SystemTimeProvider }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
-    single<AudiobookBookmarkStore> { IosNoOpAudiobookBookmarkStore() }
-    single<ReadaloudLinkRepository> { IosNoOpReadaloudLinkRepository() }
+    single<AudiobookBookmarkStore> { AudiobookBookmarkStoreImpl(get<AudiobookBookmarkDao>()) }
+    single<ReadaloudLinkRepository> { ReadaloudLinkRepositoryImpl(get<ReadaloudLinkDao>()) }
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(annotationDao = get(), libraryItemDao = get(), sourceRepository = get()) }
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
@@ -537,7 +566,15 @@ private fun iosLibraryModule(
     single<BookImportManager> { IosNoOpBookImportManager() }
     single<EpubTocExtractor> { IosNoOpEpubTocExtractor() }
     single<PdfPageCountExtractor> { IosNoOpPdfPageCountExtractor }
-    single<LocalFileMetadataOverrideSaver> { IosNoOpLocalFileMetadataOverrideSaver }
+    single<LocalFileMetadataOverrideSaver> {
+        val uc = SaveLocalFileMetadataOverrideUseCase(get())
+        object : LocalFileMetadataOverrideSaver {
+            override suspend fun invoke(
+                sourceId: String, sourceItemId: String, title: String?, author: String?,
+                seriesName: String?, seriesIndex: Double?, coverUrl: String?,
+            ) = uc(sourceId, sourceItemId, title, author, seriesName, seriesIndex, coverUrl)
+        }
+    }
     single<CoverImageCopier> { IosNoOpCoverImageCopier }
     single<WebSourceLibraryItemUpserter> { IosWebSourceLibraryItemUpserterImpl(get()) }
 

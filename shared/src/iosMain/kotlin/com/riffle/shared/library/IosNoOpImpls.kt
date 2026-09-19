@@ -1,20 +1,13 @@
 package com.riffle.shared.library
 
 import com.riffle.core.domain.ApplicationScope
-import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.ReadaloudLinkReconciler
-import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
-import com.riffle.core.models.AudiobookBookmark
-import com.riffle.core.models.AudiobookIdentityResult
-import com.riffle.core.models.ReadaloudLink
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 internal object IosNoOpStorytellerSyncer : StorytellerReadaloudCacheSyncer {
@@ -36,24 +29,9 @@ internal object IosNoOpApplicationScope : ApplicationScope {
         CoroutineScope(supervisor + dispatcher)
 }
 
-internal class IosNoOpAudiobookBookmarkStore : AudiobookBookmarkStore {
-    override fun observe(sourceId: String, itemId: String): Flow<List<AudiobookBookmark>> = flowOf(emptyList())
-    override fun observeForSource(sourceId: String): Flow<List<AudiobookBookmark>> = flowOf(emptyList())
-    override fun observeHasUnsynced(sourceId: String, itemId: String): Flow<Boolean> = flowOf(false)
-    override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long): String = ""
-    override suspend fun rename(id: String, title: String, now: Long) {}
-    override suspend fun delete(id: String, now: Long) {}
-}
-
-internal class IosNoOpReadaloudLinkRepository : ReadaloudLinkRepository {
-    override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(emptyList())
-    override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(emptySet())
-    override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null
-    override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
-    override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) {}
-    override suspend fun countForSource(sourceId: String): Int = 0
-    override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
-}
+// IosNoOpAudiobookBookmarkStore / IosNoOpReadaloudLinkRepository removed (issue #1065): iOS now
+// binds the real AudiobookBookmarkStoreImpl/ReadaloudLinkRepositoryImpl (core:data commonMain),
+// backed by the DAOs added in #1057.
 
 internal object IosNoOpReadaloudSidecarDownloads : ReadaloudSidecarDownloads {
     override fun listCached() = emptyList<ReadaloudSidecarDownloads.CachedSidecar>()
@@ -63,27 +41,9 @@ internal object IosNoOpReadaloudSidecarDownloads : ReadaloudSidecarDownloads {
 
 // ── Audiobook player extras ──────────────────────────────────────────────────────────────────────
 
-internal class IosNoOpAudioPlaybackPreferencesStore : com.riffle.core.domain.AudioPlaybackPreferencesStore {
-    override suspend fun load(identity: com.riffle.core.models.AudioIdentity): Float? = null
-    override suspend fun save(identity: com.riffle.core.models.AudioIdentity, speed: Float) = Unit
-    override suspend fun clear(identity: com.riffle.core.models.AudioIdentity) = Unit
-    override suspend fun rekey(old: com.riffle.core.models.AudioIdentity, new: com.riffle.core.models.AudioIdentity) = Unit
-}
-
-internal object IosNoOpAudioIdentityResolver : com.riffle.core.domain.AudioIdentityResolver {
-    override suspend fun resolveForStorytellerBook(
-        storytellerSourceId: String,
-        storytellerBookId: String,
-    ): com.riffle.core.models.AudioIdentity = com.riffle.core.models.AudioIdentity(storytellerSourceId, storytellerBookId)
-}
-
-internal object IosNoOpContentCacheAccessStore : com.riffle.core.domain.ContentCacheAccessStore {
-    override suspend fun markAccessed(key: com.riffle.core.domain.ContentCacheKey) = Unit
-    override suspend fun markAccessedAt(key: com.riffle.core.domain.ContentCacheKey, timestampMs: Long) = Unit
-    override suspend fun lastAccessedAt(key: com.riffle.core.domain.ContentCacheKey): Long? = null
-    override suspend fun lastAccessedAtBulk(keys: Set<com.riffle.core.domain.ContentCacheKey>): Map<com.riffle.core.domain.ContentCacheKey, Long?> = emptyMap()
-    override suspend fun forget(key: com.riffle.core.domain.ContentCacheKey) = Unit
-}
+// IosNoOpAudioPlaybackPreferencesStore / IosNoOpAudioIdentityResolver / IosNoOpContentCacheAccessStore
+// removed (issue #1065): iOS now binds the real AudioPlaybackPreferencesStoreImpl /
+// AudioIdentityResolverImpl (both already commonMain) and IosContentCacheAccessStoreImpl.
 
 internal object IosNoOpReaderSyncFactory : com.riffle.feature.reader.ReaderSyncFactoryInterface {
     override suspend fun createIfApplicable(itemId: String): com.riffle.feature.reader.ReaderSyncCoordinatorInterface? = null
