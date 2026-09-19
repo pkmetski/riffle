@@ -1,8 +1,8 @@
 package com.riffle.feature.library
 
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,8 +35,12 @@ class DefaultDownloadManager(
     /**
      * Convenience for hosts that have no application scope to hand (the iOS XCTest suite builds
      * one of these directly). Downloads started through it live as long as the manager does.
+     *
+     * Takes the [DispatcherProvider] rather than touching `Dispatchers.Default`, per the seam
+     * this codebase routes every dispatcher through.
      */
-    constructor() : this(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    constructor(dispatchers: DispatcherProvider) :
+        this(CoroutineScope(SupervisorJob() + dispatchers.default))
 
     private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
     override val states: StateFlow<Map<String, DownloadState>> = _states

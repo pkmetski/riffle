@@ -187,7 +187,7 @@ final class DownloadManagerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        manager = DefaultDownloadManager()
+        manager = DefaultDownloadManager(dispatchers: IosDispatcherProvider.shared)
     }
 
     override func tearDown() {

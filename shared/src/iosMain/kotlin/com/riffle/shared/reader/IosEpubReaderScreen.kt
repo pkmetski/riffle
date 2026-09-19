@@ -40,11 +40,11 @@ import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.flattenToc
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import com.riffle.feature.reader.flattenToc
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via

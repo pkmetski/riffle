@@ -40,12 +40,12 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.feature.settings.AnnotationSyncSubtitle
 import com.riffle.feature.settings.AppUpdateUiState
+import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.comicDisplaySummary
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.shared.source.SourceOnboardingHost
 import org.koin.compose.koinInject
-import com.riffle.feature.settings.ReaderSettingsSummaries
 
 private enum class SettingsPanel {
     None,
