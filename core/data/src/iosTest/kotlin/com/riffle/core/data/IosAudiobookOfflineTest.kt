@@ -6,7 +6,7 @@ import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.AudiobookTrackSpan
@@ -16,8 +16,6 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.test.runTest
@@ -45,13 +43,6 @@ class IosAudiobookOfflineTest {
     @AfterTest
     fun cleanup() {
         roots.forEach { NSFileManager.defaultManager.removeItemAtPath(it, error = null) }
-    }
-
-    private object TestDispatchers : DispatcherProvider {
-        override val main: CoroutineDispatcher get() = Dispatchers.Default
-        override val mainImmediate: CoroutineDispatcher get() = Dispatchers.Default
-        override val io: CoroutineDispatcher get() = Dispatchers.Default
-        override val default: CoroutineDispatcher get() = Dispatchers.Default
     }
 
     /** FileStore rooted at a fresh temp dir so downloads and cache never touch the real app dirs. */
@@ -121,9 +112,9 @@ class IosAudiobookOfflineTest {
         events: LocalAvailabilityEvents = RecordingAvailabilityEvents(),
     ) = IosAudiobookDownloadRepositoryImpl(
         audiobookRepository = audiobookRepository,
-        trackDownloader = IosAudiobookTrackDownloader(client, TestDispatchers),
+        trackDownloader = IosAudiobookTrackDownloader(client, IosDispatcherProvider),
         fileStore = fileStore,
-        dispatchers = TestDispatchers,
+        dispatchers = IosDispatcherProvider,
         localAvailabilityEvents = events,
     )
 
@@ -132,9 +123,9 @@ class IosAudiobookOfflineTest {
         client: HttpClient = mockClient(),
         events: LocalAvailabilityEvents = RecordingAvailabilityEvents(),
     ) = IosAudiobookCacheRepositoryImpl(
-        trackDownloader = IosAudiobookTrackDownloader(client, TestDispatchers),
+        trackDownloader = IosAudiobookTrackDownloader(client, IosDispatcherProvider),
         fileStore = fileStore,
-        dispatchers = TestDispatchers,
+        dispatchers = IosDispatcherProvider,
         localAvailabilityEvents = events,
         minInterTrackDelayMs = 0L,
         maxInterTrackDelayMs = 0L,

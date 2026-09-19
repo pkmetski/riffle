@@ -1,10 +1,8 @@
 package com.riffle.core.data.comic.panel
 
-import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelDetectionConfig
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,13 +18,6 @@ import kotlin.test.assertTrue
  * CoreGraphics bitmap/PNG round-trip, which only runs on device/simulator.
  */
 class IosPanelMaskEncoderTest {
-
-    private object TestDispatchers : DispatcherProvider {
-        override val main: CoroutineDispatcher get() = Dispatchers.Default
-        override val mainImmediate: CoroutineDispatcher get() = Dispatchers.Default
-        override val io: CoroutineDispatcher get() = Dispatchers.Default
-        override val default: CoroutineDispatcher get() = Dispatchers.Default
-    }
 
     /** 4x2 mask: row 0 gutter (white), row 1 content (black). */
     private fun twoRowMask() = PanelBinaryMask(
@@ -98,7 +89,7 @@ class IosPanelMaskEncoderTest {
         )
         val pagePng = IosPanelMaskEncoder.encode(page)!!
 
-        val service = IosPanelMaskServiceImpl(PanelDetectionConfig(), IosPageImageDecoder(), TestDispatchers)
+        val service = IosPanelMaskServiceImpl(PanelDetectionConfig(), IosPageImageDecoder(), IosDispatcherProvider)
         val result = service.generateMask(pageIndex = 0, rawImageBytes = pagePng)
 
         assertNotNull(result, "expected a mask for a page with both content and gutter")
@@ -112,7 +103,7 @@ class IosPanelMaskEncoderTest {
 
     @Test
     fun `generateMask returns null for undecodable bytes`() = runTest {
-        val service = IosPanelMaskServiceImpl(PanelDetectionConfig(), IosPageImageDecoder(), TestDispatchers)
+        val service = IosPanelMaskServiceImpl(PanelDetectionConfig(), IosPageImageDecoder(), IosDispatcherProvider)
         assertNull(service.generateMask(pageIndex = 0, rawImageBytes = ByteArray(0)))
     }
 }

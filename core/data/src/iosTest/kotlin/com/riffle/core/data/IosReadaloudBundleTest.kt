@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
-import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.CommitSourceResult
@@ -11,8 +11,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respondOk
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -40,13 +38,6 @@ class IosReadaloudBundleTest {
     @AfterTest
     fun cleanup() {
         roots.forEach { NSFileManager.defaultManager.removeItemAtPath(it, error = null) }
-    }
-
-    private object TestDispatchers : DispatcherProvider {
-        override val main: CoroutineDispatcher get() = Dispatchers.Default
-        override val mainImmediate: CoroutineDispatcher get() = Dispatchers.Default
-        override val io: CoroutineDispatcher get() = Dispatchers.Default
-        override val default: CoroutineDispatcher get() = Dispatchers.Default
     }
 
     private object NoopSourceRepository : SourceRepository {
@@ -86,7 +77,7 @@ class IosReadaloudBundleTest {
         sourceRepository = NoopSourceRepository,
         tokenStorage = NoopTokenStorage,
         httpClient = HttpClient(MockEngine { respondOk() }),
-        dispatchers = TestDispatchers,
+        dispatchers = IosDispatcherProvider,
     )
 
     private fun smil(chapter: String, audio: String, vararg sentences: Triple<String, String, String>) = buildString {
