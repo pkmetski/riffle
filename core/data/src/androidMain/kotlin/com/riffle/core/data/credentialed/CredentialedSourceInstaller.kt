@@ -114,7 +114,9 @@ class CredentialedSourceInstaller constructor(
         // The local-only library id that namespaces a Storyteller Source's readaloud rows in
         // `library_items` (matcher input; never browsable — ADR 0032). Its mediaType is the shared
         // [READALOUD_MEDIA_TYPE] so consumers can filter it out of browsable surfaces.
-        fun readaloudLibraryId(sourceId: String): String = "readaloud:$sourceId"
+        // Delegates to the multiplatform definition so Android and iOS derive the same id.
+        fun readaloudLibraryId(sourceId: String): String =
+            com.riffle.core.data.readaloudLibraryId(sourceId)
     }
 }
 

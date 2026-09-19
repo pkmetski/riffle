@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
-import android.database.sqlite.SQLiteConstraintException
-import android.database.sqlite.SQLiteException as SQLiteDriverException
+import com.riffle.core.common.Clock
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadaloudCandidateDao
@@ -41,16 +40,19 @@ open class ReadaloudMatchingService(
     private val readaloudLinkDao: ReadaloudLinkDao,
     private val readaloudCandidateDao: ReadaloudCandidateDao,
     private val readaloudDismissalDao: ReadaloudDismissalDao,
-    private val clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long,
     private val logger: Logger = NoopLogger,
 ) : com.riffle.core.domain.ReadaloudLinkReconciler {
+    // Was System::currentTimeMillis when this class was Android-only; now takes the multiplatform
+    // Clock seam so the same convenience constructor works on iOS.
     constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
         readaloudCandidateDao: ReadaloudCandidateDao,
         readaloudDismissalDao: ReadaloudDismissalDao,
+        clock: Clock,
         logger: Logger,
-    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis, logger)
+    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, clock::nowMs, logger)
 
     override suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER_SERVICE.name)
@@ -119,7 +121,14 @@ open class ReadaloudMatchingService(
                                 )
                             )
                             freshAutoSlots += slot
-                        } catch (e: SQLiteConstraintException) {
+                        } catch (e: Exception) {
+                            // Room's BundledSQLiteDriver (Android) and SQLDelight's
+                            // NativeSqliteDriver (iOS) raise different types for the same
+                            // condition, and neither is visible from commonMain — see
+                            // [isSqliteConstraintViolation]. Only constraint violations are
+                            // absorbed; anything else (SQLITE_FULL, SQLITE_CORRUPT, …) is
+                            // re-thrown so it doesn't get silently swallowed.
+                            if (!e.isSqliteConstraintViolation()) throw e
                             logger.w(LogChannel.Readaloud, e) {
                                 "reconcileLinks upsert skipped — constraint violation for " +
                                     "storytellerSourceId=${book.sourceId} absSourceId=${match.absServerUuid}"
@@ -128,21 +137,6 @@ open class ReadaloudMatchingService(
                             // doesn't delete it — a transient source-removal race prevents the
                             // upsert, but the link itself is still valid. FK CASCADE handles the
                             // row when the source is truly gone.
-                            if (existing != null) freshAutoSlots += slot
-                        } catch (e: SQLiteDriverException) {
-                            // BundledSQLiteDriver (Room 2.8.4+) surfaces all errors as
-                            // android.database.sqlite.SQLiteException instead of its typed
-                            // subclasses. Only handle constraint violations (primary code 19);
-                            // re-throw anything else (SQLITE_FULL, SQLITE_CORRUPT, …) so it
-                            // doesn't get silently swallowed. Constraint messages always
-                            // contain "constraint". A null message can't be classified — treat
-                            // it as constraint to preserve the broad-catch safe default.
-                            val msg = e.message
-                            if (msg != null && !msg.contains("constraint", ignoreCase = true)) throw e
-                            logger.w(LogChannel.Readaloud, e) {
-                                "reconcileLinks upsert skipped — constraint violation (driver path) for " +
-                                    "storytellerSourceId=${book.sourceId} absSourceId=${match.absServerUuid}"
-                            }
                             if (existing != null) freshAutoSlots += slot
                         }
                     }

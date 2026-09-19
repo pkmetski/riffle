@@ -1,22 +1,12 @@
 package com.riffle.shared.library
 
 import com.riffle.core.domain.ApplicationScope
-import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudSidecarDownloads
-import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-
-internal object IosNoOpStorytellerSyncer : StorytellerReadaloudCacheSyncer {
-    override suspend fun syncStale() {}
-}
-
-internal object IosNoOpReadaloudReconciler : ReadaloudLinkReconciler {
-    override suspend fun reconcileLinks() {}
-}
 
 internal object IosNoOpApplicationScope : ApplicationScope {
     private val supervisor = SupervisorJob()
@@ -63,3 +53,7 @@ internal object IosNoOpReadaloudHandoff : com.riffle.feature.player.ReadaloudHan
 // IosNoOpAudioSyncPositionStore / IosNoOpReadingSyncPositionStore removed (issue #1065): iOS now
 // binds the real ReadingPositionStoreImpl/AudiobookPositionStoreImpl as SyncPositionStore in
 // iosDataModule (core:data), matching Android's wiring.
+
+// IosNoOpStorytellerSyncer / IosNoOpReadaloudReconciler removed (issue #1065): iOS now binds
+// StorytellerReadaloudSyncer and ReadaloudMatchingService (core:data commonMain, previously
+// Android-only) against the readaloud DAOs from #1057.

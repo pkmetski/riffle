@@ -22,10 +22,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class ReadaloudReviewRepositoryTest {
 
@@ -42,8 +44,8 @@ class ReadaloudReviewRepositoryTest {
 
         val link = links.findByAbsItem("abs-1", "pick")!!
         assertEquals("42", link.storytellerBookId)
-        assertTrue("confirmed link must be sticky", link.userConfirmed)
-        assertTrue("all of the book's candidates are cleared", candidates.rows.isEmpty())
+        assertTrue(link.userConfirmed, "confirmed link must be sticky")
+        assertTrue(candidates.rows.isEmpty(), "all of the book's candidates are cleared")
     }
 
     @Test
@@ -141,7 +143,7 @@ class ReadaloudReviewRepositoryTest {
 
         val link = links.findByAbsItem("abs-2", "chosen")!!
         assertTrue(link.userConfirmed)
-        assertTrue("manual pairing overrides 'don't ask again'", !dismissals.isBookDismissed("st-1", "42"))
+        assertTrue(!dismissals.isBookDismissed("st-1", "42"), "manual pairing overrides 'don't ask again'")
     }
 
     @Test
@@ -209,11 +211,11 @@ class ReadaloudReviewRepositoryTest {
         val match = repo.observeReview("st").first().confirmed.single { it.storytellerBookId == "42" }
 
         val ebookTarget = match.targets.single { it.absLibraryItemId == "ebook" }
-        assertTrue("ebook entry fills the ebook slot", ebookTarget.hasEbook)
-        assertTrue("ebook entry is not audio", !ebookTarget.hasAudio)
+        assertTrue(ebookTarget.hasEbook, "ebook entry fills the ebook slot")
+        assertTrue(!ebookTarget.hasAudio, "ebook entry is not audio")
         val audioTarget = match.targets.single { it.absLibraryItemId == "audio" }
-        assertTrue("audiobook stub fills the audio slot", audioTarget.hasAudio)
-        assertTrue("audiobook stub is not an ebook", !audioTarget.hasEbook)
+        assertTrue(audioTarget.hasAudio, "audiobook stub fills the audio slot")
+        assertTrue(!audioTarget.hasEbook, "audiobook stub is not an ebook")
     }
 
     @Test
@@ -261,23 +263,23 @@ class ReadaloudReviewRepositoryTest {
     }
 
     @Test
-    fun `searchAbsItems EBOOK filter keeps ebook and combined, drops audio-only`() = runTest {
+    fun `searchAbsItems EBOOK filter keeps ebook and combined — drops audio-only`() = runTest {
         val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
 
         val result = repo.searchAbsItems("abs", "", AbsFormatFilter.EBOOK)
 
         assertEquals(setOf("ebook", "both"), result.map { it.absLibraryItemId }.toSet())
-        assertTrue("every offered item can supply an ebook", result.all { it.hasEbook })
+        assertTrue(result.all { it.hasEbook }, "every offered item can supply an ebook")
     }
 
     @Test
-    fun `searchAbsItems AUDIO filter keeps audiobook and combined, drops ebook-only`() = runTest {
+    fun `searchAbsItems AUDIO filter keeps audiobook and combined — drops ebook-only`() = runTest {
         val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
 
         val result = repo.searchAbsItems("abs", "", AbsFormatFilter.AUDIO)
 
         assertEquals(setOf("audio", "both"), result.map { it.absLibraryItemId }.toSet())
-        assertTrue("every offered item can supply audio", result.all { it.hasAudio })
+        assertTrue(result.all { it.hasAudio }, "every offered item can supply audio")
     }
 
     @Test
@@ -312,7 +314,7 @@ class ReadaloudReviewRepositoryTest {
         val result = repo.searchAbsItems("abs-A", "")
 
         assertEquals(setOf("X", "Y"), result.map { it.absLibraryItemId }.toSet())
-        assertTrue("every result must belong to the scoped Source", result.all { it.absSourceId == "abs-A" })
+        assertTrue(result.all { it.absSourceId == "abs-A" }, "every result must belong to the scoped Source")
     }
 
     @Test
@@ -411,14 +413,14 @@ class ReadaloudReviewRepositoryTest {
         linksFlow.emit(listOf(link("abs", "X", "st", "42", userConfirmed = true)))
 
         // Debounce has not fired yet — no downstream emission
-        assertEquals("debounce must suppress intermediate states", 0, collected.size)
+        assertEquals(0, collected.size, "debounce must suppress intermediate states")
 
         // Advance past the 200 ms debounce window
         advanceTimeBy(300)
 
         // Exactly one emission: the settled final state (not the intermediate empty state)
-        assertEquals("only the settled state must reach downstream", 1, collected.size)
-        assertEquals("settled state reflects the final link", 1, collected.single().confirmed.size)
+        assertEquals(1, collected.size, "only the settled state must reach downstream")
+        assertEquals(1, collected.single().confirmed.size, "settled state reflects the final link")
 
         collectJob.cancel()
     }

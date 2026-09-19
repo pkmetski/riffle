@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -41,13 +42,16 @@ class ReadaloudReviewRepositoryImpl(
     private val clock: () -> Long,
 ) : ReadaloudReviewRepository, ReadaloudReviewMutator {
 
+    // Was System::currentTimeMillis when this class was Android-only; now takes the multiplatform
+    // Clock seam so the same convenience constructor works on iOS.
     constructor(
         libraryItemDao: LibraryItemDao,
         libraryDao: LibraryDao,
         linkDao: ReadaloudLinkDao,
         candidateDao: ReadaloudCandidateDao,
         dismissalDao: ReadaloudDismissalDao,
-    ) : this(libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao, System::currentTimeMillis)
+        clock: Clock,
+    ) : this(libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao, clock::nowMs)
 
     @OptIn(FlowPreview::class)
     override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =

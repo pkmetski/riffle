@@ -35,7 +35,10 @@ import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
+import com.riffle.core.data.ReadaloudMatchingService
+import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
+import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
@@ -83,6 +86,7 @@ import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
@@ -102,6 +106,7 @@ import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
+import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
@@ -185,11 +190,9 @@ import com.riffle.shared.library.IosNoOpPdfRepository
 import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
 import com.riffle.shared.library.IosNoOpReadaloudHandoff
 import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
-import com.riffle.shared.library.IosNoOpReadaloudReconciler
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReaderSyncFactory
-import com.riffle.shared.library.IosNoOpStorytellerSyncer
 import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
@@ -204,7 +207,6 @@ import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
-import com.riffle.shared.settings.IosNoOpReadaloudReviewRepository
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -468,8 +470,28 @@ private fun iosLibraryModule(
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
-    single<StorytellerReadaloudCacheSyncer> { IosNoOpStorytellerSyncer }
-    single<ReadaloudLinkReconciler> { IosNoOpReadaloudReconciler }
+    // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
+    // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles
+    // them against ABS books into confirmed links / pending candidates.
+    single<StorytellerReadaloudCacheSyncer> {
+        StorytellerReadaloudSyncer(
+            sourceRepository = get(),
+            tokenStorage = get(),
+            storytellerApi = get<StorytellerApiClient>(),
+            libraryItemDao = get(),
+            clock = get<Clock>()::nowMs,
+        )
+    }
+    single<ReadaloudLinkReconciler> {
+        ReadaloudMatchingService(
+            libraryItemDao = get(),
+            readaloudLinkDao = get(),
+            readaloudCandidateDao = get(),
+            readaloudDismissalDao = get(),
+            clock = get<Clock>(),
+            logger = get(),
+        )
+    }
     single<ApplicationScope> { IosNoOpApplicationScope }
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
@@ -490,7 +512,10 @@ private fun iosLibraryModule(
     single<CrashReportRepository> { IosNoOpCrashReportRepository }
     single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
     single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
-    single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
+    single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
+    single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }
+    single<ReadaloudReviewMutator> { get<ReadaloudReviewRepositoryImpl>() }
+    single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
     single<EncryptedKeyValueStore> { IosEncryptedKeyValueStore() }
     single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
     single<LocalFilesScannerInterface> {

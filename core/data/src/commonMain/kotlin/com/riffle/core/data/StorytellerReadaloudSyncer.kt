@@ -10,7 +10,6 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkStorytellerBook
 import com.riffle.core.network.StorytellerLibraryApi
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.first
 
 /**
@@ -72,7 +71,9 @@ open class StorytellerReadaloudSyncer(
     private val clock: () -> Long,
     private val ttlMillis: Long = STORYTELLER_SYNC_TTL_MILLIS,
 ) : com.riffle.core.domain.StorytellerReadaloudCacheSyncer {
-    private val lastSyncedAt = ConcurrentHashMap<String, Long>()
+    // Was ConcurrentHashMap on Android; syncStale() is the only writer and runs as a single
+    // suspend call per refresh, so a plain map matches the previous behaviour on both platforms.
+    private val lastSyncedAt = mutableMapOf<String, Long>()
 
     /** Best-effort: fetch+store readalouds for each stale Storyteller service. Never throws. */
     override suspend fun syncStale() {
@@ -89,7 +90,7 @@ open class StorytellerReadaloudSyncer(
     }
 
     private suspend fun fetchAndStore(source: Source, token: String): Boolean {
-        val libraryId = SourceRepositoryImpl.readaloudLibraryId(source.id)
+        val libraryId = readaloudLibraryId(source.id)
         val r = storytellerApi.listReadalouds(source.url.value, token, source.insecureConnectionAllowed)
         if (r !is NetworkResult.Success) return false
         val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(source.id, libraryId).associate { it.id to it.lastOpenedAt }

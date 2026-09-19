@@ -1,7 +1,5 @@
 package com.riffle.core.data
 
-import android.database.sqlite.SQLiteConstraintException
-import android.database.sqlite.SQLiteException as SQLiteDriverException
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -16,10 +14,12 @@ import com.riffle.core.database.ReadingProgressRow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class ReadaloudMatchingServiceTest {
 
@@ -120,7 +120,7 @@ class ReadaloudMatchingServiceTest {
 
         val newLinks = links.upserts.map { it.absSourceId to it.absLibraryItemId }
         assertEquals(listOf("abs-B" to "B-ebook"), newLinks)
-        assertTrue("source A user pick must not be swept", links.deletions.none { it == "abs-A" to "A-user-pick" })
+        assertTrue(links.deletions.none { it == "abs-A" to "A-user-pick" }, "source A user pick must not be swept")
     }
 
     @Test
@@ -145,8 +145,8 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links).reconcileLinks()
 
-        assertTrue("userConfirmed row stays untouched", links.upserts.isEmpty())
-        assertTrue("userConfirmed row not deleted", links.deletions.isEmpty())
+        assertTrue(links.upserts.isEmpty(), "userConfirmed row stays untouched")
+        assertTrue(links.deletions.isEmpty(), "userConfirmed row not deleted")
     }
 
     @Test
@@ -238,13 +238,13 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links, candidates = candidates).reconcileLinks()
 
-        assertTrue("fuzzy match must not auto-confirm a link", links.upserts.isEmpty())
+        assertTrue(links.upserts.isEmpty(), "fuzzy match must not auto-confirm a link")
         val c = candidates.rows.single()
         assertEquals("st-1", c.storytellerSourceId)
         assertEquals("42", c.storytellerBookId)
         assertEquals("abs-1", c.absSourceId)
         assertEquals("cand", c.absLibraryItemId)
-        assertTrue("score ${c.score} should be >= threshold", c.score >= 0.85)
+        assertTrue(c.score >= 0.85, "score ${c.score} should be >= threshold")
     }
 
     @Test
@@ -306,9 +306,9 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links, candidates = candidates).reconcileLinks()
 
-        assertTrue("no candidates for an already user-confirmed book", candidates.rows.isEmpty())
-        assertTrue("user link untouched", links.upserts.isEmpty())
-        assertTrue("user link not swept", links.deletions.isEmpty())
+        assertTrue(candidates.rows.isEmpty(), "no candidates for an already user-confirmed book")
+        assertTrue(links.upserts.isEmpty(), "user link untouched")
+        assertTrue(links.deletions.isEmpty(), "user link not swept")
     }
 
     @Test
@@ -326,7 +326,7 @@ class ReadaloudMatchingServiceTest {
         service(items, links).reconcileLinks()
 
         // No crash — test reaching here proves the exception was swallowed.
-        assertTrue("no row written when FK throws", links.upserts.isEmpty())
+        assertTrue(links.upserts.isEmpty(), "no row written when FK throws")
     }
 
     @Test
@@ -354,8 +354,8 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links).reconcileLinks()
 
-        assertTrue("no new upsert attempted", links.upserts.isEmpty())
-        assertTrue("pre-existing link must survive the sweep", links.deletions.isEmpty())
+        assertTrue(links.upserts.isEmpty(), "no new upsert attempted")
+        assertTrue(links.deletions.isEmpty(), "pre-existing link must survive the sweep")
     }
 
     @Test
@@ -372,7 +372,7 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links).reconcileLinks()
 
-        assertTrue("no row written when AndroidX FK throws", links.upserts.isEmpty())
+        assertTrue(links.upserts.isEmpty(), "no row written when AndroidX FK throws")
     }
 
     @Test
@@ -402,8 +402,8 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links).reconcileLinks()
 
-        assertTrue("no new upsert attempted", links.upserts.isEmpty())
-        assertTrue("pre-existing link must survive the sweep", links.deletions.isEmpty())
+        assertTrue(links.upserts.isEmpty(), "no new upsert attempted")
+        assertTrue(links.deletions.isEmpty(), "pre-existing link must survive the sweep")
     }
 
     @Test
@@ -420,7 +420,7 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links, candidates = candidates).reconcileLinks()
 
-        assertTrue("stale candidate must be cleared", candidates.rows.isEmpty())
+        assertTrue(candidates.rows.isEmpty(), "stale candidate must be cleared")
         assertTrue(candidates.clearAllCalled)
     }
 
@@ -521,11 +521,19 @@ class ReadaloudMatchingServiceTest {
 
         try {
             service(items, links).reconcileLinks()
-            fail("Expected non-constraint SQLiteDriverException to propagate")
+            fail("Expected non-constraint driver exception to propagate")
         } catch (e: SQLiteDriverException) {
-            assertTrue("must be the non-constraint error", e.message?.contains("disk is full") == true)
+            assertTrue(e.message.contains("disk is full"), "must be the non-constraint error")
         }
     }
+
+    // The driver exception types differ per platform (Room's BundledSQLiteDriver on Android,
+    // SQLDelight's NativeSqliteDriver on iOS) and neither is visible from commonTest, so these
+    // stand-ins reproduce the two shapes `isSqliteConstraintViolation` classifies on: a typed
+    // *Constraint* exception, and a generic SQL exception distinguished by its message.
+    private class SQLiteConstraintException(override val message: String) : Exception(message)
+
+    private class SQLiteDriverException(override val message: String) : Exception(message)
 
     /** Simulates the race where the source is deleted between the read and the upsert. */
     private class FKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
@@ -534,23 +542,17 @@ class ReadaloudMatchingServiceTest {
         }
     }
 
-    /** Same race but via the BundledSQLiteDriver path (Room 2.8.4+). */
+    /** Same race but via the generic driver path (Room 2.8.4+ / SQLDelight). */
     private class AndroidXFKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
         override suspend fun upsert(entity: ReadaloudLinkEntity) {
             throw SQLiteDriverException("Error code: 787, message: FOREIGN KEY constraint failed")
         }
     }
 
-    /** BundledSQLiteDriver error that is NOT a constraint violation (e.g. SQLITE_FULL = code 13). */
+    /** Driver error that is NOT a constraint violation (e.g. SQLITE_FULL = code 13). */
     private class NonConstraintSQLiteFailingLinkDao : RecordingReadaloudLinkDao() {
-        // Custom subclass so `message` is reliably set regardless of Android-stub constructor
-        // behaviour (stubs may not propagate the message arg to java.lang.Throwable).
-        class NonConstraintException(private val msg: String) : SQLiteDriverException(msg) {
-            override val message: String get() = msg
-        }
-
         override suspend fun upsert(entity: ReadaloudLinkEntity) {
-            throw NonConstraintException("Error code: 13, message: database or disk is full")
+            throw SQLiteDriverException("Error code: 13, message: database or disk is full")
         }
     }
 

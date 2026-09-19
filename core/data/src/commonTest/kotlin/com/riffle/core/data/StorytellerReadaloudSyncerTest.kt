@@ -15,9 +15,12 @@ import com.riffle.core.network.StorytellerLibraryApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
-import java.io.IOException
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,7 +83,7 @@ private fun capturingApi(books: List<NetworkStorytellerBook>): CapturingApi =
     CapturingApi { NetworkResult.Success(books) }
 
 private fun capturingApiError(): CapturingApi =
-    CapturingApi { NetworkResult.Offline(IOException("down")) }
+    CapturingApi { NetworkResult.Offline(Exception("down")) }
 
 // ── mapping test (pre-existing) ───────────────────────────────────────────────
 

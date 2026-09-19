@@ -4,8 +4,6 @@ import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.CrashReportRepository
-import com.riffle.core.domain.ReadaloudReview
-import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
@@ -33,15 +31,8 @@ internal class IosNoOpAppUpdatePreferencesStore : AppUpdatePreferencesStore {
     override suspend fun setIgnoredVersionCode(value: Int) {}
 }
 
-internal object IosNoOpReadaloudReviewRepository : ReadaloudReviewRepository {
-    override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
-        flowOf(ReadaloudReview(pending = emptyList(), unmatched = emptyList(), confirmed = emptyList()))
-    override suspend fun searchAbsItems(
-        absSourceId: String,
-        query: String,
-        filter: com.riffle.core.domain.AbsFormatFilter,
-    ): List<com.riffle.core.domain.AbsPickerItem> = emptyList()
-}
+// IosNoOpReadaloudReviewRepository removed (issue #1065): iOS now binds
+// ReadaloudReviewRepositoryImpl (core:data commonMain, previously Android-only).
 
 // IosNoOpAnnotationSyncConfigStore removed (issue #1065): iOS now binds
 // AnnotationSyncConfigStoreImpl (core:data commonMain) + IosEncryptedKeyValueStore
