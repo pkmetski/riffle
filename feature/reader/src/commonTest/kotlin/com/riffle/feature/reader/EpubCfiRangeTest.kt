@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.core.domain.cfiDocPathToProgression
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import com.riffle.core.domain.epubCfiOps
+import kotlin.test.assertNull
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 // Shares the char-count model of EpubCfiTranslatorTest:
 // body = "Hello world"(11) + "Second paragraph"(16) = 27 chars; body=step4, p[0]=step2, p[1]=step4, text=step1.
@@ -45,7 +45,7 @@ class EpubCfiRangeTest {
         val cfi = buildHighlightCfiRange(spineStep = 4, html = simpleHtml, startChar = 0, endChar = 5)!!
         // Reconstruct the start point: take the parent + start remainder.
         val startPoint = rangeStartDocPath(cfi)!!
-        assertEquals(0.0, cfiDocPathToProgression(startPoint, simpleHtml)!!, 0.0001)
+        assertEquals(0.0, epubCfiOps().docPathToProgression(startPoint, simpleHtml)!!, 0.0001)
     }
 
     @Test
@@ -80,18 +80,6 @@ class EpubCfiRangeTest {
     @Test
     fun `highlightStartProgression returns null for a non-range CFI`() {
         assertNull(highlightStartProgression("epubcfi(/6/4!/4/2/1:0)", simpleHtml))
-    }
-
-    @Test
-    fun `highlightStartProgression with pre-computed totalChars matches the auto-count overload`() {
-        val cfi = buildHighlightCfiRangeForSelection(
-            spineStep = 4, html = simpleHtml, startProgression = 0.0, selectedText = "Hello",
-        )!!
-        val doc = org.jsoup.Jsoup.parse(simpleHtml)
-        val totalChars = com.riffle.core.domain.countBodyChars(doc.body())
-        val expected = highlightStartProgression(cfi, doc)
-        val actual   = highlightStartProgression(cfi, doc, totalChars)
-        assertEquals(expected, actual)
     }
 
     @Test

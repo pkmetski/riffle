@@ -1,9 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
-import com.riffle.core.domain.normalizeEpubHref
 
 // Auto-merge adjacent highlights (2026-07-05 spec). Pure text-anchored logic so both the
 // create-time path (fresh selection, no id yet) and the edit-time path (existing row that just
@@ -11,13 +10,13 @@ import com.riffle.core.domain.normalizeEpubHref
 //   docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md
 
 /** Which side of the anchor the candidate sits on in the reading order. */
-internal enum class MergeSide { CANDIDATE_BEFORE_ANCHOR, CANDIDATE_AFTER_ANCHOR }
+enum class MergeSide { CANDIDATE_BEFORE_ANCHOR, CANDIDATE_AFTER_ANCHOR }
 
 /**
  * A concrete adjacency match: which neighbour to absorb, which side, and the whitespace run to
  * preserve between the two snippets when concatenating.
  */
-internal data class MergeCandidate(
+data class MergeCandidate(
     val neighbor: Annotation,
     val side: MergeSide,
     val whitespaceBetween: String,
@@ -30,7 +29,7 @@ internal data class MergeCandidate(
  * the row that just changed. Either way merging mutates only these fields — CFI is rebuilt from
  * `progression` + `textSnippet` at the end.
  */
-internal data class MergeAnchor(
+data class MergeAnchor(
     val spineIndex: Int,
     val color: String,
     val note: String?,
@@ -50,7 +49,7 @@ internal data class MergeAnchor(
     val emphasisStyles: Set<EmphasisStyle>? = null,
 )
 
-internal fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
+fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
     spineIndex = spineIndex,
     color = color,
     note = note,
@@ -72,7 +71,7 @@ internal fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
  * when the user's single selection covers text on BOTH sides of the figure at creation time (see
  * `createHighlight`'s `findEnclosedFiguresInHtml` walk).
  */
-internal fun isMergeEligible(anchor: MergeAnchor, candidate: Annotation): Boolean {
+fun isMergeEligible(anchor: MergeAnchor, candidate: Annotation): Boolean {
     if (anchor.type != candidate.type) return false
     if (anchor.spineIndex != candidate.spineIndex) return false
     return when (anchor.type) {
@@ -115,7 +114,7 @@ internal fun isMergeEligible(anchor: MergeAnchor, candidate: Annotation): Boolea
  * against the chapter HTML to reject that case; a figure only becomes part of a highlight when
  * the user's single selection covers text on both sides of the figure at creation time.
  */
-internal fun findAdjacency(anchor: MergeAnchor, candidate: Annotation): MergeCandidate? {
+fun findAdjacency(anchor: MergeAnchor, candidate: Annotation): MergeCandidate? {
     val anchorSnippet = anchor.textSnippet.takeIf { it.isNotBlank() } ?: return null
     val neighborSnippet = candidate.textSnippet.takeIf { it.isNotBlank() } ?: return null
 
@@ -186,7 +185,7 @@ private fun matchAtEnd(context: String, target: String): String? {
  * safety guard after adjacency-chain assembly: if the DOM-derived snippet and the composed snippet
  * diverge beyond whitespace, the adjacency match was a coincidence and the merge should be aborted.
  */
-internal fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
+fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
     val na = a.filterNot { it.isWhitespace() }
     val nb = b.filterNot { it.isWhitespace() }
     return na.equals(nb, ignoreCase = true)
@@ -205,7 +204,7 @@ internal fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
  * Returns null when the non-whitespace content differs, preserving the existing false-match
  * safety gate.
  */
-internal fun validatedMergedSnippet(
+fun validatedMergedSnippet(
     domSnippet: String,
     composedSnippet: String,
 ): String? = composedSnippet.takeIf {
@@ -240,7 +239,7 @@ private const val MIN_MATCH_CHARS = 12
  * text-after / progression are inherited from the outermost endpoints. Only TYPE_HIGHLIGHT
  * candidates reach here — [isMergeEligible] filters TYPE_IMAGE upstream.
  */
-internal fun applyMerge(anchor: MergeAnchor, match: MergeCandidate): MergeAnchor {
+fun applyMerge(anchor: MergeAnchor, match: MergeCandidate): MergeAnchor {
     val neighbor = match.neighbor
     return when (match.side) {
         MergeSide.CANDIDATE_AFTER_ANCHOR -> anchor.copy(
@@ -267,7 +266,7 @@ internal fun applyMerge(anchor: MergeAnchor, match: MergeCandidate): MergeAnchor
  * silently annotate the figure. See the KDoc on [findAdjacency] for the void-figure motivation.
  * When [html] is null (unit-test paths without a chapter body) the gap check is skipped.
  */
-internal fun findAnyMergeableNeighbor(
+fun findAnyMergeableNeighbor(
     anchor: MergeAnchor,
     pool: List<Annotation>,
     excludeIds: Set<String>,
@@ -293,7 +292,7 @@ internal fun findAnyMergeableNeighbor(
  * straddle check is strict (`start < elemPos < end`), so an empty gap or a figure at exactly one
  * of the endpoints doesn't count.
  */
-internal fun hasFigureInGap(
+fun hasFigureInGap(
     html: String,
     anchor: MergeAnchor,
     candidate: Annotation,
@@ -333,7 +332,7 @@ internal fun hasFigureInGap(
  * style set, then use this helper before replacing those rows so the merged range can recreate
  * that same formatting. Returns empty when the source annotations carry no emphasis.
  */
-internal fun collectMergedEmphasisStyles(
+fun collectMergedEmphasisStyles(
     pool: List<Annotation>,
     cascadeCfis: Set<String>,
 ): Set<EmphasisStyle> = pool

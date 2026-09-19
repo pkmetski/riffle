@@ -1,14 +1,12 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.EmphasisStyle
-import com.riffle.core.domain.countBodyChars
-import org.jsoup.Jsoup
 
 /** Result of a create-time adjacency merge: updated draft fields + IDs of annotations absorbed. */
-internal data class AdjacentCreateMerge(
+data class AdjacentCreateMerge(
     val fields: MergedDraftFields,
     val victimIds: List<String>,
 )
@@ -17,7 +15,7 @@ internal data class AdjacentCreateMerge(
  * Highlight auto-merge is formatting-aware: two highlight rows may share a colour but still
  * represent distinct edit targets when their sibling Emphasis style sets differ.
  */
-internal fun highlightsWithEmphasisStyles(
+fun highlightsWithEmphasisStyles(
     candidates: List<Annotation>,
     emphasisPool: List<Annotation>,
     expectedStyles: Set<EmphasisStyle>,
@@ -47,10 +45,10 @@ private const val MERGED_CONTEXT_LEN = 60
 
 /** Half-open char range `[startChar, endChar)` — endChar exclusive so touching endpoints are
  *  NOT overlap (adjacent same-colour highlights are handled by the edit-time merge path). */
-internal data class CharRange2(val startChar: Long, val endChar: Long)
+data class CharRange2(val startChar: Long, val endChar: Long)
 
 /** Strict interval overlap on half-open ranges: `a.start < b.end && b.start < a.end`. */
-internal fun charRangesOverlap(a: CharRange2, b: CharRange2): Boolean =
+fun charRangesOverlap(a: CharRange2, b: CharRange2): Boolean =
     a.startChar < b.endChar && b.startChar < a.endChar
 
 /**
@@ -64,7 +62,7 @@ internal fun charRangesOverlap(a: CharRange2, b: CharRange2): Boolean =
  * through the body's readable text, consuming the snippet's non-whitespace characters — that
  * gives the correct half-open end even when the raw snippet contains newlines the body doesn't.
  */
-internal fun annotationCharRange(html: String, textSnippet: String, textBefore: String): CharRange2? {
+fun annotationCharRange(html: String, textSnippet: String, textBefore: String): CharRange2? {
     val start = locateSnippetInBody(html, textSnippet, textBefore) ?: return null
     val end = snippetEndCharInBody(html, start, textSnippet)
     if (end <= start) return null
@@ -82,7 +80,7 @@ internal fun annotationCharRange(html: String, textSnippet: String, textBefore: 
  * merged highlight — replacing the pre-fix "delete-only, don't union" logic that shrank the
  * merged span down to just the new selection.
  */
-internal data class OverlapMergeResult(
+data class OverlapMergeResult(
     val mergedStart: Long,
     val mergedEnd: Long,
     val victimIds: List<String>,
@@ -90,12 +88,12 @@ internal data class OverlapMergeResult(
 
 /**
  * Fields of a merged (or plain) draft that get persisted by `commitDraft`. Separated from the
- * full [com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation] so the overlap-
+ * full `AnnotationSession.DraftAnnotation` so the overlap-
  * merge path can override just these fields (range/snippet/context/CFI/progression/figures) while
  * carrying the draft's identity (sourceId, itemId, chapter, spineIndex, originFontFamily, anchor)
  * through unchanged.
  */
-internal data class MergedDraftFields(
+data class MergedDraftFields(
     val cfiRange: String,
     val textSnippet: String,
     val textBefore: String,
@@ -103,17 +101,6 @@ internal data class MergedDraftFields(
     val progression: Double,
     val embeddedFigures: List<EmbeddedFigure>?,
 )
-
-/** Trivially lift the draft's own fields into [MergedDraftFields] for the no-overlap path. */
-internal fun com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation.toDraftFields(): MergedDraftFields =
-    MergedDraftFields(
-        cfiRange = cfiRange,
-        textSnippet = textSnippet,
-        textBefore = textBefore,
-        textAfter = textAfter,
-        progression = progression,
-        embeddedFigures = embeddedFigures,
-    )
 
 /**
  * Rebuild the persisted highlight fields for a range-merged draft. Reads the merged snippet from
@@ -126,7 +113,7 @@ internal fun com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnota
  * Returns null when any DOM-derived step fails (missing snippet in text, CFI build fails, empty
  * body), letting the caller fall back to the un-merged draft fields as a safety net.
  */
-internal fun buildMergedDraftFields(
+fun buildMergedDraftFields(
     html: String,
     draftSpineIndex: Int,
     draftEmbeddedFigures: List<EmbeddedFigure>?,
@@ -136,7 +123,7 @@ internal fun buildMergedDraftFields(
     val mergedStart = overlap.mergedStart
     val mergedEnd = overlap.mergedEnd
     val body = readableBodyText(html)
-    val totalChars = countBodyChars(Jsoup.parse(html).body())
+    val totalChars = countReadableBodyChars(html)
     if (totalChars <= 0L) return null
     val mergedSnippet = readableTextBetween(html, mergedStart, mergedEnd) ?: return null
     val spineStep = (draftSpineIndex + 1) * 2
@@ -157,8 +144,8 @@ internal fun buildMergedDraftFields(
         val svgByFile = mutableMapOf<String, String>()
         (draftEmbeddedFigures.orEmpty() + victimFigures).forEach { fig ->
             val key = fig.href?.let(::figureHrefFilename) ?: return@forEach
-            fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytesByFile.putIfAbsent(key, it) }
-            fig.svg?.takeIf { it.isNotBlank() }?.let { svgByFile.putIfAbsent(key, it) }
+            fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytes -> bytesByFile.getOrPut(key) { bytes } }
+            fig.svg?.takeIf { it.isNotBlank() }?.let { svg -> svgByFile.getOrPut(key) { svg } }
         }
         walkedFigures.mapIndexed { i, fig ->
             val key = fig.href?.let(::figureHrefFilename)
@@ -193,7 +180,7 @@ internal fun buildMergedDraftFields(
  * excluded so they aren't double-processed. This function additionally filters by the sibling
  * Emphasis set because that is part of a Highlight's merge identity.
  */
-internal fun computeAdjacentCreateMerge(
+fun computeAdjacentCreateMerge(
     html: String,
     draftSnippet: String,
     draftTextBefore: String,
@@ -243,7 +230,7 @@ internal fun computeAdjacentCreateMerge(
     }
     if (toAbsorb.isEmpty()) return null
     // Rebuild the merged range from DOM positions — same as mergeAdjacentIntoHighlight.
-    val totalChars = countBodyChars(Jsoup.parse(html).body())
+    val totalChars = countReadableBodyChars(html)
     if (totalChars <= 0L) return null
     val startChar = locateSnippetInBody(html, leftmost.textSnippet, leftmost.textBefore) ?: return null
     val rightmostStart = locateSnippetInBody(html, rightmost.textSnippet, rightmost.textBefore) ?: return null
@@ -269,8 +256,8 @@ internal fun computeAdjacentCreateMerge(
         val svgByFile = mutableMapOf<String, String>()
         (draftEmbeddedFigures.orEmpty() + victimFigures).forEach { fig ->
             val key = fig.href?.let(::figureHrefFilename) ?: return@forEach
-            fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytesByFile.putIfAbsent(key, it) }
-            fig.svg?.takeIf { it.isNotBlank() }?.let { svgByFile.putIfAbsent(key, it) }
+            fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytes -> bytesByFile.getOrPut(key) { bytes } }
+            fig.svg?.takeIf { it.isNotBlank() }?.let { svg -> svgByFile.getOrPut(key) { svg } }
         }
         walkedFigures.mapIndexed { i, fig ->
             val key = fig.href?.let(::figureHrefFilename)
@@ -294,7 +281,7 @@ internal fun computeAdjacentCreateMerge(
     )
 }
 
-internal fun computeOverlapMerge(
+fun computeOverlapMerge(
     html: String,
     draftSnippet: String,
     draftTextBefore: String,

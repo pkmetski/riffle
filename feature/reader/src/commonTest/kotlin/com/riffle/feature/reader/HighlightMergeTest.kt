@@ -1,12 +1,12 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertNull
+import kotlin.test.assertNotNull
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Regression tests for auto-merging adjacent highlights (spec: 2026-07-05-highlight-auto-merge-design.md).
@@ -323,11 +323,7 @@ class HighlightMergeTest {
             composedSnippet = "end of first line\nStart of second line",
         )
 
-        assertEquals(
-            "the persisted TextQuote must retain the boundary used by every renderer",
-            "end of first line\nStart of second line",
-            merged,
-        )
+        assertEquals("end of first line\nStart of second line", merged, "the persisted TextQuote must retain the boundary used by every renderer")
     }
 
     @Test
@@ -370,17 +366,14 @@ class HighlightMergeTest {
             textAfter = "The overall complexity of a system",
         )
         val textOnlyMatch = findAdjacency(anchor, neighbor)
-        assertNotNull("text stream still reports adjacency — figure is void", textOnlyMatch)
+        assertNotNull(textOnlyMatch, "text stream still reports adjacency — figure is void")
         val htmlAwareMatch = findAnyMergeableNeighbor(
             anchor,
             listOf(neighbor),
             excludeIds = emptySet(),
             html = html,
         )
-        assertNull(
-            "with html available, a figure in the gap must block the merge",
-            htmlAwareMatch,
-        )
+        assertNull(htmlAwareMatch, "with html available, a figure in the gap must block the merge")
     }
 
     /**
@@ -410,7 +403,7 @@ class HighlightMergeTest {
             excludeIds = emptySet(),
             html = html,
         )
-        assertNotNull("no figure in the gap → merge should still happen", match)
+        assertNotNull(match, "no figure in the gap → merge should still happen")
         assertEquals(MergeSide.CANDIDATE_BEFORE_ANCHOR, match!!.side)
     }
 
@@ -444,7 +437,7 @@ class HighlightMergeTest {
             excludeIds = emptySet(),
             html = html,
         )
-        assertNull("TYPE_IMAGE candidates are not auto-merged, even with html", match)
+        assertNull(match, "TYPE_IMAGE candidates are not auto-merged, even with html")
     }
 
 }

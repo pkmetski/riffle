@@ -240,20 +240,3 @@ fun emphasisStrikeTemplate(): HtmlDecorationTemplate =
             }
         """.trimIndent(),
     )
-
-/** Convert an ARGB color int to a CSS rgba() string for injection into WebView JS. */
-fun @receiver:ColorInt Int.toCssRgba(): String {
-    val a = (this ushr 24 and 0xFF) / 255.0
-    val r = this ushr 16 and 0xFF
-    val g = this ushr 8 and 0xFF
-    val b = this and 0xFF
-    return "rgba($r,$g,$b,${"%.2f".format(Locale.US, a)})"
-}
-
-/** Convert an ARGB color int to a CSS rgba() string, overriding the alpha with [alpha] (0.0–1.0). */
-fun @receiver:ColorInt Int.toCssRgbaWithAlpha(alpha: Double): String {
-    val r = this ushr 16 and 0xFF
-    val g = this ushr 8 and 0xFF
-    val b = this and 0xFF
-    return "rgba($r,$g,$b,${"%.2f".format(Locale.US, alpha)})"
-}

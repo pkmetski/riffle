@@ -1,14 +1,14 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertNull
+import kotlin.test.assertNotNull
+import kotlin.test.assertFalse
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Regression tests for Bug 1 (2026-07-19): overlapping highlight selections must be MERGED into
@@ -143,10 +143,7 @@ class HighlightRangeOverlapTest {
             emphasisPool = emptyList(),
         )
 
-        assertNull(
-            "plain green and green + bold must remain separate annotations",
-            result,
-        )
+        assertNull(result, "plain green and green + bold must remain separate annotations")
     }
 
     @Test
@@ -172,7 +169,7 @@ class HighlightRangeOverlapTest {
             emphasisPool = listOf(boldSibling),
         )
 
-        assertNotNull("green + bold ranges with matching formatting should still merge", result)
+        assertNotNull(result, "green + bold ranges with matching formatting should still merge")
         assertEquals(listOf("bold-green"), result!!.victimIds)
     }
 
@@ -310,10 +307,7 @@ class HighlightRangeOverlapTest {
         // If the pre-fix `start + snippet.length` were used, end would be `start + 25` which
         // extends 1 char past "second" (into " sentence") because the body drops the newline.
         val naiveEnd = start + snippet.length
-        assertTrue(
-            "naive .length end (${naiveEnd}) must overshoot the corrected end (${end})",
-            naiveEnd > end,
-        )
+        assertTrue(naiveEnd > end, "naive .length end (${naiveEnd}) must overshoot the corrected end (${end})")
     }
 
     @Test
@@ -417,10 +411,7 @@ class HighlightRangeOverlapTest {
         )
         assertNotNull(result)
         assertEquals(listOf("neighbor"), result!!.victimIds)
-        assertTrue(
-            "merged snippet must span both halves",
-            result.fields.textSnippet.contains("eight sons.") && result.fields.textSnippet.contains("Apart from that"),
-        )
+        assertTrue(result.fields.textSnippet.contains("eight sons.") && result.fields.textSnippet.contains("Apart from that"), "merged snippet must span both halves")
     }
 
     @Test
@@ -473,10 +464,7 @@ class HighlightRangeOverlapTest {
             emphasisPool = emptyList(),
         )
 
-        assertNull(
-            "plain green and adjacent green + bold must remain separate annotations",
-            result,
-        )
+        assertNull(result, "plain green and adjacent green + bold must remain separate annotations")
     }
 
     @Test
@@ -504,7 +492,7 @@ class HighlightRangeOverlapTest {
             emphasisPool = listOf(emphasisFor(boldExisting, setOf(EmphasisStyle.BOLD))),
         )
 
-        assertNotNull("matching green + bold ranges should still auto-merge", result)
+        assertNotNull(result, "matching green + bold ranges should still auto-merge")
         assertEquals(listOf("bold-green"), result!!.victimIds)
     }
 
@@ -531,17 +519,11 @@ class HighlightRangeOverlapTest {
             draftEmbeddedFigures = null,
             candidates = listOf(existing),
         )
-        assertNotNull("adjacent across a line break must merge at create time", result)
+        assertNotNull(result, "adjacent across a line break must merge at create time")
         assertEquals(listOf("para1"), result!!.victimIds)
         val snippet = result.fields.textSnippet
-        assertTrue(
-            "merged snippet must contain para-1 text",
-            snippet.contains("paragraph one"),
-        )
-        assertTrue(
-            "merged snippet must contain para-2 text",
-            snippet.contains("paragraph two"),
-        )
+        assertTrue(snippet.contains("paragraph one"), "merged snippet must contain para-1 text")
+        assertTrue(snippet.contains("paragraph two"), "merged snippet must contain para-2 text")
         assertEquals(
             "first sentence in paragraph one.\nThe second sentence in paragraph two.",
             snippet,

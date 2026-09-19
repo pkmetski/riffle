@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.HighlightColor
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Locks in the single-source invariant: [HighlightColor.argb] carries the FINAL rendered ARGB
@@ -17,7 +17,7 @@ class HighlightTintTest {
     fun `every palette entry bakes in a single non-full alpha`() {
         for (color in HighlightColor.entries) {
             val a = alpha(color.argb)
-            assertEquals("${color.name} alpha must be baked-in (translucent), got 0x${a.toString(16)}", 0x80, a)
+            assertEquals(0x80, a, "${color.name} alpha must be baked-in (translucent), got 0x${a.toString(16)}")
         }
     }
 }

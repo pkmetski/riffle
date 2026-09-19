@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.HighlightColor
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Android counterpart of the iOS colour-channel tests in
@@ -47,9 +47,9 @@ class HighlightCssRgbaTest {
                 "${color.name} produced malformed css: $css"
             }
             val (r, g, b) = match.destructured
-            assertEquals("${color.name} red channel", color.argb ushr 16 and 0xFF, r.toInt())
-            assertEquals("${color.name} green channel", color.argb ushr 8 and 0xFF, g.toInt())
-            assertEquals("${color.name} blue channel", color.argb and 0xFF, b.toInt())
+            assertEquals(color.argb ushr 16 and 0xFF, r.toInt(), "${color.name} red channel")
+            assertEquals(color.argb ushr 8 and 0xFF, g.toInt(), "${color.name} green channel")
+            assertEquals(color.argb and 0xFF, b.toInt(), "${color.name} blue channel")
         }
     }
 }

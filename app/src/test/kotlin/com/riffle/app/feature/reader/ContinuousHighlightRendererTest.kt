@@ -13,6 +13,8 @@ import org.junit.Test
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.mediatype.MediaType
+import com.riffle.feature.reader.toCssRgba
+import com.riffle.feature.reader.toCssRgbaWithAlpha
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContinuousHighlightRendererTest {

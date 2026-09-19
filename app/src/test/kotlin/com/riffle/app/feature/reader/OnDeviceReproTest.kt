@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.anchorRangeToSnippet
+import com.riffle.feature.reader.findEnclosedFiguresInHtml
 
 class OnDeviceReproTest {
 
