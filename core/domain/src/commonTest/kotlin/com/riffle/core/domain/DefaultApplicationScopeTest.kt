@@ -1,4 +1,4 @@
-package com.riffle.app.di
+package com.riffle.core.domain
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -11,9 +11,9 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultApplicationScopeTest {
@@ -38,7 +38,7 @@ class DefaultApplicationScopeTest {
         viewModelScope.cancel()
 
         advanceUntilIdle()
-        assertTrue("the survivable launch must outlive caller teardown", completed)
+        assertTrue(completed, "the survivable launch must outlive caller teardown")
     }
 
     @Test
@@ -59,7 +59,7 @@ class DefaultApplicationScopeTest {
         callerScope.cancel()
 
         advanceUntilIdle()
-        assertTrue("the survivable work proceeds to completion when the caller cancels", completed)
+        assertTrue(completed, "the survivable work proceeds to completion when the caller cancels")
     }
 
     @Test

@@ -1,23 +1,10 @@
 package com.riffle.shared.library
 
-import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudSidecarDownloads
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
-internal object IosNoOpApplicationScope : ApplicationScope {
-    private val supervisor = SupervisorJob()
-    override val coroutineScope: CoroutineScope = CoroutineScope(supervisor)
-    override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
-        coroutineScope.launch(block = block)
-    override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
-        block(coroutineScope)
-    override fun scopeOn(dispatcher: CoroutineDispatcher): CoroutineScope =
-        CoroutineScope(supervisor + dispatcher)
-}
+// IosNoOpApplicationScope removed (issue #1065): iOS now binds the shared
+// DefaultApplicationScope (core:domain commonMain) — the stub's withSurvivable ran the block
+// inline in the caller's context, so terminal writes were cancelled with the ViewModel.
 
 // IosNoOpAudiobookBookmarkStore / IosNoOpReadaloudLinkRepository removed (issue #1065): iOS now
 // binds the real AudiobookBookmarkStoreImpl/ReadaloudLinkRepositoryImpl (core:data commonMain),

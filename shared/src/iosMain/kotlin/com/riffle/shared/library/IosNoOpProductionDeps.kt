@@ -4,16 +4,11 @@ import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportResult
 import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
-import com.riffle.core.domain.PdfDownloadResult
-import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ReadaloudLink
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.BookImportState
-import com.riffle.feature.library.CoverImageCopier
-import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,15 +21,6 @@ import kotlinx.coroutines.flow.StateFlow
 // #1065): iOS now binds IosAudiobookDownloadRepositoryImpl + IosAudiobookCacheRepositoryImpl
 // (core:data, NSFileManager + the shared AudiobookDownloadManifest), and the commonMain
 // AudiobookChapterCacheRepositoryImpl / LocalAvailabilityEventsImpl.
-
-internal class IosNoOpPdfRepository : PdfRepository {
-    override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): PdfDownloadResult =
-        PdfDownloadResult.AlreadyDownloaded
-    override suspend fun removeDownload(sourceId: String, itemId: String) {}
-    override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
-    override fun isCached(sourceId: String, itemId: String): Boolean = false
-    override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {}
-}
 
 internal class IosNoOpReadaloudAudioRepository : ReadaloudAudioRepository {
     override fun isAudioAvailable(sourceId: String, itemId: String): Boolean = false
@@ -74,13 +60,10 @@ internal class IosNoOpBookImportManager : BookImportManager {
 // IosNoOpEpubTocExtractor removed (issue #1065): iOS now binds IosEpubTocExtractor (shared),
 // backed by a headless Readium Swift publication inspector.
 
-internal object IosNoOpPdfPageCountExtractor : PdfPageCountExtractor {
-    override suspend fun extract(item: LibraryItem): Int? = null
-}
-
 // IosNoOpLocalFileMetadataOverrideSaver removed (issue #1065): iOS now binds
 // SaveLocalFileMetadataOverrideUseCase (core:data commonMain) via Koin.kt.
 
-internal object IosNoOpCoverImageCopier : CoverImageCopier {
-    override suspend fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? = null
-}
+// IosNoOpPdfRepository / IosNoOpPdfPageCountExtractor / IosNoOpCoverImageCopier removed (issue
+// #1065): iOS now binds IosPdfRepositoryImpl (streams the ABS file endpoint into pdf-downloads),
+// IosPdfPageCountExtractor (PDFKit PDFDocument.pageCount, cached through
+// PublicationMetricsRepository) and IosCoverImageCopier (security-scoped read into local-covers).

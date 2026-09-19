@@ -17,6 +17,7 @@ import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
+import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
@@ -70,6 +71,7 @@ import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
+import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EbookCfiTranslatorFactory
@@ -177,22 +179,21 @@ import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
+import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
-import com.riffle.shared.library.IosNoOpApplicationScope
 import com.riffle.shared.library.IosNoOpBookImportManager
 import com.riffle.shared.library.IosNoOpBundleAudiobookSource
-import com.riffle.shared.library.IosNoOpCoverImageCopier
 import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
-import com.riffle.shared.library.IosNoOpPdfPageCountExtractor
-import com.riffle.shared.library.IosNoOpPdfRepository
 import com.riffle.shared.library.IosNoOpReadaloudAudioRepository
 import com.riffle.shared.library.IosNoOpReadaloudHandoff
 import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
 import com.riffle.shared.library.IosNoOpReadaloudSidecarDownloads
 import com.riffle.shared.library.IosNoOpReadaloudSidecarPrefetcher
 import com.riffle.shared.library.IosNoOpReaderSyncFactory
+import com.riffle.shared.library.IosPdfPageCountExtractor
+import com.riffle.shared.library.IosPdfRepositoryImpl
 import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
@@ -203,11 +204,13 @@ import com.riffle.shared.reader.IosEpubTocExtractor
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
-import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
 import com.riffle.shared.settings.IosNoOpLocalFilesFolderHealthChecker
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -492,7 +495,9 @@ private fun iosLibraryModule(
             logger = get(),
         )
     }
-    single<ApplicationScope> { IosNoOpApplicationScope }
+    // Same DefaultApplicationScope Android binds: withSurvivable must run the block ON this
+    // scope (async/await), not inline in the caller, or terminal writes die with the ViewModel.
+    single<ApplicationScope> { DefaultApplicationScope(CoroutineScope(SupervisorJob() + Dispatchers.Default)) }
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
@@ -511,7 +516,7 @@ private fun iosLibraryModule(
     }
     single<CrashReportRepository> { IosNoOpCrashReportRepository }
     single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
-    single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
+    single<AppUpdatePreferencesStore> { IosAppUpdatePreferencesStoreImpl() }
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
     single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }
     single<ReadaloudReviewMutator> { get<ReadaloudReviewRepositoryImpl>() }
@@ -576,7 +581,8 @@ private fun iosLibraryModule(
         IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), sourceRepository = get(), tokenStorage = get(), httpClient = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
-    single<PdfRepository> { IosNoOpPdfRepository() }
+    single { IosPdfRepositoryImpl(get(), get(), get(), get(), get()) }
+    single<PdfRepository> { get<IosPdfRepositoryImpl>() }
     single<ReadaloudAudioRepository> { IosNoOpReadaloudAudioRepository() }
     // Offline audiobooks (ADR 0035), mirroring CoreDataKoinModules' coreDataStreamingAudioModule:
     // one shared track downloader feeds both the explicit user download and the background cache.
@@ -620,7 +626,10 @@ private fun iosLibraryModule(
     single<ReadaloudOfflineDownloader> { IosNoOpReadaloudOfflineDownloader }
     single<DownloadManager> { IosDownloadManagerImpl(get()) }
     single<BookImportManager> { IosNoOpBookImportManager() }
-    single<PdfPageCountExtractor> { IosNoOpPdfPageCountExtractor }
+    single<PdfPageCountExtractor> {
+        val pdfRepository = get<IosPdfRepositoryImpl>()
+        IosPdfPageCountExtractor({ sourceId, itemId -> pdfRepository.localPath(sourceId, itemId) }, get())
+    }
     single<LocalFileMetadataOverrideSaver> {
         val uc = SaveLocalFileMetadataOverrideUseCase(get())
         object : LocalFileMetadataOverrideSaver {
@@ -630,7 +639,7 @@ private fun iosLibraryModule(
             ) = uc(sourceId, sourceItemId, title, author, seriesName, seriesIndex, coverUrl)
         }
     }
-    single<CoverImageCopier> { IosNoOpCoverImageCopier }
+    single<CoverImageCopier> { IosCoverImageCopier(get()) }
     single<WebSourceLibraryItemUpserter> { IosWebSourceLibraryItemUpserterImpl(get()) }
 
     // ViewModel factories — keyed by libraryId (+ sectionType for section screen)

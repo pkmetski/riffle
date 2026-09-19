@@ -1,6 +1,5 @@
 package com.riffle.shared.settings
 
-import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.CrashReportRepository
@@ -24,13 +23,6 @@ internal object IosNoOpAppUpdateRepository : AppUpdateRepository {
     override suspend fun listReleasesSince(sinceVersionCode: Int): List<com.riffle.core.domain.ReleaseInfo> = emptyList()
 }
 
-internal class IosNoOpAppUpdatePreferencesStore : AppUpdatePreferencesStore {
-    override val autoUpdateEnabled: Flow<Boolean> = flowOf(false)
-    override val ignoredVersionCode: Flow<Int> = flowOf(0)
-    override suspend fun setAutoUpdateEnabled(value: Boolean) {}
-    override suspend fun setIgnoredVersionCode(value: Int) {}
-}
-
 // IosNoOpReadaloudReviewRepository removed (issue #1065): iOS now binds
 // ReadaloudReviewRepositoryImpl (core:data commonMain, previously Android-only).
 
@@ -41,3 +33,6 @@ internal class IosNoOpAppUpdatePreferencesStore : AppUpdatePreferencesStore {
 internal object IosNoOpLocalFilesFolderHealthChecker : LocalFilesFolderHealthCheckerInterface {
     override fun healthFor(treeUris: Collection<String>): Map<String, Boolean> = emptyMap()
 }
+
+// IosNoOpAppUpdatePreferencesStore removed (issue #1065): iOS now binds
+// IosAppUpdatePreferencesStoreImpl (NSUserDefaults-backed, replays current value).

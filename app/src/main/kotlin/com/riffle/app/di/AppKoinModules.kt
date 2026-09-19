@@ -73,6 +73,7 @@ import com.riffle.core.domain.SystemTimeProvider
 import com.riffle.core.domain.TimeProvider
 import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.DefaultDispatcherProvider
