@@ -17,11 +17,13 @@ import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
+import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheAccessStoreImpl
+import com.riffle.core.data.IosCrossEpubIndexBuilderService
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
@@ -77,6 +79,7 @@ import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
+import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
@@ -191,12 +194,11 @@ import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
-import com.riffle.shared.library.IosNoOpCrossEpubIndexBuildTrigger
-import com.riffle.shared.library.IosNoOpReadaloudHandoff
-import com.riffle.shared.library.IosNoOpReadaloudOfflineDownloader
 import com.riffle.shared.library.IosNoOpReaderSyncFactory
 import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosPdfRepositoryImpl
+import com.riffle.shared.library.IosReadaloudHandoff
+import com.riffle.shared.library.IosReadaloudOfflineDownloader
 import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
@@ -433,7 +435,8 @@ private fun iosLibraryModule(
     single { ProgressFlushScope(applicationScope = get()) }
     // SyncPositionStore<Double>/<String> are bound in iosDataModule (core:data), backed by the
     // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
-    single<ReadaloudHandoff> { IosNoOpReadaloudHandoff }
+    single { IosReadaloudHandoff() }
+    single<ReadaloudHandoff> { get<IosReadaloudHandoff>() }
     single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
     single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
     single {
@@ -625,7 +628,10 @@ private fun iosLibraryModule(
         )
     }
     single<LocalAvailabilityEvents> { LocalAvailabilityEventsImpl() }
-    single<CrossEpubIndexBuildTrigger> { IosNoOpCrossEpubIndexBuildTrigger }
+    single<CrossEpubIndexStore> { CrossEpubIndexStoreImpl(get()) }
+    single<CrossEpubIndexBuildTrigger> {
+        IosCrossEpubIndexBuilderService(get(), get(), get(), get<Clock>()::nowMs, get())
+    }
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
             SourceType.KOMGA to KomgaCatalogFactory(
@@ -643,7 +649,7 @@ private fun iosLibraryModule(
     single<MarkReadAcrossDimensions> { MarkReadAcrossDimensions(get(), get(), get(), get()) }
     single<AudiobookChapterCacheRepository> { AudiobookChapterCacheRepositoryImpl(get(), get(), get()) }
     single { FetchAudiobookChaptersUseCase(get<AudiobookChapterCacheRepository>()) }
-    single<ReadaloudOfflineDownloader> { IosNoOpReadaloudOfflineDownloader }
+    single<ReadaloudOfflineDownloader> { IosReadaloudOfflineDownloader(get(), get(), get()) }
     single<DownloadManager> { IosDownloadManagerImpl(get()) }
     single<BookImportManager> { BookImportManagerImpl(scope = get<ApplicationScope>().coroutineScope, logger = get()) }
     single<PdfPageCountExtractor> {

@@ -1,11 +1,5 @@
 package com.riffle.core.domain
 
-/** One spine chapter of an EPUB: its manifest href and its (already-extracted) HTML. */
-data class EpubChapterHtml(
-    val href: String,
-    val html: String,
-)
-
 /**
  * Resolves the Storyteller EPUB's SMIL fragment references (`href#id`) to canonical
  * [ChapterProgression]s, so [DefaultPositionTranslator] can bridge audio time to a

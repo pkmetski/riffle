@@ -43,6 +43,8 @@ class CrossEpubIndexService(
     private val loadInputs: suspend (ReadaloudLink) -> CrossEpubBuildInputs?,
     private val store: CrossEpubIndexStore,
     private val clock: () -> Long,
+    // Platform's readable-character counter (EpubTextChars on JVM, IosEpubTextChars on iOS).
+    private val countReadableChars: (String) -> Long,
 ) {
     suspend fun buildOnConfirm(link: ReadaloudLink): CrossEpubIndexBuildOutcome {
         val inputs = loadInputs(link) ?: return CrossEpubIndexBuildOutcome.Deferred
@@ -51,7 +53,7 @@ class CrossEpubIndexService(
         val storytellerChecksum = inputs.storytellerChecksum
         if (store.exists(absChecksum, storytellerChecksum)) return CrossEpubIndexBuildOutcome.AlreadyBuilt
 
-        val index = CrossEpubIndexBuilder.build(inputs.absChaptersHtml, inputs.storytellerChaptersHtml)
+        val index = CrossEpubIndexBuilder.build(inputs.absChaptersHtml, inputs.storytellerChaptersHtml, countReadableChars)
         store.put(absChecksum, storytellerChecksum, CrossEpubIndexSerializer.encode(index), clock())
         return CrossEpubIndexBuildOutcome.Built(absChecksum, storytellerChecksum)
     }

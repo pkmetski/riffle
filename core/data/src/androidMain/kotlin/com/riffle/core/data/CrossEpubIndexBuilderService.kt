@@ -8,6 +8,7 @@ import com.riffle.core.domain.CrossEpubIndexBuildOutcome
 import com.riffle.core.domain.CrossEpubIndexService
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EpubChecksum
+import com.riffle.core.domain.EpubTextChars
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.models.ReadaloudLink
@@ -54,6 +55,7 @@ class CrossEpubIndexBuilderService(
         loadInputs = ::loadInputs,
         store = store,
         clock = clock,
+        countReadableChars = EpubTextChars::countReadableChars,
     )
 
     /** Schedule an idempotent background build for [link]; returns immediately. */

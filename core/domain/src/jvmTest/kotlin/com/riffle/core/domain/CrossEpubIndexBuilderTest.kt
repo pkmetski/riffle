@@ -19,7 +19,7 @@ class CrossEpubIndexBuilderTest {
             "<html><body><span id=\"s1\">Chapter two begins.</span></body></html>",
         )
 
-        val index = CrossEpubIndexBuilder.build(absChapters, storytellerChapters)
+        val index = CrossEpubIndexBuilder.build(absChapters, storytellerChapters, EpubTextChars::countReadableChars)
 
         assertEquals(
             listOf(
