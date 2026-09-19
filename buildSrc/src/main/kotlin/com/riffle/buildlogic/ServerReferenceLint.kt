@@ -68,9 +68,11 @@ object ServerReferenceLint {
         // Data layer: Source repo carries the serverType field; Storyteller +
         // WebDAV internals + reading-session repo pass `serverType` through.
         "core/data/src/androidMain/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadaloudReviewRepositoryImpl.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/ReadaloudMatchingService.kt",
+        // Moved androidMain -> commonMain for iOS parity (issue #1065); same grandfathered
+        // ServerType usage, just a new path.
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/ReadaloudReviewRepositoryImpl.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/ReadaloudMatchingService.kt",
         "core/data/src/commonMain/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
         "core/data/src/androidMain/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
         "core/data/src/androidMain/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",

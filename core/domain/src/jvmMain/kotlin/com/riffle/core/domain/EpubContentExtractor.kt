@@ -7,12 +7,6 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
 
-/** The spine chapters and media-overlay clips extracted from one EPUB. */
-data class ExtractedEpub(
-    val chapters: List<EpubChapterHtml>,
-    val smilClips: List<MediaOverlayClip>,
-)
-
 /**
  * Pure EPUB-bytes → spine chapters (in reading order) + media-overlay [MediaOverlayClip]s,
  * used to build the cross-EPUB index and the Storyteller fragment map (ADR 0023). Walks

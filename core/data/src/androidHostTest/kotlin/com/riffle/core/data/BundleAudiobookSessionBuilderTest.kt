@@ -24,7 +24,7 @@ class BundleAudiobookSessionBuilderTest {
             ),
         )
 
-        val session = buildBundleAudiobookSession(track, bundle)!!
+        val session = buildBundleAudiobookSession(track, bundle.absolutePath)!!
 
         assertEquals(listOf("audio/0.mp3", "audio/1.mp3"), session.trackUrls)
         assertEquals(2, session.tracks.size)
@@ -48,7 +48,7 @@ class BundleAudiobookSessionBuilderTest {
             ),
         )
 
-        val chapters = buildBundleAudiobookSession(track, bundle)!!.timeline.chapters
+        val chapters = buildBundleAudiobookSession(track, bundle.absolutePath)!!.timeline.chapters
 
         assertEquals(2, chapters.size)
         assertEquals(0.0, chapters[0].startSec, 1e-9)
@@ -68,13 +68,13 @@ class BundleAudiobookSessionBuilderTest {
             ),
         )
 
-        val chapters = buildBundleAudiobookSession(track, bundle)!!.timeline.chapters
+        val chapters = buildBundleAudiobookSession(track, bundle.absolutePath)!!.timeline.chapters
 
         assertEquals(65.0, chapters[1].startSec, 1e-9) // 60 (fileStart of audio/1.mp3) + 5 (clipBeginSec)
     }
 
     @Test
     fun `returns null when the track has no clips`() {
-        assertNull(buildBundleAudiobookSession(ReadaloudTrack(emptyList()), bundle))
+        assertNull(buildBundleAudiobookSession(ReadaloudTrack(emptyList()), bundle.absolutePath))
     }
 }

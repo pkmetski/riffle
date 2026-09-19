@@ -37,10 +37,13 @@ kotlin {
             // SingletonWebSourceInstaller (commonMain since the Add-Source picker went shared)
             // logs through the typed Logger channels.
             implementation(project(":core:logging"))
+            // ItemProgressPuller / IosCatalogProgressRemoteFactory (issue #1065) use the
+            // ProgressReconciler primitives (ProgressRemoteFactory, ReconcileLocks) shared with
+            // Android's server-sync wiring.
+            implementation(project(":core:sync"))
         }
         androidMain.dependencies {
             implementation(project(":core:dictionary"))
-            implementation(project(":core:sync"))
             implementation(project(":core:sources"))
             implementation(project(":core:network"))
             implementation(project(":core:database"))
@@ -66,6 +69,11 @@ kotlin {
             implementation(project(":core:database"))
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
+        }
+        iosTest.dependencies {
+            // Ktor's MockEngine is the KMP stand-in for the JVM tests' MockWebServer — it lets the
+            // iOS audiobook download/cache tests drive the real Ktor streaming path (issue #1065).
+            implementation(libs.ktor.client.mock)
         }
         // Shared JVM-only test helpers visible to both jvmTest and androidHostTest.
         // OkHttp/System.getenv prevent these from living in commonTest (iOS target would reject them).

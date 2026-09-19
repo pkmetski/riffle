@@ -40,6 +40,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import com.riffle.feature.library.BookImportManager
+import com.riffle.feature.library.BookImportManagerImpl
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTocTest {
@@ -192,7 +194,7 @@ class LibraryItemDetailViewModelTocTest {
         },
         connectivityObserver = FakeConnectivityObserver(),
         downloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
-        bookImportManager = BookImportManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
+        bookImportManager = BookImportManagerImpl(kotlinx.coroutines.CoroutineScope(testDispatcher)),
         crossEpubIndexBuildTrigger = object : com.riffle.core.data.CrossEpubIndexBuildTrigger {
             override fun enqueueBuild(link: com.riffle.core.models.ReadaloudLink) {}
         },

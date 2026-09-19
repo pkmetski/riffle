@@ -25,6 +25,7 @@ import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.data.AudiobookBundleDownloader
+import com.riffle.core.common.Clock
 import com.riffle.core.data.AudiobookCacheRepositoryImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookDownloadRepositoryImpl
@@ -858,6 +859,7 @@ private val coreDataStreamingAudioModule = module {
             linkDao = get(),
             candidateDao = get(),
             dismissalDao = get(),
+            clock = get<Clock>(),
         )
     }
     single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }
@@ -925,6 +927,7 @@ private val coreDataStreamingAudioModule = module {
         StorytellerBundleAudiobookSource(
             readaloudLinkRepository = readaloudLinkRepository,
             readaloudAudioRepository = readaloudAudioRepository,
+            audioAvailability = readaloudAudioRepository,
             linksByAbsItem = OfflineAvailabilitySnapshot(
                 applicationScope = applicationScope,
                 source = readaloudLinkRepository.observeAll().map(::readaloudLinksByAbsItemKey),
@@ -968,6 +971,7 @@ private val coreDataSyncModule = module {
             readaloudLinkDao = get(),
             readaloudCandidateDao = get(),
             readaloudDismissalDao = get(),
+            clock = get<Clock>(),
             logger = get(),
         )
     }

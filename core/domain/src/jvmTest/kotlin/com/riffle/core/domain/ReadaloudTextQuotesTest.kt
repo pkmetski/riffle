@@ -25,14 +25,14 @@ class ReadaloudTextQuotesTest {
 
     @Test
     fun `highlight is the sentence text even through a nested span`() {
-        val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter)
+        val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter, JvmSentenceSpanReader)
         assertEquals(quotes["id259-s0"]!!.highlight, "LOG ENTRY: SOL 63")
         assertEquals(quotes["id259-s1"]!!.highlight, "I finished making water some time ago.")
     }
 
     @Test
     fun `before and after come from the neighbouring sentences`() {
-        val s2 = ReadaloudTextQuotes.quotesForChapter(martianChapter)["id259-s2"]!!
+        val s2 = ReadaloudTextQuotes.quotesForChapter(martianChapter, JvmSentenceSpanReader)["id259-s2"]!!
         assertEquals(s2.highlight, "The potatoes are growing nicely.")
         assertTrue(s2.before.endsWith("water some time ago."), "before was: ${s2.before}")
         assertTrue(s2.after.startsWith("Things are stable"), "after was: ${s2.after}")
@@ -40,28 +40,28 @@ class ReadaloudTextQuotesTest {
 
     @Test
     fun `first sentence has empty before last has empty after`() {
-        val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter)
+        val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter, JvmSentenceSpanReader)
         assertEquals(quotes["id259-s0"]!!.before, "")
         assertEquals(quotes["id259-s3"]!!.after, "")
     }
 
     @Test
     fun `context prefix and suffix are capped at 30 chars`() {
-        val s2 = ReadaloudTextQuotes.quotesForChapter(martianChapter)["id259-s2"]!!
+        val s2 = ReadaloudTextQuotes.quotesForChapter(martianChapter, JvmSentenceSpanReader)["id259-s2"]!!
         assertTrue(s2.before.length <= 30, "before too long: ${s2.before.length}")
         assertTrue(s2.after.length <= 30, "after too long: ${s2.after.length}")
     }
 
     @Test
     fun `non-sentence spans and structural ids are ignored`() {
-        val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter)
+        val quotes = ReadaloudTextQuotes.quotesForChapter(martianChapter, JvmSentenceSpanReader)
         assertNull(quotes["calibre_pb_1"])
         assertTrue(quotes.keys.all { it.matches(Regex(".*-s\\d+")) })
     }
 
     @Test
     fun `supports the cNNN-sM id scheme too`() {
-        val quotes = ReadaloudTextQuotes.quotesForChapter(phmChapter)
+        val quotes = ReadaloudTextQuotes.quotesForChapter(phmChapter, JvmSentenceSpanReader)
         assertEquals(quotes["c008-s0"]!!.highlight, "By the time we reached Geneva, I'd completely lost track.")
         assertEquals(quotes["c008-s1"]!!.highlight, "The computer models for the Astrophage breeder were promising.")
     }
@@ -75,7 +75,7 @@ class ReadaloudTextQuotesTest {
             EpubChapterHtml(href = "text/part0012_split_001.html", html = martianChapter),
             EpubChapterHtml(href = "OEBPS/xhtml/Weir_9780593135211_epub3_c008_r1.xhtml", html = phmChapter),
         )
-        val all = ReadaloudTextQuotes.build(chapters)
+        val all = ReadaloudTextQuotes.build(chapters, JvmSentenceSpanReader)
         // both books' sentences resolve by bare id, with no href prefix involved
         assertEquals(all["id259-s1"]!!.highlight, "I finished making water some time ago.")
         assertEquals(all["c008-s1"]!!.highlight, "The computer models for the Astrophage breeder were promising.")
@@ -86,7 +86,7 @@ class ReadaloudTextQuotesTest {
     @Test
     fun `entities and punctuation in sentence text are preserved`() {
         val html = "<html><body><p><span id=\"x-s0\">&ldquo;Don&rsquo;t panic,&rdquo; he said&mdash;calmly.</span></p></body></html>"
-        val q = ReadaloudTextQuotes.quotesForChapter(html)["x-s0"]!!
+        val q = ReadaloudTextQuotes.quotesForChapter(html, JvmSentenceSpanReader)["x-s0"]!!
         // curly quotes / em-dash decoded to the same glyphs Readium will search the rendered DOM for
         assertEquals(q.highlight, "“Don’t panic,” he said—calmly.")
     }
@@ -94,7 +94,7 @@ class ReadaloudTextQuotesTest {
     @Test
     fun `blank sentence spans are skipped`() {
         val html = "<html><body><p><span id=\"x-s0\">   </span><span id=\"x-s1\">Real text.</span></p></body></html>"
-        val quotes = ReadaloudTextQuotes.quotesForChapter(html)
+        val quotes = ReadaloudTextQuotes.quotesForChapter(html, JvmSentenceSpanReader)
         assertNull(quotes["x-s0"])
         assertEquals(quotes["x-s1"]!!.highlight, "Real text.")
     }
@@ -107,7 +107,7 @@ class ReadaloudTextQuotesTest {
             EpubChapterHtml(href = "text/part0013.html", html = martianChapter),
             EpubChapterHtml(href = "text/part0021.html", html = phmChapter),
         )
-        val map = ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
+        val map = ReadaloudTextQuotes.sentenceChapterHrefs(chapters, JvmSentenceSpanReader)
         assertEquals(map["id259-s1"], "text/part0013.html")
         assertEquals(map["id259-s3"], "text/part0013.html")
         assertEquals(map["c008-s0"], "text/part0021.html")
@@ -117,7 +117,7 @@ class ReadaloudTextQuotesTest {
 
     @Test
     fun `unparseable or empty chapter contributes nothing never throws`() {
-        assertTrue(ReadaloudTextQuotes.quotesForChapter("").isEmpty())
-        assertTrue(ReadaloudTextQuotes.build(emptyList()).isEmpty())
+        assertTrue(ReadaloudTextQuotes.quotesForChapter("", JvmSentenceSpanReader).isEmpty())
+        assertTrue(ReadaloudTextQuotes.build(emptyList(), JvmSentenceSpanReader).isEmpty())
     }
 }

@@ -40,6 +40,7 @@ class CrossEpubIndexServiceTest {
             loadInputs = { inputs },
             store = store,
             clock = { 5000L },
+            countReadableChars = EpubTextChars::countReadableChars,
         )
 
         val outcome = service.buildOnConfirm(link)
@@ -63,6 +64,7 @@ class CrossEpubIndexServiceTest {
             loadInputs = { null }, // e.g. offline at Confirm time
             store = store,
             clock = { 5000L },
+            countReadableChars = EpubTextChars::countReadableChars,
         )
 
         val outcome = service.buildOnConfirm(link)
@@ -82,6 +84,7 @@ class CrossEpubIndexServiceTest {
             loadInputs = { loadCalls++; inputs },
             store = store,
             clock = { 9999L },
+            countReadableChars = EpubTextChars::countReadableChars,
         )
 
         val outcome = service.buildOnConfirm(link)

@@ -27,8 +27,10 @@ class AudiobookPositionStoreImpl constructor(
         dao.upsert(AudiobookPositionEntity(sourceId, itemId, existing?.positionSec ?: 0.0, stamp, stamp))
     }
 
+    // A soft-deleted (tombstoned) row must never surface as a resume position — see
+    // ReadingPositionStoreImpl.readPayload for the same guard on the ebook side.
     override suspend fun readPayload(sourceId: String, itemId: String): Double? =
-        dao.getByItemId(sourceId, itemId)?.positionSec
+        dao.getByItemId(sourceId, itemId)?.takeIf { !it.deleted }?.positionSec
 
     override suspend fun readUpdatedAt(sourceId: String, itemId: String): Long? =
         dao.getByItemId(sourceId, itemId)?.localUpdatedAt

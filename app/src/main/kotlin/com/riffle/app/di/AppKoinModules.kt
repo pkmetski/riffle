@@ -19,7 +19,7 @@ import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.player.AudiobookReconciliationCoordinator
 import com.riffle.feature.player.AudiobookResumeResolver
 import com.riffle.feature.player.FollowLoopOrchestrator
-import com.riffle.app.feature.library.BookImportManager
+import com.riffle.feature.library.BookImportManagerImpl
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
@@ -69,10 +69,17 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.RandomProvider
 import com.riffle.core.common.SystemClock
 import com.riffle.core.common.SystemRandomProvider
-import com.riffle.core.common.SystemTimeProvider
-import com.riffle.core.common.TimeProvider
+import com.riffle.core.domain.SystemTimeProvider
+import com.riffle.core.domain.TimeProvider
 import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.ReadaloudEpubTextOps
+import com.riffle.core.domain.LocalEpubLocator
+import com.riffle.core.domain.EpubAnalyzer
+import com.riffle.core.domain.JvmReadaloudEpubTextOps
+import com.riffle.core.data.JvmLocalEpubLocator
+import com.riffle.core.data.JvmEpubAnalyzer
+import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.DefaultDispatcherProvider
@@ -314,6 +321,19 @@ val appKoinModule: Module = module {
 
     // ---- Audiobook state --------------------------------------------------------------------
 
+    // ReaderSyncFactory moved to commonMain (issue #1065) and takes these three platform seams by
+    // type, so they are registered rather than constructed inline — the Koin graph verifier checks
+    // constructor parameter types, and a runtime miss here is an InstanceCreationException.
+    single<LocalEpubLocator> {
+        JvmLocalEpubLocator(
+            cacheStore = get(named("epubCacheStore")),
+            downloadsStore = get(named("epubDownloadsStore")),
+            sidecarCache = get(),
+        )
+    }
+    single<EpubAnalyzer> { JvmEpubAnalyzer }
+    single<ReadaloudEpubTextOps> { JvmReadaloudEpubTextOps }
+
     factory {
         ReaderSyncFactory(
             linkRepository = get(),
@@ -321,10 +341,10 @@ val appKoinModule: Module = module {
             catalogRegistry = get(),
             indexStore = get(),
             libraryObserver = get(),
-            cacheStore = get(named("epubCacheStore")),
-            downloadsStore = get(named("epubDownloadsStore")),
+            epubLocator = get(),
+            epubAnalyzer = get(),
+            textOps = get(),
             crossEpubIndexBuildTrigger = get(),
-            sidecarCache = get(),
             clock = get(),
             logger = get(),
         )
@@ -365,7 +385,7 @@ val appKoinModule: Module = module {
     // ---- Download/Import managers -----------------------------------------------------------
 
     single { DownloadManager(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.DownloadManager::class
-    single { BookImportManager(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.BookImportManager::class
+    single { BookImportManagerImpl(scope = get(named("downloadScope"))) } bind com.riffle.feature.library.BookImportManager::class
 
     // ---- AssistedFactory replacements -------------------------------------------------------
 

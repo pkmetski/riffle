@@ -33,6 +33,12 @@ kotlin {
     )
 
     iosArm64 {
+        // The iOS *test* executable links SQLDelight's NativeSqliteDriver (IosKoinGraphTest starts
+        // the real Koin graph, which opens the database). The app's framework gets -lsqlite3 from
+        // Xcode's OTHER_LDFLAGS, but a Kotlin/Native test binary has no Xcode build settings, so
+        // without this it fails to link with "Undefined symbols: _sqlite3_bind_blob…". Scoped to
+        // the test binary so the shipped framework's link graph is untouched.
+        binaries.getTest("DEBUG").linkerOpts("-lsqlite3")
         binaries.framework {
             baseName = "Riffle"
             isStatic = true
@@ -41,6 +47,12 @@ kotlin {
         }
     }
     iosSimulatorArm64 {
+        // The iOS *test* executable links SQLDelight's NativeSqliteDriver (IosKoinGraphTest starts
+        // the real Koin graph, which opens the database). The app's framework gets -lsqlite3 from
+        // Xcode's OTHER_LDFLAGS, but a Kotlin/Native test binary has no Xcode build settings, so
+        // without this it fails to link with "Undefined symbols: _sqlite3_bind_blob…". Scoped to
+        // the test binary so the shipped framework's link graph is untouched.
+        binaries.getTest("DEBUG").linkerOpts("-lsqlite3")
         binaries.framework {
             baseName = "Riffle"
             isStatic = true

@@ -9,6 +9,7 @@ import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.CrossEpubIndex
 import com.riffle.core.domain.DefaultPositionTranslator
+import com.riffle.core.domain.JvmEpubCfiOps
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.WriteResult
 import kotlinx.coroutines.test.runTest
@@ -26,6 +27,7 @@ class AbsProgressPeerTest {
 
     private val absHtml = "<html><body><p>${"x".repeat(100)}</p></body></html>"
     private val translator = DefaultPositionTranslator(
+        cfiOps = JvmEpubCfiOps,
         smilClips = listOf(MediaOverlayClip("f1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0)),
         crossEpubIndex = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
         fragmentProgressions = mapOf("f1" to ChapterProgression(0, 0.2)),

@@ -12,6 +12,8 @@ kotlin {
             api(project(":core:domain"))
             api(project(":core:models"))
             api(project(":core:catalog"))
+            // BookImportManagerImpl logs through the typed Logger channels.
+            implementation(project(":core:logging"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.compose.runtime)  // mutableStateOf in ViewModels
