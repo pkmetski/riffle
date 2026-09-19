@@ -1,9 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertTrue
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class AnnotationsPanelMaxLinesTest {
 
@@ -16,12 +16,12 @@ class AnnotationsPanelMaxLinesTest {
     fun highlightSnippetGetsMoreLinesThanBookmark() {
         val highlight = maxLinesForAnnotationTitle(AnnotationEntity.TYPE_HIGHLIGHT)
         val bookmark = maxLinesForAnnotationTitle(AnnotationEntity.TYPE_BOOKMARK)
-        assertTrue("highlight max ($highlight) must exceed bookmark max ($bookmark)", highlight > bookmark)
+        assertTrue(highlight > bookmark, "highlight max ($highlight) must exceed bookmark max ($bookmark)")
     }
 
     @Test
     fun highlightSnippetStillHasFiniteMax() {
         val max = maxLinesForAnnotationTitle(AnnotationEntity.TYPE_HIGHLIGHT)
-        assertTrue("highlight max should be a sensible cap, was $max", max in 3..20)
+        assertTrue(max in 3..20, "highlight max should be a sensible cap, was $max")
     }
 }
