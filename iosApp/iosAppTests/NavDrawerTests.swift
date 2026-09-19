@@ -1,14 +1,19 @@
 import XCTest
 
-// iOS counterpart to NavigateAsRootTest.kt (app/src/androidTest/kotlin/com/riffle/app/navigation/).
+// iOS counterparts to the Android navigation-drawer suite:
 //
-// NavigateAsRootTest guards two failure modes of the CMP navigation back-stack:
-//   (1) Blank screen: popping the sole root entry leaves an empty NavHost.
-//   (2) Duplicate roots: switching drawer destinations accumulates redundant back-stack entries.
+//   app/src/androidTest/.../navigation/NavigateAsRootTest.kt       (blank screen / duplicate roots)
+//   app/src/test/.../feature/navigation/NavigationDrawerSourceSubtitleTest.kt (host subtitle)
+//   app/src/test/.../feature/navigation/NavigationDrawerViewModelTest.kt      (library listing)
 //
-// These tests verify the same behavioral claims via XCUIApplication on the running iOS app.
-// The app uses Compose Multiplatform with the shared navigateAsRoot / popBackStackIfTop
-// helpers — the same Kotlin code runs on both platforms.
+// Important: iOS does NOT share Android's navigation helpers. Android's MainScreen drives a
+// `NavController` and guards it with `navigateAsRoot` / `popBackStackIfTop` /
+// `shouldInterceptBackForDrawer`, all of which live in `app/src/main/kotlin` and are Android-only.
+// iOS's HomeScreen.kt instead switches on a `rememberSaveable` `AppSection` enum plus a per-library
+// `LibraryNav` state, so the back-stack bug class those helpers guard cannot occur there and their
+// unit tests have nothing to port. What IS portable is the user-visible claim — "back from
+// Settings lands on the library home, never on a blank screen, and never one hop deeper each
+// time" — so these drive iOS's own implementation through XCUIApplication.
 final class NavDrawerTests: AbsHarnessTestCase {
 
     // MARK: - ND-1  Back from Settings returns to library home (blank-screen regression)
@@ -133,5 +138,99 @@ final class NavDrawerTests: AbsHarnessTestCase {
             app.staticTexts["Settings"].exists,
             "Drawer must always list Settings"
         )
+    }
+
+    // MARK: - ND-4  Source switcher header carries the host as its subtitle
+
+    /// Android's `NavigationDrawerSourceSubtitleTest` pins that a credentialed source shows its
+    /// host under the display name so a user with two Audiobookshelf installs can tell them
+    /// apart. iOS builds the same line in `HomeScreen.DrawerSheetContent`; assert it renders the
+    /// stub's real authority rather than an empty or placeholder subtitle.
+    func testDrawerHeaderShowsTheSourceHostBeneathItsName() throws {
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
+        burger.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 10),
+            "Drawer must name the active source"
+        )
+
+        let expectedHost = URL(string: absServer.baseUrl)
+            .flatMap { url -> String? in
+                guard let host = url.host else { return nil }
+                return url.port.map { "\(host):\($0)" } ?? host
+            }
+        let host = try XCTUnwrap(expectedHost, "The stub server must expose a host:port base URL")
+        XCTAssertTrue(
+            app.staticTexts[host].waitForExistence(timeout: 10),
+            "Drawer must show the source host '\(host)' as the switcher subtitle"
+        )
+    }
+
+    // MARK: - ND-5  Source switcher is collapsed until tapped
+
+    /// The switcher starts collapsed — the drawer opens on the library list, not on a source
+    /// picker. Tapping the header expands it, which is what the caret flip encodes.
+    func testSourceSwitcherStartsCollapsedAndExpandsOnTap() throws {
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 10))
+        burger.tap()
+
+        let collapsed = app.staticTexts["▼ Switch source"]
+        XCTAssertTrue(collapsed.waitForExistence(timeout: 10), "Switcher must start collapsed")
+        XCTAssertFalse(app.staticTexts["▲ Switch source"].exists)
+
+        collapsed.tap()
+        XCTAssertTrue(
+            app.staticTexts["▲ Switch source"].waitForExistence(timeout: 10),
+            "Tapping the header must expand the source switcher"
+        )
+    }
+
+    // MARK: - ND-6  Drawer lists every visible library and switching one re-titles the screen
+
+    /// The drawer's library list is the only way to move between an ABS source's libraries.
+    /// The stub serves two; selecting the second must close the drawer and re-title the library
+    /// screen — a silently ignored tap (or a list that only ever renders the active library) is
+    /// the regression this catches.
+    func testDrawerListsBothLibrariesAndSwitchingRetitlesTheScreen() throws {
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 10))
+        burger.tap()
+
+        let secondLibrary = app.staticTexts[StubAbsServer.testLibraryName2]
+        XCTAssertTrue(
+            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 15),
+            "Drawer must list the first library"
+        )
+        XCTAssertTrue(secondLibrary.exists, "Drawer must list every visible library, not just the active one")
+
+        secondLibrary.tap()
+        XCTAssertTrue(
+            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 20),
+            "Selecting a library must re-title the library screen"
+        )
+        XCTAssertTrue(burger.waitForExistence(timeout: 15), "The drawer must close back onto the library screen")
+    }
+
+    // MARK: - ND-7  Downloads is reachable from the drawer
+
+    /// `NavigationDrawerViewModelTest`'s `showDownloadsLink` tests pin that the Downloads
+    /// destination is offered. iOS lists it unconditionally; assert the entry exists and actually
+    /// navigates rather than being a dead row.
+    func testDrawerOffersDownloadsAndItOpens() throws {
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 10))
+        burger.tap()
+
+        let downloads = app.staticTexts["Downloads"]
+        XCTAssertTrue(downloads.waitForExistence(timeout: 10), "Drawer must list Downloads")
+        downloads.tap()
+
+        let back = app.buttons["← Back"].firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 15), "Downloads must open its own screen with a back control")
+        back.tap()
+        XCTAssertTrue(burger.waitForExistence(timeout: 15), "Back from Downloads must return to the library home")
     }
 }

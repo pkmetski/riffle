@@ -62,6 +62,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.label
 import kotlin.math.roundToInt
 
@@ -358,7 +359,7 @@ internal fun AutoThemeControls(
             selected = autoMode,
             onSelect = onAutoModeChange,
         )
-        if (autoMode == AutoReaderThemeMode.Schedule) {
+        if (ReaderSettingsSections.showsScheduleEditor(autoMode)) {
             Spacer(Modifier.height(12.dp))
             ScheduleThemeRow(
                 timeLabel = stringResource(R.string.ui_day_starts_at),

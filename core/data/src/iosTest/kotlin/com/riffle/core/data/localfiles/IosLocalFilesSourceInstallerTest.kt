@@ -245,6 +245,7 @@ class IosLocalFilesSourceInstallerTest {
         override suspend fun deleteLocalFileMetadataOverridesForSource(id: String) = Unit
         override suspend fun deleteRemoteItemFreshnessForSource(id: String) = Unit
         override suspend fun deletePublicationMetricsCacheForSource(id: String) = Unit
+        override suspend fun deleteCoverGridScaleForSource(id: String) = Unit
         override suspend fun deleteLibraryItemsForSource(id: String) = Unit
         override suspend fun deleteLibrariesForSource(id: String) = Unit
         override suspend fun setAbsUserId(id: String, absUserId: String) {

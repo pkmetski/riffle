@@ -61,6 +61,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
+    val publicationInspector = koinInject<IosPublicationInspector>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -111,7 +112,13 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             return@LaunchedEffect
         }
         localPath = path
-        navigator.open(path, savedLocator)
+        // Fallback inbound-sync path (ADR-0013): with no locally-saved locator, a server position
+        // that arrived as a bare `readingProgress` float is all we have. Resolve it through
+        // Readium's locate(progression:) so the book opens where the other device left off
+        // instead of at page one. The primary CFI path, when present, still wins.
+        val openAt = savedLocator
+            ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
+        navigator.open(path, openAt)
         coordinator.start()
     }
 
