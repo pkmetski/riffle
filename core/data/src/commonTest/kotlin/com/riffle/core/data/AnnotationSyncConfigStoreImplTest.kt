@@ -4,11 +4,11 @@ import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.domain.AnnotationSyncConfig
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AnnotationSyncConfigStoreImplTest {
 
@@ -43,14 +43,14 @@ class AnnotationSyncConfigStoreImplTest {
     }
 
     @Test
-    fun `password is written through the encrypted backing store, never plaintext`() = runTest {
+    fun `password is written through the encrypted backing store and never leaks plaintext`() = runTest {
         store.save(AnnotationSyncConfig("https://x", "u", "topsecret"))
 
         // Whatever keys the impl chooses, the password must live behind the encrypted store
         // and never appear in any plaintext side-channel exposed by the store.
         assertTrue(
-            "expected the password to land in the encrypted backing store",
             backing.contents.values.any { it == "topsecret" },
+            "expected the password to land in the encrypted backing store",
         )
         // No plaintext copies anywhere except the encrypted backing store (which the
         // impl in production is Keystore-backed). The fake exposes raw values so this

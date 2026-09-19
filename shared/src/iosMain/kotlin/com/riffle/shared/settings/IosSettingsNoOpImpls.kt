@@ -1,7 +1,5 @@
 package com.riffle.shared.settings
 
-import com.riffle.core.domain.AnnotationSyncConfig
-import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
@@ -13,8 +11,6 @@ import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.models.CrashReport
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 
 internal object IosNoOpCrashReportRepository : CrashReportRepository {
@@ -47,11 +43,9 @@ internal object IosNoOpReadaloudReviewRepository : ReadaloudReviewRepository {
     ): List<com.riffle.core.domain.AbsPickerItem> = emptyList()
 }
 
-internal object IosNoOpAnnotationSyncConfigStore : AnnotationSyncConfigStore {
-    override fun observe(): StateFlow<AnnotationSyncConfig?> = MutableStateFlow(null)
-    override suspend fun save(config: AnnotationSyncConfig) {}
-    override suspend fun clear() {}
-}
+// IosNoOpAnnotationSyncConfigStore removed (issue #1065): iOS now binds
+// AnnotationSyncConfigStoreImpl (core:data commonMain) + IosEncryptedKeyValueStore
+// (Keychain-backed) via Koin.kt.
 
 internal object IosNoOpLocalFilesFolderHealthChecker : LocalFilesFolderHealthCheckerInterface {
     override fun healthFor(treeUris: Collection<String>): Map<String, Boolean> = emptyMap()

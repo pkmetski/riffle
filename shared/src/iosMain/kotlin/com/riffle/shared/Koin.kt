@@ -1,7 +1,10 @@
 package com.riffle.shared
 
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.core.common.EncryptedKeyValueStore
+import com.riffle.core.data.AnnotationSyncConfigStoreImpl
 import com.riffle.core.data.AppearanceCoordinatorImpl
+import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
@@ -194,7 +197,6 @@ import com.riffle.shared.reader.IosNoOpPanelMaskService
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
-import com.riffle.shared.settings.IosNoOpAnnotationSyncConfigStore
 import com.riffle.shared.settings.IosNoOpAppUpdatePreferencesStore
 import com.riffle.shared.settings.IosNoOpAppUpdateRepository
 import com.riffle.shared.settings.IosNoOpCrashReportRepository
@@ -479,7 +481,8 @@ private fun iosLibraryModule(
     single<AppUpdateRepository> { IosNoOpAppUpdateRepository }
     single<AppUpdatePreferencesStore> { IosNoOpAppUpdatePreferencesStore() }
     single<ReadaloudReviewRepository> { IosNoOpReadaloudReviewRepository }
-    single<AnnotationSyncConfigStore> { IosNoOpAnnotationSyncConfigStore }
+    single<EncryptedKeyValueStore> { IosEncryptedKeyValueStore() }
+    single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
     single<LocalFilesScannerInterface> {
         val scanner = get<IosLocalFilesScanner>()
         object : LocalFilesScannerInterface {
