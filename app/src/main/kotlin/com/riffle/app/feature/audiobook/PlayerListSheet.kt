@@ -1,6 +1,6 @@
 package com.riffle.app.feature.audiobook
 
-import com.riffle.app.feature.audio.formatHms
+import com.riffle.feature.player.formatHms
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column

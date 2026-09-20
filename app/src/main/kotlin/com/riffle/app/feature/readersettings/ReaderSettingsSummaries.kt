@@ -12,7 +12,6 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.feature.settings.ReaderSettingsSummaries
-import com.riffle.feature.settings.label
 import kotlin.math.roundToInt
 
 // Only the `localized*` variants live here: they need a Compose composition to read string

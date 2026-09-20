@@ -33,7 +33,7 @@ import com.riffle.app.R
 import com.riffle.app.feature.library.LocalCoverGridScale
 import com.riffle.app.feature.library.OfflineBanner
 import com.riffle.app.feature.library.coverGridMinCellSize
-import com.riffle.app.feature.library.pinchCoverZoom
+import com.riffle.feature.source.ui.pinchCoverZoom
 import com.riffle.app.ui.fadingScrollbar
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -160,7 +160,7 @@ internal fun <T> UnboundedCatalogGrid(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier
-            .pinchCoverZoom(onCoverScaleChange)
+            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
             .fillMaxSize()
             .fadingScrollbar(gridState),
     ) {

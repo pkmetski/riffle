@@ -6,7 +6,6 @@ import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
 import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme

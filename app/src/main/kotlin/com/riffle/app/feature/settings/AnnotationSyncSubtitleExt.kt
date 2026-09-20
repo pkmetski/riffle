@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.feature.settings.AnnotationSyncSubtitle
+import com.riffle.feature.settings.withoutDanglingSeparator
 
 @Composable
 internal fun AnnotationSyncSubtitle.resolve(): String = when (this) {
@@ -23,6 +24,9 @@ internal fun AnnotationSyncSubtitle.resolve(): String = when (this) {
         stringResource(R.string.ui_books_pending_sync_online, count)
     is AnnotationSyncSubtitle.Offline ->
         stringResource(R.string.ui_offline_sync_when_connected)
+    // No bare "Synced" resource exists, so format the identity template with an empty argument
+    // and drop the separator it strands — the same derivation the shared `label()` runs, so the
+    // two platforms cannot disagree about whether an identity-less row ends in " · ".
     is AnnotationSyncSubtitle.Synced ->
-        stringResource(R.string.ui_synced_identity, identity ?: "")
+        stringResource(R.string.ui_synced_identity, identity ?: "").withoutDanglingSeparator()
 }

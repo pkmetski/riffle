@@ -4,6 +4,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.effectiveOrientation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -73,6 +74,34 @@ class ReadiumFormattingMappingTest {
             forcePaginatedInLandscape = true,
         ).toReadiumTextStyling(isLandscape = true)
         assertEquals(1, styling.columnCount)
+    }
+
+    /**
+     * `toReadiumTextStyling` used to inline `if (isLandscape && forcePaginatedInLandscape)
+     * Horizontal else orientation` instead of calling `FormattingPreferences.effectiveOrientation`,
+     * so the reader's column count and every other consumer of the same rule could drift apart
+     * silently. This walks the whole input space and fails the moment the two disagree.
+     */
+    @Test fun columnCountAgreesWithTheSharedEffectiveOrientationForEveryInput() {
+        for (orientation in ReaderOrientation.entries) {
+            for (isLandscape in listOf(false, true)) {
+                for (forcePaginated in listOf(false, true)) {
+                    val prefs = defaults.copy(
+                        orientation = orientation,
+                        forcePaginatedInLandscape = forcePaginated,
+                    )
+                    assertEquals(
+                        readiumColumnCount(
+                            prefs.effectiveOrientation(isLandscape),
+                            isFixedLayout = false,
+                            isDoublePage = false,
+                        ),
+                        prefs.toReadiumTextStyling(isLandscape = isLandscape).columnCount,
+                        "$orientation landscape=$isLandscape forcePaginated=$forcePaginated",
+                    )
+                }
+            }
+        }
     }
 
     @Test fun originalFontLeavesThePublisherTypographyAlone() {

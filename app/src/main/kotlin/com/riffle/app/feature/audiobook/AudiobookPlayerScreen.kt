@@ -48,7 +48,7 @@ import com.riffle.app.R
 import com.riffle.app.feature.audio.PlayerSurface
 import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.audio.PlayerSurfaceState
-import com.riffle.app.feature.audio.formatHms
+import com.riffle.feature.player.formatHms
 import com.riffle.app.feature.reader.CornerBookmarkIndicator
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.feature.player.AudiobookPlayerEvent

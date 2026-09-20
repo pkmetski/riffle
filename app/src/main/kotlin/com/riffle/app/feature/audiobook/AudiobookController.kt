@@ -5,7 +5,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.riffle.app.feature.audio.MediaSessionConnector
-import com.riffle.app.feature.audio.notificationArtistText
+import com.riffle.feature.player.notificationArtistText
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookChapter

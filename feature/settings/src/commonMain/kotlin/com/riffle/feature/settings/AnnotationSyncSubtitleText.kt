@@ -33,5 +33,16 @@ fun AnnotationSyncSubtitle.label(): String = when (this) {
     // R.string.ui_offline_sync_when_connected
     is AnnotationSyncSubtitle.Offline -> "Offline · will sync when connected"
     // R.string.ui_synced_identity
-    is AnnotationSyncSubtitle.Synced -> "Synced · ${identity ?: ""}"
+    is AnnotationSyncSubtitle.Synced -> "Synced · ${identity ?: ""}".withoutDanglingSeparator()
 }
+
+/**
+ * Drops the `·` a `"<word> · %1$s"` template leaves stranded when its argument is empty, so an
+ * identity-less `Synced` reads "Synced" and not "Synced · ".
+ *
+ * Both platforms call this on the same string shape. Android cannot simply skip the template —
+ * the translated word lives in `R.string.ui_synced_identity` and there is no bare "Synced"
+ * resource — so it formats with an empty argument and trims here; the separator is the same `·`
+ * in every locale the app ships, so the trim is locale-independent.
+ */
+fun String.withoutDanglingSeparator(): String = trimEnd().removeSuffix("·").trimEnd()

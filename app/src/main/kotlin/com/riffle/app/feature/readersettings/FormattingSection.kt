@@ -23,7 +23,6 @@ import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.core.domain.ReaderFontFamily
-import java.util.Locale
 
 /**
  * Text + page typography controls. Reused by the in-reader settings sheet (Formatting tab)

@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.ContentCacheArtifact
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheArtifactScanner
@@ -48,7 +49,7 @@ class ContentCacheArtifactScannerImpl constructor(
         root.forSourceDirs { sourceDir ->
             val prefix = sourceDir.absolutePath + File.separator
             sourceDir.walkTopDown()
-                .filter { it.isFile && it.name == "manifest.json" }
+                .filter { it.isFile && it.name == MANIFEST }
                 .mapNotNull { manifest ->
                     val itemDir = manifest.parentFile ?: return@mapNotNull null
                     val relative = itemDir.absolutePath.removePrefix(prefix).takeIf { it.isNotBlank() }

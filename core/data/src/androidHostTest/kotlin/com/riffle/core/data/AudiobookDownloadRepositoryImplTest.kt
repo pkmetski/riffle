@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
@@ -84,7 +85,7 @@ class AudiobookDownloadRepositoryImplTest {
                 AudiobookDownloadManifest.ManifestChapter(1, 100.0, 300.0, "Two"),
             ),
         )
-        File(dir, "manifest.json").writeText(json.encodeToString(manifest))
+        File(dir, MANIFEST).writeText(json.encodeToString(manifest))
     }
 
     @Test
@@ -191,7 +192,7 @@ class AudiobookDownloadRepositoryImplTest {
 
             assertEquals(AudiobookDownloadResult.Success, result)
             assertEquals("audio-bytes", File(root, "srv/it/track-0").readText())
-            assertTrue(File(root, "srv/it/manifest.json").exists())
+            assertTrue(File(root, "srv/it/$MANIFEST").exists())
             assertEquals(11L to 11L, progress.last())
         } finally {
             server.shutdown()

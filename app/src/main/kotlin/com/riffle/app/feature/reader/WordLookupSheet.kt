@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.LanguageCatalogEntry
+import com.riffle.feature.downloads.formatBytes
 import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -156,9 +157,4 @@ private fun DictionaryEntryCard(entry: DictionaryEntry) {
             )
         }
     }
-}
-
-private fun formatBytes(bytes: Long): String {
-    val mb = bytes / (1024.0 * 1024.0)
-    return if (mb >= 1.0) "%.1f MB".format(mb) else "${bytes / 1024} KB"
 }

@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredItemRef
@@ -98,7 +99,7 @@ class IosDownloadsRepositoryTest {
         assertTrue(repo.getDownloadedItems().isEmpty())
         assertTrue(repo.getCachedItems().isEmpty(), "the hidden cache copy must go with the download")
         assertFalse(exists(store, NS_EPUB_CACHE, "src/book.epub"))
-        assertFalse(exists(store, NS_AUDIOBOOK_CACHE, "src/audio/manifest.json"))
+        assertFalse(exists(store, NS_AUDIOBOOK_CACHE, "src/audio/$MANIFEST"))
         assertEquals(listOf("src" to "book", "src" to "audio"), events.notified)
     }
 
@@ -157,7 +158,7 @@ class IosDownloadsRepositoryTest {
         val dir = store.resolve(namespace, "$sourceId/$itemId")
         IosAudiobookFiles.mkdirs(dir)
         IosAudiobookFiles.writeText("$dir/track-0", "track")
-        IosAudiobookFiles.writeText("$dir/manifest.json", "{}")
+        IosAudiobookFiles.writeText("$dir/$MANIFEST", "{}")
     }
 
     private fun exists(store: FileStore, namespace: String, relativePath: String): Boolean =

@@ -129,7 +129,6 @@ import com.riffle.feature.library.AudiobookBookmarkSearchResult
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySortMode
 import com.riffle.feature.library.LibraryTabVisibility
-import com.riffle.feature.library.isTabVisible
 import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
@@ -142,6 +141,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.feature.source.ui.pinchCoverZoom
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
@@ -1429,7 +1429,7 @@ internal fun HomeTabContent(
     LazyColumn(
         state = listState,
         modifier = Modifier
-            .pinchCoverZoom(onCoverScaleChange)
+            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
             .fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
@@ -1513,7 +1513,7 @@ private fun SeriesTabContent(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier
-            .pinchCoverZoom(onCoverScaleChange)
+            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
             .fillMaxSize()
             .fadingScrollbar(gridState),
     ) {
@@ -1557,7 +1557,7 @@ private fun CollectionsTabContent(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier
-            .pinchCoverZoom(onCoverScaleChange)
+            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
             .fillMaxSize()
             .fadingScrollbar(gridState),
     ) {
@@ -1601,7 +1601,7 @@ internal fun ToReadTabContent(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier
-            .pinchCoverZoom(onCoverScaleChange)
+            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
             .fillMaxSize()
             .fadingScrollbar(gridState),
     ) {
@@ -1684,7 +1684,7 @@ private fun AllBooksTabContent(
                 columns = GridCells.Adaptive(coverGridMinCellSize()),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
                 modifier = Modifier
-                    .pinchCoverZoom(onCoverScaleChange)
+                    .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
                     .fillMaxSize()
                     .fadingScrollbar(gridState),
             ) {

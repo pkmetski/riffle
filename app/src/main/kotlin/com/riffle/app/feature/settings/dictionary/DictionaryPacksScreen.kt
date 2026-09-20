@@ -32,6 +32,7 @@ import androidx.core.text.HtmlCompat
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.feature.library.DownloadProgressIndicator
+import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.library.DownloadState
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
@@ -181,9 +182,4 @@ private fun AvailablePackRow(
             }
         },
     )
-}
-
-private fun formatBytes(bytes: Long): String {
-    val mb = bytes / (1024.0 * 1024.0)
-    return if (mb >= 1.0) "%.0f MB".format(mb) else "${bytes / 1024} KB"
 }

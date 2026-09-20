@@ -1,13 +1,12 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.StoredArtifactStore
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredMediaType
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.Foundation.NSDirectoryEnumerator
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSFileSize
 
 /**
  * NSFileManager-backed [StoredArtifactStore]s — the iOS counterpart to the `LocalStore`/`File`
@@ -31,7 +30,7 @@ internal class IosFileArtifactStore(
 
     override fun list(): List<StoredItemArtifact> {
         val root = fileStore.resolve(namespace, "")
-        return enumerateRelativePaths(root)
+        return IosFileEnumeration.relativePathsUnder(root)
             .filter { it.endsWith(extension) && it.contains('/') }
             .map { relative ->
                 StoredItemArtifact(
@@ -42,7 +41,8 @@ internal class IosFileArtifactStore(
             }
     }
 
-    override fun sizeOf(sourceId: String, itemId: String): Long = fileSizeAt(pathFor(sourceId, itemId))
+    override fun sizeOf(sourceId: String, itemId: String): Long =
+        IosFileEnumeration.fileSize(pathFor(sourceId, itemId))
 
     override fun delete(sourceId: String, itemId: String) {
         NSFileManager.defaultManager.removeItemAtPath(pathFor(sourceId, itemId), error = null)
@@ -76,10 +76,10 @@ internal class IosAudiobookArtifactStore(
 
     override fun list(): List<StoredItemArtifact> {
         val root = fileStore.resolve(namespace, "")
-        return enumerateRelativePaths(root)
-            .filter { it.endsWith("/$MANIFEST_NAME") }
+        return IosFileEnumeration.relativePathsUnder(root)
+            .filter { it.endsWith("/$MANIFEST") }
             .mapNotNull { relative ->
-                val itemRelative = relative.removeSuffix("/$MANIFEST_NAME")
+                val itemRelative = relative.removeSuffix("/$MANIFEST")
                 if (!itemRelative.contains('/')) return@mapNotNull null
                 StoredItemArtifact(
                     sourceId = itemRelative.substringBefore('/'),
@@ -107,35 +107,4 @@ internal class IosAudiobookArtifactStore(
 
     private fun itemDir(sourceId: String, itemId: String): String =
         IosAudiobookFiles.itemDir(fileStore.resolve(namespace, ""), sourceId, itemId)
-
-    private companion object {
-        const val MANIFEST_NAME = "manifest.json"
-    }
-}
-
-/** Every path under [root], relative to it, recursively — NSFileManager's `walkTopDown()`. */
-@OptIn(ExperimentalForeignApi::class)
-private fun enumerateRelativePaths(root: String): List<String> {
-    val manager = NSFileManager.defaultManager
-    if (!manager.fileExistsAtPath(root)) return emptyList()
-    val enumerator: NSDirectoryEnumerator = manager.enumeratorAtPath(root) ?: return emptyList()
-    val out = mutableListOf<String>()
-    while (true) {
-        val relative = enumerator.nextObject() as? String ?: break
-        out += relative
-    }
-    return out
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun fileSizeAt(path: String): Long {
-    val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return 0L
-    return when (val size = attributes[NSFileSize]) {
-        is Long -> size
-        is Int -> size.toLong()
-        is ULong -> size.toLong()
-        is UInt -> size.toLong()
-        is Number -> size.toLong()
-        else -> 0L
-    }
 }

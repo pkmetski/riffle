@@ -36,9 +36,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.ComicFormattingPreferences
-import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.asComicBackgroundTheme
-import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.player.PlaybackSpeed
@@ -224,7 +222,7 @@ private fun MainSettingsContent(
         // ── Reading ───────────────────────────────────────────────────────────────────────
         SectionHeader("Reading")
         SettingsDrillInRow("Formatting", ReaderSettingsSummaries.formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
-        SettingsDrillInRow("Display", ReaderSettingsSummaries.displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
+        SettingsDrillInRow("Display", displayRowSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
         // No Auto-scroll / Cadence rows — see the SettingsPanel enum (#1072).
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
@@ -743,6 +741,15 @@ internal fun readaloudSubtitle(
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
 ): String = readaloudRowSummary(storyteller, serverVersions, readaloudSummaries)
 
+/**
+ * Subtitle of the Display drill-in row. The chapter-map segment is dropped because the panel
+ * behind this row has no chapter-map toggle — that overlay does not exist on iOS (#1072), so the
+ * five On-Screen Info switches were deleted from `DisplayPanelContent`. Advertising "map on" above
+ * a panel that cannot change it is the same inert-control defect, one screen up.
+ */
+internal fun displayRowSummary(prefs: FormattingPreferences): String =
+    ReaderSettingsSummaries.displaySummary(prefs, includeChapterMap = false)
+
 // Chip option lists, named so SettingsScreenDerivationsTest can assert they stay enum-backed.
 // A hand-written list of English words is what made every tap on these rows a silent no-op the
 // moment a label changed.
@@ -750,7 +757,6 @@ internal val readerThemeChipOptions: List<ReaderTheme> = ReaderTheme.entries.toL
 internal val readingModeChipOptions: List<ReaderOrientation> = ReaderOrientation.entries.toList()
 internal val fontFamilyChipOptions: List<ReaderFontFamily> = ReaderFontFamily.entries.toList()
 internal val autoThemeModeChipOptions: List<AutoReaderThemeMode> = AutoReaderThemeMode.entries.toList()
-internal val cadenceHighlightChipOptions: List<HighlightColor> = HighlightColor.entries.toList()
 
 /** The comic background-theme chip the stored preference should light up. */
 internal fun comicBackgroundChipSelection(stored: ReaderTheme): ReaderTheme =

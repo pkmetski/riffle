@@ -18,8 +18,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.library.LocalCoverGridScale
-import com.riffle.app.feature.library.MAX_COVER_SCALE
-import com.riffle.app.feature.library.MIN_COVER_SCALE
+import com.riffle.feature.library.CoverGridLayout
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -78,11 +77,11 @@ class UnboundedCatalogGridZoomTest {
         setGridContent(onScaleObserved = {}, onScaleSetter = { updateScale = it })
 
         val defaultColumns = firstVisibleRowCount()
-        rule.runOnIdle { updateScale(MAX_COVER_SCALE) }
+        rule.runOnIdle { updateScale(CoverGridLayout.MAX_COVER_SCALE) }
         rule.waitForIdle()
         val largeCoverColumns = firstVisibleRowCount()
 
-        rule.runOnIdle { updateScale(MIN_COVER_SCALE) }
+        rule.runOnIdle { updateScale(CoverGridLayout.MIN_COVER_SCALE) }
         rule.waitForIdle()
         val smallCoverColumns = firstVisibleRowCount()
 

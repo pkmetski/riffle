@@ -4,6 +4,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.effectiveOrientation
 
 /**
  * The three page themes Readium ships. Both engines take the same three names — Readium-Kotlin as
@@ -56,8 +57,7 @@ fun FormattingPreferences.toReadiumTextStyling(
     isFixedLayout: Boolean = false,
     isDoublePage: Boolean = false,
 ): ReadiumTextStyling {
-    val effectiveOrientation =
-        if (isLandscape && forcePaginatedInLandscape) ReaderOrientation.Horizontal else orientation
+    val effectiveOrientation = effectiveOrientation(isLandscape)
     return ReadiumTextStyling(
         theme = theme.toReadiumThemeName(),
         textColorArgb = if (theme == ReaderTheme.DarkDim) DARK_DIM_TEXT_ARGB else null,

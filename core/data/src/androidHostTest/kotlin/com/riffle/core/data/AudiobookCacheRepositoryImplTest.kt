@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.LocalAvailabilityEvents
@@ -71,7 +72,7 @@ class AudiobookCacheRepositoryImplTest {
                 AudiobookDownloadManifest.ManifestChapter(1, 100.0, 300.0, "Two"),
             ),
         )
-        File(dir, "manifest.json").writeText(json.encodeToString(manifest))
+        File(dir, MANIFEST).writeText(json.encodeToString(manifest))
     }
 
     @Test
@@ -113,7 +114,7 @@ class AudiobookCacheRepositoryImplTest {
             tracks = listOf(AudiobookDownloadManifest.ManifestTrack(0, "track-0", 0.0, 0.0)),
             chapters = emptyList(),
         )
-        File(dir, "manifest.json").writeText(json.encodeToString(liveManifest))
+        File(dir, MANIFEST).writeText(json.encodeToString(liveManifest))
 
         val session = repo(root).localSession("srv", "s:live")
 

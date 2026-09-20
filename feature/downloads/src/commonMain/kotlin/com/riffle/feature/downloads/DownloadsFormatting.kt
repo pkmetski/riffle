@@ -27,6 +27,13 @@ fun formatBytes(bytes: Long): String {
     return if (value >= 100) "${value.roundToLong()} $unit" else "${value.toOneDecimal()} $unit"
 }
 
+/**
+ * [formatBytes], but an unknown size (zero or negative — nothing has reported one yet) renders as
+ * an em dash instead of "0 B". Used where the number is a *forecast*, such as the readaloud
+ * download confirm dialog, and "0 B" would read as "this download is free".
+ */
+fun formatBytesOrUnknown(bytes: Long): String = if (bytes <= 0L) "—" else formatBytes(bytes)
+
 /** `%.1f` without `String.format`: round half-up to a tenth, then print the two halves. */
 private fun Double.toOneDecimal(): String {
     val tenths = (this * 10).roundToInt()

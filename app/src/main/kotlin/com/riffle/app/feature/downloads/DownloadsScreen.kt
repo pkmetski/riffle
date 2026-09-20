@@ -28,14 +28,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.models.LibraryItem
 
 @OptIn(ExperimentalMaterial3Api::class)

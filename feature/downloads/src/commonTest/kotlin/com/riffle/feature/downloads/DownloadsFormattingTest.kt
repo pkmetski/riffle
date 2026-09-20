@@ -44,6 +44,19 @@ class DownloadsFormattingTest {
         assertEquals("2.0 TB", formatBytes(2L * 1024 * 1024 * 1024 * 1024))
     }
 
+    /**
+     * The readaloud download dialog forecasts a size before anything has measured one, and "0 B"
+     * there reads as "this download is free". Its own private `formatBytes` carried that em-dash
+     * case; the rest of that private copy rounded a 5 000 000-byte bundle to "5 MB" while the very
+     * same number rendered "4.8 MB" on the downloads row, so only the sentinel survived the merge.
+     */
+    @Test fun anUnknownSizeRendersAnEmDashRatherThanZeroBytes() {
+        assertEquals("—", formatBytesOrUnknown(0))
+        assertEquals("—", formatBytesOrUnknown(-1))
+        assertEquals("4.8 MB", formatBytesOrUnknown(5_000_000))
+        assertEquals("1.2 GB", formatBytesOrUnknown(1_288_490_189L))
+    }
+
     @Test fun mediaTypeLabelsAreOrderedByDisplayOrderNotSetIteration() {
         // Built audiobook-first on purpose: a LinkedHashSet preserves insertion order, which is
         // exactly what the iOS badge used to render.

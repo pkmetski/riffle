@@ -7,6 +7,7 @@ import com.riffle.feature.settings.AppUpdateStatus
 import com.riffle.feature.settings.AppUpdateUiState
 import com.riffle.feature.settings.PanelOverflowOptions
 import com.riffle.feature.settings.label
+import com.riffle.feature.settings.withoutDanglingSeparator
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -41,6 +42,22 @@ class SharedStringParityTest {
         assertResource("ui_source_http_retry_short", AnnotationSyncSubtitle.HttpError(503).label(), 503)
         assertResource("ui_books_pending_sync_online", AnnotationSyncSubtitle.BooksPendingOffline(3).label(), 3)
         assertResource("ui_synced_identity", AnnotationSyncSubtitle.Synced("me@host").label(), "me@host")
+    }
+
+    /**
+     * `Synced(null)` is the one branch whose Android string is not the raw resource: there is no
+     * bare "Synced" entry, so the Composable formats `ui_synced_identity` with an empty argument
+     * and trims the separator that strands. This asserts the *whole* Android derivation — the
+     * resource plus the trim — still equals the shared one, so the trim cannot be dropped on one
+     * side only and leave iOS reading "Synced" while Android reads "Synced · ".
+     */
+    @Test
+    fun `an identity-less synced row drops the separator on both platforms`() {
+        val androidText = String
+            .format(java.util.Locale.ROOT, strings.getValue("ui_synced_identity"), "")
+            .withoutDanglingSeparator()
+        assertEquals("Synced", androidText)
+        assertEquals(androidText, AnnotationSyncSubtitle.Synced(null).label())
     }
 
     // --- AppUpdateUiState (#1071 §16b) ---

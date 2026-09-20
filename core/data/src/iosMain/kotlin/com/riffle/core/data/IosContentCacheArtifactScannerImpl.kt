@@ -1,16 +1,15 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.ContentCacheArtifact
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheArtifactScanner
 import com.riffle.core.domain.ContentCacheKey
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSDate
-import platform.Foundation.NSDirectoryEnumerator
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileModificationDate
-import platform.Foundation.NSFileSize
 import platform.Foundation.timeIntervalSince1970
 
 /**
@@ -41,7 +40,7 @@ class IosContentCacheArtifactScannerImpl(private val fileStore: FileStore) : Con
         kind: ContentCacheArtifactKind,
     ): List<ContentCacheArtifact> {
         val root = fileStore.resolve(namespace, "")
-        return relativePathsUnder(root)
+        return IosFileEnumeration.relativePathsUnder(root)
             .filter { it.endsWith(extension) && it.contains('/') }
             .map { relative ->
                 val path = "$root/$relative"
@@ -52,7 +51,7 @@ class IosContentCacheArtifactScannerImpl(private val fileStore: FileStore) : Con
                         kind = kind,
                     ),
                     path = path,
-                    sizeBytes = fileSize(path),
+                    sizeBytes = IosFileEnumeration.fileSize(path),
                     evidenceLastModifiedAtMs = modifiedAtMs(path)?.takeIf { it > 0L },
                 )
             }
@@ -60,14 +59,14 @@ class IosContentCacheArtifactScannerImpl(private val fileStore: FileStore) : Con
 
     private fun audiobookArtifacts(namespace: String): List<ContentCacheArtifact> {
         val root = fileStore.resolve(namespace, "")
-        return relativePathsUnder(root)
-            .filter { it.endsWith("/$MANIFEST_NAME") }
+        return IosFileEnumeration.relativePathsUnder(root)
+            .filter { it.endsWith("/$MANIFEST") }
             .mapNotNull { relative ->
-                val itemRelative = relative.removeSuffix("/$MANIFEST_NAME")
+                val itemRelative = relative.removeSuffix("/$MANIFEST")
                 if (!itemRelative.contains('/')) return@mapNotNull null
                 val itemDir = "$root/$itemRelative"
                 var newestMs = 0L
-                relativePathsUnder(itemDir).forEach { child ->
+                IosFileEnumeration.relativePathsUnder(itemDir).forEach { child ->
                     val childModified = modifiedAtMs("$itemDir/$child") ?: 0L
                     if (childModified > newestMs) newestMs = childModified
                 }
@@ -84,36 +83,9 @@ class IosContentCacheArtifactScannerImpl(private val fileStore: FileStore) : Con
             }
     }
 
-    private fun relativePathsUnder(root: String): List<String> {
-        val manager = NSFileManager.defaultManager
-        if (!manager.fileExistsAtPath(root)) return emptyList()
-        val enumerator: NSDirectoryEnumerator = manager.enumeratorAtPath(root) ?: return emptyList()
-        val out = mutableListOf<String>()
-        while (true) {
-            out += enumerator.nextObject() as? String ?: break
-        }
-        return out
-    }
-
-    private fun fileSize(path: String): Long {
-        val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return 0L
-        return when (val size = attributes[NSFileSize]) {
-            is Long -> size
-            is Int -> size.toLong()
-            is ULong -> size.toLong()
-            is UInt -> size.toLong()
-            is Number -> size.toLong()
-            else -> 0L
-        }
-    }
-
     private fun modifiedAtMs(path: String): Long? {
         val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return null
         val date = attributes[NSFileModificationDate] as? NSDate ?: return null
         return (date.timeIntervalSince1970 * 1000.0).toLong()
-    }
-
-    private companion object {
-        const val MANIFEST_NAME = "manifest.json"
     }
 }

@@ -43,6 +43,7 @@ kotlin {
             implementation(project(":core:data"))
             implementation(project(":core:sources"))
             implementation(project(":core:sync"))
+            implementation(project(":feature:library"))
             implementation(project(":feature:settings"))
             api(project(":feature:source"))
             implementation(libs.kotlinx.coroutines.core)

@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
@@ -41,8 +42,6 @@ class DownloadsRepositoryImpl(
     localAvailabilityEvents = localAvailabilityEvents,
 )
 
-private const val AUDIOBOOK_MANIFEST_NAME = "manifest.json"
-
 /** Adapts a file-per-item [LocalStore] (epub/pdf/cbz) to the shared [StoredArtifactStore] seam. */
 private class LocalStoreArtifactStore(
     private val store: LocalStore,
@@ -73,7 +72,7 @@ private class AudiobookDirectoryArtifactStore(private val root: File) : StoredAr
             ?.flatMap { sourceDir ->
                 val prefix = sourceDir.absolutePath + File.separator
                 sourceDir.walkTopDown()
-                    .filter { it.isFile && it.name == AUDIOBOOK_MANIFEST_NAME }
+                    .filter { it.isFile && it.name == MANIFEST }
                     .map { manifest ->
                         val itemDir = requireNotNull(manifest.parentFile) { "manifest without parent: $manifest" }
                         StoredItemArtifact(

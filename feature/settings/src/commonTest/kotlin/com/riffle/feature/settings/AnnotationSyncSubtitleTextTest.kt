@@ -62,7 +62,19 @@ class AnnotationSyncSubtitleTextTest {
         assertEquals("Synced · me@host", AnnotationSyncSubtitle.Synced("me@host").label())
     }
 
+    /**
+     * There is no identity to name, so there is nothing for the separator to separate. This used
+     * to assert `"Synced · "` — the trailing bullet Android's `stringResource(ui_synced_identity,
+     * identity ?: "")` produces — on the grounds that iOS should match Android exactly. Matching
+     * a formatting wart is not parity, it is two platforms sharing a defect, so both sides now
+     * drop the stranded separator via [withoutDanglingSeparator].
+     */
     @Test fun syncedWithoutAnIdentityStillReadsAsSynced() {
-        assertEquals("Synced · ", AnnotationSyncSubtitle.Synced(null).label())
+        assertEquals("Synced", AnnotationSyncSubtitle.Synced(null).label())
+    }
+
+    @Test fun aDanglingSeparatorIsOnlyDroppedWhenTheArgumentWasEmpty() {
+        assertEquals("Synced · me@host", "Synced · me@host".withoutDanglingSeparator())
+        assertEquals("Синхронизирано", "Синхронизирано · ".withoutDanglingSeparator())
     }
 }

@@ -1,12 +1,10 @@
 package com.riffle.shared.settings
 
-import com.riffle.core.domain.AutoReaderThemeMode
-import com.riffle.core.domain.ReaderFontFamily
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.PanelOverflowBehavior
-import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
@@ -109,18 +107,22 @@ class SettingsScreenDerivationsTest {
         }
     }
 
+    // --- Display row summary (#1071 §15, chapter-map segment) ---
+
     /**
-     * Every other chip row draws its options straight from the enum, so the stored value is a
-     * member by construction and no rename can desync the two. These assertions are the tripwire
-     * against someone reintroducing a hand-written `listOf("Light", "Dark", …)`: a literal list
-     * would not be a `List<ReaderTheme>` and would not survive the comparison.
+     * The Display panel has no chapter-map toggle on iOS — the whole On-Screen Info section was
+     * removed because the overlays it configures do not exist here (#1072). The summary row above
+     * it kept composing `"… · map on"` from the Android default, advertising a control the panel
+     * cannot change. Restore `includeChapterMap = true` at the call site and both assertions fail.
      */
-    @Test fun enumBackedChipRowsOfferEveryValueOfTheirEnum() {
-        assertEquals(ReaderTheme.entries.toList(), readerThemeChipOptions)
-        assertEquals(ReaderOrientation.entries.toList(), readingModeChipOptions)
-        assertEquals(ReaderFontFamily.entries.toList(), fontFamilyChipOptions)
-        assertEquals(AutoReaderThemeMode.entries.toList(), autoThemeModeChipOptions)
-        assertEquals(HighlightColor.entries.toList(), cadenceHighlightChipOptions)
+    @Test fun displayRowSummaryOmitsTheChapterMapSegment() {
+        val prefs = FormattingPreferences(
+            theme = ReaderTheme.Light,
+            orientation = ReaderOrientation.Horizontal,
+            showChapterMap = true,
+        )
+        assertEquals("Light · Paginated", displayRowSummary(prefs))
+        assertEquals("Light · Paginated", displayRowSummary(prefs.copy(showChapterMap = false)))
     }
 
     @Test fun panelOverflowChipsCoverEveryBehaviour() {
