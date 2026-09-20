@@ -9,7 +9,7 @@ Riffle is split into a **pure-Kotlin core** (KMP-candidate) and **Android-hostin
 These modules expose shared `commonMain` code and compile for JVM, Android where applicable, and
 all supported iOS targets. Modules marked **[guarded]** are actively scanned by
 `checkNoAndroidImports` on every CI push. Platform-specific KMP source sets may use their native
-APIs; `commonMain` may not (see ADR 0049).
+APIs; `commonMain` may not (see ADR 0059).
 
 | Module | Role | CI guard |
 |---|---|---|
@@ -30,8 +30,9 @@ APIs; `commonMain` may not (see ADR 0049).
 
 ### Feature modules
 
-Each targets `jvm() + iosArm64 + iosSimulatorArm64`, so their `commonMain` serves both hosts and
-their `commonTest` runs on JVM **and** the iOS simulator. New feature logic belongs here, not in
+All but one target `jvm() + iosArm64 + iosSimulatorArm64`, so their `commonMain` serves both
+hosts and their `commonTest` runs on JVM **and** the iOS simulator. `feature:source-ui` is the
+exception — see its row. New feature logic belongs here, not in
 `app` — code that lands in `app` is Android-only by construction and becomes a parity gap.
 
 | Module | Role |

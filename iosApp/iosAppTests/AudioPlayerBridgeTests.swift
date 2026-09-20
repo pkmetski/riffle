@@ -168,6 +168,61 @@ final class AudioPlayerBridgeTests: XCTestCase {
         XCTAssertEqual(bridge.remainingQueuedItemCount, 3, "swapping the current track would restart it")
     }
 
+    /// The queue must stay a CONTIGUOUS run starting at the current track, because
+    /// `currentTrackIndexInt()` reads `queueBaseIndex + slot` and nothing else.
+    ///
+    /// Replacing from `current + 2` used to rebuild the queue as `[current, from, from+1, …]`
+    /// while still claiming the base was `current` — so slot 1 reported track `current + 1` while
+    /// actually holding track `from`, and the track in between was dropped from the queue and
+    /// silently skipped. That is the same corruption class as §P0.2, one layer up.
+    func testReplaceTracksFurtherAheadKeepsTheQueueContiguousAndKeepsTheSkippedTrack() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+
+        // Leave tracks 0 and 1 alone; replace only track 2.
+        bridge.replaceTracksFrom(fromIndex: 2, trackUrls: [trackUrls[0].absoluteString])
+
+        XCTAssertEqual(
+            bridge.queuedTrackIndices,
+            [0, 1, 2],
+            "every track from the playhead on must be queued, in order, under its own index"
+        )
+        XCTAssertEqual(
+            bridge.remainingQueuedItemCount,
+            3,
+            "track 1 was not being replaced and must not be dropped from the queue"
+        )
+        XCTAssertEqual(bridge.currentTrackIndex(), 0, "the playing track must not be replaced")
+        XCTAssertEqual(
+            bridge.currentTrackUrls,
+            [trackUrls[0].absoluteString, trackUrls[1].absoluteString, trackUrls[0].absoluteString],
+            "only the tail from `fromIndex` is spliced"
+        )
+    }
+
+    func testReplaceTracksBeyondTheEndOfTheTrackListIsIgnoredRatherThanTrapping() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+
+        bridge.replaceTracksFrom(fromIndex: 99, trackUrls: [trackUrls[0].absoluteString])
+
+        XCTAssertEqual(bridge.currentTrackUrls, trackUrlStrings, "nothing to splice onto")
+        XCTAssertEqual(bridge.queuedTrackIndices, [0, 1, 2])
+    }
+
+    func testReplaceTracksAtTheEndAppendsAndStaysContiguous() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+
+        bridge.replaceTracksFrom(fromIndex: 3, trackUrls: [trackUrls[0].absoluteString])
+
+        XCTAssertEqual(bridge.currentTrackUrls.count, 4, "fromIndex == count is an append")
+        XCTAssertEqual(bridge.queuedTrackIndices, [0, 1, 2, 3])
+    }
+
     // MARK: - Helpers
 
     private final class PositionRecorder: NSObject, IosPositionCallback {

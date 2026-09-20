@@ -17,6 +17,7 @@ import platform.Foundation.NSUUID
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -97,6 +98,69 @@ class IosCrashAndUpdateTest {
         repo.clearAllCrashReports()
 
         assertEquals(emptyList(), repo.listCrashReports())
+    }
+
+    // ── The unhandled-exception hook body ─────────────────────────────────────
+    //
+    // In Kotlin/Native an installed hook REPLACES terminateWithUnhandledException, so a hook
+    // that records and returns normally turns a crash into a log line and leaves the app
+    // running in a corrupt state. These pin that the default processing always runs.
+
+    @Test
+    fun `with no prior hook the crash still terminates the process`() {
+        var terminated: Throwable? = null
+
+        onUnhandled(
+            throwable = IllegalStateException("boom"),
+            record = {},
+            chain = null,
+            terminate = { terminated = it },
+        )
+
+        assertEquals("boom", terminated?.message, "recording a crash must not downgrade it to a log line")
+    }
+
+    @Test
+    fun `a prior hook is chained instead of terminating directly`() {
+        var chained: Throwable? = null
+        var terminated = false
+
+        onUnhandled(
+            throwable = IllegalStateException("boom"),
+            record = {},
+            chain = { chained = it },
+            terminate = { terminated = true },
+        )
+
+        assertEquals("boom", chained?.message)
+        assertFalse(terminated, "the prior hook owns termination once it has been handed the throwable")
+    }
+
+    @Test
+    fun `a failure while recording does not stop the crash from being processed`() {
+        var terminated = false
+
+        onUnhandled(
+            throwable = IllegalStateException("boom"),
+            record = { throw RuntimeException("disk full") },
+            chain = null,
+            terminate = { terminated = true },
+        )
+
+        assertTrue(terminated, "recording is best-effort; termination is not")
+    }
+
+    @Test
+    fun `the report carries the type and message and cause chain`() {
+        val report = IosCrashReportRecorder.report(
+            throwable = IllegalStateException("outer", IllegalArgumentException("inner")),
+            timestampMillis = 1_700_000_000_000L,
+        )
+
+        assertTrue(report.contains("timestamp: 1700000000000"))
+        assertTrue(report.contains("type: IllegalStateException"))
+        assertTrue(report.contains("message: outer"))
+        assertTrue(report.contains("Caused by: IllegalArgumentException: inner"))
     }
 
     // ── Update check ──────────────────────────────────────────────────────────

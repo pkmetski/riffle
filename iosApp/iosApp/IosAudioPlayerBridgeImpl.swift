@@ -154,19 +154,28 @@ import UIKit
         let current = currentTrackIndexInt()
         // Never touch the track under the playhead — replacing it would restart it audibly.
         guard from > current, !newUrls.isEmpty else { return }
+        // `from == trackUrls.count` is an append; beyond that there is nothing to splice onto and
+        // `replaceSubrange` would trap.
+        guard from <= trackUrls.count else { return }
         guard let currentItem = player.currentItem else { return }
 
         // Splice the new URLs into the master list so later index lookups stay correct.
-        if from <= trackUrls.count {
-            trackUrls.replaceSubrange(from..<trackUrls.count, with: newUrls)
-        }
+        trackUrls.replaceSubrange(from..<trackUrls.count, with: newUrls)
 
         for queued in player.items().dropFirst() {
             player.remove(queued)
         }
+        // `queuedItems` must stay CONTIGUOUS from `queueBaseIndex`, because that is the only thing
+        // `currentTrackIndexInt()` knows: it reads `queueBaseIndex + <slot>`. So the rebuild covers
+        // every track from the playhead onward, not just the ones being replaced. Rebuilding only
+        // `from...` while leaving the base at `current` claimed that slot 1 was track `current + 1`
+        // when it actually held track `from` — so for any `from > current + 1` every position
+        // reported after the next boundary was short by `from - current - 1` tracks, and the
+        // untouched tracks in between were dropped from the queue and silently skipped.
         var rebuilt: [AVPlayerItem] = [currentItem]
-        for index in from..<trackUrls.count {
-            guard let item = makeItem(at: index) else { continue }
+        for index in (current + 1)..<trackUrls.count {
+            // Stop rather than skip: a hole would shift every later slot and corrupt the index.
+            guard let item = makeItem(at: index) else { break }
             player.insert(item, after: nil)
             rebuilt.append(item)
         }
@@ -272,6 +281,14 @@ import UIKit
     /// semantics this bridge's index tracking is built around.
     @objc var remainingQueuedItemCount: Int { player?.items().count ?? 0 }
 
+    /// Test seam: the track index this bridge believes each queue slot holds. Must always be a
+    /// contiguous run starting at the current track — that invariant is the whole basis of
+    /// `currentTrackIndexInt()`, and `replaceTracksFrom` used to break it.
+    @objc var queuedTrackIndices: [Int] { queuedItems.indices.map { queueBaseIndex + $0 } }
+
+    /// Test seam: the master track list, after any `replaceTracksFrom` splices.
+    @objc var currentTrackUrls: [String] { trackUrls }
+
     // MARK: - Private helpers
 
     /// Resolves the current track by *object identity* against the items this bridge queued.
@@ -302,7 +319,10 @@ import UIKit
         let start = min(max(index, 0), max(trackUrls.count - 1, 0))
         var items: [AVPlayerItem] = []
         for idx in start..<trackUrls.count {
-            if let item = makeItem(at: idx) { items.append(item) }
+            // Stop rather than skip — see replaceTracksFrom: a hole breaks the contiguity that
+            // `currentTrackIndexInt()` relies on.
+            guard let item = makeItem(at: idx) else { break }
+            items.append(item)
         }
         guard !items.isEmpty else { return }
 
