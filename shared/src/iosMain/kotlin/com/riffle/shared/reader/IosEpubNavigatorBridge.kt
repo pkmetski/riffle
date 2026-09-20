@@ -64,32 +64,8 @@ interface IosEpubNavigatorBridge {
      * again whenever preferences change while a book is open. Thread-safe — the Swift
      * implementation dispatches to the main actor internally.
      *
-     * @param fontSizePercent Scale factor relative to the EPUB's default font size (1.0 = 100%).
-     * @param scrollMode True for vertical scroll (Readium "scroll" preference), false for paginated columns.
-     * @param theme One of: "light", "dark", "sepia". "dim" maps to "dark" (Readium has no Dim variant).
-     * @param fontFamilyCss CSS font-family string, or empty string to keep the publisher's font.
-     * @param lineHeightMultiplier CSS line-height multiplier (e.g. 1.2). 0.0 means use Readium default.
-     * @param pageMargins Margin scale factor (1.0 = default). Maps to Readium pageMargins preference.
-     * @param justifyText True to apply `text-align: justify`.
-     * @param textColorArgb Body text colour as ARGB, or 0 to leave it to the theme. Non-zero only
-     *   for DarkDim, whose muted body colour is what distinguishes it from Dark.
-     * @param publisherStyles False to let Riffle's typography win over the publisher's stylesheet,
-     *   which is what makes line-height and text-align take effect at all.
-     * @param columnCount Column count to pin, or 0 for Readium's default. Android pins 1 because
-     *   Readium 3.3.0's two-column default mispositions decorations.
      */
-    fun applyReaderPreferences(
-        fontSizePercent: Float,
-        scrollMode: Boolean,
-        theme: String,
-        fontFamilyCss: String,
-        lineHeightMultiplier: Float,
-        pageMargins: Double,
-        justifyText: Boolean,
-        textColorArgb: Long,
-        publisherStyles: Boolean,
-        columnCount: Int,
-    )
+    fun applyReaderPreferences(preferences: IosReaderPreferences)
 
     /**
      * Returns the table of contents of the open publication serialised as a JSON array.
@@ -114,3 +90,30 @@ interface IosEpubNavigatorBridge {
 interface IosEpubNavigatorBridgeFactory {
     fun create(): IosEpubNavigatorBridge
 }
+
+/**
+ * Everything Readium needs to render a page the way the user's preferences say.
+ *
+ * One object rather than ten positional parameters: the set grows every time the shared
+ * `ReadiumTextStyling` mapping learns something new, and a ten-argument Obj-C selector is both
+ * unreadable at the call site and easy to mis-order silently.
+ */
+data class IosReaderPreferences(
+    val fontSizePercent: Float,
+    val scrollMode: Boolean,
+    /** Readium theme name: "light", "dark" or "sepia". */
+    val theme: String,
+    /** CSS font-family, or empty to keep the publisher's font. */
+    val fontFamilyCss: String,
+    /** CSS line-height multiplier; 0.0 means Readium's default. */
+    val lineHeightMultiplier: Float,
+    /** Margin scale factor; 1.0 is Readium's default. */
+    val pageMargins: Double,
+    val justifyText: Boolean,
+    /** Body text colour as ARGB, or 0 to leave it to the theme. Non-zero only for DarkDim. */
+    val textColorArgb: Long,
+    /** False lets Riffle's typography win over the publisher's stylesheet. */
+    val publisherStyles: Boolean,
+    /** Columns to pin, or 0 for Readium's default. Android pins 1 (Readium 3.3.0 decorations). */
+    val columnCount: Int,
+)

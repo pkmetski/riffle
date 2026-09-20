@@ -170,51 +170,44 @@ import ReadiumNavigator
         }
     }
 
-    func applyReaderPreferences(
-        fontSizePercent: Float,
-        scrollMode: Bool,
-        theme: String,
-        fontFamilyCss: String,
-        lineHeightMultiplier: Float,
-        pageMargins: Double,
-        justifyText: Bool,
-        textColorArgb: Int64,
-        publisherStyles: Bool,
-        columnCount: Int32
-    ) {
+    func applyReaderPreferences(preferences: IosReaderPreferences) {
         // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
         // This switch is a Readium-Swift type adapter only — move any string-value logic there.
-        let resolvedTheme: Theme? = switch theme {
+        let resolvedTheme: Theme? = switch preferences.theme {
         case "dark": .dark
         case "sepia": .sepia
         default: .light
         }
 
         var fontFamily: FontFamily? = nil
-        if !fontFamilyCss.isEmpty {
-            fontFamily = FontFamily(rawValue: fontFamilyCss)
+        if !preferences.fontFamilyCss.isEmpty {
+            fontFamily = FontFamily(rawValue: preferences.fontFamilyCss)
         }
 
-        let textAlign: TextAlignment? = justifyText ? .justify : nil
-        let lineHeight: Double? = lineHeightMultiplier > 0 ? Double(lineHeightMultiplier) : nil
+        let textAlign: TextAlignment? = preferences.justifyText ? .justify : nil
+        let lineHeight: Double? = preferences.lineHeightMultiplier > 0 ? Double(preferences.lineHeightMultiplier) : nil
 
         // 0 means "leave it to the theme". Non-zero only for DarkDim, whose muted body colour is
         // the only thing distinguishing it from Dark — without this it renders as plain Dark.
-        let textColor: ReadiumNavigator.Color? = textColorArgb != 0
-            ? ReadiumNavigator.Color(uiColor: UIColor(argb: textColorArgb))
+        let textColor: ReadiumNavigator.Color? = preferences.textColorArgb != 0
+            ? ReadiumNavigator.Color(uiColor: UIColor(argb: preferences.textColorArgb))
             : nil
-        // 0 means "Readium's default". Android pins 1 because Readium 3.3.0's two-column default
-        // mispositions decorations.
-        let columns: Int? = columnCount > 0 ? Int(columnCount) : nil
+        // 0 means "Readium's default". Android pins one column because Readium 3.3.0's
+        // two-column default mispositions decorations.
+        let columns: ColumnCount? = switch preferences.columnCount {
+        case 1: .one
+        case 2: .two
+        default: nil
+        }
 
         let prefs = EPUBPreferences(
             columnCount: columns,
             fontFamily: fontFamily,
-            fontSize: Double(fontSizePercent),
+            fontSize: Double(preferences.fontSizePercent),
             lineHeight: lineHeight,
-            pageMargins: pageMargins > 0 ? pageMargins : nil,
-            publisherStyles: publisherStyles,
-            scroll: scrollMode,
+            pageMargins: preferences.pageMargins > 0 ? preferences.pageMargins : nil,
+            publisherStyles: preferences.publisherStyles,
+            scroll: preferences.scrollMode,
             textAlign: textAlign,
             textColor: textColor,
             theme: resolvedTheme

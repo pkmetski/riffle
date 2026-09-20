@@ -179,16 +179,18 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         columnCount: Int,
     ) {
         bridge.applyReaderPreferences(
-            fontSizePercent = fontSizePercent,
-            scrollMode = scrollMode,
-            theme = theme,
-            fontFamilyCss = fontFamilyCss,
-            lineHeightMultiplier = lineHeightMultiplier,
-            pageMargins = pageMargins,
-            justifyText = justifyText,
-            textColorArgb = textColorArgb,
-            publisherStyles = publisherStyles,
-            columnCount = columnCount,
+            IosReaderPreferences(
+                fontSizePercent = fontSizePercent,
+                scrollMode = scrollMode,
+                theme = theme,
+                fontFamilyCss = fontFamilyCss,
+                lineHeightMultiplier = lineHeightMultiplier,
+                pageMargins = pageMargins,
+                justifyText = justifyText,
+                textColorArgb = textColorArgb,
+                publisherStyles = publisherStyles,
+                columnCount = columnCount,
+            ),
         )
     }
 
