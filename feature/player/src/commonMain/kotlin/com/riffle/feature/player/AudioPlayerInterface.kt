@@ -48,6 +48,17 @@ interface AudioPlayerInterface {
     fun play()
     fun pause()
     fun setSpeed(speed: Float)
+
+    /**
+     * Tells the OS transport controls — iOS's lock screen / Control Centre / CarPlay, Android's
+     * media notification — which skip intervals to advertise and apply.
+     *
+     * Pushed by [followSkipIntervals] on every change, not once at setup: both platforms configure
+     * their transport when the session starts, so a preference edited mid-book would otherwise
+     * never reach it.
+     */
+    fun setSkipIntervals(intervals: SkipIntervals)
+
     fun setSleepTimer(mode: SleepTimerMode)
     fun cancelSleepTimer()
 

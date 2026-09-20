@@ -1,8 +1,13 @@
 package com.riffle.shared.audiobook
 
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.models.AudiobookTrackSpan
+import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.player.SleepTimerMode
+import com.riffle.feature.player.followSkipIntervals
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -72,6 +77,12 @@ class IosAudioPlayerControllerTest {
         }
 
         override fun setSpeed(speed: Float) = Unit
+
+        val skipIntervals = mutableListOf<SkipIntervals>()
+        override fun setSkipIntervals(intervals: SkipIntervals) {
+            skipIntervals += intervals
+        }
+
         override fun currentTrackIndex(): Int = reportedTrackIndex
         override fun currentTrackOffsetSec(): Double = reportedOffsetSec
         override fun currentTrackBufferedSec(): Double = bufferedAheadSec
@@ -337,5 +348,69 @@ class IosAudioPlayerControllerTest {
         val controller = prepared(bridge)
         controller.stop()
         assertEquals(1, bridge.disposeCalls)
+    }
+
+    // ── §15: the Listening skip/rewind intervals reach the lock screen ───────────
+
+    @Test
+    fun theConfiguredSkipIntervalsAreHandedToTheBridge() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        controller.setSkipIntervals(SkipIntervals(forwardSec = 45, backwardSec = 20))
+        assertEquals(
+            listOf(SkipIntervals(forwardSec = 45, backwardSec = 20)),
+            bridge.skipIntervals,
+            "the controller must forward the intervals to the Swift command-centre wrapper",
+        )
+    }
+
+    /**
+     * The whole iOS chain the shared ViewModel drives: stored preference → [followSkipIntervals]
+     * → [IosAudioPlayerController] → the bridge that owns `MPRemoteCommandCenter`. Before #1071 the
+     * chain did not exist and the lock screen was permanently on 30 s / 15 s.
+     */
+    @Test
+    fun aMidBookPreferenceChangeReachesTheBridge() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        val store = FakeListeningPreferencesStore(skip = 45, rewind = 20)
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            controller.followSkipIntervals(store)
+        }
+        store.setSkipIntervalSeconds(10)
+
+        assertEquals(
+            listOf(
+                SkipIntervals(forwardSec = 45, backwardSec = 20),
+                SkipIntervals(forwardSec = 10, backwardSec = 20),
+            ),
+            bridge.skipIntervals,
+        )
+        job.cancel()
+    }
+
+    private class FakeListeningPreferencesStore(skip: Int, rewind: Int) : ListeningPreferencesStore {
+        override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
+        override val skipIntervalSeconds = MutableStateFlow(skip)
+        override val rewindIntervalSeconds = MutableStateFlow(rewind)
+        override val rewindOnResumeSeconds =
+            MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
+
+        override suspend fun setDefaultPlaybackSpeed(speed: Float) {
+            defaultPlaybackSpeed.value = speed
+        }
+
+        override suspend fun setSkipIntervalSeconds(seconds: Int) {
+            skipIntervalSeconds.value = seconds
+        }
+
+        override suspend fun setRewindIntervalSeconds(seconds: Int) {
+            rewindIntervalSeconds.value = seconds
+        }
+
+        override suspend fun setRewindOnResumeSeconds(seconds: Int) {
+            rewindOnResumeSeconds.value = seconds
+        }
     }
 }

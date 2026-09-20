@@ -6,6 +6,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.riffle.app.feature.audio.MediaSessionConnector
 import com.riffle.feature.player.notificationArtistText
+import com.riffle.app.feature.reader.readaloud.AudioPlayerService
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookChapter
@@ -19,6 +20,7 @@ import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.feature.player.AudioPlayerInterface
 import com.riffle.feature.player.NowPlayingMetadataKey
+import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.player.SleepTimerMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -96,6 +98,7 @@ open class AudiobookController constructor(
     private var lastNowPlayingKey: NowPlayingMetadataKey = NowPlayingMetadataKey.NONE
 
     private val pendingSeek = PendingSeekGate()
+    private var skipIntervals: SkipIntervals = SkipIntervals.DEFAULT
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -207,6 +210,25 @@ open class AudiobookController constructor(
     override fun setSpeed(speed: Float) {
         controller?.setPlaybackSpeed(speed)
         pushState()
+    }
+
+    /**
+     * Forwards the configured intervals to [AudioPlayerService], which owns the media notification
+     * and lock-screen transport. Retained so the push survives a not-yet-connected binder — the
+     * ViewModel pushes as soon as it is created, which is normally before [ensureConnected] lands.
+     */
+    override fun setSkipIntervals(intervals: SkipIntervals) {
+        skipIntervals = intervals
+        pushSkipIntervals()
+    }
+
+    private fun pushSkipIntervals() {
+        val c = controller ?: return
+        if (!c.isSessionCommandAvailable(AudioPlayerService.CMD_SET_SKIP_INTERVALS)) return
+        c.sendCustomCommand(
+            AudioPlayerService.CMD_SET_SKIP_INTERVALS,
+            AudioPlayerService.skipIntervalsArgs(skipIntervals),
+        )
     }
 
     override fun setSleepTimer(mode: SleepTimerMode) {
@@ -363,6 +385,9 @@ open class AudiobookController constructor(
     private suspend fun ensureConnected(): MediaController? {
         val c = connector?.ensureConnected() ?: return null
         connector.attachListener(listener)
+        // The ViewModel pushes the Listening intervals before the binder exists; re-send now so the
+        // notification's ⟲ / ⟳ buttons are not left on the defaults for this session.
+        pushSkipIntervals()
         pushState()
         return c
     }

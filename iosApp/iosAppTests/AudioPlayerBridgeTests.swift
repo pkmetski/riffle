@@ -1,4 +1,5 @@
 import AVFoundation
+import MediaPlayer
 import Riffle
 import XCTest
 
@@ -221,6 +222,45 @@ final class AudioPlayerBridgeTests: XCTestCase {
 
         XCTAssertEqual(bridge.currentTrackUrls.count, 4, "fromIndex == count is an append")
         XCTAssertEqual(bridge.queuedTrackIndices, [0, 1, 2, 3])
+    }
+
+    // MARK: - §15: the Listening skip/rewind intervals drive the lock screen
+
+    /// `preferredIntervals` is what the lock screen / Control Centre draw inside the ⟲ / ⟳ glyphs
+    /// and what the system hands back as `MPSkipIntervalCommandEvent.interval`, which the bridge
+    /// forwards verbatim. Setting it is therefore the whole of honouring the preference — and it
+    /// used to be hardcoded to `[30]` / `[15]`.
+    func testRemoteSkipCommandsAdvertiseTheConfiguredIntervals() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+
+        bridge.setSkipIntervals(intervals: SkipIntervals(forwardSec: 45, backwardSec: 20))
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+
+        let center = MPRemoteCommandCenter.shared()
+        XCTAssertEqual(center.skipForwardCommand.preferredIntervals, [45])
+        XCTAssertEqual(center.skipBackwardCommand.preferredIntervals, [20])
+    }
+
+    /// The command centre is configured once, inside `preparePlayer`. A preference edited while the
+    /// book is open has to reach it too, so `setSkipIntervals` must republish rather than only seed
+    /// the value setup reads.
+    func testChangingTheIntervalsAfterSetupUpdatesTheCommandCentre() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+
+        let center = MPRemoteCommandCenter.shared()
+        XCTAssertEqual(
+            center.skipForwardCommand.preferredIntervals,
+            [NSNumber(value: SkipIntervals.companion.DEFAULT.forwardSec)],
+            "an unconfigured session starts on the shared default"
+        )
+
+        bridge.setSkipIntervals(intervals: SkipIntervals(forwardSec: 10, backwardSec: 5))
+
+        XCTAssertEqual(center.skipForwardCommand.preferredIntervals, [10])
+        XCTAssertEqual(center.skipBackwardCommand.preferredIntervals, [5])
     }
 
     // MARK: - Helpers

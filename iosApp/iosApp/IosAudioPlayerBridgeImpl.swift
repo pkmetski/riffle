@@ -34,6 +34,10 @@ import UIKit
 
     private var isDisposed = false
     private var pendingRate: Float = 1.0
+    /// The jump the lock-screen / Control Centre skip buttons advertise. Held here rather than read
+    /// once in `setupRemoteCommands()`, because the command centre is configured when the session
+    /// starts and the user can change the preference at any time afterwards.
+    private var skipIntervals: SkipIntervals = SkipIntervals.companion.DEFAULT
     private var endOfBookCallback: (any IosEndOfBookCallback)?
     // Tracks the most recently requested cover URL so stale fetch completions are discarded.
     private var currentArtworkUrl: String?
@@ -114,6 +118,12 @@ import UIKit
         // already consumed and `advanceToNextItem()` always starts the next item at 0, so the only
         // correct move is to rebuild the queue from the target track and seek within it.
         loadQueue(fromIndex: target, offsetSec: offset, resumePlaying: player.rate > 0)
+    }
+
+    func setSkipIntervals(intervals: SkipIntervals) {
+        guard !isDisposed else { return }
+        skipIntervals = intervals
+        applySkipIntervals()
     }
 
     func setSpeed(speed: Float) {
@@ -389,13 +399,12 @@ import UIKit
             self?.remoteCommandCallback?.onSeekAbsolute(positionSec: event.positionTime)
             return .success
         }
-        center.skipForwardCommand.preferredIntervals = [30]
+        applySkipIntervals()
         center.skipForwardCommand.addTarget { [weak self] event in
             guard let self, let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
             self.remoteCommandCallback?.onSkip(deltaSec: event.interval)
             return .success
         }
-        center.skipBackwardCommand.preferredIntervals = [15]
         center.skipBackwardCommand.addTarget { [weak self] event in
             guard let self, let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
             self.remoteCommandCallback?.onSkip(deltaSec: -event.interval)
@@ -413,6 +422,16 @@ import UIKit
             self?.remoteCommandCallback?.onTrackDelta(delta: -1)
             return .success
         }
+    }
+
+    /// Publishes the current intervals to the command centre. `preferredIntervals` is what the
+    /// lock screen draws inside the ⟲ / ⟳ glyphs *and* what the system sends back as
+    /// `MPSkipIntervalCommandEvent.interval`, so setting it is the whole of honouring the
+    /// preference — the command handlers already forward `event.interval` verbatim.
+    private func applySkipIntervals() {
+        let center = MPRemoteCommandCenter.shared()
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skipIntervals.forwardSec)]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipIntervals.backwardSec)]
     }
 
     private func removeRemoteCommands() {

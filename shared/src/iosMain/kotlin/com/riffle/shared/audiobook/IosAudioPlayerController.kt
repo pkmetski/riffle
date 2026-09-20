@@ -6,6 +6,7 @@ import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.models.AudiobookTracks
 import com.riffle.feature.player.AudioPlayerInterface
 import com.riffle.feature.player.NowPlayingMetadataKey
+import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.player.SleepTimerMode
 import com.riffle.feature.player.notificationArtistText
 import kotlinx.coroutines.CoroutineDispatcher
@@ -143,6 +144,10 @@ class IosAudioPlayerController(
         // the "stop playing in N minutes" intent); play() deliberately does not.
         cancelSleepTimerInternal()
         bridge.pause()
+    }
+
+    override fun setSkipIntervals(intervals: SkipIntervals) {
+        bridge.setSkipIntervals(intervals)
     }
 
     override fun setSpeed(speed: Float) {

@@ -1,5 +1,7 @@
 package com.riffle.shared.audiobook
 
+import com.riffle.feature.player.SkipIntervals
+
 /**
  * Obj-C-compatible seam between iosMain and the Swift-side AVQueuePlayer wrapper.
  *
@@ -45,6 +47,17 @@ interface IosAudioPlayerBridge {
     fun seekToTrack(trackIndex: Int, offsetSec: Double)
 
     fun setSpeed(speed: Float)
+
+    /**
+     * Sets the jump the lock-screen / Control Centre / CarPlay skip buttons advertise and perform,
+     * from the user's Listening preferences.
+     *
+     * Must apply immediately *and* be remembered: `MPRemoteCommandCenter` is configured when the
+     * session starts, so an implementation that only reads the intervals at setup leaves the
+     * lock screen stuck on whatever was stored when the book was opened. Safe to call before
+     * [preparePlayer].
+     */
+    fun setSkipIntervals(intervals: SkipIntervals)
 
     /** Index of the track being played right now; 0 before [preparePlayer]. */
     fun currentTrackIndex(): Int
