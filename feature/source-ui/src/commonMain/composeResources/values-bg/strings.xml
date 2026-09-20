@@ -98,4 +98,16 @@
     <string name="ui_auto_clear_after_days">Автоматично изчистване след %1$d дни</string>
     <string name="ui_auto_clear_off">Автоматичното изчистване е изключено</string>
     <string name="ui_after_days">След %1$d дни</string>
+    <string name="ui_open_menu">Отворете менюто</string>
+    <string name="ui_search">Търсене</string>
+    <string name="ui_clear_search">Изчистете търсенето</string>
+    <string name="ui_all">Всички</string>
+    <string name="ui_any">Всякакви</string>
+    <string name="ui_not_started">Не е започнато</string>
+    <string name="ui_unowned">Непритежаван</string>
+    <string name="ui_language_filter">Език: %1$s</string>
+    <string name="ui_country_filter">Държава: %1$s</string>
+    <string name="ui_no_results">Няма резултати</string>
+    <string name="ui_no_items_in_this_library">Няма елементи в тази библиотека</string>
+    <string name="ui_offline_showing_cached_data">Офлайн — показват се кеширани данни</string>
 </resources>

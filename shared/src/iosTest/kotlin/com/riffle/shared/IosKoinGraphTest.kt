@@ -31,7 +31,10 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.ProgressSweep
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.sync.SyncSourceResolver
+import com.riffle.shared.source.unboundedBrowseSourceTypes
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubTocExtractor
@@ -40,6 +43,9 @@ import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
 import com.riffle.feature.source.ui.ProgressSyncTrigger
+import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
+import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.shared.audiobook.IosAudioPlayerBridge
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.reader.IosEpubNavigatorBridge
@@ -49,6 +55,7 @@ import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin
+import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform
 import kotlin.test.AfterTest
@@ -177,6 +184,68 @@ class IosKoinGraphTest {
         assertTrue(abs is AbsCommonCatalogFactory)
         // Komga must keep working alongside it.
         assertNotNull(factories[SourceType.KOMGA])
+    }
+
+    /**
+     * #1071 §17 — the unbounded catalogues had no `CatalogFactory`, so nothing could browse them.
+     *
+     * `UnboundedBrowseViewModel.refreshOnce` starts with `catalogRegistry.forSource(it) ?: return`,
+     * so a missing factory makes every browse, search and facet call a silent no-op: the grid
+     * renders its empty state forever and no error is ever surfaced. The browse screen and the
+     * Koin factories were added together; a registry entry without a ViewModel (or the reverse)
+     * puts the user right back in an empty library, which is why both halves are asserted.
+     *
+     * Deleting any of the three `SourceType.X to XCatalogFactory(...)` lines in `Koin.kt` turns
+     * this red.
+     */
+    @Test
+    fun `the production graph can browse every unbounded catalogue it offers to install`() {
+        startKoin(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+        )
+        val koin = KoinPlatform.getKoin()
+        val factories = koin.get<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType"))
+
+        unboundedBrowseSourceTypes().forEach { type ->
+            val factory = factories[type]
+            assertNotNull(factory, "no CatalogFactory for $type — its browse grid can only ever be empty")
+            assertEquals(type, factory.sourceType)
+        }
+
+        // …and the ViewModel each browse screen resolves, plus the ADR-0052 gate it opens items
+        // through. `WebSourceItemGate` moved out of `core:data`'s androidMain for this; without a
+        // binding the browse screen would throw on first composition instead of rendering.
+        assertNotNull(koin.get<WebSourceItemGate>())
+        assertNotNull(koin.get<ChitankaBrowseViewModel> { parametersOf("books") })
+        assertNotNull(koin.get<GutenbergBrowseViewModel> { parametersOf("books") })
+        assertNotNull(koin.get<RadioEsBrowseViewModel> { parametersOf("podcasts") })
+    }
+
+    /**
+     * The rootId the drawer selected has to survive the hop into the ViewModel.
+     *
+     * Android passes it as the `libraryId` nav-route arg; iOS packs it into a `SavedStateHandle`
+     * in `browseSavedStateHandle`. If the two ever disagree about the key,
+     * `UnboundedBrowseViewModel` silently falls back to its `defaultRootId` and Chitanka's
+     * gramofonche library renders the ebook catalogue instead — no error, just the wrong books.
+     */
+    @Test
+    fun `the browse view model browses the library the drawer selected`() {
+        startKoin(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+        )
+        val koin = KoinPlatform.getKoin()
+
+        val audiobooks = koin.get<ChitankaBrowseViewModel> { parametersOf(ChitankaCatalog.ROOT_AUDIOBOOKS) }
+        assertEquals(ChitankaCatalog.ROOT_AUDIOBOOKS, audiobooks.rootId)
+        val books = koin.get<ChitankaBrowseViewModel> { parametersOf(ChitankaCatalog.ROOT_BOOKS) }
+        assertEquals(ChitankaCatalog.ROOT_BOOKS, books.rootId)
     }
 
     /**

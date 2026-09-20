@@ -5,7 +5,10 @@ import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
+import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
+import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
+import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
@@ -64,7 +67,9 @@ import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
+import com.riffle.core.data.websource.RemoteItemFreshness
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.LibraryItemDao
@@ -203,6 +208,10 @@ import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
+import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
+import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudioPlayerController
@@ -776,6 +785,23 @@ private fun iosLibraryModule(
                 tokenStorage = get(),
                 userAgent = "Riffle/dev (iOS) komga-source",
             ),
+            // The three zero-config unbounded catalogues. Without a factory here
+            // `CatalogRegistry.forSource` returns null for them and every browse call no-ops, so
+            // installing one landed the user in a permanently empty library with no error
+            // (#1071 §17). All three catalogues are `commonMain` — Chitanka's scraper moved off
+            // jsoup onto ksoup for exactly this.
+            SourceType.CHITANKA to ChitankaCatalogFactory(
+                httpClient = get(),
+                userAgent = "Riffle/dev (iOS) chitanka-source",
+            ),
+            SourceType.GUTENBERG to GutenbergCatalogFactory(
+                sharedHttpClient = get(),
+                userAgent = "Riffle/dev (iOS) gutenberg-source",
+            ),
+            SourceType.RADIO_ES to RadioEsCatalogFactory(
+                httpClient = get(),
+                userAgent = "Riffle/dev (iOS) radio-es-source",
+            ),
         )
     }
     single<CatalogRegistry> {
@@ -804,6 +830,62 @@ private fun iosLibraryModule(
     }
     single<CoverImageCopier> { IosCoverImageCopier(get()) }
     single<WebSourceLibraryItemUpserter> { IosWebSourceLibraryItemUpserterImpl(get()) }
+
+    // ADR-0052 web-source item cache. Android binds the same pair in CoreDataKoinModules; iOS had
+    // neither, because nothing on iOS could browse an unbounded catalogue to reach them.
+    factory { RemoteItemFreshness(dao = get(), clock = get()) }
+    factory {
+        WebSourceItemGate(
+            libraryObserver = get(),
+            freshness = get(),
+            upserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            logger = get(),
+        )
+    }
+
+    // Browse ViewModels for the unbounded catalogues. They live in `feature:source-ui`'s
+    // commonMain, so these are the same classes Android's KoinViewModelModules constructs — the
+    // `libraryId` param is the Catalog rootId, handed over through SavedStateHandle exactly as
+    // Android's nav route arg does.
+    factory { params ->
+        ChitankaBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+        )
+    }
+    factory { params ->
+        GutenbergBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+        )
+    }
+    factory { params ->
+        RadioEsBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+        )
+    }
 
     // ViewModel factories — keyed by libraryId (+ sectionType for section screen)
     factory { params ->
@@ -910,6 +992,17 @@ private fun iosLibraryModule(
         )
     }
 }
+
+/**
+ * The [SavedStateHandle] an unbounded browse ViewModel reads its Catalog rootId from.
+ *
+ * `UnboundedBrowseViewModel` takes the rootId as the `libraryId` route arg because Android's nav
+ * graph puts it there; iOS has no nav library, so the library the drawer selected is packed into
+ * an equivalent handle here. Keyed on the same string on both platforms so a change to one host's
+ * key cannot silently leave the other browsing the default root.
+ */
+private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
+    SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
 
 fun startKoin(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,

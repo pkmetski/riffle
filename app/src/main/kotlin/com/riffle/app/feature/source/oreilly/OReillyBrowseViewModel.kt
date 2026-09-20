@@ -1,7 +1,7 @@
 package com.riffle.app.feature.source.oreilly
 
 import androidx.lifecycle.SavedStateHandle
-import com.riffle.app.feature.source.websource.UnboundedBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.data.websource.WebSourceItemGate

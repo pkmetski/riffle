@@ -133,8 +133,13 @@ tasks.register("checkRiffleInfraSeams") {
             "core/domain/src/iosMain/kotlin/com/riffle/core/domain/IosDispatcherProvider.kt",
             // Catalog adapters: network/parse work pinned to Dispatchers.IO.
             // GutenbergCatalog and KomgaCatalog no longer use Dispatchers directly (replaced with
-            // measureTimedValue + KMP-safe APIs during KMP migration #944).
-            "core/catalog-chitanka/src/jvmMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaCatalog.kt",
+            // measureTimedValue + KMP-safe APIs during KMP migration #944). ChitankaCatalog moved
+            // jvmMain → commonMain and now goes through the `chitankaIoDispatcher` expect/actual;
+            // these two actuals are the leaves that name a platform dispatcher, exactly like
+            // IosDispatcherProvider above. Kotlin/Native keeps `Dispatchers.IO` internal, so the
+            // seam cannot be avoided here.
+            "core/catalog-chitanka/src/jvmMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaDispatchers.jvm.kt",
+            "core/catalog-chitanka/src/iosMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaDispatchers.ios.kt",
             // core:data — file I/O, connectivity callbacks, sync timestamps.
             // Developer options PAT store wraps EncryptedSharedPreferences (blocking disk I/O).
             "core/data/src/androidMain/kotlin/com/riffle/core/data/developer/DeveloperOptionsRepositoryImpl.kt",

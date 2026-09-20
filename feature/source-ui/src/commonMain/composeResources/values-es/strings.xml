@@ -98,4 +98,16 @@
     <string name="ui_auto_clear_after_days">Borrado automático tras %1$d días</string>
     <string name="ui_auto_clear_off">Borrado automático desactivado</string>
     <string name="ui_after_days">Tras %1$d días</string>
+    <string name="ui_open_menu">Abrir menú</string>
+    <string name="ui_search">Buscar</string>
+    <string name="ui_clear_search">Borrar búsqueda</string>
+    <string name="ui_all">Todo</string>
+    <string name="ui_any">Cualquiera</string>
+    <string name="ui_not_started">No iniciado</string>
+    <string name="ui_unowned">Sin propietario</string>
+    <string name="ui_language_filter">Idioma: %1$s</string>
+    <string name="ui_country_filter">País: %1$s</string>
+    <string name="ui_no_results">Sin resultados</string>
+    <string name="ui_no_items_in_this_library">No hay elementos en esta biblioteca</string>
+    <string name="ui_offline_showing_cached_data">Sin conexión — mostrando datos en caché</string>
 </resources>

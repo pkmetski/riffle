@@ -35,6 +35,7 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.source.ui.localizedSourceDisplayName
@@ -47,6 +48,8 @@ import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.shared.settings.SettingsScreen
 import com.riffle.shared.source.SourceOnboardingHost
+import com.riffle.shared.source.UnboundedBrowseScreen
+import com.riffle.shared.source.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -162,6 +165,7 @@ fun HomeScreen() {
                             if (activeLibraryId == null) activeLibraryId = dest.libraryId
                         }
                         LibraryHost(
+                            sourceType = dest.sourceType,
                             libraryId = dest.libraryId,
                             libraryName = dest.libraryName,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -287,6 +291,7 @@ private fun DrawerSheetContent(
 
 @Composable
 private fun LibraryHost(
+    sourceType: SourceType?,
     libraryId: String,
     libraryName: String,
     onOpenDrawer: () -> Unit,
@@ -294,32 +299,48 @@ private fun LibraryHost(
     var nav by rememberSaveable { mutableStateOf<LibraryNav>(LibraryNav.Items) }
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
+    val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
 
     when (val current = nav) {
-        is LibraryNav.Items -> LibraryItemsScreen(
-            libraryId = libraryId,
-            libraryName = libraryName,
-            onOpenDrawer = onOpenDrawer,
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
-            onAnnotatedBookSelected = { sourceId, itemId ->
-                nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
-            },
-            onSeriesSelected = { series ->
-                nav = LibraryNav.SeriesDetail(
-                    seriesId = series.id,
-                    seriesLibraryId = series.libraryId,
-                    seriesName = series.name,
-                )
-            },
-            onCollectionSelected = { collection ->
-                nav = LibraryNav.CollectionDetail(
-                    collectionId = collection.id,
-                    collectionLibraryId = collection.libraryId,
-                    collectionName = collection.name,
-                )
-            },
-            onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
-        )
+        // Unbounded catalogues have no `library_items` mirror to render (ADR 0051), so they get
+        // the browse surface instead of the Room-backed library screen — the same fork Android's
+        // `NavRoutes.libraryEntryRoute` makes off `SourceType.isUnboundedCatalog`. Without it the
+        // iOS host rendered `LibraryItemsScreen` for every library and Chitanka / Gutenberg /
+        // radio.es showed a permanently empty one (#1071 §17).
+        is LibraryNav.Items -> if (unboundedType != null) {
+            UnboundedBrowseScreen(
+                sourceType = unboundedType,
+                libraryId = libraryId,
+                libraryName = libraryName,
+                onOpenDrawer = onOpenDrawer,
+                onOpenDetail = { itemId -> nav = LibraryNav.ItemDetail(itemId, null) },
+            )
+        } else {
+            LibraryItemsScreen(
+                libraryId = libraryId,
+                libraryName = libraryName,
+                onOpenDrawer = onOpenDrawer,
+                onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+                onAnnotatedBookSelected = { sourceId, itemId ->
+                    nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+                },
+                onSeriesSelected = { series ->
+                    nav = LibraryNav.SeriesDetail(
+                        seriesId = series.id,
+                        seriesLibraryId = series.libraryId,
+                        seriesName = series.name,
+                    )
+                },
+                onCollectionSelected = { collection ->
+                    nav = LibraryNav.CollectionDetail(
+                        collectionId = collection.id,
+                        collectionLibraryId = collection.libraryId,
+                        collectionName = collection.name,
+                    )
+                },
+                onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
+            )
+        }
         is LibraryNav.Section -> LibrarySectionScreen(
             libraryId = libraryId,
             sectionType = current.sectionType,

@@ -109,4 +109,18 @@
     <string name="ui_auto_clear_after_days">Auto-clear after %1$d days</string>
     <string name="ui_auto_clear_off">Auto-clear off</string>
     <string name="ui_after_days">After %1$d days</string>
+    <!-- Unbounded web-source browse surface (Chitanka / Gutenberg / radio.es), shared by :app and
+         :shared. Copied verbatim from app/src/main/res/values/strings.xml. -->
+    <string name="ui_open_menu">Open menu</string>
+    <string name="ui_search">Search</string>
+    <string name="ui_clear_search">Clear search</string>
+    <string name="ui_all">All</string>
+    <string name="ui_any">Any</string>
+    <string name="ui_not_started">Not Started</string>
+    <string name="ui_unowned">Unowned</string>
+    <string name="ui_language_filter">Language: %1$s</string>
+    <string name="ui_country_filter">Country: %1$s</string>
+    <string name="ui_no_results">No results</string>
+    <string name="ui_no_items_in_this_library">No items in this library</string>
+    <string name="ui_offline_showing_cached_data">Offline — showing cached data</string>
 </resources>

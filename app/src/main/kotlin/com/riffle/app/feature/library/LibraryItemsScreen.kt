@@ -36,7 +36,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import com.riffle.app.ui.fadingScrollbar
+import com.riffle.feature.source.ui.fadingScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +73,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.riffle.feature.source.ui.OfflineBanner
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -303,7 +304,7 @@ fun LibraryItemsScreen(
     ) {
     Scaffold(
         topBar = {
-            com.riffle.app.feature.source.common.SourceBrowseHeader(
+            com.riffle.feature.source.ui.SourceBrowseHeader(
                 sourceName = libraryName,
                 searchQuery = searchQuery,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
@@ -1675,7 +1676,7 @@ private fun AllBooksTabContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    com.riffle.app.ui.EmptyLibrary()
+                    com.riffle.feature.source.ui.EmptyLibrary()
                 }
             }
         } else {
