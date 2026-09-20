@@ -31,18 +31,20 @@ import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.FormattingPreferencesStore
-import com.riffle.core.domain.ReaderFontFamily
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.flattenToc
+import com.riffle.feature.reader.readiumFontFamilyName
+import com.riffle.feature.reader.toReadiumTextStyling
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -63,6 +65,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val sessionRepository = koinInject<ReadingSessionRepository>()
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
     val publicationInspector = koinInject<IosPublicationInspector>()
+    val appearanceCoordinator = koinInject<AppearanceCoordinator>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -125,32 +128,40 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     // Apply formatting preferences (font, theme, scroll mode) to the Readium navigator.
     // Called before open so the initial render respects user settings, and whenever prefs change.
+    //
+    // The theme and font mapping come from `feature:reader`'s ReadiumFormattingMapping, the same
+    // derivation Android's FormattingPreferencesMapper uses. The private copy that used to live
+    // here had drifted on every branch: DarkDim collapsed to plain dark and lost its muted body
+    // colour, and Auto was hardcoded to light instead of being resolved.
+    //
+    // Auto resolution comes from AppearanceCoordinator — the one place that combines the reader
+    // theme, the Auto schedule and the live system-dark flag, and re-emits at each day/night
+    // crossing so a book left open across the threshold repaints. `readerTheme` is already
+    // concrete, so `toReadiumThemeName` never sees Auto here.
     LaunchedEffect(item.id) {
-        formattingPreferencesStore.preferences.collect { prefs ->
-            val theme = when (prefs.theme) {
-                ReaderTheme.Dark, ReaderTheme.DarkDim -> "dark"
-                ReaderTheme.Sepia -> "sepia"
-                else -> "light"
+        combine(
+            formattingPreferencesStore.preferences,
+            appearanceCoordinator.resolved,
+        ) { prefs, appearance -> prefs.copy(theme = appearance.readerTheme.toReaderTheme()) }
+            .collect { prefs ->
+                val styling = prefs.toReadiumTextStyling()
+                navigator.applyReaderPreferences(
+                    fontSizePercent = prefs.fontSize,
+                    scrollMode = epubScrollMode(prefs.orientation),
+                    theme = styling.theme.value,
+                    // The bridge takes "" for "leave the publisher's font alone"; the shared
+                    // mapping expresses that as null.
+                    fontFamilyCss = prefs.fontFamily.readiumFontFamilyName() ?: "",
+                    lineHeightMultiplier = prefs.lineSpacing,
+                    pageMargins = prefs.margins.toDouble(),
+                    justifyText = prefs.justifyText,
+                )
+                // styling.textColorArgb (the DarkDim muted body colour), styling.publisherStyles
+                // and styling.columnCount have no parameter on IosEpubNavigatorBridge yet, so
+                // Readium-Swift still paints DarkDim as plain dark, keeps the publisher's
+                // stylesheet in charge, and uses its own column default. Extending the bridge
+                // means changing ReadiumEpubNavigatorBridge.swift; tracked in #1071 §16e.
             }
-            val fontFamilyCss = when (prefs.fontFamily) {
-                ReaderFontFamily.Original -> ""
-                ReaderFontFamily.Serif -> "serif"
-                ReaderFontFamily.SansSerif -> "sans-serif"
-                ReaderFontFamily.Monospace -> "monospace"
-                ReaderFontFamily.Literata -> "Literata"
-                ReaderFontFamily.Merriweather -> "Merriweather"
-                ReaderFontFamily.OpenDyslexic -> "OpenDyslexic"
-            }
-            navigator.applyReaderPreferences(
-                fontSizePercent = prefs.fontSize,
-                scrollMode = epubScrollMode(prefs.orientation),
-                theme = theme,
-                fontFamilyCss = fontFamilyCss,
-                lineHeightMultiplier = prefs.lineSpacing,
-                pageMargins = prefs.margins.toDouble(),
-                justifyText = prefs.justifyText,
-            )
-        }
     }
 
     // Load TOC once the book is open (localPath becomes non-null).

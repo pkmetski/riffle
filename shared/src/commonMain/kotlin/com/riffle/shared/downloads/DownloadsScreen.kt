@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
-import com.riffle.feature.downloads.LocalMediaType
+import com.riffle.feature.downloads.displayLabel
+import com.riffle.feature.downloads.formatBytes
 import org.koin.compose.koinInject
 
 @Composable
@@ -193,7 +194,7 @@ private fun DownloadRow(item: LocalItemUi, onRemove: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(item.item.title, style = MaterialTheme.typography.bodyMedium)
             Text(
-                "${item.mediaTypes.label()} · ${formatBytes(item.sizeBytes)}",
+                "${item.mediaTypes.displayLabel()} · ${formatBytes(item.sizeBytes)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -218,19 +219,7 @@ private fun ContentCacheAutoClear.optionLabel(): String = when (this) {
     else -> "After ${days!!} days"
 }
 
-private fun Set<LocalMediaType>.label(): String = joinToString(" + ") { it.label() }
-
-private fun LocalMediaType.label(): String = when (this) {
-    LocalMediaType.Epub -> "EPUB"
-    LocalMediaType.Pdf -> "PDF"
-    LocalMediaType.Comic -> "Comic"
-    LocalMediaType.Audiobook -> "Audiobook"
-    LocalMediaType.Readaloud -> "Readaloud"
-}
-
-private fun formatBytes(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-    bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
-    else -> "${(bytes.toDouble() / (1024 * 1024 * 1024) * 10).toLong() / 10.0} GB"
-}
+// The media-type badge and the size string come from `feature:downloads`' DownloadsFormatting,
+// which Android's DownloadsScreen calls too. The private copies that used to live here joined the
+// type set in iteration order rather than display order, and rendered sizes by integer division
+// with no TB unit — 5 000 000 B read "4 MB" here and "4.8 MB" on Android.

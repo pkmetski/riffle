@@ -1,6 +1,10 @@
 package com.riffle.shared.library
 
 import com.riffle.feature.library.LibraryTabVisibility
+import com.riffle.feature.library.isTabVisible
+import com.riffle.feature.library.shouldClampSelectedTab
+import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

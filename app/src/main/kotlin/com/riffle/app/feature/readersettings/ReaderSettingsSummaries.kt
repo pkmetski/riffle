@@ -15,16 +15,15 @@ import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.label
 import kotlin.math.roundToInt
 
-// The un-localised summaries below are thin forwarders: the derivations themselves live in
-// feature:settings/commonMain (ReaderSettingsSummaries) so the iOS settings surface produces the
-// same strings. The `localized*` variants stay here because they need a Compose composition to
-// read string resources.
+// Only the `localized*` variants live here: they need a Compose composition to read string
+// resources, so they cannot move to commonMain. Everything they are built from — the theme, font,
+// line-spacing and margin words, the summary compositions, the scale formatting — is the one
+// implementation in feature:settings/commonMain (`ReaderSettingsSummaries`, `ReaderThemeLabel`),
+// which iOS renders directly.
 //
-// `ReaderTheme.label()` is NOT redeclared here — it is the shared extension in
-// feature:settings/ReaderThemeLabel.kt, imported above, which is the single source both
-// platforms use.
-
-fun AutoReaderThemeMode.label(): String = ReaderSettingsSummaries.autoModeLabel(this)
+// This file used to also carry eleven un-localised `fun x(...) = ReaderSettingsSummaries.x(...)`
+// forwarders. Every one of them was dead, and each one put a second top-level symbol with the
+// shared name into the repo — the exact shape that invites someone to "just tweak" one copy.
 
 @Composable
 fun ReaderTheme.localizedLabel(): String = when (this) {
@@ -41,8 +40,6 @@ fun AutoReaderThemeMode.localizedLabel(): String = when (this) {
     AutoReaderThemeMode.AppTheme -> stringResource(R.string.ui_app_theme)
 }
 
-fun ReaderFontFamily.label(): String = ReaderSettingsSummaries.fontFamilyLabel(this)
-
 @Composable
 fun ReaderFontFamily.localizedLabel(): String = when (this) {
     ReaderFontFamily.Original -> stringResource(R.string.ui_original)
@@ -54,8 +51,6 @@ fun ReaderFontFamily.localizedLabel(): String = when (this) {
     ReaderFontFamily.OpenDyslexic -> stringResource(R.string.ui_dyslexic)
 }
 
-fun lineSpacingWord(value: Float): String = ReaderSettingsSummaries.lineSpacingWord(value)
-
 @Composable
 fun lineSpacingLabel(value: Float): String = when {
     value < 1.15f -> stringResource(R.string.ui_tight)
@@ -65,8 +60,6 @@ fun lineSpacingLabel(value: Float): String = when {
     value < 1.95f -> stringResource(R.string.ui_roomy)
     else -> stringResource(R.string.ui_spacious)
 }
-
-fun marginsWord(value: Float): String = ReaderSettingsSummaries.marginsWord(value)
 
 @Composable
 fun marginsLabel(value: Float): String = when {
@@ -78,9 +71,6 @@ fun marginsLabel(value: Float): String = when {
     else -> stringResource(R.string.ui_wide)
 }
 
-fun formattingSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.formattingSummary(prefs)
-
 @Composable
 fun localizedFormattingSummary(prefs: FormattingPreferences): String =
     stringResource(
@@ -89,9 +79,6 @@ fun localizedFormattingSummary(prefs: FormattingPreferences): String =
         (prefs.fontSize * 100).roundToInt(),
         stringResource(R.string.ui_margins_summary, marginsLabel(prefs.margins)),
     )
-
-fun displaySummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.displaySummary(prefs)
 
 @Composable
 fun ReaderOrientation.localizedLabel(): String = when (this) {
@@ -113,12 +100,6 @@ fun localizedDisplaySummary(prefs: FormattingPreferences): String =
         if (prefs.showChapterMap) stringResource(R.string.ui_map_on) else stringResource(R.string.ui_map_off),
     )
 
-fun behaviorSummary(keepScreenOn: Boolean, volumeKeyNavigationEnabled: Boolean): String =
-    ReaderSettingsSummaries.behaviorSummary(keepScreenOn, volumeKeyNavigationEnabled)
-
-fun autoScrollSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.autoScrollSummary(prefs)
-
 @Composable
 fun localizedAutoScrollSummary(prefs: FormattingPreferences): String =
     if (prefs.showAutoScroll) {
@@ -127,9 +108,6 @@ fun localizedAutoScrollSummary(prefs: FormattingPreferences): String =
         stringResource(R.string.ui_off)
     }
 
-fun cadenceSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.cadenceSummary(prefs)
-
 @Composable
 fun localizedCadenceSummary(prefs: FormattingPreferences): String =
     if (prefs.showCadence) {
@@ -137,15 +115,6 @@ fun localizedCadenceSummary(prefs: FormattingPreferences): String =
     } else {
         stringResource(R.string.ui_off)
     }
-
-fun autoScheduleSummary(schedule: ThemeSchedule): String =
-    ReaderSettingsSummaries.autoScheduleSummary(schedule)
-
-fun autoThemeSummary(
-    schedule: ThemeSchedule,
-    autoMode: AutoReaderThemeMode,
-    appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
-): String = ReaderSettingsSummaries.autoThemeSummary(schedule, autoMode, appThemeReaderThemes)
 
 @Composable
 fun localizedAutoScheduleSummary(schedule: ThemeSchedule): String {

@@ -37,6 +37,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.downloads.DownloadsScreen
@@ -219,7 +220,7 @@ private fun DrawerSheetContent(
     ) {
         Spacer(Modifier.height(12.dp))
 
-        if (allServers.size >= 2) {
+        if (shouldShowRiffleSource(allServers.size)) {
             NavigationDrawerItem(
                 label = { Text("Riffle") },
                 selected = isRiffleActive,

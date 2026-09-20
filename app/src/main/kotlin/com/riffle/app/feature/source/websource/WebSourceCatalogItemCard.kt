@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.riffle.app.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.core.catalog.CatalogItem
 
 @Composable

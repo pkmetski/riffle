@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -122,7 +123,7 @@ private fun ReadyContent(
                 .clip(RoundedCornerShape(8.dp))
                 .align(Alignment.CenterHorizontally),
         ) {
-            DefaultCoverPlaceholder(isAudiobook = state.item.hasAudio)
+            DefaultCoverPlaceholder(isAudiobook = state.item.isAudiobookOnly)
         }
 
         Spacer(modifier = Modifier.height(24.dp))

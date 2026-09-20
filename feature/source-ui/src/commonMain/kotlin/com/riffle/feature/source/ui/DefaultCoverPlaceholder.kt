@@ -1,4 +1,4 @@
-package com.riffle.app.ui
+package com.riffle.feature.source.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -14,6 +14,18 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 
+/**
+ * The cover drawn for a library item that has no artwork: a soft gradient with either a shelf of
+ * books or an audio waveform.
+ *
+ * Android and iOS each had a byte-identical private copy of this Canvas — same gradients, same
+ * glyph geometry, same alphas — so any tweak to the artwork had to be made twice or the two
+ * platforms would quietly stop drawing the same placeholder. It lives here once, in the one
+ * module with both an `androidTarget` and iOS targets *and* Compose UI.
+ *
+ * Pass [isAudiobook] from [com.riffle.core.models.LibraryItem.isAudiobookOnly]; the waveform means
+ * "this item is audio and nothing else", not "this item happens to have audio".
+ */
 @Composable
 fun DefaultCoverPlaceholder(isAudiobook: Boolean, modifier: Modifier = Modifier) {
     val dark = isSystemInDarkTheme()
@@ -22,12 +34,12 @@ fun DefaultCoverPlaceholder(isAudiobook: Boolean, modifier: Modifier = Modifier)
     val glyphColor: Color
     if (isAudiobook) {
         gradientStart = if (dark) Color(0xFF1C3040) else Color(0xFFD9EFF8)
-        gradientEnd   = if (dark) Color(0xFF0F1E2A) else Color(0xFF9ECDE6)
-        glyphColor    = if (dark) Color(0xFF7DCAEC) else Color(0xFF0E5F8A)
+        gradientEnd = if (dark) Color(0xFF0F1E2A) else Color(0xFF9ECDE6)
+        glyphColor = if (dark) Color(0xFF7DCAEC) else Color(0xFF0E5F8A)
     } else {
         gradientStart = if (dark) Color(0xFF352B4A) else Color(0xFFEAE0F8)
-        gradientEnd   = if (dark) Color(0xFF1F1830) else Color(0xFFC9B5E6)
-        glyphColor    = if (dark) Color(0xFFCDB8FF) else Color(0xFF5B3FA0)
+        gradientEnd = if (dark) Color(0xFF1F1830) else Color(0xFFC9B5E6)
+        glyphColor = if (dark) Color(0xFFCDB8FF) else Color(0xFF5B3FA0)
     }
     Canvas(modifier = modifier.fillMaxSize()) {
         drawRect(
@@ -100,14 +112,14 @@ private fun DrawScope.drawWaveformGlyph(color: Color) {
 
     data class Bar(val x: Float, val y: Float, val h: Float, val alpha: Float)
     listOf(
-        Bar(0f,  14f,  4f, 0.35f),
-        Bar(6f,  10f, 12f, 0.55f),
-        Bar(12f,  4f, 24f, 0.80f),
-        Bar(18f,  0f, 32f, 1.00f),
-        Bar(24f,  7f, 18f, 0.70f),
-        Bar(30f,  2f, 28f, 0.90f),
-        Bar(36f,  9f, 14f, 0.60f),
-        Bar(42f, 13f,  6f, 0.38f),
+        Bar(0f, 14f, 4f, 0.35f),
+        Bar(6f, 10f, 12f, 0.55f),
+        Bar(12f, 4f, 24f, 0.80f),
+        Bar(18f, 0f, 32f, 1.00f),
+        Bar(24f, 7f, 18f, 0.70f),
+        Bar(30f, 2f, 28f, 0.90f),
+        Bar(36f, 9f, 14f, 0.60f),
+        Bar(42f, 13f, 6f, 0.38f),
     ).forEach { bar ->
         drawRoundRect(
             color = color.copy(alpha = bar.alpha),

@@ -129,6 +129,10 @@ import com.riffle.feature.library.AudiobookBookmarkSearchResult
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySortMode
 import com.riffle.feature.library.LibraryTabVisibility
+import com.riffle.feature.library.isTabVisible
+import com.riffle.feature.library.shouldClampSelectedTab
+import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.database.AnnotationEntity
@@ -141,7 +145,7 @@ import com.riffle.feature.source.ui.SourceIcon
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
-import com.riffle.app.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.feature.source.ui.asAuthHeader
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import com.riffle.app.ui.toScreenDimensionBucket
@@ -710,7 +714,7 @@ fun BookCoverTile(
     // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
     // ratio so an audiobook tile is genuinely square, not a square letterboxed inside a 2:3 box
     // (ADR 0035).
-    val isAudiobookOnly = item.isListenable && !item.isReadable
+    val isAudiobookOnly = item.isAudiobookOnly
     val coverAspect = coverAspectRatio(isAudiobookOnly || LocalCoversAreSquare.current)
     Column(
         modifier = Modifier
@@ -1200,7 +1204,7 @@ internal fun LibraryItemCard(
 ) {
     val alpha = if (!item.isPlayable) 0.38f else 1f
     // Square thumbnail for an audiobook (1:1), 2:3 for an ebook (ADR 0035).
-    val isAudiobookOnly = item.isListenable && !item.isReadable
+    val isAudiobookOnly = item.isAudiobookOnly
     Surface(
         modifier = if (onClick != null)
             Modifier.fillMaxWidth().alpha(alpha).clickable(onClick = onClick)
@@ -1302,54 +1306,10 @@ internal fun LibraryItemCard(
 }
 
 // --- Tab bar ---
-
-/**
- * Index of the Annotations tab in the Library Tab Bar — a 6th tab positioned between "To Read"
- * (index 1) and "Series" (index 3). Single source of truth referenced both by [LibraryTabBar]'s
- * selected-check and by [LibraryItemsScreen]'s `when (selectedTab)` branch, so the two can't drift
- * out of sync with each other.
- */
-internal fun tabIndexForAnnotations(): Int = 2
-
-/**
- * Index of the Playlists tab — the 7th tab, positioned between Collections (4) and All Books (5).
- * Only visible on ABS audiobook roots ([LibraryTabVisibility.playlists] gate). Single source of
- * truth referenced by [LibraryTabBar]'s selected-check and [LibraryItemsScreen]'s tab switch.
- */
-internal fun tabIndexForPlaylists(): Int = 6
-
-/**
- * True when the tab-clamp LaunchedEffect should reset [selectedTab] to Home. Returns false while
- * the user is searching ([searchQuery] non-empty) — `LibraryFilterEngine` filters
- * `projection.series/collections` by the active query, so an unmatched search would otherwise
- * flip a visibility flag off, clamp the tab, and the clamp would survive clearing the query.
- * Also false while [visibility] is null (still resolving) so a `rememberSaveable`-restored tab
- * survives the initial load window.
- */
-internal fun shouldClampSelectedTab(
-    searchQuery: String,
-    visibility: LibraryTabVisibility?,
-    selectedTab: Int,
-): Boolean {
-    if (searchQuery.isNotEmpty()) return false
-    if (visibility == null) return false
-    return !isTabVisible(selectedTab, visibility)
-}
-
-/**
- * True when the tab currently rendered at [selectedTab] still has data to show under the current
- * [visibility]. Callers use this to fall back to Home (index 0) when the previously-selected tab
- * has been emptied out. Home and All Books are always visible.
- */
-internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): Boolean =
-    when (selectedTab) {
-        1 -> visibility.toRead
-        2 -> visibility.annotations
-        3 -> visibility.series
-        4 -> visibility.collections
-        6 -> visibility.playlists
-        else -> true
-    }
+//
+// The tab index vocabulary and the visibility/clamp rules live in
+// `com.riffle.feature.library.LibraryTabs` — this screen and iOS's both call them, so the tab bar
+// that draws the chips and the `when (selectedTab)` that renders their content cannot drift apart.
 
 @Composable
 private fun LibraryTabBar(

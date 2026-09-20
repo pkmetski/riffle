@@ -59,6 +59,10 @@ import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibraryTabVisibility
+import com.riffle.feature.library.shouldClampSelectedTab
+import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.tabIndexForPlaylists
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.shared.SharedUiIcons
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -79,38 +83,9 @@ internal fun coverGridMinCell(): Dp {
     return CoverGridLayout.minCellSizeDp(widthDp.value, 1f).dp
 }
 
-/** Index of the Annotations tab — single source of truth shared by the bar and content switch. */
-internal fun tabIndexForAnnotations(): Int = 2
-
-/** Index of the Playlists tab — positioned after Collections (4) and before All Books (5). */
-internal fun tabIndexForPlaylists(): Int = 6
-
-/**
- * True when [selectedTab] is no longer visible and the UI should clamp back to Home.
- * Returns false while searching (filter changes tab visibility temporarily) or while
- * [visibility] is still null (resolving), so a rememberSaveable-restored tab survives the
- * initial load window.
- */
-internal fun shouldClampSelectedTab(
-    searchQuery: String,
-    visibility: LibraryTabVisibility?,
-    selectedTab: Int,
-): Boolean {
-    if (searchQuery.isNotEmpty()) return false
-    if (visibility == null) return false
-    return !isTabVisible(selectedTab, visibility)
-}
-
-/** True when the tab at [selectedTab] has data to show. Home (0) and All Books (5) are always visible. */
-internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): Boolean =
-    when (selectedTab) {
-        1 -> visibility.toRead
-        tabIndexForAnnotations() -> visibility.annotations
-        3 -> visibility.series
-        4 -> visibility.collections
-        tabIndexForPlaylists() -> visibility.playlists
-        else -> true
-    }
+// The tab index vocabulary and the visibility/clamp rules come from
+// `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used
+// to exist as a byte-identical private copy in each screen.
 
 @Composable
 fun LibraryItemsScreen(
@@ -319,7 +294,7 @@ private fun SimpleItemList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
-                    DefaultCoverPlaceholder(isAudiobook = item.isListenable && !item.isReadable, modifier = Modifier.fillMaxSize())
+                    DefaultCoverPlaceholder(isAudiobook = item.isAudiobookOnly, modifier = Modifier.fillMaxSize())
                 }
                 Column(Modifier.padding(start = 12.dp)) {
                     Text(item.title, style = MaterialTheme.typography.bodyLarge)
@@ -522,7 +497,7 @@ fun BookCoverTile(
                 .clickable(onClick = onClick),
         ) {
             DefaultCoverPlaceholder(
-                isAudiobook = item.isListenable && !item.isReadable,
+                isAudiobook = item.isAudiobookOnly,
                 modifier = Modifier.fillMaxSize(),
             )
             if (item.isDownloaded || item.isCached) {

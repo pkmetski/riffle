@@ -6,6 +6,17 @@ enum class PanelOverflowBehavior { OFF, SPLIT, SMART_SPLIT }
 
 val ComicBackgroundThemeChoices: List<ReaderTheme> = listOf(ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.Sepia)
 
+/**
+ * Every option the comic background-theme picker offers — the three concrete backdrops plus Auto.
+ *
+ * Android renders this as `concreteThemes = ComicBackgroundThemeChoices` with `includeAuto = true`
+ * (a second row); iOS renders it as one chip row. Selection is keyed on
+ * [asComicBackgroundTheme] on both, so a stored `DarkDim` lights the Dark chip and a stored `Auto`
+ * lights Auto. iOS used to offer the three concrete chips only and select on the raw stored value,
+ * so an Auto preference highlighted nothing at all.
+ */
+val ComicBackgroundThemeOptions: List<ReaderTheme> = ComicBackgroundThemeChoices + ReaderTheme.Auto
+
 fun ReaderTheme.asComicBackgroundTheme(): ReaderTheme = when (this) {
     ReaderTheme.DarkDim -> ReaderTheme.Dark
     else -> this

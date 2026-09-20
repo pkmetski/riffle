@@ -39,7 +39,7 @@ import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
 import com.riffle.app.navigation.MainScreen
 import com.riffle.app.ui.BottomNavBarScrim
-import com.riffle.app.ui.theme.RiffleTheme
+import com.riffle.feature.source.ui.RiffleTheme
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ResolvedAppearance

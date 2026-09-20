@@ -3,6 +3,8 @@ package com.riffle.app.feature.downloads
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
 import com.riffle.feature.downloads.LocalMediaType
+import com.riffle.feature.downloads.displayOrder
+import com.riffle.feature.downloads.formatBytes
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -54,7 +56,6 @@ import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.models.LibraryItem
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -348,6 +349,10 @@ private fun Set<LocalMediaType>.localizedDisplayLabel(): String {
 private fun Set<LocalMediaType>.primaryIcon(): ImageVector =
     minByOrNull { it.displayOrder }?.icon ?: Icons.AutoMirrored.Filled.MenuBook
 
+/**
+ * Localized mirror of [com.riffle.feature.downloads.label]. Keep the two in step — the untranslated
+ * shared one is what iOS renders and what `DownloadsFormattingTest` pins.
+ */
 @Composable
 private fun LocalMediaType.localizedLabel(): String = when (this) {
     LocalMediaType.Epub -> "EPUB"
@@ -357,15 +362,6 @@ private fun LocalMediaType.localizedLabel(): String = when (this) {
     LocalMediaType.Readaloud -> stringResource(R.string.ui_readaloud)
 }
 
-private val LocalMediaType.displayOrder: Int
-    get() = when (this) {
-        LocalMediaType.Epub -> 0
-        LocalMediaType.Pdf -> 1
-        LocalMediaType.Comic -> 2
-        LocalMediaType.Audiobook -> 3
-        LocalMediaType.Readaloud -> 4
-    }
-
 private val LocalMediaType.icon: ImageVector
     get() = when (this) {
         LocalMediaType.Epub -> Icons.AutoMirrored.Filled.MenuBook
@@ -374,23 +370,6 @@ private val LocalMediaType.icon: ImageVector
         LocalMediaType.Audiobook -> Icons.Default.GraphicEq
         LocalMediaType.Readaloud -> Icons.Default.GraphicEq
     }
-
-/** Renders a byte count as a compact human-readable size (e.g. "312 MB", "1.2 GB"). */
-internal fun formatBytes(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val units = listOf("KB", "MB", "GB", "TB")
-    var value = bytes.toDouble() / 1024
-    var unitIndex = 0
-    while (value >= 1024 && unitIndex < units.lastIndex) {
-        value /= 1024
-        unitIndex++
-    }
-    return if (value >= 100) {
-        String.format(Locale.US, "%.0f %s", value, units[unitIndex])
-    } else {
-        String.format(Locale.US, "%.1f %s", value, units[unitIndex])
-    }
-}
 
 @Composable
 private fun ContentCacheAutoClear.localizedSummaryLabel(): String =

@@ -58,4 +58,14 @@ data class LibraryItem(
      * gates specifically on [isReadable].
      */
     val isPlayable: Boolean get() = isReadable || isListenable
+
+    /**
+     * The item is audio and nothing else, so cover surfaces draw the waveform glyph rather than
+     * the shelf glyph. One concept that used to have three rules: Android's three call sites
+     * asked `isListenable && !isReadable`, iOS's detail screen asked `hasAudio` (so a Readaloud
+     * book — an EPUB *with* audio — drew a waveform where its cover art belongs), and iOS's
+     * library grid asked `coversAreSquare`, a per-library layout flag that has nothing to do
+     * with the individual item. Android's rule won; every surface asks this.
+     */
+    val isAudiobookOnly: Boolean get() = isListenable && !isReadable
 }

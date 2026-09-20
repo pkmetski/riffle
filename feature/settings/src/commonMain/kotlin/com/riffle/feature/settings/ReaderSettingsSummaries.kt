@@ -57,8 +57,37 @@ object ReaderSettingsSummaries {
         else -> "Wide"
     }
 
+    /**
+     * The font scale as a whole percentage — "115%".
+     *
+     * Rounds, never truncates: Android's slider caption is `"%.0f%%"`, which rounds half-up, so a
+     * `toInt()` here renders a different number for the same preference. #1066 fixed that in
+     * [formattingSummary] but the iOS stepper one panel down kept its own `toInt()`, so a 1.149
+     * scale read 115% in the summary row and 114% in the stepper directly beneath it. Every
+     * surface that prints a font percentage calls this.
+     */
+    fun fontSizePercentLabel(scale: Float): String = "${(scale * 100).roundToInt()}%"
+
+    /**
+     * A scale factor as Android's typography captions print it — `"%.1f×"`, rounded half-up.
+     * `String.format` is JVM-only, so build the two halves by hand.
+     */
+    fun scaleTimesLabel(scale: Float): String {
+        val tenths = (scale * 10).roundToInt()
+        return "${tenths / 10}.${tenths % 10}×"
+    }
+
+    /** "Normal · 1.5×" — the line-spacing caption both platforms' formatting panels show. */
+    fun lineSpacingCaption(scale: Float): String = "${lineSpacingWord(scale)} · ${scaleTimesLabel(scale)}"
+
+    /**
+     * "Normal · 1.0×" — the margins caption. iOS used to render margins as a percentage
+     * (`"100%"`) while Android rendered a word plus a multiplier for the same preference.
+     */
+    fun marginsCaption(scale: Float): String = "${marginsWord(scale)} · ${scaleTimesLabel(scale)}"
+
     fun formattingSummary(prefs: FormattingPreferences): String =
-        "${fontFamilyLabel(prefs.fontFamily)} · ${(prefs.fontSize * 100).roundToInt()}% · " +
+        "${fontFamilyLabel(prefs.fontFamily)} · ${fontSizePercentLabel(prefs.fontSize)} · " +
             "${marginsWord(prefs.margins)} margins"
 
     fun orientationWord(orientation: ReaderOrientation): String = when (orientation) {
