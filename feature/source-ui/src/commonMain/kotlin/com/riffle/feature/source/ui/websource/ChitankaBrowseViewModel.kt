@@ -1,0 +1,74 @@
+package com.riffle.feature.source.ui.websource
+
+import androidx.lifecycle.SavedStateHandle
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.catalog.chitanka.ChitankaHttpException
+import com.riffle.core.data.websource.WebSourceItemGate
+import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryFilterPreferencesStore
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.SourceType
+
+/**
+ * ViewModel for the Chitanka browse surface. Delegates to [UnboundedBrowseViewModel] for the
+ * shared facet / query / pagination / open-detail state machine (ADR 0053 Phase 5); this class
+ * only carries Chitanka-specific tuning — the [SourceType] guard, the default rootId, the page
+ * size, and the host-specific error copy.
+ *
+ * Lives in `feature:source-ui` (android + iOS) rather than `:app` so both hosts drive the same
+ * instance: `:app`'s `ChitankaBrowseScreen` and `:shared`'s `UnboundedBrowseScreen` construct it
+ * through their own Koin graphs.
+ */
+class ChitankaBrowseViewModel constructor(
+    savedStateHandle: SavedStateHandle,
+    sourceRepository: SourceRepository,
+    catalogRegistry: CatalogRegistry,
+    libraryItemUpserter: WebSourceLibraryItemUpserter,
+    webSourceItemGate: WebSourceItemGate,
+    coverGridDensityStore: CoverGridDensityStore,
+    libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
+    libraryObserver: LibraryObserver,
+    connectivityObserver: ConnectivityObserver,
+) : UnboundedBrowseViewModel(
+    savedStateHandle = savedStateHandle,
+    sourceRepository = sourceRepository,
+    catalogRegistry = catalogRegistry,
+    libraryItemUpserter = libraryItemUpserter,
+    webSourceItemGate = webSourceItemGate,
+    coverGridDensityStore = coverGridDensityStore,
+    libraryFilterPreferencesStore = libraryFilterPreferencesStore,
+    libraryObserver = libraryObserver,
+    connectivityObserver = connectivityObserver,
+    sourceType = SourceType.CHITANKA,
+    defaultRootId = ChitankaCatalog.ROOT_BOOKS,
+    // Chitanka lists ~30 items per page in most views; 50 gives us a small safety margin so the
+    // grid usually has to scroll before we page again.
+    pageSize = 50,
+    friendlyError = ::chitankaFriendlyErrorMessage,
+)
+
+/**
+ * Map network failures to messages users can act on. The raw OkHttp/DNS text
+ * (`Unable to resolve host "chitanka.info": No address associated with hostname`) leaks
+ * implementation and reads like a crash; offline is the by-far common cause.
+ *
+ * Matches on the exception's simple name rather than `is UnknownHostException` / `is IOException`
+ * because those are JVM types with no `commonMain` equivalent, and this now runs on Kotlin/Native
+ * too. Same shape as the already-shared `radioEsFriendlyErrorMessage`.
+ */
+fun chitankaFriendlyErrorMessage(t: Throwable): String {
+    val chain = generateSequence(t) { it.cause }.toList()
+    return when {
+        chain.any { it::class.simpleName?.contains("UnknownHostException") == true } ->
+            "You appear to be offline. Connect to the internet and try again."
+        chain.any { it::class.simpleName?.endsWith("IOException") == true } ->
+            "Couldn't reach chitanka.info. Check your connection and try again."
+        chain.any { it is ChitankaHttpException } ->
+            "Couldn't reach chitanka.info. Check your connection and try again."
+        else -> t.message ?: t::class.simpleName ?: "Error"
+    }
+}

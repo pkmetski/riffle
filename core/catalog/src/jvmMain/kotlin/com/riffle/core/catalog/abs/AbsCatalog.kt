@@ -45,7 +45,6 @@ import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.doesDestinationItemExist
 import com.riffle.core.models.AudiobookFingerprint
 import com.riffle.core.common.Clock
-import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.AbsBookmarkApi
@@ -64,12 +63,10 @@ import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryItem
 import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkSeries
-import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkUploadMetadata
 import com.riffle.core.network.NetworkUploadPart
 import com.riffle.core.network.errorAsThrowable
@@ -117,14 +114,25 @@ class AbsCatalog(
     ToReadListCapability,
     ReadCapability, BookImportCapability {
 
+    /**
+     * The platform-neutral half of this Catalog (browse + progress peer). iOS registers it
+     * directly; here it is the single implementation both platforms run, so ABS progress push
+     * cannot drift between them (#1071 §P0.1). Everything below that isn't delegated is the
+     * JVM-only remainder: file transfer, import/upload, and the richer capability mixins.
+     */
+    private val common = AbsCommonCatalog(
+        config = config,
+        libraryApi = libraryApi,
+        sessionApi = sessionApi,
+        serverInfoApi = serverInfoApi,
+        clock = clock,
+    )
+
     override val sourceType: SourceType = SourceType.ABS
 
     // region Catalog — mandatory core
 
-    override suspend fun listRoots(): List<CatalogRoot> =
-        libraryApi.getLibraries(config.baseUrl, config.token, config.insecureAllowed)
-            .unwrap()
-            .map { it.toCatalogRoot() }
+    override suspend fun listRoots(): List<CatalogRoot> = common.listRoots()
 
     override suspend fun importBook(request: CatalogImportRequest): CatalogImportResult {
         if (request.files.isEmpty()) {
@@ -297,7 +305,7 @@ class AbsCatalog(
             // timestamps: during a rescan, both title/author and addedAt may describe a prior
             // scan state even though the stable author/title folder is already present.
             candidates.firstOrNull { candidate ->
-                doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem()))
+                doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem(config.baseUrl)))
             }?.let {
                 if (request.claimDestinationItem(it.id)) return ReconciledDestinationItem(it.id, it.addedAt)
             }
@@ -324,7 +332,7 @@ class AbsCatalog(
                 }
             }
             fallbackCandidates.firstOrNull { candidate ->
-                doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem()))
+                doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem(config.baseUrl)))
             }?.let {
                 if (request.claimDestinationItem(it.id)) return ReconciledDestinationItem(it.id, it.addedAt)
             }
@@ -454,34 +462,16 @@ class AbsCatalog(
         page: Int,
         pageSize: Int,
         facet: FacetSelection?,
-    ): List<CatalogItem> {
-        // ABS exposes no server-side facets today — `facet` is ignored.
-        val items = libraryApi.getLibraryItems(config.baseUrl, rootId, config.token, config.insecureAllowed)
-            .unwrap()
-            .map { it.toCatalogItem() }
-            .sortedWith(comparatorFor(sort))
-        return items.pageOf(page, pageSize)
-    }
+    ): List<CatalogItem> = common.browse(rootId, sort, page, pageSize, facet)
 
     override suspend fun search(
         rootId: String,
         query: String,
         page: Int,
         pageSize: Int,
-    ): List<CatalogItem> {
-        // ABS's search endpoint takes `limit` (total cap) — not per-page — so request enough for
-        // the page window, then slice client-side. Callers paging past `limit` get an empty list.
-        val limit = ((page + 1) * pageSize).coerceAtLeast(pageSize)
-        val hits = libraryApi.searchLibrary(config.baseUrl, rootId, query, limit, config.token, config.insecureAllowed)
-            .unwrap()
-            .map { it.toCatalogItem() }
-        return hits.pageOf(page, pageSize)
-    }
+    ): List<CatalogItem> = common.search(rootId, query, page, pageSize)
 
-    override suspend fun getItem(itemId: String): CatalogItem? =
-        libraryApi.getItem(config.baseUrl, itemId, config.token, config.insecureAllowed)
-            .unwrap()
-            ?.toCatalogItem()
+    override suspend fun getItem(itemId: String): CatalogItem? = common.getItem(itemId)
 
     override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle {
         val authHeaders = mapOf("Authorization" to "Bearer ${config.token}")
@@ -537,17 +527,7 @@ class AbsCatalog(
         BookFormat.Unsupported -> throw CatalogException.UnsupportedFormat("Cannot open Unsupported format")
     }
 
-    override suspend fun connectivityCheck(): CatalogHealth {
-        // AbsApiClient.getServerInfo swallows failures and returns null on any error, so we can't
-        // surface a specific error string — reachability collapses to (version != null).
-        val startMs = clock.nowMs()
-        val version = serverInfoApi.getServerInfo(config.baseUrl, config.token, config.insecureAllowed)
-        return CatalogHealth(
-            isReachable = version != null,
-            serverVersion = version,
-            latencyMs = clock.nowMs() - startMs,
-        )
-    }
+    override suspend fun connectivityCheck(): CatalogHealth = common.connectivityCheck()
 
     // endregion
 
@@ -644,7 +624,9 @@ class AbsCatalog(
 
     // region ProgressPeerCapability
 
-    override val cfiDialect: CfiDialect = CfiDialect.EPUB_JS
+    // Every member below is delegated, not re-implemented: `AbsCommonCatalog` is the one ABS
+    // progress-peer implementation and iOS runs the same instance through its own factory.
+    override val cfiDialect: CfiDialect get() = common.cfiDialect
 
     override suspend fun pushEbookProgress(
         itemId: String,
@@ -652,16 +634,7 @@ class AbsCatalog(
         progress: Float,
         isFinished: Boolean?,
         lastUpdateEpochMs: Long,
-    ): Long? = sessionApi.syncEbookProgress(
-        config.baseUrl,
-        itemId,
-        // Leave `isFinished` nullable through to the payload: null = leave the audio dimension of
-        // ABS's shared media-progress record untouched. Non-null zeroes the audio side per
-        // NetworkEbookProgressPayload's contract — only mark-read/mark-unread callers do that.
-        NetworkEbookProgressPayload(ebookLocation = location, ebookProgress = progress, isFinished = isFinished),
-        config.token,
-        config.insecureAllowed,
-    ).unwrap()
+    ): Long? = common.pushEbookProgress(itemId, location, progress, isFinished, lastUpdateEpochMs)
 
     override suspend fun pushAudiobookProgress(
         itemId: String,
@@ -669,43 +642,11 @@ class AbsCatalog(
         durationSec: Double,
         isFinished: Boolean?,
         lastUpdateEpochMs: Long,
-    ): Long? {
-        // ABS derives finished-state server-side from progress==1.0 for audiobook records (ADR 0035),
-        // so the `isFinished` param is captured for capability parity but not forwarded here.
-        return sessionApi.syncAudiobookProgress(
-            config.baseUrl,
-            itemId,
-            NetworkAudiobookProgressPayload(currentTime = currentTimeSec, duration = durationSec),
-            config.token,
-            config.insecureAllowed,
-        ).unwrap()
-    }
+    ): Long? = common.pushAudiobookProgress(itemId, currentTimeSec, durationSec, isFinished, lastUpdateEpochMs)
 
-    override suspend fun pullProgress(itemId: String): CatalogProgress? {
-        // A successful GET always yields a CatalogProgress (fields may all be empty for a
-        // never-touched item — callers detect that via `lastUpdate <= 0L`). A network failure
-        // surfaces as a thrown [CatalogException] from `unwrap()`; the peer-adapter's runCatching
-        // treats that as "unreachable" and returns null. Collapsing "reachable-empty" to null here
-        // would make the two states indistinguishable and drop the first push on a fresh book.
-        val p = sessionApi.getProgress(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
-        return p.toCatalogProgress(itemId)
-    }
+    override suspend fun pullProgress(itemId: String): CatalogProgress? = common.pullProgress(itemId)
 
-    override suspend fun pullAllProgress(): List<CatalogProgress> =
-        libraryApi.getUserProgress(config.baseUrl, config.token, config.insecureAllowed)
-            .unwrap()
-            .map { (id, p) ->
-                CatalogProgress(
-                    itemId = id,
-                    ebookLocation = null,
-                    ebookProgress = p.ebookProgress ?: 0f,
-                    audioCurrentTime = p.currentTime,
-                    audioDuration = p.duration,
-                    isFinished = p.isFinished || p.finishedAt != null,
-                    finishedAt = p.finishedAt,
-                    lastUpdate = p.lastUpdate ?: 0L,
-                )
-            }
+    override suspend fun pullAllProgress(): List<CatalogProgress> = common.pullAllProgress()
 
     // endregion
 
@@ -867,39 +808,6 @@ class AbsCatalog(
     private fun coverUrl(itemId: String, updatedAt: Long?): String =
         AbsCoverUrl.of(config.baseUrl, itemId, updatedAt)
 
-    private fun NetworkLibrary.toCatalogRoot(): CatalogRoot = CatalogRoot(
-        id = id,
-        name = name,
-        mediaType = mediaType,
-        isUnsupported = mediaType == "podcast",
-        importFolderId = folders.firstOrNull()?.id,
-    )
-
-    private fun NetworkLibraryItem.toCatalogItem(): CatalogItem = CatalogItem(
-        id = id,
-        rootId = libraryId,
-        title = title,
-        author = author,
-        coverUrl = coverUrl(id, updatedAt),
-        ebookFormat = ebookFormat.toCatalogFormat(hasAudio = hasAudio),
-        hasAudio = hasAudio,
-        audioDurationSec = audioDurationSec,
-        ebookFileIno = ebookFileIno,
-        description = description,
-        seriesName = seriesName,
-        publishedYear = publishedYear,
-        genres = genres,
-        publisher = publisher,
-        language = language,
-        addedAt = addedAt,
-        isbn = isbn,
-        asin = asin,
-        readingProgress = readingProgress,
-        updatedAt = updatedAt,
-        path = path,
-        relPath = relPath,
-    )
-
     private fun NetworkSeries.toCatalogSeries(): CatalogSeries = CatalogSeries(
         id = id,
         rootId = libraryId,
@@ -925,19 +833,6 @@ class AbsCatalog(
         itemIds = items.map { it.id },
     )
 
-    private fun NetworkServerProgress.toCatalogProgress(itemId: String): CatalogProgress = CatalogProgress(
-        itemId = itemId,
-        ebookLocation = ebookLocation.takeIf { it.isNotEmpty() },
-        ebookProgress = ebookProgress,
-        audioCurrentTime = currentTime,
-        audioDuration = duration,
-        // NetworkServerProgress lacks an explicit `finishedAt`, so derive the same way ABS does
-        // server-side: ebook 100% OR audio at/past duration. Matches pullAllProgress, which reads
-        // ABS's user-level `finishedAt` — either path answers the same question for the same item.
-        isFinished = ebookProgress >= 1f || (duration > 0.0 && currentTime >= duration),
-        lastUpdate = lastUpdate,
-    )
-
     private fun NetworkAbsAudioTrack.toCatalogAudioTrack(itemId: String, startOffsetSec: Double): CatalogAudioTrack =
         CatalogAudioTrack(
             ino = ino,
@@ -946,33 +841,6 @@ class AbsCatalog(
             durationSec = durationSec,
             contentUrl = AbsAudioUrl.track(config.baseUrl, itemId, ino),
         )
-
-    private fun EbookFormat.toCatalogFormat(hasAudio: Boolean = false): BookFormat = when (this) {
-        EbookFormat.Epub -> BookFormat.Epub
-        EbookFormat.Pdf -> BookFormat.Pdf
-        EbookFormat.Cbz -> BookFormat.Cbz
-        EbookFormat.Unsupported -> if (hasAudio) BookFormat.Audiobook else BookFormat.Unsupported
-    }
-
-    private fun comparatorFor(sort: SortKey): Comparator<CatalogItem> = when (sort) {
-        SortKey.TITLE -> compareBy { it.title.lowercase() }
-        SortKey.AUTHOR -> compareBy { it.author.lowercase() }
-        SortKey.ADDED_AT -> compareByDescending { it.addedAt ?: 0L }
-        SortKey.PUBLISHED_YEAR -> compareBy { it.publishedYear ?: "" }
-        // Last-opened is a per-device local concept ABS doesn't track. Repositories (#434) apply
-        // this ordering on top of catalog output; the Catalog layer refuses so silent fall-through
-        // to title-order can't mask the missing local-store lookup.
-        SortKey.RECENTLY_OPENED -> throw CatalogException.UnsupportedFormat(
-            "SortKey.RECENTLY_OPENED is a local ordering — apply it above the Catalog layer",
-        )
-    }
-
-    private fun <T> List<T>.pageOf(page: Int, pageSize: Int): List<T> {
-        val from = (page * pageSize).coerceAtLeast(0)
-        if (from >= size) return emptyList()
-        val to = (from + pageSize).coerceAtMost(size)
-        return subList(from, to)
-    }
 
     private fun CatalogImportMetadata.toNetworkUploadMetadata(folderId: String?) = NetworkUploadMetadata(
         title = title,

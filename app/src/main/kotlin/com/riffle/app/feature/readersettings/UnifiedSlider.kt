@@ -39,7 +39,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import java.util.Locale
+import com.riffle.feature.settings.ReaderSettingsSummaries
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -73,9 +73,11 @@ internal fun steppedTypographyValue(
     return (next * 10f).roundToInt() / 10f
 }
 
-internal fun fontSizeBubble(v: Float): String = "${(v * 100).roundToInt()}%"
-internal fun lineSpacingBubble(v: Float): String = "%.1f×".format(Locale.ROOT, v)
-internal fun marginsBubble(v: Float): String = "%.1f×".format(Locale.ROOT, v)
+// The slider bubbles print the same numbers the captions and the iOS steppers do, so they
+// read them from the one shared formatter rather than re-deriving with String.format.
+internal fun fontSizeBubble(v: Float): String = ReaderSettingsSummaries.fontSizePercentLabel(v)
+internal fun lineSpacingBubble(v: Float): String = ReaderSettingsSummaries.scaleTimesLabel(v)
+internal fun marginsBubble(v: Float): String = ReaderSettingsSummaries.scaleTimesLabel(v)
 internal fun wpmBubble(v: Float): String = "${v.roundToInt()}"
 
 /**

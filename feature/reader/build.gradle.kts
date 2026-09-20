@@ -11,6 +11,8 @@ kotlin {
         commonMain.dependencies {
             api(project(":core:domain"))
             api(project(":core:models"))
+            // TimeRemaining — the chapter-map time estimates in ChapterMapDerivations return it.
+            api(project(":core:common"))
             // AnnotationEntity's TYPE_* constants: the highlight merge/overlap logic and the
             // annotations panel both key off them, and the repo forbids re-declaring the literals
             // (issue #1066, moved here from `app` so their tests run on iOS too).

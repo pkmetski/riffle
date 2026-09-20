@@ -1,29 +1,17 @@
 package com.riffle.app.feature.source.radioes
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
+import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.core.models.SourceType
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -31,8 +19,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -40,13 +26,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
-import com.riffle.core.catalog.CatalogFacet
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.LocalCoversAreSquare
-import com.riffle.app.feature.source.common.SourceBrowseHeader
-import com.riffle.app.feature.source.websource.UnboundedBrowseContent
-import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
-import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
+import com.riffle.app.feature.source.common.rememberDrawerButtonGestureExclusion
+import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
+import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
@@ -84,6 +69,7 @@ fun RadioEsBrowseScreen(
         if (query.isNotEmpty()) selectedTab = TAB_LIBRARY
     }
 
+    val drawerButtonModifier = rememberDrawerButtonGestureExclusion()
     Scaffold(
         topBar = {
             SourceBrowseHeader(
@@ -94,6 +80,7 @@ fun RadioEsBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = SourceType.RADIO_ES, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
+                drawerButtonModifier = drawerButtonModifier,
             )
         },
         bottomBar = {
@@ -137,9 +124,11 @@ fun RadioEsBrowseScreen(
                             onOpenDetail = onOpenDetail,
                             onCoverScaleChange = onCoverScaleChange,
                         )
-                        TAB_LIBRARY -> RadioEsLibraryTabContent(
+                        TAB_LIBRARY -> UnboundedBrowseLibraryTabFor(
+                            sourceType = SourceType.RADIO_ES,
                             viewModel = viewModel,
                             onCoverScaleChange = onCoverScaleChange,
+                            isAudio = true,
                         )
                     }
                 }
@@ -152,244 +141,3 @@ private const val TAB_HOME = 0
 private const val TAB_TO_READ = 1
 private const val TAB_LIBRARY = 2
 
-@Composable
-private fun RadioEsLibraryTabContent(
-    viewModel: RadioEsBrowseViewModel,
-    onCoverScaleChange: (Float) -> Unit,
-) {
-    val items by viewModel.filteredItems.collectAsState()
-    val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
-    val unownedFilterActive by viewModel.unownedFilterActive.collectAsState()
-    val hasServerSources by viewModel.hasServerSources.collectAsState()
-    val facets by viewModel.facets.collectAsState()
-    val selectedFacet by viewModel.selectedFacet.collectAsState()
-    val query by viewModel.query.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val isPaging by viewModel.isPaging.collectAsState()
-    val hasMore by viewModel.hasMore.collectAsState()
-    val isOffline by viewModel.isOffline.collectAsState()
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        LazyRow(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = notStartedFilterActive,
-                    onClick = { viewModel.toggleNotStartedFilter() },
-                    label = { Text(stringResource(R.string.ui_not_started)) },
-                    leadingIcon = if (notStartedFilterActive) {
-                        {
-                            Icon(
-                                Icons.Filled.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(FilterChipDefaults.IconSize),
-                            )
-                        }
-                    } else null,
-                )
-            }
-            if (hasServerSources) {
-                item {
-                    FilterChip(
-                        selected = unownedFilterActive,
-                        onClick = { viewModel.toggleUnownedFilter() },
-                        label = { Text(stringResource(R.string.ui_unowned)) },
-                        leadingIcon = if (unownedFilterActive) {
-                            {
-                                Icon(
-                                    Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else null,
-                    )
-                }
-            }
-            val categoryFacets = radioEsCategoryFacets(facets)
-            val languageFacets = radioEsLanguageFacets(facets)
-            if (facets.isNotEmpty()) {
-                item {
-                    FilterChip(
-                        selected = selectedFacet == null,
-                        onClick = { viewModel.selectFacet(null) },
-                        label = { Text(stringResource(R.string.ui_all)) },
-                    )
-                }
-                items(categoryFacets, key = { it.key }) { facet ->
-                    FilterChip(
-                        selected = selectedFacet == facet.key,
-                        onClick = { viewModel.selectFacet(facet.key) },
-                        label = { Text(facet.label) },
-                    )
-                }
-                if (languageFacets.isNotEmpty()) {
-                    item {
-                        RadioEsLanguageFilterChip(
-                            languageFacets = languageFacets,
-                            selectedFacet = selectedFacet,
-                            onSelectFacet = { viewModel.selectFacet(it) },
-                        )
-                    }
-                }
-                val countryFacets = radioEsCountryFacets(facets)
-                if (countryFacets.isNotEmpty()) {
-                    item {
-                        RadioEsCountryFilterChip(
-                            countryFacets = countryFacets,
-                            selectedFacet = selectedFacet,
-                            onSelectFacet = { viewModel.selectFacet(it) },
-                        )
-                    }
-                }
-            }
-        }
-        UnboundedBrowseContent(
-            isOffline = isOffline,
-            isLoading = isLoading,
-            error = error,
-            items = items,
-            query = query,
-            isPaging = isPaging,
-            hasMore = hasMore,
-            onLoadMore = viewModel::loadMore,
-            onCoverScaleChange = onCoverScaleChange,
-            itemKey = { it.id },
-            coverCellSizeMultiplier = 4f / 3f,
-        ) { item ->
-            WebSourceCatalogItemCard(
-                item = item,
-                isAudio = true,
-                onClick = { viewModel.openDetail(item) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun RadioEsLanguageFilterChip(
-    languageFacets: List<CatalogFacet>,
-    selectedFacet: String?,
-    onSelectFacet: (String?) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedLanguage = languageFacets.firstOrNull { it.key == selectedFacet }
-
-    Box {
-        FilterChip(
-            selected = selectedLanguage != null,
-            onClick = { expanded = true },
-            label = {
-                Text(
-                    stringResource(
-                        R.string.ui_language_filter,
-                        selectedLanguage?.label ?: stringResource(R.string.ui_any),
-                    ),
-                )
-            },
-            trailingIcon = {
-                Icon(
-                    Icons.Filled.ArrowDropDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                )
-            },
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.ui_any)) },
-                onClick = {
-                    onSelectFacet(null)
-                    expanded = false
-                },
-                leadingIcon = if (selectedLanguage == null) {
-                    { Icon(Icons.Filled.Check, contentDescription = null) }
-                } else null,
-            )
-            languageFacets.forEach { facet ->
-                DropdownMenuItem(
-                    text = { Text(facet.label) },
-                    onClick = {
-                        onSelectFacet(facet.key)
-                        expanded = false
-                    },
-                    leadingIcon = if (facet.key == selectedFacet) {
-                        { Icon(Icons.Filled.Check, contentDescription = null) }
-                    } else null,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RadioEsCountryFilterChip(
-    countryFacets: List<CatalogFacet>,
-    selectedFacet: String?,
-    onSelectFacet: (String?) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedCountry = countryFacets.firstOrNull { it.key == selectedFacet }
-
-    Box {
-        FilterChip(
-            selected = selectedCountry != null,
-            onClick = { expanded = true },
-            label = {
-                Text(
-                    stringResource(
-                        R.string.ui_country_filter,
-                        selectedCountry?.label ?: stringResource(R.string.ui_any),
-                    ),
-                )
-            },
-            trailingIcon = {
-                Icon(
-                    Icons.Filled.ArrowDropDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                )
-            },
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.ui_any)) },
-                onClick = {
-                    onSelectFacet(null)
-                    expanded = false
-                },
-                leadingIcon = if (selectedCountry == null) {
-                    { Icon(Icons.Filled.Check, contentDescription = null) }
-                } else null,
-            )
-            countryFacets.forEach { facet ->
-                DropdownMenuItem(
-                    text = { Text(facet.label) },
-                    onClick = {
-                        onSelectFacet(facet.key)
-                        expanded = false
-                    },
-                    leadingIcon = if (facet.key == selectedFacet) {
-                        { Icon(Icons.Filled.Check, contentDescription = null) }
-                    } else null,
-                )
-            }
-        }
-    }
-}
-
-internal fun radioEsLanguageFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
-    facets.filter { it.key.startsWith(RADIO_ES_LANGUAGE_FACET_PREFIX) }
-
-internal fun radioEsCategoryFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
-    facets.filterNot { it.key.startsWith(RADIO_ES_LANGUAGE_FACET_PREFIX) }
-        .filterNot { it.key.startsWith(RADIO_ES_COUNTRY_FACET_PREFIX) }
-
-internal fun radioEsCountryFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
-    facets.filter { it.key.startsWith(RADIO_ES_COUNTRY_FACET_PREFIX) }
-
-private const val RADIO_ES_LANGUAGE_FACET_PREFIX = "lang:"
-private const val RADIO_ES_COUNTRY_FACET_PREFIX = "country:"

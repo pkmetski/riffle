@@ -25,6 +25,10 @@ import com.riffle.app.R
 import com.riffle.app.feature.audio.MediaItemRestorerRegistry
 import com.riffle.app.feature.audio.MediaSourceRegistry
 import com.riffle.app.feature.audiobook.AbsolutePositionPlayer
+import com.riffle.feature.player.SkipIconBucket
+import com.riffle.feature.player.SkipIntervals
+import com.riffle.feature.player.skipBackwardLabel
+import com.riffle.feature.player.skipForwardLabel
 import org.koin.android.ext.android.inject
 
 /**
@@ -80,23 +84,8 @@ class AudioPlayerService : MediaSessionService() {
                 // setMediaButtonPreferences controls the exact button order in the notification and
                 // lock-screen player across all Android versions — slot hints on CommandButton are
                 // only honoured on API 33+. Listing rewind + play/pause + forward here gives the
-                // desired ⟲15 · ▶/⏸ · ⟳30 layout without a custom notification provider.
-                session.setMediaButtonPreferences(
-                    ImmutableList.of(
-                        CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
-                            .setDisplayName("Rewind 15 seconds")
-                            .setSessionCommand(CMD_REWIND)
-                            .build(),
-                        CommandButton.Builder(CommandButton.ICON_UNDEFINED)
-                            .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
-                            .setDisplayName("Play / Pause")
-                            .build(),
-                        CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
-                            .setDisplayName("Forward 30 seconds")
-                            .setSessionCommand(CMD_FORWARD)
-                            .build(),
-                    )
-                )
+                // desired ⟲ · ▶/⏸ · ⟳ layout without a custom notification provider.
+                session.setMediaButtonPreferences(mediaButtonPreferences(SkipIntervals.DEFAULT))
             }
     }
 
@@ -129,6 +118,14 @@ class AudioPlayerService : MediaSessionService() {
         private val restorers: MediaItemRestorerRegistry,
     ) : MediaSession.Callback {
 
+        /**
+         * The jumps the notification's ⟲ / ⟳ buttons draw and perform. Pushed by the player
+         * controllers via [CMD_SET_SKIP_INTERVALS] whenever the Listening preference changes —
+         * the buttons used to be built once with a hardcoded 15 s / 30 s, so the Settings steppers
+         * only ever reached the in-app player.
+         */
+        private var skipIntervals: SkipIntervals = SkipIntervals.DEFAULT
+
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -147,6 +144,7 @@ class AudioPlayerService : MediaSessionService() {
                 .buildUpon()
                 .add(CMD_REWIND)
                 .add(CMD_FORWARD)
+                .add(CMD_SET_SKIP_INTERVALS)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(commands)
@@ -162,14 +160,28 @@ class AudioPlayerService : MediaSessionService() {
             val player = session.player
             return when (customCommand.customAction) {
                 CMD_REWIND.customAction -> {
-                    val target = (player.currentPosition - 15_000L).coerceAtLeast(0L)
-                    player.seekTo(target)
+                    val target = skipIntervals.backwardTargetSec(player.currentPosition / MS_PER_SEC)
+                    player.seekTo((target * MS_PER_SEC).toLong())
                     Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
                 CMD_FORWARD.customAction -> {
-                    val target = player.currentPosition + 30_000L
                     val duration = player.duration
-                    player.seekTo(if (duration != C.TIME_UNSET) target.coerceAtMost(duration) else target)
+                    val target = skipIntervals.forwardTargetSec(
+                        currentSec = player.currentPosition / MS_PER_SEC,
+                        durationSec = if (duration != C.TIME_UNSET) duration / MS_PER_SEC else 0.0,
+                    )
+                    player.seekTo((target * MS_PER_SEC).toLong())
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                }
+                CMD_SET_SKIP_INTERVALS.customAction -> {
+                    val updated = SkipIntervals.of(
+                        forwardSec = args.getInt(ARG_SKIP_FORWARD_SEC, skipIntervals.forwardSec),
+                        backwardSec = args.getInt(ARG_SKIP_BACKWARD_SEC, skipIntervals.backwardSec),
+                    )
+                    if (updated != skipIntervals) {
+                        skipIntervals = updated
+                        session.setMediaButtonPreferences(mediaButtonPreferences(updated))
+                    }
                     Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
                 else -> super.onCustomCommand(session, controller, customCommand, args)
@@ -197,7 +209,63 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     companion object {
+        // The action strings are part of the session's wire contract with already-installed
+        // controllers, so they keep their historical "_15"/"_30" suffixes even though the jump is
+        // now whatever the user configured.
         val CMD_REWIND  = SessionCommand("com.riffle.REWIND_15",  Bundle.EMPTY)
         val CMD_FORWARD = SessionCommand("com.riffle.FORWARD_30", Bundle.EMPTY)
+
+        /** Carries [ARG_SKIP_FORWARD_SEC] / [ARG_SKIP_BACKWARD_SEC]; see [skipIntervalsArgs]. */
+        val CMD_SET_SKIP_INTERVALS = SessionCommand("com.riffle.SET_SKIP_INTERVALS", Bundle.EMPTY)
+
+        const val ARG_SKIP_FORWARD_SEC = "forward_sec"
+        const val ARG_SKIP_BACKWARD_SEC = "backward_sec"
+
+        private const val MS_PER_SEC = 1000.0
+
+        fun skipIntervalsArgs(intervals: SkipIntervals): Bundle = Bundle().apply {
+            putInt(ARG_SKIP_FORWARD_SEC, intervals.forwardSec)
+            putInt(ARG_SKIP_BACKWARD_SEC, intervals.backwardSec)
+        }
+
+        /**
+         * The notification / lock-screen transport cluster for [intervals]. Media3 only ships
+         * numbered glyphs for 5 / 10 / 15 / 30 s, so anything else falls back to the unnumbered
+         * arrow — the bucketing is shared with iOS via [SkipIconBucket].
+         */
+        @OptIn(UnstableApi::class)
+        fun mediaButtonPreferences(intervals: SkipIntervals): ImmutableList<CommandButton> =
+            ImmutableList.of(
+                CommandButton.Builder(backIcon(intervals.backwardSec))
+                    .setDisplayName(skipBackwardLabel(intervals.backwardSec))
+                    .setSessionCommand(CMD_REWIND)
+                    .build(),
+                CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+                    .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+                    .setDisplayName("Play / Pause")
+                    .build(),
+                CommandButton.Builder(forwardIcon(intervals.forwardSec))
+                    .setDisplayName(skipForwardLabel(intervals.forwardSec))
+                    .setSessionCommand(CMD_FORWARD)
+                    .build(),
+            )
+
+        @OptIn(UnstableApi::class)
+        private fun backIcon(seconds: Int): Int = when (SkipIconBucket.of(seconds)) {
+            SkipIconBucket.SEC_5 -> CommandButton.ICON_SKIP_BACK_5
+            SkipIconBucket.SEC_10 -> CommandButton.ICON_SKIP_BACK_10
+            SkipIconBucket.SEC_15 -> CommandButton.ICON_SKIP_BACK_15
+            SkipIconBucket.SEC_30 -> CommandButton.ICON_SKIP_BACK_30
+            SkipIconBucket.GENERIC -> CommandButton.ICON_SKIP_BACK
+        }
+
+        @OptIn(UnstableApi::class)
+        private fun forwardIcon(seconds: Int): Int = when (SkipIconBucket.of(seconds)) {
+            SkipIconBucket.SEC_5 -> CommandButton.ICON_SKIP_FORWARD_5
+            SkipIconBucket.SEC_10 -> CommandButton.ICON_SKIP_FORWARD_10
+            SkipIconBucket.SEC_15 -> CommandButton.ICON_SKIP_FORWARD_15
+            SkipIconBucket.SEC_30 -> CommandButton.ICON_SKIP_FORWARD_30
+            SkipIconBucket.GENERIC -> CommandButton.ICON_SKIP_FORWARD
+        }
     }
 }

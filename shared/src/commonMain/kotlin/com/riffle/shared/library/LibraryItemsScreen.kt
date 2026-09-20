@@ -36,7 +36,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,15 +51,23 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
-import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.AnnotationsListUiState
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibraryTabVisibility
+import com.riffle.feature.library.shouldClampSelectedTab
+import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.tabIndexForPlaylists
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.LocalCoverGridScale
 import com.riffle.shared.SharedUiIcons
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -75,41 +85,14 @@ private const val SECTION_CELL_WIDTH = 120
 internal fun coverGridMinCell(): Dp {
     val widthPx = LocalWindowInfo.current.containerSize.width
     val widthDp = with(LocalDensity.current) { widthPx.toDp() }
-    return CoverGridLayout.minCellSizeDp(widthDp.value, 1f).dp
+    // The second argument is the user's pinch multiplier, published by CoverGridZoomBox. It used
+    // to be a hardcoded 1f, which is why the persisted cover-grid density never reached a grid.
+    return CoverGridLayout.minCellSizeDp(widthDp.value, LocalCoverGridScale.current).dp
 }
 
-/** Index of the Annotations tab — single source of truth shared by the bar and content switch. */
-internal fun tabIndexForAnnotations(): Int = 2
-
-/** Index of the Playlists tab — positioned after Collections (4) and before All Books (5). */
-internal fun tabIndexForPlaylists(): Int = 6
-
-/**
- * True when [selectedTab] is no longer visible and the UI should clamp back to Home.
- * Returns false while searching (filter changes tab visibility temporarily) or while
- * [visibility] is still null (resolving), so a rememberSaveable-restored tab survives the
- * initial load window.
- */
-internal fun shouldClampSelectedTab(
-    searchQuery: String,
-    visibility: LibraryTabVisibility?,
-    selectedTab: Int,
-): Boolean {
-    if (searchQuery.isNotEmpty()) return false
-    if (visibility == null) return false
-    return !isTabVisible(selectedTab, visibility)
-}
-
-/** True when the tab at [selectedTab] has data to show. Home (0) and All Books (5) are always visible. */
-internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): Boolean =
-    when (selectedTab) {
-        1 -> visibility.toRead
-        tabIndexForAnnotations() -> visibility.annotations
-        3 -> visibility.series
-        4 -> visibility.collections
-        tabIndexForPlaylists() -> visibility.playlists
-        else -> true
-    }
+// The tab index vocabulary and the visibility/clamp rules come from
+// `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used
+// to exist as a byte-identical private copy in each screen.
 
 @Composable
 fun LibraryItemsScreen(
@@ -117,10 +100,14 @@ fun LibraryItemsScreen(
     libraryName: String,
     onOpenDrawer: () -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
+    onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
+    // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
+    // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
+    annotationsViewModel: AnnotationsListViewModel = koinInject { parametersOf(libraryId) },
 ) {
     LaunchedEffect(libraryId) {
         viewModel.onScreenResumed()
@@ -141,11 +128,19 @@ fun LibraryItemsScreen(
 
     val isLoading by viewModel.isLoading.collectAsState()
     val projection by viewModel.projection.collectAsState()
+    val annotationsState by annotationsViewModel.state.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
+    // Drive the grids off a local live scale so a pinch reflows instantly; the ViewModel debounces
+    // the persist and re-emits the settled value. Same shape as Android's LibraryItemsScreen.
+    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
+    var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
+    LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
 
     // Clamp to Home when the previously-selected tab's data has disappeared.
     LaunchedEffect(tabVisibility) {
@@ -164,23 +159,73 @@ fun LibraryItemsScreen(
             )
         },
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        CoverGridZoomBox(
+            scale = liveCoverScale,
+            onScaleChange = { scale ->
+                liveCoverScale = scale
+                viewModel.setCoverGridScale(scale)
+            },
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+        ) {
             if (isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Loading…")
                 }
             } else {
-                when (selectedTab) {
-                    0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
-                    1 -> SimpleItemList(projection.toRead, "To Read", onItemSelected)
-                    tabIndexForAnnotations() -> AnnotationsTabContent(projection.annotations)
-                    3 -> SeriesTabContent(projection.series, onSeriesSelected)
-                    4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
-                    5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
-                    else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
-                }
+                LibraryTabContent(
+                    selectedTab = selectedTab,
+                    projection = projection,
+                    playlists = playlists,
+                    annotationsState = annotationsState,
+                    coversAreSquare = coversAreSquare,
+                    linkedItemIds = linkedItemIds,
+                    onItemSelected = onItemSelected,
+                    onAnnotatedBookSelected = onAnnotatedBookSelected,
+                    onSeriesSelected = onSeriesSelected,
+                    onCollectionSelected = onCollectionSelected,
+                    onSectionSeeMore = onSectionSeeMore,
+                )
             }
         }
+    }
+}
+
+/**
+ * Body of the tab at [selectedTab].
+ *
+ * Split out of [LibraryItemsScreen] so the per-tab data source is exercisable without a Koin graph
+ * — in particular the Annotations tab, which must read [annotationsState] and **not**
+ * [LibraryProjection.annotations]. The latter is the *search* projection: `LibraryFilterEngine`
+ * returns an empty list for a blank query, and only Android's search results ever render it. iOS
+ * has no search field, so a tab wired to it reads "No annotations" for every user whose tab button
+ * is visible.
+ */
+@Composable
+internal fun LibraryTabContent(
+    selectedTab: Int,
+    projection: LibraryProjection,
+    playlists: List<CatalogPlaylist>,
+    annotationsState: AnnotationsListUiState,
+    coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
+    onItemSelected: (LibraryItem) -> Unit,
+    onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
+    onSeriesSelected: (Series) -> Unit,
+    onCollectionSelected: (Collection) -> Unit,
+    onSectionSeeMore: (LibrarySectionType) -> Unit,
+) {
+    when (selectedTab) {
+        0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        1 -> SimpleItemList(projection.toRead, "Nothing in To Read", onItemSelected)
+        tabIndexForAnnotations() -> AnnotationsTabContent(annotationsState, onAnnotatedBookSelected)
+        3 -> SeriesTabContent(projection.series, onSeriesSelected)
+        4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
+        5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
+        // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
+        // Home tab. The shared ViewModel has exposed `playlists` all along
+        // (LibraryItemsViewModel.kt:201); the iOS screen just never read it.
+        tabIndexForPlaylists() -> PlaylistsTabContent(playlists)
+        else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
     }
 }
 
@@ -276,7 +321,7 @@ private fun HomeTabContent(
             item { HorizontalBookRow(items = projection.recentlyAdded.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.finished.isNotEmpty()) {
-            item { SectionHeader("Finished") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
+            item { SectionHeader("Completed") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
             item { HorizontalBookRow(items = projection.finished.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.series.isNotEmpty()) {
@@ -313,7 +358,7 @@ private fun SimpleItemList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
-                    DefaultCoverPlaceholder(isAudiobook = item.isListenable && !item.isReadable, modifier = Modifier.fillMaxSize())
+                    DefaultCoverPlaceholder(isAudiobook = item.isAudiobookOnly, modifier = Modifier.fillMaxSize())
                 }
                 Column(Modifier.padding(start = 12.dp)) {
                     Text(item.title, style = MaterialTheme.typography.bodyLarge)
@@ -326,27 +371,75 @@ private fun SimpleItemList(
     }
 }
 
+/** Empty-state copy for the Annotations tab. Mirrors Android's `ui_no_highlights_yet`. */
+internal const val ANNOTATIONS_EMPTY_LABEL = "No highlights yet."
+
+/**
+ * Grid of books with at least one live highlight, mirroring Android's `AnnotationsListScreen`.
+ * [state] comes from `AnnotationsListViewModel`; tapping a book opens its detail sheet, which is
+ * what Android's `onBookClick(sourceId, itemId)` does.
+ */
 @Composable
-private fun AnnotationsTabContent(annotations: List<AnnotationSearchResult>) {
-    if (annotations.isEmpty()) {
+internal fun AnnotationsTabContent(
+    state: AnnotationsListUiState,
+    onBookSelected: (sourceId: String, itemId: String) -> Unit,
+) {
+    if (state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No annotations", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Loading…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(annotations, key = { it.annotation.id }) { result ->
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-                Text(result.bookTitle, style = MaterialTheme.typography.bodyLarge)
-                if (result.annotation.textSnippet.isNotEmpty()) {
-                    Text(
-                        result.annotation.textSnippet,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
+    if (state.books.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(ANNOTATIONS_EMPTY_LABEL, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(coverGridMinCell()),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
+            AnnotatedBookTile(book = book, onClick = { onBookSelected(book.sourceId, book.itemId) })
+        }
+    }
+}
+
+/** One annotated book: placeholder cover, highlight-count badge, title and author. */
+@Composable
+internal fun AnnotatedBookTile(book: AnnotatedBook, onClick: () -> Unit) {
+    val title = book.title ?: book.itemId
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(6.dp)),
+        ) {
+            DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = book.highlightCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
+        }
+        Text(title, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+        val author = book.author
+        if (author != null) {
+            Text(author, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -516,7 +609,7 @@ fun BookCoverTile(
                 .clickable(onClick = onClick),
         ) {
             DefaultCoverPlaceholder(
-                isAudiobook = item.isListenable && !item.isReadable,
+                isAudiobook = item.isAudiobookOnly,
                 modifier = Modifier.fillMaxSize(),
             )
             if (item.isDownloaded || item.isCached) {
@@ -669,4 +762,35 @@ private fun DownloadedBadge(downloaded: Boolean, modifier: Modifier = Modifier) 
             .clip(CircleShape)
             .background(color),
     )
+}
+
+/**
+ * Playlists for this library. Tapping through to a playlist's contents is tracked separately
+ * (there is no iOS `PlaylistDetailScreen` yet), so this lists them without navigation rather
+ * than pretending to be interactive.
+ */
+@Composable
+private fun PlaylistsTabContent(playlists: List<CatalogPlaylist>) {
+    if (playlists.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                "No playlists",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(playlists, key = { it.id }) { playlist ->
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Text(playlist.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "${playlist.bookCount} book(s)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }

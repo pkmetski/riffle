@@ -28,6 +28,55 @@ data class ArbiterAction(
  * Returns [ArbiterAction.Noop] when [starting] is [Feature.None] or the current state already
  * has that feature active.
  */
+/**
+ * Which feature counts as running, given each one's live state.
+ *
+ * The at-most-one invariant is guaranteed by the arbiter itself — the last successful start would
+ * have parked any prior feature. In the event of a race the highest-priority winner is picked
+ * (Cadence > AutoScroll > Readaloud) so the pause fan-out is deterministic.
+ */
+fun currentRunningFeature(
+    cadenceRunning: Boolean,
+    autoScrollRunning: Boolean,
+    readaloudPlaying: Boolean,
+): Feature = when {
+    cadenceRunning -> Feature.Cadence
+    autoScrollRunning -> Feature.AutoScroll
+    readaloudPlaying -> Feature.Readaloud
+    else -> Feature.None
+}
+
+/**
+ * The cause Cadence's pause should carry when [starting] parks it. Cadence keeps the cause so a
+ * scoped resume can tell "the user paused me from the pill" from "auto-scroll took over".
+ */
+fun cadencePauseCauseFor(starting: Feature): PauseCause = when (starting) {
+    Feature.AutoScroll -> PauseCause.AutoScrollStarted
+    Feature.Readaloud -> PauseCause.ReadaloudStarted
+    else -> PauseCause.PanelOpen
+}
+
+/**
+ * Apply [onStart]'s fan-out. Both readers call this immediately before dispatching a Start to
+ * [starting]'s own controller, so "starting X parks Y" is one decision in one place rather than
+ * a per-host `if` ladder that can drift — the reason iOS gets mutual exclusion for free the
+ * moment its auto-scroll and Cadence both exist.
+ *
+ * A host that does not have one of the features leaves its handler at the default no-op.
+ */
+fun runArbiter(
+    currentRunning: Feature,
+    starting: Feature,
+    stopAutoScroll: () -> Unit = {},
+    pauseCadence: (PauseCause) -> Unit = {},
+    pauseReadaloud: () -> Unit = {},
+) {
+    val action = onStart(currentRunning, starting)
+    if (action.pauseAutoScroll) stopAutoScroll()
+    if (action.pauseReadaloud) pauseReadaloud()
+    if (action.pauseCadence) pauseCadence(cadencePauseCauseFor(starting))
+}
+
 fun onStart(currentRunning: Feature, starting: Feature): ArbiterAction = when (starting) {
     Feature.None -> ArbiterAction.Noop
     currentRunning -> ArbiterAction.Noop

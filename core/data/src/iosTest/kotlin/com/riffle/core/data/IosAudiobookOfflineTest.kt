@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
@@ -159,7 +160,7 @@ class IosAudiobookOfflineTest {
         val dir = "${fileStore.resolve(NS_AUDIOBOOK_DOWNLOADS)}/s1/i1"
         assertTrue(IosAudiobookFiles.exists("$dir/track-0"), "track-0 should be on disk")
         assertTrue(IosAudiobookFiles.exists("$dir/track-1"), "track-1 should be on disk")
-        assertTrue(IosAudiobookFiles.exists("$dir/manifest.json"), "manifest should be written")
+        assertTrue(IosAudiobookFiles.exists("$dir/$MANIFEST"), "manifest should be written")
     }
 
     @Test

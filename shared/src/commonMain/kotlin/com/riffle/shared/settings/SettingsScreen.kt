@@ -34,15 +34,25 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.ComicFormattingPreferences
-import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
-import com.riffle.feature.settings.AnnotationSyncSubtitle
-import com.riffle.feature.settings.AppUpdateUiState
+import com.riffle.core.models.Source
+import com.riffle.feature.player.PlaybackSpeed
+import com.riffle.feature.player.SkipIntervals
+import com.riffle.feature.settings.AppUpdateStatus
+import com.riffle.feature.settings.PanelOverflowOptions
+import com.riffle.feature.settings.ReadaloudMatchSummary
+import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.comicDisplaySummary
+import com.riffle.feature.settings.idsWithSwap
+import com.riffle.feature.settings.label
+import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.shared.source.SourceOnboardingHost
 import org.koin.compose.koinInject
@@ -98,7 +108,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         SettingsPanel.Cadence -> {
             val prefs by viewModel.globalFormattingPreferences.collectAsState()
-            PanelScaffold("Cadence", onDismiss = { activePanel = SettingsPanel.None }) {
+            PanelScaffold(CADENCE_PANEL_TITLE, onDismiss = { activePanel = SettingsPanel.None }) {
                 CadencePanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
             }
         }
@@ -154,8 +164,6 @@ private fun MainSettingsContent(
     val skip by viewModel.skipIntervalSeconds.collectAsState()
     val rewind by viewModel.rewindIntervalSeconds.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
-    val volumeKeyNavEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
-    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
@@ -199,12 +207,20 @@ private fun MainSettingsContent(
                     onTrailingClick = { viewModel.removeServer(source.id) },
                     leading = { SourceIcon(source = source, size = 28.dp) },
                 )
-                libraryItems.forEach { item ->
+                libraryItems.forEachIndexed { index, item ->
                     LibraryVisibilityRow(
                         name = item.library.name,
                         visible = item.isVisible,
                         switchEnabled = item.switchEnabled,
                         onToggle = { viewModel.setLibraryVisible(source.id, item.library.id, it) },
+                        // Reorder controls mirror Android's ReorderableLibraryList: explicit
+                        // move buttons rather than a drag gesture, which competes with the
+                        // settings scroll. NavigationDrawerViewModel already reads the stored
+                        // order on iOS — only the way to change it was missing.
+                        canMoveUp = index > 0,
+                        canMoveDown = index < libraryItems.lastIndex,
+                        onMoveUp = { viewModel.setLibraryOrder(source.id, libraryItems.idsWithSwap(index, index - 1)) },
+                        onMoveDown = { viewModel.setLibraryOrder(source.id, libraryItems.idsWithSwap(index, index + 1)) },
                     )
                 }
             }
@@ -231,18 +247,25 @@ private fun MainSettingsContent(
 
         // ── Reading ───────────────────────────────────────────────────────────────────────
         SectionHeader("Reading")
-        SettingsDrillInRow("Formatting", formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
-        SettingsDrillInRow("Display", displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
-        SettingsDrillInRow("Auto-scroll", autoScrollSummary(globalFormatting)) { onOpenPanel(SettingsPanel.AutoScroll) }
+        SettingsDrillInRow("Formatting", ReaderSettingsSummaries.formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
+        SettingsDrillInRow("Display", ReaderSettingsSummaries.displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
+        SettingsDrillInRow("Auto-scroll", ReaderSettingsSummaries.autoScrollSummary(globalFormatting)) {
+            onOpenPanel(SettingsPanel.AutoScroll)
+        }
+        // Gated on the reader's `Intl.Segmenter` probe, the same gate Android's row uses: the
+        // preference is persisted by the reader's feature detect, so Settings knows the answer
+        // even when opened with no book open.
         if (globalFormatting.cadencePlatformSupported) {
-            SettingsDrillInRow("Cadence", cadenceSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Cadence) }
+            SettingsDrillInRow(CADENCE_PANEL_TITLE, ReaderSettingsSummaries.cadenceSummary(globalFormatting)) {
+                onOpenPanel(SettingsPanel.Cadence)
+            }
         }
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
         SectionHeader("Listening")
         SettingsDrillInRow(
             "Preferences",
-            "Speed ${formatSpeed(speed)}× · Skip ${skip}s · Rewind ${rewind}s",
+            listeningSummary(speed, skip, rewind),
         ) { onOpenPanel(SettingsPanel.Listening) }
 
         // ── Comics ────────────────────────────────────────────────────────────────────────
@@ -254,14 +277,9 @@ private fun MainSettingsContent(
         if (storytellerServers.isNotEmpty()) {
             SectionHeader("Readaloud")
             storytellerServers.forEach { st ->
-                val summary = readaloudSummaries[st.id]
                 SettingsRow(
                     label = st.serverType.label,
-                    subtitle = if (summary != null) {
-                        "${summary.matchedCount} matched · ${summary.unmatchedCount} unmatched"
-                    } else {
-                        st.url.authority()
-                    },
+                    subtitle = readaloudSubtitle(st, serverVersions, readaloudSummaries),
                 )
             }
         }
@@ -280,35 +298,18 @@ private fun MainSettingsContent(
             checked = keepScreenOn,
             onCheckedChange = { viewModel.setKeepScreenOn(it) },
         )
-        ToggleSettingsRow(
-            label = "Volume key navigation",
-            checked = volumeKeyNavEnabled,
-            onCheckedChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
-        )
-        if (volumeKeyNavEnabled) {
-            ToggleSettingsRow(
-                label = "Invert volume keys",
-                checked = invertVolumeKeys,
-                onCheckedChange = { viewModel.setInvertVolumeKeys(it) },
-                indent = true,
-            )
-        }
+        // No volume-key rows: iOS hands hardware volume presses to the system before any app
+        // can consume them (see IosVolumeKeyPreferencesStoreImpl), so both switches were
+        // decorative — and gating the invert switch on the parent made the pair look
+        // functional. The preference itself still round-trips for cross-device parity; only
+        // the iOS UI is gone.
 
         // ── App Version ───────────────────────────────────────────────────────────────────
         SectionHeader("App Version")
-        val updateLabel = when (appUpdateState) {
-            is AppUpdateUiState.Idle -> "Check for update"
-            is AppUpdateUiState.Checking -> "Checking…"
-            is AppUpdateUiState.UpToDate -> "Up to date"
-            is AppUpdateUiState.UpdateAvailable -> "Update available"
-            is AppUpdateUiState.Downloading -> "Downloading…"
-            is AppUpdateUiState.Installing -> "Installing…"
-            is AppUpdateUiState.Failed -> "Check failed"
-        }
         SettingsRow(
             label = "Version",
-            subtitle = viewModel.installedVersionName,
-            trailing = updateLabel,
+            subtitle = AppUpdateStatus.statusText(appUpdateState, viewModel.installedVersionName),
+            trailing = AppUpdateStatus.actionLabel(appUpdateState),
             onTrailingClick = { viewModel.checkForUpdate() },
         )
 
@@ -363,28 +364,29 @@ private fun PanelScaffold(title: String, onDismiss: () -> Unit, content: @Compos
 private fun FormattingPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
     PanelSection("Font Size")
     StepperRow(
-        label = "${(prefs.fontSize * 100).toInt()}%",
+        // roundToInt, not toInt: the summary row on the previous screen goes through
+        // ReaderSettingsSummaries, so a truncating stepper here made the same scale read 115% up
+        // there and 114% down here.
+        label = ReaderSettingsSummaries.fontSizePercentLabel(prefs.fontSize),
         onDecrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize - 0.1f).coerceAtLeast(0.5f))) },
         onIncrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize + 0.1f).coerceAtMost(3.0f))) },
     )
     PanelSection("Font Family")
     ChipRow(
-        options = ReaderFontFamily.entries.map { it.label() },
-        selected = prefs.fontFamily.label(),
-        onSelect = { label ->
-            ReaderFontFamily.entries.firstOrNull { it.label() == label }
-                ?.let { onPrefsChange(prefs.copy(fontFamily = it)) }
-        },
+        options = fontFamilyChipOptions,
+        selected = prefs.fontFamily,
+        label = { ReaderSettingsSummaries.fontFamilyLabel(it) },
+        onSelect = { onPrefsChange(prefs.copy(fontFamily = it)) },
     )
     PanelSection("Line Spacing")
     StepperRow(
-        label = prefs.lineSpacing.to1dp(),
+        label = ReaderSettingsSummaries.lineSpacingCaption(prefs.lineSpacing),
         onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f))) },
         onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(3.0f))) },
     )
     PanelSection("Margins")
     StepperRow(
-        label = "${(prefs.margins * 100).toInt()}%",
+        label = ReaderSettingsSummaries.marginsCaption(prefs.margins),
         onDecrement = { onPrefsChange(prefs.copy(margins = (prefs.margins - 0.1f).coerceAtLeast(0.0f))) },
         onIncrement = { onPrefsChange(prefs.copy(margins = (prefs.margins + 0.1f).coerceAtMost(2.0f))) },
     )
@@ -393,20 +395,16 @@ private fun FormattingPanelContent(prefs: FormattingPreferences, onPrefsChange: 
 }
 
 @Composable
-private fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+// `internal` rather than private so SettingsDisplayPanelTest can drive the real panel: the five
+// On-Screen Info switches below are the only proof that the iOS Display panel offers them, and
+// they cannot be asserted through a derivation.
+internal fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
     PanelSection("Reading Mode")
     ChipRow(
-        options = listOf("Paginated", "Scroll", "Continuous"),
-        selected = prefs.orientation.displayLabel(),
-        onSelect = { label ->
-            val ori = when (label) {
-                "Paginated" -> ReaderOrientation.Horizontal
-                "Scroll" -> ReaderOrientation.Vertical
-                "Continuous" -> ReaderOrientation.Continuous
-                else -> prefs.orientation
-            }
-            onPrefsChange(prefs.copy(orientation = ori))
-        },
+        options = readingModeChipOptions,
+        selected = prefs.orientation,
+        label = { ReaderSettingsSummaries.orientationWord(it) },
+        onSelect = { onPrefsChange(prefs.copy(orientation = it)) },
     )
     PanelSection("Landscape")
     PanelToggleRow("Force paginated in landscape", prefs.forcePaginatedInLandscape) {
@@ -417,80 +415,116 @@ private fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (Fo
     }
     PanelSection("Reader Theme")
     ChipRow(
-        options = listOf("Light", "Dark", "Dim", "Sepia", "Auto"),
-        selected = prefs.theme.displayLabel(),
-        onSelect = { label ->
-            val theme = when (label) {
-                "Light" -> ReaderTheme.Light
-                "Dark" -> ReaderTheme.Dark
-                "Dim" -> ReaderTheme.DarkDim
-                "Sepia" -> ReaderTheme.Sepia
-                "Auto" -> ReaderTheme.Auto
-                else -> prefs.theme
-            }
-            onPrefsChange(prefs.copy(theme = theme))
-        },
+        options = readerThemeChipOptions,
+        selected = prefs.theme,
+        label = { ReaderSettingsSummaries.themeLabel(it) },
+        onSelect = { onPrefsChange(prefs.copy(theme = it)) },
     )
     PanelSection("Auto Theme Mode")
+    // "Time based"/"App theme" — the same words the Display summary row one screen up renders.
+    // These chips used to read "Schedule"/"Follow app theme", so the same setting was named two
+    // different things on the same screen.
     ChipRow(
-        options = listOf("Schedule", "Follow app theme"),
-        selected = if (prefs.autoReaderThemeMode == AutoReaderThemeMode.Schedule) "Schedule" else "Follow app theme",
-        onSelect = { label ->
-            val mode = if (label == "Schedule") AutoReaderThemeMode.Schedule else AutoReaderThemeMode.AppTheme
-            onPrefsChange(prefs.copy(autoReaderThemeMode = mode))
-        },
+        options = autoThemeModeChipOptions,
+        selected = prefs.autoReaderThemeMode,
+        label = { ReaderSettingsSummaries.autoModeLabel(it) },
+        onSelect = { onPrefsChange(prefs.copy(autoReaderThemeMode = it)) },
     )
+    // On-Screen Info — the five switches behind the chapter-map overlay the iOS reader now
+    // renders (:feature:reader-ui's ChapterMapOverlay, mounted by IosEpubReaderScreen). Same
+    // five flags, same order and same enablement rule as Android's DisplaySection.
     PanelSection("On-Screen Info")
     PanelToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
-    PanelToggleRow("Colored chapter map", prefs.coloredChapterMap) { onPrefsChange(prefs.copy(coloredChapterMap = it)) }
-    PanelToggleRow("Current chapter label", prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
-    PanelToggleRow("Reading progress labels", prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
-    PanelToggleRow("Time remaining", prefs.showReadingTimeEstimate) { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) }
+    PanelToggleRow(
+        label = "Colored chapter map",
+        checked = prefs.coloredChapterMap,
+        // Shared rule, not a second copy of "it depends on the parent": a sub-setting of the
+        // chapter map greys out when the map is off.
+        enabled = ReaderSettingsSections.coloredChapterMapEnabled(prefs.showChapterMap),
+        onCheckedChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
+    )
+    PanelToggleRow("Current chapter label", prefs.showCurrentChapterLabel) {
+        onPrefsChange(prefs.copy(showCurrentChapterLabel = it))
+    }
+    PanelToggleRow("Reading progress labels", prefs.showReadingProgressLabels) {
+        onPrefsChange(prefs.copy(showReadingProgressLabels = it))
+    }
+    PanelToggleRow("Time remaining", prefs.showReadingTimeEstimate) {
+        onPrefsChange(prefs.copy(showReadingTimeEstimate = it))
+    }
 }
 
+// `internal` for the same reason as DisplayPanelContent: the switch and the stepper are only
+// assertable by driving the real panel.
 @Composable
-private fun AutoScrollPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+internal fun AutoScrollPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
     PanelSection("Auto-scroll")
     PanelToggleRow("Show auto-scroll toggle in reader", prefs.showAutoScroll) {
         onPrefsChange(prefs.copy(showAutoScroll = it))
     }
     PanelSection("Speed (WPM)")
+    // AutoScrollSpeed owns the range and the snap-to-10 rule; going through it rather than
+    // hand-rolling the arithmetic is what keeps the stepper, the HUD pill's nudges and the
+    // ticker agreeing on what a legal speed is.
     StepperRow(
         label = "${prefs.autoScrollWpm} WPM",
-        onDecrement = { onPrefsChange(prefs.copy(autoScrollWpm = (prefs.autoScrollWpm - 10).coerceAtLeast(50))) },
-        onIncrement = { onPrefsChange(prefs.copy(autoScrollWpm = (prefs.autoScrollWpm + 10).coerceAtMost(1000))) },
+        onDecrement = {
+            onPrefsChange(prefs.copy(autoScrollWpm = AutoScrollSpeed.of(prefs.autoScrollWpm - AutoScrollSpeed.STEP_WPM).wpm))
+        },
+        onIncrement = {
+            onPrefsChange(prefs.copy(autoScrollWpm = AutoScrollSpeed.of(prefs.autoScrollWpm + AutoScrollSpeed.STEP_WPM).wpm))
+        },
     )
 }
 
+/** Panel title and drill-in row label — one constant so the two can never disagree. */
+internal const val CADENCE_PANEL_TITLE: String = "Cadence"
+
+/**
+ * What the panel shows instead of its controls when the reader's `Intl.Segmenter` probe came
+ * back false. Cadence has no fallback tokeniser (issue #403), so there is nothing to configure.
+ */
+internal const val CADENCE_UNSUPPORTED_NOTE: String =
+    "Cadence is not available on this device. A WebView update may enable it."
+
+// `internal` for the same reason as AutoScrollPanelContent: the toggle, the stepper and the
+// colour chips are only assertable by driving the real panel.
 @Composable
-private fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+internal fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+    PanelSection(CADENCE_PANEL_TITLE)
     if (!prefs.cadencePlatformSupported) {
-        PanelSection("Cadence")
         BasicText(
-            text = "Cadence is not available on this device. A WebView update may enable it.",
+            text = CADENCE_UNSUPPORTED_NOTE,
             style = TextStyle(fontSize = 14.sp, color = Color.Gray),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
         return
     }
-    PanelSection("Cadence")
     PanelToggleRow("Show cadence toggle in reader", prefs.showCadence) {
         onPrefsChange(prefs.copy(showCadence = it))
     }
     PanelSection("Speed (WPM)")
+    // AutoScrollSpeed owns the 80–600 range and the snap-to-10 rule, and Cadence deliberately
+    // reuses it (issue #403) so the stepper, the HUD pill's nudges and the ticker agree on what
+    // a legal speed is. The version of this panel that was removed hand-rolled ±10 clamped to
+    // 50..1000 — a range the ticker would have rejected at both ends.
     StepperRow(
         label = "${prefs.cadenceWpm} WPM",
-        onDecrement = { onPrefsChange(prefs.copy(cadenceWpm = (prefs.cadenceWpm - 10).coerceAtLeast(50))) },
-        onIncrement = { onPrefsChange(prefs.copy(cadenceWpm = (prefs.cadenceWpm + 10).coerceAtMost(1000))) },
+        onDecrement = {
+            onPrefsChange(prefs.copy(cadenceWpm = AutoScrollSpeed.of(prefs.cadenceWpm - AutoScrollSpeed.STEP_WPM).wpm))
+        },
+        onIncrement = {
+            onPrefsChange(prefs.copy(cadenceWpm = AutoScrollSpeed.of(prefs.cadenceWpm + AutoScrollSpeed.STEP_WPM).wpm))
+        },
     )
     PanelSection("Highlight Color")
+    // Keyed on the HighlightColor value, never on its rendered label — and the options come from
+    // the enum, so the picker cannot offer a colour the reader cannot paint.
     ChipRow(
-        options = HighlightColor.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
-        selected = prefs.cadenceHighlightColor.name.lowercase().replaceFirstChar { c -> c.uppercase() },
-        onSelect = { label ->
-            HighlightColor.entries.firstOrNull { it.name.equals(label, ignoreCase = true) }
-                ?.let { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) }
-        },
+        options = cadenceHighlightChipOptions,
+        selected = prefs.cadenceHighlightColor,
+        label = ::highlightColorLabel,
+        onSelect = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
     )
 }
 
@@ -506,30 +540,39 @@ private fun ListeningPanelContent(
     onRewindOnResumeChange: (Int) -> Unit,
 ) {
     PanelSection("Playback Speed")
+    // PlaybackSpeed is the domain's range and snap rule (0.5–3.0 in steps of 0.05). The private
+    // arithmetic here truncated to one decimal, so 0.75 rendered "0.7×", and clamped at 4.0 —
+    // a full 1.0× past what the player accepts.
     StepperRow(
-        label = "${formatSpeed(defaultPlaybackSpeed)}×",
-        onDecrement = { onSpeedChange((defaultPlaybackSpeed - 0.1f).coerceAtLeast(0.5f).roundToStep()) },
-        onIncrement = { onSpeedChange((defaultPlaybackSpeed + 0.1f).coerceAtMost(4.0f).roundToStep()) },
+        label = PlaybackSpeed.label(defaultPlaybackSpeed),
+        onDecrement = { onSpeedChange(PlaybackSpeed.snap(defaultPlaybackSpeed - PlaybackSpeed.STEP)) },
+        onIncrement = { onSpeedChange(PlaybackSpeed.snap(defaultPlaybackSpeed + PlaybackSpeed.STEP)) },
     )
+    // The bounds come from SkipIntervals, which is also what clamps the value on its way to the
+    // transport — so the stepper cannot offer an interval the player would refuse.
     PanelSection("Skip Forward (seconds)")
     StepperRow(
         label = "${skipIntervalSeconds}s",
-        onDecrement = { onSkipChange((skipIntervalSeconds - 5).coerceAtLeast(5)) },
-        onIncrement = { onSkipChange((skipIntervalSeconds + 5).coerceAtMost(120)) },
+        onDecrement = { onSkipChange((skipIntervalSeconds - SKIP_STEP_SECONDS).coerceAtLeast(SkipIntervals.MIN_SECONDS)) },
+        onIncrement = { onSkipChange((skipIntervalSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
     )
     PanelSection("Rewind (seconds)")
     StepperRow(
         label = "${rewindIntervalSeconds}s",
-        onDecrement = { onRewindChange((rewindIntervalSeconds - 5).coerceAtLeast(5)) },
-        onIncrement = { onRewindChange((rewindIntervalSeconds + 5).coerceAtMost(120)) },
+        onDecrement = { onRewindChange((rewindIntervalSeconds - SKIP_STEP_SECONDS).coerceAtLeast(SkipIntervals.MIN_SECONDS)) },
+        onIncrement = { onRewindChange((rewindIntervalSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
     )
+    // Floors at 0, not MIN_SECONDS: 0 means "do not rewind on resume" and must stay reachable.
     PanelSection("Rewind on Resume (seconds)")
     StepperRow(
         label = "${rewindOnResumeSeconds}s",
-        onDecrement = { onRewindOnResumeChange((rewindOnResumeSeconds - 5).coerceAtLeast(0)) },
-        onIncrement = { onRewindOnResumeChange((rewindOnResumeSeconds + 5).coerceAtMost(120)) },
+        onDecrement = { onRewindOnResumeChange((rewindOnResumeSeconds - SKIP_STEP_SECONDS).coerceAtLeast(0)) },
+        onIncrement = { onRewindOnResumeChange((rewindOnResumeSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
     )
 }
+
+/** Stepper granularity for every interval in the Listening panel. */
+private const val SKIP_STEP_SECONDS = 5
 
 @Composable
 private fun ComicDisplayPanelContent(
@@ -537,37 +580,30 @@ private fun ComicDisplayPanelContent(
     onPrefsChange: (ComicFormattingPreferences) -> Unit,
 ) {
     PanelSection("Background Theme")
+    // Options and selection come from core:domain, the same set Android's ThemeChipRows renders
+    // with includeAuto = true. This row used to offer the three concrete chips only and select on
+    // the raw stored value, so a stored Auto (or DarkDim) highlighted nothing at all.
     ChipRow(
-        options = listOf("Light", "Dark", "Sepia"),
-        selected = prefs.backgroundTheme.displayLabel(),
-        onSelect = { label ->
-            val theme = when (label) {
-                "Light" -> ReaderTheme.Light
-                "Dark" -> ReaderTheme.Dark
-                "Sepia" -> ReaderTheme.Sepia
-                else -> prefs.backgroundTheme
-            }
-            onPrefsChange(prefs.copy(backgroundTheme = theme))
-        },
+        options = ComicBackgroundThemeOptions,
+        selected = comicBackgroundChipSelection(prefs.backgroundTheme),
+        label = { ReaderSettingsSummaries.themeLabel(it) },
+        onSelect = { onPrefsChange(prefs.copy(backgroundTheme = it.asComicBackgroundTheme())) },
     )
     PanelSection("Panel View")
     PanelToggleRow("Enable panel view", prefs.panelViewOn) { onPrefsChange(prefs.copy(panelViewOn = it)) }
     if (prefs.panelViewOn) {
+        // Order and wording from PanelOverflowOptions, the same table Android's radio group reads.
+        // The chips used to run SPLIT → SMART_SPLIT → OFF with no descriptions at all.
         ChipRow(
-            options = listOf("Split", "Smart split", "No split"),
-            selected = when (prefs.panelOverflow) {
-                PanelOverflowBehavior.SPLIT -> "Split"
-                PanelOverflowBehavior.SMART_SPLIT -> "Smart split"
-                PanelOverflowBehavior.OFF -> "No split"
-            },
-            onSelect = { label ->
-                val overflow = when (label) {
-                    "Split" -> PanelOverflowBehavior.SPLIT
-                    "Smart split" -> PanelOverflowBehavior.SMART_SPLIT
-                    else -> PanelOverflowBehavior.OFF
-                }
-                onPrefsChange(prefs.copy(panelOverflow = overflow))
-            },
+            options = PanelOverflowOptions.ORDER,
+            selected = prefs.panelOverflow,
+            label = { PanelOverflowOptions.label(it) },
+            onSelect = { onPrefsChange(prefs.copy(panelOverflow = it)) },
+        )
+        BasicText(
+            text = PanelOverflowOptions.description(prefs.panelOverflow),
+            style = TextStyle(fontSize = 12.sp, color = Color.Gray),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
     }
     PanelSection("HUD")
@@ -682,11 +718,14 @@ private fun LibraryVisibilityRow(
     visible: Boolean,
     switchEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
+    canMoveUp: Boolean = false,
+    canMoveDown: Boolean = false,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = switchEnabled) { onToggle(!visible) }
             .padding(start = 32.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -696,34 +735,67 @@ private fun LibraryVisibilityRow(
                 fontSize = 13.sp,
                 color = if (switchEnabled) Color.DarkGray else Color.Gray,
             ),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clickable(enabled = switchEnabled) { onToggle(!visible) },
         )
+        if (canMoveUp || canMoveDown) {
+            MoveLibraryButton(label = "▲", name = name, enabled = canMoveUp, onClick = onMoveUp)
+            MoveLibraryButton(label = "▼", name = name, enabled = canMoveDown, onClick = onMoveDown)
+        }
         BasicText(
             text = if (visible) "Visible" else "Hidden",
             style = TextStyle(
                 fontSize = 12.sp,
                 color = if (visible) Color(0xFF1565C0) else Color.Gray,
             ),
+            modifier = Modifier.clickable(enabled = switchEnabled) { onToggle(!visible) },
         )
     }
 }
 
 @Composable
-private fun PanelToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun MoveLibraryButton(label: String, name: String, enabled: Boolean, onClick: () -> Unit) {
+    BasicText(
+        text = label,
+        style = TextStyle(fontSize = 14.sp, color = if (enabled) Color(0xFF1565C0) else Color.LightGray),
+        modifier = Modifier
+            .testTag("move-library-$label-$name")
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+private fun PanelToggleRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .testTag("panel-toggle-$label")
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(label, style = TextStyle(fontSize = 14.sp), modifier = Modifier.weight(1f))
+        BasicText(
+            label,
+            style = TextStyle(fontSize = 14.sp, color = if (enabled) Color.Unspecified else Color.Gray),
+            modifier = Modifier.weight(1f),
+        )
         BasicText(
             text = if (checked) "ON" else "OFF",
             style = TextStyle(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (checked) Color(0xFF1565C0) else Color.Gray,
+                color = when {
+                    !enabled -> Color.LightGray
+                    checked -> Color(0xFF1565C0)
+                    else -> Color.Gray
+                },
             ),
         )
     }
@@ -755,8 +827,22 @@ private fun StepperRow(label: String, onDecrement: () -> Unit, onIncrement: () -
     }
 }
 
+/**
+ * A row of single-choice chips keyed on the **value**, not on its rendered text.
+ *
+ * Every chip row on this screen used to build English literals and pick the active chip by string
+ * equality against a shared derivation — `selected = prefs.theme.displayLabel()` against
+ * `listOf("Light", "Dark", "Dim", …)`. One word changed in `ReaderThemeLabel.kt` and no chip would
+ * highlight and every tap would silently do nothing, with nothing failing to say so. [label] is
+ * for display only; selection and the tap callback both speak in [T].
+ */
 @Composable
-private fun ChipRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+private fun <T> ChipRow(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         options.forEach { option ->
             val isSelected = option == selected
@@ -770,7 +856,7 @@ private fun ChipRow(options: List<String>, selected: String, onSelect: (String) 
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             ) {
                 BasicText(
-                    option,
+                    label(option),
                     style = TextStyle(
                         fontSize = 12.sp,
                         color = if (isSelected) Color.White else Color.DarkGray,
@@ -783,11 +869,19 @@ private fun ChipRow(options: List<String>, selected: String, onSelect: (String) 
 
 // ── Summary helpers ───────────────────────────────────────────────────────────────────────────────
 //
-// These forward to feature:settings' ReaderSettingsSummaries so this screen renders exactly what
-// Android's settings rows do. They used to be independent copies here, and had drifted: the font
-// labels read "Sans-serif"/"Monospace"/"OpenDyslexic" against Android's "Sans serif"/"Mono"/
-// "Dyslexic"; the formatting row showed line spacing where Android shows margins; and the font
-// size used toInt() instead of roundToInt(), so 1.15f rendered 114% here and 115% there (#1066).
+// Every derivation this screen renders belongs to a shared module — feature:settings'
+// ReaderSettingsSummaries / AnnotationSyncSubtitleText / AppUpdateStatusText, feature:player's
+// PlaybackSpeed — so it renders exactly what Android's settings rows do. They used to be
+// independent copies here and had all drifted: font labels read "Sans-serif"/"Monospace" against
+// Android's "Sans serif"/"Mono"; the formatting row showed line spacing where Android shows
+// margins; the font size used toInt() instead of roundToInt() (#1066); the annotation-sync
+// subtitle differed on 7 of 9 branches; every app-update branch differed and three dropped their
+// interpolated data; and the playback speed truncated to one decimal (0.75 → "0.7×") against a
+// domain range whose step is 0.05.
+//
+// The composed strings below are `internal` rather than inline so `SettingsScreenDerivationsTest`
+// can pin them — a Composable body is not reachable from a unit test, and these are exactly the
+// call sites that drifted.
 
 private fun AppTheme.label(): String = when (this) {
     AppTheme.Light -> "Light"
@@ -795,45 +889,37 @@ private fun AppTheme.label(): String = when (this) {
     AppTheme.System -> "System"
 }
 
-private fun ReaderFontFamily.label(): String = ReaderSettingsSummaries.fontFamilyLabel(this)
+/** "Speed 1.25×" — the speed segment on its own, for callers that show nothing else. */
+internal fun speedSummary(speed: Float): String = "Speed ${PlaybackSpeed.label(speed)}"
 
-private fun ReaderOrientation.displayLabel(): String = ReaderSettingsSummaries.orientationWord(this)
+/** "Speed 1.25× · Skip 30s · Rewind 10s" — what the Listening drill-in previews. */
+internal fun listeningSummary(speed: Float, skipSeconds: Int, rewindSeconds: Int): String =
+    "${speedSummary(speed)} · Skip ${skipSeconds}s · Rewind ${rewindSeconds}s"
 
-private fun ReaderTheme.displayLabel(): String = ReaderSettingsSummaries.themeLabel(this)
+/**
+ * The Readaloud row subtitle. Forwards to `readaloudRowSummary`, which suppresses zero counts and
+ * has a "no readalouds yet" case — the private copy here printed "0 matched · 0 unmatched" instead
+ * and dropped the username and server version the shared summary carries.
+ */
+internal fun readaloudSubtitle(
+    storyteller: Source,
+    serverVersions: Map<String, String>,
+    readaloudSummaries: Map<String, ReadaloudMatchSummary>,
+): String = readaloudRowSummary(storyteller, serverVersions, readaloudSummaries)
 
-private fun formattingSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.formattingSummary(prefs)
+// Chip option lists, named so SettingsScreenDerivationsTest can assert they stay enum-backed.
+// A hand-written list of English words is what made every tap on these rows a silent no-op the
+// moment a label changed.
+internal val readerThemeChipOptions: List<ReaderTheme> = ReaderTheme.entries.toList()
+internal val readingModeChipOptions: List<ReaderOrientation> = ReaderOrientation.entries.toList()
+internal val fontFamilyChipOptions: List<ReaderFontFamily> = ReaderFontFamily.entries.toList()
+internal val autoThemeModeChipOptions: List<AutoReaderThemeMode> = AutoReaderThemeMode.entries.toList()
+internal val cadenceHighlightChipOptions: List<HighlightColor> = HighlightColor.entries.toList()
 
-private fun displaySummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.displaySummary(prefs)
+/** "Yellow", "Green", … — the token capitalised, so the chip cannot drift from the stored value. */
+internal fun highlightColorLabel(color: HighlightColor): String =
+    color.token.replaceFirstChar { it.uppercase() }
 
-private fun autoScrollSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.autoScrollSummary(prefs)
-
-private fun cadenceSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.cadenceSummary(prefs)
-
-private fun formatSpeed(speed: Float): String {
-    val rounded = (speed * 10).toInt() / 10.0f
-    return if (rounded == rounded.toInt().toFloat()) "${rounded.toInt()}" else rounded.to1dp()
-}
-
-private fun Float.roundToStep(): Float = (this * 10).toInt() / 10.0f
-
-/** One-decimal-place float string without java.lang.String.format (not available in commonMain). */
-private fun Float.to1dp(): String {
-    val tenths = (this * 10).toInt()
-    return "${tenths / 10}.${tenths % 10}"
-}
-
-private fun AnnotationSyncSubtitle.label(): String = when (this) {
-    is AnnotationSyncSubtitle.NotConfigured -> "Not configured — local only"
-    is AnnotationSyncSubtitle.WaitingForFirstSync -> "Waiting for first sync…"
-    is AnnotationSyncSubtitle.AuthFailed -> "Authentication failed"
-    is AnnotationSyncSubtitle.TlsError -> "TLS/certificate error"
-    is AnnotationSyncSubtitle.HttpError -> "Server error (HTTP $code)"
-    is AnnotationSyncSubtitle.SyncFailed -> "Sync failed"
-    is AnnotationSyncSubtitle.BooksPendingOffline -> "$count book(s) pending · Offline"
-    is AnnotationSyncSubtitle.Offline -> "Offline"
-    is AnnotationSyncSubtitle.Synced -> if (identity != null) "Synced · $identity" else "Synced"
-}
+/** The comic background-theme chip the stored preference should light up. */
+internal fun comicBackgroundChipSelection(stored: ReaderTheme): ReaderTheme =
+    stored.asComicBackgroundTheme()

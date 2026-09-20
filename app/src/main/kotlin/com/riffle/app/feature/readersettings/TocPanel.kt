@@ -18,7 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.riffle.app.ui.fadingScrollbar
+import com.riffle.feature.source.ui.fadingScrollbar
 import com.riffle.feature.reader.findActiveEntry
 import com.riffle.feature.reader.findActiveFlatIndex
 import com.riffle.feature.reader.flattenToc

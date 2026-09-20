@@ -40,6 +40,9 @@ data class AudiobookPlayerUiState(
     // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
     val bookmarksOffline: Boolean = false,
     val sleepTimer: SleepTimerMode = SleepTimerMode.None,
-    val skipIntervalSeconds: Int = 30,
-    val rewindIntervalSeconds: Int = 15,
+    // Placeholders until the stored Listening preferences land; kept on the shared defaults rather
+    // than literals so a change to those does not leave the transport cluster briefly disagreeing
+    // with the Settings steppers.
+    val skipIntervalSeconds: Int = SkipIntervals.DEFAULT.forwardSec,
+    val rewindIntervalSeconds: Int = SkipIntervals.DEFAULT.backwardSec,
 )

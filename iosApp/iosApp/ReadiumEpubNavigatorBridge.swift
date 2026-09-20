@@ -7,6 +7,9 @@ import ReadiumNavigator
 // MARK: - ReadiumEpubNavigatorBridge
 
 /// Implements IosEpubNavigatorBridge (generated from Kotlin iosMain's IosEpubNavigatorBridge).
+/// The spine payload a bridge reports before a publication is open, and again after dispose.
+private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
+
 /// Wraps Readium Swift 3.x EPUBNavigatorViewController, bridging it to the KMP shared layer.
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
@@ -17,11 +20,18 @@ import ReadiumNavigator
     private var cachedLocatorJson: String?
     // TOC fetched asynchronously after open; getTocJson() returns from this cache.
     private var cachedTocJson: String = "[]"
+    // Reading order + per-resource position counts, fetched asynchronously after open;
+    // getSpineJson() returns from this cache. Readium computes positions off the main actor and
+    // it can take a moment on a large EPUB, so the reader re-reads this until it stops being empty.
+    private var cachedSpineJson: String = emptySpineJson
 
     // Callbacks registered by ReadiumSwiftNavigator
     private var locatorCallback: ((String) -> Void)?
     private var pageLoadCallback: (() -> Void)?
     private var tapCallback: (() -> Void)?
+    private var errorCallback: ((String) -> Void)?
+    /// Seam for `presentExternalURL`. Production opens the URL in Safari; tests swap it to observe.
+    var urlOpener: (URL) -> Void = { UIApplication.shared.open($0) }
     // Track the last-loaded resource href so pageLoadCallback fires only on resource
     // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
     private var lastLoadedHref: String?
@@ -56,6 +66,7 @@ import ReadiumNavigator
                 guard case .success(let pub) = pubResult else { return }
                 self.publication = pub
                 self.prefetchToc(pub)
+                self.prefetchSpine(pub)
 
                 var initialLocator: Locator?
                 if let json = locatorJson,
@@ -113,12 +124,17 @@ import ReadiumNavigator
         tapCallback = callback
     }
 
+    func setErrorCallback(callback: ((String) -> Void)?) {
+        errorCallback = callback
+    }
+
     func openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: any IosLazyChapterFetcher) {
         Task { @MainActor in
             do {
                 let (pub, _) = try OReillyPublicationBuilder.build(shapeJson: shapeJson, fetcher: fetcher)
                 self.publication = pub
                 self.prefetchToc(pub)
+                self.prefetchSpine(pub)
 
                 var initialLocator: Locator?
                 if let json = locatorJson,
@@ -157,6 +173,7 @@ import ReadiumNavigator
             self.publication = nil
             self.cachedLocatorJson = nil
             self.cachedTocJson = "[]"
+            self.cachedSpineJson = emptySpineJson
         }
     }
 
@@ -170,38 +187,46 @@ import ReadiumNavigator
         }
     }
 
-    func applyReaderPreferences(
-        fontSizePercent: Float,
-        scrollMode: Bool,
-        theme: String,
-        fontFamilyCss: String,
-        lineHeightMultiplier: Float,
-        pageMargins: Double,
-        justifyText: Bool
-    ) {
+    func applyReaderPreferences(preferences: IosReaderPreferences) {
         // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
         // This switch is a Readium-Swift type adapter only — move any string-value logic there.
-        let resolvedTheme: Theme? = switch theme {
+        let resolvedTheme: Theme? = switch preferences.theme {
         case "dark": .dark
         case "sepia": .sepia
         default: .light
         }
 
         var fontFamily: FontFamily? = nil
-        if !fontFamilyCss.isEmpty {
-            fontFamily = FontFamily(rawValue: fontFamilyCss)
+        if !preferences.fontFamilyCss.isEmpty {
+            fontFamily = FontFamily(rawValue: preferences.fontFamilyCss)
         }
 
-        let textAlign: TextAlignment? = justifyText ? .justify : nil
-        let lineHeight: Double? = lineHeightMultiplier > 0 ? Double(lineHeightMultiplier) : nil
+        let textAlign: TextAlignment? = preferences.justifyText ? .justify : nil
+        let lineHeight: Double? = preferences.lineHeightMultiplier > 0 ? Double(preferences.lineHeightMultiplier) : nil
+
+        // 0 means "leave it to the theme". Non-zero only for DarkDim, whose muted body colour is
+        // the only thing distinguishing it from Dark — without this it renders as plain Dark.
+        let textColor: ReadiumNavigator.Color? = preferences.textColorArgb != 0
+            ? ReadiumNavigator.Color(uiColor: UIColor(argb: preferences.textColorArgb))
+            : nil
+        // 0 means "Readium's default". Android pins one column because Readium 3.3.0's
+        // two-column default mispositions decorations.
+        let columns: ColumnCount? = switch preferences.columnCount {
+        case 1: .one
+        case 2: .two
+        default: nil
+        }
 
         let prefs = EPUBPreferences(
+            columnCount: columns,
             fontFamily: fontFamily,
-            fontSize: Double(fontSizePercent),
+            fontSize: Double(preferences.fontSizePercent),
             lineHeight: lineHeight,
-            pageMargins: pageMargins > 0 ? pageMargins : nil,
-            scroll: scrollMode,
+            pageMargins: preferences.pageMargins > 0 ? preferences.pageMargins : nil,
+            publisherStyles: preferences.publisherStyles,
+            scroll: preferences.scrollMode,
             textAlign: textAlign,
+            textColor: textColor,
             theme: resolvedTheme
         )
         pendingPreferences = prefs
@@ -292,8 +317,12 @@ import ReadiumNavigator
         let style: Decoration.Style
         switch type {
         case "highlight":
-            let colorHex = dict["color"] as? String ?? "#FFFF00"
-            let alpha = (dict["alpha"] as? NSNumber)?.floatValue ?? 0.4
+            // The fallback comes from Kotlin, not from a literal here. The old "#FFFF00"/0.4 pair
+            // had drifted away from HighlightColor.DEFAULT and would have painted a colour the
+            // palette does not contain, while reading as correct in review.
+            let defaults = ReaderHighlightDefaults.shared
+            let colorHex = dict["color"] as? String ?? defaults.highlightHex
+            let alpha = (dict["alpha"] as? NSNumber)?.floatValue ?? defaults.highlightAlpha
             style = .highlight(tint: UIColor(hex: colorHex).withAlphaComponent(CGFloat(alpha)))
         case "bookmark":
             style = .highlight(tint: UIColor.systemBlue.withAlphaComponent(0.3))
@@ -327,9 +356,18 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         tapCallback?()
     }
 
-    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {}
+    /// Tapping an external link in a book did nothing until #1071 §17 — this delegate method was
+    /// an empty stub. Android hands the URL to `Intent.ACTION_VIEW`
+    /// (`EpubReaderScreen.kt:1625-1632`); the iOS equivalent is `UIApplication.open`.
+    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
+        urlOpener(url)
+    }
 
-    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {}
+    /// Navigator errors (e.g. `.copyForbidden`) were swallowed by an empty stub. Forward them to
+    /// the Kotlin side so they reach the RIFFLE_READER log channel instead of vanishing.
+    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
+        errorCallback?(String(describing: error))
+    }
 }
 
 // MARK: - Test helpers
@@ -342,6 +380,7 @@ extension ReadiumEpubNavigatorBridge {
     }
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
+    @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
 
     var lastAppliedDecorationsJson: String? { _lastAppliedDecorationsJson }
     var lastAppliedGroup: String? { _lastAppliedGroup }
@@ -375,6 +414,17 @@ extension UIColor {
         let blue = CGFloat(rgb & 0xFF) / 255
         self.init(red: red, green: green, blue: blue, alpha: 1)
     }
+
+    /// ARGB packed into an Int64, the form `HighlightColor.argb` and `ReaderThemePalette` use on
+    /// the Kotlin side. Alpha is honoured: DarkDim's muted body colour carries one.
+    convenience init(argb: Int64) {
+        let value = UInt64(bitPattern: argb) & 0xFFFF_FFFF
+        let alpha = CGFloat((value >> 24) & 0xFF) / 255
+        let red = CGFloat((value >> 16) & 0xFF) / 255
+        let green = CGFloat((value >> 8) & 0xFF) / 255
+        let blue = CGFloat(value & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue, alpha: alpha == 0 ? 1 : alpha)
+    }
 }
 
 // MARK: - ReadiumEpubNavigatorBridgeFactory
@@ -382,5 +432,112 @@ extension UIColor {
 @objc class ReadiumEpubNavigatorBridgeFactory: NSObject, IosEpubNavigatorBridgeFactory {
     func create() -> any IosEpubNavigatorBridge {
         ReadiumEpubNavigatorBridge()
+    }
+}
+
+// MARK: - Spine and scrolling
+//
+// In an extension rather than the class body: these are what the chapter map and auto-scroll
+// need from the navigator, and swiftlint's type_body_length limit is a real signal that the
+// class body has grown past what one screen can hold.
+extension ReadiumEpubNavigatorBridge {
+    func getSpineJson() -> String { cachedSpineJson }
+
+    /// Scroll the visible resource by `pixels` device pixels, reporting whether the document moved.
+    ///
+    /// Readium owns the scrolling element inside its WKWebView, so auto-scroll drives it through
+    /// `window.scrollBy` rather than the hosting view — the same reason Android's vertical mode
+    /// scrolls via JS instead of `View.scrollBy`. The script compares scrollTop before and after
+    /// so the caller can tell "moved" from "already at the bottom of this resource" and stop the
+    /// ticker instead of spinning.
+    func scrollByPx(pixels: Int32, onResult: @escaping (KotlinBoolean) -> Void) {
+        Task { @MainActor in
+            guard let nav = self.epubNavigator else {
+                onResult(KotlinBoolean(bool: false))
+                return
+            }
+            let script = """
+            (function(){\
+            var e=document.scrollingElement||document.documentElement;\
+            var before=e.scrollTop;window.scrollBy(0,\(pixels));\
+            return e.scrollTop>before;})()
+            """
+            let result = await nav.evaluateJavaScript(script)
+            switch result {
+            case let .success(value):
+                let moved = (value as? Bool) ?? ((value as? NSNumber)?.boolValue ?? false)
+                onResult(KotlinBoolean(bool: moved))
+            case .failure:
+                onResult(KotlinBoolean(bool: false))
+            }
+        }
+    }
+
+    /// Evaluate arbitrary JavaScript in the visible resource and return its result as a string.
+    ///
+    /// The generic twin of Android's `RendererBridge.evaluateJavascript`. Cadence needs four
+    /// different scripts — the `Intl.Segmenter` feature detect, the per-chapter sentence-span
+    /// tokenisation, the start-position probe and the paginated column measure/snap — and every
+    /// one of them is authored in shared Kotlin, so the only thing missing on iOS was somewhere
+    /// to run them.
+    ///
+    /// Marshalling: a JS string comes back as `NSString` and is passed through verbatim; a
+    /// boolean (the feature detect) is stringified to `"true"`/`"false"` so the Kotlin side sees
+    /// the same token Android's JSON-encoded `evaluateJavascript` produces. `nil`, a JS `null`
+    /// and a thrown script all return nil, which every shared parser treats as "unsupported"
+    /// rather than crashing.
+    func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
+        Task { @MainActor in
+            guard let nav = self.epubNavigator else {
+                onResult(nil)
+                return
+            }
+            let result = await nav.evaluateJavaScript(script)
+            switch result {
+            case let .success(value):
+                onResult(Self.stringifyJavaScriptResult(value))
+            case .failure:
+                onResult(nil)
+            }
+        }
+    }
+
+    /// Internal (not private) so the unit-test target can pin the marshalling directly: a `true`
+    /// that arrived as `"1"` would silently fail `CadenceDomScript`'s feature-detect comparison
+    /// and hide the toggle on every device.
+    static func stringifyJavaScriptResult(_ value: Any?) -> String? {
+        switch value {
+        case nil, is NSNull:
+            return nil
+        case let text as String:
+            return text
+        case let number as NSNumber:
+            // CFBoolean bridges to NSNumber; distinguish it so `true` does not become "1".
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return number.boolValue ? "true" : "false"
+            }
+            return number.stringValue
+        default:
+            return String(describing: value!)
+        }
+    }
+
+    /// Reading order + position count per resource: the weights the shared rail generator needs
+    /// to size chapter-map segments. `positionsByReadingOrder()` is index-aligned with
+    /// `readingOrder`, which is the invariant `buildRailSegments` and
+    /// `weightSegmentsByChapterLength` rely on. When Readium cannot compute positions the counts
+    /// stay empty and the Kotlin side falls back to unweighted segments rather than mis-weighting
+    /// them.
+    private func prefetchSpine(_ pub: Publication) {
+        Task { @MainActor in
+            let hrefs = pub.readingOrder
+                .map { "\"\($0.href.jsonEscaped)\"" }
+                .joined(separator: ",")
+            var counts = ""
+            if case .success(let positions) = await pub.positionsByReadingOrder() {
+                counts = positions.map { "\($0.count)" }.joined(separator: ",")
+            }
+            self.cachedSpineJson = "{\"hrefs\":[\(hrefs)],\"positionCounts\":[\(counts)]}"
+        }
     }
 }

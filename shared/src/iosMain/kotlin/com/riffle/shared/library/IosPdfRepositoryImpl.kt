@@ -57,9 +57,9 @@ internal class IosPdfRepositoryImpl(
     ): PdfDownloadResult {
         if (isDownloaded(item.sourceId, item.id)) return PdfDownloadResult.AlreadyDownloaded
 
+        // No getActive() fallback — see IosCbzReaderBackends (#1071 §11).
         val source = sourceRepository.getById(item.sourceId)
-            ?: sourceRepository.getActive()
-            ?: return PdfDownloadResult.NetworkError(IllegalStateException("No active source"))
+            ?: return PdfDownloadResult.NetworkError(IllegalStateException("Source unavailable"))
         val token = tokenStorage.getToken(source.id)
             ?: return PdfDownloadResult.NetworkError(IllegalStateException("No auth token for source ${source.id}"))
         val fileIno = item.ebookFileIno

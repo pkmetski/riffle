@@ -71,6 +71,9 @@ import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.publication.Locator
+import com.riffle.feature.reader.ui.ChapterNavigationRail
+import com.riffle.feature.reader.ui.chapterRailProgressPercent
+import com.riffle.feature.reader.ui.formatTemplate
 
 // TODO(figure-zoom): PDF figure-zoom follow-up. The EPUB reader supports single-tap-on-figure
 // opening a fullscreen zoom overlay (see FigureZoomOverlay + FigureTapScript). For PDF, the
@@ -341,6 +344,7 @@ private fun PdfChapterRailOverlay(
             "active=$activeRailSegmentIndex cursor=$cursorPosition",
     )
     if (railSegments.isEmpty()) return
+    val templates = chapterMapProgressLabelTemplates()
     ChapterNavigationRail(
         segments = railSegments,
         activeIndex = activeRailSegmentIndex,
@@ -348,6 +352,11 @@ private fun PdfChapterRailOverlay(
         // PDF reader doesn't have its own theme picker yet (deferred to follow-up spec);
         // use Light as a neutral default that matches the typical PDF page background.
         readerTheme = ReaderTheme.Light,
+        railContentDescription = formatTemplate(
+            templates.activeRailSegmentProgress,
+            railSegments.getOrNull(activeRailSegmentIndex)?.title.orEmpty(),
+            chapterRailProgressPercent(cursorPosition),
+        ),
         onSegmentClick = viewModel::navigateToSegment,
         coloredChapterMap = coloredChapterMap,
         modifier = modifier,

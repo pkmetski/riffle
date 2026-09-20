@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.JvmAudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
@@ -33,8 +34,8 @@ class AudiobookDownloadRepositoryImpl constructor(
 
     private fun itemDir(sourceId: String, itemId: String) = File(downloadsDir, "$sourceId/$itemId")
     private fun cacheItemDir(sourceId: String, itemId: String) = File(cacheDir, "$sourceId/$itemId")
-    private fun manifestFile(sourceId: String, itemId: String) = File(itemDir(sourceId, itemId), "manifest.json")
-    private fun cacheManifestFile(sourceId: String, itemId: String) = File(cacheItemDir(sourceId, itemId), "manifest.json")
+    private fun manifestFile(sourceId: String, itemId: String) = File(itemDir(sourceId, itemId), MANIFEST)
+    private fun cacheManifestFile(sourceId: String, itemId: String) = File(cacheItemDir(sourceId, itemId), MANIFEST)
 
     override fun isDownloaded(sourceId: String, itemId: String): Boolean =
         manifestFile(sourceId, itemId).exists()

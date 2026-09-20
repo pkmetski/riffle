@@ -42,14 +42,13 @@ class IosEpubDownloader(
         if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) return cachePath
 
         // Download from ABS into the cache namespace.
-        val source = sourceRepository.getActive() ?: return null
-        val token = tokenStorage.getToken(source.id) ?: return null
+        val endpoint = resolveItemEndpoint(sourceRepository, tokenStorage, item) ?: return null
         val fileIno = item.ebookFileIno ?: return null
 
-        val urlString = "${source.url.value.trimEnd('/')}/api/items/${item.id}/file/$fileIno"
+        val urlString = endpoint.absFileUrl(item, fileIno)
 
         val response = runCatching {
-            httpClient.get(urlString) { header(HttpHeaders.Authorization, "Bearer $token") }
+            httpClient.get(urlString) { header(HttpHeaders.Authorization, "Bearer ${endpoint.token}") }
         }.getOrNull() ?: return null
 
         if (!response.status.isSuccess()) return null

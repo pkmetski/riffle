@@ -1,6 +1,9 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.ColumnSnap
 import com.riffle.feature.reader.EpubNavigatorInterface
 import com.riffle.feature.reader.LocatorJson
 import com.riffle.feature.reader.NavigatorDecoration
@@ -13,6 +16,8 @@ import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorScrollBoundary
 import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.cadence.CadenceDomScript
+import com.riffle.feature.reader.cadence.CadenceInjector
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -22,21 +27,28 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import org.koin.mp.KoinPlatform
 import platform.Foundation.NSArray
 import platform.Foundation.NSData
 import platform.Foundation.NSDictionary
 import platform.Foundation.NSJSONSerialization
 import platform.Foundation.create
+import kotlin.coroutines.resume
 
 /**
  * iOS implementation of [EpubNavigatorInterface] that delegates to [IosEpubNavigatorBridge],
  * which is implemented on the Swift side using Readium Swift's EPUBNavigatorViewController.
  *
- * Readaloud-specific methods (followReadaloudSentence, measureCadenceColumns, etc.) are stubs
- * returning [NavigatorFollowResult.Unavailable] / empty lists — readaloud on iOS is out of scope
- * for v1.  Search, DOM patches, and continuous-mode scroll boundary are similarly deferred.
+ * Cadence and Readaloud share the sentence-follow surface: both drive `feature:reader`'s
+ * [ColumnSnap] JS through the bridge's `evaluateJavaScript` seam, so the column arithmetic is
+ * the same code Android runs. DOM highlight patches and the continuous-mode scroll boundary have
+ * no iOS analogue — Readium owns the scroll in both of iOS's modes.
  */
-class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNavigatorInterface {
+class ReadiumSwiftNavigator(
+    private val bridge: IosEpubNavigatorBridge,
+    private val logger: Logger = KoinPlatform.getKoin().get(),
+) : EpubNavigatorInterface {
 
     private val _positionFlow = MutableSharedFlow<NavigatorPosition>(replay = 1, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<NavigatorPageLoad>(extraBufferCapacity = 16)
@@ -55,8 +67,20 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
             pageLoadGeneration++
             _pageLoadEvents.tryEmit(NavigatorPageLoad(pageLoadGeneration))
         }
+        // BodyTap has no collector on iOS yet (#1071 §17). It is not dead wiring that can be
+        // deleted: [eventFlow] is part of the EpubNavigatorInterface contract, and dropping the
+        // emission would leave it permanently empty rather than merely unread. Its consumer on
+        // Android is immersive mode (EpubReaderScreen's `onTap = immersiveState::toggle`), and
+        // iOS's reader renders permanently-visible chrome with no immersive state to toggle —
+        // that surface is #1072.
         bridge.setTapCallback {
             _eventFlow.tryEmit(NavigatorEvent.BodyTap)
+        }
+        // #1071 §17: Readium's presentError was an empty Swift stub, so a navigator failure left
+        // no trace anywhere. Logging it is the honest minimum — there is no iOS error surface in
+        // the reader chrome to raise it to yet (#1072).
+        bridge.setErrorCallback { message ->
+            logger.e(LogChannel.Reader) { "navigator error: $message" }
         }
     }
 
@@ -80,6 +104,7 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         bridge.setLocatorCallback(null)
         bridge.setPageLoadCallback(null)
         bridge.setTapCallback(null)
+        bridge.setErrorCallback(null)
         bridge.disposeNavigator()
     }
 
@@ -139,13 +164,89 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
     override suspend fun followReadaloudSentence(text: String): NavigatorFollowResult =
         NavigatorFollowResult.Unavailable
 
+    /**
+     * Bring Cadence's `cd-N` span onto the page.
+     *
+     * Three-way outcome, identical to Android's `ReadiumPresenter.followCadenceSpan`: `"moved"`
+     * (the snap changed the page), `"same"` (already on-page) and `"absent"` (the id is not in
+     * this resource, so the caller navigates to its chapter). Collapsing `"same"` into
+     * [NavigatorFollowResult.OffPage] would fire a chapter navigation on every tick while the
+     * sentence sits comfortably visible.
+     *
+     * `animated = false` for the same reason Android passes it: the follow ticks once per
+     * sentence and a 250 ms tween per tick visibly drifts, because the supersede counter cancels
+     * in-flight animations before they land.
+     */
     override suspend fun followCadenceSpan(fragmentId: String): NavigatorFollowResult =
-        NavigatorFollowResult.Unavailable
+        when (evaluateJs(ColumnSnap.scrollToColumnJs(fragmentId, animated = false))?.trim('"')) {
+            "moved", "same" -> NavigatorFollowResult.Snapped
+            "absent" -> NavigatorFollowResult.OffPage
+            else -> NavigatorFollowResult.Unavailable
+        }
 
-    override suspend fun measureReadaloudColumns(text: String): List<Double> = emptyList()
-    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {}
-    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> = emptyList()
-    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {}
+    override suspend fun measureReadaloudColumns(text: String): List<Double> =
+        ColumnSnap.parseNarratedColumnsResult(evaluateJs(ColumnSnap.measureNarratedColumnsJs(text)))
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
+        evaluateJs(ColumnSnap.snapNarratedColumnJs(text, columnIndex))
+    }
+
+    /**
+     * The fractions of the sentence that fall in each paginated column it spans.
+     *
+     * Non-empty only in Readium's paginated mode: the shared JS returns the bare token `"scroll"`
+     * when the document scrolls (Vertical and Continuous both map there via [epubScrollMode]),
+     * and [ColumnSnap.parseNarratedColumnsResult] turns that into an empty list — which the
+     * caller reads as "this mode has no column grid, do not drive intra-sentence page turns".
+     */
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> =
+        ColumnSnap.parseNarratedColumnsResult(evaluateJs(ColumnSnap.measureCadenceColumnsJs(fragmentId)))
+
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {
+        evaluateJs(ColumnSnap.snapCadenceColumnJs(fragmentId, columnIndex))
+    }
+
+    // ── Cadence DOM pipeline ────────────────────────────────────────────────────
+    //
+    // The scripts are the shared ones in `feature:reader`; only running them is host-specific.
+
+    /** True when the WebView has `Intl.Segmenter`. Cadence has no fallback tokeniser (issue #403). */
+    internal suspend fun cadenceFeatureDetect(): Boolean? =
+        when (evaluateJs(CadenceDomScript.FEATURE_DETECT_JS)?.trim('"')?.lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+
+    /**
+     * Wrap every sentence of the currently-rendered chapter in a `<span id="cd-N">` and return the
+     * `FragmentRef → SentenceQuote` / `FragmentRef → chapterHref` pair.
+     *
+     * Idempotent per chapter: the script bails out and re-reads the existing spans when it finds
+     * them, which matters because Readium re-reports a resource load on reflow and on backward
+     * turns.
+     */
+    internal suspend fun cadenceTokeniseChapter(
+        chapterHref: String,
+        localeTag: String?,
+    ): CadenceInjector.Result =
+        CadenceInjector.parse(evaluateJs(CadenceDomScript.tokeniseChapterJs(chapterHref, localeTag)))
+
+    /**
+     * The id (`"chapter#cd-N"`, or a bare `"cd-N"`) of the sentence Cadence should start from —
+     * the section-aware probe of what the reader is actually looking at.
+     *
+     * Nulls for the viewport bounds let the JS read `window.scrollY` / `innerHeight`, which is
+     * correct here for both Readium modes: the WKWebView owns its own scroll in paginated and in
+     * scroll mode alike. Only Android's Continuous reader, whose `ChapterWebView`s do not scroll
+     * themselves, has to project the parent scroll container's bounds in.
+     */
+    internal suspend fun cadenceStartSpanId(): String? =
+        CadenceDomScript.parseCadenceStartId(evaluateJs(CadenceDomScript.cadenceStartSpanIdJs()))
+
+    private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
+        bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
+    }
 
     override suspend fun search(query: String): Flow<List<NavigatorSearchMatch>> = callbackFlow {
         bridge.startSearch(
@@ -158,6 +259,21 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
 
     /** Fetch the TOC from the open publication. Returns empty list if no publication is open. */
     fun getToc(): List<TocEntry> = parseTocJson(bridge.getTocJson())
+
+    /**
+     * Fetch the reading order and per-resource position counts of the open publication — the
+     * inputs the shared rail generator weights chapter-map segments with. Returns
+     * [SpinePositions.Empty] until Readium has finished computing positions.
+     */
+    internal fun getSpine(): SpinePositions = parseSpineJson(bridge.getSpineJson())
+
+    /**
+     * Scroll the visible resource down by [pixels] device pixels; returns false when the document
+     * did not move, which auto-scroll reads as "end of this resource".
+     */
+    internal suspend fun scrollByPx(pixels: Int): Boolean = suspendCancellableCoroutine { cont ->
+        bridge.scrollByPx(pixels) { moved -> if (cont.isActive) cont.resume(moved) }
+    }
 
     override fun snapshotPosition(): NavigatorPosition? = lastPosition
         ?: bridge.snapshotLocatorJson()?.let { parseLocatorJson(it) }
@@ -174,15 +290,23 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         lineHeightMultiplier: Float,
         pageMargins: Double,
         justifyText: Boolean,
+        textColorArgb: Long,
+        publisherStyles: Boolean,
+        columnCount: Int,
     ) {
         bridge.applyReaderPreferences(
-            fontSizePercent = fontSizePercent,
-            scrollMode = scrollMode,
-            theme = theme,
-            fontFamilyCss = fontFamilyCss,
-            lineHeightMultiplier = lineHeightMultiplier,
-            pageMargins = pageMargins,
-            justifyText = justifyText,
+            IosReaderPreferences(
+                fontSizePercent = fontSizePercent,
+                scrollMode = scrollMode,
+                theme = theme,
+                fontFamilyCss = fontFamilyCss,
+                lineHeightMultiplier = lineHeightMultiplier,
+                pageMargins = pageMargins,
+                justifyText = justifyText,
+                textColorArgb = textColorArgb,
+                publisherStyles = publisherStyles,
+                columnCount = columnCount,
+            ),
         )
     }
 

@@ -2,13 +2,13 @@
 
 package com.riffle.app.feature.reader
 
-import androidx.compose.ui.graphics.toArgb
-import com.riffle.app.feature.readersettings.DARK_DIM_TEXT
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.effectiveOrientation
-import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.reader.ReadiumThemeName
+import com.riffle.feature.reader.readiumColumnCount
+import com.riffle.feature.reader.readiumFontFamilyName
+import com.riffle.feature.reader.toReadiumTextStyling
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.epub.css.ColCount
@@ -19,9 +19,6 @@ import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.TextAlign
 import org.readium.r2.navigator.preferences.Theme
-
-// Single source: ReaderThemePalette.DARK_DIM_TEXT (Compose Color) → Readium Color (ARGB int).
-private val DARK_DIM_TEXT_COLOR: Int = DARK_DIM_TEXT.toArgb()
 
 /**
  * The decoration template set Riffle registers with the Readium engine: Readium's defaults (used
@@ -43,40 +40,35 @@ fun FormattingPreferences.toEpubPreferences(
 ): EpubPreferences {
     val effectiveOrientation = effectiveOrientation(isLandscape)
     val isDoublePage = effectiveOrientation == ReaderOrientation.Horizontal && doublePageSpread && isLandscape
+    val styling = toReadiumTextStyling(
+        isLandscape = isLandscape,
+        isFixedLayout = isFixedLayout,
+        isDoublePage = isDoublePage,
+    )
     return EpubPreferences(
         fontSize = fontSize.toDouble(),
-        theme = when (theme) {
-            ReaderTheme.Light -> Theme.LIGHT
-            ReaderTheme.Dark, ReaderTheme.DarkDim -> Theme.DARK
-            ReaderTheme.Sepia -> Theme.SEPIA
-            // Auto should be resolved to a concrete theme upstream by the reader VM
-            // (via FormattingPreferences.withResolvedTheme). If it reaches here we
-            // fall back to LIGHT rather than crashing.
-            ReaderTheme.Auto -> Theme.LIGHT
+        // Theme + DarkDim body colour come from the shared mapping so the Readium-Swift navigator
+        // on iOS resolves the same three page themes and the same muted-text override; this is a
+        // type adapter onto Readium-Kotlin, nothing more.
+        theme = when (styling.theme) {
+            ReadiumThemeName.LIGHT -> Theme.LIGHT
+            ReadiumThemeName.DARK -> Theme.DARK
+            ReadiumThemeName.SEPIA -> Theme.SEPIA
         },
-        // DarkDim is "dark with slightly muted body text" — same dark background, dimmer text.
-        textColor = if (theme == ReaderTheme.DarkDim) Color(DARK_DIM_TEXT_COLOR) else null,
+        textColor = styling.textColorArgb?.let { Color(it.toInt()) },
         // Null-gating: Original (the default) passes null so Readium leaves --USER__fontFamily
         // unset on :root. The typography-override stylesheet (see TypographyOverride.kt) is
         // gated on the variable's presence, so an unset variable means the publisher's
         // typography is preserved on uncustomised books. Every other choice — including the
         // generic "Serif" — sets the variable and overrides the publisher font.
-        fontFamily = when (fontFamily) {
-            ReaderFontFamily.Original -> null  // Default: see FormattingPreferences.DEFAULT_FONT_FAMILY
-            ReaderFontFamily.Serif -> FontFamily("serif")
-            ReaderFontFamily.SansSerif -> FontFamily("sans-serif")
-            ReaderFontFamily.Monospace -> FontFamily("monospace")
-            ReaderFontFamily.Literata -> FontFamily("Literata")
-            ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
-            ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
-        },
+        fontFamily = fontFamily.readiumFontFamilyName()?.let { FontFamily(it) },
         // null (not TextAlign.START) when justify is off, so --USER__textAlign stays unset and the
         // publisher's text alignment is preserved — the original Paginated/Scroll contract (see
         // FormattingPreferencesMapperTest.justifyTextFalseMapsToNullTextAlign). Continuous mode sets
         // its own text-align in ContinuousStyleInjector and does not depend on this mapper.
         textAlign = if (justifyText) TextAlign.JUSTIFY else null,
         // lineHeight only takes effect when publisherStyles is off
-        publisherStyles = false,
+        publisherStyles = styling.publisherStyles,
         lineHeight = lineSpacing.toDouble().takeIf { lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING },
         pageMargins = margins.toDouble(),
         scroll = effectiveOrientation != ReaderOrientation.Horizontal,
@@ -111,8 +103,10 @@ fun FormattingPreferences.toFragmentConfiguration(
         // alpha channel, which is baked into [HighlightColor.argb] — one flat value across
         // themes and features; see [riffleDecorationTemplates] for the single source.
         decorationTemplates = riffleDecorationTemplates(),
-        readiumCssRsProperties = when {
-            isDoublePage -> RsProperties(
+        readiumCssRsProperties = when (
+            readiumColumnCount(effectiveOrientation, isFixedLayout, isDoublePage)
+        ) {
+            2 -> RsProperties(
                 colCount = ColCount.TWO,
                 overrides = mapOf("--RS__colWidth" to "auto"),
             )
@@ -122,8 +116,7 @@ fun FormattingPreferences.toFragmentConfiguration(
             // default so a phone-width viewport rendered TWO columns — and its decoration renderer
             // mispositions the readaloud highlight in a multi-column layout, so the synced highlight
             // silently vanished. (Landscape double-page still uses TWO columns above, by design.)
-            !isFixedLayout && effectiveOrientation == ReaderOrientation.Horizontal ->
-                RsProperties(colCount = ColCount.ONE)
+            1 -> RsProperties(colCount = ColCount.ONE)
             // Scroll mode and fixed-layout: column count doesn't apply.
             else -> RsProperties()
         },

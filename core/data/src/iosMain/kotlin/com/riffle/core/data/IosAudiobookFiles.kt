@@ -5,9 +5,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
-import platform.Foundation.NSDirectoryEnumerator
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSFileSize
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.Foundation.NSUTF8StringEncoding
@@ -31,7 +29,7 @@ internal object IosAudiobookFiles {
 
     fun itemDir(root: String, sourceId: String, itemId: String): String = "$root/$sourceId/$itemId"
 
-    fun manifestPath(itemDir: String): String = "$itemDir/manifest.json"
+    fun manifestPath(itemDir: String): String = AudiobookFilenames.manifestIn(itemDir)
 
     fun exists(path: String): Boolean = NSFileManager.defaultManager.fileExistsAtPath(path)
 
@@ -76,18 +74,7 @@ internal object IosAudiobookFiles {
     }
 
     /** Total size in bytes of every file under [path], recursively. 0 when absent. */
-    fun directorySize(path: String): Long {
-        val manager = NSFileManager.defaultManager
-        if (!manager.fileExistsAtPath(path)) return 0L
-        val enumerator: NSDirectoryEnumerator = manager.enumeratorAtPath(path) ?: return 0L
-        var total = 0L
-        while (true) {
-            val relative = enumerator.nextObject() as? String ?: break
-            val attributes = manager.attributesOfItemAtPath("$path/$relative", error = null) ?: continue
-            total += (attributes[NSFileSize] as? NSNumberLike)?.toLongOrZero() ?: 0L
-        }
-        return total
-    }
+    fun directorySize(path: String): Long = IosFileEnumeration.directorySize(path)
 
     /** Moves [from] onto [to], replacing any existing item. Returns false when the move failed. */
     fun move(from: String, to: String): Boolean {
@@ -97,19 +84,4 @@ internal object IosAudiobookFiles {
         if (parent.isNotEmpty()) mkdirs(parent)
         return manager.moveItemAtPath(from, toPath = to, error = null)
     }
-}
-
-/**
- * `attributesOfItemAtPath` returns `NSNumber` values boxed as `Any?`; Kotlin/Native maps NSNumber to
- * the matching Kotlin primitive, so the size can arrive as Long, Int or ULong depending on value.
- */
-private typealias NSNumberLike = Any
-
-private fun NSNumberLike.toLongOrZero(): Long = when (this) {
-    is Long -> this
-    is Int -> this.toLong()
-    is ULong -> this.toLong()
-    is UInt -> this.toLong()
-    is Number -> this.toLong()
-    else -> 0L
 }

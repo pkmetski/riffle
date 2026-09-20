@@ -27,10 +27,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.library.LocalCoversAreSquare
-import com.riffle.app.feature.source.common.SourceBrowseHeader
-import com.riffle.app.feature.source.websource.UnboundedBrowseContent
-import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
-import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
+import com.riffle.feature.source.ui.SourceBrowseHeader
+import com.riffle.feature.source.ui.websource.UnboundedBrowseContent
+import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
+import com.riffle.feature.source.ui.websource.WebSourceCatalogItemCard
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.TabletContentWidthContainer

@@ -158,6 +158,26 @@ Before writing any platform-specific implementation, ask: can this logic live in
 
 When an Android implementation is being moved or a new feature is being added, check whether any existing `androidMain` code can be lifted to `commonMain` at the same time. Leave the codebase more shared after every PR, never less.
 
+### Where shared UI goes — the module topology matters
+
+Most `feature:*` modules are `jvm() + iosArm64 + iosSimulatorArm64`. **A jvm-target Compose artifact cannot be consumed by an Android application**, so Compose UI placed in one of those modules can never be rendered by `:app` — it will silently become iOS-only and its Android twin will be written separately. That is the mechanism behind most of the UI duplication in this repo.
+
+Shared Compose belongs in a module with an **`android { }` + iOS** topology. `feature:source-ui` is the reference: it has `androidTarget` + both iOS targets, material3, `coil.compose` and `composeResources`, and **both `:app` and `:shared` depend on it and render its screens**. Its own KDoc states the rule — *"Everything Compose that both platforms render belongs here."*
+
+So, before writing a screen or component:
+
+- **Pure logic** (derivations, mappers, view-model state) → an existing `feature:*` `commonMain`. Both hosts call it.
+- **Compose that both platforms render** → a module with the `feature:source-ui` topology. Do not put it in a `jvm()+ios` module and do not write it twice.
+- **Genuinely host-specific UI** (Readium-Android fragment hosting, UIKit bridges) → `:app` or `:shared` respectively.
+
+`:app` is the Android host and `:shared` is the iOS host. Anything that lands in either is single-platform by construction and becomes a parity gap the moment the other platform needs it.
+
+**Never keep a private platform copy of a derivation that already exists in `commonMain`.** This is the most common way the two platforms silently drift apart, because nothing fails: both copies compile, both suites stay green, and the screens quietly render different things. Real examples found in the 2026-09-19 pass — iOS's `SettingsScreen.kt` had private duplicates of the reader-settings summaries that read `"Sans-serif"`/`"Monospace"` against Android's `"Sans serif"`/`"Mono"`, showed line spacing where Android showed margins, and used `toInt()` instead of `roundToInt()` so a 1.15 font scale rendered 114% on iOS and 115% on Android; `IosEpubReaderScreen.kt` kept its own `flattenToc` that rendered blank-title containers the shared one deliberately skips; and `comicDisplaySummary` existed twice with different casing and two missing segments.
+
+Before adding any `private fun` that maps a `core:domain` enum to a string, formats a summary, or computes a layout, grep for an existing shared implementation and call it. If the shared one is wrong for your platform, fix the shared one or add a parameter — do not fork it.
+
+**A binding is not a call path.** "Implemented on iOS" means something actually invokes it at runtime. A class can be real, registered in Koin, covered by a graph test, and still be dead because no screen ever calls it. When claiming a feature works on iOS, trace the path from the user-facing entry point to the implementation and name it.
+
 ### Tests must mirror both platforms
 
 For every Android harness/integration/unit test that covers the changed behaviour, there must be a corresponding iOS test — no exceptions. If an Android test is added without an iOS counterpart, the PR will be sent back.
@@ -180,14 +200,48 @@ The iOS XCTest suite runs in two CI tiers that mirror Android's: `Unit Tests` (K
 
 Likewise, if an iOS test is added, the equivalent Android coverage must also be present or already exist.
 
+### A test that isn't wired never runs
+
+Writing the test is not enough — on both platforms a test can exist, compile, and be silently excluded. Check the wiring in the same PR:
+
+- **`commonTest` runs on iOS only if the module's task is listed in `.github/workflows/ios.yml`.** Adding a new module, or a first `commonTest` source set to an existing one, requires adding `:<module>:iosSimulatorArm64Test` to that list. Miss it and the tests pass locally and never execute in CI.
+- **A Swift file runs only if it is a member of an Xcode target.** `NavDrawerTests.swift` sat in `iosApp/iosAppTests/` for months as a member of neither target; its three tests had never executed once. When they were finally wired up, two of them failed immediately — they had been written against Android's affordances. After adding a Swift test file, confirm its target membership in `iosApp/iosApp.xcodeproj/project.pbxproj`.
+- **Zero `XCTSkip`.** `grep -rn "XCTSkip" iosApp/` must come back empty. A skip that fires when a fixture or server is missing is an assertion in disguise — use `XCTFail`.
+
+### Kotlin/Native and kotlin.test traps when moving a test to `commonTest`
+
+Moving an Android JVM test into `commonTest` is usually mechanical, but three things break quietly:
+
+- **Kotlin/Native rejects both commas and parentheses inside backtick-quoted test names** (`Name contains illegal characters`). JVM allows them. Renaming a test requires a `Removed-test:` trailer, so prefer plain camelCase identifiers for new shared tests.
+- **`kotlin.test` assertions are message-LAST; JUnit's are message-FIRST.** `assertTrue(msg, cond)` becomes `assertTrue(cond, msg)` and `assertEquals(msg, expected, actual)` becomes `assertEquals(expected, actual, msg)`. Getting this wrong compiles cleanly and asserts nonsense — typically comparing a message string to a value.
+- **JVM-only APIs that have no `commonMain` equivalent**: `String.format`, `java.text.Normalizer`, `java.net.URLEncoder`, `Map.putIfAbsent`, `Map.merge`, `java.util.UUID`, `java.security.MessageDigest`. Each needs a shared replacement or an `expect`/`actual` seam — and the replacement must reproduce the JVM behaviour exactly, because the moved tests pin it.
+
 ### Minimum checklist for every PR (features, fixes, tests, refactors)
 
 - [ ] Feature/fix logic lives in `commonMain` (or has a documented reason it cannot).
-- [ ] Android harness tests (and/or JVM unit tests) pass: `make harness-test` / `./gradlew test jvmTest`.
-- [ ] iOS implementation present — even for changes that originated on Android.
-- [ ] iOS XCTest scenarios implemented in `iosApp/iosAppTests/` in the correct target (`iosAppUnitTests` for logic, `iosAppTests` for UI flows).
+- [ ] No private platform copy of a shared derivation was added.
+- [ ] Android harness tests pass: `make harness-test` / `make harness-test-tablet`.
+- [ ] iOS implementation present **and reachable** — the call path from the UI to it is named in the PR body.
+- [ ] iOS XCTest scenarios implemented in `iosApp/iosAppTests/` in the correct target (`iosAppUnitTests` for logic, `iosAppTests` for UI flows), and the files are members of that target.
+- [ ] New/changed `commonTest` modules are listed in `.github/workflows/ios.yml`.
+- [ ] Everything under "Compile every source set CI compiles" below is green.
 - [ ] `xcodebuild test` passes on iOS simulator for both targets.
 - [ ] If a change cannot be made on iOS (genuine platform constraint), this is documented in the PR body with a justification and a follow-up issue opened.
+
+### Compile every source set CI compiles
+
+**`./gradlew test jvmTest` is not sufficient and must not be the only check before pushing.** It compiles neither `app/src/androidTest` nor `core:data`'s `androidHostTest`, so a change that breaks either passes locally and fails on CI. This bit the 2026-09-19 parity work twice in a row: a new `SourceDao` method left four `androidHostTest` fakes incomplete, and a batch of moved helpers left eight `androidTest` files without imports. Both were invisible to `test jvmTest`.
+
+Run all of these before pushing, sequentially — parallel Gradle invocations corrupt `:app`'s KSP caches in this repo:
+
+```
+./gradlew test jvmTest riffleChecks
+./gradlew :app:compileDebugAndroidTestKotlin       # app/src/androidTest — NOT covered above
+./gradlew :core:data:compileAndroidHostTest        # androidHostTest — NOT covered above
+./gradlew <each touched module>:iosSimulatorArm64Test
+```
+
+The iOS `Lint` CI job runs **SwiftLint** as well as ktlint, and `swiftlint lint iosApp/` exits non-zero on pre-existing violations — so compare your branch's violation set against `main`'s rather than reading the exit code. Note also that the ktlint gate only covers the `iosMain` source sets listed in `.github/workflows/ios.yml`, so violations in `iosTest` escape CI and still need `:<module>:ktlintCheck` locally.
 
 ## Agent skills
 
@@ -213,4 +267,4 @@ The taxonomy is Source/Service (ADR 0049). The `checkNoServerReferences` gradle 
 
 ### Platform-agnostic core (no Android imports)
 
-The multi-platform-core modules (`core:common`, `core:models`, `core:domain`, `core:net`, `core:sources`, `core:sync`, `core:annotations`) must keep their `commonMain` production code platform-neutral so a future KMP target can consume it unchanged. The JVM-only `core:network` shim is also scanned to prevent Android API drift while its streaming APIs remain host-specific. The `checkNoAndroidImports` gradle task (wired into `check`) fails CI if shared production code in those modules imports `android.*`, `androidx.*` (except `androidx.annotation`), or `java.util.logging`; platform-specific KMP source sets are excluded. `core:annotations` does not exist yet — the check no-ops for missing directories and activates automatically when the module is created. If a file legitimately needs an Android dependency it belongs in a hosting or platform source set (`core:data`, `core:network`, `core:logging`, `app`, `androidMain`, `jvmMain`, or `iosMain`), not shared core. Only in exceptional cases add its path to `AndroidImportLint.ALLOWLIST` with a one-line justification. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/AndroidImportLint.kt`. See [ADR 0049](docs/adr/0049-platform-agnostic-core-boundary.md) for the full rationale and module map.
+The multi-platform-core modules (`core:common`, `core:models`, `core:domain`, `core:net`, `core:sources`, `core:sync`, `core:annotations`) must keep their `commonMain` production code platform-neutral so a future KMP target can consume it unchanged. The JVM-only `core:network` shim is also scanned to prevent Android API drift while its streaming APIs remain host-specific. The `checkNoAndroidImports` gradle task (wired into `check`) fails CI if shared production code in those modules imports `android.*`, `androidx.*` (except `androidx.annotation`), or `java.util.logging`; platform-specific KMP source sets are excluded. `core:annotations` does not exist yet — the check no-ops for missing directories and activates automatically when the module is created. If a file legitimately needs an Android dependency it belongs in a hosting or platform source set (`core:data`, `core:network`, `core:logging`, `app`, `androidMain`, `jvmMain`, or `iosMain`), not shared core. Only in exceptional cases add its path to `AndroidImportLint.ALLOWLIST` with a one-line justification. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/AndroidImportLint.kt`. See [ADR 0059](docs/adr/0059-platform-agnostic-core-boundary.md) for the full rationale and module map.

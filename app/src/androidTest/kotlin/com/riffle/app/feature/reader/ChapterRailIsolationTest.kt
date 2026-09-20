@@ -33,6 +33,8 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
+import com.riffle.feature.reader.ui.ChapterNavigationRail
+import com.riffle.feature.reader.ui.chapterRailUnreadGroupColor
 
 // Regression: cursor-position changes must recompose only the rail overlay, not sibling EpubNavigatorView.
 @RunWith(AndroidJUnit4::class)
@@ -58,6 +60,7 @@ class ChapterRailIsolationTest {
                     activeIndex = 0,
                     cursorPosition = 0.5f,
                     readerTheme = ReaderTheme.Light,
+                    railContentDescription = "",
                     onSegmentClick = {},
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -116,6 +119,7 @@ class ChapterRailIsolationTest {
                     activeIndex = 0,
                     cursorPosition = 0.5f,
                     readerTheme = ReaderTheme.Light,
+                    railContentDescription = "",
                     onSegmentClick = {},
                     coloredChapterMap = false,
                     modifier = Modifier.align(Alignment.Center),
@@ -266,6 +270,7 @@ private fun IsolatedRailForTest(
         activeIndex = 0,
         cursorPosition = cursor,
         readerTheme = ReaderTheme.Light,
+        railContentDescription = "",
         onSegmentClick = {},
         modifier = modifier,
     )

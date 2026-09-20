@@ -117,7 +117,14 @@ class IosLibraryObserverImpl(
             ?.toDomain()
     }
 
-    override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
+    /**
+     * Same delegation Android does (`LibraryRepositoryImpl.kt:163`). This returned a hardcoded
+     * `null` until #1071 §17, even though [IosSeriesDao][com.riffle.core.database.dao.IosSeriesDao]
+     * has always implemented the query and `seriesDao` was already injected — so
+     * `LibraryItemDetailViewModel`'s series lookup could never resolve a series on iOS.
+     */
+    override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? =
+        seriesDao.findSeriesIdForItem(sourceId, itemId)
 }
 
 private fun LibraryEntity.toDomain() = Library(id = id, name = name, mediaType = mediaType, isUnsupported = isUnsupported)

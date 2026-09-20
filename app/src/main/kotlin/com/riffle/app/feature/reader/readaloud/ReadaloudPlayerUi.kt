@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.app.feature.audio.PlaybackSpeedControl
 import com.riffle.app.feature.audio.SKIP_NUMBER_DOWN_FRACTION
@@ -216,7 +217,7 @@ fun ReadaloudDownloadDialog(
     onDismiss: () -> Unit,
 ) {
     var wifiOnly by remember { mutableStateOf(true) }
-    val sizeLabel = formatBytes(sizeBytes)
+    val sizeLabel = formatBytesOrUnknown(sizeBytes)
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("readaloud_download_dialog"),
@@ -240,12 +241,4 @@ fun ReadaloudDownloadDialog(
             TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
         },
     )
-}
-
-private fun formatBytes(bytes: Long): String {
-    if (bytes <= 0) return "—"
-    val gb = bytes / (1024.0 * 1024.0 * 1024.0)
-    if (gb >= 1.0) return "%.1f GB".format(gb)
-    val mb = bytes / (1024.0 * 1024.0)
-    return "%.0f MB".format(mb)
 }

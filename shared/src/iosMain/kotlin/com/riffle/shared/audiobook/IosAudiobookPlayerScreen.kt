@@ -24,11 +24,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,19 +41,29 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.player.AudiobookPlayerUiState
 import com.riffle.feature.player.AudiobookPlayerViewModel
-import com.riffle.shared.library.DefaultCoverPlaceholder
-import org.koin.compose.koinInject
+import com.riffle.feature.player.formatHms
+import com.riffle.feature.player.skipBackwardLabel
+import com.riffle.feature.player.skipForwardLabel
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.shared.ScreenScopedViewModelHost
+import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
-    val vm: AudiobookPlayerViewModel = koinInject(
-        parameters = { parametersOf(item.id, item.sourceId) },
-    )
+    // The ViewModel is a Koin `factory` and iOS has no navigation-provided ViewModelStoreOwner, so
+    // without an explicit host nothing ever calls AudiobookPlayerViewModel.onCleared() — the follow
+    // loop keeps running, the final progress push never happens and controller.stop() (which is what
+    // disposes the AVQueuePlayer) is skipped, leaving audio playing after Back.
+    val koin = getKoin()
+    val host = remember(item.id) { ScreenScopedViewModelHost() }
+    val vm: AudiobookPlayerViewModel = remember(item.id) {
+        host.adopt(koin.get { parametersOf(item.id, item.sourceId) })
+    }
     val state by vm.uiState.collectAsState()
 
-    DisposableEffect(item.id) { onDispose {} }
+    DisposableEffect(item.id) { onDispose { host.clear() } }
 
     Column(
         modifier = Modifier
@@ -84,6 +98,8 @@ actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
                 onSeek = { vm.seekTo(it) },
                 onPreviousChapter = { vm.previousChapter() },
                 onNextChapter = { vm.nextChapter() },
+                onRewind = { vm.rewind() },
+                onForward = { vm.forward() },
             )
         }
     }
@@ -133,6 +149,8 @@ private fun PlayerContent(
     onSeek: (Double) -> Unit,
     onPreviousChapter: () -> Unit,
     onNextChapter: () -> Unit,
+    onRewind: () -> Unit,
+    onForward: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Cover
@@ -187,11 +205,11 @@ private fun PlayerContent(
         // Time labels
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             androidx.compose.foundation.text.BasicText(
-                text = formatDuration(state.positionSec),
+                text = formatHms(state.positionSec),
                 style = TextStyle(fontSize = 12.sp, color = Color(0xFF666666)),
             )
             androidx.compose.foundation.text.BasicText(
-                text = formatDuration(state.durationSec),
+                text = formatHms(state.durationSec),
                 style = TextStyle(fontSize = 12.sp, color = Color(0xFF666666)),
             )
         }
@@ -204,18 +222,33 @@ private fun PlayerContent(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Rewind · prev chapter · play/pause · next chapter · forward — the same cluster and
+            // order as Android's PlayerSurface. The jumps are the user's configured intervals,
+            // carried on the shared AudiobookPlayerUiState, not fixed 15 s / 30 s.
+            SkipButton(
+                seconds = state.rewindIntervalSeconds,
+                forward = false,
+                onClick = onRewind,
+            )
+            Spacer(Modifier.width(12.dp))
             ControlButton(
                 label = "⏮",
                 enabled = state.canPreviousChapter,
                 onClick = onPreviousChapter,
             )
-            Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(12.dp))
             PlayPauseButton(isPlaying = state.isPlaying, onClick = onTogglePlayPause)
-            Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(12.dp))
             ControlButton(
                 label = "⏭",
                 enabled = state.canNextChapter,
                 onClick = onNextChapter,
+            )
+            Spacer(Modifier.width(12.dp))
+            SkipButton(
+                seconds = state.skipIntervalSeconds,
+                forward = true,
+                onClick = onForward,
             )
         }
 
@@ -308,6 +341,33 @@ private fun PlayPauseButton(isPlaying: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * The ⟲ / ⟳ transport button. Renders the configured interval so the control says what it does —
+ * Android draws the number inside a Material skip glyph; Compose-for-iOS has no equivalent vector
+ * here, so the seconds sit next to the arrow.
+ */
+@Suppress("ktlint:standard:function-naming")
+@Composable
+private fun SkipButton(seconds: Int, forward: Boolean, onClick: () -> Unit) {
+    val description = if (forward) skipForwardLabel(seconds) else skipBackwardLabel(seconds)
+    Box(
+        modifier = Modifier
+            .testTag(if (forward) "audiobook-forward" else "audiobook-rewind")
+            .semantics { contentDescription = description }
+            .height(44.dp)
+            .width(56.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFFEAE0F8))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.text.BasicText(
+            text = if (forward) "⟳$seconds" else "⟲$seconds",
+            style = TextStyle(fontSize = 14.sp, color = Color(0xFF6650A4)),
+        )
+    }
+}
+
 @Suppress("ktlint:standard:function-naming")
 @Composable
 private fun ControlButton(label: String, enabled: Boolean, onClick: () -> Unit) {
@@ -327,13 +387,4 @@ private fun ControlButton(label: String, enabled: Boolean, onClick: () -> Unit) 
             ),
         )
     }
-}
-
-private fun formatDuration(totalSec: Double): String {
-    val secs = totalSec.toLong().coerceAtLeast(0)
-    val h = secs / 3600
-    val m = (secs % 3600) / 60
-    val s = secs % 60
-    fun pad2(n: Long) = if (n < 10) "0$n" else "$n"
-    return if (h > 0) "$h:${pad2(m)}:${pad2(s)}" else "$m:${pad2(s)}"
 }

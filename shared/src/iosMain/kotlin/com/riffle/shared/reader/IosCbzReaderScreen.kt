@@ -1,5 +1,6 @@
 package com.riffle.shared.reader
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,12 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
+import com.riffle.feature.reader.argbPalette
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -48,6 +51,7 @@ import platform.UIKit.UIViewContentMode
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
+    KeepReaderScreenOn()
     val vm = koinInject<CbzReaderViewModel> { parametersOf(item.id, item.sourceId) }
 
     DisposableEffect(vm) {
@@ -56,8 +60,12 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 
     val state by vm.state.collectAsState()
+    // The VM already resolves ComicFormattingPreferences.backgroundTheme == Auto against
+    // AppearanceCoordinator; iOS just never read the result, so the comic backdrop was whatever
+    // the parent Surface happened to be (#1071 §15.1).
+    val comicBackgroundTheme by vm.comicBackgroundTheme.collectAsState()
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color(comicBackgroundTheme.argbPalette.background.toInt()))) {
         when (val s = state) {
             CbzReaderState.BookNotFound -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BasicText("Book not found")

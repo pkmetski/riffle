@@ -38,6 +38,13 @@ interface IosEpubNavigatorBridge {
     /** Called when the user taps on the book body (not a link). */
     fun setTapCallback(callback: (() -> Unit)?)
 
+    /**
+     * Called when Readium reports a navigator error (e.g. `copyForbidden`). Before #1071 §17 the
+     * Swift delegate's `presentError` was an empty body, so these were silently discarded;
+     * [ReadiumSwiftNavigator] now logs them on [com.riffle.core.logging.LogChannel.Reader].
+     */
+    fun setErrorCallback(callback: ((message: String) -> Unit)?)
+
     /** Release Readium resources. Renamed to avoid clash with NSObject.release on the Swift side. */
     fun disposeNavigator()
 
@@ -64,23 +71,8 @@ interface IosEpubNavigatorBridge {
      * again whenever preferences change while a book is open. Thread-safe — the Swift
      * implementation dispatches to the main actor internally.
      *
-     * @param fontSizePercent Scale factor relative to the EPUB's default font size (1.0 = 100%).
-     * @param scrollMode True for vertical scroll (Readium "scroll" preference), false for paginated columns.
-     * @param theme One of: "light", "dark", "sepia". "dim" maps to "dark" (Readium has no Dim variant).
-     * @param fontFamilyCss CSS font-family string, or empty string to keep the publisher's font.
-     * @param lineHeightMultiplier CSS line-height multiplier (e.g. 1.2). 0.0 means use Readium default.
-     * @param pageMargins Margin scale factor (1.0 = default). Maps to Readium pageMargins preference.
-     * @param justifyText True to apply `text-align: justify`.
      */
-    fun applyReaderPreferences(
-        fontSizePercent: Float,
-        scrollMode: Boolean,
-        theme: String,
-        fontFamilyCss: String,
-        lineHeightMultiplier: Float,
-        pageMargins: Double,
-        justifyText: Boolean,
-    )
+    fun applyReaderPreferences(preferences: IosReaderPreferences)
 
     /**
      * Returns the table of contents of the open publication serialised as a JSON array.
@@ -88,6 +80,55 @@ interface IosEpubNavigatorBridge {
      * Returns `"[]"` if no publication is open or the TOC is empty.
      */
     fun getTocJson(): String
+
+    /**
+     * The open publication's spine, serialised as
+     * `{"hrefs":["ch1.xhtml",…],"positionCounts":[12,…]}` — the reading order plus the number of
+     * Readium positions in each resource.
+     *
+     * Both lists are what `buildRailSegments` / `weightSegmentsByChapterLength` need to decide
+     * which TOC entries earn a rail segment and how wide each one is; without the counts the
+     * shared generator silently degrades to its no-positions fallback and draws a different
+     * (usually more collapsed) rail than Android does for the same book.
+     *
+     * Returns `{"hrefs":[],"positionCounts":[]}` until the publication has been opened and its
+     * positions computed — Readium computes them asynchronously, so the reader re-reads this on
+     * each page-load event until the lists are non-empty.
+     */
+    fun getSpineJson(): String
+
+    /**
+     * Scroll the visible resource down by [pixels] device pixels and report whether it actually moved.
+     *
+     * Auto-scroll's only output is a stream of whole-pixel deltas, and this is what consumes them.
+     * It goes through `window.scrollBy` in Readium's WKWebView rather than a native scroll for the
+     * same reason Android's vertical mode does: Readium owns the scrolling element, and a native
+     * scroll on the hosting view is either intercepted or fights the navigator's own pagination.
+     *
+     * [onResult] receives `false` when the document did not move — the bottom of the resource, or
+     * no navigator — which is how the reader knows to stop the ticker instead of spinning.
+     */
+    fun scrollByPx(pixels: Int, onResult: (moved: Boolean) -> Unit)
+
+    /**
+     * Evaluate [script] inside the visible resource's WKWebView and hand the result back as a
+     * string, or null when there is no navigator or the script threw.
+     *
+     * This is the generic twin of Android's `RendererBridge.evaluateJavascript`, and every
+     * Cadence JS call goes through it: the `Intl.Segmenter` feature detect, the per-chapter
+     * sentence-span tokenisation, the start-position probe, and the paginated column
+     * measure/snap. The scripts themselves are the shared ones in `feature:reader`
+     * ([com.riffle.feature.reader.cadence.CadenceDomScript], [com.riffle.feature.reader.ColumnSnap])
+     * so the two platforms tokenise and snap identically — only the evaluation is host-specific.
+     *
+     * Result marshalling matches what the shared parsers expect. Android's
+     * `WebView.evaluateJavascript` JSON-encodes its return, so a JS string arrives quoted;
+     * WKWebView hands back the native value. Every shared parser tolerates both forms
+     * (`CadenceInjector.parse`, `CadenceDomScript.parseCadenceStartId`,
+     * `ColumnSnap.parseNarratedColumnsResult` all unwrap an optional quote layer), so the Swift
+     * side passes strings through verbatim and stringifies booleans as `"true"`/`"false"`.
+     */
+    fun evaluateJavaScript(script: String, onResult: (result: String?) -> Unit)
 
     /**
      * Start a full-text search over the open publication. [onBatch] is called on the main thread
@@ -105,3 +146,30 @@ interface IosEpubNavigatorBridge {
 interface IosEpubNavigatorBridgeFactory {
     fun create(): IosEpubNavigatorBridge
 }
+
+/**
+ * Everything Readium needs to render a page the way the user's preferences say.
+ *
+ * One object rather than ten positional parameters: the set grows every time the shared
+ * `ReadiumTextStyling` mapping learns something new, and a ten-argument Obj-C selector is both
+ * unreadable at the call site and easy to mis-order silently.
+ */
+data class IosReaderPreferences(
+    val fontSizePercent: Float,
+    val scrollMode: Boolean,
+    /** Readium theme name: "light", "dark" or "sepia". */
+    val theme: String,
+    /** CSS font-family, or empty to keep the publisher's font. */
+    val fontFamilyCss: String,
+    /** CSS line-height multiplier; 0.0 means Readium's default. */
+    val lineHeightMultiplier: Float,
+    /** Margin scale factor; 1.0 is Readium's default. */
+    val pageMargins: Double,
+    val justifyText: Boolean,
+    /** Body text colour as ARGB, or 0 to leave it to the theme. Non-zero only for DarkDim. */
+    val textColorArgb: Long,
+    /** False lets Riffle's typography win over the publisher's stylesheet. */
+    val publisherStyles: Boolean,
+    /** Columns to pin, or 0 for Readium's default. Android pins 1 (Readium 3.3.0 decorations). */
+    val columnCount: Int,
+)

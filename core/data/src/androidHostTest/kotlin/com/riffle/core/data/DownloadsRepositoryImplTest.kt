@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredItemRef
@@ -124,7 +125,7 @@ class DownloadsRepositoryImplTest {
     private fun writeAudiobook(root: File, sourceId: String, itemId: String, trackPayload: String) {
         val dir = root.resolve(sourceId).resolve(itemId).also { it.mkdirs() }
         dir.resolve("track-0").writeText(trackPayload)
-        dir.resolve("manifest.json").writeText("""{"tracks":[{"index":0,"file":"track-0"}],"chapters":[],"durationSec":1.0}""")
+        dir.resolve(MANIFEST).writeText("""{"tracks":[{"index":0,"file":"track-0"}],"chapters":[],"durationSec":1.0}""")
     }
 
     private fun repo(stores: TestStores): DownloadsRepositoryImpl = DownloadsRepositoryImpl(

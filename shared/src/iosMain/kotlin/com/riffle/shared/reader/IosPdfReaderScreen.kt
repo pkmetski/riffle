@@ -34,6 +34,7 @@ import org.koin.compose.koinInject
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
+    KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosPdfNavigatorBridgeFactory>()
     val downloader = koinInject<IosPdfDownloader>()
     val positionStore = koinInject<ReadingPositionStore>()

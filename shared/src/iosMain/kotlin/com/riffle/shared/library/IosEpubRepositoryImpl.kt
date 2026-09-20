@@ -49,8 +49,9 @@ internal class IosEpubRepositoryImpl(
     ): EpubDownloadResult {
         if (isDownloaded(item.sourceId, item.id)) return EpubDownloadResult.AlreadyDownloaded
 
-        val source = sourceRepository.getActive() ?: return EpubDownloadResult.NetworkError(
-            IllegalStateException("No active source")
+        // The item's own source, not whichever is active — see ItemSourceEndpoint (#1071 §11).
+        val source = sourceRepository.getById(item.sourceId) ?: return EpubDownloadResult.NetworkError(
+            IllegalStateException("Source unavailable for item ${item.id}")
         )
         val token = tokenStorage.getToken(source.id) ?: return EpubDownloadResult.NetworkError(
             IllegalStateException("No auth token for source ${source.id}")

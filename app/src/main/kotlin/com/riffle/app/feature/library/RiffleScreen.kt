@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.app.ui.theme.RiffleIcons
 import androidx.compose.runtime.Composable
+import com.riffle.feature.source.ui.OfflineBanner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf

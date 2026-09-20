@@ -42,6 +42,41 @@ class ReaderSettingsSummariesTest {
         assertEquals("Wide", ReaderSettingsSummaries.marginsWord(3.0f))
     }
 
+    /**
+     * The font percentage rounds, it does not truncate. iOS's Formatting stepper used `toInt()`
+     * while the summary row one screen up went through [ReaderSettingsSummaries.formattingSummary]
+     * and rounded, so a 1.149 scale read 115% in the summary and 114% in the stepper below it.
+     * 1.149f is chosen because the two differ there; on revert this assertion reads "114%".
+     */
+    @Test fun fontSizePercentRoundsRatherThanTruncates() {
+        assertEquals("115%", ReaderSettingsSummaries.fontSizePercentLabel(1.149f))
+        assertEquals("100%", ReaderSettingsSummaries.fontSizePercentLabel(1.0f))
+        assertEquals("250%", ReaderSettingsSummaries.fontSizePercentLabel(2.5f))
+    }
+
+    /** The stepper caption and the summary row must print the same number for the same scale. */
+    @Test fun fontSizeStepperAndSummaryAgreeOnEveryTenthOfAScale() {
+        for (hundredths in 50..300) {
+            val scale = hundredths / 100f
+            val prefs = defaults.copy(fontFamily = ReaderFontFamily.Serif, fontSize = scale, margins = 1.0f)
+            val fromStepper = ReaderSettingsSummaries.fontSizePercentLabel(scale)
+            val fromSummary = ReaderSettingsSummaries.formattingSummary(prefs).split(" · ")[1]
+            assertEquals(fromSummary, fromStepper, "font-size percent disagrees at scale $scale")
+        }
+    }
+
+    @Test fun scaleTimesLabelPrintsOneDecimal() {
+        assertEquals("1.5×", ReaderSettingsSummaries.scaleTimesLabel(1.5f))
+        assertEquals("1.0×", ReaderSettingsSummaries.scaleTimesLabel(1.0f))
+        assertEquals("2.4×", ReaderSettingsSummaries.scaleTimesLabel(2.35f))
+    }
+
+    @Test fun lineSpacingAndMarginsCaptionsPairTheWordWithTheMultiplier() {
+        assertEquals("Normal · 1.5×", ReaderSettingsSummaries.lineSpacingCaption(1.5f))
+        assertEquals("Normal · 1.0×", ReaderSettingsSummaries.marginsCaption(1.0f))
+        assertEquals("Edge · 0.2×", ReaderSettingsSummaries.marginsCaption(0.2f))
+    }
+
     @Test fun formattingSummaryShowsFontSizeAndMargins() {
         val prefs = defaults.copy(
             fontFamily = ReaderFontFamily.Serif,

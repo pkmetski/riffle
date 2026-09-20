@@ -103,7 +103,7 @@ import org.koin.compose.koinInject
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
+import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
@@ -111,7 +111,7 @@ import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.app.ui.theme.RiffleIcons
-import com.riffle.app.ui.theme.RiffleTheme
+import com.riffle.feature.source.ui.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderOrientation
@@ -158,6 +158,8 @@ import androidx.navigation.navArgument
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import java.net.URLEncoder
 import com.riffle.feature.reader.toCssRgba
+import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.chapterMapVisible
 
 
 /**
@@ -772,13 +774,7 @@ fun EpubReaderScreen(
         // Bottom stack (player bar above the chapter rail), both anchored to the absolute screen
         // bottom in one Column so the readaloud bar floats directly above the rail. The system nav
         // bar overlays this column without shifting it up.
-        val showRailOverlay = state is ReaderState.Ready &&
-            (
-                formattingPrefs.showChapterMap ||
-                    formattingPrefs.showReadingProgressLabels ||
-                    formattingPrefs.showCurrentChapterLabel ||
-                    formattingPrefs.showReadingTimeEstimate
-                )
+        val showRailOverlay = state is ReaderState.Ready && chapterMapVisible(formattingPrefs)
         val showReadaloudUi = shouldShowReadaloudUi(viewModel.readerSource)
         if (state is ReaderState.Ready && ((readaloudOpen && showReadaloudUi) || showRailOverlay)) {
             Column(
@@ -908,7 +904,7 @@ fun EpubReaderScreen(
                             if (formattingPrefs.showAutoScroll &&
                                 (effectiveOrientation == ReaderOrientation.Vertical || effectiveOrientation == ReaderOrientation.Continuous)
                             ) {
-                                com.riffle.app.feature.readersettings.AutoScrollToggleIcon(
+                                com.riffle.feature.reader.ui.AutoScrollToggleIcon(
                                     isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
                                     onClick = {
                                         if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
@@ -923,7 +919,7 @@ fun EpubReaderScreen(
                             val cadencePlatformSupported by viewModel.cadencePlatformSupported.collectAsState()
                             if (formattingPrefs.showCadence && cadencePlatformSupported) {
                                 val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
-                                com.riffle.app.feature.reader.cadence.CadenceToggleIcon(
+                                com.riffle.feature.reader.ui.CadenceToggleIcon(
                                     isRunning = cadenceRunning,
                                     onClick = {
                                         if (cadenceRunning) viewModel.stopCadence()
@@ -1023,8 +1019,9 @@ fun EpubReaderScreen(
             )
         }
         // Auto-Scroll HUD pill — overlays everything else and survives Immersive Mode.
-        com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill(
+        com.riffle.feature.reader.ui.AutoScrollHudPill(
             state = autoScrollStateForPill,
+            labels = androidSpeedHudLabels(),
             onPause = { viewModel.pauseAutoScrollFromPill() },
             onResume = { viewModel.resumeAutoScrollFromPill() },
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
@@ -1034,8 +1031,9 @@ fun EpubReaderScreen(
         // only one is visible at a time). Volume keys also nudge cadence WPM via the outer
         // volumeNavEvents transform; this pill is the on-screen equivalent for touch users.
         val cadenceStateForPill by viewModel.cadenceState.collectAsState()
-        com.riffle.app.feature.reader.cadence.CadenceHudPill(
+        com.riffle.feature.reader.ui.CadenceHudPill(
             state = cadenceStateForPill,
+            labels = androidCadenceHudLabels(),
             onPause = { viewModel.pauseCadence(com.riffle.core.domain.cadence.PauseCause.PanelOpen) },
             onResume = { viewModel.resumeCadenceIfPaused() },
             onSlower = { viewModel.nudgeCadence(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
@@ -1095,6 +1093,7 @@ private fun EpubChapterRailOverlay(
         showCurrentChapterLabel = showChapterNameLabel,
         showProgressLabels = showProgressLabels,
         showReadingTimeEstimate = showReadingTimeEstimate,
+        templates = chapterMapProgressLabelTemplates(),
         chapterTimeRemaining = chapterTimeRemaining,
         bookTimeRemaining = bookTimeRemaining,
         bookmarkPositions = bookmarkPositions,
@@ -1158,33 +1157,11 @@ internal fun scopeSentencesToChapter(
  * the highlight by text search after it strips the sentence span from the served HTML. The
  * cssSelector is kept as the fast path for when the span does survive.
  */
-internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObject {
-    val hashIdx = ref.indexOf('#')
-    val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
-    val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
-    val json = JSONObject()
-        .put("href", href)
-        .put("type", "application/xhtml+xml")
-        .put(
-            "locations",
-            JSONObject().apply {
-                if (fragId != null) {
-                    put("fragments", org.json.JSONArray().put(fragId))
-                    put("cssSelector", "#$fragId")
-                }
-            },
-        )
-    if (quote != null) {
-        json.put(
-            "text",
-            JSONObject()
-                .put("before", quote.before)
-                .put("highlight", quote.highlight)
-                .put("after", quote.after),
-        )
-    }
-    return json
-}
+internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObject =
+    // The JSON itself is built by `feature:reader`'s [sentenceLocatorJson], shared with iOS —
+    // both platforms must anchor the same sentence at the same place, and a second copy of this
+    // shape is exactly how they would stop doing so. Only the org.json wrapper is Android's.
+    JSONObject(com.riffle.feature.reader.sentenceLocatorJson(ref, quote))
 
 /**
  * NavigationOptions for an annotation-panel tap. In continuous mode, [alignToTop] depends on

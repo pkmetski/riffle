@@ -1,27 +1,18 @@
 package com.riffle.app.feature.source.chitanka
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
+import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.models.SourceType
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -38,10 +29,10 @@ import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.feature.library.LibrarySectionType
-import com.riffle.app.feature.source.common.SourceBrowseHeader
-import com.riffle.app.feature.source.websource.UnboundedBrowseContent
-import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
-import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
+import com.riffle.app.feature.source.common.rememberDrawerButtonGestureExclusion
+import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
+import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
@@ -110,6 +101,7 @@ fun ChitankaBrowseScreen(
         if (query.isNotEmpty()) selectedTab = TAB_LIBRARY
     }
 
+    val drawerButtonModifier = rememberDrawerButtonGestureExclusion()
     Scaffold(
         topBar = {
             SourceBrowseHeader(
@@ -120,6 +112,7 @@ fun ChitankaBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = SourceType.CHITANKA, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
+                drawerButtonModifier = drawerButtonModifier,
             )
         },
         bottomBar = {
@@ -174,10 +167,11 @@ fun ChitankaBrowseScreen(
                         )
                         TAB_ANNOTATIONS ->
                             ChitankaAnnotationsTab(onAnnotatedBookClick = onAnnotatedBookClick)
-                        TAB_LIBRARY -> LibraryTabContent(
+                        TAB_LIBRARY -> UnboundedBrowseLibraryTabFor(
+                            sourceType = SourceType.CHITANKA,
                             viewModel = viewModel,
-                            isAudioRoot = isAudioRoot,
                             onCoverScaleChange = onCoverScaleChange,
+                            isAudio = isAudioRoot,
                         )
                     }
                 }
@@ -190,103 +184,6 @@ private const val TAB_HOME = 0
 private const val TAB_TO_READ = 1
 private const val TAB_ANNOTATIONS = 2
 private const val TAB_LIBRARY = 3
-
-@Composable
-private fun LibraryTabContent(
-    viewModel: ChitankaBrowseViewModel,
-    isAudioRoot: Boolean,
-    onCoverScaleChange: (Float) -> Unit,
-) {
-    val items by viewModel.filteredItems.collectAsState()
-    val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
-    val unownedFilterActive by viewModel.unownedFilterActive.collectAsState()
-    val hasServerSources by viewModel.hasServerSources.collectAsState()
-    val facets by viewModel.facets.collectAsState()
-    val selectedFacet by viewModel.selectedFacet.collectAsState()
-    val query by viewModel.query.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val isPaging by viewModel.isPaging.collectAsState()
-    val hasMore by viewModel.hasMore.collectAsState()
-    val isOffline by viewModel.isOffline.collectAsState()
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        LazyRow(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = notStartedFilterActive,
-                    onClick = { viewModel.toggleNotStartedFilter() },
-                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_not_started)) },
-                    leadingIcon = if (notStartedFilterActive) {
-                        {
-                            Icon(
-                                Icons.Filled.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(FilterChipDefaults.IconSize),
-                            )
-                        }
-                    } else null,
-                )
-            }
-            if (hasServerSources) {
-                item {
-                    FilterChip(
-                        selected = unownedFilterActive,
-                        onClick = { viewModel.toggleUnownedFilter() },
-                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unowned)) },
-                        leadingIcon = if (unownedFilterActive) {
-                            {
-                                Icon(
-                                    Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else null,
-                    )
-                }
-            }
-            if (facets.isNotEmpty()) {
-                item {
-                    FilterChip(
-                        selected = selectedFacet == null,
-                        onClick = { viewModel.selectFacet(null) },
-                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_all)) },
-                    )
-                }
-                items(facets, key = { it.key }) { facet ->
-                    FilterChip(
-                        selected = selectedFacet == facet.key,
-                        onClick = { viewModel.selectFacet(facet.key) },
-                        label = { Text(facet.label) },
-                    )
-                }
-            }
-        }
-        UnboundedBrowseContent(
-            isOffline = isOffline,
-            isLoading = isLoading,
-            error = error,
-            items = items,
-            query = query,
-            isPaging = isPaging,
-            hasMore = hasMore,
-            onLoadMore = viewModel::loadMore,
-            onCoverScaleChange = onCoverScaleChange,
-            itemKey = { it.id },
-            coverCellSizeMultiplier = if (isAudioRoot) 4f / 3f else 1f,
-        ) { item ->
-            WebSourceCatalogItemCard(
-                item = item,
-                isAudio = isAudioRoot,
-                onClick = { viewModel.openDetail(item) },
-            )
-        }
-    }
-}
 
 @Composable
 private fun ChitankaAnnotationsTab(

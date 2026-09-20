@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import com.riffle.feature.settings.LibraryUiItem
+import com.riffle.feature.settings.idsWithSwap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -73,11 +74,3 @@ internal fun ReorderableLibraryList(
     }
 }
 
-/** The list's library ids with positions [i] and [j] swapped — the new full order to persist. */
-internal fun List<LibraryUiItem>.idsWithSwap(i: Int, j: Int): List<String> {
-    val ids = map { it.library.id }.toMutableList()
-    val tmp = ids[i]
-    ids[i] = ids[j]
-    ids[j] = tmp
-    return ids
-}

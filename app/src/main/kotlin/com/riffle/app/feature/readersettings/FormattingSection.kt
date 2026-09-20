@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.core.domain.ReaderFontFamily
-import java.util.Locale
 
 /**
  * Text + page typography controls. Reused by the in-reader settings sheet (Formatting tab)
@@ -47,7 +47,7 @@ fun FormattingSection(
             val fontSizeStep = 0.1f
             UnifiedSliderRow(
                 title = stringResource(R.string.ui_font_size),
-                caption = "%.0f%%".format(Locale.ROOT, prefs.fontSize * 100),
+                caption = ReaderSettingsSummaries.fontSizePercentLabel(prefs.fontSize),
                 value = prefs.fontSize,
                 onValueChange = { onPrefsChange(prefs.copy(fontSize = it.round1())) },
                 valueRange = fontSizeRange,
@@ -88,7 +88,7 @@ fun FormattingSection(
             val lineSpacingStep = 0.1f
             UnifiedSliderRow(
                 title = stringResource(R.string.ui_line_spacing),
-                caption = "${lineSpacingLabel(prefs.lineSpacing)} · %.1f×".format(Locale.ROOT, prefs.lineSpacing),
+                caption = "${lineSpacingLabel(prefs.lineSpacing)} · ${ReaderSettingsSummaries.scaleTimesLabel(prefs.lineSpacing)}",
                 value = prefs.lineSpacing,
                 onValueChange = { onPrefsChange(prefs.copy(lineSpacing = it.round1())) },
                 valueRange = lineSpacingRange,
@@ -118,7 +118,7 @@ fun FormattingSection(
         val marginsStep = 0.2f
         UnifiedSliderRow(
             title = stringResource(R.string.ui_margins),
-            caption = "${marginsLabel(prefs.margins)} · %.1f×".format(Locale.ROOT, prefs.margins),
+            caption = "${marginsLabel(prefs.margins)} · ${ReaderSettingsSummaries.scaleTimesLabel(prefs.margins)}",
             value = prefs.margins,
             onValueChange = { onPrefsChange(prefs.copy(margins = it.round1())) },
             valueRange = marginsRange,

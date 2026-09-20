@@ -189,6 +189,11 @@ class AudiobookPlayerViewModel constructor(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
     init {
+        // Keeps the OS transport controls (iOS lock screen / Control Centre, Android media
+        // notification) on the user's configured intervals for as long as the player is open —
+        // including when the preference is edited mid-book. Launched separately from the session
+        // load below so the push does not wait on the network.
+        viewModelScope.launch { controller.followSkipIntervals(listeningPreferencesStore) }
         viewModelScope.launch {
             try {
             val t0 = clock.nowMs()
@@ -286,12 +291,10 @@ class AudiobookPlayerViewModel constructor(
                 facts = buildAudiobookFacts(session.timeline.durationSec, item.genres),
                 description = item.description,
             )
-            var playbackStartSec = resumeSec
-            if (startAtSec < 0.0) {
-                val rewindOnResume = listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble()
-                if (rewindOnResume > 0.0 && resumeSec > 0.0) {
-                    playbackStartSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
-                }
+            val playbackStartSec = if (startAtSec < 0.0) {
+                resumePositionSec(resumeSec, listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble())
+            } else {
+                resumeSec
             }
 
             if (launchCacheJob && session.timeline.durationSec > 0.0) {
@@ -419,7 +422,7 @@ class AudiobookPlayerViewModel constructor(
             val rewindSec = rewindOnResumeSec.value
             val posBeforeRewind = controller.currentAbsoluteSec()
             if (rewindSec > 0) {
-                val newPos = (posBeforeRewind - rewindSec).coerceAtLeast(0.0)
+                val newPos = resumePositionSec(posBeforeRewind, rewindSec)
                 reconciledResumeSec = newPos
                 controller.seekTo(newPos)
             }

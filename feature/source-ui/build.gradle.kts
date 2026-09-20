@@ -40,9 +40,16 @@ kotlin {
             implementation(project(":core:database-api"))
             api(project(":core:domain"))
             api(project(":core:models"))
-            implementation(project(":core:data"))
+            api(project(":core:data"))
             implementation(project(":core:sources"))
             implementation(project(":core:sync"))
+            // The unbounded-catalogue browse ViewModels take WebSourceItemGate /
+            // WebSourceLibraryItemUpserter in their public constructors and name each source's
+            // catalogue roots, so both hosts need these on their compile classpath: `api`.
+            api(project(":core:catalog-chitanka"))
+            api(project(":core:catalog-gutenberg"))
+            api(project(":core:catalog-radio-es"))
+            api(project(":feature:library"))
             implementation(project(":feature:settings"))
             api(project(":feature:source"))
             implementation(libs.kotlinx.coroutines.core)

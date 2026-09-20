@@ -2,6 +2,7 @@ import com.riffle.buildlogic.AndroidImportLint
 import com.riffle.buildlogic.CheckTranslationsTask
 import com.riffle.buildlogic.CreateTranslationTask
 import com.riffle.buildlogic.DatabaseImplLeakLint
+import com.riffle.buildlogic.LocalizationResourceLint
 import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
@@ -132,8 +133,13 @@ tasks.register("checkRiffleInfraSeams") {
             "core/domain/src/iosMain/kotlin/com/riffle/core/domain/IosDispatcherProvider.kt",
             // Catalog adapters: network/parse work pinned to Dispatchers.IO.
             // GutenbergCatalog and KomgaCatalog no longer use Dispatchers directly (replaced with
-            // measureTimedValue + KMP-safe APIs during KMP migration #944).
-            "core/catalog-chitanka/src/jvmMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaCatalog.kt",
+            // measureTimedValue + KMP-safe APIs during KMP migration #944). ChitankaCatalog moved
+            // jvmMain → commonMain and now goes through the `chitankaIoDispatcher` expect/actual;
+            // these two actuals are the leaves that name a platform dispatcher, exactly like
+            // IosDispatcherProvider above. Kotlin/Native keeps `Dispatchers.IO` internal, so the
+            // seam cannot be avoided here.
+            "core/catalog-chitanka/src/jvmMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaDispatchers.jvm.kt",
+            "core/catalog-chitanka/src/iosMain/kotlin/com/riffle/core/catalog/chitanka/ChitankaDispatchers.ios.kt",
             // core:data — file I/O, connectivity callbacks, sync timestamps.
             // Developer options PAT store wraps EncryptedSharedPreferences (blocking disk I/O).
             "core/data/src/androidMain/kotlin/com/riffle/core/data/developer/DeveloperOptionsRepositoryImpl.kt",
@@ -425,11 +431,22 @@ tasks.register("checkNoDatabaseImplLeak") {
 // Keeps localized string files complete when new user-facing resources are added.
 // Add a locale with `./gradlew createTranslation -Plocale=es-rES` (or `make translation LOCALE=es-rES`),
 // fill the generated strings, then run this check.
+//
+// Scans app/src/main/res AND every module's src/commonMain/composeResources: Compose Multiplatform
+// resources in a library module are packaged into :app and :shared and follow the system locale, so
+// a shared composable whose copy has only a values/ folder renders English to bg/es users. Every
+// module is listed unconditionally so a composeResources directory added later is covered too.
 tasks.register<CheckTranslationsTask>("checkTranslations") {
     group = "verification"
-    description = "Fails if localized Android strings are missing, blank, or stale."
+    description = "Fails if localized Android or Compose Multiplatform strings are missing, blank, or stale."
     resRoot.set(layout.projectDirectory.dir("app/src/main/res"))
     projectRoot.set(layout.projectDirectory)
+
+    val composeRoots = allprojects.map {
+        it.layout.projectDirectory.dir(LocalizationResourceLint.COMPOSE_RESOURCES_PATH).asFile
+    }
+    composeResourceRoots.set(composeRoots.map { it.absolutePath })
+    composeResourceFiles.from(composeRoots.map { root -> fileTree(root) })
 }
 
 val translationLocale = providers.gradleProperty("locale")

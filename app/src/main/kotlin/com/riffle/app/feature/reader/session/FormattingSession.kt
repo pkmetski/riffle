@@ -1,14 +1,14 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
 import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
@@ -29,6 +29,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 
 /**
  * Owns all formatting/typography/auto-scroll state for a single open book. Lifted from
@@ -74,8 +75,7 @@ class FormattingSession constructor(
         _formattingPreferences,
         appearanceCoordinator.resolved,
     ) { prefs, appearance ->
-        if (prefs.theme == ReaderTheme.Auto) prefs.copy(theme = appearance.readerTheme.toReaderTheme())
-        else prefs
+        prefs.withResolvedTheme(appearance)
     }
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, FormattingPreferences())
@@ -242,10 +242,7 @@ class FormattingSession constructor(
             _hasBookOverrides.value = !overrides.isEmpty
             // Wait until the derived StateFlow actually reflects the loaded value. Mirrors the
             // combine() above: Auto resolves to the coordinator's current concrete theme.
-            val resolvedReader = appearanceCoordinator.resolved.value.readerTheme.toReaderTheme()
-            val targetEffective = if (effective.theme == ReaderTheme.Auto) {
-                effective.copy(theme = resolvedReader)
-            } else effective
+            val targetEffective = effective.withResolvedTheme(appearanceCoordinator.resolved.value)
             effectiveFormattingPreferences.first { it == targetEffective }
             _formattingPreferencesReady.value = true
         }
@@ -313,15 +310,11 @@ class FormattingSession constructor(
     }
 
     fun nudgeAutoScroll(itemId: String, by: Int) {
-        autoScrollController.dispatch(AutoScrollEvent.NudgeSpeed(by))
-        val newSpeed = when (val s = autoScrollController.state.value) {
-            is AutoScrollState.Running -> s.speed
-            is AutoScrollState.Paused -> s.speed
-            else -> null
-        } ?: return
         val current = _formattingPreferences.value
-        if (current.autoScrollWpm == newSpeed.wpm) return
-        updateFormatting(itemId, current.copy(autoScrollWpm = newSpeed.wpm))
+        // Shared with iOS's HUD pill (nudgeSpeedAndPersistableWpm) so a nudge persists the same
+        // way on both platforms.
+        val newWpm = autoScrollController.nudgeSpeedAndPersistableWpm(by, current.autoScrollWpm) ?: return
+        updateFormatting(itemId, current.copy(autoScrollWpm = newWpm))
     }
 
     fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) {

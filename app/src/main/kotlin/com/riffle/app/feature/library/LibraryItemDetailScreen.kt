@@ -96,7 +96,7 @@ import coil3.request.ImageRequest
 import com.riffle.feature.player.CompactDurationLabelTemplates
 import com.riffle.feature.player.formatCompactDuration
 import com.riffle.app.feature.readersettings.TocPanel
-import com.riffle.app.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.feature.source.ui.asAuthHeader
@@ -614,7 +614,7 @@ internal fun LibraryItemDetailContent(
             isWideScreen -> Modifier.widthIn(max = 280.dp)
             else -> Modifier.fillMaxWidth()
         }
-        val isAudiobook = item.isListenable && !item.isReadable
+        val isAudiobook = item.isAudiobookOnly
         Box(
             modifier = Modifier
                 .then(coverWidth)
@@ -644,7 +644,7 @@ internal fun LibraryItemDetailContent(
         PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
 
         if (item.readingProgress > 0f) {
-            ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
+            ReadingProgressIndicator(progress = item.readingProgress, listened = item.isAudiobookOnly)
         }
 
         ActionRow(
@@ -978,7 +978,7 @@ internal fun LibraryItemDetailContentTablet(
             // it larger (weight still shrinks it if the action row needs the room).
             val isLandscape =
                 LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val isAudiobook = item.isListenable && !item.isReadable
+            val isAudiobook = item.isAudiobookOnly
             Box(
                 modifier = Modifier
                     .weight(1f, fill = false)
@@ -1012,7 +1012,7 @@ internal fun LibraryItemDetailContentTablet(
             }
             PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
-                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
+                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isAudiobookOnly)
             }
             ActionRow(
                 item = item,
@@ -1186,7 +1186,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
-            val isAudiobook = item.isListenable && !item.isReadable
+            val isAudiobook = item.isAudiobookOnly
             Box(
                 modifier = Modifier
                     // The cover owns the column's full height; aspectRatio derives its width from that.
@@ -1234,7 +1234,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             }
             PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
-                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
+                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isAudiobookOnly)
             }
             ActionRow(
                 item = item,

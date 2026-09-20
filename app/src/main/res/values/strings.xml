@@ -38,9 +38,7 @@
     <string name="ui_bookmark_options">Bookmark options</string>
     <string name="ui_browse_bulgarian_ebooks_and_audiobooks_from_two_public_digital_libraries">Browse Bulgarian ebooks and audiobooks from two public digital libraries. </string>
     <string name="ui_browse_tens_of_thousands_of_free_public_domain_ebooks_no_account_is">Browse tens of thousands of free public-domain ebooks. No account is </string>
-    <string name="ui_cache_settings">Cache settings</string>
     <string name="ui_cached">Cached</string>
-    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.</string>
     <string name="ui_cadence">Cadence</string>
     <string name="ui_cadence_highlights_one_sentence_at_a_time_and_advances_on_its_own_at_a_set">Cadence highlights one sentence at a time and advances on its own at a set </string>
     <string name="ui_cadence_isn_t_available_on_this_device_s_webview_update_the_android_system">Cadence isn\'t available on this device\'s WebView. Update the Android System </string>
@@ -506,9 +504,6 @@
     <string name="ui_no_cached_media">No cached media</string>
     <string name="ui_comic">Comic</string>
     <string name="ui_audiobook">Audiobook</string>
-    <string name="ui_auto_clear_after_days">Auto-clear after %1$d days</string>
-    <string name="ui_auto_clear_off">Auto-clear off</string>
-    <string name="ui_after_days">After %1$d days</string>
     <string name="ui_no_results">No results</string>
     <string name="ui_nothing_to_show">Nothing to show</string>
     <string name="ui_result_position">%1$d of %2$d</string>

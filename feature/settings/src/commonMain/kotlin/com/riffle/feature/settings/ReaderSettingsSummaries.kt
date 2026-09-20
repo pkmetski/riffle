@@ -57,8 +57,37 @@ object ReaderSettingsSummaries {
         else -> "Wide"
     }
 
+    /**
+     * The font scale as a whole percentage — "115%".
+     *
+     * Rounds, never truncates: Android's slider caption is `"%.0f%%"`, which rounds half-up, so a
+     * `toInt()` here renders a different number for the same preference. #1066 fixed that in
+     * [formattingSummary] but the iOS stepper one panel down kept its own `toInt()`, so a 1.149
+     * scale read 115% in the summary row and 114% in the stepper directly beneath it. Every
+     * surface that prints a font percentage calls this.
+     */
+    fun fontSizePercentLabel(scale: Float): String = "${(scale * 100).roundToInt()}%"
+
+    /**
+     * A scale factor as Android's typography captions print it — `"%.1f×"`, rounded half-up.
+     * `String.format` is JVM-only, so build the two halves by hand.
+     */
+    fun scaleTimesLabel(scale: Float): String {
+        val tenths = (scale * 10).roundToInt()
+        return "${tenths / 10}.${tenths % 10}×"
+    }
+
+    /** "Normal · 1.5×" — the line-spacing caption both platforms' formatting panels show. */
+    fun lineSpacingCaption(scale: Float): String = "${lineSpacingWord(scale)} · ${scaleTimesLabel(scale)}"
+
+    /**
+     * "Normal · 1.0×" — the margins caption. iOS used to render margins as a percentage
+     * (`"100%"`) while Android rendered a word plus a multiplier for the same preference.
+     */
+    fun marginsCaption(scale: Float): String = "${marginsWord(scale)} · ${scaleTimesLabel(scale)}"
+
     fun formattingSummary(prefs: FormattingPreferences): String =
-        "${fontFamilyLabel(prefs.fontFamily)} · ${(prefs.fontSize * 100).roundToInt()}% · " +
+        "${fontFamilyLabel(prefs.fontFamily)} · ${fontSizePercentLabel(prefs.fontSize)} · " +
             "${marginsWord(prefs.margins)} margins"
 
     fun orientationWord(orientation: ReaderOrientation): String = when (orientation) {
@@ -67,14 +96,22 @@ object ReaderSettingsSummaries {
         ReaderOrientation.Continuous -> "Continuous"
     }
 
+    /**
+     * `"<theme> · <mode> · map on|off"`, the subtitle of the Display drill-in row.
+     *
+     * One summary for both platforms. It briefly took an `includeChapterMap` flag so iOS could
+     * drop the trailing segment while its Display panel had no chapter-map toggle; the toggle and
+     * the overlay behind it now exist on iOS too, so the flag is gone and the row reads the same
+     * on both.
+     */
     fun displaySummary(prefs: FormattingPreferences): String {
         val mode = orientationWord(prefs.orientation)
-        val map = if (prefs.showChapterMap) "map on" else "map off"
         val theme = if (prefs.theme == ReaderTheme.Auto) {
             "Auto ${autoModeLabel(prefs.autoReaderThemeMode)}"
         } else {
             themeLabel(prefs.theme)
         }
+        val map = if (prefs.showChapterMap) "map on" else "map off"
         return "$theme · $mode · $map"
     }
 

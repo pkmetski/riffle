@@ -85,7 +85,8 @@ import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
 import com.riffle.core.data.RoomDirtyAnnotationLedger
-import com.riffle.core.data.RoomDirtyProgressLedger
+import com.riffle.core.data.DaoDirtyBookmarkLedger
+import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.SourceFilesCleanerImpl
 import com.riffle.core.data.SourceRepositoryImpl
 import com.riffle.core.data.StorytellerBundleAudiobookSource
@@ -261,7 +262,6 @@ import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.AudiobookBookmarkReconciler
 import com.riffle.core.sync.BookmarkReconcile
 import com.riffle.core.sync.DirtyAnnotationLedger as SyncDirtyAnnotationLedger
-import com.riffle.core.sync.DirtyBookmarkLedger
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.PostSweepMaterializer
@@ -938,7 +938,7 @@ private val coreDataStreamingAudioModule = module {
 
 private val coreDataSyncModule = module {
     single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
-    single<DirtyProgressLedger> { RoomDirtyProgressLedger(get(), get()) }
+    single<DirtyProgressLedger> { DaoDirtyProgressLedger(get(), get()) }
     single<SyncDirtyAnnotationLedger> { RoomDirtyAnnotationLedger(get()) }
     single<ProgressRemoteFactory> {
         CatalogProgressRemoteFactory(
@@ -995,13 +995,7 @@ private val coreDataSyncModule = module {
             remoteFactory = get(),
             locks = get(),
             openTargets = get(),
-            bookmarkLedger = object : DirtyBookmarkLedger {
-                override suspend fun serversWithDirty() =
-                    get<com.riffle.core.database.AudiobookBookmarkDao>().sourcesWithDirtyRows()
-                override suspend fun dirtyItems(sourceId: String) =
-                    get<com.riffle.core.database.AudiobookBookmarkDao>()
-                        .dirtyForSource(sourceId).map { it.itemId }.distinct()
-            },
+            bookmarkLedger = DaoDirtyBookmarkLedger(get<com.riffle.core.database.AudiobookBookmarkDao>()),
             bookmarkReconcile = BookmarkReconcile { sourceId, itemId ->
                 get<AudiobookBookmarkReconciler>().reconcile(sourceId, itemId)
             },

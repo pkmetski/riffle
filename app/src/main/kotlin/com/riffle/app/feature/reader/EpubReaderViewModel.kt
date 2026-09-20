@@ -143,6 +143,10 @@ import com.riffle.feature.reader.toMergeAnchor
 import com.riffle.feature.reader.validatedMergedSnippet
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.highlightOverlapsAtSamePosition
+import com.riffle.feature.reader.estimatedBookTimeRemaining
+import com.riffle.feature.reader.estimatedChapterTimeRemaining
+import com.riffle.feature.reader.railCursorPositionForTotalProgression
+import com.riffle.feature.reader.totalRailWeight
 
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
@@ -718,11 +722,36 @@ class EpubReaderViewModel constructor(
 
     // ---- Cadence (issue #403 / ADR 0047) --------------------------------------------------------
 
-    val cadenceState: StateFlow<com.riffle.core.domain.cadence.CadenceState> = cadenceController.state
-    val cadenceCurrentFragment: StateFlow<String?> = cadenceController.currentFragment
+    /**
+     * The host-independent half of the session — quote accumulation, the `DomSentenceSource`
+     * rebind, start-ref resolution and the default-speed binding — lives in `feature:reader`'s
+     * [com.riffle.feature.reader.cadence.CadenceSession], shared with iOS.
+     */
+    private val cadenceSession = com.riffle.feature.reader.cadence.CadenceSession(
+        controller = cadenceController,
+        scope = viewModelScope,
+        logger = logger,
+        // Second defect fixed here: a HUD-pill or volume-key nudge moved the live ticker and
+        // wrote nothing back, so the speed snapped to the stored `cadenceWpm` on the next open
+        // while Auto-Scroll's identical gesture survived (FormattingSession.nudgeAutoScroll).
+        persistWpm = { wpm ->
+            formatting.updateFormatting(itemId, formatting.formattingPreferences.value.copy(cadenceWpm = wpm))
+        },
+    ).also { session ->
+        // Defect fixed here: `CadenceController.setDefaultSpeed` had no production caller at all,
+        // so `FormattingPreferences.cadenceWpm` never reached a running session and Cadence always
+        // started at AutoScrollSpeed.Default (250 wpm) no matter what the Settings slider said.
+        // Auto-Scroll's equivalent binding is FormattingSession's `autoScrollController
+        // .setDefaultSpeed` collector; this is its twin, and it is shared so iOS gets it too.
+        session.bindDefaultSpeed(
+            formatting.formattingPreferences.map { it.cadenceWpm },
+        )
+    }
 
-    private val _cadenceQuotes = MutableStateFlow<Map<String, com.riffle.core.domain.SentenceQuote>>(emptyMap())
-    val cadenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = _cadenceQuotes.asStateFlow()
+    val cadenceState: StateFlow<com.riffle.core.domain.cadence.CadenceState> = cadenceSession.state
+    val cadenceCurrentFragment: StateFlow<String?> = cadenceSession.currentFragment
+
+    val cadenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = cadenceSession.quotes
 
     /** True iff `Intl.Segmenter` is available in the reader WebView — the top-bar toggle hides when false. */
     private val _cadencePlatformSupported = MutableStateFlow(true)
@@ -733,8 +762,7 @@ class EpubReaderViewModel constructor(
      * its active presenter (Continuous / Readium) to advance one chapter forward, then re-runs the
      * DOM tokenisation for the new chapter — see [onCadenceChapterTokenised].
      */
-    private val _cadenceEndOfChapterEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val cadenceEndOfChapterEvents: SharedFlow<Unit> = _cadenceEndOfChapterEvents.asSharedFlow()
+    val cadenceEndOfChapterEvents: SharedFlow<Unit> = cadenceSession.endOfChapterEvents
 
     /**
      * Called by the reader screen after JS returns the tokenised chapter's sentence map.
@@ -748,31 +776,7 @@ class EpubReaderViewModel constructor(
     fun onCadenceChapterTokenised(
         quotes: Map<String, com.riffle.core.domain.SentenceQuote>,
         hrefs: Map<String, String>,
-    ) {
-        // Accumulate quotes across every tokenised chapter — Continuous keeps several chapters
-        // loaded at once in the sliding window, and paginated may re-tokenise the current one on
-        // reflow. LinkedHashMap preserves insertion order so the ticker's fragment ordering stays
-        // reading-order stable across rebinds.
-        val merged = LinkedHashMap(_cadenceQuotes.value)
-        merged.putAll(quotes)
-        _cadenceQuotes.value = merged
-        val mergedHrefs = LinkedHashMap(_cadenceChapterHrefs)
-        mergedHrefs.putAll(hrefs)
-        _cadenceChapterHrefs = mergedHrefs
-        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
-            "VM.onCadenceChapterTokenised chapterQuotes=${quotes.size} totalQuotes=${merged.size}"
-        }
-        val source = com.riffle.feature.reader.cadence.DomSentenceSource().apply {
-            supplyResult(merged, mergedHrefs)
-        }
-        viewModelScope.launch {
-            cadenceController.bind(source, onExhausted = {
-                _cadenceEndOfChapterEvents.tryEmit(Unit)
-            })
-        }
-    }
-
-    private var _cadenceChapterHrefs: Map<String, String> = emptyMap()
+    ) = cadenceSession.onChapterTokenised(quotes, hrefs)
 
     /**
      * Report the WebView's Intl.Segmenter feature-detect result. Updates the in-memory flag that
@@ -807,19 +811,8 @@ class EpubReaderViewModel constructor(
      * first sentence of whichever chapter was tokenised first this session — usually several
      * pages behind the user, which then triggers a Readium auto-scroll to the decoration.
      */
-    fun onCadencePageTopResolved(href: String, fragmentId: String?) {
-        val startRef = resolveCadenceStartRef(
-            href = href,
-            probedFragmentId = fragmentId,
-            chapterHrefs = _cadenceChapterHrefs,
-            knownRefs = _cadenceQuotes.value.keys,
-        )
-        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
-            "VM.onCadencePageTopResolved href=$href fragmentId=$fragmentId → startRef=$startRef"
-        }
-        if (startRef != null) cadenceController.goTo(startRef)
-        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
-    }
+    fun onCadencePageTopResolved(href: String, fragmentId: String?) =
+        cadenceSession.onPageTopResolved(href, fragmentId)
 
     /**
      * Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403),
@@ -831,32 +824,38 @@ class EpubReaderViewModel constructor(
         applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
         val href = position.currentLocatorHref.value
         logger.d(com.riffle.core.logging.LogChannel.Cadence) {
-            "VM.startCadence currentLocatorHref=$href tokenisedChapters=${_cadenceChapterHrefs.values.distinct().size}"
+            "VM.startCadence currentLocatorHref=$href " +
+                "tokenisedChapters=${cadenceSession.chapterHrefs.values.distinct().size}"
         }
         if (href == null) {
             // No known locator yet — dispatch Start directly; ticker falls back to cd-0.
-            cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+            cadenceSession.startWithoutProbe()
             return
         }
         _cadencePageTopProbeChannel.trySend(href)
     }
 
-    fun stopCadence() =
-        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Stop)
+    fun stopCadence() = cadenceSession.stop()
 
+    /**
+     * Nudge the live Cadence speed AND persist the result, exactly as [nudgeAutoScroll] does.
+     *
+     * The nudge used to be live-only: the HUD pill's ±, and the volume keys while Cadence runs,
+     * moved the ticker but wrote nothing back, so the speed snapped to the stored `cadenceWpm`
+     * on the next book open while Auto-Scroll's identical gesture survived.
+     */
     fun nudgeCadence(by: Int) =
-        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.NudgeSpeed(by))
+        cadenceSession.nudge(by, formatting.formattingPreferences.value.cadenceWpm)
 
     fun pauseCadence(cause: com.riffle.core.domain.cadence.PauseCause) =
-        cadenceController.pauseFor(cause)
+        cadenceSession.pauseFor(cause)
 
-    fun resumeCadenceIfPaused() =
-        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Resume)
+    fun resumeCadenceIfPaused() = cadenceSession.resumeIfPaused()
 
     fun setCadencePaused(
         paused: Boolean,
         cause: com.riffle.core.domain.cadence.PauseCause,
-    ) = cadenceController.setPaused(paused, cause)
+    ) = cadenceSession.setPaused(paused, cause)
 
     /**
      * Snapshot the currently-running feature and apply [com.riffle.core.domain.cadence.onStart]'s
@@ -868,28 +867,18 @@ class EpubReaderViewModel constructor(
      * the pause fan-out is deterministic.
      */
     private fun applyArbiter(starting: com.riffle.core.domain.cadence.Feature) {
-        val current = when {
-            cadenceController.state.value is com.riffle.core.domain.cadence.CadenceState.Running ->
-                com.riffle.core.domain.cadence.Feature.Cadence
-            formatting.autoScrollState.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running ->
-                com.riffle.core.domain.cadence.Feature.AutoScroll
-            playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying ->
-                com.riffle.core.domain.cadence.Feature.Readaloud
-            else -> com.riffle.core.domain.cadence.Feature.None
-        }
-        val action = com.riffle.core.domain.cadence.onStart(current, starting)
-        if (action.pauseAutoScroll) formatting.stopAutoScroll()
-        if (action.pauseReadaloud) playerCoordinator.pause()
-        if (action.pauseCadence) {
-            val cause = when (starting) {
-                com.riffle.core.domain.cadence.Feature.AutoScroll ->
-                    com.riffle.core.domain.cadence.PauseCause.AutoScrollStarted
-                com.riffle.core.domain.cadence.Feature.Readaloud ->
-                    com.riffle.core.domain.cadence.PauseCause.ReadaloudStarted
-                else -> com.riffle.core.domain.cadence.PauseCause.PanelOpen
-            }
-            cadenceController.pauseFor(cause)
-        }
+        com.riffle.core.domain.cadence.runArbiter(
+            currentRunning = com.riffle.core.domain.cadence.currentRunningFeature(
+                cadenceRunning = cadenceSession.state.value is com.riffle.core.domain.cadence.CadenceState.Running,
+                autoScrollRunning =
+                    formatting.autoScrollState.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
+                readaloudPlaying = playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying,
+            ),
+            starting = starting,
+            stopAutoScroll = formatting::stopAutoScroll,
+            pauseCadence = cadenceSession::pauseFor,
+            pauseReadaloud = playerCoordinator::pause,
+        )
     }
 
     // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
@@ -1143,8 +1132,8 @@ class EpubReaderViewModel constructor(
      * already have with Readaloud.
      */
     val cadenceNarrationProgress: StateFlow<PlayerCoordinator.NarrationProgress?> = combine(
-        cadenceController.currentFragment,
-        cadenceController.currentProgress,
+        cadenceSession.currentFragment,
+        cadenceSession.currentProgress,
     ) { ref, fraction ->
         if (ref != null && fraction != null) PlayerCoordinator.NarrationProgress(ref, fraction) else null
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -1222,7 +1211,7 @@ class EpubReaderViewModel constructor(
                     // pauses a running Cadence. Pause (not Stop): a Readaloud tap-pause should
                     // let the user resume Cadence exactly where it was.
                     if (playing) {
-                        cadenceController.pauseFor(
+                        cadenceSession.pauseFor(
                             com.riffle.core.domain.cadence.PauseCause.ReadaloudStarted,
                         )
                     }
@@ -3587,9 +3576,7 @@ class EpubReaderViewModel constructor(
         // unbind, a running ticker would keep advancing past book-close and the SAME session
         // would resume when the user reopens the book. Also drops the merged quotes/hrefs
         // accumulator held by the source so the next book starts fresh.
-        cadenceController.unbind()
-        _cadenceQuotes.value = emptyMap()
-        _cadenceChapterHrefs = emptyMap()
+        cadenceSession.reset()
         // Stop any in-flight Auto-Scroll so the next book open starts idle, not auto-scrolling
         // mid-session into someone else's text.
         formatting.onBookClosed()
@@ -3776,19 +3763,7 @@ class EpubReaderViewModel constructor(
         railSegments,
         currentLocatorTotalProgression,
     ) { activeIndex, segments, totalProg ->
-        if (totalProg == null || segments.isEmpty()) return@combine 0f
-        val totalWeight = segments.fold(0f) { acc, s -> acc + s.weight }
-        if (totalWeight == 0f) return@combine 0f
-        val i = activeIndex.coerceIn(0, segments.size - 1)
-        var weightBefore = 0f
-        for (k in 0 until i) weightBefore += segments[k].weight
-        val segWeight = (segments.getOrNull(i)?.weight ?: 0f).coerceAtLeast(0f)
-        val withinSeg = if (segWeight > 0f) {
-            ((totalProg * totalWeight - weightBefore) / segWeight).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
-        weightedRailCursorPosition(i, segments, withinSeg)
+        railCursorPositionForTotalProgression(activeIndex, segments, totalProg)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     val bookmarkRailPositions: StateFlow<List<Float>> = combine(
@@ -3833,8 +3808,7 @@ class EpubReaderViewModel constructor(
         val segments = snap.segments
         val segIdx = snap.activeSegmentIndex
 
-        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
-        if (totalPositions == 0f) return@combine null
+        if (totalRailWeight(segments) == 0f) return@combine null
 
         if (pbState.connected && raTrack != null) {
             val posGlobal = pbState.positionGlobalSec
@@ -3848,17 +3822,9 @@ class EpubReaderViewModel constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val chapterWeight = segments.getOrNull(segIdx)?.weight ?: return@combine null
-        val totalProg = snap.totalProgression ?: return@combine null
-        // Compute where this chapter ends as a fraction of the total book. This works even when a
-        // TOC entry spans multiple spine resources (e.g. a "Part I" title page followed by several
-        // chapter files) because totalProgression increases monotonically across all resources.
-        var weightBefore = 0f
-        for (k in 0 until segIdx) weightBefore += segments[k].weight
-        val chapterEndFrac = (weightBefore + chapterWeight) / totalPositions
-        val remainingFrac = (chapterEndFrac - totalProg).coerceAtLeast(0f)
-        val sec = (remainingFrac * totalPositions * speed).toLong().coerceAtLeast(0L)
-        TimeRemaining.Estimated(sec)
+        // The estimate itself is shared (ChapterMapDerivations) so iOS's chapter map reads the
+        // same number; only the exact-from-audio branch above is host-specific.
+        estimatedChapterTimeRemaining(segments, segIdx, snap.totalProgression, speed)
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val bookTimeRemaining: StateFlow<TimeRemaining?> = combine(
@@ -3869,8 +3835,7 @@ class EpubReaderViewModel constructor(
     ) { snap, pbState, raTrack, speed ->
         val segments = snap.segments
 
-        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
-        if (totalPositions == 0f) return@combine null
+        if (totalRailWeight(segments) == 0f) return@combine null
 
         if (pbState.connected && raTrack != null) {
             val posGlobal = pbState.positionGlobalSec
@@ -3878,9 +3843,7 @@ class EpubReaderViewModel constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val totalProg = snap.totalProgression ?: return@combine null
-        val sec = ((1f - totalProg) * totalPositions * speed).toLong().coerceAtLeast(0L)
-        TimeRemaining.Estimated(sec)
+        estimatedBookTimeRemaining(segments, snap.totalProgression, speed)
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // ---- SearchController delegations ----------------------------------------------------------

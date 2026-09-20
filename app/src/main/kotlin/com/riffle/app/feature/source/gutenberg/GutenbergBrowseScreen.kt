@@ -1,54 +1,39 @@
 package com.riffle.app.feature.source.gutenberg
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
-import com.riffle.feature.source.ui.SourceTypeIcon
-import com.riffle.app.ui.theme.RiffleIcons
-import com.riffle.core.models.SourceType
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
+import com.riffle.app.feature.source.common.rememberDrawerButtonGestureExclusion
+import com.riffle.app.feature.source.websource.WebSourceHomeTab
+import com.riffle.app.feature.source.websource.WebSourceToReadTab
+import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.app.ui.theme.RiffleIcons
+import com.riffle.core.models.SourceType
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibrarySectionType
-import com.riffle.app.feature.source.common.SourceBrowseHeader
-import com.riffle.app.feature.source.websource.UnboundedBrowseContent
-import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
-import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
-import com.riffle.app.feature.source.websource.WebSourceHomeTab
-import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.app.feature.source.websource.WebSourceToReadTab
-import com.riffle.core.catalog.CatalogFacet
+import com.riffle.feature.source.ui.SourceBrowseHeader
+import com.riffle.feature.source.ui.SourceTypeIcon
+import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
+import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
+import org.koin.androidx.compose.koinViewModel
 
 /**
  * Gutenberg Source screen. Distinct route ("gutenberg_browse/{libraryId}/{name}") from
@@ -56,6 +41,9 @@ import com.riffle.core.catalog.CatalogFacet
  * screen's refresh/capability plumbing. Instead we host a small tab bar with four surfaces
  * that ARE consistent with every other Source (Home / To Read / Annotations / Library),
  * mirroring the Chitanka browse screen's structure.
+ *
+ * The Library tab is `feature:source-ui`'s [UnboundedBrowseLibraryTabFor] — the same composable
+ * the iOS browse screen renders. Only this four-tab shell is Android-specific.
  */
 @Composable
 fun GutenbergBrowseScreen(
@@ -95,6 +83,7 @@ fun GutenbergBrowseScreen(
         if (query.isNotEmpty()) selectedTab = TAB_LIBRARY
     }
 
+    val drawerButtonModifier = rememberDrawerButtonGestureExclusion()
     Scaffold(
         topBar = {
             SourceBrowseHeader(
@@ -105,6 +94,7 @@ fun GutenbergBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = SourceType.GUTENBERG, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
+                drawerButtonModifier = drawerButtonModifier,
             )
         },
         bottomBar = {
@@ -156,9 +146,11 @@ fun GutenbergBrowseScreen(
                     )
                     TAB_ANNOTATIONS ->
                         GutenbergAnnotationsTab(onAnnotatedBookClick = onAnnotatedBookClick)
-                    TAB_LIBRARY -> LibraryTabContent(
+                    TAB_LIBRARY -> UnboundedBrowseLibraryTabFor(
+                        sourceType = SourceType.GUTENBERG,
                         viewModel = viewModel,
                         onCoverScaleChange = onCoverScaleChange,
+                        isAudio = false,
                     )
                 }
             }
@@ -170,176 +162,6 @@ private const val TAB_HOME = 0
 private const val TAB_TO_READ = 1
 private const val TAB_ANNOTATIONS = 2
 private const val TAB_LIBRARY = 3
-
-@Composable
-private fun LibraryTabContent(
-    viewModel: GutenbergBrowseViewModel,
-    onCoverScaleChange: (Float) -> Unit,
-) {
-    val items by viewModel.filteredItems.collectAsState()
-    val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
-    val unownedFilterActive by viewModel.unownedFilterActive.collectAsState()
-    val hasServerSources by viewModel.hasServerSources.collectAsState()
-    val facets by viewModel.facets.collectAsState()
-    val selectedFacet by viewModel.selectedFacet.collectAsState()
-    val query by viewModel.query.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val isPaging by viewModel.isPaging.collectAsState()
-    val hasMore by viewModel.hasMore.collectAsState()
-    val isOffline by viewModel.isOffline.collectAsState()
-    val languageFacets = remember(facets) { gutenbergLanguageFacets(facets) }
-    val topicFacets = remember(facets) { gutenbergTopicFacets(facets) }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        LazyRow(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = notStartedFilterActive,
-                    onClick = { viewModel.toggleNotStartedFilter() },
-                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_not_started)) },
-                    leadingIcon = if (notStartedFilterActive) {
-                        {
-                            Icon(
-                                Icons.Filled.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(FilterChipDefaults.IconSize),
-                            )
-                        }
-                    } else null,
-                )
-            }
-            if (hasServerSources) {
-                item {
-                    FilterChip(
-                        selected = unownedFilterActive,
-                        onClick = { viewModel.toggleUnownedFilter() },
-                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_unowned)) },
-                        leadingIcon = if (unownedFilterActive) {
-                            {
-                                Icon(
-                                    Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else null,
-                    )
-                }
-            }
-            if (topicFacets.isNotEmpty() || languageFacets.isNotEmpty()) {
-                item {
-                    FilterChip(
-                        selected = selectedFacet == null,
-                        onClick = { viewModel.selectFacet(null) },
-                        label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_all)) },
-                    )
-                }
-                if (languageFacets.isNotEmpty()) {
-                    item {
-                        GutenbergLanguageFilterChip(
-                            languageFacets = languageFacets,
-                            selectedFacet = selectedFacet,
-                            onSelectFacet = viewModel::selectFacet,
-                        )
-                    }
-                }
-                items(topicFacets, key = { it.key }) { facet ->
-                    FilterChip(
-                        selected = selectedFacet == facet.key,
-                        onClick = { viewModel.selectFacet(facet.key) },
-                        label = { Text(facet.label) },
-                    )
-                }
-            }
-        }
-        UnboundedBrowseContent(
-            isOffline = isOffline,
-            isLoading = isLoading,
-            error = error,
-            items = items,
-            query = query,
-            isPaging = isPaging,
-            hasMore = hasMore,
-            onLoadMore = viewModel::loadMore,
-            onCoverScaleChange = onCoverScaleChange,
-            itemKey = { it.id },
-        ) { item ->
-            WebSourceCatalogItemCard(
-                item = item,
-                isAudio = false,
-                onClick = { viewModel.openDetail(item) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun GutenbergLanguageFilterChip(
-    languageFacets: List<CatalogFacet>,
-    selectedFacet: String?,
-    onSelectFacet: (String?) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedLanguage = languageFacets.firstOrNull { it.key == selectedFacet }
-
-    Box {
-        FilterChip(
-            selected = selectedLanguage != null,
-            onClick = { expanded = true },
-            label = {
-                Text(
-                    androidx.compose.ui.res.stringResource(
-                        com.riffle.app.R.string.ui_language_filter,
-                        selectedLanguage?.label ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_any),
-                    ),
-                )
-            },
-            trailingIcon = {
-                Icon(
-                    Icons.Filled.ArrowDropDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                )
-            },
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_any)) },
-                onClick = {
-                    onSelectFacet(null)
-                    expanded = false
-                },
-                leadingIcon = if (selectedLanguage == null) {
-                    { Icon(Icons.Filled.Check, contentDescription = null) }
-                } else null,
-            )
-            languageFacets.forEach { facet ->
-                DropdownMenuItem(
-                    text = { Text(facet.label) },
-                    onClick = {
-                        onSelectFacet(facet.key)
-                        expanded = false
-                    },
-                    leadingIcon = if (facet.key == selectedFacet) {
-                        { Icon(Icons.Filled.Check, contentDescription = null) }
-                    } else null,
-                )
-            }
-        }
-    }
-}
-
-internal fun gutenbergLanguageFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
-    facets.filter { it.key.startsWith(GUTENBERG_LANGUAGE_FACET_PREFIX) }
-
-internal fun gutenbergTopicFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
-    facets.filterNot { it.key.startsWith(GUTENBERG_LANGUAGE_FACET_PREFIX) }
-
-private const val GUTENBERG_LANGUAGE_FACET_PREFIX = "language:"
 
 @Composable
 private fun GutenbergAnnotationsTab(

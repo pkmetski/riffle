@@ -3,7 +3,13 @@ package com.riffle.core.data.di
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
+import com.riffle.core.common.IosRandomProvider
+import com.riffle.core.common.RandomProvider
+import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
+import com.riffle.core.data.CatalogSyncSourceResolver
+import com.riffle.core.data.DaoDirtyBookmarkLedger
+import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.IosBookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosCatalogProgressRemoteFactory
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
@@ -38,6 +44,7 @@ import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.IosLocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.CoverGridScaleDao
@@ -45,6 +52,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
@@ -56,6 +64,7 @@ import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
@@ -76,8 +85,14 @@ import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
+import com.riffle.core.sync.AudiobookBookmarkReconciler
+import com.riffle.core.sync.BookmarkReconcile
+import com.riffle.core.sync.DirtyProgressLedger
+import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressRemoteFactory
+import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
+import com.riffle.core.sync.SyncSourceResolver
 import org.koin.dsl.module
 
 val iosDataModule = module {
@@ -119,8 +134,7 @@ val iosDataModule = module {
         IosCatalogProgressRemoteFactory(get<CatalogRegistry>(), get<LibraryItemDao>(), get<EbookCfiTranslatorFactory>(), get<Clock>())
     }
     // Reconciles one (sourceId, itemId) against the ABS server: called on reader/player open (pull)
-    // and close (push). iOS has no periodic background sweep (issue #1065) — session-open/close is
-    // the sync trigger, matching the issue's "no background workers needed" guidance.
+    // and close (push).
     single<ItemProgressPuller> {
         ReconcilingItemProgressPuller(
             get<ReadingPositionStoreImpl>(),
@@ -132,6 +146,51 @@ val iosDataModule = module {
             get<LibraryItemUiProgressSink>(),
         )
     }
+
+    // The durable, book-independent dirty sweep of ADR 0036 — the same ProgressSweep Android
+    // binds in CoreDataKoinModules, over the same commonMain ledger/resolver/reconcilers.
+    //
+    // Until #1071 §14 iOS had *nothing* that retried a failed push: session close was the only
+    // trigger, so a position or bookmark saved while offline (or while ABS was down) stayed dirty
+    // forever unless the user happened to reopen that exact book while online. Now `ProgressSweep`
+    // is real on iOS, driven from three places that stand in for Android's WorkManager jobs —
+    // app start and app foreground (`RiffleAppRoot`), and the validated offline→online edge
+    // (`kickSweepsOnReconnect`, also shared).
+    //
+    // Two constructor arguments stay at their defaults, both deliberately:
+    //  - `remoteIndex`: CatalogRemoteProgressIndex serves the WebDAV web-source pull (ADR 0063),
+    //    which iOS does not have — IosCatalogProgressRemoteFactory has no WebDAV branch either.
+    //  - `postSweepMaterializer`: WebSourceLibraryItemMaterializer exists only for those same
+    //    WebDAV-synced web sources.
+    // Both become relevant the day iOS gets a Kotlin/Native WebDAV client (#1072).
+    single<DirtyProgressLedger> { DaoDirtyProgressLedger(get<ReadingPositionDao>(), get<AudiobookPositionDao>()) }
+    single<SyncSourceResolver> { CatalogSyncSourceResolver(get<CatalogRegistry>(), get<SourceRepository>()) }
+    single<RandomProvider> { IosRandomProvider }
+    single<AudiobookBookmarkSyncStore> { AudiobookBookmarkSyncStoreImpl(get<AudiobookBookmarkDao>()) }
+    single {
+        AudiobookBookmarkReconciler(
+            store = get<AudiobookBookmarkSyncStore>(),
+            sourceResolver = get<SyncSourceResolver>(),
+            clock = get<Clock>(),
+            random = get<RandomProvider>(),
+        )
+    }
+    single {
+        ProgressSweep(
+            ledger = get<DirtyProgressLedger>(),
+            sourceResolver = get<SyncSourceResolver>(),
+            ebookReconciler = ProgressReconciler(get<ReadingPositionStoreImpl>(), get<LibraryItemUiProgressSink>()),
+            audioReconciler = ProgressReconciler(get<AudiobookPositionStoreImpl>(), get<LibraryItemUiProgressSink>()),
+            remoteFactory = get<ProgressRemoteFactory>(),
+            locks = get<ReconcileLocks>(),
+            openTargets = get<OpenReconcileTargets>(),
+            bookmarkLedger = DaoDirtyBookmarkLedger(get<AudiobookBookmarkDao>()),
+            bookmarkReconcile = BookmarkReconcile { sourceId, itemId ->
+                get<AudiobookBookmarkReconciler>().reconcile(sourceId, itemId)
+            },
+        )
+    }
+
     single<FormattingPreferencesStore> { IosFormattingPreferencesStoreImpl() }
     single<BookComicFormattingPreferencesStore> { IosBookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }

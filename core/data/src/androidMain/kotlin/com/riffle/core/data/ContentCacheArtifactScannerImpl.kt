@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.ContentCacheArtifact
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheArtifactScanner
@@ -18,6 +19,11 @@ class ContentCacheArtifactScannerImpl constructor(
             audiobookArtifacts(audiobookCacheDir) +
             fileArtifacts(cbzCacheDir, ".cbz", ContentCacheArtifactKind.Cbz)
 
+    override fun delete(artifact: ContentCacheArtifact): Boolean {
+        val file = File(artifact.path)
+        return file.exists() && file.deleteRecursively()
+    }
+
     private fun fileArtifacts(root: File, extension: String, kind: ContentCacheArtifactKind): List<ContentCacheArtifact> =
         root.forSourceDirs { sourceDir ->
             val prefix = sourceDir.absolutePath + File.separator
@@ -31,7 +37,7 @@ class ContentCacheArtifactScannerImpl constructor(
                             itemId = relative.removeSuffix(extension),
                             kind = kind,
                         ),
-                        file = file,
+                        path = file.absolutePath,
                         sizeBytes = file.length(),
                         evidenceLastModifiedAtMs = file.lastModified().takeIf { it > 0L },
                     )
@@ -43,7 +49,7 @@ class ContentCacheArtifactScannerImpl constructor(
         root.forSourceDirs { sourceDir ->
             val prefix = sourceDir.absolutePath + File.separator
             sourceDir.walkTopDown()
-                .filter { it.isFile && it.name == "manifest.json" }
+                .filter { it.isFile && it.name == MANIFEST }
                 .mapNotNull { manifest ->
                     val itemDir = manifest.parentFile ?: return@mapNotNull null
                     val relative = itemDir.absolutePath.removePrefix(prefix).takeIf { it.isNotBlank() }
@@ -61,7 +67,7 @@ class ContentCacheArtifactScannerImpl constructor(
                             itemId = relative,
                             kind = ContentCacheArtifactKind.Audiobook,
                         ),
-                        file = itemDir,
+                        path = itemDir.absolutePath,
                         sizeBytes = sizeBytes,
                         evidenceLastModifiedAtMs = newestMs.takeIf { it > 0L },
                     )

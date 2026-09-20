@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.JvmAudiobookCacheRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.DispatcherProvider
@@ -28,7 +29,7 @@ class AudiobookCacheRepositoryImpl constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun itemDir(sourceId: String, itemId: String) = File(cacheDir, "$sourceId/$itemId")
-    private fun manifestFile(sourceId: String, itemId: String) = File(itemDir(sourceId, itemId), "manifest.json")
+    private fun manifestFile(sourceId: String, itemId: String) = File(itemDir(sourceId, itemId), MANIFEST)
 
     override fun isCached(sourceId: String, itemId: String): Boolean =
         manifestFile(sourceId, itemId).exists()

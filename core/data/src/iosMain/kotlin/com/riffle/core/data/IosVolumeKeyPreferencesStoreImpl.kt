@@ -6,12 +6,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import platform.Foundation.NSUserDefaults
 
 // Hardware volume-key interception is not possible on iOS (the OS handles volume keys before
-// any app can consume them). This store persists the preference so the settings UI round-trips
-// correctly, but the VolumeKeyDispatcher will never fire volume-nav events on iOS.
+// any app can consume them), so iOS ships no settings rows for it — see SettingsScreen's Behavior
+// section. The preference is still stored, and its defaults match
+// `VolumeKeyPreferencesStoreImpl` on Android (navigation on, inversion off) so the two platforms
+// agree about an account's settings instead of reporting different values for the same user.
 internal class IosVolumeKeyPreferencesStoreImpl : VolumeKeyPreferencesStore {
     private val defaults = NSUserDefaults.standardUserDefaults
     private val _volumeKeyNavigationEnabled = MutableStateFlow(
-        if (defaults.objectForKey(KEY_ENABLED) != null) defaults.boolForKey(KEY_ENABLED) else false,
+        if (defaults.objectForKey(KEY_ENABLED) != null) defaults.boolForKey(KEY_ENABLED) else true,
     )
     private val _invertVolumeKeys = MutableStateFlow(
         if (defaults.objectForKey(KEY_INVERT) != null) defaults.boolForKey(KEY_INVERT) else false,

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import com.riffle.feature.library.tabIndexForAnnotations
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

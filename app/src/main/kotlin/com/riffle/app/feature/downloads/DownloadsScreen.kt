@@ -3,6 +3,10 @@ package com.riffle.app.feature.downloads
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
 import com.riffle.feature.downloads.LocalMediaType
+import com.riffle.feature.downloads.displayOrder
+import com.riffle.feature.downloads.formatBytes
+import com.riffle.feature.source.ui.CacheSettingsDialog
+import com.riffle.feature.source.ui.CacheSettingsRow
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -24,14 +28,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,9 +53,7 @@ import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.models.LibraryItem
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -166,73 +165,6 @@ fun DownloadsScreen(
             }
         }
     }
-}
-
-@Composable
-private fun CacheSettingsRow(autoClear: ContentCacheAutoClear, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(onClick = onClick) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = autoClear.localizedSummaryLabel(),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun CacheSettingsDialog(
-    selected: ContentCacheAutoClear,
-    onSelected: (ContentCacheAutoClear) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings)) },
-        text = {
-            Column {
-                Text(
-                    text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n),
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ContentCacheAutoClear.entries.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelected(option) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = option == selected,
-                            onClick = { onSelected(option) },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(option.localizedOptionLabel(), style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_done)) }
-        },
-    )
 }
 
 @Composable
@@ -348,6 +280,10 @@ private fun Set<LocalMediaType>.localizedDisplayLabel(): String {
 private fun Set<LocalMediaType>.primaryIcon(): ImageVector =
     minByOrNull { it.displayOrder }?.icon ?: Icons.AutoMirrored.Filled.MenuBook
 
+/**
+ * Localized mirror of [com.riffle.feature.downloads.label]. Keep the two in step — the untranslated
+ * shared one is what iOS renders and what `DownloadsFormattingTest` pins.
+ */
 @Composable
 private fun LocalMediaType.localizedLabel(): String = when (this) {
     LocalMediaType.Epub -> "EPUB"
@@ -356,15 +292,6 @@ private fun LocalMediaType.localizedLabel(): String = when (this) {
     LocalMediaType.Audiobook -> stringResource(R.string.ui_audiobook)
     LocalMediaType.Readaloud -> stringResource(R.string.ui_readaloud)
 }
-
-private val LocalMediaType.displayOrder: Int
-    get() = when (this) {
-        LocalMediaType.Epub -> 0
-        LocalMediaType.Pdf -> 1
-        LocalMediaType.Comic -> 2
-        LocalMediaType.Audiobook -> 3
-        LocalMediaType.Readaloud -> 4
-    }
 
 private val LocalMediaType.icon: ImageVector
     get() = when (this) {
@@ -375,27 +302,3 @@ private val LocalMediaType.icon: ImageVector
         LocalMediaType.Readaloud -> Icons.Default.GraphicEq
     }
 
-/** Renders a byte count as a compact human-readable size (e.g. "312 MB", "1.2 GB"). */
-internal fun formatBytes(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val units = listOf("KB", "MB", "GB", "TB")
-    var value = bytes.toDouble() / 1024
-    var unitIndex = 0
-    while (value >= 1024 && unitIndex < units.lastIndex) {
-        value /= 1024
-        unitIndex++
-    }
-    return if (value >= 100) {
-        String.format(Locale.US, "%.0f %s", value, units[unitIndex])
-    } else {
-        String.format(Locale.US, "%.1f %s", value, units[unitIndex])
-    }
-}
-
-@Composable
-private fun ContentCacheAutoClear.localizedSummaryLabel(): String =
-    days?.let { stringResource(R.string.ui_auto_clear_after_days, it) } ?: stringResource(R.string.ui_auto_clear_off)
-
-@Composable
-private fun ContentCacheAutoClear.localizedOptionLabel(): String =
-    days?.let { stringResource(R.string.ui_after_days, it) } ?: stringResource(R.string.ui_off)

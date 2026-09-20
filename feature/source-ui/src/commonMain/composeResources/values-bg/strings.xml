@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bulgarian copy for this module's shared Compose Multiplatform strings.
+
+  Compose resources in a library module are packaged into both hosts (:app and :shared) and
+  resolved against the system locale, so every key in values/strings.xml that is not marked
+  translatable="false" must appear here too. Values are copied verbatim from
+  app/src/main/res/values-bg/strings.xml where an :app counterpart exists.
+
+  Enforced by the root `checkTranslations` task (see LocalizationResourceLint).
+-->
+<resources>
+    <string name="ui_add_source">Добавете източник</string>
+    <string name="ui_back">Назад</string>
+    <string name="ui_coming_soon">Очаквайте скоро</string>
+    <string name="ui_local_files">Локални файлове</string>
+    <string name="ui_source_local_files_subtitle">на това устройство</string>
+    <string name="ui_source_chitanka_subtitle">Българска публична библиотека</string>
+    <string name="ui_source_gutenberg_subtitle">Електронни книги от общественото достояние</string>
+    <string name="ui_source_abs_picker_blurb">Поточно четене на електронни книги и слушане на аудиокниги от вашия Audiobookshelf сървър.</string>
+    <string name="ui_source_local_files_picker_blurb">Четете EPUB и PDF файлове от папка на това устройство.</string>
+    <string name="ui_source_chitanka_picker_blurb">Разглеждайте български електронни книги (chitanka.info) и аудиокниги (gramofonche).</string>
+    <string name="ui_source_gutenberg_picker_blurb">Разглеждайте десетки хиляди безплатни електронни книги от общественото достояние.</string>
+    <string name="ui_source_komga_picker_blurb">Поточно четене на комикси, манга и електронни книги от вашия Komga сървър.</string>
+    <string name="ui_source_radio_es_picker_blurb">Разглеждайте и слушайте подкасти от директорията radio.es.</string>
+    <string name="ui_add_audiobookshelf">Добавете Audiobookshelf</string>
+    <string name="ui_edit_audiobookshelf">Редактирайте Audiobookshelf</string>
+    <string name="ui_source_url">URL на източника</string>
+    <string name="ui_source_abs_help_text">Поточно четене на електронни книги и слушане на аудиокниги от вашия Audiobookshelf сървър, със синхронизиран напредък между устройствата.</string>
+    <string name="ui_remove_source">Премахване на източника</string>
+    <string name="ui_add_storyteller">Добавете Storyteller</string>
+    <string name="ui_edit_storyteller">Редактирайте Storyteller</string>
+    <string name="ui_source_storyteller_help_text">Storyteller хоства подравнени електронни книги + аудиокниги („четене на глас“). Riffle съпоставя всеки запис за четене на глас с книга на вашия Audiobookshelf сървър, което позволява синхронизирано възпроизвеждане на текст + аудио в четеца.</string>
+    <string name="ui_remove_storyteller">Премахване на Storyteller</string>
+    <string name="ui_add_komga">Добавете Komga</string>
+    <string name="ui_edit_komga">Редактирайте Komga</string>
+    <string name="ui_source_komga_help_text">Преглеждайте и четете библиотеката си в Komga (комикси, манга и електронни книги) от всеки Komga сървър.</string>
+    <string name="ui_edit_webdav">Редактирайте WebDAV</string>
+    <string name="ui_add_webdav">Добавете WebDAV</string>
+    <string name="ui_webdav_url">URL на WebDAV</string>
+    <string name="ui_save">Запазване</string>
+    <string name="ui_connect">Свързване</string>
+    <string name="ui_webdav_add_source_help_text">Синхронизирайте маркирания, бележки и отметки между устройствата си чрез WebDAV сървър. Налично за източници Komga.</string>
+    <string name="ui_choose_scheme">Изберете схема</string>
+    <string name="ui_username">Потребителско име</string>
+    <string name="ui_password">Парола</string>
+    <string name="ui_disable_sync">Изключване на синхронизацията</string>
+    <string name="ui_synced_via_webdav">Синхронизирано чрез WebDAV</string>
+    <string name="ui_pending_will_retry_automatically">Изчаква — ще опита отново автоматично</string>
+    <string name="ui_sync_error">Грешка при синхронизиране</string>
+    <string name="ui_last_sync_value">Последна синхронизация: %1$s</string>
+    <string name="ui_insecure_connection">Несигурна връзка</string>
+    <string name="ui_untrusted_certificate">Недоверен сертификат</string>
+    <string name="ui_insecure_http_description">Този сървър използва HTTP. Данните ви за вход ще бъдат изпратени без шифроване. Продължете само ако имате доверие на тази мрежа.</string>
+    <string name="ui_untrusted_certificate_description">TLS сертификатът на сървъра не може да бъде проверен. Свързването може да изложи данните ви за вход. Продължете само ако имате доверие на този сървър.</string>
+    <string name="ui_connect_anyway">Все пак се свържете</string>
+    <string name="ui_cancel">Отказ</string>
+    <string name="ui_select_libraries">Изберете библиотеки</string>
+    <string name="ui_this_source_doesn_t_expose_any_book_libraries">Този източник не предоставя библиотеки с книги.</string>
+    <string name="ui_go_back">Върни се назад</string>
+    <string name="ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings">Изберете кои библиотеки да се показват в Riffle. Можете да промените това по-късно в Настройки.</string>
+    <string name="ui_select_at_least_one_library">Изберете поне една библиотека</string>
+    <string name="ui_continue">Продължи</string>
+    <string name="error_enter_valid_url">Въведете валиден URL (напр. https://abs.example.com)</string>
+    <string name="error_parse_webdav_url">URL адресът не можа да се разчете — трябва да изглежда като https://example.com/dav/path</string>
+    <string name="error_auth_failed_check_credentials">Удостоверяването е неуспешно — проверете потребителското име и паролата.</string>
+    <string name="error_couldnt_reach_server">Сървърът не можа да бъде достигнат: %1$s</string>
+    <string name="error_tls">TLS грешка: %1$s</string>
+    <string name="error_source_http">Източникът върна HTTP %1$d.</string>
+    <string name="error_couldnt_save_source">Източникът не можа да бъде запазен: %1$s</string>
+    <string name="error_connection_failed">Връзката е неуспешна: %1$s</string>
+    <string name="error_connected_library_load_failed">Свързано, но библиотеките не можаха да се заредят: %1$s</string>
+    <string name="ui_webdav_auth_failed_prescription">Удостоверяването не бе успешно — данните ви може да са изтекли. Въведете ги отново по-долу; синхронизацията ще опита пак след запазване.</string>
+    <string name="ui_webdav_tls_failed_prescription">TLS грешка — сертификатът на сървъра не може да бъде проверен. Обновете URL адреса по-долу; синхронизацията ще опита пак след запазване.</string>
+    <string name="ui_source_http_retry">Източникът върна HTTP %1$d. Ще се опита отново автоматично.</string>
+    <string name="ui_sync_failed_retry">Синхронизацията не бе успешна. Ще се опита отново автоматично.</string>
+    <string name="ui_couldnt_reach_server_retry">Сървърът не беше достигнат. Ще се опита отново автоматично при възстановяване на връзката.</string>
+    <string name="ui_books_pending_sync_shortly">%1$d книга(и) чакат · скоро ще се синхронизират.</string>
+    <string name="ui_books_pending_waiting_first_sync">%1$d книга(и) чакат · изчаква се първата синхронизация.</string>
+    <string name="ui_never">Никога</string>
+    <string name="ui_just_now">току-що</string>
+    <string name="ui_minutes_ago">преди %1$d мин</string>
+    <string name="ui_hours_ago">преди %1$d ч</string>
+    <string name="ui_days_ago">преди %1$d дни</string>
+    <string name="ui_source_oreilly_picker_blurb">Разглеждайте и четете електронни и аудиокниги от акаунта си в O\'Reilly.</string>
+    <string name="ui_singleton_confirm_title">Добавете %1$s</string>
+    <string name="ui_try_again">Опитайте отново</string>
+    <string name="ui_singleton_description_chitanka">Разглеждайте български електронни книги и аудиокниги от две публични дигитални библиотеки. Не е необходим акаунт — всичко се чете директно от публичните сайтове.</string>
+    <string name="ui_singleton_description_gutenberg">Разглеждайте десетки хиляди безплатни електронни книги от общественото достояние. Не е необходим акаунт — всичко се чете директно от публичния каталог.</string>
+    <string name="ui_singleton_description_radio_es">Разглеждайте и слушайте подкасти от директорията radio.es. Не е необходим акаунт — всичко се предава директно от публичния каталог.</string>
+    <string name="ui_singleton_attribution_chitanka">Съдържанието се предоставя от chitanka.info и gramofonche.chitanka.info.</string>
+    <string name="ui_singleton_attribution_gutenberg">Съдържанието се предоставя от gutenberg.org чрез API на gutendex.com.</string>
+    <string name="ui_singleton_attribution_radio_es">Съдържанието се предоставя от radio.es чрез prod.radio-api.net.</string>
+    <string name="ui_cache_settings">Настройки на кеша</string>
+    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Кеширани файлове с книги, аудиокниги, комикси и четене на глас могат да бъдат премахнати, след като не са били отваряни толкова дълго. Изтеглянията се запазват.</string>
+    <string name="ui_done">Готово</string>
+    <string name="ui_off">Изкл.</string>
+    <string name="ui_auto_clear_after_days">Автоматично изчистване след %1$d дни</string>
+    <string name="ui_auto_clear_off">Автоматичното изчистване е изключено</string>
+    <string name="ui_after_days">След %1$d дни</string>
+    <string name="ui_open_menu">Отворете менюто</string>
+    <string name="ui_search">Търсене</string>
+    <string name="ui_clear_search">Изчистете търсенето</string>
+    <string name="ui_all">Всички</string>
+    <string name="ui_any">Всякакви</string>
+    <string name="ui_not_started">Не е започнато</string>
+    <string name="ui_unowned">Непритежаван</string>
+    <string name="ui_language_filter">Език: %1$s</string>
+    <string name="ui_country_filter">Държава: %1$s</string>
+    <string name="ui_no_results">Няма резултати</string>
+    <string name="ui_no_items_in_this_library">Няма елементи в тази библиотека</string>
+    <string name="ui_offline_showing_cached_data">Офлайн — показват се кеширани данни</string>
+</resources>

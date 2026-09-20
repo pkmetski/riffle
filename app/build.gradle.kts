@@ -141,6 +141,7 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:source"))
     implementation(project(":feature:source-ui"))
+    implementation(project(":feature:reader-ui"))
     implementation(project(":core:sources"))
     implementation(project(":core:sync"))
     implementation(project(":core:data"))

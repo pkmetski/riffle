@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.source.ui.LocalCoverGridScale
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

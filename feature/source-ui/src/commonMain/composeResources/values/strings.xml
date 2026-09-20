@@ -4,17 +4,23 @@
   resources. Values are copied verbatim from app/src/main/res/values/strings.xml — the :app copies
   remain for the surfaces that have not moved into this module yet, so any edit here must be
   mirrored there (and vice versa) until the last :app consumer is gone.
+
+  Every translatable key here MUST also exist in values-bg/ and values-es/. These resources are
+  packaged into both hosts and resolved against the system locale, so a key that only lives in
+  values/ renders English to Bulgarian and Spanish users on Android as well as iOS. Enforced by
+  the root `checkTranslations` task; proper nouns opt out with translatable="false", matching
+  app/src/main/res/values/strings.xml.
 -->
 <resources>
     <string name="ui_add_source">Add source</string>
     <string name="ui_back">Back</string>
     <string name="ui_coming_soon">Coming soon</string>
-    <string name="source_audiobookshelf_name">Audiobookshelf</string>
+    <string name="source_audiobookshelf_name" translatable="false">Audiobookshelf</string>
     <string name="ui_local_files">Local files</string>
-    <string name="source_chitanka_name">Chitanka</string>
-    <string name="source_project_gutenberg_name">Project Gutenberg</string>
-    <string name="source_komga_name">Komga</string>
-    <string name="source_radio_es_name">radio.es</string>
+    <string name="source_chitanka_name" translatable="false">Chitanka</string>
+    <string name="source_project_gutenberg_name" translatable="false">Project Gutenberg</string>
+    <string name="source_komga_name" translatable="false">Komga</string>
+    <string name="source_radio_es_name" translatable="false">radio.es</string>
     <string name="ui_source_local_files_subtitle">on this device</string>
     <string name="ui_source_chitanka_subtitle">Bulgarian public library</string>
     <string name="ui_source_gutenberg_subtitle">Public-domain ebooks</string>
@@ -83,8 +89,8 @@
     <string name="ui_minutes_ago">%1$d min ago</string>
     <string name="ui_hours_ago">%1$d h ago</string>
     <string name="ui_days_ago">%1$d d ago</string>
-    <string name="source_oreilly_name">O'Reilly</string>
-    <string name="ui_source_oreilly_subtitle">learning.oreilly.com</string>
+    <string name="source_oreilly_name" translatable="false">O'Reilly</string>
+    <string name="ui_source_oreilly_subtitle" translatable="false">learning.oreilly.com</string>
     <string name="ui_source_oreilly_picker_blurb">Browse and read ebooks and audiobooks from your O'Reilly account.</string>
     <!-- Zero-config singleton confirmation screens (B3: shared across Android and iOS) -->
     <string name="ui_singleton_confirm_title">Add %1$s</string>
@@ -95,4 +101,26 @@
     <string name="ui_singleton_attribution_chitanka">Content is provided by chitanka.info and gramofonche.chitanka.info.</string>
     <string name="ui_singleton_attribution_gutenberg">Content is provided by gutenberg.org via the gutendex.com API.</string>
     <string name="ui_singleton_attribution_radio_es">Content is provided by radio.es via prod.radio-api.net.</string>
+    <!-- Cache settings row + dialog on the Downloads screen (shared by :app and :shared). -->
+    <string name="ui_cache_settings">Cache settings</string>
+    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.</string>
+    <string name="ui_done">Done</string>
+    <string name="ui_off">Off</string>
+    <string name="ui_auto_clear_after_days">Auto-clear after %1$d days</string>
+    <string name="ui_auto_clear_off">Auto-clear off</string>
+    <string name="ui_after_days">After %1$d days</string>
+    <!-- Unbounded web-source browse surface (Chitanka / Gutenberg / radio.es), shared by :app and
+         :shared. Copied verbatim from app/src/main/res/values/strings.xml. -->
+    <string name="ui_open_menu">Open menu</string>
+    <string name="ui_search">Search</string>
+    <string name="ui_clear_search">Clear search</string>
+    <string name="ui_all">All</string>
+    <string name="ui_any">Any</string>
+    <string name="ui_not_started">Not Started</string>
+    <string name="ui_unowned">Unowned</string>
+    <string name="ui_language_filter">Language: %1$s</string>
+    <string name="ui_country_filter">Country: %1$s</string>
+    <string name="ui_no_results">No results</string>
+    <string name="ui_no_items_in_this_library">No items in this library</string>
+    <string name="ui_offline_showing_cached_data">Offline — showing cached data</string>
 </resources>

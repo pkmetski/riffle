@@ -33,9 +33,7 @@
     <string name="ui_bookmark_options">Опции за отметки</string>
     <string name="ui_browse_bulgarian_ebooks_and_audiobooks_from_two_public_digital_libraries">Разгледайте български електронни книги и аудиокниги от две обществени дигитални библиотеки.</string>
     <string name="ui_browse_tens_of_thousands_of_free_public_domain_ebooks_no_account_is">Разгледайте десетки хиляди безплатни електронни книги, които са обществено достояние. Няма акаунт</string>
-    <string name="ui_cache_settings">Настройки на кеша</string>
     <string name="ui_cached">Кеширано</string>
-    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Кеширани файлове с книги, аудиокниги, комикси и четене на глас могат да бъдат премахнати, след като не са били отваряни толкова дълго. Изтеглянията се запазват.</string>
     <string name="ui_cadence">Ритъм</string>
     <string name="ui_cadence_highlights_one_sentence_at_a_time_and_advances_on_its_own_at_a_set">Ритъмът подчертава по едно изречение и продължава самостоятелно със зададено</string>
     <string name="ui_cadence_isn_t_available_on_this_device_s_webview_update_the_android_system">Ритъмът не е наличен с WebView на това устройство. Актуализирайте Android System</string>
@@ -504,9 +502,6 @@
     <string name="ui_no_cached_media">Няма кеширана медия</string>
     <string name="ui_comic">Комикс</string>
     <string name="ui_audiobook">Аудиокнига</string>
-    <string name="ui_auto_clear_after_days">Автоматично изчистване след %1$d дни</string>
-    <string name="ui_auto_clear_off">Автоматичното изчистване е изключено</string>
-    <string name="ui_after_days">След %1$d дни</string>
     <string name="ui_no_results">Няма резултати</string>
     <string name="ui_nothing_to_show">Няма нищо за показване</string>
     <string name="ui_result_position">%1$d от %2$d</string>

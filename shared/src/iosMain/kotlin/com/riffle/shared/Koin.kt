@@ -4,7 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
+import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
+import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
+import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
+import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
@@ -24,8 +28,11 @@ import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheAccessStoreImpl
+import com.riffle.core.data.IosContentCacheArtifactScannerImpl
+import com.riffle.core.data.IosCrashReportRecorder
 import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
+import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
@@ -53,6 +60,7 @@ import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
+import com.riffle.core.data.di.RIFFLE_DATABASE_FILE
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
@@ -60,7 +68,9 @@ import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
+import com.riffle.core.data.websource.RemoteItemFreshness
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.LibraryItemDao
@@ -80,6 +90,8 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactScanner
+import com.riffle.core.domain.ContentCacheCleaner
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
@@ -137,6 +149,7 @@ import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
+import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
@@ -147,7 +160,9 @@ import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
+import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.core.sync.ProgressSweep
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
@@ -194,13 +209,16 @@ import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.WebdavTestOutcome
+import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
+import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
-import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosPdfRepositoryImpl
@@ -239,6 +257,8 @@ private fun iosLibraryModule(
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
     single<AbsLibraryApi> { get<AbsApiClient>() }
+    // Needed by AbsCommonCatalogFactory for Catalog.connectivityCheck.
+    single<AbsServerInfoApi> { get<AbsApiClient>() }
     single { KomgaLibraryApiClient(get()) }
     single<KomgaLibraryApi> { get<KomgaLibraryApiClient>() }
     single<KomgaCbzApi> { get<KomgaLibraryApiClient>() }
@@ -282,13 +302,37 @@ private fun iosLibraryModule(
             SourceType.KOMGA to get<KomgaSourceAdapter>(),
         )
     }
-    // The WebDAV annotation-sync sidecar is Android-only (its target factory lives in
-    // core/sources' jvmMain). No iOS surface navigates to the WebDAV form; this binding exists
-    // so the shared AddSourceViewModel graph resolves, and reports the unparseable-URL outcome
-    // if it is ever reached.
+    // The WebDAV annotation-sync sidecar has no iOS engine and no iOS form (#1071 §17, #1072).
+    //
+    // Unreachable, not merely unused: the iOS Add-Source picker offers ABS, Komga and Local Files
+    // only (`iosSupportedSourceTypes()`, pinned by IosSupportedSourceTypesTest), and
+    // SourceOnboardingHost always builds `AddSourceBackend.Credentialed(type, AUDIOBOOKSHELF)`,
+    // so no code path can construct the WebDAV backend whose form calls this tester. The binding
+    // exists solely because the shared AddSourceViewModel takes it as a constructor argument.
+    //
+    // Making it real is a port, not a wiring change: WebDavAnnotationSyncTarget lives in
+    // core/sources' jvmMain and its `testConnection` needs java.util.Base64 for the Basic auth
+    // header plus javax.net.ssl / java.io catch clauses to classify transport errors. Porting only
+    // the tester would still leave nothing to test a connection *for*, because every consumer of a
+    // WebDAV target (AnnotationSyncTargetHolder, WebDavProgressRemote, CatalogRemoteProgressIndex)
+    // is androidMain/jvmMain too, and the PROPFIND paths additionally need a multiplatform XML
+    // parser and an RFC-1123 date parser. Tracked in #1072.
     single<WebdavConnectionTester> { WebdavConnectionTester { WebdavTestOutcome.UnparseableUrl } }
+    // Annotation sync has no iOS engine at all: AnnotationSyncController/AnnotationSweep are
+    // androidMain and the only sync target (WebDAV) is jvmMain. This is a missing surface (#1072),
+    // not dead wiring — there is nothing for the enqueuer to enqueue, so it stays a no-op until
+    // the engine is ported. The progress half is real (see ProgressSyncTrigger below).
     single<AnnotationSweepEnqueuer> { AnnotationSweepEnqueuer { } }
-    single<ProgressSyncTrigger> { ProgressSyncTrigger { } }
+    // Runs the real ProgressSweep the moment a source's sync config is saved, so anything that
+    // went dirty while the source was misconfigured is pushed without waiting for the next
+    // launch. Android's equivalent enqueues ProgressSyncScheduler.sweepNow (#1071 §14).
+    single<ProgressSyncTrigger> {
+        val scope = get<ApplicationScope>()
+        val sweep = get<ProgressSweep>()
+        ProgressSyncTrigger {
+            scope.launchSurvivable { runCatching { sweep.run() } }
+        }
+    }
     single { DevSourceDefaults.Empty }
     single<Flow<Unit>>(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)) {
         flow {
@@ -371,6 +415,11 @@ private fun iosLibraryModule(
     }
     single { VolumeNavigationController() }
     single { VolumeKeyDispatcher(get(), get()) }
+    // Constructor dependency of the commonMain CbzReaderViewModel, which writes it from
+    // IosCbzReaderScreen's DisposableEffect — so the binding cannot be deleted. On Android the
+    // only *reader* is MainActivity.onKeyDown, which consults it to decide whether a hardware
+    // volume press is a page turn. iOS has no hardware-key surface to read it from yet, so the
+    // three flags are written and never consulted (#1071 §17; the volume-key reader is #1072).
     single { ReaderStateHolder() }
     factory { params ->
         CbzReaderViewModel(
@@ -434,9 +483,17 @@ private fun iosLibraryModule(
         AudioIdentityResolverImpl(get<ReadaloudLinkDao>(), get<LibraryItemDao>())
     }
     single<com.riffle.core.domain.AudioPlaybackPreferencesStore> { AudioPlaybackPreferencesStoreImpl(get<AudioPlaybackPreferencesDao>()) }
+    // Constructor dependency of the commonMain AudiobookPlayerViewModel, which sets and clears it
+    // around playback — so the binding cannot be deleted. Android's only reader is MainScreen's
+    // openNowPlayingRequests collector, which turns a media-notification tap into a nav route;
+    // iOS's DrawerViewModel has no equivalent and IosAudioPlayerBridgeImpl talks to
+    // MPNowPlayingInfoCenter (the OS widget) rather than this store, so a lock-screen tap cannot
+    // route back to the player (#1071 §17). The routing surface is #1072.
     single { NowPlayingStore() }
     single { AudiobookHandoffState() }
     single { OpenReconcileTargets() }
+    // Live on iOS: FollowLoopOrchestrator.flush (per-tick audiobook position writes) and
+    // AudiobookPlayerViewModel's speed-change and onCleared flushes all run through it.
     single { ProgressFlushScope(applicationScope = get()) }
     // SyncPositionStore<Double>/<String> are bound in iosDataModule (core:data), backed by the
     // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
@@ -444,6 +501,9 @@ private fun iosLibraryModule(
     single<ReadaloudHandoff> { get<IosReadaloudHandoff>() }
     // Same ReaderSyncFactory Android binds (ADR 0023), now that it is commonMain: reader <->
     // audiobook position sync for a matched book, over iOS's EPUB locator/analyzer.
+    // Live on iOS: AudiobookReconciliationCoordinator.attach calls createIfApplicable /
+    // createAudiobookFollowIfApplicable, and AudiobookPlayerViewModel drives the coordinator on
+    // prepare, handoff activation and onCleared — reached from IosAudiobookPlayerScreen.
     single<ReaderSyncFactoryInterface> {
         ReaderSyncFactory(
             linkRepository = get(),
@@ -475,6 +535,15 @@ private fun iosLibraryModule(
         AudiobookPlayerViewModel(
             navItemId = params.get(0),
             navSourceId = params.get(1),
+            // #1071 §17: `null`/`-1f` are correct today, not placeholders. Android fills these
+            // from nav-route query args (audiobook_player/{sourceId}/{itemId}?startAtSec=...&
+            // playlistId=...), and iOS has no route layer — LibraryNav.AudiobookPlayer(item) is
+            // built only by readerNavForItem, from a library row. Nothing on iOS can supply
+            // either value: there is no playlist detail screen to open a book *from* a playlist
+            // (the Playlists tab lists without navigating), and bookmark jumps happen inside the
+            // open player through the VM, not through navigation. Widening the expect/actual
+            // AudiobookPlayerScreen signature now would add three more parameters nothing passes.
+            // Blocked on the missing surfaces in #1072.
             navPlaylistId = null,
             navPlaylistLibraryId = null,
             navStartAtSec = -1f,
@@ -507,10 +576,13 @@ private fun iosLibraryModule(
             logger = get(),
             playlistsRepository = get(),
             contentCacheAccessStore = get(),
-            progressSweep = ProgressSweepRunner.NOOP,
+            progressSweep = ProgressSweepRunner { get<ProgressSweep>().run() },
         )
     }
 
+    // Read on iOS by LibraryItemsViewModel.playlists, which LibraryItemsScreen renders as the
+    // Playlists tab. The AudiobookPlayerViewModel injection stays dead until navPlaylistId can be
+    // supplied (see the factory above and #1072).
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
@@ -542,8 +614,42 @@ private fun iosLibraryModule(
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
-    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get()) }
+    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get(), get()) }
     single<ContentCacheSettingsStore> { IosContentCacheSettingsStoreImpl() }
+    single<ContentCacheArtifactScanner> { IosContentCacheArtifactScannerImpl(get()) }
+    // The cleaner is shared (core:domain commonMain) — iOS has no BGTaskScheduler, so it runs
+    // once per foreground pass from RiffleAppRoot instead of on a periodic WorkManager job.
+    single {
+        ContentCacheCleaner(
+            settingsStore = get(),
+            accessStore = get(),
+            artifactScanner = get(),
+            clock = get(),
+            dispatchers = get(),
+            onRemoved = { key -> get<LocalAvailabilityEvents>().notifyChanged(key.sourceId, key.itemId) },
+        )
+    }
+
+    // #1071 §14 — iOS's replacement for Android's WorkManager sync jobs. Android schedules
+    // ProgressSyncScheduler/AnnotationSyncScheduler sweepNow + ensurePeriodic in
+    // RiffleApplication.onCreate; iOS has no background execution (Info.plist declares only
+    // `UIBackgroundModes: audio`, and there is no BGTaskScheduler registration anywhere), so the
+    // driver sweeps at app start, on every UIApplicationDidBecomeActive, and on the validated
+    // offline→online edge. RiffleAppRoot calls `drive(...)`.
+    //
+    // `runAnnotationSweep` stays at its no-op default: AnnotationSyncController/AnnotationSweep
+    // are androidMain and the only sync target (WebDAV) is jvmMain, so there is no iOS annotation
+    // engine to sweep — a missing surface (#1072), not a wiring gap.
+    single { IosAppActiveEvents() }
+    single<Flow<Unit>>(named(ForegroundSyncDriver.APP_BECAME_ACTIVE)) { get<IosAppActiveEvents>().becameActive }
+    single {
+        val sweep = get<ProgressSweep>()
+        ForegroundSyncDriver(
+            runProgressSweep = { sweep.run() },
+            nowMs = get<Clock>()::nowMs,
+        )
+    }
+
     // One IosReadaloudSidecarStore serves both roles, as ReadaloudSidecarStore does on Android.
     single { IosReadaloudSidecarStore(get(), get(), get(), get(), get()) }
     single<ReadaloudSidecarDownloads> { get<IosReadaloudSidecarStore>() }
@@ -656,12 +762,46 @@ private fun iosLibraryModule(
     single<CrossEpubIndexBuildTrigger> {
         IosCrossEpubIndexBuilderService(get(), get(), get(), get<Clock>()::nowMs, get())
     }
+    // Every progress push runs through CatalogRegistry: ReadingSessionRepositoryImpl.runSyncCycle
+    // and AudiobookRepositoryImpl.saveProgress both bail out when `forSource`/`forSourceId` returns
+    // null. With Komga as the only entry, reading or listening on iPhone never moved the book on
+    // the user's Audiobookshelf server, in either medium, while resume *from* the server kept
+    // working — so sync looked healthy while being one-directional (#1071 §P0.1).
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
+            // AbsCatalog itself is jvmMain-only (import/upload needs java.io.File, byte streaming
+            // needs core:network's AbsFileDownloadApi). AbsCommonCatalogFactory builds the
+            // commonMain half — browse + the full ebook/audiobook progress peer — which is the
+            // same implementation AbsCatalog delegates those members to on Android.
+            SourceType.ABS to AbsCommonCatalogFactory(
+                libraryApi = get(),
+                sessionApi = get(),
+                serverInfoApi = get(),
+                tokenStorage = get(),
+                deviceIdStore = get(),
+                clock = get(),
+            ),
             SourceType.KOMGA to KomgaCatalogFactory(
                 httpClient = get(),
                 tokenStorage = get(),
                 userAgent = "Riffle/dev (iOS) komga-source",
+            ),
+            // The three zero-config unbounded catalogues. Without a factory here
+            // `CatalogRegistry.forSource` returns null for them and every browse call no-ops, so
+            // installing one landed the user in a permanently empty library with no error
+            // (#1071 §17). All three catalogues are `commonMain` — Chitanka's scraper moved off
+            // jsoup onto ksoup for exactly this.
+            SourceType.CHITANKA to ChitankaCatalogFactory(
+                httpClient = get(),
+                userAgent = "Riffle/dev (iOS) chitanka-source",
+            ),
+            SourceType.GUTENBERG to GutenbergCatalogFactory(
+                sharedHttpClient = get(),
+                userAgent = "Riffle/dev (iOS) gutenberg-source",
+            ),
+            SourceType.RADIO_ES to RadioEsCatalogFactory(
+                httpClient = get(),
+                userAgent = "Riffle/dev (iOS) radio-es-source",
             ),
         )
     }
@@ -691,6 +831,62 @@ private fun iosLibraryModule(
     }
     single<CoverImageCopier> { IosCoverImageCopier(get()) }
     single<WebSourceLibraryItemUpserter> { IosWebSourceLibraryItemUpserterImpl(get()) }
+
+    // ADR-0052 web-source item cache. Android binds the same pair in CoreDataKoinModules; iOS had
+    // neither, because nothing on iOS could browse an unbounded catalogue to reach them.
+    factory { RemoteItemFreshness(dao = get(), clock = get()) }
+    factory {
+        WebSourceItemGate(
+            libraryObserver = get(),
+            freshness = get(),
+            upserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            logger = get(),
+        )
+    }
+
+    // Browse ViewModels for the unbounded catalogues. They live in `feature:source-ui`'s
+    // commonMain, so these are the same classes Android's KoinViewModelModules constructs — the
+    // `libraryId` param is the Catalog rootId, handed over through SavedStateHandle exactly as
+    // Android's nav route arg does.
+    factory { params ->
+        ChitankaBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+        )
+    }
+    factory { params ->
+        GutenbergBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+        )
+    }
+    factory { params ->
+        RadioEsBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+        )
+    }
 
     // ViewModel factories — keyed by libraryId (+ sectionType for section screen)
     factory { params ->
@@ -798,18 +994,63 @@ private fun iosLibraryModule(
     }
 }
 
+/**
+ * The [SavedStateHandle] an unbounded browse ViewModel reads its Catalog rootId from.
+ *
+ * `UnboundedBrowseViewModel` takes the rootId as the `libraryId` route arg because Android's nav
+ * graph puts it there; iOS has no nav library, so the library the drawer selected is packed into
+ * an equivalent handle here. Keyed on the same string on both platforms so a change to one host's
+ * key cannot silently leave the other browsing the default root.
+ */
+private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
+    SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
+
+/**
+ * The Swift entry point. Its parameter list is the ObjC-exported surface, so it deliberately
+ * carries **no defaulted parameters**: Kotlin default arguments do not cross the Objective-C
+ * boundary and Swift sees every one of them as required, which breaks `RiffleApp.swift` at build
+ * time and only `xcodebuild` catches it. Anything optional belongs on [startKoinWithDatabase].
+ */
 fun startKoin(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
+) = startKoinWithDatabase(
+    navigatorBridgeFactory = navigatorBridgeFactory,
+    audioPlayerBridgeFactory = audioPlayerBridgeFactory,
+    pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
+    publicationInspector = publicationInspector,
+    databaseFile = RIFFLE_DATABASE_FILE,
+)
+
+/**
+ * Same graph, with the database file named explicitly. `IosKoinGraphTest` starts the real graph
+ * once per case and needs each to have its own file, or the connections pile up and a later case
+ * loses the race with `SQLITE_BUSY`.
+ */
+internal fun startKoinWithDatabase(
+    navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
+    audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
+    pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
+    publicationInspector: IosPublicationInspector,
+    databaseFile: String,
 ) {
-    koinStartKoin {
+    val app = koinStartKoin {
         modules(
             iosLoggingModule,
             iosDataModule,
-            iosDatabaseModule,
+            iosDatabaseModule(databaseFile),
             iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector),
         )
     }
+
+    // Install the unhandled-exception hook. IosCrashReportRecorder was written with #1065 but
+    // never invoked, so IosCrashReportRepositoryImpl listed a directory nothing ever wrote to and
+    // Settings read "No crashes recorded" forever. Android installs its equivalent from
+    // RiffleApplication; this is the iOS counterpart and belongs at the same point in startup.
+    IosCrashReportRecorder.install(
+        repository = app.koin.get<IosCrashReportRepositoryImpl>(),
+        clock = app.koin.get<Clock>(),
+    )
 }

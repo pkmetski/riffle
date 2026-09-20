@@ -1,94 +1,78 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
+import com.riffle.core.domain.StoredArtifactDownloadsRepository
+import com.riffle.core.domain.StoredArtifactStore
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredMediaType
 import java.io.File
 
+/**
+ * Android host for the shared [StoredArtifactDownloadsRepository] policy: it owns only the
+ * `java.io.File` plumbing (six typed [LocalStore]s plus the two directory-backed audiobook
+ * roots) and delegates every decision — cached-minus-downloaded, remove-download-also-removes-
+ * cache, availability notification — to `core:domain` so iOS runs the same rules.
+ */
 class DownloadsRepositoryImpl(
-    private val epubCacheStore: LocalStore,
-    private val epubDownloadsStore: LocalStore,
-    private val pdfCacheStore: LocalStore,
-    private val pdfDownloadsStore: LocalStore,
-    private val cbzCacheStore: LocalStore,
-    private val cbzDownloadsStore: LocalStore,
-    private val audiobookCacheDir: File,
-    private val audiobookDownloadsDir: File,
-    private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
-) : DownloadsRepository {
+    epubCacheStore: LocalStore,
+    epubDownloadsStore: LocalStore,
+    pdfCacheStore: LocalStore,
+    pdfDownloadsStore: LocalStore,
+    cbzCacheStore: LocalStore,
+    cbzDownloadsStore: LocalStore,
+    audiobookCacheDir: File,
+    audiobookDownloadsDir: File,
+    localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
+) : DownloadsRepository by StoredArtifactDownloadsRepository(
+    downloadStores = listOf(
+        LocalStoreArtifactStore(epubDownloadsStore, StoredMediaType.Epub),
+        LocalStoreArtifactStore(pdfDownloadsStore, StoredMediaType.Pdf),
+        LocalStoreArtifactStore(cbzDownloadsStore, StoredMediaType.Cbz),
+        AudiobookDirectoryArtifactStore(audiobookDownloadsDir),
+    ),
+    cacheStores = listOf(
+        LocalStoreArtifactStore(epubCacheStore, StoredMediaType.Epub),
+        LocalStoreArtifactStore(pdfCacheStore, StoredMediaType.Pdf),
+        LocalStoreArtifactStore(cbzCacheStore, StoredMediaType.Cbz),
+        AudiobookDirectoryArtifactStore(audiobookCacheDir),
+    ),
+    localAvailabilityEvents = localAvailabilityEvents,
+)
 
-    private val downloadStores = listOf(
-        TypedStore(epubDownloadsStore, StoredMediaType.Epub),
-        TypedStore(pdfDownloadsStore, StoredMediaType.Pdf),
-        TypedStore(cbzDownloadsStore, StoredMediaType.Cbz),
-    )
-    private val cacheStores = listOf(
-        TypedStore(epubCacheStore, StoredMediaType.Epub),
-        TypedStore(pdfCacheStore, StoredMediaType.Pdf),
-        TypedStore(cbzCacheStore, StoredMediaType.Cbz),
-    )
-    private val manifestName = "manifest.json"
-
-    override fun getDownloadedArtifacts(): List<StoredItemArtifact> =
-        (
-            downloadStores.flatMap { it.listArtifacts() } +
-                listDirectoryBackedArtifacts(audiobookDownloadsDir, StoredMediaType.Audiobook)
-            ).distinct()
-
-    override fun getCachedArtifacts(): List<StoredItemArtifact> {
-        val downloaded = getDownloadedItems().toHashSet()
-        return (
-            cacheStores.flatMap { it.listArtifacts() } +
-                listDirectoryBackedArtifacts(audiobookCacheDir, StoredMediaType.Audiobook)
-            )
-            .distinct()
-            .filter { it.ref !in downloaded }
-    }
+/** Adapts a file-per-item [LocalStore] (epub/pdf/cbz) to the shared [StoredArtifactStore] seam. */
+private class LocalStoreArtifactStore(
+    private val store: LocalStore,
+    override val mediaType: StoredMediaType,
+) : StoredArtifactStore {
+    override fun list(): List<StoredItemArtifact> =
+        store.listItems().map { StoredItemArtifact(it.sourceId, it.itemId, mediaType) }
 
     override fun sizeOf(sourceId: String, itemId: String): Long =
-        (downloadStores + cacheStores).sumOf { it.store.get(sourceId, itemId)?.length() ?: 0L } +
-            directorySize(itemDir(audiobookDownloadsDir, sourceId, itemId)) +
-            directorySize(itemDir(audiobookCacheDir, sourceId, itemId))
+        store.get(sourceId, itemId)?.length() ?: 0L
 
-    override suspend fun removeDownload(sourceId: String, itemId: String) {
-        downloadStores.forEach { it.store.delete(sourceId, itemId) }
-        cacheStores.forEach { it.store.delete(sourceId, itemId) }
-        itemDir(audiobookDownloadsDir, sourceId, itemId).deleteRecursively()
-        itemDir(audiobookCacheDir, sourceId, itemId).deleteRecursively()
-        localAvailabilityEvents.notifyChanged(sourceId, itemId)
-    }
+    override fun delete(sourceId: String, itemId: String) = store.delete(sourceId, itemId)
 
-    override suspend fun removeCached(sourceId: String, itemId: String) {
-        cacheStores.forEach { it.store.delete(sourceId, itemId) }
-        itemDir(audiobookCacheDir, sourceId, itemId).deleteRecursively()
-        localAvailabilityEvents.notifyChanged(sourceId, itemId)
-    }
+    override fun clear() = store.clear()
+}
 
-    override suspend fun removeAllDownloads() {
-        downloadStores.forEach { it.store.clear() }
-        audiobookDownloadsDir.listFiles()?.forEach { it.deleteRecursively() }
-    }
+/**
+ * Adapts a directory-backed audiobook root (`<root>/<sourceId>/<itemId>/manifest.json`, ADR 0035)
+ * to the shared [StoredArtifactStore] seam. The manifest is the atomic completion marker, so a
+ * partially downloaded item is deliberately not listed.
+ */
+private class AudiobookDirectoryArtifactStore(private val root: File) : StoredArtifactStore {
+    override val mediaType: StoredMediaType = StoredMediaType.Audiobook
 
-    override suspend fun clearAllCached() {
-        cacheStores.forEach { it.store.clear() }
-        audiobookCacheDir.listFiles()?.forEach { it.deleteRecursively() }
-    }
-
-    private fun itemDir(root: File, sourceId: String, itemId: String): File =
-        root.resolve(sourceId).resolve(itemId)
-
-    private fun directorySize(dir: File): Long =
-        if (!dir.exists()) 0L else dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-
-    private fun listDirectoryBackedArtifacts(root: File, mediaType: StoredMediaType): List<StoredItemArtifact> =
+    override fun list(): List<StoredItemArtifact> =
         root.listFiles()
             ?.filter { it.isDirectory }
             ?.flatMap { sourceDir ->
                 val prefix = sourceDir.absolutePath + File.separator
                 sourceDir.walkTopDown()
-                    .filter { it.isFile && it.name == manifestName }
+                    .filter { it.isFile && it.name == MANIFEST }
                     .map { manifest ->
                         val itemDir = requireNotNull(manifest.parentFile) { "manifest without parent: $manifest" }
                         StoredItemArtifact(
@@ -101,14 +85,18 @@ class DownloadsRepositoryImpl(
             }
             ?: emptyList()
 
-    private data class TypedStore(val store: LocalStore, val mediaType: StoredMediaType) {
-        fun listArtifacts(): List<StoredItemArtifact> =
-            store.listItems().map {
-                StoredItemArtifact(
-                    sourceId = it.sourceId,
-                    itemId = it.itemId,
-                    mediaType = mediaType,
-                )
-            }
+    override fun sizeOf(sourceId: String, itemId: String): Long {
+        val dir = itemDir(sourceId, itemId)
+        return if (!dir.exists()) 0L else dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }
+
+    override fun delete(sourceId: String, itemId: String) {
+        itemDir(sourceId, itemId).deleteRecursively()
+    }
+
+    override fun clear() {
+        root.listFiles()?.forEach { it.deleteRecursively() }
+    }
+
+    private fun itemDir(sourceId: String, itemId: String): File = root.resolve(sourceId).resolve(itemId)
 }

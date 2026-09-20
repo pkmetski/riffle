@@ -53,7 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.riffle.app.ui.fadingScrollbar
+import com.riffle.feature.source.ui.fadingScrollbar
 import com.riffle.core.models.Annotation
 import com.riffle.feature.reader.RowKind
 import com.riffle.feature.reader.maxLinesForAnnotationTitle

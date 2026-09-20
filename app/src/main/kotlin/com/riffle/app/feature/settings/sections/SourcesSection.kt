@@ -39,7 +39,7 @@ import com.riffle.feature.settings.LibraryUiItem
 import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.app.feature.settings.ReorderableLibraryList
 import com.riffle.app.feature.settings.SettingsSectionHeader
-import com.riffle.app.feature.settings.idsWithSwap
+import com.riffle.feature.settings.idsWithSwap
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle

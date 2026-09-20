@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spanish copy for this module's shared Compose Multiplatform strings.
+
+  Compose resources in a library module are packaged into both hosts (:app and :shared) and
+  resolved against the system locale, so every key in values/strings.xml that is not marked
+  translatable="false" must appear here too. Values are copied verbatim from
+  app/src/main/res/values-es/strings.xml where an :app counterpart exists.
+
+  Enforced by the root `checkTranslations` task (see LocalizationResourceLint).
+-->
+<resources>
+    <string name="ui_add_source">Añadir fuente</string>
+    <string name="ui_back">Atrás</string>
+    <string name="ui_coming_soon">Próximamente</string>
+    <string name="ui_local_files">Archivos locales</string>
+    <string name="ui_source_local_files_subtitle">en este dispositivo</string>
+    <string name="ui_source_chitanka_subtitle">Biblioteca pública búlgara</string>
+    <string name="ui_source_gutenberg_subtitle">Ebooks de dominio público</string>
+    <string name="ui_source_abs_picker_blurb">Reproduce en streaming ebooks y audiolibros desde tu servidor Audiobookshelf.</string>
+    <string name="ui_source_local_files_picker_blurb">Lee archivos EPUB y PDF desde una carpeta de este dispositivo.</string>
+    <string name="ui_source_chitanka_picker_blurb">Explora ebooks búlgaros (chitanka.info) y audiolibros (gramofonche).</string>
+    <string name="ui_source_gutenberg_picker_blurb">Explora decenas de miles de ebooks gratuitos de dominio público.</string>
+    <string name="ui_source_komga_picker_blurb">Reproduce en streaming cómics, manga y ebooks desde tu servidor Komga.</string>
+    <string name="ui_source_radio_es_picker_blurb">Explora y escucha podcasts del directorio radio.es.</string>
+    <string name="ui_add_audiobookshelf">Añadir Audiobookshelf</string>
+    <string name="ui_edit_audiobookshelf">Editar Audiobookshelf</string>
+    <string name="ui_source_url">URL de la fuente</string>
+    <string name="ui_source_abs_help_text">Reproduce en streaming ebooks y audiolibros desde tu servidor Audiobookshelf, con el progreso sincronizado entre dispositivos.</string>
+    <string name="ui_remove_source">Eliminar fuente</string>
+    <string name="ui_add_storyteller">Añadir Storyteller</string>
+    <string name="ui_edit_storyteller">Editar Storyteller</string>
+    <string name="ui_source_storyteller_help_text">Storyteller aloja ebooks + audiolibros alineados, llamados &quot;readalouds&quot;. Riffle enlaza cada readaloud con un libro en tu servidor Audiobookshelf para activar la reproducción sincronizada de texto + audio dentro del lector.</string>
+    <string name="ui_remove_storyteller">Eliminar Storyteller</string>
+    <string name="ui_add_komga">Añadir Komga</string>
+    <string name="ui_edit_komga">Editar Komga</string>
+    <string name="ui_source_komga_help_text">Explora y lee tu biblioteca de Komga (cómics, manga y ebooks) desde cualquier servidor Komga.</string>
+    <string name="ui_edit_webdav">Editar WebDAV</string>
+    <string name="ui_add_webdav">Añadir WebDAV</string>
+    <string name="ui_webdav_url">URL de WebDAV</string>
+    <string name="ui_save">Guardar</string>
+    <string name="ui_connect">Conectar</string>
+    <string name="ui_webdav_add_source_help_text">Sincroniza resaltados, notas y marcadores entre tus dispositivos mediante un servidor WebDAV. Disponible para fuentes Komga.</string>
+    <string name="ui_choose_scheme">Elige el esquema</string>
+    <string name="ui_username">Nombre de usuario</string>
+    <string name="ui_password">Contraseña</string>
+    <string name="ui_disable_sync">Desactivar sincronización</string>
+    <string name="ui_synced_via_webdav">Sincronizado mediante WebDAV</string>
+    <string name="ui_pending_will_retry_automatically">Pendiente — se reintentará automáticamente</string>
+    <string name="ui_sync_error">Error de sincronización</string>
+    <string name="ui_last_sync_value">Última sincronización: %1$s</string>
+    <string name="ui_insecure_connection">Conexión insegura</string>
+    <string name="ui_untrusted_certificate">Certificado no fiable</string>
+    <string name="ui_insecure_http_description">Este servidor usa HTTP. Tus credenciales se enviarán sin cifrar. Continúa solo si confías en esta red.</string>
+    <string name="ui_untrusted_certificate_description">No se puede verificar el certificado TLS del servidor. La conexión puede exponer tus credenciales. Continúa solo si confías en este servidor.</string>
+    <string name="ui_connect_anyway">Conectar de todas formas</string>
+    <string name="ui_cancel">Cancelar</string>
+    <string name="ui_select_libraries">Seleccionar bibliotecas</string>
+    <string name="ui_this_source_doesn_t_expose_any_book_libraries">Esta fuente no expone ninguna biblioteca de libros.</string>
+    <string name="ui_go_back">Volver</string>
+    <string name="ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings">Elige qué bibliotecas se muestran en Riffle. Puedes cambiarlo más adelante en Ajustes.</string>
+    <string name="ui_select_at_least_one_library">Selecciona al menos una biblioteca</string>
+    <string name="ui_continue">Continuar</string>
+    <string name="error_enter_valid_url">Introduce una URL válida (p. ej. https://abs.example.com)</string>
+    <string name="error_parse_webdav_url">No se pudo interpretar la URL; debería parecerse a https://example.com/dav/path</string>
+    <string name="error_auth_failed_check_credentials">Error de autenticación; comprueba tu usuario y contraseña.</string>
+    <string name="error_couldnt_reach_server">No se pudo conectar con el servidor: %1$s</string>
+    <string name="error_tls">Error TLS: %1$s</string>
+    <string name="error_source_http">La fuente devolvió HTTP %1$d.</string>
+    <string name="error_couldnt_save_source">No se pudo guardar la fuente: %1$s</string>
+    <string name="error_connection_failed">Error de conexión: %1$s</string>
+    <string name="error_connected_library_load_failed">Conectado, pero no se pudieron cargar las bibliotecas: %1$s</string>
+    <string name="ui_webdav_auth_failed_prescription">Error de autenticación — puede que tus credenciales hayan caducado. Vuelve a introducirlas abajo; la sincronización se reintentará al guardarlas.</string>
+    <string name="ui_webdav_tls_failed_prescription">Error TLS — no se ha podido verificar el certificado del servidor. Actualiza el URL abajo; la sincronización se reintentará al guardarlo.</string>
+    <string name="ui_source_http_retry">La fuente devolvió HTTP %1$d. Se reintentará automáticamente.</string>
+    <string name="ui_sync_failed_retry">Error de sincronización. Se reintentará automáticamente.</string>
+    <string name="ui_couldnt_reach_server_retry">No se ha podido contactar con el servidor. Se reintentará automáticamente cuando vuelva la conectividad.</string>
+    <string name="ui_books_pending_sync_shortly">%1$d libro(s) pendientes · se sincronizarán en breve.</string>
+    <string name="ui_books_pending_waiting_first_sync">%1$d libro(s) pendientes · esperando la primera sincronización.</string>
+    <string name="ui_never">Nunca</string>
+    <string name="ui_just_now">ahora mismo</string>
+    <string name="ui_minutes_ago">hace %1$d min</string>
+    <string name="ui_hours_ago">hace %1$d h</string>
+    <string name="ui_days_ago">hace %1$d d</string>
+    <string name="ui_source_oreilly_picker_blurb">Explora y lee libros y audiolibros de tu cuenta de O\'Reilly.</string>
+    <string name="ui_singleton_confirm_title">Añadir %1$s</string>
+    <string name="ui_try_again">Intentarlo de nuevo</string>
+    <string name="ui_singleton_description_chitanka">Explora ebooks y audiolibros búlgaros de dos bibliotecas digitales públicas. No hace falta ninguna cuenta — todo se lee directamente de los sitios públicos.</string>
+    <string name="ui_singleton_description_gutenberg">Explora decenas de miles de ebooks gratuitos de dominio público. No hace falta ninguna cuenta — todo se lee directamente del catálogo público.</string>
+    <string name="ui_singleton_description_radio_es">Explora y escucha podcasts del directorio radio.es. No hace falta ninguna cuenta — todo se reproduce directamente desde el catálogo público.</string>
+    <string name="ui_singleton_attribution_chitanka">El contenido lo proporcionan chitanka.info y gramofonche.chitanka.info.</string>
+    <string name="ui_singleton_attribution_gutenberg">El contenido lo proporciona gutenberg.org a través de la API de gutendex.com.</string>
+    <string name="ui_singleton_attribution_radio_es">El contenido lo proporciona radio.es a través de prod.radio-api.net.</string>
+    <string name="ui_cache_settings">Ajustes de caché</string>
+    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Los ficheros en caché de libros, audiolibros, cómics y lectura en voz alta pueden eliminarse cuando lleven este tiempo sin abrirse. Las descargas se conservan.</string>
+    <string name="ui_done">Listo</string>
+    <string name="ui_off">Desactivado</string>
+    <string name="ui_auto_clear_after_days">Borrado automático tras %1$d días</string>
+    <string name="ui_auto_clear_off">Borrado automático desactivado</string>
+    <string name="ui_after_days">Tras %1$d días</string>
+    <string name="ui_open_menu">Abrir menú</string>
+    <string name="ui_search">Buscar</string>
+    <string name="ui_clear_search">Borrar búsqueda</string>
+    <string name="ui_all">Todo</string>
+    <string name="ui_any">Cualquiera</string>
+    <string name="ui_not_started">No iniciado</string>
+    <string name="ui_unowned">Sin propietario</string>
+    <string name="ui_language_filter">Idioma: %1$s</string>
+    <string name="ui_country_filter">País: %1$s</string>
+    <string name="ui_no_results">Sin resultados</string>
+    <string name="ui_no_items_in_this_library">No hay elementos en esta biblioteca</string>
+    <string name="ui_offline_showing_cached_data">Sin conexión — mostrando datos en caché</string>
+</resources>

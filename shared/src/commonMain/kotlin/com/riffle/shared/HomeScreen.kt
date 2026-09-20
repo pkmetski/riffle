@@ -30,15 +30,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.WebSourceDescriptors
-import com.riffle.core.models.EbookFormat
+import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Library
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.feature.library.HomeViewModel
-import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.source.ui.localizedSourceDisplayName
-import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.downloads.DownloadsScreen
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
@@ -46,37 +46,16 @@ import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.library.SeriesDetailScreen
-import com.riffle.shared.reader.CbzReaderScreen
-import com.riffle.shared.reader.EpubReaderScreen
-import com.riffle.shared.reader.PdfReaderScreen
 import com.riffle.shared.settings.SettingsScreen
 import com.riffle.shared.source.SourceOnboardingHost
+import com.riffle.shared.source.UnboundedBrowseScreen
+import com.riffle.shared.source.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.compose.koinInject
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
-
-internal sealed interface LibraryNav {
-    data object Items : LibraryNav
-    data class Section(val sectionType: LibrarySectionType) : LibraryNav
-    data class ItemDetail(val item: LibraryItem) : LibraryNav
-    data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
-    data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
-    data class Reader(val item: LibraryItem) : LibraryNav
-    data class PdfReader(val item: LibraryItem) : LibraryNav
-    data class CbzReader(val item: LibraryItem) : LibraryNav
-    data class AudiobookPlayer(val item: LibraryItem) : LibraryNav
-}
-
-internal fun readerNavForItem(item: LibraryItem): LibraryNav? = when {
-    item.isListenable -> LibraryNav.AudiobookPlayer(item)
-    item.ebookFormat == EbookFormat.Pdf -> LibraryNav.PdfReader(item)
-    item.ebookFormat == EbookFormat.Cbz -> LibraryNav.CbzReader(item)
-    item.isReadable -> LibraryNav.Reader(item)
-    else -> null
-}
 
 @Composable
 fun HomeScreen() {
@@ -186,6 +165,7 @@ fun HomeScreen() {
                             if (activeLibraryId == null) activeLibraryId = dest.libraryId
                         }
                         LibraryHost(
+                            sourceType = dest.sourceType,
                             libraryId = dest.libraryId,
                             libraryName = dest.libraryName,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -219,7 +199,7 @@ private fun DrawerSheetContent(
     ) {
         Spacer(Modifier.height(12.dp))
 
-        if (allServers.size >= 2) {
+        if (shouldShowRiffleSource(allServers.size)) {
             NavigationDrawerItem(
                 label = { Text("Riffle") },
                 selected = isRiffleActive,
@@ -311,76 +291,87 @@ private fun DrawerSheetContent(
 
 @Composable
 private fun LibraryHost(
+    sourceType: SourceType?,
     libraryId: String,
     libraryName: String,
     onOpenDrawer: () -> Unit,
 ) {
     var nav by rememberSaveable { mutableStateOf<LibraryNav>(LibraryNav.Items) }
+    val applicationScope = koinInject<ApplicationScope>()
+    val recordItemOpened = koinInject<RecordItemOpened>()
+    val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
 
     when (val current = nav) {
-        is LibraryNav.Items -> LibraryItemsScreen(
-            libraryId = libraryId,
-            libraryName = libraryName,
-            onOpenDrawer = onOpenDrawer,
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
-            onSeriesSelected = { series ->
-                nav = LibraryNav.SeriesDetail(
-                    seriesId = series.id,
-                    seriesLibraryId = series.libraryId,
-                    seriesName = series.name,
-                )
-            },
-            onCollectionSelected = { collection ->
-                nav = LibraryNav.CollectionDetail(
-                    collectionId = collection.id,
-                    collectionLibraryId = collection.libraryId,
-                    collectionName = collection.name,
-                )
-            },
-            onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
-        )
+        // Unbounded catalogues have no `library_items` mirror to render (ADR 0051), so they get
+        // the browse surface instead of the Room-backed library screen — the same fork Android's
+        // `NavRoutes.libraryEntryRoute` makes off `SourceType.isUnboundedCatalog`. Without it the
+        // iOS host rendered `LibraryItemsScreen` for every library and Chitanka / Gutenberg /
+        // radio.es showed a permanently empty one (#1071 §17).
+        is LibraryNav.Items -> if (unboundedType != null) {
+            UnboundedBrowseScreen(
+                sourceType = unboundedType,
+                libraryId = libraryId,
+                libraryName = libraryName,
+                onOpenDrawer = onOpenDrawer,
+                onOpenDetail = { itemId -> nav = LibraryNav.ItemDetail(itemId, null) },
+            )
+        } else {
+            LibraryItemsScreen(
+                libraryId = libraryId,
+                libraryName = libraryName,
+                onOpenDrawer = onOpenDrawer,
+                onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+                onAnnotatedBookSelected = { sourceId, itemId ->
+                    nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+                },
+                onSeriesSelected = { series ->
+                    nav = LibraryNav.SeriesDetail(
+                        seriesId = series.id,
+                        seriesLibraryId = series.libraryId,
+                        seriesName = series.name,
+                    )
+                },
+                onCollectionSelected = { collection ->
+                    nav = LibraryNav.CollectionDetail(
+                        collectionId = collection.id,
+                        collectionLibraryId = collection.libraryId,
+                        collectionName = collection.name,
+                    )
+                },
+                onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
+            )
+        }
         is LibraryNav.Section -> LibrarySectionScreen(
             libraryId = libraryId,
             sectionType = current.sectionType,
             onBack = { nav = LibraryNav.Items },
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
         )
         is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
-            itemId = current.item.id,
-            sourceId = current.item.sourceId.ifEmpty { null },
+            itemId = current.itemId,
+            sourceId = current.sourceId,
             onBack = { nav = LibraryNav.Items },
-            onReadNotSupported = {
-                readerNavForItem(current.item)?.let { nav = it }
+            // Stay on the sheet when the format has no iOS reader rather than dismissing it.
+            onRead = { item ->
+                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
             },
         )
-        is LibraryNav.Reader -> EpubReaderScreen(
-            item = current.item,
-            onBack = { nav = LibraryNav.Items },
-        )
-        is LibraryNav.PdfReader -> PdfReaderScreen(
-            item = current.item,
-            onBack = { nav = LibraryNav.Items },
-        )
-        is LibraryNav.CbzReader -> CbzReaderScreen(
-            item = current.item,
-            onBack = { nav = LibraryNav.Items },
-        )
-        is LibraryNav.AudiobookPlayer -> AudiobookPlayerScreen(
-            item = current.item,
+        is LibraryNav.ReaderDestination -> ReaderHost(
+            destination = current,
             onBack = { nav = LibraryNav.Items },
         )
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
             seriesId = current.seriesId,
             libraryId = current.seriesLibraryId,
             seriesName = current.seriesName,
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
             onNavigateBack = { nav = LibraryNav.Items },
         )
         is LibraryNav.CollectionDetail -> CollectionDetailScreen(
             collectionId = current.collectionId,
             libraryId = current.collectionLibraryId,
             collectionName = current.collectionName,
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item) },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
             onNavigateBack = { nav = LibraryNav.Items },
         )
     }

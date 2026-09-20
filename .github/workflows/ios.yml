@@ -30,7 +30,8 @@ jobs:
             :core:logging:ktlintIosMainSourceSetCheck \
             :core:common:ktlintIosMainSourceSetCheck \
             :core:catalog-komga:ktlintIosMainSourceSetCheck \
-            :feature:source-ui:ktlintCheck
+            :feature:source-ui:ktlintCheck \
+            :feature:reader-ui:ktlintCheck
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: SwiftLint (iosApp/)
@@ -131,6 +132,7 @@ jobs:
             :feature:navigation:iosSimulatorArm64Test \
             :feature:player:iosSimulatorArm64Test \
             :feature:reader:iosSimulatorArm64Test \
+            :feature:reader-ui:iosSimulatorArm64Test \
             :feature:source:iosSimulatorArm64Test \
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \

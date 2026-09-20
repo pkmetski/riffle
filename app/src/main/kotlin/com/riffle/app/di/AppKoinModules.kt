@@ -28,7 +28,7 @@ import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.VolumeNavigationController
-import com.riffle.app.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.app.feature.reader.controllers.BookmarksController
 import com.riffle.app.feature.reader.controllers.SearchController
