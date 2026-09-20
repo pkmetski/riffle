@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,19 +38,26 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.player.AudiobookPlayerUiState
 import com.riffle.feature.player.AudiobookPlayerViewModel
+import com.riffle.shared.ScreenScopedViewModelHost
 import com.riffle.shared.library.DefaultCoverPlaceholder
-import org.koin.compose.koinInject
+import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
-    val vm: AudiobookPlayerViewModel = koinInject(
-        parameters = { parametersOf(item.id, item.sourceId) },
-    )
+    // The ViewModel is a Koin `factory` and iOS has no navigation-provided ViewModelStoreOwner, so
+    // without an explicit host nothing ever calls AudiobookPlayerViewModel.onCleared() — the follow
+    // loop keeps running, the final progress push never happens and controller.stop() (which is what
+    // disposes the AVQueuePlayer) is skipped, leaving audio playing after Back.
+    val koin = getKoin()
+    val host = remember(item.id) { ScreenScopedViewModelHost() }
+    val vm: AudiobookPlayerViewModel = remember(item.id) {
+        host.adopt(koin.get { parametersOf(item.id, item.sourceId) })
+    }
     val state by vm.uiState.collectAsState()
 
-    DisposableEffect(item.id) { onDispose {} }
+    DisposableEffect(item.id) { onDispose { host.clear() } }
 
     Column(
         modifier = Modifier

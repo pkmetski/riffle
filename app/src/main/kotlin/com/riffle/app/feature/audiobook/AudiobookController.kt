@@ -18,6 +18,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.feature.player.AudioPlayerInterface
+import com.riffle.feature.player.NowPlayingMetadataKey
 import com.riffle.feature.player.SleepTimerMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -88,11 +89,11 @@ open class AudiobookController constructor(
     // so it only releases the bundle it set — never one a live Readaloud session owns (e.g. when this
     // player opened a streaming session, or failed to prepare at all, while Readaloud is still playing).
     private var ownsSharedBundle = false
-    // Whole-minute bucket of remaining book time last written to the current MediaItem's metadata.
-    // We `replaceMediaItem` only when this bucket or the chapter changes, so the system notification
-    // artist line ("Chapter 3 · 3h 12m left") updates at most once per minute per chapter.
-    private var lastRemainingMinuteBucket: Long = -1L
-    private var lastChapterIndex: Int = -1
+    // Whole-minute bucket of remaining book time + chapter last written to the current MediaItem's
+    // metadata. We `replaceMediaItem` only when this key changes, so the system notification artist
+    // line ("Chapter 3 · 3h 12m left") updates at most once per minute per chapter. The key type is
+    // shared with iOS (IosAudioPlayerController) so both platforms refresh on the same cadence.
+    private var lastNowPlayingKey: NowPlayingMetadataKey = NowPlayingMetadataKey.NONE
 
     private val pendingSeek = PendingSeekGate()
 
@@ -142,10 +143,9 @@ open class AudiobookController constructor(
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
         logger.d(LogChannel.Handoff) { "AB.prepare ensureConnected +${clock.nowMs() - t0}ms" }
-        val initialRemainingSec = (durationSec - startAtSec).coerceAtLeast(0.0)
-        lastRemainingMinuteBucket = (initialRemainingSec / 60.0).toLong()
+        val initialRemainingSec = NowPlayingMetadataKey.remainingSec(startAtSec, durationSec)
         val initialChapter = chapterAt(startAtSec)
-        lastChapterIndex = initialChapter?.index ?: -1
+        lastNowPlayingKey = NowPlayingMetadataKey.of(startAtSec, durationSec, initialChapter)
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
             .apply { if (bookTitle != null) setTitle(bookTitle) }
@@ -323,8 +323,7 @@ open class AudiobookController constructor(
         ownsSharedBundle = false
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L
-        lastRemainingMinuteBucket = -1L
-        lastChapterIndex = -1
+        lastNowPlayingKey = NowPlayingMetadataKey.NONE
         pendingSeek.reset()
         _state.value = AudioPlayerInterface.PlaybackState()
     }
@@ -356,8 +355,7 @@ open class AudiobookController constructor(
         ownsSharedBundle = false
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L
-        lastRemainingMinuteBucket = -1L
-        lastChapterIndex = -1
+        lastNowPlayingKey = NowPlayingMetadataKey.NONE
         pendingSeek.reset()
         _state.value = AudioPlayerInterface.PlaybackState()
     }
@@ -415,16 +413,14 @@ open class AudiobookController constructor(
      */
     private fun maybeUpdateRemainingMetadata(c: MediaController?, positionSec: Double) {
         if (c == null || !prepared || durationSec <= 0.0) return
-        val remaining = (durationSec - positionSec).coerceAtLeast(0.0)
-        val bucket = (remaining / 60.0).toLong()
+        val remaining = NowPlayingMetadataKey.remainingSec(positionSec, durationSec)
         val chapter = chapterAt(positionSec)
-        val chapterIndex = chapter?.index ?: -1
-        if (bucket == lastRemainingMinuteBucket && chapterIndex == lastChapterIndex) return
+        val key = NowPlayingMetadataKey.of(positionSec, durationSec, chapter)
+        if (key == lastNowPlayingKey) return
         val index = c.currentMediaItemIndex
         if (index < 0) return
         val item = c.currentMediaItem ?: return
-        lastRemainingMinuteBucket = bucket
-        lastChapterIndex = chapterIndex
+        lastNowPlayingKey = key
         val newMetadata = item.mediaMetadata.buildUpon()
             .setArtist(notificationArtistText(chapter, remaining))
             .build()
