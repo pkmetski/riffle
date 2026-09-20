@@ -16,14 +16,13 @@ import io.ktor.http.isSuccess
  */
 class IosCbzDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) {
     suspend fun downloadBytes(item: LibraryItem): ByteArray? {
-        val source = sourceRepository.getActive() ?: return null
-        val token = tokenStorage.getToken(source.id) ?: return null
+        val endpoint = resolveItemEndpoint(sourceRepository, tokenStorage, item) ?: return null
         val fileIno = item.ebookFileIno ?: return null
 
-        val url = "${source.url.value.trimEnd('/')}/api/items/${item.id}/file/$fileIno"
+        val url = "${endpoint.source.url.value.trimEnd('/')}/api/items/${item.id}/file/$fileIno"
         val response = runCatching {
             httpClient.get(url) {
-                header(HttpHeaders.Authorization, "Bearer $token")
+                header(HttpHeaders.Authorization, "Bearer ${endpoint.token}")
             }
         }.getOrNull() ?: return null
 

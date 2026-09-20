@@ -39,7 +39,9 @@ internal class IosCbzRepository(
 ) : CbzRepository {
 
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
-        val source = sourceRepository.getById(item.sourceId) ?: sourceRepository.getActive()
+        // No getActive() fallback: an item belongs to exactly one source, and falling back
+        // fetches from a host that does not hold it, with the wrong token (#1071 §11).
+        val source = sourceRepository.getById(item.sourceId)
             ?: return CbzOpenResult.NetworkError(IllegalStateException("Source unavailable"))
         val token = tokenStorage.getToken(source.id)
             ?: return CbzOpenResult.NetworkError(IllegalStateException("No credentials"))
@@ -104,7 +106,7 @@ internal class IosCbzRepository(
         pageIndex: Int,
         maxWidth: Int?,
     ): ByteArray {
-        val source = sourceRepository.getById(sourceId) ?: sourceRepository.getActive()
+        val source = sourceRepository.getById(sourceId)
             ?: throw IllegalStateException("Source unavailable")
         val token = tokenStorage.getToken(source.id)
             ?: throw IllegalStateException("No credentials")
