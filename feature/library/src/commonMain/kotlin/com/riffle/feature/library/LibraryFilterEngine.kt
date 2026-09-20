@@ -140,6 +140,16 @@ class LibraryFilterEngine(
             if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
         }
 
+    /**
+     * Annotations matching the current *search query*. The blank-query gate below is deliberate:
+     * this feeds the search-results surface only (Android's `SearchResultsContent`), which must
+     * stay empty until the user types.
+     *
+     * It is therefore **not** a data source for the Annotations tab. The tab's content comes from
+     * [AnnotationsListViewModel], which runs the same `observeAnnotatedBooks(sourceId, libraryId)`
+     * query that tab *visibility* is computed from. Wiring the tab here made it permanently read
+     * "No annotations" on iOS, which has no search field (#1071 §9).
+     */
     private val annotationsProjection: Flow<List<AnnotationSearchResult>> =
         combine(allItemsSource, searchQuery) { items, query -> items to query }
             .flatMapLatest { (items, query) ->
@@ -152,6 +162,11 @@ class LibraryFilterEngine(
                 }
             }
 
+    /**
+     * Audiobook bookmarks matching the current *search query* — same search-only contract as
+     * [annotationsProjection]. The player's own bookmark list reads [AudiobookBookmarkStore]
+     * directly and is unaffected by this gate.
+     */
     private val audiobookBookmarksProjection: Flow<List<AudiobookBookmarkSearchResult>> =
         combine(allItemsSource, searchQuery) { items, query -> items to query }
             .flatMapLatest { (items, query) ->

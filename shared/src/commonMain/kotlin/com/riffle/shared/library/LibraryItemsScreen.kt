@@ -51,11 +51,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
-import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.AnnotationsListUiState
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
@@ -97,10 +99,14 @@ fun LibraryItemsScreen(
     libraryName: String,
     onOpenDrawer: () -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
+    onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
+    // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
+    // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
+    annotationsViewModel: AnnotationsListViewModel = koinInject { parametersOf(libraryId) },
 ) {
     LaunchedEffect(libraryId) {
         viewModel.onScreenResumed()
@@ -121,6 +127,7 @@ fun LibraryItemsScreen(
 
     val isLoading by viewModel.isLoading.collectAsState()
     val projection by viewModel.projection.collectAsState()
+    val annotationsState by annotationsViewModel.state.collectAsState()
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
@@ -164,21 +171,60 @@ fun LibraryItemsScreen(
                     Text("Loading…")
                 }
             } else {
-                when (selectedTab) {
-                    0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
-                    1 -> SimpleItemList(projection.toRead, "Nothing in To Read", onItemSelected)
-                    tabIndexForAnnotations() -> AnnotationsTabContent(projection.annotations)
-                    3 -> SeriesTabContent(projection.series, onSeriesSelected)
-                    4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
-                    5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
-                    // Index 6 previously fell through to `else`, so the Playlists tab silently
-                    // rendered the Home tab. The shared ViewModel has exposed `playlists` all
-                    // along (LibraryItemsViewModel.kt:201); the iOS screen just never read it.
-                    tabIndexForPlaylists() -> PlaylistsTabContent(playlists)
-                    else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
-                }
+                LibraryTabContent(
+                    selectedTab = selectedTab,
+                    projection = projection,
+                    playlists = playlists,
+                    annotationsState = annotationsState,
+                    coversAreSquare = coversAreSquare,
+                    linkedItemIds = linkedItemIds,
+                    onItemSelected = onItemSelected,
+                    onAnnotatedBookSelected = onAnnotatedBookSelected,
+                    onSeriesSelected = onSeriesSelected,
+                    onCollectionSelected = onCollectionSelected,
+                    onSectionSeeMore = onSectionSeeMore,
+                )
             }
         }
+    }
+}
+
+/**
+ * Body of the tab at [selectedTab].
+ *
+ * Split out of [LibraryItemsScreen] so the per-tab data source is exercisable without a Koin graph
+ * — in particular the Annotations tab, which must read [annotationsState] and **not**
+ * [LibraryProjection.annotations]. The latter is the *search* projection: `LibraryFilterEngine`
+ * returns an empty list for a blank query, and only Android's search results ever render it. iOS
+ * has no search field, so a tab wired to it reads "No annotations" for every user whose tab button
+ * is visible.
+ */
+@Composable
+internal fun LibraryTabContent(
+    selectedTab: Int,
+    projection: LibraryProjection,
+    playlists: List<CatalogPlaylist>,
+    annotationsState: AnnotationsListUiState,
+    coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
+    onItemSelected: (LibraryItem) -> Unit,
+    onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
+    onSeriesSelected: (Series) -> Unit,
+    onCollectionSelected: (Collection) -> Unit,
+    onSectionSeeMore: (LibrarySectionType) -> Unit,
+) {
+    when (selectedTab) {
+        0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        1 -> SimpleItemList(projection.toRead, "Nothing in To Read", onItemSelected)
+        tabIndexForAnnotations() -> AnnotationsTabContent(annotationsState, onAnnotatedBookSelected)
+        3 -> SeriesTabContent(projection.series, onSeriesSelected)
+        4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
+        5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
+        // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
+        // Home tab. The shared ViewModel has exposed `playlists` all along
+        // (LibraryItemsViewModel.kt:201); the iOS screen just never read it.
+        tabIndexForPlaylists() -> PlaylistsTabContent(playlists)
+        else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
     }
 }
 
@@ -324,27 +370,75 @@ private fun SimpleItemList(
     }
 }
 
+/** Empty-state copy for the Annotations tab. Mirrors Android's `ui_no_highlights_yet`. */
+internal const val ANNOTATIONS_EMPTY_LABEL = "No highlights yet."
+
+/**
+ * Grid of books with at least one live highlight, mirroring Android's `AnnotationsListScreen`.
+ * [state] comes from `AnnotationsListViewModel`; tapping a book opens its detail sheet, which is
+ * what Android's `onBookClick(sourceId, itemId)` does.
+ */
 @Composable
-private fun AnnotationsTabContent(annotations: List<AnnotationSearchResult>) {
-    if (annotations.isEmpty()) {
+internal fun AnnotationsTabContent(
+    state: AnnotationsListUiState,
+    onBookSelected: (sourceId: String, itemId: String) -> Unit,
+) {
+    if (state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No annotations", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Loading…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(annotations, key = { it.annotation.id }) { result ->
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-                Text(result.bookTitle, style = MaterialTheme.typography.bodyLarge)
-                if (result.annotation.textSnippet.isNotEmpty()) {
-                    Text(
-                        result.annotation.textSnippet,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
+    if (state.books.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(ANNOTATIONS_EMPTY_LABEL, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(coverGridMinCell()),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
+            AnnotatedBookTile(book = book, onClick = { onBookSelected(book.sourceId, book.itemId) })
+        }
+    }
+}
+
+/** One annotated book: placeholder cover, highlight-count badge, title and author. */
+@Composable
+internal fun AnnotatedBookTile(book: AnnotatedBook, onClick: () -> Unit) {
+    val title = book.title ?: book.itemId
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(6.dp)),
+        ) {
+            DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = book.highlightCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
+        }
+        Text(title, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+        val author = book.author
+        if (author != null) {
+            Text(author, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

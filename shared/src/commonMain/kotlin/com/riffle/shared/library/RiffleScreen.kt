@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,9 +24,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
+import com.riffle.shared.LibraryNav
+import com.riffle.shared.ReaderHost
+import com.riffle.shared.readerNavForItem
 import org.koin.compose.koinInject
 
 @Composable
@@ -43,16 +44,26 @@ fun RiffleScreen(
     val annotations by viewModel.annotations.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
 
-    var selectedItem by remember { mutableStateOf<LibraryItem?>(null) }
-    val current = selectedItem
-    if (current != null) {
-        LibraryItemDetailScreen(
-            itemId = current.id,
-            sourceId = current.sourceId.ifEmpty { null },
-            onBack = { selectedItem = null },
-            onReadNotSupported = { selectedItem = null },
-        )
-        return
+    // Same destination vocabulary the per-library host uses, so the hub reaches the readers by
+    // the same route instead of dead-ending on the detail sheet.
+    var nav by remember { mutableStateOf<LibraryNav?>(null) }
+
+    when (val current = nav) {
+        is LibraryNav.ItemDetail -> {
+            LibraryItemDetailScreen(
+                itemId = current.itemId,
+                sourceId = current.sourceId,
+                onBack = { nav = null },
+                // Stay on the sheet when the format has no iOS reader rather than dismissing it.
+                onRead = { item -> readerNavForItem(item)?.let { nav = it } },
+            )
+            return
+        }
+        is LibraryNav.ReaderDestination -> {
+            ReaderHost(destination = current, onBack = { nav = null })
+            return
+        }
+        else -> Unit
     }
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -104,10 +115,17 @@ fun RiffleScreen(
                 )
             }
         }
+        val openDetail: (sourceId: String, itemId: String) -> Unit = { sourceId, itemId ->
+            nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+        }
         when (selectedTab) {
-            0 -> IosInProgressTab(inProgress, continueSeries) { selectedItem = it }
-            1 -> IosToReadTab(toRead) { selectedItem = it }
-            else -> IosAnnotationsTab(annotations)
+            0 -> IosInProgressTab(inProgress, continueSeries) { openDetail(it.sourceId, it.id) }
+            1 -> IosToReadTab(toRead) { openDetail(it.sourceId, it.id) }
+            // Same list the per-library Annotations tab renders — one composable, two hosts.
+            else -> AnnotationsTabContent(
+                state = AnnotationsListUiState(loading = false, books = annotations),
+                onBookSelected = openDetail,
+            )
         }
     }
 }
@@ -158,38 +176,6 @@ private fun IosToReadTab(
 }
 
 @Composable
-private fun IosAnnotationsTab(annotations: List<AnnotatedBook>) {
-    if (annotations.isEmpty()) {
-        BasicText(
-            text = "No annotated books",
-            style = TextStyle(fontSize = 15.sp, color = Color.Gray),
-            modifier = Modifier.padding(16.dp),
-        )
-        return
-    }
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        annotations.forEach { book ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    BasicText(text = book.title ?: "", style = TextStyle(fontSize = 15.sp))
-                    if (book.author != null) {
-                        BasicText(text = book.author!!, style = TextStyle(fontSize = 13.sp, color = Color.Gray))
-                    }
-                    BasicText(
-                        text = "${book.highlightCount} highlight${if (book.highlightCount != 1) "s" else ""}",
-                        style = TextStyle(fontSize = 12.sp, color = Color.Gray),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun SectionLabel(title: String) {
     BasicText(
         text = title,
@@ -208,7 +194,7 @@ private fun ItemRow(item: LibraryItem, onClick: (LibraryItem) -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             BasicText(text = item.title, style = TextStyle(fontSize = 15.sp))
-            if (item.author != null) {
+            if (item.author.isNotEmpty()) {
                 BasicText(text = item.author, style = TextStyle(fontSize = 13.sp, color = Color.Gray))
             }
         }

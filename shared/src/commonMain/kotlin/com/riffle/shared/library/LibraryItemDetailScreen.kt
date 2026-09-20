@@ -26,6 +26,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.source.ui.DefaultCoverPlaceholder
@@ -40,12 +41,20 @@ private val ButtonTextStyle = TextStyle(
     color = Color.White,
 )
 
+/**
+ * The item detail sheet.
+ *
+ * [onRead] receives the loaded [LibraryItem] so the host can route it to a reader — the sheet only
+ * knows `(itemId, sourceId)` on the way in, and surfaces that open it from an annotated book never
+ * hold a [LibraryItem] at all. Hosts pass `readerNavForItem`; a host that dismisses here instead
+ * makes the Read button a no-op.
+ */
 @Composable
 fun LibraryItemDetailScreen(
     itemId: String,
     sourceId: String?,
     onBack: () -> Unit,
-    onReadNotSupported: () -> Unit,
+    onRead: (LibraryItem) -> Unit,
 ) {
     val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
     val uiState by vm.uiState.collectAsState()
@@ -56,7 +65,7 @@ fun LibraryItemDetailScreen(
         is LibraryItemDetailUiState.Ready -> ReadyContent(
             state = state,
             onBack = onBack,
-            onRead = onReadNotSupported,
+            onRead = { onRead(state.item) },
             onToggleToRead = { vm.toggleToRead() },
         )
     }
