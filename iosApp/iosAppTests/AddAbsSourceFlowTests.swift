@@ -23,18 +23,12 @@ final class AddAbsSourceFlowTests: XCTestCase {
         absServer = nil
     }
 
-    // MARK: - Chitanka
+    // MARK: - Chitanka regression
 
-    /// Chitanka is a zero-config catalogue iOS cannot browse, so #1071 §17 gated it out of the
-    /// picker: installing it used to write the source and its library rows and return Success,
-    /// leaving the user in a permanently empty library with no error.
-    ///
-    /// This replaces `testChitankaInstallDoesNotCrash`, which pinned the 2026-09-07 install crash
-    /// (IosLogger routed messages through NSLog varargs, which segfaults on Kotlin/Native). That
-    /// claim is not lost: the crash was in the shared install path, which the Audiobookshelf and
-    /// Komga end-to-end tests still drive on every run. What cannot be asserted any more is the
-    /// Chitanka install itself, because there no longer is one.
-    func testChitankaIsOfferedButNotInstallable() throws {
+    /// Regression for the 2026-09-07 Chitanka-install crash (IosLogger routed messages through
+    /// NSLog varargs, which segfaults on Kotlin/Native): installing a zero-config catalog source
+    /// must complete with the app alive.
+    func testChitankaInstallDoesNotCrash() throws {
         // Cold-launch budget. This is the first thing a harness test does on a fresh app,
         // and on CI it competes with the other simulator clone; issue #1066 grew the suite
         // from 29 to 39 tests across the same two clones and pushed the old 40s past the
@@ -42,21 +36,40 @@ final class AddAbsSourceFlowTests: XCTestCase {
         // reach this in under 10s because the app is warm.
         XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
                       "App must start on the source picker")
+        app.staticTexts["Chitanka"].tap()
+        // B3: tapping Chitanka now navigates to a confirmation screen before installing.
+        let confirmTitle = app.staticTexts["Add Chitanka"]
+        XCTAssertTrue(confirmTitle.waitForExistence(timeout: 10), "Chitanka picker tap must show confirmation screen")
+        let addButton = app.buttons["Add source"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
+        addButton.tap()
+        // Install writes the source + libraries and redirects to the library home.
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 30), "Chitanka install must land on the library home")
+        XCTAssertTrue(app.state == .runningForeground, "App must survive Chitanka install")
 
-        let card = app.staticTexts["Chitanka"]
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "Chitanka card must still be visible")
+        burger.tap()
+        let settingsEntry = app.staticTexts["Settings"]
+        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
+        settingsEntry.tap()
+        // CMP sets Modifier.testTag("settings-trailing-Remove") on the trailing action button,
+        // which maps to accessibilityIdentifier on iOS — query by identifier for robustness.
+        let removeButton = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'")).firstMatch
+        let removeFound = removeButton.waitForExistence(timeout: 15)
+        if !removeFound {
+            let allElements = app.descendants(matching: .any).allElementsBoundByIndex
+            print("=== Settings screen elements (\(allElements.count)) ===")
+            for (idx, element) in allElements.prefix(60).enumerated() {
+                print("[\(idx)] type=\(element.elementType.rawValue) id='\(element.identifier)' label='\(element.label)'")
+            }
+        }
+        XCTAssertTrue(removeFound, "Settings must list the source with a Remove action")
+        removeButton.tap()
         XCTAssertTrue(
-            app.staticTexts["Coming soon"].exists,
-            "Chitanka must be badged so the user is told why it cannot be added"
+            app.staticTexts["No sources configured"].waitForExistence(timeout: 10),
+            "Removing the only source must leave Settings empty"
         )
-
-        card.tap()
-        XCTAssertFalse(
-            app.staticTexts["Add Chitanka"].waitForExistence(timeout: 5),
-            "Tapping Chitanka must not reach the confirmation screen — it cannot be browsed on iOS"
-        )
-        XCTAssertTrue(app.staticTexts["Add source"].exists, "The picker must still be on screen")
-        XCTAssertTrue(app.state == .runningForeground, "Tapping a disabled card must not crash")
     }
 
     // MARK: - End-to-end add flow

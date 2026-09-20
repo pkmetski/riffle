@@ -80,8 +80,7 @@ private fun testTagFor(type: SourceType): String = "SourceTypeCard.${type.name}"
  * [isExpandedWidth] replaces the Android-only `WindowSizeClass` param — callers compute it
  * (`windowSizeClass.widthSizeClass == Expanded` on Android). [enabledTypes], when non-null,
  * restricts which cards are tappable; iOS passes the set of source types it can actually
- * install so the remaining cards render greyed-out and badged "Coming soon" rather than
- * disappearing.
+ * install so the remaining cards render greyed-out rather than disappearing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,15 +119,9 @@ fun SourceTypePickerScreen(
                     installedTypes = installedTypes,
                     developerModeEnabled = developerModeEnabled,
                 ).forEach { card ->
-                    val gatedOut = enabledTypes != null && !enabledTypes.contains(card.type)
-                    val enabled = if (gatedOut) false else card.enabled
+                    val enabled = enabledTypes?.contains(card.type) ?: card.enabled
                     SourceTypeCardRow(
-                        // A card the host cannot install carries the same "Coming soon" badge as
-                        // one that is not built yet. Dimming it alone left the user with a card
-                        // that looked tappable, did nothing when tapped, and said nothing about
-                        // why — which is the inert-control anti-pattern #1071 §15 exists to
-                        // remove, just pointing the other way.
-                        card = card.copy(enabled = enabled, comingSoon = card.comingSoon || gatedOut),
+                        card = card.copy(enabled = enabled),
                         onClick = if (enabled) ({ onPick(card.type) }) else null,
                     )
                 }

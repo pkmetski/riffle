@@ -18,29 +18,18 @@ final class SourcePickerTests: XCTestCase {
         app = nil
     }
 
-    /// The picker is a `verticalScroll` column of six cards. On a phone the last one sits below
-    /// the fold, and Compose/iOS drops off-screen nodes from the accessibility tree entirely — so
-    /// a plain `exists` check finds nothing. Scroll it into view the way a user would.
-    @discardableResult
-    private func revealCard(_ title: String) -> XCUIElement {
-        let card = app.staticTexts[title]
-        if card.waitForExistence(timeout: 5) { return card }
-        for _ in 0..<4 {
-            app.swipeUp()
-            if card.exists { return card }
-        }
-        return card
-    }
-
     // MARK: - 17.1  All picker cards visible
 
     /// The picker must show all six source cards that iOS supports on a pristine install.
     func testAllSourceCardsVisibleOnPristineInstall() throws {
         XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
-        for title in ["Audiobookshelf", "Local files", "Chitanka", "Project Gutenberg", "Komga", "radio.es"] {
-            XCTAssertTrue(revealCard(title).exists, "\(title) card must be visible")
-        }
+        XCTAssertTrue(app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 5), "ABS card must be visible")
+        XCTAssertTrue(app.staticTexts["Local files"].exists, "Local files card must be visible")
+        XCTAssertTrue(app.staticTexts["Chitanka"].exists, "Chitanka card must be visible")
+        XCTAssertTrue(app.staticTexts["Project Gutenberg"].exists, "Project Gutenberg card must be visible")
+        XCTAssertTrue(app.staticTexts["Komga"].exists, "Komga card must be visible")
+        XCTAssertTrue(app.staticTexts["radio.es"].exists, "radio.es card must be visible")
     }
 
     // MARK: - 17.2  ABS credential form reachable (no server)
@@ -68,46 +57,103 @@ final class SourcePickerTests: XCTestCase {
         XCTAssertFalse(connect.isEnabled, "Connect must be disabled when the URL field is empty")
     }
 
-    // MARK: - 17.3  Zero-config catalogues iOS cannot browse are offered but not installable
+    // MARK: - 17.3  Project Gutenberg install (zero-config, no server)
 
-    /// #1071 §17 gated these three out of the picker. Installing them wrote the source and the
-    /// library rows and returned Success, but iOS has no browse surface for an unbounded
-    /// catalogue — the user landed in a library that was permanently empty, with no error. The
-    /// card stays visible (so the feature is discoverable, and #1072 will enable it) but is
-    /// disabled and badged, and tapping it must not open the confirmation screen.
-    ///
-    /// This replaces `testGutenbergInstallDoesNotCrash` / `testRadioEsInstallDoesNotCrash`, which
-    /// asserted the install path those gates deliberately removed.
-    private func assertNotInstallable(_ title: String, confirmTitle: String) {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
+    /// Tapping the Project Gutenberg card must show the confirmation screen first (B3 fix).
+    /// The user then taps "Add source" and lands on the library home.
+    func testGutenbergInstallDoesNotCrash() throws {
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
                       "App must start on the source picker")
-        let card = revealCard(title)
-        XCTAssertTrue(card.exists, "\(title) card must still be visible")
+        let gutenbergCard = app.staticTexts["Project Gutenberg"]
+        XCTAssertTrue(gutenbergCard.waitForExistence(timeout: 5), "Project Gutenberg card must be visible")
 
-        // The badge is the whole point: a dimmed card that explains nothing is still an inert
-        // control. "Coming soon" is rendered inside the card, so scope the query to it.
+        let hittable = NSPredicate(format: "hittable == true")
+        wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: gutenbergCard)], timeout: 10)
+        gutenbergCard.tap()
+
+        // B3: a confirmation screen must appear — not an immediate install.
+        // The top bar title says "Add Project Gutenberg".
+        let confirmTitle = app.staticTexts["Add Project Gutenberg"]
         XCTAssertTrue(
-            app.staticTexts["Coming soon"].exists,
-            "\(title) must be badged so the user is told why it cannot be added"
+            confirmTitle.waitForExistence(timeout: 10),
+            "Tapping Gutenberg card must show the confirmation screen, not install immediately"
         )
 
-        card.tap()
-        XCTAssertFalse(
-            app.staticTexts[confirmTitle].waitForExistence(timeout: 5),
-            "Tapping \(title) must not reach the confirmation screen — it cannot be browsed on iOS"
-        )
+        // Tapping "Add source" confirms the install and lands on library home.
+        let addButton = app.buttons["Add source"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
+        addButton.tap()
+
+        let burger = app.buttons["Open menu"]
         XCTAssertTrue(
-            app.staticTexts["Add source"].exists,
-            "The picker must still be on screen after tapping a disabled card"
+            burger.waitForExistence(timeout: 30),
+            "Project Gutenberg install must land on the library home"
         )
-        XCTAssertTrue(app.state == .runningForeground, "Tapping a disabled card must not crash")
+        XCTAssertTrue(app.state == .runningForeground, "App must survive Project Gutenberg install")
+
+        burger.tap()
+        let settingsEntry = app.staticTexts["Settings"]
+        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
+        settingsEntry.tap()
+        let removeButton = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'")).firstMatch
+        XCTAssertTrue(
+            removeButton.waitForExistence(timeout: 15),
+            "Settings must list the source with a Remove action"
+        )
+        removeButton.tap()
+        XCTAssertTrue(
+            app.staticTexts["No sources configured"].waitForExistence(timeout: 10),
+            "Removing the only source must leave Settings empty"
+        )
     }
 
-    func testGutenbergIsOfferedButNotInstallable() throws {
-        assertNotInstallable("Project Gutenberg", confirmTitle: "Add Project Gutenberg")
-    }
+    // MARK: - 17.6  radio.es install (zero-config, no server)
 
-    func testRadioEsIsOfferedButNotInstallable() throws {
-        assertNotInstallable("radio.es", confirmTitle: "Add radio.es")
+    /// Tapping the radio.es card must show the confirmation screen first (B3 fix).
+    /// The user then taps "Add source" and lands on the library home.
+    func testRadioEsInstallDoesNotCrash() throws {
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 40),
+                      "App must start on the source picker")
+        let radioEsCard = app.staticTexts["radio.es"]
+        XCTAssertTrue(radioEsCard.waitForExistence(timeout: 5), "radio.es card must be visible")
+
+        let hittable = NSPredicate(format: "hittable == true")
+        wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: radioEsCard)], timeout: 10)
+        radioEsCard.tap()
+
+        // B3: a confirmation screen must appear before the install completes.
+        let confirmTitle = app.staticTexts["Add radio.es"]
+        XCTAssertTrue(
+            confirmTitle.waitForExistence(timeout: 10),
+            "Tapping radio.es card must show the confirmation screen, not install immediately"
+        )
+
+        let addButton = app.buttons["Add source"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Confirmation screen must have an Add source button")
+        addButton.tap()
+
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(
+            burger.waitForExistence(timeout: 30),
+            "radio.es install must land on the library home"
+        )
+        XCTAssertTrue(app.state == .runningForeground, "App must survive radio.es install")
+
+        burger.tap()
+        let settingsEntry = app.staticTexts["Settings"]
+        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must offer Settings")
+        settingsEntry.tap()
+        let removeButton = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'")).firstMatch
+        XCTAssertTrue(
+            removeButton.waitForExistence(timeout: 15),
+            "Settings must list the source with a Remove action"
+        )
+        removeButton.tap()
+        XCTAssertTrue(
+            app.staticTexts["No sources configured"].waitForExistence(timeout: 10),
+            "Removing the only source must leave Settings empty"
+        )
     }
 }
