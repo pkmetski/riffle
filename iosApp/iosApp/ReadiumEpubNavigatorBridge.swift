@@ -22,6 +22,9 @@ import ReadiumNavigator
     private var locatorCallback: ((String) -> Void)?
     private var pageLoadCallback: (() -> Void)?
     private var tapCallback: (() -> Void)?
+    private var errorCallback: ((String) -> Void)?
+    /// Seam for `presentExternalURL`. Production opens the URL in Safari; tests swap it to observe.
+    var urlOpener: (URL) -> Void = { UIApplication.shared.open($0) }
     // Track the last-loaded resource href so pageLoadCallback fires only on resource
     // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
     private var lastLoadedHref: String?
@@ -111,6 +114,10 @@ import ReadiumNavigator
 
     func setTapCallback(callback: (() -> Void)?) {
         tapCallback = callback
+    }
+
+    func setErrorCallback(callback: ((String) -> Void)?) {
+        errorCallback = callback
     }
 
     func openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: any IosLazyChapterFetcher) {
@@ -335,9 +342,18 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         tapCallback?()
     }
 
-    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {}
+    /// Tapping an external link in a book did nothing until #1071 §17 — this delegate method was
+    /// an empty stub. Android hands the URL to `Intent.ACTION_VIEW`
+    /// (`EpubReaderScreen.kt:1625-1632`); the iOS equivalent is `UIApplication.open`.
+    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
+        urlOpener(url)
+    }
 
-    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {}
+    /// Navigator errors (e.g. `.copyForbidden`) were swallowed by an empty stub. Forward them to
+    /// the Kotlin side so they reach the RIFFLE_READER log channel instead of vanishing.
+    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
+        errorCallback?(String(describing: error))
+    }
 }
 
 // MARK: - Test helpers
@@ -350,6 +366,7 @@ extension ReadiumEpubNavigatorBridge {
     }
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
+    @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
 
     var lastAppliedDecorationsJson: String? { _lastAppliedDecorationsJson }
     var lastAppliedGroup: String? { _lastAppliedGroup }

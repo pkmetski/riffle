@@ -30,7 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.WebSourceDescriptors
+import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.feature.library.HomeViewModel
@@ -290,6 +292,8 @@ private fun LibraryHost(
     onOpenDrawer: () -> Unit,
 ) {
     var nav by rememberSaveable { mutableStateOf<LibraryNav>(LibraryNav.Items) }
+    val applicationScope = koinInject<ApplicationScope>()
+    val recordItemOpened = koinInject<RecordItemOpened>()
 
     when (val current = nav) {
         is LibraryNav.Items -> LibraryItemsScreen(
@@ -327,7 +331,9 @@ private fun LibraryHost(
             sourceId = current.sourceId,
             onBack = { nav = LibraryNav.Items },
             // Stay on the sheet when the format has no iOS reader rather than dismissing it.
-            onRead = { item -> readerNavForItem(item)?.let { nav = it } },
+            onRead = { item ->
+                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
+            },
         )
         is LibraryNav.ReaderDestination -> ReaderHost(
             destination = current,

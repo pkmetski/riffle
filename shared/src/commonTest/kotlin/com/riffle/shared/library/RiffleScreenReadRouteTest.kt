@@ -6,9 +6,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
@@ -16,6 +18,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
@@ -25,6 +28,7 @@ import com.riffle.core.models.Source
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -204,6 +208,11 @@ class RiffleScreenReadRouteTest {
                         )
                     }
                     factory { params -> detailViewModel(params.get(), params.getOrNull()) }
+                    // RiffleScreen resolves both of these to record the open when Read routes to
+                    // a reader (#1071 §17). Mechanical fixture update for the new dependency —
+                    // the recording itself is pinned by OpenItemForReadingTest.
+                    single<ApplicationScope> { DefaultApplicationScope(CoroutineScope(UnconfinedTestDispatcher())) }
+                    single<RecordItemOpened> { FakeRecordItemOpened() }
                 },
             )
         }

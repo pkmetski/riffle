@@ -1,5 +1,7 @@
 import XCTest
 import Riffle
+import ReadiumShared
+import ReadiumNavigator
 
 // Covers scenarios from docs/testing/ios-scenarios/03-epub-reader.md
 
@@ -163,4 +165,49 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertFalse(EpubOrientationMapperKt.epubScrollMode(orientation: .horizontal),
                        "Horizontal (paginated) mode must not use Readium scroll")
     }
+
+    // MARK: - #1071 §17: external links and navigator errors were empty delegate stubs
+
+    /// `navigator(_:presentExternalURL:)` was `{}`, so tapping an http(s) link inside a book did
+    /// nothing at all. Android hands the URL to `Intent.ACTION_VIEW`; iOS must hand it to
+    /// `UIApplication.open`, which the bridge reaches through its injectable `urlOpener`.
+    /// Reverting the delegate body to `{}` leaves `opened` empty and fails this test.
+    @MainActor
+    func testExternalLinkTapIsHandedToTheUrlOpener() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var opened: [URL] = []
+        bridge.urlOpener = { opened.append($0) }
+
+        let url = URL(string: "https://example.org/reference")!
+        bridge.navigator(DummyNavigator(), presentExternalURL: url)
+
+        XCTAssertEqual(opened, [url], "An external link tap must be opened, not swallowed")
+    }
+
+    /// `navigator(_:presentError:)` was `{}`. It now forwards the error's description to the
+    /// Kotlin error callback, where `ReadiumSwiftNavigator` logs it on RIFFLE_READER.
+    /// Reverting the delegate body leaves `received` nil.
+    @MainActor
+    func testNavigatorErrorsReachTheKotlinErrorCallback() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var received: String?
+        bridge.setErrorCallback { received = $0 }
+
+        bridge.navigator(DummyNavigator(), presentError: .copyForbidden)
+
+        XCTAssertNotNil(received, "A navigator error must not be swallowed")
+        XCTAssertTrue(received?.contains("copyForbidden") == true,
+                      "Expected the error description, got \(received ?? "nil")")
+    }
+}
+
+/// Minimal `Navigator` for the two delegate methods above, both of which ignore the navigator
+/// argument. `publication` traps because nothing in these paths reads it.
+private final class DummyNavigator: Navigator {
+    var publication: Publication { fatalError("DummyNavigator has no publication") }
+    var currentLocation: Locator? { nil }
+    func go(to locator: Locator, options: NavigatorGoOptions) async -> Bool { false }
+    func go(to link: Link, options: NavigatorGoOptions) async -> Bool { false }
+    func goForward(options: NavigatorGoOptions) async -> Bool { false }
+    func goBackward(options: NavigatorGoOptions) async -> Bool { false }
 }

@@ -24,12 +24,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.shared.LibraryNav
 import com.riffle.shared.ReaderHost
-import com.riffle.shared.readerNavForItem
+import com.riffle.shared.openItemForReading
 import org.koin.compose.koinInject
 
 @Composable
@@ -47,6 +49,8 @@ fun RiffleScreen(
     // Same destination vocabulary the per-library host uses, so the hub reaches the readers by
     // the same route instead of dead-ending on the detail sheet.
     var nav by remember { mutableStateOf<LibraryNav?>(null) }
+    val applicationScope = koinInject<ApplicationScope>()
+    val recordItemOpened = koinInject<RecordItemOpened>()
 
     when (val current = nav) {
         is LibraryNav.ItemDetail -> {
@@ -55,7 +59,9 @@ fun RiffleScreen(
                 sourceId = current.sourceId,
                 onBack = { nav = null },
                 // Stay on the sheet when the format has no iOS reader rather than dismissing it.
-                onRead = { item -> readerNavForItem(item)?.let { nav = it } },
+                onRead = { item ->
+                    openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
+                },
             )
             return
         }

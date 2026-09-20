@@ -38,6 +38,13 @@ interface IosEpubNavigatorBridge {
     /** Called when the user taps on the book body (not a link). */
     fun setTapCallback(callback: (() -> Unit)?)
 
+    /**
+     * Called when Readium reports a navigator error (e.g. `copyForbidden`). Before #1071 §17 the
+     * Swift delegate's `presentError` was an empty body, so these were silently discarded;
+     * [ReadiumSwiftNavigator] now logs them on [com.riffle.core.logging.LogChannel.Reader].
+     */
+    fun setErrorCallback(callback: ((message: String) -> Unit)?)
+
     /** Release Readium resources. Renamed to avoid clash with NSObject.release on the Swift side. */
     fun disposeNavigator()
 

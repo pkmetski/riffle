@@ -1,5 +1,7 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.EpubNavigatorInterface
 import com.riffle.feature.reader.LocatorJson
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
+import org.koin.mp.KoinPlatform
 import platform.Foundation.NSArray
 import platform.Foundation.NSData
 import platform.Foundation.NSDictionary
@@ -36,7 +39,10 @@ import platform.Foundation.create
  * returning [NavigatorFollowResult.Unavailable] / empty lists — readaloud on iOS is out of scope
  * for v1.  Search, DOM patches, and continuous-mode scroll boundary are similarly deferred.
  */
-class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNavigatorInterface {
+class ReadiumSwiftNavigator(
+    private val bridge: IosEpubNavigatorBridge,
+    private val logger: Logger = KoinPlatform.getKoin().get(),
+) : EpubNavigatorInterface {
 
     private val _positionFlow = MutableSharedFlow<NavigatorPosition>(replay = 1, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<NavigatorPageLoad>(extraBufferCapacity = 16)
@@ -55,8 +61,20 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
             pageLoadGeneration++
             _pageLoadEvents.tryEmit(NavigatorPageLoad(pageLoadGeneration))
         }
+        // BodyTap has no collector on iOS yet (#1071 §17). It is not dead wiring that can be
+        // deleted: [eventFlow] is part of the EpubNavigatorInterface contract, and dropping the
+        // emission would leave it permanently empty rather than merely unread. Its consumer on
+        // Android is immersive mode (EpubReaderScreen's `onTap = immersiveState::toggle`), and
+        // iOS's reader renders permanently-visible chrome with no immersive state to toggle —
+        // that surface is #1072.
         bridge.setTapCallback {
             _eventFlow.tryEmit(NavigatorEvent.BodyTap)
+        }
+        // #1071 §17: Readium's presentError was an empty Swift stub, so a navigator failure left
+        // no trace anywhere. Logging it is the honest minimum — there is no iOS error surface in
+        // the reader chrome to raise it to yet (#1072).
+        bridge.setErrorCallback { message ->
+            logger.e(LogChannel.Reader) { "navigator error: $message" }
         }
     }
 
@@ -80,6 +98,7 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         bridge.setLocatorCallback(null)
         bridge.setPageLoadCallback(null)
         bridge.setTapCallback(null)
+        bridge.setErrorCallback(null)
         bridge.disposeNavigator()
     }
 

@@ -26,4 +26,7 @@ enum class LogChannel(val tag: String) {
     BookImport("RIFFLE_IMPORT"),
     Oom("RIFFLE_OOM"),
     AnnotationSync("RIFFLE_ANNSYNC"),
+
+    /** Navigator-level reader failures, e.g. the errors Readium reports through `presentError`. */
+    Reader("RIFFLE_READER"),
 }
