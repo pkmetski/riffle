@@ -60,6 +60,7 @@ import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
+import com.riffle.core.data.di.RIFFLE_DATABASE_FILE
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
@@ -1009,12 +1010,13 @@ fun startKoin(
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
+    databaseFile: String = RIFFLE_DATABASE_FILE,
 ) {
     val app = koinStartKoin {
         modules(
             iosLoggingModule,
             iosDataModule,
-            iosDatabaseModule,
+            iosDatabaseModule(databaseFile),
             iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector),
         )
     }

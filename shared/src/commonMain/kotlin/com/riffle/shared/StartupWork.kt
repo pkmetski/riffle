@@ -3,6 +3,7 @@ package com.riffle.shared
 import com.riffle.core.domain.ContentCacheCleaner
 import com.riffle.core.sync.ForegroundSyncDriver
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
@@ -21,6 +22,12 @@ import kotlinx.coroutines.withContext
  * in `withContext(dispatchers.io)`. It is included here so both startup jobs share one
  * off-the-UI-thread entry point rather than each relying on its callee to be careful.)
  *
+ * [startDelayMs] keeps both off the launch critical path. Moving them off the UI thread stopped
+ * them blocking first paint, but on a device with few cores they still competed with it for CPU
+ * and I/O — the iOS harness's cold-launch test measured about eight seconds of it. Neither job is
+ * urgent: the cache has been stale since the last run and the dirty ledger since the last
+ * failure, so a short wait costs nothing and hands the whole launch to the UI.
+ *
  * Failures are swallowed on purpose. Neither job is worth taking the app down for, and both
  * retry: the cache sweep on the next launch, the progress sweep on the next foreground.
  */
@@ -30,11 +37,16 @@ internal suspend fun runStartupWork(
     syncDriver: ForegroundSyncDriver,
     appBecameActive: Flow<Unit>,
     isOnline: Flow<Boolean>,
+    startDelayMs: Long = STARTUP_WORK_DELAY_MS,
 ) {
     withContext(io) {
+        delay(startDelayMs)
         runCatching { contentCacheCleaner.cleanExpired() }
         // Suspends for the lifetime of the composition, collecting foreground + reconnect edges.
         // The driver swallows every sweep failure internally, so nothing escapes here either.
         syncDriver.drive(appBecameActive = appBecameActive, isOnline = isOnline)
     }
 }
+
+/** Long enough for the first frame to win the race, short enough to be invisible. */
+internal const val STARTUP_WORK_DELAY_MS: Long = 3_000

@@ -74,10 +74,24 @@ import kotlin.test.assertTrue
  */
 class IosKoinGraphTest {
 
+    private var nextDatabaseId = 0
+
     @AfterTest
     fun tearDown() {
         stopKoin()
     }
+
+    /**
+     * A fresh database file per test case.
+     *
+     * Every case here starts the REAL production graph, which opens a real SQLite database.
+     * Against one shared file those connections accumulate — `stopKoin()` drops the graph's
+     * references but never closes the driver — and a later case loses the race with
+     * `SQLITE_BUSY`. It only bites when the runner is slow enough for them to overlap, which is
+     * why this passed locally and failed on CI. Closing the driver in teardown is the wrong
+     * lever: other suites in the same test binary open the production file too.
+     */
+    private fun uniqueDatabaseFile(): String = "riffle-graph-test-${nextDatabaseId++}.db"
 
     // The bridges are created only when a reader/player actually opens; the graph never calls
     // create(), so these stand-ins are enough to start Koin.
@@ -110,6 +124,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
 
@@ -173,6 +188,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
 
@@ -205,6 +221,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
         val factories = koin.get<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType"))
@@ -239,6 +256,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
 
@@ -270,6 +288,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
 

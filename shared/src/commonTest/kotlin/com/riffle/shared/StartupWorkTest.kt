@@ -21,6 +21,7 @@ import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * `LaunchedEffect` inherits the composition's dispatcher, which on iOS is the **main** thread.
@@ -111,5 +112,26 @@ class StartupWorkTest {
         )
 
         assertSame(true, swept, "a failed cache sweep must not stop the progress sweep")
+    }
+
+    @Test
+    fun theStartupJobsWaitForTheFirstFrameBeforeCompetingWithIt() = runTest {
+        var sweptAtMs = -1L
+
+        runStartupWork(
+            io = UnconfinedTestDispatcher(testScheduler),
+            contentCacheCleaner = cleaner(Scanner { emptyList() }),
+            syncDriver = ForegroundSyncDriver(
+                runProgressSweep = { sweptAtMs = testScheduler.currentTime },
+                nowMs = { 0L },
+            ),
+            appBecameActive = emptyFlow(),
+            isOnline = emptyFlow(),
+        )
+
+        assertTrue(
+            sweptAtMs >= STARTUP_WORK_DELAY_MS,
+            "startup work must yield the launch to the UI; swept at ${sweptAtMs}ms",
+        )
     }
 }
