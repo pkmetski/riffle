@@ -3,6 +3,7 @@ package com.riffle.shared
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
+import com.riffle.core.common.RandomProvider
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
@@ -27,6 +28,10 @@ import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.models.SourceType
+import com.riffle.core.sync.DirtyProgressLedger
+import com.riffle.core.sync.ForegroundSyncDriver
+import com.riffle.core.sync.ProgressSweep
+import com.riffle.core.sync.SyncSourceResolver
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubTocExtractor
@@ -34,6 +39,7 @@ import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
+import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.shared.audiobook.IosAudioPlayerBridge
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.reader.IosEpubNavigatorBridge
@@ -41,6 +47,7 @@ import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfNavigatorBridge
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
+import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin
 import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform
@@ -170,5 +177,41 @@ class IosKoinGraphTest {
         assertTrue(abs is AbsCommonCatalogFactory)
         // Komga must keep working alongside it.
         assertNotNull(factories[SourceType.KOMGA])
+    }
+
+    /**
+     * #1071 §14 — nothing on iOS ever retried a failed sync.
+     *
+     * `AnnotationSweepEnqueuer { }`, `ProgressSyncTrigger { }` and `ProgressSweepRunner.NOOP` were
+     * all bound to do nothing, and there is no `BGTaskScheduler` anywhere in the project, so a
+     * progress push that failed while offline was simply lost: the row stayed dirty until the user
+     * happened to reopen that exact book while online. ABS progress push started working earlier
+     * in this branch, which made the gap load-bearing.
+     *
+     * [ProgressSweep] (the same ADR 0036 sweep Android binds) and [ForegroundSyncDriver] (the
+     * app-start / foreground / reconnect triggers that stand in for Android's WorkManager jobs)
+     * must therefore both resolve from the production graph, along with the host's
+     * "app became active" flow the driver collects. Reverting any one of the three bindings makes
+     * this test throw `NoDefinitionFoundException`.
+     */
+    @Test
+    fun `the production graph can retry a failed sync`() {
+        startKoin(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+        )
+        val koin = KoinPlatform.getKoin()
+
+        assertNotNull(koin.get<ProgressSweep>())
+        assertNotNull(koin.get<ForegroundSyncDriver>())
+        assertNotNull(koin.get<Flow<Unit>>(named(ForegroundSyncDriver.APP_BECAME_ACTIVE)))
+        // The sweep's own collaborators, each of which was Android-only before §14.
+        assertNotNull(koin.get<DirtyProgressLedger>())
+        assertNotNull(koin.get<SyncSourceResolver>())
+        assertNotNull(koin.get<RandomProvider>())
+        // Saving a source's sync config must kick a real sweep, not the old `ProgressSyncTrigger { }`.
+        assertNotNull(koin.get<ProgressSyncTrigger>())
     }
 }

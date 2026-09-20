@@ -111,7 +111,7 @@ class ReadingSessionRepositoryImpl constructor(
                     // row still marks clean (matches the old sessionApi.syncEbookProgress path).
                     // Use markSyncedAt to set BOTH stamps — prior code called updateLocalTimestamp
                     // which only advanced localUpdatedAt, leaving lastSyncedAt stale so the row
-                    // stayed "dirty" per RoomDirtyProgressLedger's `localUpdatedAt > lastSyncedAt`
+                    // stayed "dirty" per DaoDirtyProgressLedger's `localUpdatedAt > lastSyncedAt`
                     // query. The sweep then re-picked the row on every tick and re-PATCHed
                     // indefinitely, and the dirty-aware runSyncCycle comparison misclassified
                     // subsequent cross-device pushes as LocalWins-worthy (#528).

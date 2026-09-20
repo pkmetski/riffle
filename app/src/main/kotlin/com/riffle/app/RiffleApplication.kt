@@ -11,7 +11,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.riffle.app.di.riffleViewModelKoinModules
 import com.riffle.core.data.di.coreDataKoinModules
 import com.riffle.core.logging.loggingKoinModule
-import com.riffle.app.sync.kickSweepsOnReconnect
+import com.riffle.core.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.sync.ProgressSweep

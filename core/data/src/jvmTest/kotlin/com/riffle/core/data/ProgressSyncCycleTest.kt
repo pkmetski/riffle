@@ -209,7 +209,7 @@ class ProgressSyncCycleTest {
     @Test
     fun `LocalWins marks the row clean so the sweep does not re-push indefinitely (#528)`() = runTest {
         // After a successful LocalWins, lastSyncedAt must advance to the push-returned stamp so
-        // the row is no longer classified as dirty by RoomDirtyProgressLedger (localUpdatedAt >
+        // the row is no longer classified as dirty by DaoDirtyProgressLedger (localUpdatedAt >
         // lastSyncedAt). Prior code only touched localUpdatedAt, leaving lastSyncedAt stale, so
         // the durable sweep re-picked the row every tick and re-PATCHed indefinitely. Also
         // breaks the dirty-aware runSyncCycle invariant for subsequent cross-device pushes.

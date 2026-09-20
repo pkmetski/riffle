@@ -1,12 +1,12 @@
-package com.riffle.app.sync
+package com.riffle.core.sync
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Regression: on the validated offline→online edge, [kickSweepsOnReconnect] must invoke both the
@@ -14,6 +14,10 @@ import org.junit.Test
  * uploads land before the annotation write that a subsequent session may depend on). Edge
  * semantics themselves are pinned by
  * [com.riffle.core.domain.ConnectivityReconnectsTest]; this test pins the composition.
+ *
+ * Moved from `app/src/test` to `commonTest` with the kicker itself (#1071 §14) so the same
+ * assertion runs on `iosSimulatorArm64Test` — iOS is the platform with no WorkManager backstop
+ * behind it, so the reconnect edge matters more there than on Android.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReconnectSyncKickerTest {
