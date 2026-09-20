@@ -3,7 +3,9 @@ package com.riffle.shared
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.common.RandomProvider
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
@@ -31,10 +33,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.ProgressSweep
-import com.riffle.core.catalog.chitanka.ChitankaCatalog
-import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.sync.SyncSourceResolver
-import com.riffle.shared.source.unboundedBrowseSourceTypes
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubTocExtractor
@@ -53,6 +52,7 @@ import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfNavigatorBridge
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
+import com.riffle.shared.source.unboundedBrowseSourceTypes
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf

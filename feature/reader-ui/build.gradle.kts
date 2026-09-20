@@ -56,3 +56,23 @@ kotlin {
         }
     }
 }
+
+// The three `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task:
+// Compose's UI-test harness needs a real Android runtime (it dereferences
+// `android.os.Build.FINGERPRINT`, which is null on a bare JVM) and the repo has no Robolectric.
+// They are not skipped — they run for real on `:feature:reader-ui:iosSimulatorArm64Test`, which
+// CI executes, and Android's own rendering of these composables is covered on-device by
+// `app/src/androidTest` (`ChapterRailIsolationTest`).
+//
+// The filter is deliberately a per-class exclusion rather than dropping `withHostTest {}`, so the
+// three pure-logic suites beside them (`AutoScrollHudPillPaddingTest`,
+// `ChapterMapOverlayLabelTest`, `ChapterNavigationRailTest`) keep running on the JVM as well as
+// on iOS. Delete the exclusions if Robolectric is ever added.
+tasks.withType<Test>().configureEach {
+    filter {
+        excludeTestsMatching("com.riffle.feature.reader.ui.AutoScrollHudPillTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.CadenceUiTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.ChapterMapOverlayRenderTest")
+        isFailOnNoMatchingTests = false
+    }
+}

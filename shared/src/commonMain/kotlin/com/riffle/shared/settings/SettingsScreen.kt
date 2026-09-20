@@ -42,6 +42,7 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.player.PlaybackSpeed
+import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.settings.AppUpdateStatus
 import com.riffle.feature.settings.PanelOverflowOptions
 import com.riffle.feature.settings.ReadaloudMatchSummary
@@ -113,10 +114,19 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         SettingsPanel.Listening -> {
             val speed by viewModel.defaultPlaybackSpeed.collectAsState()
+            val skip by viewModel.skipIntervalSeconds.collectAsState()
+            val rewind by viewModel.rewindIntervalSeconds.collectAsState()
+            val rewindOnResume by viewModel.rewindOnResumeSeconds.collectAsState()
             PanelScaffold("Listening", onDismiss = { activePanel = SettingsPanel.None }) {
                 ListeningPanelContent(
                     defaultPlaybackSpeed = speed,
+                    skipIntervalSeconds = skip,
+                    rewindIntervalSeconds = rewind,
+                    rewindOnResumeSeconds = rewindOnResume,
                     onSpeedChange = { viewModel.setDefaultPlaybackSpeed(it) },
+                    onSkipChange = { viewModel.setSkipIntervalSeconds(it) },
+                    onRewindChange = { viewModel.setRewindIntervalSeconds(it) },
+                    onRewindOnResumeChange = { viewModel.setRewindOnResumeSeconds(it) },
                 )
             }
         }
@@ -151,6 +161,8 @@ private fun MainSettingsContent(
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
     val speed by viewModel.defaultPlaybackSpeed.collectAsState()
+    val skip by viewModel.skipIntervalSeconds.collectAsState()
+    val rewind by viewModel.rewindIntervalSeconds.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -251,12 +263,9 @@ private fun MainSettingsContent(
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
         SectionHeader("Listening")
-        // Skip / rewind / rewind-on-resume are not surfaced: the iOS player UI and the
-        // lock-screen controls that would honour them hardcode their intervals and are part
-        // of #1072, so the steppers would only write preferences nothing reads.
         SettingsDrillInRow(
             "Preferences",
-            speedSummary(speed),
+            listeningSummary(speed, skip, rewind),
         ) { onOpenPanel(SettingsPanel.Listening) }
 
         // ── Comics ────────────────────────────────────────────────────────────────────────
@@ -522,7 +531,13 @@ internal fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (F
 @Composable
 private fun ListeningPanelContent(
     defaultPlaybackSpeed: Float,
+    skipIntervalSeconds: Int,
+    rewindIntervalSeconds: Int,
+    rewindOnResumeSeconds: Int,
     onSpeedChange: (Float) -> Unit,
+    onSkipChange: (Int) -> Unit,
+    onRewindChange: (Int) -> Unit,
+    onRewindOnResumeChange: (Int) -> Unit,
 ) {
     PanelSection("Playback Speed")
     // PlaybackSpeed is the domain's range and snap rule (0.5–3.0 in steps of 0.05). The private
@@ -533,7 +548,31 @@ private fun ListeningPanelContent(
         onDecrement = { onSpeedChange(PlaybackSpeed.snap(defaultPlaybackSpeed - PlaybackSpeed.STEP)) },
         onIncrement = { onSpeedChange(PlaybackSpeed.snap(defaultPlaybackSpeed + PlaybackSpeed.STEP)) },
     )
+    // The bounds come from SkipIntervals, which is also what clamps the value on its way to the
+    // transport — so the stepper cannot offer an interval the player would refuse.
+    PanelSection("Skip Forward (seconds)")
+    StepperRow(
+        label = "${skipIntervalSeconds}s",
+        onDecrement = { onSkipChange((skipIntervalSeconds - SKIP_STEP_SECONDS).coerceAtLeast(SkipIntervals.MIN_SECONDS)) },
+        onIncrement = { onSkipChange((skipIntervalSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
+    )
+    PanelSection("Rewind (seconds)")
+    StepperRow(
+        label = "${rewindIntervalSeconds}s",
+        onDecrement = { onRewindChange((rewindIntervalSeconds - SKIP_STEP_SECONDS).coerceAtLeast(SkipIntervals.MIN_SECONDS)) },
+        onIncrement = { onRewindChange((rewindIntervalSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
+    )
+    // Floors at 0, not MIN_SECONDS: 0 means "do not rewind on resume" and must stay reachable.
+    PanelSection("Rewind on Resume (seconds)")
+    StepperRow(
+        label = "${rewindOnResumeSeconds}s",
+        onDecrement = { onRewindOnResumeChange((rewindOnResumeSeconds - SKIP_STEP_SECONDS).coerceAtLeast(0)) },
+        onIncrement = { onRewindOnResumeChange((rewindOnResumeSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
+    )
 }
+
+/** Stepper granularity for every interval in the Listening panel. */
+private const val SKIP_STEP_SECONDS = 5
 
 @Composable
 private fun ComicDisplayPanelContent(
@@ -850,17 +889,10 @@ private fun AppTheme.label(): String = when (this) {
     AppTheme.System -> "System"
 }
 
-/**
- * "Speed 1.25×" — what the Listening drill-in previews on iOS today.
- *
- * Skip and rewind are absent because their steppers are hidden: the shared ViewModel reads both
- * into `AudiobookPlayerUiState`, but nothing a user can see honours them — the iOS player has no
- * skip/rewind buttons and the lock-screen commands hardcode [30]/[15]. Both return with the
- * player UI in #1072, at which point [listeningSummary] is the preview to use.
- */
+/** "Speed 1.25×" — the speed segment on its own, for callers that show nothing else. */
 internal fun speedSummary(speed: Float): String = "Speed ${PlaybackSpeed.label(speed)}"
 
-/** "Speed 1.25× · Skip 30s · Rewind 10s" — the full preview, for when the intervals are live. */
+/** "Speed 1.25× · Skip 30s · Rewind 10s" — what the Listening drill-in previews. */
 internal fun listeningSummary(speed: Float, skipSeconds: Int, rewindSeconds: Int): String =
     "${speedSummary(speed)} · Skip ${skipSeconds}s · Rewind ${rewindSeconds}s"
 

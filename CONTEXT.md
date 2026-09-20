@@ -44,6 +44,7 @@ exception — see its row. New feature logic belongs here, not in
 | `feature:settings` | Settings derivations and preference surfaces |
 | `feature:source` | Source onboarding domain |
 | `feature:source-ui` | **The shared Compose UI module** — `android { }` + iOS (not `jvm()`), material3, `coil.compose`, `composeResources`. Both `app` and `shared` render its screens. A `jvm()`-target Compose artifact cannot be consumed by an Android application, so this is the only topology in which UI can be shared by both hosts — everything Compose that both platforms render belongs here. |
+| `feature:reader-ui` | **The shared reader UI module** — same `android { }` + iOS topology as `feature:source-ui`, for Compose both hosts render inside the reader: chapter-map overlay, navigation rail, reading-progress labels, the auto-scroll and cadence HUD pills. Glyphs are hand-drawn on a `Canvas` because `material-icons-core` is not published for Kotlin/Native. |
 | `feature:downloads` | Download queue and offline availability |
 
 ### Persistence and host modules

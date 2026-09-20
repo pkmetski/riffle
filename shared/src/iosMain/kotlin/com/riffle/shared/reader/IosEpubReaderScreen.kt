@@ -49,7 +49,6 @@ import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.domain.autoscroll.layoutContextFor
 import com.riffle.core.domain.cadence.CadenceState
 import com.riffle.core.domain.cadence.Feature
-import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
 import com.riffle.core.domain.cadence.currentRunningFeature
 import com.riffle.core.domain.cadence.runArbiter
 import com.riffle.core.domain.usecase.UpdateReadingProgress
@@ -90,6 +89,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via

@@ -287,6 +287,13 @@ final class CadenceBridgeTests: XCTestCase {
             .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
         XCTAssertEqual("moved", moved, "following an off-page sentence must turn to its column")
 
+        // `scrollToColumnJs` decides "same" by comparing the live `scrollLeft` against its target,
+        // and WKWebView does not commit the assignment synchronously — asking again before the
+        // scroll has settled reads the pre-scroll value and reports "moved" a second time. Wait
+        // for it, as the sibling snap test does. Production never hits this: the reader follows
+        // only on a sentence change.
+        _ = settledScrollLeft(bridge)
+
         let again = eval(bridge, ColumnSnap.shared.scrollToColumnJs(fragmentId: lastId, animated: false))?
             .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
         XCTAssertEqual("same", again, "a second follow of the same sentence must be a no-op, not a re-turn")
