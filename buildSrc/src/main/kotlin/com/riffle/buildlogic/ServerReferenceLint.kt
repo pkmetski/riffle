@@ -86,8 +86,9 @@ object ServerReferenceLint {
         "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApi.kt",
         "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApiClient.kt",
         "core/net/src/commonMain/kotlin/com/riffle/core/network/NetworkResult.kt",
-        // Catalog abs adapter carries ServerException.
-        "core/catalog/src/jvmMain/kotlin/com/riffle/core/catalog/abs/CatalogException.kt",
+        // Catalog abs adapter carries ServerException. Moved to commonMain with the ABS
+        // progress peer (#1071 §P0.1); the grandfathered spelling moved with it.
+        "core/catalog/src/commonMain/kotlin/com/riffle/core/catalog/abs/CatalogException.kt",
         // App-side view-models + screens that thread ServerType through and the
         // reader session `ServerJumpCoordinator` identifier holdout.
         "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt",

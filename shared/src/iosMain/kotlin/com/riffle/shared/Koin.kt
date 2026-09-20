@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
+import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
@@ -138,6 +139,7 @@ import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
+import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
@@ -240,6 +242,8 @@ private fun iosLibraryModule(
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
     single<AbsLibraryApi> { get<AbsApiClient>() }
+    // Needed by AbsCommonCatalogFactory for Catalog.connectivityCheck.
+    single<AbsServerInfoApi> { get<AbsApiClient>() }
     single { KomgaLibraryApiClient(get()) }
     single<KomgaLibraryApi> { get<KomgaLibraryApiClient>() }
     single<KomgaCbzApi> { get<KomgaLibraryApiClient>() }
@@ -657,8 +661,25 @@ private fun iosLibraryModule(
     single<CrossEpubIndexBuildTrigger> {
         IosCrossEpubIndexBuilderService(get(), get(), get(), get<Clock>()::nowMs, get())
     }
+    // Every progress push runs through CatalogRegistry: ReadingSessionRepositoryImpl.runSyncCycle
+    // and AudiobookRepositoryImpl.saveProgress both bail out when `forSource`/`forSourceId` returns
+    // null. With Komga as the only entry, reading or listening on iPhone never moved the book on
+    // the user's Audiobookshelf server, in either medium, while resume *from* the server kept
+    // working — so sync looked healthy while being one-directional (#1071 §P0.1).
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
+            // AbsCatalog itself is jvmMain-only (import/upload needs java.io.File, byte streaming
+            // needs core:network's AbsFileDownloadApi). AbsCommonCatalogFactory builds the
+            // commonMain half — browse + the full ebook/audiobook progress peer — which is the
+            // same implementation AbsCatalog delegates those members to on Android.
+            SourceType.ABS to AbsCommonCatalogFactory(
+                libraryApi = get(),
+                sessionApi = get(),
+                serverInfoApi = get(),
+                tokenStorage = get(),
+                deviceIdStore = get(),
+                clock = get(),
+            ),
             SourceType.KOMGA to KomgaCatalogFactory(
                 httpClient = get(),
                 tokenStorage = get(),

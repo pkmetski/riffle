@@ -123,17 +123,37 @@ private sealed interface OnboardingStep {
 }
 
 /**
- * Source types iOS can currently install. Credentialed sources need a Kotlin/Native
- * [com.riffle.core.sources.SourceAdapter]. Both [SourceType.ABS] and [SourceType.KOMGA] have
- * commonMain adapters in `core:sources`. Extend the set as additional adapters gain iOS support.
+ * Source types iOS can currently install.
+ *
+ * The bar is **"installing it yields a library the user can actually open"**, not "the install
+ * path compiles". Credentialed sources need a Kotlin/Native
+ * [com.riffle.core.sources.SourceAdapter] — [SourceType.ABS] and [SourceType.KOMGA] both have
+ * commonMain adapters in `core:sources` — *and* a registered `CatalogFactory` plus an iOS surface
+ * that consumes it.
+ *
+ * The unbounded catalogues (Chitanka, Gutenberg, radio.es) and O'Reilly are deliberately absent
+ * even though `SingletonWebSourceInstaller` would happily install them:
+ *
+ *  * Their contents are network-only per ADR 0051, so nothing is mirrored into Room —
+ *    `IosLibraryRefresherImpl.refreshLibraryItems` returns early for
+ *    `SourceType.isUnboundedCatalog` and reports `Success`. The only browse surface
+ *    (`UnboundedBrowseViewModel` / `UnboundedCatalogGrid` and the per-source browse screens)
+ *    lives in the Android-only `app` module, and the iOS host renders `LibraryItemsScreen` for
+ *    every library with no source-type fork. Installing one therefore produced a permanently
+ *    empty library with no error ever surfaced (#1071 §17). Re-admit each type here in the same
+ *    change that gives iOS the browse surface (#1072) — not before.
+ *  * O'Reilly additionally authenticates through an in-app **WebView login** that harvests the
+ *    `orm-jwt` cookie, which iOS has no implementation of; `OReillyCatalogFactory.create` returns
+ *    null without one. It reached this set only because it is a credential-less singleton, and
+ *    was hidden downstream purely by `SourceTypePickerScreen`'s `developerModeEnabled` default —
+ *    a gate `SourceOnboardingHost` never passes a value for. Excluding it here makes that safe by
+ *    construction instead of by omission, so wiring the developer-mode flag later cannot install
+ *    a cookie-less O'Reilly source.
  */
 internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
     add(SourceType.ABS)
     add(SourceType.KOMGA)
     add(SourceType.LOCAL_FILES)
-    // Zero-config singletons install straight from the picker via SingletonWebSourceInstaller,
-    // which is commonMain, so they need no per-source adapter.
-    WebSourceDescriptors.all.filter { it.isSingleton && !it.hasCredentials }.forEach { add(it.type) }
 }
 
 /**

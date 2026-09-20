@@ -14,6 +14,16 @@ sealed class CatalogException(message: String, cause: Throwable? = null) : Runti
     class Parse(cause: Throwable) : CatalogException("Parse error", cause)
     class Insecure(val cause0: Throwable? = null) : CatalogException("Insecure connection", cause0)
     class UnsupportedFormat(msg: String) : CatalogException(msg)
+
+    /**
+     * The Catalog instance genuinely cannot serve this member — not because the request is
+     * malformed, but because the backend it would need was not supplied at construction time.
+     * [AbsCommonCatalog] throws it for the file-transfer members, whose ABS backend
+     * (`AbsFileDownloadApi`) is JVM-only. Distinct from [UnsupportedFormat] so a caller can tell
+     * "this format is wrong" from "this build cannot do that at all" instead of both collapsing
+     * into one string.
+     */
+    class UnsupportedOperation(msg: String) : CatalogException(msg)
     class Unknown(cause: Throwable) : CatalogException("Unknown", cause)
 }
 

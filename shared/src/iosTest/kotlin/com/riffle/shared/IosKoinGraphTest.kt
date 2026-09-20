@@ -1,5 +1,8 @@
 package com.riffle.shared
 
+import com.riffle.core.catalog.CatalogFactory
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
@@ -23,6 +26,7 @@ import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
+import com.riffle.core.models.SourceType
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubTocExtractor
@@ -38,10 +42,13 @@ import com.riffle.shared.reader.IosPdfNavigatorBridge
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
 import org.koin.core.context.stopKoin
+import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * iOS counterpart to app's `KoinModuleVerificationTest` (issue #1065).
@@ -133,5 +140,35 @@ class IosKoinGraphTest {
         assertNotNull(koin.get<CrashReportRepository>())
         assertNotNull(koin.get<AppUpdateRepository>())
         assertNotNull(koin.get<AppUpdatePreferencesStore>())
+    }
+
+    /**
+     * #1071 §P0.1 — the production graph must register an Audiobookshelf `CatalogFactory`.
+     *
+     * `ReadingSessionRepositoryImpl.runSyncCycle` and `AudiobookRepositoryImpl.saveProgress` both
+     * resolve their peer through `CatalogRegistry` and return early when it yields null. With
+     * Komga as the only entry in `catalogFactoriesBySourceType`, reading or listening on iPhone
+     * never moved the book on the user's ABS server, in either medium — while resume *from* the
+     * server kept working, so nothing looked broken. Resolving the registry is not enough to
+     * catch that (it resolves fine while being empty for ABS), so this asserts the map entry.
+     */
+    @Test
+    fun `the production graph registers an Audiobookshelf catalog factory so progress can be pushed`() {
+        startKoin(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+        )
+        val koin = KoinPlatform.getKoin()
+
+        assertNotNull(koin.get<CatalogRegistry>())
+        val factories = koin.get<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType"))
+        val abs = factories[SourceType.ABS]
+        assertNotNull(abs, "no ABS CatalogFactory registered — every ABS progress push silently no-ops")
+        assertEquals(SourceType.ABS, abs.sourceType)
+        assertTrue(abs is AbsCommonCatalogFactory)
+        // Komga must keep working alongside it.
+        assertNotNull(factories[SourceType.KOMGA])
     }
 }
