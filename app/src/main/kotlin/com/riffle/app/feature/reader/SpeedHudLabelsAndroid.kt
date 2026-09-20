@@ -23,3 +23,14 @@ internal fun androidSpeedHudLabels() = SpeedHudLabels(
     pause = SpeedHudLabels.English.pause,
     resume = SpeedHudLabels.English.resume,
 )
+
+/**
+ * The same catalogue for Cadence's pill. Only the play/pause description differs, and it comes
+ * from [SpeedHudLabels.EnglishCadence] for the reason above — `:app`'s Cadence pill announced
+ * "Pause cadence" / "Resume cadence" as hardcoded English before the move.
+ */
+@Composable
+internal fun androidCadenceHudLabels() = androidSpeedHudLabels().copy(
+    pause = SpeedHudLabels.EnglishCadence.pause,
+    resume = SpeedHudLabels.EnglishCadence.resume,
+)

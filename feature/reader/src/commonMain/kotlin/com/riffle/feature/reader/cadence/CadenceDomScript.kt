@@ -37,11 +37,18 @@ object CadenceDomScript {
      * [chapterHref] scopes fragment refs to the currently-rendered resource — the Kotlin side of
      * Cadence uses this key to route auto-follow to the right chapter.
      *
-     * [localeTag] is the EPUB's `xml:lang` (or `document.documentElement.lang`); missing values
-     * fall through to the WebView's default locale so `Intl.Segmenter` still segments sensibly.
+     * [localeTag] is the publication's declared language, when the host knows it (Android reads
+     * `publication.metadata.languages`). When it is null the JS falls back to the rendered
+     * document's own `xml:lang` / `lang`, and then to the WebView's default locale, so
+     * `Intl.Segmenter` still segments sensibly — that fallback is what iOS relies on, where the
+     * language lives in Readium-Swift metadata the navigator bridge does not surface.
      */
     fun tokeniseChapterJs(chapterHref: String, localeTag: String?): String {
-        val localeArg = if (localeTag.isNullOrBlank()) "undefined" else "'${jsEscape(localeTag)}'"
+        val localeArg = if (localeTag.isNullOrBlank()) {
+            "(document.documentElement.getAttribute('xml:lang') || document.documentElement.lang || undefined)"
+        } else {
+            "'${jsEscape(localeTag)}'"
+        }
         val hrefLit = "'${jsEscape(chapterHref)}'"
         // language=js
         return """

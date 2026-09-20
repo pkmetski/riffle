@@ -26,5 +26,15 @@ data class SpeedHudLabels(
             pause = "Pause auto-scroll",
             resume = "Resume auto-scroll",
         )
+
+        /**
+         * The Cadence pill's catalogue. Only the play/pause description differs — the two pills
+         * share everything else, and Cadence's own descriptions are what Android's
+         * `CadenceHudPill` already announced before the pill moved here.
+         */
+        val EnglishCadence = English.copy(
+            pause = "Pause cadence",
+            resume = "Resume cadence",
+        )
     }
 }

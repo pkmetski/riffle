@@ -39,16 +39,34 @@ class CadenceDomScriptTest {
         assertTrue(js.contains("we\\'re.xhtml"), "escaped ' expected in $js")
     }
 
+    // These two pinned "a host that does not know the language must not emit an invalid locale
+    // literal — it falls through to the WebView's default". That claim still holds and is still
+    // what is asserted, by the tail of the fallback chain. What changed is the step in front of
+    // it: iOS has no equivalent of Android's `publication.metadata.languages` at the navigator
+    // seam, so a null locale now consults the rendered document's own xml:lang/lang first and
+    // only then gives up to `undefined`. An empty attribute is falsy in JS, so the `undefined`
+    // arm is still reached for a document that declares nothing — the original behaviour.
     @Test
     fun `tokeniseChapterJs falls through to undefined locale when null`() {
         val js = CadenceDomScript.tokeniseChapterJs("chapter1.xhtml", null)
-        assertTrue(js.contains("new Intl.Segmenter(undefined,"))
+        assertTrue(js.contains("new Intl.Segmenter((document.documentElement.getAttribute('xml:lang')"))
+        assertTrue(js.contains("|| document.documentElement.lang || undefined),"))
     }
 
     @Test
     fun `tokeniseChapterJs falls through to undefined locale when blank`() {
         val js = CadenceDomScript.tokeniseChapterJs("chapter1.xhtml", "  ")
-        assertTrue(js.contains("new Intl.Segmenter(undefined,"))
+        assertTrue(js.contains("new Intl.Segmenter((document.documentElement.getAttribute('xml:lang')"))
+        assertTrue(js.contains("|| document.documentElement.lang || undefined),"))
+    }
+
+    @Test
+    fun tokeniseChapterJsUsesTheHostLocaleWhenItKnowsOne() {
+        // The document fallback must not displace an explicit language: when the host knows the
+        // publication's language it wins, and no DOM lookup is emitted at all.
+        val js = CadenceDomScript.tokeniseChapterJs("chapter1.xhtml", "bg")
+        assertTrue(js.contains("new Intl.Segmenter('bg',"))
+        assertTrue(!js.contains("document.documentElement.lang ||"), "host locale must not fall back")
     }
 
     @Test

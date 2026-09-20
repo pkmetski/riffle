@@ -190,3 +190,21 @@ open class CadenceController internal constructor(
         scope.cancel()
     }
 }
+
+/**
+ * Nudge the live session's speed and report the wpm that should be persisted — the exact twin of
+ * [com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm].
+ *
+ * Returns null when there is nothing to persist: no active session (so the nudge had no speed to
+ * act on), or the stored preference already holds the new value.
+ *
+ * Cadence's HUD pill and the volume keys both nudged the *live* speed only — nothing ever wrote
+ * the result back to `FormattingPreferences.cadenceWpm`, so every nudge was forgotten the moment
+ * the reader closed while Auto-Scroll's survived. Both hosts go through this so the two features
+ * and the two platforms persist a nudge identically.
+ */
+fun CadenceController.nudgeSpeedAndPersistableWpm(by: Int, storedWpm: Int): Int? {
+    dispatch(CadenceEvent.NudgeSpeed(by))
+    val newWpm = state.value.speedOrNull?.wpm ?: return null
+    return newWpm.takeIf { it != storedWpm }
+}

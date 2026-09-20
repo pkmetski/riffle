@@ -103,7 +103,7 @@ import org.koin.compose.koinInject
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
+import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
@@ -919,7 +919,7 @@ fun EpubReaderScreen(
                             val cadencePlatformSupported by viewModel.cadencePlatformSupported.collectAsState()
                             if (formattingPrefs.showCadence && cadencePlatformSupported) {
                                 val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
-                                com.riffle.app.feature.reader.cadence.CadenceToggleIcon(
+                                com.riffle.feature.reader.ui.CadenceToggleIcon(
                                     isRunning = cadenceRunning,
                                     onClick = {
                                         if (cadenceRunning) viewModel.stopCadence()
@@ -1031,8 +1031,9 @@ fun EpubReaderScreen(
         // only one is visible at a time). Volume keys also nudge cadence WPM via the outer
         // volumeNavEvents transform; this pill is the on-screen equivalent for touch users.
         val cadenceStateForPill by viewModel.cadenceState.collectAsState()
-        com.riffle.app.feature.reader.cadence.CadenceHudPill(
+        com.riffle.feature.reader.ui.CadenceHudPill(
             state = cadenceStateForPill,
+            labels = androidCadenceHudLabels(),
             onPause = { viewModel.pauseCadence(com.riffle.core.domain.cadence.PauseCause.PanelOpen) },
             onResume = { viewModel.resumeCadenceIfPaused() },
             onSlower = { viewModel.nudgeCadence(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
@@ -1156,33 +1157,11 @@ internal fun scopeSentencesToChapter(
  * the highlight by text search after it strips the sentence span from the served HTML. The
  * cssSelector is kept as the fast path for when the span does survive.
  */
-internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObject {
-    val hashIdx = ref.indexOf('#')
-    val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
-    val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
-    val json = JSONObject()
-        .put("href", href)
-        .put("type", "application/xhtml+xml")
-        .put(
-            "locations",
-            JSONObject().apply {
-                if (fragId != null) {
-                    put("fragments", org.json.JSONArray().put(fragId))
-                    put("cssSelector", "#$fragId")
-                }
-            },
-        )
-    if (quote != null) {
-        json.put(
-            "text",
-            JSONObject()
-                .put("before", quote.before)
-                .put("highlight", quote.highlight)
-                .put("after", quote.after),
-        )
-    }
-    return json
-}
+internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObject =
+    // The JSON itself is built by `feature:reader`'s [sentenceLocatorJson], shared with iOS —
+    // both platforms must anchor the same sentence at the same place, and a second copy of this
+    // shape is exactly how they would stop doing so. Only the org.json wrapper is Android's.
+    JSONObject(com.riffle.feature.reader.sentenceLocatorJson(ref, quote))
 
 /**
  * NavigationOptions for an annotation-panel tap. In continuous mode, [alignToTop] depends on

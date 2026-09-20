@@ -48,6 +48,32 @@ class NarratedColumnsJsTest {
         </html>
     """.trimIndent()
 
+    // The cadence twins of the two fixtures above. Identical geometry — the only difference is
+    // that the sentence is wrapped in the `<span id="cd-N" class="riffle-cd">` the cadence
+    // tokeniser injects, because `measureCadenceColumnsJs` locates its target by id rather than
+    // by searching for the text.
+    private val cadenceSingleColumnFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0">
+            <div style="height:100vh; columns:100vw; column-gap:0; column-fill:auto; font-size:18px; line-height:26px">
+              <span id="cd-0" class="riffle-cd">${'$'}singleColText</span>
+            </div>
+          </body>
+        </html>
+    """.trimIndent()
+
+    private val cadenceTallFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0; height:6000px; position:relative">
+            <div style="position:absolute; top:3000px">
+              <span id="cd-0" class="riffle-cd">${'$'}singleColText</span>
+            </div>
+          </body>
+        </html>
+    """.trimIndent()
+
     @Test
     fun measuresASingleLineSentenceAsOneColumn() {
         withSizedWebViewFixture(singleColumnFixture, widthPx = 1080, heightPx = 1600) { webView ->
@@ -73,6 +99,41 @@ class NarratedColumnsJsTest {
             webView.awaitInnerHeight()
             assertEquals("off", webView.evalSync(ColumnSnap.measureNarratedColumnsJs("Zzz nonexistent text")).trim('"'))
             assertEquals("off", webView.evalSync(ColumnSnap.measureNarratedColumnsJs("")).trim('"'))
+        }
+    }
+
+    // ── Cadence's id-based variant ────────────────────────────────────────────────────────────
+    //
+    // Cadence locates the sentence by the `cd-N` id its own tokeniser injected rather than by a
+    // text search, so it is immune to the "an earlier occurrence of the same text wins" problem
+    // Readaloud has to live with. Same three early-exit branches, same fixtures, on a real
+    // WebView — the Android counterpart of `CadenceBridgeTests.swift`'s measure assertions.
+    // Multi-column geometry is deliberately left out here for the reason in the class KDoc.
+
+    @Test
+    fun measuresASingleLineCadenceSpanAsOneColumn() {
+        withSizedWebViewFixture(cadenceSingleColumnFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            val raw = webView.evalSync(ColumnSnap.measureCadenceColumnsJs("cd-0")).trim('"')
+            val arr = JSONArray(raw)
+            assertEquals("a one-line cadence span occupies a single column (got $raw)", 1, arr.length())
+            assertEquals(1.0, arr.getDouble(0), 0.0001)
+        }
+    }
+
+    @Test
+    fun returnsScrollForACadenceSpanInAVerticallyOverflowingDocument() {
+        withSizedWebViewFixture(cadenceTallFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            assertEquals("scroll", webView.evalSync(ColumnSnap.measureCadenceColumnsJs("cd-0")).trim('"'))
+        }
+    }
+
+    @Test
+    fun returnsOffForACadenceSpanThatIsNotInTheDocument() {
+        withSizedWebViewFixture(cadenceSingleColumnFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            assertEquals("off", webView.evalSync(ColumnSnap.measureCadenceColumnsJs("cd-999999")).trim('"'))
         }
     }
 }

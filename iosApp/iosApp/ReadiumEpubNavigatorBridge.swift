@@ -473,6 +473,55 @@ extension ReadiumEpubNavigatorBridge {
         }
     }
 
+    /// Evaluate arbitrary JavaScript in the visible resource and return its result as a string.
+    ///
+    /// The generic twin of Android's `RendererBridge.evaluateJavascript`. Cadence needs four
+    /// different scripts — the `Intl.Segmenter` feature detect, the per-chapter sentence-span
+    /// tokenisation, the start-position probe and the paginated column measure/snap — and every
+    /// one of them is authored in shared Kotlin, so the only thing missing on iOS was somewhere
+    /// to run them.
+    ///
+    /// Marshalling: a JS string comes back as `NSString` and is passed through verbatim; a
+    /// boolean (the feature detect) is stringified to `"true"`/`"false"` so the Kotlin side sees
+    /// the same token Android's JSON-encoded `evaluateJavascript` produces. `nil`, a JS `null`
+    /// and a thrown script all return nil, which every shared parser treats as "unsupported"
+    /// rather than crashing.
+    func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
+        Task { @MainActor in
+            guard let nav = self.epubNavigator else {
+                onResult(nil)
+                return
+            }
+            let result = await nav.evaluateJavaScript(script)
+            switch result {
+            case let .success(value):
+                onResult(Self.stringifyJavaScriptResult(value))
+            case .failure:
+                onResult(nil)
+            }
+        }
+    }
+
+    /// Internal (not private) so the unit-test target can pin the marshalling directly: a `true`
+    /// that arrived as `"1"` would silently fail `CadenceDomScript`'s feature-detect comparison
+    /// and hide the toggle on every device.
+    static func stringifyJavaScriptResult(_ value: Any?) -> String? {
+        switch value {
+        case nil, is NSNull:
+            return nil
+        case let text as String:
+            return text
+        case let number as NSNumber:
+            // CFBoolean bridges to NSNumber; distinguish it so `true` does not become "1".
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return number.boolValue ? "true" : "false"
+            }
+            return number.stringValue
+        default:
+            return String(describing: value!)
+        }
+    }
+
     /// Reading order + position count per resource: the weights the shared rail generator needs
     /// to size chapter-map segments. `positionsByReadingOrder()` is index-aligned with
     /// `readingOrder`, which is the invariant `buildRailSegments` and

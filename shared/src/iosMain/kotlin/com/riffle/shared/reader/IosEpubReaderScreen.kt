@@ -47,17 +47,30 @@ import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.domain.autoscroll.layoutContextFor
+import com.riffle.core.domain.cadence.CadenceState
+import com.riffle.core.domain.cadence.Feature
+import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
+import com.riffle.core.domain.cadence.currentRunningFeature
+import com.riffle.core.domain.cadence.runArbiter
 import com.riffle.core.domain.usecase.UpdateReadingProgress
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.ChapterMapUiState
+import com.riffle.feature.reader.NarratedColumnProgression
+import com.riffle.feature.reader.NavigatorFollowResult
 import com.riffle.feature.reader.NavigatorNavigationTarget
+import com.riffle.feature.reader.NavigatorPageDirection
+import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
+import com.riffle.feature.reader.cadence.CadenceController
+import com.riffle.feature.reader.cadence.CadenceInjector
+import com.riffle.feature.reader.cadence.CadenceSession
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.flattenToc
@@ -65,12 +78,16 @@ import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.toReadiumTextStyling
 import com.riffle.feature.reader.ui.AutoScrollHudPill
 import com.riffle.feature.reader.ui.AutoScrollToggleIcon
+import com.riffle.feature.reader.ui.CadenceHudPill
+import com.riffle.feature.reader.ui.CadenceToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.SpeedHudLabels
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -96,6 +113,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val publicationInspector = koinInject<IosPublicationInspector>()
     val readingSpeedStore = koinInject<ReadingSpeedStore>()
     val dispatchers = koinInject<DispatcherProvider>()
+    val logger = koinInject<Logger>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -303,6 +321,149 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         onDispose { autoScroll.release() }
     }
 
+    // ---- Cadence -----------------------------------------------------------------------------
+    // Sentence-at-a-time hands-free reading (issue #403 / ADR 0047). Everything above the
+    // JavaScript seam is shared: `CadenceSession` accumulates the tokenised sentences, rebinds
+    // the `DomSentenceSource` and resolves the start position; `CadenceDomScript` tokenises the
+    // DOM and probes the page top; `ColumnSnap` does the paginated column arithmetic;
+    // `NarratedColumnProgression` decides when a sentence that wraps a column needs a page turn.
+    // Only running the scripts and painting the decoration is iOS's.
+    //
+    // Works in all three reading modes. Paginated gets the full treatment — start-of-sentence
+    // column snap plus the intra-sentence turn when a sentence wraps. Vertical and Continuous
+    // both map to Readium's scroll mode (`epubScrollMode`), where `ColumnSnap`'s JS answers
+    // "scroll" and the measure returns an empty list: there is no column grid, the decoration
+    // scroll-into-view Readium performs is the whole follow, and that is exactly what Android's
+    // Vertical/Continuous do too.
+    val cadenceController = remember(item.id) { CadenceController(dispatchers) }
+    // `persistWpm` is why a HUD nudge survives the reader, the same contract Android's
+    // FormattingSession gives Auto-Scroll. `storedPrefs`, not `resolvedPrefs`: writing back the
+    // resolved copy would silently collapse ReaderTheme.Auto.
+    val cadence = remember(cadenceController) {
+        CadenceSession(
+            controller = cadenceController,
+            scope = scope,
+            logger = logger,
+            persistWpm = { wpm ->
+                storedPrefs?.let { stored ->
+                    scope.launch { formattingPreferencesStore.update(stored.copy(cadenceWpm = wpm)) }
+                }
+            },
+        )
+    }
+    val cadenceState by cadence.state.collectAsState()
+    // The WebView `Intl.Segmenter` gate. Cadence has no fallback tokeniser, so a false answer
+    // hides the toggle here AND is persisted so the Settings drill-in (reachable with no book
+    // open) hides its row too.
+    var cadenceSupported by remember(item.id) { mutableStateOf(true) }
+
+    LaunchedEffect(cadence) {
+        // Defect fixed here and on Android in the same change: `cadenceWpm` never reached a
+        // running session, so Cadence always ticked at AutoScrollSpeed.Default.
+        cadence.bindDefaultSpeed(formattingPreferencesStore.preferences.map { it.cadenceWpm })
+    }
+
+    // Per-chapter DOM tokenisation. Re-runs on every page-load event because Readium reports one
+    // per resource and again after a reflow; the script is idempotent (it re-reads the spans it
+    // already injected) so a repeat is cheap and keeps the merged map correct after a backward
+    // turn. Seeded with onStart so the chapter the book opened on is tokenised without waiting
+    // for the reader to turn a page.
+    LaunchedEffect(cadence, localPath, resolvedPrefs?.showCadence) {
+        if (localPath == null || resolvedPrefs?.showCadence != true) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            navigator.cadenceFeatureDetect()?.let { supported ->
+                cadenceSupported = supported
+                formattingPreferencesStore.setCadencePlatformSupported(supported)
+                if (!supported) return@collect
+            }
+            val href = navigator.snapshotPosition()?.href ?: return@collect
+            // null locale: Readium-Swift's metadata language is not surfaced at the navigator
+            // bridge, and the shared script falls back to the rendered document's own
+            // xml:lang/lang, which is where an EPUB declares it anyway.
+            when (val parsed = navigator.cadenceTokeniseChapter(href, localeTag = null)) {
+                is CadenceInjector.Result.Ready ->
+                    cadence.onChapterTokenised(parsed.quotes, parsed.chapterHrefs)
+                CadenceInjector.Result.Unsupported -> Unit
+            }
+        }
+    }
+
+    // Paint the current sentence and keep it on screen. One decoration group of its own so it
+    // replaces atomically and never fights the annotation highlights.
+    LaunchedEffect(cadence, navigator) {
+        var followedRef: String? = null
+        combine(cadence.currentFragment, cadence.quotes) { ref, quotes -> ref to quotes }
+            .collect { (ref, quotes) ->
+                if (ref == null) {
+                    navigator.applyDecorations(DECORATION_GROUP_CADENCE, emptyList())
+                    followedRef = null
+                    return@collect
+                }
+                navigator.applyDecorations(
+                    DECORATION_GROUP_CADENCE,
+                    listOf(
+                        cadenceDecoration(
+                            fragmentRef = ref,
+                            quote = quotes[ref],
+                            color = (resolvedPrefs ?: FormattingPreferences()).cadenceHighlightColor,
+                        ),
+                    ),
+                )
+                // Follow only when the SENTENCE changes. This flow also re-emits when a new
+                // chapter is tokenised (the quote map grows), and re-snapping then would yank a
+                // reader who had just paged ahead back to the highlight.
+                if (ref == followedRef) return@collect
+                followedRef = ref
+                // "absent" means the sentence is in another resource — the ticker crossed a
+                // chapter boundary before the navigator did — so navigate to its chapter.
+                val spanId = ref.substringAfter('#', "")
+                if (spanId.isNotEmpty() &&
+                    navigator.followCadenceSpan(spanId) == NavigatorFollowResult.OffPage
+                ) {
+                    navigator.navigateTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
+                }
+            }
+    }
+
+    // Intra-sentence page follow (paginated only): a sentence that wraps a column boundary leaves
+    // its tail on the next page while the highlight is still on it. The ticker's per-sentence
+    // dwell fraction maps onto the sentence's measured column layout, and the page turns at the
+    // estimated crossing — the same `NarratedColumnProgression` Android drives from audio timing.
+    val cadenceColumns = remember(item.id) { NarratedColumnProgression() }
+    LaunchedEffect(cadence, navigator) {
+        var measuredRef: String? = null
+        combine(cadence.currentFragment, cadence.currentProgress) { ref, p -> ref to p }
+            .collect { (ref, progress) ->
+                if (ref == null || progress == null) {
+                    cadenceColumns.reset()
+                    measuredRef = null
+                    return@collect
+                }
+                val spanId = ref.substringAfter('#', "")
+                if (spanId.isEmpty()) return@collect
+                if (ref != measuredRef) {
+                    // Empty in scroll mode (Vertical/Continuous) — the progression then never
+                    // advances, which is the right answer for a document with no column grid.
+                    cadenceColumns.onSentence(navigator.measureCadenceColumns(spanId))
+                    measuredRef = ref
+                }
+                cadenceColumns.advance(progress)?.let { navigator.snapCadenceColumn(spanId, it) }
+            }
+    }
+
+    // End-of-chapter auto-advance. The session's state stays Running across the turn, so the next
+    // chapter's tokenisation rebinds the source and the ticker carries on with no user tap.
+    LaunchedEffect(cadence, navigator) {
+        cadence.endOfChapterEvents.collect { navigator.pageBy(NavigatorPageDirection.Forward) }
+    }
+
+    DisposableEffect(cadenceController) {
+        onDispose {
+            cadence.reset()
+            cadenceController.release()
+        }
+    }
+
     DisposableEffect(item.id) {
         onDispose {
             coordinator.stop()
@@ -366,13 +527,51 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     AutoScrollToggleIcon(
                         isRunning = autoScrollState is AutoScrollState.Running,
                         onClick = {
-                            autoScroll.dispatch(
-                                if (autoScrollState is AutoScrollState.Running) {
-                                    AutoScrollEvent.Stop
-                                } else {
-                                    AutoScrollEvent.Start
-                                },
-                            )
+                            if (autoScrollState is AutoScrollState.Running) {
+                                autoScroll.dispatch(AutoScrollEvent.Stop)
+                            } else {
+                                // Mutual exclusion (ADR 0047): whichever hands-free feature the
+                                // user starts parks the other. Pause, not Stop, so the parked
+                                // Cadence session keeps its position and its speed.
+                                runArbiter(
+                                    currentRunning = currentRunningFeature(
+                                        cadenceRunning = cadenceState is CadenceState.Running,
+                                        autoScrollRunning = false,
+                                        readaloudPlaying = false,
+                                    ),
+                                    starting = Feature.AutoScroll,
+                                    stopAutoScroll = { autoScroll.dispatch(AutoScrollEvent.Stop) },
+                                    pauseCadence = cadence::pauseFor,
+                                )
+                                autoScroll.dispatch(AutoScrollEvent.Start)
+                            }
+                        },
+                    )
+                }
+                // Cadence works in every reading mode — paginated snaps columns, the two scroll
+                // modes let Readium bring the decoration into view — so unlike auto-scroll its
+                // toggle is not gated on orientation. It IS gated on the WebView's
+                // `Intl.Segmenter` probe, because there is no fallback tokeniser.
+                if (prefsForChrome != null && prefsForChrome.showCadence && cadenceSupported) {
+                    val cadenceRunning = cadenceState is CadenceState.Running
+                    CadenceToggleIcon(
+                        isRunning = cadenceRunning,
+                        onClick = {
+                            if (cadenceRunning) {
+                                cadence.stop()
+                            } else {
+                                runArbiter(
+                                    currentRunning = currentRunningFeature(
+                                        cadenceRunning = false,
+                                        autoScrollRunning = autoScrollState is AutoScrollState.Running,
+                                        readaloudPlaying = false,
+                                    ),
+                                    starting = Feature.Cadence,
+                                    stopAutoScroll = { autoScroll.dispatch(AutoScrollEvent.Stop) },
+                                    pauseCadence = cadence::pauseFor,
+                                )
+                                scope.launch { startCadenceFromCurrentPage(navigator, cadence) }
+                            }
                         },
                     )
                 }
@@ -451,6 +650,18 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     scope.launch { formattingPreferencesStore.update(stored.copy(autoScrollWpm = newWpm)) }
                 }
             },
+        )
+
+        // Cadence HUD pill — same shape and baseline as the auto-scroll pill; mutual exclusion
+        // guarantees only one is ever on screen. A nudge persists, matching Android's
+        // `EpubReaderViewModel.nudgeCadence` (which did not, until this change).
+        CadenceHudPill(
+            state = cadenceState,
+            labels = SpeedHudLabels.EnglishCadence,
+            onPause = { cadence.pauseFor(CadencePauseCause.PanelOpen) },
+            onResume = { cadence.resumeIfPaused() },
+            onSlower = { cadence.nudge(-AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
+            onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
         )
 
         // On-screen info: the chapter map and the reading-progress labels, gated by the same five
@@ -533,5 +744,29 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Start Cadence at the sentence the reader is currently looking at.
+ *
+ * The probe is the shared, section-aware [com.riffle.feature.reader.cadence.CadenceDomScript]
+ * rule: a heading at the top of the page wins, otherwise the section the reader is inside,
+ * otherwise the first visible sentence. Starting without it would drop the ticker on
+ * `orderedFragments[0]` — the first sentence of whichever chapter was tokenised first this
+ * session — and Readium would then scroll the reader back to it.
+ *
+ * `internal` and top-level rather than a lambda inside the Composable so the start decision is
+ * reachable from a test.
+ */
+internal suspend fun startCadenceFromCurrentPage(
+    navigator: ReadiumSwiftNavigator,
+    cadence: CadenceSession,
+) {
+    val href = navigator.snapshotPosition()?.href
+    if (href == null) {
+        cadence.startWithoutProbe()
+    } else {
+        cadence.onPageTopResolved(href, navigator.cadenceStartSpanId())
     }
 }

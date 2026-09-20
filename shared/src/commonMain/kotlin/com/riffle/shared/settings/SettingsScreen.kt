@@ -38,6 +38,7 @@ import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.asComicBackgroundTheme
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.player.PlaybackSpeed
@@ -61,17 +62,11 @@ private enum class SettingsPanel {
     // Source onboarding
     AddSource,
 
-    // Reading panels.
-    // No Cadence panel yet: unlike Auto-scroll, Cadence needs the whole DOM-tokenisation
-    // pipeline on the iOS side (Intl.Segmenter feature-detect, per-chapter sentence span
-    // injection, a start-position probe and a per-sentence decoration), none of which exists
-    // here — `ReadiumSwiftNavigator.followCadenceSpan` / `measureCadenceColumns` /
-    // `snapCadenceColumn` are still stubs. Restore the panel with that pipeline, not before:
-    // a Cadence row over a reader that cannot highlight a sentence is the inert control this
-    // branch is removing everywhere else.
+    // Reading panels
     Formatting,
     Display,
     AutoScroll,
+    Cadence,
 
     // Listening
     Listening,
@@ -108,6 +103,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             val prefs by viewModel.globalFormattingPreferences.collectAsState()
             PanelScaffold("Auto-scroll", onDismiss = { activePanel = SettingsPanel.None }) {
                 AutoScrollPanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
+            }
+        }
+        SettingsPanel.Cadence -> {
+            val prefs by viewModel.globalFormattingPreferences.collectAsState()
+            PanelScaffold(CADENCE_PANEL_TITLE, onDismiss = { activePanel = SettingsPanel.None }) {
+                CadencePanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
             }
         }
         SettingsPanel.Listening -> {
@@ -239,7 +240,14 @@ private fun MainSettingsContent(
         SettingsDrillInRow("Auto-scroll", ReaderSettingsSummaries.autoScrollSummary(globalFormatting)) {
             onOpenPanel(SettingsPanel.AutoScroll)
         }
-        // No Cadence row — see the SettingsPanel enum.
+        // Gated on the reader's `Intl.Segmenter` probe, the same gate Android's row uses: the
+        // preference is persisted by the reader's feature detect, so Settings knows the answer
+        // even when opened with no book open.
+        if (globalFormatting.cadencePlatformSupported) {
+            SettingsDrillInRow(CADENCE_PANEL_TITLE, ReaderSettingsSummaries.cadenceSummary(globalFormatting)) {
+                onOpenPanel(SettingsPanel.Cadence)
+            }
+        }
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
         SectionHeader("Listening")
@@ -457,6 +465,57 @@ internal fun AutoScrollPanelContent(prefs: FormattingPreferences, onPrefsChange:
         onIncrement = {
             onPrefsChange(prefs.copy(autoScrollWpm = AutoScrollSpeed.of(prefs.autoScrollWpm + AutoScrollSpeed.STEP_WPM).wpm))
         },
+    )
+}
+
+/** Panel title and drill-in row label — one constant so the two can never disagree. */
+internal const val CADENCE_PANEL_TITLE: String = "Cadence"
+
+/**
+ * What the panel shows instead of its controls when the reader's `Intl.Segmenter` probe came
+ * back false. Cadence has no fallback tokeniser (issue #403), so there is nothing to configure.
+ */
+internal const val CADENCE_UNSUPPORTED_NOTE: String =
+    "Cadence is not available on this device. A WebView update may enable it."
+
+// `internal` for the same reason as AutoScrollPanelContent: the toggle, the stepper and the
+// colour chips are only assertable by driving the real panel.
+@Composable
+internal fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+    PanelSection(CADENCE_PANEL_TITLE)
+    if (!prefs.cadencePlatformSupported) {
+        BasicText(
+            text = CADENCE_UNSUPPORTED_NOTE,
+            style = TextStyle(fontSize = 14.sp, color = Color.Gray),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        return
+    }
+    PanelToggleRow("Show cadence toggle in reader", prefs.showCadence) {
+        onPrefsChange(prefs.copy(showCadence = it))
+    }
+    PanelSection("Speed (WPM)")
+    // AutoScrollSpeed owns the 80–600 range and the snap-to-10 rule, and Cadence deliberately
+    // reuses it (issue #403) so the stepper, the HUD pill's nudges and the ticker agree on what
+    // a legal speed is. The version of this panel that was removed hand-rolled ±10 clamped to
+    // 50..1000 — a range the ticker would have rejected at both ends.
+    StepperRow(
+        label = "${prefs.cadenceWpm} WPM",
+        onDecrement = {
+            onPrefsChange(prefs.copy(cadenceWpm = AutoScrollSpeed.of(prefs.cadenceWpm - AutoScrollSpeed.STEP_WPM).wpm))
+        },
+        onIncrement = {
+            onPrefsChange(prefs.copy(cadenceWpm = AutoScrollSpeed.of(prefs.cadenceWpm + AutoScrollSpeed.STEP_WPM).wpm))
+        },
+    )
+    PanelSection("Highlight Color")
+    // Keyed on the HighlightColor value, never on its rendered label — and the options come from
+    // the enum, so the picker cannot offer a colour the reader cannot paint.
+    ChipRow(
+        options = cadenceHighlightChipOptions,
+        selected = prefs.cadenceHighlightColor,
+        label = ::highlightColorLabel,
+        onSelect = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
     )
 }
 
@@ -823,6 +882,11 @@ internal val readerThemeChipOptions: List<ReaderTheme> = ReaderTheme.entries.toL
 internal val readingModeChipOptions: List<ReaderOrientation> = ReaderOrientation.entries.toList()
 internal val fontFamilyChipOptions: List<ReaderFontFamily> = ReaderFontFamily.entries.toList()
 internal val autoThemeModeChipOptions: List<AutoReaderThemeMode> = AutoReaderThemeMode.entries.toList()
+internal val cadenceHighlightChipOptions: List<HighlightColor> = HighlightColor.entries.toList()
+
+/** "Yellow", "Green", … — the token capitalised, so the chip cannot drift from the stored value. */
+internal fun highlightColorLabel(color: HighlightColor): String =
+    color.token.replaceFirstChar { it.uppercase() }
 
 /** The comic background-theme chip the stored preference should light up. */
 internal fun comicBackgroundChipSelection(stored: ReaderTheme): ReaderTheme =

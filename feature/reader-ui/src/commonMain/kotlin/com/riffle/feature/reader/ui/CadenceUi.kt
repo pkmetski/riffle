@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.cadence
+package com.riffle.feature.reader.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,12 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
@@ -31,24 +25,25 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.cadence.CadenceState
 import com.riffle.core.domain.cadence.speedOrNull
 
 /**
- * The reader top-bar toggle for Cadence. When idle, draws the agreed single-colour glyph from issue
- * #403's prototype: three horizontal text bars with a taller, solid middle bar (the "current
- * sentence" cue) and a right-pointing play triangle. When running, swaps to a filled Pause glyph so
- * the tap-to-stop affordance matches Auto-Scroll's convention.
+ * Cadence's two reader surfaces — the top-bar toggle and the HUD pill — rendered by both hosts.
  *
- * The middle bar's height contrast — not a highlight colour — is what carries the "current
- * sentence" cue. Everything is a single [LocalContentColor] fill, matching every other reader
- * top-bar icon.
+ * They used to live in `:app`, which made them Android-only by construction; iOS would have had
+ * to draw its own and the two would have drifted the way every other duplicated reader surface
+ * in this repo has. Same module, same reason, same shape as [AutoScrollToggleIcon] /
+ * [AutoScrollHudPill], with which Cadence deliberately shares its visual language: the two
+ * features are mutually exclusive, so only one pill is ever on screen, and swapping between them
+ * should not move anything.
  */
 @Composable
 fun CadenceToggleIcon(
@@ -58,23 +53,31 @@ fun CadenceToggleIcon(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.semantics {
-            contentDescription = if (isRunning) "Stop cadence" else "Start cadence"
-        },
+        modifier = modifier
+            .testTag("cadence_toggle")
+            .semantics {
+                contentDescription = if (isRunning) "Stop cadence" else "Start cadence"
+            },
     ) {
         if (isRunning) {
-            Icon(Icons.Filled.Pause, contentDescription = null)
+            PauseGlyph(LocalContentColor.current, size = 24.dp)
         } else {
-            val color = LocalContentColor.current
-            Canvas(modifier = Modifier.size(24.dp)) {
-                drawCadenceGlyph(color)
-            }
+            CadenceGlyph(LocalContentColor.current, size = 24.dp)
         }
     }
 }
 
-// The glyph — three horizontal text bars with a taller, solid middle bar plus a right-facing play
-// triangle. Everything is single-colour; the "current sentence" cue is carried by the middle bar's
+/**
+ * The Cadence glyph at an arbitrary [size]. The reader top-bar toggle draws it at 24.dp; the
+ * Settings drill-in's hero rendition is the same shape, larger.
+ */
+@Composable
+fun CadenceGlyph(color: Color, size: Dp = 24.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(size)) { drawCadenceGlyph(color) }
+}
+
+// Three horizontal text bars with a taller, solid middle bar plus a right-facing play triangle.
+// Everything is single-colour; the "current sentence" cue is carried by the middle bar's
 // height/width contrast alone. Reference values match issue #403's agreed SVG:
 //   rect (3, 5,   12, 1.6, r=.8)   ← outer text bar
 //   rect (3, 10,  11, 4,   r=1)    ← middle (current sentence)
@@ -98,21 +101,18 @@ internal fun DrawScope.drawCadenceGlyph(color: Color) {
     drawRect(color, topLeft = Offset(3f * unit, 17.4f * unit), size = Size(12f * unit, 1.6f * unit))
 }
 
-// The HUD pill anchors to BottomEnd inside the system-bar insets. Match Auto-Scroll's
-// [com.riffle.app.feature.reader.autoscroll.HUD_PILL_BOTTOM_DP] so the two pills sit at the same
-// baseline when both features could hypothetically be visible (they can't — mutual exclusion — but
-// the visual language stays consistent when the user toggles between them).
-private const val HUD_PILL_BOTTOM_DP: Int = 35
-
 /**
  * Translucent in-content HUD pill for Cadence: pause + minus + wpm + plus (issue #403).
+ *
  * Visible only while [state] is [CadenceState.Running] or [CadenceState.Paused]; anchored to the
- * bottom-right inset of the screen. Mirrors [com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill]
- * so the two features feel identical when the user swaps between them.
+ * bottom-right inset at [HUD_PILL_BOTTOM_DP], the same baseline [AutoScrollHudPill] uses.
+ * [labels] carries the host's string catalogue — `:app` fills it from `res/values*`, `:shared`
+ * from [SpeedHudLabels.EnglishCadence].
  */
 @Composable
 fun CadenceHudPill(
     state: CadenceState,
+    labels: SpeedHudLabels,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSlower: () -> Unit,
@@ -134,44 +134,45 @@ fun CadenceHudPill(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = HUD_PILL_BOTTOM_DP.dp)
+                .testTag("cadence_hud_pill")
                 .background(Color(0x66_1F_1B_17), CircleShape)
                 .padding(horizontal = 4.dp, vertical = 2.dp)
                 .heightIn(min = 28.dp),
         ) {
+            val playPauseDescription = if (running) labels.pause else labels.resume
             IconButton(
                 onClick = if (running) onPause else onResume,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier
+                    .size(28.dp)
+                    .semantics { contentDescription = playPauseDescription },
             ) {
-                Icon(
-                    if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (running) "Pause cadence" else "Resume cadence",
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp),
-                )
+                if (running) PauseGlyph(Color.White) else PlayGlyph(Color.White)
             }
             Spacer(Modifier.width(2.dp))
-            IconButton(onClick = onSlower, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    Icons.Filled.Remove,
-                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_slower),
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp),
-                )
+            IconButton(
+                onClick = onSlower,
+                modifier = Modifier
+                    .size(28.dp)
+                    .testTag("cadence_slower")
+                    .semantics { contentDescription = labels.slower },
+            ) {
+                MinusGlyph(Color.White)
             }
             Text(
-                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_words_per_minute, speed),
+                text = formatTemplate(labels.wordsPerMinute, speed),
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
-            IconButton(onClick = onFaster, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_faster),
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp),
-                )
+            IconButton(
+                onClick = onFaster,
+                modifier = Modifier
+                    .size(28.dp)
+                    .testTag("cadence_faster")
+                    .semantics { contentDescription = labels.faster },
+            ) {
+                PlusGlyph(Color.White)
             }
         }
     }

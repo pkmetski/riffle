@@ -3,6 +3,7 @@ package com.riffle.shared.reader
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.ColumnSnap
 import com.riffle.feature.reader.EpubNavigatorInterface
 import com.riffle.feature.reader.LocatorJson
 import com.riffle.feature.reader.NavigatorDecoration
@@ -15,6 +16,8 @@ import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorScrollBoundary
 import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.cadence.CadenceDomScript
+import com.riffle.feature.reader.cadence.CadenceInjector
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -37,9 +40,10 @@ import kotlin.coroutines.resume
  * iOS implementation of [EpubNavigatorInterface] that delegates to [IosEpubNavigatorBridge],
  * which is implemented on the Swift side using Readium Swift's EPUBNavigatorViewController.
  *
- * Readaloud-specific methods (followReadaloudSentence, measureCadenceColumns, etc.) are stubs
- * returning [NavigatorFollowResult.Unavailable] / empty lists — readaloud on iOS is out of scope
- * for v1.  Search, DOM patches, and continuous-mode scroll boundary are similarly deferred.
+ * Cadence and Readaloud share the sentence-follow surface: both drive `feature:reader`'s
+ * [ColumnSnap] JS through the bridge's `evaluateJavaScript` seam, so the column arithmetic is
+ * the same code Android runs. DOM highlight patches and the continuous-mode scroll boundary have
+ * no iOS analogue — Readium owns the scroll in both of iOS's modes.
  */
 class ReadiumSwiftNavigator(
     private val bridge: IosEpubNavigatorBridge,
@@ -160,13 +164,89 @@ class ReadiumSwiftNavigator(
     override suspend fun followReadaloudSentence(text: String): NavigatorFollowResult =
         NavigatorFollowResult.Unavailable
 
+    /**
+     * Bring Cadence's `cd-N` span onto the page.
+     *
+     * Three-way outcome, identical to Android's `ReadiumPresenter.followCadenceSpan`: `"moved"`
+     * (the snap changed the page), `"same"` (already on-page) and `"absent"` (the id is not in
+     * this resource, so the caller navigates to its chapter). Collapsing `"same"` into
+     * [NavigatorFollowResult.OffPage] would fire a chapter navigation on every tick while the
+     * sentence sits comfortably visible.
+     *
+     * `animated = false` for the same reason Android passes it: the follow ticks once per
+     * sentence and a 250 ms tween per tick visibly drifts, because the supersede counter cancels
+     * in-flight animations before they land.
+     */
     override suspend fun followCadenceSpan(fragmentId: String): NavigatorFollowResult =
-        NavigatorFollowResult.Unavailable
+        when (evaluateJs(ColumnSnap.scrollToColumnJs(fragmentId, animated = false))?.trim('"')) {
+            "moved", "same" -> NavigatorFollowResult.Snapped
+            "absent" -> NavigatorFollowResult.OffPage
+            else -> NavigatorFollowResult.Unavailable
+        }
 
-    override suspend fun measureReadaloudColumns(text: String): List<Double> = emptyList()
-    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {}
-    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> = emptyList()
-    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {}
+    override suspend fun measureReadaloudColumns(text: String): List<Double> =
+        ColumnSnap.parseNarratedColumnsResult(evaluateJs(ColumnSnap.measureNarratedColumnsJs(text)))
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
+        evaluateJs(ColumnSnap.snapNarratedColumnJs(text, columnIndex))
+    }
+
+    /**
+     * The fractions of the sentence that fall in each paginated column it spans.
+     *
+     * Non-empty only in Readium's paginated mode: the shared JS returns the bare token `"scroll"`
+     * when the document scrolls (Vertical and Continuous both map there via [epubScrollMode]),
+     * and [ColumnSnap.parseNarratedColumnsResult] turns that into an empty list — which the
+     * caller reads as "this mode has no column grid, do not drive intra-sentence page turns".
+     */
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> =
+        ColumnSnap.parseNarratedColumnsResult(evaluateJs(ColumnSnap.measureCadenceColumnsJs(fragmentId)))
+
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {
+        evaluateJs(ColumnSnap.snapCadenceColumnJs(fragmentId, columnIndex))
+    }
+
+    // ── Cadence DOM pipeline ────────────────────────────────────────────────────
+    //
+    // The scripts are the shared ones in `feature:reader`; only running them is host-specific.
+
+    /** True when the WebView has `Intl.Segmenter`. Cadence has no fallback tokeniser (issue #403). */
+    internal suspend fun cadenceFeatureDetect(): Boolean? =
+        when (evaluateJs(CadenceDomScript.FEATURE_DETECT_JS)?.trim('"')?.lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+
+    /**
+     * Wrap every sentence of the currently-rendered chapter in a `<span id="cd-N">` and return the
+     * `FragmentRef → SentenceQuote` / `FragmentRef → chapterHref` pair.
+     *
+     * Idempotent per chapter: the script bails out and re-reads the existing spans when it finds
+     * them, which matters because Readium re-reports a resource load on reflow and on backward
+     * turns.
+     */
+    internal suspend fun cadenceTokeniseChapter(
+        chapterHref: String,
+        localeTag: String?,
+    ): CadenceInjector.Result =
+        CadenceInjector.parse(evaluateJs(CadenceDomScript.tokeniseChapterJs(chapterHref, localeTag)))
+
+    /**
+     * The id (`"chapter#cd-N"`, or a bare `"cd-N"`) of the sentence Cadence should start from —
+     * the section-aware probe of what the reader is actually looking at.
+     *
+     * Nulls for the viewport bounds let the JS read `window.scrollY` / `innerHeight`, which is
+     * correct here for both Readium modes: the WKWebView owns its own scroll in paginated and in
+     * scroll mode alike. Only Android's Continuous reader, whose `ChapterWebView`s do not scroll
+     * themselves, has to project the parent scroll container's bounds in.
+     */
+    internal suspend fun cadenceStartSpanId(): String? =
+        CadenceDomScript.parseCadenceStartId(evaluateJs(CadenceDomScript.cadenceStartSpanIdJs()))
+
+    private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
+        bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
+    }
 
     override suspend fun search(query: String): Flow<List<NavigatorSearchMatch>> = callbackFlow {
         bridge.startSearch(

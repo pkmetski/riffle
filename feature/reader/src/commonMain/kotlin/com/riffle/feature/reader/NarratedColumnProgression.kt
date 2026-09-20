@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.readaloud
+package com.riffle.feature.reader
 
 /**
  * Decides, as narration advances WITHIN a single sentence, which of the columns that sentence spans
@@ -25,7 +25,12 @@ package com.riffle.app.feature.reader.readaloud
  * it briefly) — narration speed isn't perfectly uniform, and being a touch early is the lesser evil.
  *
  * Pure and synchronous so the page-turn decision is unit-testable in isolation; the geometry
- * (measuring the columns, performing the snap) lives in ColumnSnap.
+ * (measuring the columns, performing the snap) lives in [ColumnSnap].
+ *
+ * Shared: both readers drive it. Cadence feeds it the elapsed fraction of the sentence's WPM
+ * dwell rather than an audio clip's, and iOS's paginated mode has exactly the same wrapped-tail
+ * problem Android's does, so a private copy per platform would be two chances to get the lead
+ * and the snap-on-change rule subtly different.
  */
 class NarratedColumnProgression(private val lead: Double = DEFAULT_LEAD) {
 

@@ -58,4 +58,81 @@ class PlaybackArbiterTest {
         val action = onStart(Feature.None, Feature.Cadence)
         assertTrue(action.isNoop)
     }
+
+    // ── The fan-out both readers run ──────────────────────────────────────────────────────────
+    //
+    // `onStart` decided *what* to pause; each host then wrote its own `if` ladder to *do* it,
+    // including its own copy of the pause-cause mapping. iOS now has two hands-free features of
+    // its own, so that ladder is shared — and these pin it, on both platforms.
+
+    @Test
+    fun startingCadenceStopsARunningAutoScrollAndSaysWhy() {
+        var autoScrollStopped = false
+        val cadencePauses = mutableListOf<PauseCause>()
+        runArbiter(
+            currentRunning = Feature.AutoScroll,
+            starting = Feature.Cadence,
+            stopAutoScroll = { autoScrollStopped = true },
+            pauseCadence = { cadencePauses += it },
+        )
+        assertTrue(autoScrollStopped, "starting Cadence must park a running auto-scroll")
+        assertTrue(cadencePauses.isEmpty(), "Cadence is the one starting; it must not pause itself")
+    }
+
+    @Test
+    fun startingAutoScrollPausesCadenceWithTheAutoScrollCause() {
+        val cadencePauses = mutableListOf<PauseCause>()
+        runArbiter(
+            currentRunning = Feature.Cadence,
+            starting = Feature.AutoScroll,
+            pauseCadence = { cadencePauses += it },
+        )
+        // The cause is what lets a scoped resume tell "auto-scroll took over" from "the user
+        // paused me from the pill" — collapsing it to PanelOpen would let the wrong resume win.
+        assertEquals(listOf(PauseCause.AutoScrollStarted), cadencePauses)
+    }
+
+    @Test
+    fun startingReadaloudPausesCadenceWithTheReadaloudCause() {
+        val cadencePauses = mutableListOf<PauseCause>()
+        runArbiter(
+            currentRunning = Feature.Cadence,
+            starting = Feature.Readaloud,
+            pauseCadence = { cadencePauses += it },
+        )
+        assertEquals(listOf(PauseCause.ReadaloudStarted), cadencePauses)
+    }
+
+    @Test
+    fun aHostWithoutAFeatureLeavesItsHandlerUntouched() {
+        // iOS has no reader Readaloud yet; the omitted handler must not change the outcome for
+        // the features it does have.
+        var autoScrollStopped = false
+        runArbiter(
+            currentRunning = Feature.AutoScroll,
+            starting = Feature.Cadence,
+            stopAutoScroll = { autoScrollStopped = true },
+        )
+        assertTrue(autoScrollStopped)
+    }
+
+    @Test
+    fun theRunningFeatureSnapshotPrefersCadenceThenAutoScrollThenReadaloud() {
+        assertEquals(
+            Feature.Cadence,
+            currentRunningFeature(cadenceRunning = true, autoScrollRunning = true, readaloudPlaying = true),
+        )
+        assertEquals(
+            Feature.AutoScroll,
+            currentRunningFeature(cadenceRunning = false, autoScrollRunning = true, readaloudPlaying = true),
+        )
+        assertEquals(
+            Feature.Readaloud,
+            currentRunningFeature(cadenceRunning = false, autoScrollRunning = false, readaloudPlaying = true),
+        )
+        assertEquals(
+            Feature.None,
+            currentRunningFeature(cadenceRunning = false, autoScrollRunning = false, readaloudPlaying = false),
+        )
+    }
 }

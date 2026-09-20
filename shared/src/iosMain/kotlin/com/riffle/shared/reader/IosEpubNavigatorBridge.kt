@@ -111,6 +111,26 @@ interface IosEpubNavigatorBridge {
     fun scrollByPx(pixels: Int, onResult: (moved: Boolean) -> Unit)
 
     /**
+     * Evaluate [script] inside the visible resource's WKWebView and hand the result back as a
+     * string, or null when there is no navigator or the script threw.
+     *
+     * This is the generic twin of Android's `RendererBridge.evaluateJavascript`, and every
+     * Cadence JS call goes through it: the `Intl.Segmenter` feature detect, the per-chapter
+     * sentence-span tokenisation, the start-position probe, and the paginated column
+     * measure/snap. The scripts themselves are the shared ones in `feature:reader`
+     * ([com.riffle.feature.reader.cadence.CadenceDomScript], [com.riffle.feature.reader.ColumnSnap])
+     * so the two platforms tokenise and snap identically — only the evaluation is host-specific.
+     *
+     * Result marshalling matches what the shared parsers expect. Android's
+     * `WebView.evaluateJavascript` JSON-encodes its return, so a JS string arrives quoted;
+     * WKWebView hands back the native value. Every shared parser tolerates both forms
+     * (`CadenceInjector.parse`, `CadenceDomScript.parseCadenceStartId`,
+     * `ColumnSnap.parseNarratedColumnsResult` all unwrap an optional quote layer), so the Swift
+     * side passes strings through verbatim and stringifies booleans as `"true"`/`"false"`.
+     */
+    fun evaluateJavaScript(script: String, onResult: (result: String?) -> Unit)
+
+    /**
      * Start a full-text search over the open publication. [onBatch] is called on the main thread
      * with a JSON array of matches each time Readium returns a page:
      * `[{"locatorJson":"…","snippet":"…"},…]`. [onDone] is called when the search finishes or is

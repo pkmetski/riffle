@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader.readaloud
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * The decision core of intra-sentence page following: as a single narrated sentence plays, decide
@@ -98,7 +98,8 @@ class NarratedColumnProgressionTest {
         // before narration has actually entered the sentence.
         val p = NarratedColumnProgression(lead = NarratedColumnProgression.DEFAULT_LEAD)
         p.onSentence(listOf(0.04, 1.0)) // 4% of the width on column 0, 96% on column 1
-        assertNull("must start on column 0, not jump to column 1 at the sentence's first tick", p.advance(0.0))
+        // kotlin.test takes the message LAST (JUnit took it first) — see AGENTS.md.
+        assertNull(p.advance(0.0), "must start on column 0, not jump to column 1 at the sentence's first tick")
         assertEquals(1, p.advance(0.05)) // turns once narration is genuinely into the sentence
     }
 

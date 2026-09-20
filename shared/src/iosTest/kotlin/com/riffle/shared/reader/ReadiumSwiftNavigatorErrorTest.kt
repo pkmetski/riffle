@@ -53,6 +53,14 @@ class ReadiumSwiftNavigatorErrorTest {
         }
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
+
+        /** Scripts handed to the WebView, newest last, and the canned answer for each. */
+        val evaluated = mutableListOf<String>()
+        var jsResult: String? = null
+        override fun evaluateJavaScript(script: String, onResult: (String?) -> Unit) {
+            evaluated += script
+            onResult(jsResult)
+        }
     }
 
     @Test
