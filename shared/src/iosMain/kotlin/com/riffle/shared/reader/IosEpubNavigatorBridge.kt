@@ -71,6 +71,12 @@ interface IosEpubNavigatorBridge {
      * @param lineHeightMultiplier CSS line-height multiplier (e.g. 1.2). 0.0 means use Readium default.
      * @param pageMargins Margin scale factor (1.0 = default). Maps to Readium pageMargins preference.
      * @param justifyText True to apply `text-align: justify`.
+     * @param textColorArgb Body text colour as ARGB, or 0 to leave it to the theme. Non-zero only
+     *   for DarkDim, whose muted body colour is what distinguishes it from Dark.
+     * @param publisherStyles False to let Riffle's typography win over the publisher's stylesheet,
+     *   which is what makes line-height and text-align take effect at all.
+     * @param columnCount Column count to pin, or 0 for Readium's default. Android pins 1 because
+     *   Readium 3.3.0's two-column default mispositions decorations.
      */
     fun applyReaderPreferences(
         fontSizePercent: Float,
@@ -80,6 +86,9 @@ interface IosEpubNavigatorBridge {
         lineHeightMultiplier: Float,
         pageMargins: Double,
         justifyText: Boolean,
+        textColorArgb: Long,
+        publisherStyles: Boolean,
+        columnCount: Int,
     )
 
     /**

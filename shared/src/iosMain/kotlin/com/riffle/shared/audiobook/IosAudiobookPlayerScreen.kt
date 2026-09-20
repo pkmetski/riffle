@@ -39,9 +39,10 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.player.AudiobookPlayerUiState
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.shared.ScreenScopedViewModelHost
-import com.riffle.shared.library.DefaultCoverPlaceholder
 import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf
+import com.riffle.feature.player.formatHms
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
@@ -195,11 +196,11 @@ private fun PlayerContent(
         // Time labels
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             androidx.compose.foundation.text.BasicText(
-                text = formatDuration(state.positionSec),
+                text = formatHms(state.positionSec),
                 style = TextStyle(fontSize = 12.sp, color = Color(0xFF666666)),
             )
             androidx.compose.foundation.text.BasicText(
-                text = formatDuration(state.durationSec),
+                text = formatHms(state.durationSec),
                 style = TextStyle(fontSize = 12.sp, color = Color(0xFF666666)),
             )
         }
@@ -337,11 +338,3 @@ private fun ControlButton(label: String, enabled: Boolean, onClick: () -> Unit) 
     }
 }
 
-private fun formatDuration(totalSec: Double): String {
-    val secs = totalSec.toLong().coerceAtLeast(0)
-    val h = secs / 3600
-    val m = (secs % 3600) / 60
-    val s = secs % 60
-    fun pad2(n: Long) = if (n < 10) "0$n" else "$n"
-    return if (h > 0) "$h:${pad2(m)}:${pad2(s)}" else "$m:${pad2(s)}"
-}

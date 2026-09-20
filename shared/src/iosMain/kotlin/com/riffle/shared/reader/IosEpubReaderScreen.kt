@@ -155,12 +155,14 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     lineHeightMultiplier = prefs.lineSpacing,
                     pageMargins = prefs.margins.toDouble(),
                     justifyText = prefs.justifyText,
+                    // The shared mapping computes these; the bridge carries them so iOS renders
+                    // what Android renders — DarkDim's muted body colour, Riffle's typography
+                    // winning over the publisher stylesheet, and the single-column pin that
+                    // Readium 3.3.0 needs or decorations land in the wrong place.
+                    textColorArgb = styling.textColorArgb ?: 0L,
+                    publisherStyles = styling.publisherStyles,
+                    columnCount = styling.columnCount ?: 0,
                 )
-                // styling.textColorArgb (the DarkDim muted body colour), styling.publisherStyles
-                // and styling.columnCount have no parameter on IosEpubNavigatorBridge yet, so
-                // Readium-Swift still paints DarkDim as plain dark, keeps the publisher's
-                // stylesheet in charge, and uses its own column default. Extending the bridge
-                // means changing ReadiumEpubNavigatorBridge.swift; tracked in #1071 §16e.
             }
     }
 

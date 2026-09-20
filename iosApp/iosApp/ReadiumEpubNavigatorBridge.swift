@@ -177,7 +177,10 @@ import ReadiumNavigator
         fontFamilyCss: String,
         lineHeightMultiplier: Float,
         pageMargins: Double,
-        justifyText: Bool
+        justifyText: Bool,
+        textColorArgb: Int64,
+        publisherStyles: Bool,
+        columnCount: Int32
     ) {
         // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
         // This switch is a Readium-Swift type adapter only — move any string-value logic there.
@@ -195,13 +198,25 @@ import ReadiumNavigator
         let textAlign: TextAlignment? = justifyText ? .justify : nil
         let lineHeight: Double? = lineHeightMultiplier > 0 ? Double(lineHeightMultiplier) : nil
 
+        // 0 means "leave it to the theme". Non-zero only for DarkDim, whose muted body colour is
+        // the only thing distinguishing it from Dark — without this it renders as plain Dark.
+        let textColor: ReadiumNavigator.Color? = textColorArgb != 0
+            ? ReadiumNavigator.Color(uiColor: UIColor(argb: textColorArgb))
+            : nil
+        // 0 means "Readium's default". Android pins 1 because Readium 3.3.0's two-column default
+        // mispositions decorations.
+        let columns: Int? = columnCount > 0 ? Int(columnCount) : nil
+
         let prefs = EPUBPreferences(
+            columnCount: columns,
             fontFamily: fontFamily,
             fontSize: Double(fontSizePercent),
             lineHeight: lineHeight,
             pageMargins: pageMargins > 0 ? pageMargins : nil,
+            publisherStyles: publisherStyles,
             scroll: scrollMode,
             textAlign: textAlign,
+            textColor: textColor,
             theme: resolvedTheme
         )
         pendingPreferences = prefs
@@ -374,6 +389,17 @@ extension UIColor {
         let green = CGFloat((rgb >> 8) & 0xFF) / 255
         let blue = CGFloat(rgb & 0xFF) / 255
         self.init(red: red, green: green, blue: blue, alpha: 1)
+    }
+
+    /// ARGB packed into an Int64, the form `HighlightColor.argb` and `ReaderThemePalette` use on
+    /// the Kotlin side. Alpha is honoured: DarkDim's muted body colour carries one.
+    convenience init(argb: Int64) {
+        let value = UInt64(bitPattern: argb) & 0xFFFF_FFFF
+        let alpha = CGFloat((value >> 24) & 0xFF) / 255
+        let red = CGFloat((value >> 16) & 0xFF) / 255
+        let green = CGFloat((value >> 8) & 0xFF) / 255
+        let blue = CGFloat(value & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue, alpha: alpha == 0 ? 1 : alpha)
     }
 }
 

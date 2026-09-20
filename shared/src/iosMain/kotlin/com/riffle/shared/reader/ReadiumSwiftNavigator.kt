@@ -174,6 +174,9 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
         lineHeightMultiplier: Float,
         pageMargins: Double,
         justifyText: Boolean,
+        textColorArgb: Long,
+        publisherStyles: Boolean,
+        columnCount: Int,
     ) {
         bridge.applyReaderPreferences(
             fontSizePercent = fontSizePercent,
@@ -183,6 +186,9 @@ class ReadiumSwiftNavigator(private val bridge: IosEpubNavigatorBridge) : EpubNa
             lineHeightMultiplier = lineHeightMultiplier,
             pageMargins = pageMargins,
             justifyText = justifyText,
+            textColorArgb = textColorArgb,
+            publisherStyles = publisherStyles,
+            columnCount = columnCount,
         )
     }
 
