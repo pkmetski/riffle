@@ -18,6 +18,11 @@ class ContentCacheArtifactScannerImpl constructor(
             audiobookArtifacts(audiobookCacheDir) +
             fileArtifacts(cbzCacheDir, ".cbz", ContentCacheArtifactKind.Cbz)
 
+    override fun delete(artifact: ContentCacheArtifact): Boolean {
+        val file = File(artifact.path)
+        return file.exists() && file.deleteRecursively()
+    }
+
     private fun fileArtifacts(root: File, extension: String, kind: ContentCacheArtifactKind): List<ContentCacheArtifact> =
         root.forSourceDirs { sourceDir ->
             val prefix = sourceDir.absolutePath + File.separator
@@ -31,7 +36,7 @@ class ContentCacheArtifactScannerImpl constructor(
                             itemId = relative.removeSuffix(extension),
                             kind = kind,
                         ),
-                        file = file,
+                        path = file.absolutePath,
                         sizeBytes = file.length(),
                         evidenceLastModifiedAtMs = file.lastModified().takeIf { it > 0L },
                     )
@@ -61,7 +66,7 @@ class ContentCacheArtifactScannerImpl constructor(
                             itemId = relative,
                             kind = ContentCacheArtifactKind.Audiobook,
                         ),
-                        file = itemDir,
+                        path = itemDir.absolutePath,
                         sizeBytes = sizeBytes,
                         evidenceLastModifiedAtMs = newestMs.takeIf { it > 0L },
                     )

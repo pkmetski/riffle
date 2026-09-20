@@ -5,6 +5,8 @@ import com.riffle.feature.downloads.LocalItemUi
 import com.riffle.feature.downloads.LocalMediaType
 import com.riffle.feature.downloads.displayOrder
 import com.riffle.feature.downloads.formatBytes
+import com.riffle.feature.source.ui.CacheSettingsDialog
+import com.riffle.feature.source.ui.CacheSettingsRow
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -170,73 +172,6 @@ fun DownloadsScreen(
 }
 
 @Composable
-private fun CacheSettingsRow(autoClear: ContentCacheAutoClear, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(onClick = onClick) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = autoClear.localizedSummaryLabel(),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun CacheSettingsDialog(
-    selected: ContentCacheAutoClear,
-    onSelected: (ContentCacheAutoClear) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cache_settings)) },
-        text = {
-            Column {
-                Text(
-                    text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n),
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ContentCacheAutoClear.entries.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelected(option) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = option == selected,
-                            onClick = { onSelected(option) },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(option.localizedOptionLabel(), style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_done)) }
-        },
-    )
-}
-
-@Composable
 private fun SectionHeader(title: String, totalLabel: String?, actionLabel: String?, onAction: () -> Unit) {
     Row(
         modifier = Modifier
@@ -371,10 +306,3 @@ private val LocalMediaType.icon: ImageVector
         LocalMediaType.Readaloud -> Icons.Default.GraphicEq
     }
 
-@Composable
-private fun ContentCacheAutoClear.localizedSummaryLabel(): String =
-    days?.let { stringResource(R.string.ui_auto_clear_after_days, it) } ?: stringResource(R.string.ui_auto_clear_off)
-
-@Composable
-private fun ContentCacheAutoClear.localizedOptionLabel(): String =
-    days?.let { stringResource(R.string.ui_after_days, it) } ?: stringResource(R.string.ui_off)

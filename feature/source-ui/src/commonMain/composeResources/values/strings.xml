@@ -95,4 +95,12 @@
     <string name="ui_singleton_attribution_chitanka">Content is provided by chitanka.info and gramofonche.chitanka.info.</string>
     <string name="ui_singleton_attribution_gutenberg">Content is provided by gutenberg.org via the gutendex.com API.</string>
     <string name="ui_singleton_attribution_radio_es">Content is provided by radio.es via prod.radio-api.net.</string>
+    <!-- Cache settings row + dialog on the Downloads screen (shared by :app and :shared). -->
+    <string name="ui_cache_settings">Cache settings</string>
+    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.</string>
+    <string name="ui_done">Done</string>
+    <string name="ui_off">Off</string>
+    <string name="ui_auto_clear_after_days">Auto-clear after %1$d days</string>
+    <string name="ui_auto_clear_off">Auto-clear off</string>
+    <string name="ui_after_days">After %1$d days</string>
 </resources>

@@ -1,17 +1,21 @@
 package com.riffle.core.domain
 
-import com.riffle.core.common.Clock
-import java.io.File
-import java.nio.file.Files
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
+/**
+ * Moved from `jvmTest` to `commonTest` so it runs on Kotlin/Native too: [ContentCacheCleaner] was
+ * JVM-only, which is why iOS's "auto-clear cache after N days" setting had no consumer at all
+ * (#1071 §13). The scenarios and their expected [ContentCacheCleanResult]s are unchanged; the
+ * real temp files became a fake [ContentCacheArtifactScanner] because deletion moved behind the
+ * scanner seam.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContentCacheCleanerTest {
     private val nowMs = 1_700_000_000_000L
@@ -20,102 +24,142 @@ class ContentCacheCleanerTest {
 
     @Test
     fun preExistingArtifactIsBackfilledAndNotDeletedOnFirstCleanup() = runTest {
-        val file = tempFile(sizeBytes = 7L, lastModifiedAtMs = oldMs)
+        val scanner = scannerWithOneArtifact(lastModifiedAtMs = oldMs)
         val accessStore = InMemoryAccessStore()
         val cleaner = cleaner(
             autoClear = ContentCacheAutoClear.After30Days,
             accessStore = accessStore,
-            artifacts = listOf(artifact(file)),
+            scanner = scanner,
         )
 
         val result = cleaner.cleanExpired(nowMs)
 
         assertEquals(ContentCacheCleanResult(scanned = 1, backfilled = 1, removed = 0, freedBytes = 0), result)
-        assertTrue(file.exists())
+        assertTrue(scanner.exists(key))
         assertEquals(oldMs, accessStore.lastAccessedAt(key))
     }
 
     @Test
     fun backfilledArtifactExpiresOnLaterCleanupWhenStillOld() = runTest {
-        val file = tempFile(sizeBytes = 7L, lastModifiedAtMs = oldMs)
+        val scanner = scannerWithOneArtifact(lastModifiedAtMs = oldMs)
         val accessStore = InMemoryAccessStore().also { it.markAccessedAt(key, oldMs) }
         val cleaner = cleaner(
             autoClear = ContentCacheAutoClear.After30Days,
             accessStore = accessStore,
-            artifacts = listOf(artifact(file)),
+            scanner = scanner,
         )
 
         val result = cleaner.cleanExpired(nowMs)
 
         assertEquals(ContentCacheCleanResult(scanned = 1, backfilled = 0, removed = 1, freedBytes = 7L), result)
-        assertTrue(!file.exists())
+        assertTrue(!scanner.exists(key))
         assertEquals(null, accessStore.lastAccessedAt(key))
     }
 
     @Test
     fun offBackfillsButDoesNotDeleteOldArtifacts() = runTest {
-        val file = tempFile(sizeBytes = 7L, lastModifiedAtMs = oldMs)
+        val scanner = scannerWithOneArtifact(lastModifiedAtMs = oldMs)
         val accessStore = InMemoryAccessStore().also { it.markAccessedAt(key, oldMs) }
         val cleaner = cleaner(
             autoClear = ContentCacheAutoClear.Off,
             accessStore = accessStore,
-            artifacts = listOf(artifact(file)),
+            scanner = scanner,
         )
 
         val result = cleaner.cleanExpired(nowMs)
 
         assertEquals(ContentCacheCleanResult(scanned = 1, backfilled = 0, removed = 0, freedBytes = 0), result)
-        assertTrue(file.exists())
+        assertTrue(scanner.exists(key))
         assertEquals(oldMs, accessStore.lastAccessedAt(key))
     }
 
     @Test
     fun recentlyAccessedArtifactsAreKept() = runTest {
-        val file = tempFile(sizeBytes = 7L, lastModifiedAtMs = oldMs)
+        val scanner = scannerWithOneArtifact(lastModifiedAtMs = oldMs)
         val recentMs = nowMs - 2L * 24L * 60L * 60L * 1000L
         val accessStore = InMemoryAccessStore().also { it.markAccessedAt(key, recentMs) }
         val cleaner = cleaner(
             autoClear = ContentCacheAutoClear.After7Days,
             accessStore = accessStore,
-            artifacts = listOf(artifact(file)),
+            scanner = scanner,
         )
 
         val result = cleaner.cleanExpired(nowMs)
 
         assertEquals(ContentCacheCleanResult(scanned = 1, backfilled = 0, removed = 0, freedBytes = 0), result)
-        assertTrue(file.exists())
+        assertTrue(scanner.exists(key))
         assertEquals(recentMs, accessStore.lastAccessedAt(key))
+    }
+
+    @Test
+    fun removalNotifiesOnRemovedSoOfflineBadgesRefresh() = runTest {
+        val scanner = scannerWithOneArtifact(lastModifiedAtMs = oldMs)
+        val removedKeys = mutableListOf<ContentCacheKey>()
+        val cleaner = cleaner(
+            autoClear = ContentCacheAutoClear.After30Days,
+            accessStore = InMemoryAccessStore().also { it.markAccessedAt(key, oldMs) },
+            scanner = scanner,
+            onRemoved = { removedKeys += it },
+        )
+
+        cleaner.cleanExpired(nowMs)
+
+        assertEquals(listOf(key), removedKeys)
+    }
+
+    @Test
+    fun anArtifactThatVanishedBetweenScanAndDeleteIsNotCountedAsFreed() = runTest {
+        val scanner = FakeScanner(
+            listOf(ContentCacheArtifact(key, path = "gone", sizeBytes = 7L, evidenceLastModifiedAtMs = oldMs)),
+            present = emptySet(),
+        )
+        val cleaner = cleaner(
+            autoClear = ContentCacheAutoClear.After30Days,
+            accessStore = InMemoryAccessStore().also { it.markAccessedAt(key, oldMs) },
+            scanner = scanner,
+        )
+
+        val result = cleaner.cleanExpired(nowMs)
+
+        assertEquals(ContentCacheCleanResult(scanned = 1, backfilled = 0, removed = 0, freedBytes = 0), result)
     }
 
     private fun cleaner(
         autoClear: ContentCacheAutoClear,
         accessStore: ContentCacheAccessStore,
-        artifacts: List<ContentCacheArtifact>,
-    ): ContentCacheCleaner {
-        val dispatcher = UnconfinedTestDispatcher()
-        return ContentCacheCleaner(
-            settingsStore = FakeSettingsStore(autoClear),
-            accessStore = accessStore,
-            artifactScanner = StaticScanner(artifacts),
-            clock = FixedClock(nowMs),
-            dispatchers = TestDispatcherProvider(dispatcher),
-        )
-    }
+        scanner: ContentCacheArtifactScanner,
+        onRemoved: suspend (ContentCacheKey) -> Unit = {},
+    ): ContentCacheCleaner = ContentCacheCleaner(
+        settingsStore = FakeSettingsStore(autoClear),
+        accessStore = accessStore,
+        artifactScanner = scanner,
+        clock = TestClock(nowMs),
+        dispatchers = TestDispatcherProvider(UnconfinedTestDispatcher()),
+        onRemoved = onRemoved,
+    )
 
-    private fun artifact(file: File): ContentCacheArtifact =
-        ContentCacheArtifact(
-            key = key,
-            file = file,
-            sizeBytes = file.length(),
-            evidenceLastModifiedAtMs = file.lastModified(),
-        )
+    private fun scannerWithOneArtifact(lastModifiedAtMs: Long) = FakeScanner(
+        listOf(
+            ContentCacheArtifact(
+                key = key,
+                path = "cache/${key.sourceId}/${key.itemId}.epub",
+                sizeBytes = 7L,
+                evidenceLastModifiedAtMs = lastModifiedAtMs,
+            ),
+        ),
+    )
 
-    private fun tempFile(sizeBytes: Long, lastModifiedAtMs: Long): File {
-        val file = Files.createTempFile("riffle-cache-cleaner", ".epub").toFile()
-        file.writeBytes(ByteArray(sizeBytes.toInt()) { 1 })
-        assertTrue(file.setLastModified(lastModifiedAtMs))
-        file.deleteOnExit()
-        return file
+    private class FakeScanner(
+        private val artifacts: List<ContentCacheArtifact>,
+        present: Set<ContentCacheKey> = artifacts.map { it.key }.toSet(),
+    ) : ContentCacheArtifactScanner {
+        private val live = present.toMutableSet()
+
+        fun exists(key: ContentCacheKey): Boolean = key in live
+
+        override fun listArtifacts(): List<ContentCacheArtifact> = artifacts
+
+        override fun delete(artifact: ContentCacheArtifact): Boolean = live.remove(artifact.key)
     }
 
     private class FakeSettingsStore(value: ContentCacheAutoClear) : ContentCacheSettingsStore {
@@ -145,16 +189,5 @@ class ContentCacheCleanerTest {
         override suspend fun forget(key: ContentCacheKey) {
             entries.remove(key)
         }
-    }
-
-    private class StaticScanner(
-        private val artifacts: List<ContentCacheArtifact>,
-    ) : ContentCacheArtifactScanner {
-        override fun listArtifacts(): List<ContentCacheArtifact> = artifacts
-    }
-
-    private class FixedClock(private val nowMs: Long) : Clock {
-        override fun nowMs(): Long = nowMs
-        override fun nowNs(): Long = nowMs * 1_000_000L
     }
 }

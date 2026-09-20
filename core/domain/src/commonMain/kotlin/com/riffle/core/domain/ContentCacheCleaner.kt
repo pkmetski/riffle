@@ -1,21 +1,37 @@
 package com.riffle.core.domain
 
 import com.riffle.core.common.Clock
-import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
-// ContentCacheArtifactKind, ContentCacheKey, and ContentCacheAccessStore are in commonMain.
+// ContentCacheArtifactKind, ContentCacheKey, and ContentCacheAccessStore are in ContentCacheAccessStore.kt.
 
+/**
+ * One cached artifact on disk, as the cleaner sees it.
+ *
+ * [path] is an opaque platform file-system locator — the cleaner never parses it and never opens
+ * it; it hands it straight back to [ContentCacheArtifactScanner.delete]. That single seam is the
+ * only thing that was pinning this class to the JVM (it used to hold a `java.io.File`), which is
+ * why "auto-clear cache after N days" silently did nothing on iOS (#1071 §13).
+ */
 data class ContentCacheArtifact(
     val key: ContentCacheKey,
-    val file: File,
+    val path: String,
     val sizeBytes: Long,
     val evidenceLastModifiedAtMs: Long?,
 )
 
 interface ContentCacheArtifactScanner {
     fun listArtifacts(): List<ContentCacheArtifact>
+
+    /**
+     * Deletes the artifact's backing file(s).
+     *
+     * Returns `true` only when something was actually removed — an artifact that has already
+     * vanished since [listArtifacts] must return `false` so the cleaner does not count it as
+     * freed space or forget a timestamp that still describes a live file.
+     */
+    fun delete(artifact: ContentCacheArtifact): Boolean
 }
 
 data class ContentCacheCleanResult(
@@ -54,9 +70,9 @@ class ContentCacheCleaner(
                 backfilled += 1
                 return@forEach
             }
-            if (cutoffMs != null && lastAccessedAt <= cutoffMs && artifact.file.exists()) {
+            if (cutoffMs != null && lastAccessedAt <= cutoffMs) {
                 val bytes = artifact.sizeBytes
-                if (artifact.file.deleteRecursively()) {
+                if (artifactScanner.delete(artifact)) {
                     accessStore.forget(artifact.key)
                     onRemoved(artifact.key)
                     removed += 1

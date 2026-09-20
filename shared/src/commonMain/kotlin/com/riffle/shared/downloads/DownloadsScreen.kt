@@ -2,6 +2,7 @@ package com.riffle.shared.downloads
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,26 +11,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
+import com.riffle.feature.downloads.LocalMediaType
 import com.riffle.feature.downloads.displayLabel
 import com.riffle.feature.downloads.formatBytes
+import com.riffle.feature.source.ui.CacheSettingsDialog
+import com.riffle.feature.source.ui.CacheSettingsRow
 import org.koin.compose.koinInject
 
 @Composable
@@ -69,6 +67,9 @@ fun DownloadsScreen(onBack: () -> Unit) {
         CacheSettingsRow(
             autoClear = state.cacheAutoClear,
             onClick = { showCacheSettingsDialog = true },
+            // This Column already pads 16.dp horizontally; the shared row's default padding is
+            // for Android's unpadded list.
+            contentPadding = PaddingValues(vertical = 8.dp),
         )
 
         if (state.downloadedItems.isEmpty() && state.cachedItems.isEmpty()) {
@@ -123,68 +124,6 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun CacheSettingsRow(autoClear: ContentCacheAutoClear, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(onClick = onClick) {
-            Text("Cache settings")
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = autoClear.summaryLabel(),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun CacheSettingsDialog(
-    selected: ContentCacheAutoClear,
-    onSelected: (ContentCacheAutoClear) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Cache settings") },
-        text = {
-            Column {
-                Text(
-                    text = "Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long." +
-                        " Downloads are kept.",
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ContentCacheAutoClear.entries.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelected(option) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = option == selected,
-                            onClick = { onSelected(option) },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(option.optionLabel(), style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
-        },
-    )
-}
-
-@Composable
 private fun DownloadRow(item: LocalItemUi, onRemove: () -> Unit) {
     Row(
         modifier = Modifier
@@ -209,17 +148,3 @@ private fun DownloadRow(item: LocalItemUi, onRemove: () -> Unit) {
     }
 }
 
-private fun ContentCacheAutoClear.summaryLabel(): String = when (this) {
-    ContentCacheAutoClear.Off -> "Auto-clear off"
-    else -> "Auto-clear after ${days!!} days"
-}
-
-private fun ContentCacheAutoClear.optionLabel(): String = when (this) {
-    ContentCacheAutoClear.Off -> "Off"
-    else -> "After ${days!!} days"
-}
-
-// The media-type badge and the size string come from `feature:downloads`' DownloadsFormatting,
-// which Android's DownloadsScreen calls too. The private copies that used to live here joined the
-// type set in iteration order rather than display order, and rendered sizes by integer division
-// with no TB unit — 5 000 000 B read "4 MB" here and "4.8 MB" on Android.

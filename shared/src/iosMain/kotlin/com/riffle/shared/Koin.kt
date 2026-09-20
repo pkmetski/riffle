@@ -25,9 +25,11 @@ import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheAccessStoreImpl
+import com.riffle.core.data.IosContentCacheArtifactScannerImpl
 import com.riffle.core.data.IosCrashReportRecorder
 import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
+import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
@@ -82,6 +84,8 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactScanner
+import com.riffle.core.domain.ContentCacheCleaner
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.CrossEpubIndexBuildTrigger
@@ -203,7 +207,6 @@ import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
-import com.riffle.shared.library.IosDownloadsRepositoryImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosPdfRepositoryImpl
@@ -547,8 +550,21 @@ private fun iosLibraryModule(
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
-    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get()) }
+    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get(), get()) }
     single<ContentCacheSettingsStore> { IosContentCacheSettingsStoreImpl() }
+    single<ContentCacheArtifactScanner> { IosContentCacheArtifactScannerImpl(get()) }
+    // The cleaner is shared (core:domain commonMain) — iOS has no BGTaskScheduler, so it runs
+    // once per foreground pass from RiffleAppRoot instead of on a periodic WorkManager job.
+    single {
+        ContentCacheCleaner(
+            settingsStore = get(),
+            accessStore = get(),
+            artifactScanner = get(),
+            clock = get(),
+            dispatchers = get(),
+            onRemoved = { key -> get<LocalAvailabilityEvents>().notifyChanged(key.sourceId, key.itemId) },
+        )
+    }
     // One IosReadaloudSidecarStore serves both roles, as ReadaloudSidecarStore does on Android.
     single { IosReadaloudSidecarStore(get(), get(), get(), get(), get()) }
     single<ReadaloudSidecarDownloads> { get<IosReadaloudSidecarStore>() }
