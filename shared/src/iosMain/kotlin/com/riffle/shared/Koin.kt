@@ -24,6 +24,7 @@ import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheAccessStoreImpl
+import com.riffle.core.data.IosCrashReportRecorder
 import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
 import com.riffle.core.data.IosEncryptedKeyValueStore
@@ -804,7 +805,7 @@ fun startKoin(
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
 ) {
-    koinStartKoin {
+    val app = koinStartKoin {
         modules(
             iosLoggingModule,
             iosDataModule,
@@ -812,4 +813,13 @@ fun startKoin(
             iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector),
         )
     }
+
+    // Install the unhandled-exception hook. IosCrashReportRecorder was written with #1065 but
+    // never invoked, so IosCrashReportRepositoryImpl listed a directory nothing ever wrote to and
+    // Settings read "No crashes recorded" forever. Android installs its equivalent from
+    // RiffleApplication; this is the iOS counterpart and belongs at the same point in startup.
+    IosCrashReportRecorder.install(
+        repository = app.koin.get<IosCrashReportRepositoryImpl>(),
+        clock = app.koin.get<Clock>(),
+    )
 }

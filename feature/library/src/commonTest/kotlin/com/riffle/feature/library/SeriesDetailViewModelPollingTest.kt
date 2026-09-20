@@ -32,7 +32,7 @@ import kotlin.test.assertEquals
  * The failed-refresh polling loop: once a refresh reports a network error, the ViewModel retries
  * every [10s] while online, and stops the instant a retry succeeds or the device goes offline.
  * Ported from the former :app SeriesDetailViewModelTest so this shared-VM behaviour is verified on
- * iOS too (see docs/testing/android-ios-parity-audit.md). Uses a scheduler-controlled Main so the
+ * iOS too. Uses a scheduler-controlled Main so the
  * delay→refresh chain advances deterministically.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

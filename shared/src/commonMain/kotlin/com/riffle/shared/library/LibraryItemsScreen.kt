@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.Collection
+import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.library.AnnotationSearchResult
@@ -144,6 +145,7 @@ fun LibraryItemsScreen(
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -172,11 +174,15 @@ fun LibraryItemsScreen(
             } else {
                 when (selectedTab) {
                     0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
-                    1 -> SimpleItemList(projection.toRead, "To Read", onItemSelected)
+                    1 -> SimpleItemList(projection.toRead, "Nothing in To Read", onItemSelected)
                     tabIndexForAnnotations() -> AnnotationsTabContent(projection.annotations)
                     3 -> SeriesTabContent(projection.series, onSeriesSelected)
                     4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
                     5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
+                    // Index 6 previously fell through to `else`, so the Playlists tab silently
+                    // rendered the Home tab. The shared ViewModel has exposed `playlists` all
+                    // along (LibraryItemsViewModel.kt:201); the iOS screen just never read it.
+                    tabIndexForPlaylists() -> PlaylistsTabContent(playlists)
                     else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
                 }
             }
@@ -276,7 +282,7 @@ private fun HomeTabContent(
             item { HorizontalBookRow(items = projection.recentlyAdded.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.finished.isNotEmpty()) {
-            item { SectionHeader("Finished") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
+            item { SectionHeader("Completed") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
             item { HorizontalBookRow(items = projection.finished.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
         }
         if (projection.series.isNotEmpty()) {
@@ -669,4 +675,35 @@ private fun DownloadedBadge(downloaded: Boolean, modifier: Modifier = Modifier) 
             .clip(CircleShape)
             .background(color),
     )
+}
+
+/**
+ * Playlists for this library. Tapping through to a playlist's contents is tracked separately
+ * (there is no iOS `PlaylistDetailScreen` yet), so this lists them without navigation rather
+ * than pretending to be interactive.
+ */
+@Composable
+private fun PlaylistsTabContent(playlists: List<CatalogPlaylist>) {
+    if (playlists.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                "No playlists",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(playlists, key = { it.id }) { playlist ->
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Text(playlist.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "${playlist.bookCount} book(s)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }

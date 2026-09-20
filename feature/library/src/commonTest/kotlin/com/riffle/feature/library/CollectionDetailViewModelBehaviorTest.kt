@@ -34,7 +34,7 @@ import kotlin.test.assertEquals
  * Behaviour of the shared CollectionDetailViewModel: offline item filtering (reactive to
  * connectivity) and the failed-refresh polling loop. Ported from the former :app
  * CollectionDetailViewModelTest so this shared-VM behaviour is verified on iOS too
- * (see docs/testing/android-ios-parity-audit.md). Uses a scheduler-controlled Main +
+ * Uses a scheduler-controlled Main +
  * DispatcherProvider so the offline-filter flowOn hop and the delay→refresh chain stay under
  * virtual time.
  */

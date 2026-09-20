@@ -23,7 +23,26 @@ APIs; `commonMain` may not (see ADR 0049).
 | `core:catalog-chitanka` | Chitanka Catalog implementation | unguarded |
 | `core:catalog-gutenberg` | Gutenberg Catalog implementation | unguarded |
 | `core:catalog-komga` | Komga Catalog implementation | unguarded |
+| `core:catalog-oreilly` | O'Reilly Catalog implementation | unguarded |
+| `core:catalog-radio-es` | Radio-ES Catalog implementation | unguarded |
+| `core:dictionary` | Dictionary packs and word lookup | unguarded |
 | `core:annotations` | _(planned — not yet created)_ Annotation model & sync format | **[guarded]** when created |
+
+### Feature modules
+
+Each targets `jvm() + iosArm64 + iosSimulatorArm64`, so their `commonMain` serves both hosts and
+their `commonTest` runs on JVM **and** the iOS simulator. New feature logic belongs here, not in
+`app` — code that lands in `app` is Android-only by construction and becomes a parity gap.
+
+| Module | Role |
+|---|---|
+| `feature:library` | Library browsing, sections, series/collections, cover grid, downloads state |
+| `feature:reader` | Reader domain: CFI, highlights, TOC navigation, rail segments, cadence, readaloud sync |
+| `feature:player` | Audiobook playback domain: speed, sleep timer, resume, progress |
+| `feature:navigation` | Routes, back-intercept, navigation drawer view model |
+| `feature:settings` | Settings derivations and preference surfaces |
+| `feature:source` / `feature:source-ui` | Source onboarding and the shared add-source UI |
+| `feature:downloads` | Download queue and offline availability |
 
 ### Persistence and host modules
 
@@ -32,15 +51,17 @@ APIs; `commonMain` may not (see ADR 0049).
 | `core:database-api` | KMP Room `@Entity` / `@Dao` contracts and `RiffleDatabaseAccess` |
 | `core:database` | KMP Room database, historical migrations, bundled SQLite driver, platform factories |
 | `core:network` | JVM/Android streaming shim for APIs exposing `InputStream` |
-| `core:data` | Hilt-wired repositories, Android DataStore, `LocalDirectoryTarget` |
+| `core:data` | Koin-wired repositories, Android DataStore + iOS NSUserDefaults/Keychain stores, `LocalDirectoryTarget` |
 | `core:logging` | `LogChannel` enum, `AndroidLogger`, `checkRiffleLogTags` guardrail |
-| `app` | Compose UI, navigation, Hilt entry point, ExoPlayer, Readium |
+| `app` | **Android host** — Compose UI, navigation, Koin entry point, Media3/ExoPlayer, Readium-Kotlin |
+| `shared` | **iOS host** — Compose Multiplatform UI, iOS Koin graph, Swift bridge interfaces |
+| `iosApp` | Xcode project — SwiftUI/UIKit shell, Readium-Swift and AVFoundation bridges, XCTest suites |
 
 See [ADR 0059](docs/adr/0059-platform-agnostic-core-boundary.md) for the full rationale and the guardrail task descriptions.
 
 ---
 
-**Riffle** is an Android app (min API 24 / Android 7.0) for reading ebooks — reflowable EPUB and fixed-layout PDF — from user-configured **Sources**. Riffle grew up ABS-first and its early terminology (`Server`, `ABS Server`) reflected that; the domain has since been re-rooted around a general **Source** abstraction with **Service** as a peer category (see [ADR 0049](docs/adr/0049-source-and-service-abstractions-replace-server.md)). ABS remains the primary Source and the reference implementation of every optional Catalog capability; LocalFiles is the second shipping Source.
+**Riffle** is an Android (min API 24 / Android 7.0) **and iOS** (deployment target 16.0) app for reading ebooks — reflowable EPUB and fixed-layout PDF — from user-configured **Sources**. Both platforms are first-class and ship together: every change is held to the "iOS/Android multi-platform parity" standard in `AGENTS.md`. (iOS has no public release channel yet, so it is deliberately absent from the README.) Riffle grew up ABS-first and its early terminology (`Server`, `ABS Server`) reflected that; the domain has since been re-rooted around a general **Source** abstraction with **Service** as a peer category (see [ADR 0049](docs/adr/0049-source-and-service-abstractions-replace-server.md)). ABS remains the primary Source and the reference implementation of every optional Catalog capability; LocalFiles is the second shipping Source.
 
 ## Terms
 

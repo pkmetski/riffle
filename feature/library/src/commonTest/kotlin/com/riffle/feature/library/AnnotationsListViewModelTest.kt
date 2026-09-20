@@ -26,7 +26,7 @@ import kotlin.test.assertEquals
 
 /**
  * Ported from the former :app AnnotationsListViewModelTest when the VM was relocated from :shared
- * to :feature:library so :app could consume it (see docs/testing/android-ios-parity-audit.md).
+ * to :feature:library so :app could consume it.
  * Verifies the active-server derivation (Storyteller excluded) and per-library scoping on both
  * platforms.
  */
