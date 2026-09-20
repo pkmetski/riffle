@@ -33,9 +33,7 @@
     <string name="ui_bookmark_options">Opciones de marcador</string>
     <string name="ui_browse_bulgarian_ebooks_and_audiobooks_from_two_public_digital_libraries">Explora libros electrónicos y audiolibros búlgaros de dos bibliotecas digitales públicas.</string>
     <string name="ui_browse_tens_of_thousands_of_free_public_domain_ebooks_no_account_is">Explora decenas de miles de libros electrónicos gratuitos de dominio público. No hace falta una cuenta</string>
-    <string name="ui_cache_settings">Ajustes de caché</string>
     <string name="ui_cached">En caché</string>
-    <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Los ficheros en caché de libros, audiolibros, cómics y lectura en voz alta pueden eliminarse cuando lleven este tiempo sin abrirse. Las descargas se conservan.</string>
     <string name="ui_cadence">Cadencia</string>
     <string name="ui_cadence_highlights_one_sentence_at_a_time_and_advances_on_its_own_at_a_set">Cadencia resalta una frase cada vez y avanza por sí sola a un</string>
     <string name="ui_cadence_isn_t_available_on_this_device_s_webview_update_the_android_system">Cadencia no está disponible con el WebView de este dispositivo. Actualiza Android System</string>
@@ -504,9 +502,6 @@
     <string name="ui_no_cached_media">No hay multimedia en caché</string>
     <string name="ui_comic">Cómic</string>
     <string name="ui_audiobook">Audiolibro</string>
-    <string name="ui_auto_clear_after_days">Borrado automático tras %1$d días</string>
-    <string name="ui_auto_clear_off">Borrado automático desactivado</string>
-    <string name="ui_after_days">Tras %1$d días</string>
     <string name="ui_no_results">Sin resultados</string>
     <string name="ui_nothing_to_show">Nada que mostrar</string>
     <string name="ui_result_position">%1$d de %2$d</string>

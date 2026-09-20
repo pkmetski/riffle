@@ -2,29 +2,59 @@ package com.riffle.buildlogic
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 abstract class CheckTranslationsTask : DefaultTask() {
 
+    /** `app/src/main/res` — the canonical locale list comes from here. */
     @get:InputDirectory
     abstract val resRoot: DirectoryProperty
+
+    /**
+     * Every module's `src/commonMain/composeResources` directory, whether or not it exists yet.
+     * Absolute paths, so [InputFiles] tracking lives on [composeResourceFiles] instead.
+     */
+    @get:Internal
+    abstract val composeResourceRoots: ListProperty<String>
+
+    /** Up-to-date tracking for the directories named by [composeResourceRoots]. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val composeResourceFiles: ConfigurableFileCollection
 
     @get:Internal
     abstract val projectRoot: DirectoryProperty
 
     @TaskAction
     fun checkTranslations() {
-        val offenders = LocalizationResourceLint.findLocalizationOffenders(resRoot = resRoot.asFile.get())
+        val appResRoot = resRoot.asFile.get()
+        val requiredLocales = LocalizationResourceLint.localeQualifiers(appResRoot)
+        val composeRoots = composeResourceRoots.get().map(::File)
+
+        val offenders = LocalizationResourceLint.findLocalizationOffenders(appResRoot) +
+            LocalizationResourceLint.findLocalizationOffenders(composeRoots, requiredLocales)
+
         if (offenders.isNotEmpty()) {
             throw GradleException(
-                "Localized string resources must match app/src/main/res/values/strings.xml.\n" +
-                    "Use `./gradlew createTranslation -Plocale=<tag>` to scaffold a locale, then fill every blank value:\n" +
+                "Localized string resources must match the values/strings.xml of their own resource root.\n" +
+                    "For app/src/main/res use `./gradlew createTranslation -Plocale=<tag>` to scaffold a locale.\n" +
+                    "For a module's src/commonMain/composeResources, add the values-<tag>/strings.xml by hand — " +
+                    "those resources are packaged into both :app and :shared and follow the system locale, so an " +
+                    "untranslated key renders English to every " +
+                    requiredLocales.sorted().joinToString(" / ") { it.removePrefix("values-") } +
+                    " user.\nThen fill every blank value:\n" +
                     offenders.joinToString("\n") { it.render(projectRoot.asFile.get()) },
             )
         }
