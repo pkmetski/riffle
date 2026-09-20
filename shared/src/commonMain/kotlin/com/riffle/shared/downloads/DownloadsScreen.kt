@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
-import com.riffle.feature.downloads.LocalMediaType
 import com.riffle.feature.downloads.displayLabel
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.source.ui.CacheSettingsDialog
@@ -147,4 +146,3 @@ private fun DownloadRow(item: LocalItemUi, onRemove: () -> Unit) {
         )
     }
 }
-

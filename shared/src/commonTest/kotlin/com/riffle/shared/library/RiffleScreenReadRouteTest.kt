@@ -6,8 +6,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
-import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AnnotationsLibraryRepository
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.DefaultApplicationScope
