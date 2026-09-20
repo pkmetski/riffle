@@ -58,8 +58,12 @@ class IosAudioPlayerControllerTest {
             reportedOffsetSec = startOffsetSec
         }
 
-        override fun play() { playCalls++ }
-        override fun pause() { pauseCalls++ }
+        override fun play() {
+            playCalls++
+        }
+        override fun pause() {
+            pauseCalls++
+        }
 
         override fun seekToTrack(trackIndex: Int, offsetSec: Double) {
             seeks += trackIndex to offsetSec
@@ -77,7 +81,9 @@ class IosAudioPlayerControllerTest {
             replacements += fromIndex to trackUrls
         }
 
-        override fun setPositionCallback(callback: IosPositionCallback?) { positionCallback = callback }
+        override fun setPositionCallback(callback: IosPositionCallback?) {
+            positionCallback = callback
+        }
         override fun setPlayingCallback(callback: IosPlayingCallback?) = Unit
         override fun setRemoteCommandCallback(callback: IosRemoteCommandCallback?) {
             remoteCommandCallback = callback
@@ -94,7 +100,9 @@ class IosAudioPlayerControllerTest {
             nowPlaying += NowPlayingPush(title, author, durationSec, positionSec, coverUrl)
         }
 
-        override fun dispose() { disposeCalls++ }
+        override fun dispose() {
+            disposeCalls++
+        }
     }
 
     // Three 100 s tracks; chapters deliberately do not line up with track boundaries.

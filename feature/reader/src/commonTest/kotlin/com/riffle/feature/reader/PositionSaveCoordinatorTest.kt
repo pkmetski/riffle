@@ -1,9 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.PositionSaveCoordinator
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class PositionSaveCoordinatorTest {
 
@@ -50,7 +49,7 @@ class PositionSaveCoordinatorTest {
     }
 
     @Test
-    fun `onClose does NOT call savePosition — position was already written by onChanged (#528)`() = runTest {
+    fun `onClose does NOT call savePosition - position was already written by onChanged issue 528`() = runTest {
         // Prior contract also saved the position on close, which regressed cross-device sync:
         // if the ServerLocator UI-jump hadn't landed yet, onClose saved the reader's stale
         // in-memory locator over the fresh server-adopted value in the store, and the next
@@ -70,7 +69,7 @@ class PositionSaveCoordinatorTest {
     // The audiobook player constructs the coordinator without a savePosition. The cold-path
     // progress write must still fire, and the omitted savePosition must be a safe no-op.
     @Test
-    fun `without savePosition, onClose still updates progress and onChanged is a safe no-op`() = runTest {
+    fun `without savePosition onClose still updates progress and onChanged is a safe no-op`() = runTest {
         var updateCount = 0
         val coordinator = PositionSaveCoordinator<Double>(
             updateProgress = { updateCount++ },

@@ -35,11 +35,14 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.NavigatorNavigationTarget
+import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.toReadiumTextStyling
@@ -65,6 +68,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val catalogRegistry = koinInject<CatalogRegistry>()
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
+    val updateReadingProgress = koinInject<UpdateReadingProgress>()
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
     val appearanceCoordinator = koinInject<AppearanceCoordinator>()
     val publicationInspector = koinInject<IosPublicationInspector>()
@@ -176,16 +180,25 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
-    // Prefetch the next chapter whenever position changes in a lazy publication.
+    // Local persistence policy is the shared PositionSaveCoordinator, the same one Android's
+    // PositionOrchestrator drives: the locator on every change (hot path), the readingProgress
+    // float once on close (cold path). iOS previously wrote both in onDispose only, so a
+    // force-quit or a crash mid-book lost the whole session — and writing the locator on close
+    // risks clobbering a freshly adopted server position (#528).
+    val positionSaver = remember(item.id) {
+        PositionSaveCoordinator<NavigatorPosition>(
+            updateProgress = { progress -> updateReadingProgress(item.sourceId, item.id, progress) },
+            savePosition = { position -> positionStore.save(item.sourceId, item.id, position.locatorJson) },
+        )
+    }
+
     LaunchedEffect(item.id) {
-        navigator.positionFlow.collect { position ->
-            val fetcher = lazyFetcher ?: return@collect
-            val shape = lazyShape ?: return@collect
-            val currentIndex = shape.spine.indexOfFirst { it.fullPath == position.href }
-            if (currentIndex >= 0) {
-                fetcher.prefetchNext(currentIndex)
-            }
-        }
+        observeReaderPositions(
+            positions = navigator.positionFlow,
+            positionSaver = positionSaver,
+            lazyShape = { if (lazyFetcher != null) lazyShape else null },
+            prefetchNext = { index -> lazyFetcher?.prefetchNext(index) },
+        )
     }
 
     DisposableEffect(item.id) {
@@ -197,7 +210,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 // independent scope so the DB write and sync survive past onDispose.
                 CoroutineScope(SupervisorJob()).launch {
                     runCatching {
-                        positionStore.save(item.sourceId, item.id, position.locatorJson)
+                        // The locator was already written by the last onChanged; on close we
+                        // persist only the progress float, per PositionSaveCoordinator's contract.
+                        positionSaver.onClose(position.totalProgression ?: position.progression)
                         val payload = SessionPayload(
                             ebookLocation = position.locatorJson,
                             ebookProgress = position.totalProgression ?: position.progression,

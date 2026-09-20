@@ -38,11 +38,11 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.player.AudiobookPlayerUiState
 import com.riffle.feature.player.AudiobookPlayerViewModel
+import com.riffle.feature.player.formatHms
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.shared.ScreenScopedViewModelHost
 import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf
-import com.riffle.feature.player.formatHms
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
@@ -337,4 +337,3 @@ private fun ControlButton(label: String, enabled: Boolean, onClick: () -> Unit) 
         )
     }
 }
-
