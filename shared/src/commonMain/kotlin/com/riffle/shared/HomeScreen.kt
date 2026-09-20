@@ -34,7 +34,6 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.feature.library.HomeViewModel
-import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.downloads.DownloadsScreen

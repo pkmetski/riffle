@@ -6,8 +6,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
+import com.riffle.core.models.CatalogPlaylist
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibraryProjection
+import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -104,5 +107,81 @@ class LibraryTabContentTest {
         }
 
         onNodeWithText(ANNOTATIONS_EMPTY_LABEL).assertIsDisplayed()
+    }
+
+    /**
+     * The Playlists tab (index 6) fell through the `when`'s `else` and silently rendered the Home
+     * tab (#1071 §8). Nothing pinned the tab-index → content routing, only the index constant and
+     * the tab's visibility — which is why extracting the `when` into [LibraryTabContent] was able
+     * to drop the branch again without a single test noticing.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playlistsTabRendersThePlaylistsAndNotTheHomeTab() = runComposeUiTest {
+        setContent {
+            LibraryTabContent(
+                selectedTab = tabIndexForPlaylists(),
+                projection = LibraryProjection.Empty,
+                playlists = listOf(
+                    CatalogPlaylist(id = "p1", rootId = "lib1", name = "Evening Queue", bookCount = 4),
+                ),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+            )
+        }
+
+        onNodeWithText("Evening Queue").assertIsDisplayed()
+        onNodeWithText("4 book(s)").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playlistsTabShowsItsOwnEmptyStateRatherThanTheHomeTab() = runComposeUiTest {
+        setContent {
+            LibraryTabContent(
+                selectedTab = tabIndexForPlaylists(),
+                projection = LibraryProjection.Empty,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+            )
+        }
+
+        onNodeWithText("No playlists").assertIsDisplayed()
+    }
+
+    /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun toReadTabShowsItsEmptyStateCopy() = runComposeUiTest {
+        setContent {
+            LibraryTabContent(
+                selectedTab = 1,
+                projection = LibraryProjection.Empty,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+            )
+        }
+
+        onNodeWithText("Nothing in To Read").assertIsDisplayed()
     }
 }
