@@ -30,7 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.library.LocalCoverGridScale
+import com.riffle.feature.source.ui.LocalCoverGridScale
 import com.riffle.app.feature.library.OfflineBanner
 import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.feature.source.ui.pinchCoverZoom

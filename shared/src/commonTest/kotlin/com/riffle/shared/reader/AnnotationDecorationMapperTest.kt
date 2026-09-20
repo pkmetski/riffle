@@ -112,4 +112,17 @@ class AnnotationDecorationMapperTest {
         assertEquals(true, locator.contains("ch1.xhtml"), "locator must contain href: $locator")
         assertEquals(true, locator.contains("/4/2/16"), "locator must contain CFI fragment: $locator")
     }
+
+    /**
+     * The Swift bridge's fallback for a payload missing `color`/`alpha` reads these, so the
+     * fallback can no longer be a literal that drifts away from the palette. It used to be
+     * `"#FFFF00"` at alpha 0.4 — a colour `HighlightColor` does not contain.
+     */
+    @Test
+    fun theBridgeFallbackIsThePaletteDefaultAndNotAHardcodedYellow() {
+        assertEquals(highlightColorHex(HighlightColor.DEFAULT.token), ReaderHighlightDefaults.highlightHex)
+        assertEquals(highlightColorAlpha(HighlightColor.DEFAULT.token), ReaderHighlightDefaults.highlightAlpha)
+        assertEquals("#FBBF24", ReaderHighlightDefaults.highlightHex)
+        assertEquals(0x80 / 255f, ReaderHighlightDefaults.highlightAlpha)
+    }
 }

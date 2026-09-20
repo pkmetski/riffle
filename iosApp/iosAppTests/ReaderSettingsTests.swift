@@ -183,17 +183,17 @@ final class ReaderSettingsTests: XCTestCase {
     /// chapter-map flag complete the line.
     func testDisplaySummaryCoversConcreteThemeAutoThemeAndMapOff() {
         let summaries = ReaderSettingsSummaries.shared
-        XCTAssertEqual(summaries.displaySummary(prefs: prefs()), "Light · Paginated · map on")
-        XCTAssertEqual(summaries.displaySummary(prefs: prefs(theme: .auto_)), "Auto Time based · Paginated · map on")
+        XCTAssertEqual(summaries.displaySummary(prefs: prefs(), includeChapterMap: true), "Light · Paginated · map on")
+        XCTAssertEqual(summaries.displaySummary(prefs: prefs(theme: .auto_), includeChapterMap: true), "Auto Time based · Paginated · map on")
         XCTAssertEqual(
-            summaries.displaySummary(prefs: prefs(theme: .auto_, autoReaderThemeMode: .apptheme)),
+            summaries.displaySummary(prefs: prefs(theme: .auto_, autoReaderThemeMode: .apptheme), includeChapterMap: true),
             "Auto App theme · Paginated · map on"
         )
         XCTAssertEqual(
-            summaries.displaySummary(prefs: prefs(orientation: .vertical, showChapterMap: false)),
+            summaries.displaySummary(prefs: prefs(orientation: .vertical, showChapterMap: false), includeChapterMap: true),
             "Light · Scroll · map off"
         )
-        XCTAssertEqual(summaries.displaySummary(prefs: prefs(orientation: .continuous)), "Light · Continuous · map on")
+        XCTAssertEqual(summaries.displaySummary(prefs: prefs(orientation: .continuous), includeChapterMap: true), "Light · Continuous · map on")
     }
 
     /// Slider values are shown as words, not raw floats. The bucket boundaries are the claim.

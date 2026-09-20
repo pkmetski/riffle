@@ -17,7 +17,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.riffle.app.feature.library.LocalCoverGridScale
+import com.riffle.feature.source.ui.LocalCoverGridScale
 import com.riffle.feature.library.CoverGridLayout
 import org.junit.Assert.assertTrue
 import org.junit.Rule

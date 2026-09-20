@@ -307,14 +307,12 @@ import ReadiumNavigator
         let style: Decoration.Style
         switch type {
         case "highlight":
-            // NavigatorDecoration.Highlight carries a non-null colour and alpha, both resolved
-            // from HighlightColor by AnnotationDecorationMapper, so a dict missing either one is
-            // a broken bridge payload rather than a highlight to guess a tint for. The old
-            // "#FFFF00"/0.4 fallback had drifted away from HighlightColor.DEFAULT (#FBBF24 with a
-            // baked 0x80 alpha) and would have painted the wrong colour while reading as correct.
-            guard let colorHex = dict["color"] as? String,
-                  let alpha = (dict["alpha"] as? NSNumber)?.floatValue
-            else { return nil }
+            // The fallback comes from Kotlin, not from a literal here. The old "#FFFF00"/0.4 pair
+            // had drifted away from HighlightColor.DEFAULT and would have painted a colour the
+            // palette does not contain, while reading as correct in review.
+            let defaults = ReaderHighlightDefaults.shared
+            let colorHex = dict["color"] as? String ?? defaults.highlightHex
+            let alpha = (dict["alpha"] as? NSNumber)?.floatValue ?? defaults.highlightAlpha
             style = .highlight(tint: UIColor(hex: colorHex).withAlphaComponent(CGFloat(alpha)))
         case "bookmark":
             style = .highlight(tint: UIColor.systemBlue.withAlphaComponent(0.3))

@@ -67,6 +67,7 @@ import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.LocalCoverGridScale
 import com.riffle.shared.SharedUiIcons
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf

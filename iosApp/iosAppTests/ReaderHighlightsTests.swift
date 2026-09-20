@@ -85,14 +85,30 @@ final class ReaderHighlightsTests: XCTestCase {
         XCTAssertEqual(channels.alpha, 0.5, accuracy: 0.01, "alpha must come from the supplied value, not the default")
     }
 
-    func testHighlightWithoutColourFallsBackToYellowAtDefaultAlpha() throws {
+    /// The claim is unchanged — a highlight whose payload omits the colour still renders, rather
+    /// than vanishing off the page. What changed is *which* colour: the fallback used to be a
+    /// hardcoded `#FFFF00` at alpha 0.4, which matched nothing in the palette. It now comes from
+    /// `HighlightColor.DEFAULT` via Kotlin, so this asserts against that instead of a literal and
+    /// cannot drift again.
+    func testHighlightWithoutColourFallsBackToThePaletteDefault() throws {
         let decoration = try XCTUnwrap(bridge().parseDecorations(decorationJson()).first)
         let channels = rgba(try XCTUnwrap(tint(of: decoration)))
+        let expected = rgba(
+            UIColor(hex: ReaderHighlightDefaults.shared.highlightHex)
+                .withAlphaComponent(CGFloat(ReaderHighlightDefaults.shared.highlightAlpha))
+        )
 
-        XCTAssertEqual(channels.red, 1.0, accuracy: 0.01, "documented fallback is #FFFF00")
-        XCTAssertEqual(channels.green, 1.0, accuracy: 0.01)
-        XCTAssertEqual(channels.blue, 0.0, accuracy: 0.01)
-        XCTAssertEqual(channels.alpha, 0.4, accuracy: 0.01, "documented fallback alpha is 0.4")
+        XCTAssertEqual(channels.red, expected.red, accuracy: 0.01, "fallback must be HighlightColor.DEFAULT")
+        XCTAssertEqual(channels.green, expected.green, accuracy: 0.01)
+        XCTAssertEqual(channels.blue, expected.blue, accuracy: 0.01)
+        XCTAssertEqual(channels.alpha, expected.alpha, accuracy: 0.01)
+
+        // Pin the value too, so a change to the palette is a deliberate edit here rather than a
+        // silent one: #FBBF24 with the baked 0x80 alpha.
+        XCTAssertEqual(channels.red, 0.984, accuracy: 0.01)
+        XCTAssertEqual(channels.green, 0.749, accuracy: 0.01)
+        XCTAssertEqual(channels.blue, 0.141, accuracy: 0.01)
+        XCTAssertEqual(channels.alpha, 0.502, accuracy: 0.01)
     }
 
     func testEveryDecorationTypeResolvesToADistinctTint() throws {

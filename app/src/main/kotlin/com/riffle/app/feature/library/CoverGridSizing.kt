@@ -2,11 +2,11 @@ package com.riffle.app.feature.library
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.library.CoverGridLayout
+import com.riffle.feature.source.ui.LocalCoverGridScale
 
 // Base sizes at scale 1.0, the size-class breakpoint and the pinch clamp live in
 // [CoverGridLayout] (feature:library/commonMain) so the Compose-Multiplatform
@@ -14,14 +14,6 @@ import com.riffle.feature.library.CoverGridLayout
 // tabs (~3 per row); tablet packs a little tighter (~5-6) so the wider screen
 // isn't dominated by huge covers. The pinch gesture itself is
 // [com.riffle.feature.source.ui.pinchCoverZoom] — one implementation, both hosts.
-
-/**
- * The user's persisted cover-grid zoom multiplier (1.0 = shipped defaults).
- * Provided once at the library screen root; every [coverGridMinCellSize] /
- * [shelfCoverMinCellSize] reader scales off it, so a pinch anywhere reflows
- * every cover grid consistently.
- */
-val LocalCoverGridScale = compositionLocalOf { 1f }
 
 /**
  * Minimum cell size for `GridCells.Adaptive` cover grids, indexed on the current
