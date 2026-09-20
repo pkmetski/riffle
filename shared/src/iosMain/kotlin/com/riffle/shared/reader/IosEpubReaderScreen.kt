@@ -34,6 +34,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
@@ -57,6 +58,7 @@ import org.koin.compose.koinInject
 @Suppress("ktlint:standard:function-naming")
 @Composable
 actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
+    KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()
     val downloader = koinInject<IosEpubDownloader>()
     val annotationStore = koinInject<AnnotationStore>()
@@ -64,8 +66,8 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
-    val publicationInspector = koinInject<IosPublicationInspector>()
     val appearanceCoordinator = koinInject<AppearanceCoordinator>()
+    val publicationInspector = koinInject<IosPublicationInspector>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -142,7 +144,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         combine(
             formattingPreferencesStore.preferences,
             appearanceCoordinator.resolved,
-        ) { prefs, appearance -> prefs.copy(theme = appearance.readerTheme.toReaderTheme()) }
+        ) { prefs, appearance -> prefs.withResolvedTheme(appearance) }
             .collect { prefs ->
                 val styling = prefs.toReadiumTextStyling()
                 navigator.applyReaderPreferences(

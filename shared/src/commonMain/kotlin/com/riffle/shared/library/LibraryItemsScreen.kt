@@ -36,7 +36,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,7 +82,9 @@ private const val SECTION_CELL_WIDTH = 120
 internal fun coverGridMinCell(): Dp {
     val widthPx = LocalWindowInfo.current.containerSize.width
     val widthDp = with(LocalDensity.current) { widthPx.toDp() }
-    return CoverGridLayout.minCellSizeDp(widthDp.value, 1f).dp
+    // The second argument is the user's pinch multiplier, published by CoverGridZoomBox. It used
+    // to be a hardcoded 1f, which is why the persisted cover-grid density never reached a grid.
+    return CoverGridLayout.minCellSizeDp(widthDp.value, LocalCoverGridScale.current).dp
 }
 
 // The tab index vocabulary and the visibility/clamp rules come from
@@ -124,6 +128,12 @@ fun LibraryItemsScreen(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
+    // Drive the grids off a local live scale so a pinch reflows instantly; the ViewModel debounces
+    // the persist and re-emits the settled value. Same shape as Android's LibraryItemsScreen.
+    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
+    var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
+    LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
+
     // Clamp to Home when the previously-selected tab's data has disappeared.
     LaunchedEffect(tabVisibility) {
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
@@ -141,7 +151,14 @@ fun LibraryItemsScreen(
             )
         },
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        CoverGridZoomBox(
+            scale = liveCoverScale,
+            onScaleChange = { scale ->
+                liveCoverScale = scale
+                viewModel.setCoverGridScale(scale)
+            },
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+        ) {
             if (isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Loading…")

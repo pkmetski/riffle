@@ -36,6 +36,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.ComicFormattingPreferences
+import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.asComicBackgroundTheme
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
@@ -47,6 +48,7 @@ import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.comicDisplaySummary
+import com.riffle.feature.settings.idsWithSwap
 import com.riffle.feature.settings.label
 import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.source.ui.SourceIcon
@@ -59,11 +61,12 @@ private enum class SettingsPanel {
     // Source onboarding
     AddSource,
 
-    // Reading panels
+    // Reading panels.
+    // Auto-scroll and Cadence are deliberately absent: neither reader overlay exists on iOS
+    // (they are part of #1072), so the panels that configure them would only write preferences
+    // no iOS surface reads. Restore them here together with the overlays.
     Formatting,
     Display,
-    AutoScroll,
-    Cadence,
 
     // Listening
     Listening,
@@ -96,33 +99,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                 DisplayPanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
             }
         }
-        SettingsPanel.AutoScroll -> {
-            val prefs by viewModel.globalFormattingPreferences.collectAsState()
-            PanelScaffold("Auto-scroll", onDismiss = { activePanel = SettingsPanel.None }) {
-                AutoScrollPanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
-            }
-        }
-        SettingsPanel.Cadence -> {
-            val prefs by viewModel.globalFormattingPreferences.collectAsState()
-            PanelScaffold("Cadence", onDismiss = { activePanel = SettingsPanel.None }) {
-                CadencePanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
-            }
-        }
         SettingsPanel.Listening -> {
             val speed by viewModel.defaultPlaybackSpeed.collectAsState()
-            val skip by viewModel.skipIntervalSeconds.collectAsState()
-            val rewind by viewModel.rewindIntervalSeconds.collectAsState()
-            val rewindOnResume by viewModel.rewindOnResumeSeconds.collectAsState()
             PanelScaffold("Listening", onDismiss = { activePanel = SettingsPanel.None }) {
                 ListeningPanelContent(
                     defaultPlaybackSpeed = speed,
-                    skipIntervalSeconds = skip,
-                    rewindIntervalSeconds = rewind,
-                    rewindOnResumeSeconds = rewindOnResume,
                     onSpeedChange = { viewModel.setDefaultPlaybackSpeed(it) },
-                    onSkipChange = { viewModel.setSkipIntervalSeconds(it) },
-                    onRewindChange = { viewModel.setRewindIntervalSeconds(it) },
-                    onRewindOnResumeChange = { viewModel.setRewindOnResumeSeconds(it) },
                 )
             }
         }
@@ -157,11 +139,7 @@ private fun MainSettingsContent(
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
     val speed by viewModel.defaultPlaybackSpeed.collectAsState()
-    val skip by viewModel.skipIntervalSeconds.collectAsState()
-    val rewind by viewModel.rewindIntervalSeconds.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
-    val volumeKeyNavEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
-    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
@@ -205,12 +183,20 @@ private fun MainSettingsContent(
                     onTrailingClick = { viewModel.removeServer(source.id) },
                     leading = { SourceIcon(source = source, size = 28.dp) },
                 )
-                libraryItems.forEach { item ->
+                libraryItems.forEachIndexed { index, item ->
                     LibraryVisibilityRow(
                         name = item.library.name,
                         visible = item.isVisible,
                         switchEnabled = item.switchEnabled,
                         onToggle = { viewModel.setLibraryVisible(source.id, item.library.id, it) },
+                        // Reorder controls mirror Android's ReorderableLibraryList: explicit
+                        // move buttons rather than a drag gesture, which competes with the
+                        // settings scroll. NavigationDrawerViewModel already reads the stored
+                        // order on iOS — only the way to change it was missing.
+                        canMoveUp = index > 0,
+                        canMoveDown = index < libraryItems.lastIndex,
+                        onMoveUp = { viewModel.setLibraryOrder(source.id, libraryItems.idsWithSwap(index, index - 1)) },
+                        onMoveDown = { viewModel.setLibraryOrder(source.id, libraryItems.idsWithSwap(index, index + 1)) },
                     )
                 }
             }
@@ -239,16 +225,16 @@ private fun MainSettingsContent(
         SectionHeader("Reading")
         SettingsDrillInRow("Formatting", ReaderSettingsSummaries.formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
         SettingsDrillInRow("Display", ReaderSettingsSummaries.displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
-        SettingsDrillInRow("Auto-scroll", ReaderSettingsSummaries.autoScrollSummary(globalFormatting)) { onOpenPanel(SettingsPanel.AutoScroll) }
-        if (globalFormatting.cadencePlatformSupported) {
-            SettingsDrillInRow("Cadence", ReaderSettingsSummaries.cadenceSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Cadence) }
-        }
+        // No Auto-scroll / Cadence rows — see the SettingsPanel enum (#1072).
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
         SectionHeader("Listening")
+        // Skip / rewind / rewind-on-resume are not surfaced: the iOS player UI and the
+        // lock-screen controls that would honour them hardcode their intervals and are part
+        // of #1072, so the steppers would only write preferences nothing reads.
         SettingsDrillInRow(
             "Preferences",
-            listeningSummary(speed, skip, rewind),
+            speedSummary(speed),
         ) { onOpenPanel(SettingsPanel.Listening) }
 
         // ── Comics ────────────────────────────────────────────────────────────────────────
@@ -281,19 +267,11 @@ private fun MainSettingsContent(
             checked = keepScreenOn,
             onCheckedChange = { viewModel.setKeepScreenOn(it) },
         )
-        ToggleSettingsRow(
-            label = "Volume key navigation",
-            checked = volumeKeyNavEnabled,
-            onCheckedChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
-        )
-        if (volumeKeyNavEnabled) {
-            ToggleSettingsRow(
-                label = "Invert volume keys",
-                checked = invertVolumeKeys,
-                onCheckedChange = { viewModel.setInvertVolumeKeys(it) },
-                indent = true,
-            )
-        }
+        // No volume-key rows: iOS hands hardware volume presses to the system before any app
+        // can consume them (see IosVolumeKeyPreferencesStoreImpl), so both switches were
+        // decorative — and gating the invert switch on the parent made the pair look
+        // functional. The preference itself still round-trips for cross-device parity; only
+        // the iOS UI is gone.
 
         // ── App Version ───────────────────────────────────────────────────────────────────
         SectionHeader("App Version")
@@ -418,68 +396,15 @@ private fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (Fo
         label = { ReaderSettingsSummaries.autoModeLabel(it) },
         onSelect = { onPrefsChange(prefs.copy(autoReaderThemeMode = it)) },
     )
-    PanelSection("On-Screen Info")
-    PanelToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
-    PanelToggleRow("Colored chapter map", prefs.coloredChapterMap) { onPrefsChange(prefs.copy(coloredChapterMap = it)) }
-    PanelToggleRow("Current chapter label", prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
-    PanelToggleRow("Reading progress labels", prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
-    PanelToggleRow("Time remaining", prefs.showReadingTimeEstimate) { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) }
-}
-
-@Composable
-private fun AutoScrollPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
-    PanelSection("Auto-scroll")
-    PanelToggleRow("Show auto-scroll toggle in reader", prefs.showAutoScroll) {
-        onPrefsChange(prefs.copy(showAutoScroll = it))
-    }
-    PanelSection("Speed (WPM)")
-    StepperRow(
-        label = "${prefs.autoScrollWpm} WPM",
-        onDecrement = { onPrefsChange(prefs.copy(autoScrollWpm = (prefs.autoScrollWpm - 10).coerceAtLeast(50))) },
-        onIncrement = { onPrefsChange(prefs.copy(autoScrollWpm = (prefs.autoScrollWpm + 10).coerceAtMost(1000))) },
-    )
-}
-
-@Composable
-private fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
-    if (!prefs.cadencePlatformSupported) {
-        PanelSection("Cadence")
-        BasicText(
-            text = "Cadence is not available on this device. A WebView update may enable it.",
-            style = TextStyle(fontSize = 14.sp, color = Color.Gray),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-        return
-    }
-    PanelSection("Cadence")
-    PanelToggleRow("Show cadence toggle in reader", prefs.showCadence) {
-        onPrefsChange(prefs.copy(showCadence = it))
-    }
-    PanelSection("Speed (WPM)")
-    StepperRow(
-        label = "${prefs.cadenceWpm} WPM",
-        onDecrement = { onPrefsChange(prefs.copy(cadenceWpm = (prefs.cadenceWpm - 10).coerceAtLeast(50))) },
-        onIncrement = { onPrefsChange(prefs.copy(cadenceWpm = (prefs.cadenceWpm + 10).coerceAtMost(1000))) },
-    )
-    PanelSection("Highlight Color")
-    ChipRow(
-        options = cadenceHighlightChipOptions,
-        selected = prefs.cadenceHighlightColor,
-        label = { it.token.replaceFirstChar { c -> c.uppercase() } },
-        onSelect = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
-    )
+    // No "On-Screen Info" section. The chapter map, the current-chapter label, the reading
+    // progress labels and the time-remaining readout are reader overlays that do not exist on
+    // iOS yet (#1072), so those five toggles only ever wrote preferences nothing read.
 }
 
 @Composable
 private fun ListeningPanelContent(
     defaultPlaybackSpeed: Float,
-    skipIntervalSeconds: Int,
-    rewindIntervalSeconds: Int,
-    rewindOnResumeSeconds: Int,
     onSpeedChange: (Float) -> Unit,
-    onSkipChange: (Int) -> Unit,
-    onRewindChange: (Int) -> Unit,
-    onRewindOnResumeChange: (Int) -> Unit,
 ) {
     PanelSection("Playback Speed")
     // PlaybackSpeed is the domain's range and snap rule (0.5–3.0 in steps of 0.05). The private
@@ -489,24 +414,6 @@ private fun ListeningPanelContent(
         label = PlaybackSpeed.label(defaultPlaybackSpeed),
         onDecrement = { onSpeedChange(PlaybackSpeed.snap(defaultPlaybackSpeed - PlaybackSpeed.STEP)) },
         onIncrement = { onSpeedChange(PlaybackSpeed.snap(defaultPlaybackSpeed + PlaybackSpeed.STEP)) },
-    )
-    PanelSection("Skip Forward (seconds)")
-    StepperRow(
-        label = "${skipIntervalSeconds}s",
-        onDecrement = { onSkipChange((skipIntervalSeconds - 5).coerceAtLeast(5)) },
-        onIncrement = { onSkipChange((skipIntervalSeconds + 5).coerceAtMost(120)) },
-    )
-    PanelSection("Rewind (seconds)")
-    StepperRow(
-        label = "${rewindIntervalSeconds}s",
-        onDecrement = { onRewindChange((rewindIntervalSeconds - 5).coerceAtLeast(5)) },
-        onIncrement = { onRewindChange((rewindIntervalSeconds + 5).coerceAtMost(120)) },
-    )
-    PanelSection("Rewind on Resume (seconds)")
-    StepperRow(
-        label = "${rewindOnResumeSeconds}s",
-        onDecrement = { onRewindOnResumeChange((rewindOnResumeSeconds - 5).coerceAtLeast(0)) },
-        onIncrement = { onRewindOnResumeChange((rewindOnResumeSeconds + 5).coerceAtMost(120)) },
     )
 }
 
@@ -654,11 +561,14 @@ private fun LibraryVisibilityRow(
     visible: Boolean,
     switchEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
+    canMoveUp: Boolean = false,
+    canMoveDown: Boolean = false,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = switchEnabled) { onToggle(!visible) }
             .padding(start = 32.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -668,16 +578,35 @@ private fun LibraryVisibilityRow(
                 fontSize = 13.sp,
                 color = if (switchEnabled) Color.DarkGray else Color.Gray,
             ),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clickable(enabled = switchEnabled) { onToggle(!visible) },
         )
+        if (canMoveUp || canMoveDown) {
+            MoveLibraryButton(label = "▲", name = name, enabled = canMoveUp, onClick = onMoveUp)
+            MoveLibraryButton(label = "▼", name = name, enabled = canMoveDown, onClick = onMoveDown)
+        }
         BasicText(
             text = if (visible) "Visible" else "Hidden",
             style = TextStyle(
                 fontSize = 12.sp,
                 color = if (visible) Color(0xFF1565C0) else Color.Gray,
             ),
+            modifier = Modifier.clickable(enabled = switchEnabled) { onToggle(!visible) },
         )
     }
+}
+
+@Composable
+private fun MoveLibraryButton(label: String, name: String, enabled: Boolean, onClick: () -> Unit) {
+    BasicText(
+        text = label,
+        style = TextStyle(fontSize = 14.sp, color = if (enabled) Color(0xFF1565C0) else Color.LightGray),
+        modifier = Modifier
+            .testTag("move-library-$label-$name")
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
 }
 
 @Composable
@@ -789,9 +718,19 @@ private fun AppTheme.label(): String = when (this) {
     AppTheme.System -> "System"
 }
 
-/** "Speed 1.25× · Skip 30s · Rewind 10s" — the Listening drill-in's one-line preview. */
+/**
+ * "Speed 1.25×" — what the Listening drill-in previews on iOS today.
+ *
+ * Skip and rewind are absent because their steppers are hidden: the shared ViewModel reads both
+ * into `AudiobookPlayerUiState`, but nothing a user can see honours them — the iOS player has no
+ * skip/rewind buttons and the lock-screen commands hardcode [30]/[15]. Both return with the
+ * player UI in #1072, at which point [listeningSummary] is the preview to use.
+ */
+internal fun speedSummary(speed: Float): String = "Speed ${PlaybackSpeed.label(speed)}"
+
+/** "Speed 1.25× · Skip 30s · Rewind 10s" — the full preview, for when the intervals are live. */
 internal fun listeningSummary(speed: Float, skipSeconds: Int, rewindSeconds: Int): String =
-    "Speed ${PlaybackSpeed.label(speed)} · Skip ${skipSeconds}s · Rewind ${rewindSeconds}s"
+    "${speedSummary(speed)} · Skip ${skipSeconds}s · Rewind ${rewindSeconds}s"
 
 /**
  * The Readaloud row subtitle. Forwards to `readaloudRowSummary`, which suppresses zero counts and

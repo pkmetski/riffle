@@ -5,7 +5,6 @@ import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.WakeLockPreferencesStore
-import platform.UIKit.UIApplication
 
 /**
  * iOS NSUserDefaults-backed factories for stores unified with Android via the
@@ -42,29 +41,21 @@ internal fun ReadingSpeedStore(): ReadingSpeedStore = readingSpeedStore(
 )
 
 /**
- * Wraps the commonMain [wakeLockPreferencesStore] to apply the iOS-specific side effect:
- * syncing the preference value into [UIApplication.idleTimerDisabled] on every write.
+ * Plain preference store — no UIKit side effect.
  *
- * Note: the idle-timer is not set on app launch (matching the behaviour of the old
- * [IosWakeLockPreferencesStoreImpl]), so the UI layer is responsible for reading the
- * preference and applying it at startup.
+ * It used to flip [platform.UIKit.UIApplication.idleTimerDisabled] inside its own setter, which
+ * made "keep screen on while reading" both app-wide (the screen also stayed awake on the library
+ * and settings screens) and non-durable (nothing re-applied it at launch). The idle timer is now
+ * driven by the reader screens via `ReaderWakeLock`, mirroring Android's window-scoped
+ * `FLAG_KEEP_SCREEN_ON` (#1071 §15.3).
  */
-internal fun WakeLockPreferencesStore(): WakeLockPreferencesStore {
-    val inner = wakeLockPreferencesStore(
-        IosPreferenceStore(
-            key = "keep_screen_on",
-            defaultValue = true,
-            read = { defaults, key ->
-                if (defaults.objectForKey(key) != null) defaults.boolForKey(key) else null
-            },
-            write = { defaults, key, value -> defaults.setBool(value, forKey = key) },
-        ),
-    )
-    return object : WakeLockPreferencesStore {
-        override val keepScreenOn = inner.keepScreenOn
-        override suspend fun setKeepScreenOn(value: Boolean) {
-            inner.setKeepScreenOn(value)
-            UIApplication.sharedApplication.idleTimerDisabled = value
-        }
-    }
-}
+internal fun WakeLockPreferencesStore(): WakeLockPreferencesStore = wakeLockPreferencesStore(
+    IosPreferenceStore(
+        key = "keep_screen_on",
+        defaultValue = true,
+        read = { defaults, key ->
+            if (defaults.objectForKey(key) != null) defaults.boolForKey(key) else null
+        },
+        write = { defaults, key, value -> defaults.setBool(value, forKey = key) },
+    ),
+)

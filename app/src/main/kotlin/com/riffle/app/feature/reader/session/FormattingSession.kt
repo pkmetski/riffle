@@ -9,6 +9,7 @@ import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
@@ -74,8 +75,7 @@ class FormattingSession constructor(
         _formattingPreferences,
         appearanceCoordinator.resolved,
     ) { prefs, appearance ->
-        if (prefs.theme == ReaderTheme.Auto) prefs.copy(theme = appearance.readerTheme.toReaderTheme())
-        else prefs
+        prefs.withResolvedTheme(appearance)
     }
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, FormattingPreferences())
@@ -242,10 +242,7 @@ class FormattingSession constructor(
             _hasBookOverrides.value = !overrides.isEmpty
             // Wait until the derived StateFlow actually reflects the loaded value. Mirrors the
             // combine() above: Auto resolves to the coordinator's current concrete theme.
-            val resolvedReader = appearanceCoordinator.resolved.value.readerTheme.toReaderTheme()
-            val targetEffective = if (effective.theme == ReaderTheme.Auto) {
-                effective.copy(theme = resolvedReader)
-            } else effective
+            val targetEffective = effective.withResolvedTheme(appearanceCoordinator.resolved.value)
             effectiveFormattingPreferences.first { it == targetEffective }
             _formattingPreferencesReady.value = true
         }
