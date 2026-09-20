@@ -158,6 +158,20 @@ Before writing any platform-specific implementation, ask: can this logic live in
 
 When an Android implementation is being moved or a new feature is being added, check whether any existing `androidMain` code can be lifted to `commonMain` at the same time. Leave the codebase more shared after every PR, never less.
 
+### Where shared UI goes — the module topology matters
+
+Most `feature:*` modules are `jvm() + iosArm64 + iosSimulatorArm64`. **A jvm-target Compose artifact cannot be consumed by an Android application**, so Compose UI placed in one of those modules can never be rendered by `:app` — it will silently become iOS-only and its Android twin will be written separately. That is the mechanism behind most of the UI duplication in this repo.
+
+Shared Compose belongs in a module with an **`android { }` + iOS** topology. `feature:source-ui` is the reference: it has `androidTarget` + both iOS targets, material3, `coil.compose` and `composeResources`, and **both `:app` and `:shared` depend on it and render its screens**. Its own KDoc states the rule — *"Everything Compose that both platforms render belongs here."*
+
+So, before writing a screen or component:
+
+- **Pure logic** (derivations, mappers, view-model state) → an existing `feature:*` `commonMain`. Both hosts call it.
+- **Compose that both platforms render** → a module with the `feature:source-ui` topology. Do not put it in a `jvm()+ios` module and do not write it twice.
+- **Genuinely host-specific UI** (Readium-Android fragment hosting, UIKit bridges) → `:app` or `:shared` respectively.
+
+`:app` is the Android host and `:shared` is the iOS host. Anything that lands in either is single-platform by construction and becomes a parity gap the moment the other platform needs it.
+
 **Never keep a private platform copy of a derivation that already exists in `commonMain`.** This is the most common way the two platforms silently drift apart, because nothing fails: both copies compile, both suites stay green, and the screens quietly render different things. Real examples found in the 2026-09-19 pass — iOS's `SettingsScreen.kt` had private duplicates of the reader-settings summaries that read `"Sans-serif"`/`"Monospace"` against Android's `"Sans serif"`/`"Mono"`, showed line spacing where Android showed margins, and used `toInt()` instead of `roundToInt()` so a 1.15 font scale rendered 114% on iOS and 115% on Android; `IosEpubReaderScreen.kt` kept its own `flattenToc` that rendered blank-title containers the shared one deliberately skips; and `comicDisplaySummary` existed twice with different casing and two missing segments.
 
 Before adding any `private fun` that maps a `core:domain` enum to a string, formats a summary, or computes a layout, grep for an existing shared implementation and call it. If the shared one is wrong for your platform, fix the shared one or add a parameter — do not fork it.

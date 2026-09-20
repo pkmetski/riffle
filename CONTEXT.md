@@ -41,7 +41,8 @@ their `commonTest` runs on JVM **and** the iOS simulator. New feature logic belo
 | `feature:player` | Audiobook playback domain: speed, sleep timer, resume, progress |
 | `feature:navigation` | Routes, back-intercept, navigation drawer view model |
 | `feature:settings` | Settings derivations and preference surfaces |
-| `feature:source` / `feature:source-ui` | Source onboarding and the shared add-source UI |
+| `feature:source` | Source onboarding domain |
+| `feature:source-ui` | **The shared Compose UI module** — `android { }` + iOS (not `jvm()`), material3, `coil.compose`, `composeResources`. Both `app` and `shared` render its screens. A `jvm()`-target Compose artifact cannot be consumed by an Android application, so this is the only topology in which UI can be shared by both hosts — everything Compose that both platforms render belongs here. |
 | `feature:downloads` | Download queue and offline availability |
 
 ### Persistence and host modules
