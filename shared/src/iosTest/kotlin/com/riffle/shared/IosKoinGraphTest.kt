@@ -119,7 +119,7 @@ class IosKoinGraphTest {
 
     @Test
     fun `every binding issue 1065 implemented resolves from the production graph`() {
-        startKoin(
+        startKoinWithDatabase(
             navigatorBridgeFactory = StubEpubBridgeFactory,
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
@@ -183,7 +183,7 @@ class IosKoinGraphTest {
      */
     @Test
     fun `the production graph registers an Audiobookshelf catalog factory so progress can be pushed`() {
-        startKoin(
+        startKoinWithDatabase(
             navigatorBridgeFactory = StubEpubBridgeFactory,
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
@@ -216,7 +216,7 @@ class IosKoinGraphTest {
      */
     @Test
     fun `the production graph can browse every unbounded catalogue it offers to install`() {
-        startKoin(
+        startKoinWithDatabase(
             navigatorBridgeFactory = StubEpubBridgeFactory,
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
@@ -251,7 +251,7 @@ class IosKoinGraphTest {
      */
     @Test
     fun `the browse view model browses the library the drawer selected`() {
-        startKoin(
+        startKoinWithDatabase(
             navigatorBridgeFactory = StubEpubBridgeFactory,
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
@@ -283,7 +283,7 @@ class IosKoinGraphTest {
      */
     @Test
     fun `the production graph can retry a failed sync`() {
-        startKoin(
+        startKoinWithDatabase(
             navigatorBridgeFactory = StubEpubBridgeFactory,
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,

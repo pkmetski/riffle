@@ -1005,12 +1005,36 @@ private fun iosLibraryModule(
 private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
     SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
 
+/**
+ * The Swift entry point. Its parameter list is the ObjC-exported surface, so it deliberately
+ * carries **no defaulted parameters**: Kotlin default arguments do not cross the Objective-C
+ * boundary and Swift sees every one of them as required, which breaks `RiffleApp.swift` at build
+ * time and only `xcodebuild` catches it. Anything optional belongs on [startKoinWithDatabase].
+ */
 fun startKoin(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
-    databaseFile: String = RIFFLE_DATABASE_FILE,
+) = startKoinWithDatabase(
+    navigatorBridgeFactory = navigatorBridgeFactory,
+    audioPlayerBridgeFactory = audioPlayerBridgeFactory,
+    pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
+    publicationInspector = publicationInspector,
+    databaseFile = RIFFLE_DATABASE_FILE,
+)
+
+/**
+ * Same graph, with the database file named explicitly. `IosKoinGraphTest` starts the real graph
+ * once per case and needs each to have its own file, or the connections pile up and a later case
+ * loses the race with `SQLITE_BUSY`.
+ */
+internal fun startKoinWithDatabase(
+    navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
+    audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
+    pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
+    publicationInspector: IosPublicationInspector,
+    databaseFile: String,
 ) {
     val app = koinStartKoin {
         modules(
