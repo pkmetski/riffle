@@ -7,6 +7,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.ContentCacheCleaner
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.feature.source.ui.RiffleTheme
@@ -42,19 +43,22 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
     val syncDriver = koinInject<ForegroundSyncDriver>()
     val appBecameActive = koinInject<Flow<Unit>>(qualifier = named(ForegroundSyncDriver.APP_BECAME_ACTIVE))
     val connectivity = koinInject<ConnectivityObserver>()
+    val dispatchers = koinInject<DispatcherProvider>()
 
     val systemDark = isSystemInDarkTheme()
     LaunchedEffect(appearanceCoordinator, systemDark) {
         appearanceCoordinator.setSystemDark(systemDark)
     }
-    LaunchedEffect(contentCacheCleaner) {
-        // A failed sweep must never take the app down with it; the next launch retries.
-        runCatching { contentCacheCleaner.cleanExpired() }
-    }
-    LaunchedEffect(syncDriver) {
-        // Suspends for the lifetime of the composition, collecting foreground + reconnect edges.
-        // The driver swallows every sweep failure internally, so nothing escapes here either.
-        syncDriver.drive(appBecameActive = appBecameActive, isOnline = connectivity.isOnline)
+    // Off the composition dispatcher — see runStartupWork. Both jobs are disk/DB/network work
+    // and neither may sit on the UI thread at first composition.
+    LaunchedEffect(syncDriver, contentCacheCleaner) {
+        runStartupWork(
+            io = dispatchers.io,
+            contentCacheCleaner = contentCacheCleaner,
+            syncDriver = syncDriver,
+            appBecameActive = appBecameActive,
+            isOnline = connectivity.isOnline,
+        )
     }
 
     val appearance by appearanceCoordinator.resolved.collectAsState()
