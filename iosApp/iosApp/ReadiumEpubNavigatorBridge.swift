@@ -244,27 +244,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
-    func getSpineJson() -> String { cachedSpineJson }
-
-    /// Reading order + position count per resource: the weights the shared rail generator needs
-    /// to size chapter-map segments. `positionsByReadingOrder()` is index-aligned with
-    /// `readingOrder`, which is the invariant `buildRailSegments` and
-    /// `weightSegmentsByChapterLength` rely on. When Readium cannot compute positions the counts
-    /// stay empty and the Kotlin side falls back to unweighted segments rather than mis-weighting
-    /// them.
-    private func prefetchSpine(_ pub: Publication) {
-        Task { @MainActor in
-            let hrefs = pub.readingOrder
-                .map { "\"\($0.href.jsonEscaped)\"" }
-                .joined(separator: ",")
-            var counts = ""
-            if case .success(let positions) = await pub.positionsByReadingOrder() {
-                counts = positions.map { "\($0.count)" }.joined(separator: ",")
-            }
-            self.cachedSpineJson = "{\"hrefs\":[\(hrefs)],\"positionCounts\":[\(counts)]}"
-        }
-    }
-
     func startSearch(
         query: String,
         onBatch: ((String) -> Void)?,
@@ -453,5 +432,63 @@ extension UIColor {
 @objc class ReadiumEpubNavigatorBridgeFactory: NSObject, IosEpubNavigatorBridgeFactory {
     func create() -> any IosEpubNavigatorBridge {
         ReadiumEpubNavigatorBridge()
+    }
+}
+
+// MARK: - Spine and scrolling
+//
+// In an extension rather than the class body: these are what the chapter map and auto-scroll
+// need from the navigator, and swiftlint's type_body_length limit is a real signal that the
+// class body has grown past what one screen can hold.
+extension ReadiumEpubNavigatorBridge {
+    func getSpineJson() -> String { cachedSpineJson }
+
+    /// Scroll the visible resource by `pixels` device pixels, reporting whether the document moved.
+    ///
+    /// Readium owns the scrolling element inside its WKWebView, so auto-scroll drives it through
+    /// `window.scrollBy` rather than the hosting view — the same reason Android's vertical mode
+    /// scrolls via JS instead of `View.scrollBy`. The script compares scrollTop before and after
+    /// so the caller can tell "moved" from "already at the bottom of this resource" and stop the
+    /// ticker instead of spinning.
+    func scrollByPx(pixels: Int32, onResult: @escaping (KotlinBoolean) -> Void) {
+        Task { @MainActor in
+            guard let nav = self.epubNavigator else {
+                onResult(KotlinBoolean(bool: false))
+                return
+            }
+            let script = """
+            (function(){\
+            var e=document.scrollingElement||document.documentElement;\
+            var before=e.scrollTop;window.scrollBy(0,\(pixels));\
+            return e.scrollTop>before;})()
+            """
+            let result = await nav.evaluateJavaScript(script)
+            switch result {
+            case let .success(value):
+                let moved = (value as? Bool) ?? ((value as? NSNumber)?.boolValue ?? false)
+                onResult(KotlinBoolean(bool: moved))
+            case .failure:
+                onResult(KotlinBoolean(bool: false))
+            }
+        }
+    }
+
+    /// Reading order + position count per resource: the weights the shared rail generator needs
+    /// to size chapter-map segments. `positionsByReadingOrder()` is index-aligned with
+    /// `readingOrder`, which is the invariant `buildRailSegments` and
+    /// `weightSegmentsByChapterLength` rely on. When Readium cannot compute positions the counts
+    /// stay empty and the Kotlin side falls back to unweighted segments rather than mis-weighting
+    /// them.
+    private func prefetchSpine(_ pub: Publication) {
+        Task { @MainActor in
+            let hrefs = pub.readingOrder
+                .map { "\"\($0.href.jsonEscaped)\"" }
+                .joined(separator: ",")
+            var counts = ""
+            if case .success(let positions) = await pub.positionsByReadingOrder() {
+                counts = positions.map { "\($0.count)" }.joined(separator: ",")
+            }
+            self.cachedSpineJson = "{\"hrefs\":[\(hrefs)],\"positionCounts\":[\(counts)]}"
+        }
     }
 }

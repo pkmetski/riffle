@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences

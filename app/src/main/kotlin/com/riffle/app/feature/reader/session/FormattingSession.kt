@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
@@ -29,6 +29,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 
 /**
  * Owns all formatting/typography/auto-scroll state for a single open book. Lifted from
@@ -309,15 +310,11 @@ class FormattingSession constructor(
     }
 
     fun nudgeAutoScroll(itemId: String, by: Int) {
-        autoScrollController.dispatch(AutoScrollEvent.NudgeSpeed(by))
-        val newSpeed = when (val s = autoScrollController.state.value) {
-            is AutoScrollState.Running -> s.speed
-            is AutoScrollState.Paused -> s.speed
-            else -> null
-        } ?: return
         val current = _formattingPreferences.value
-        if (current.autoScrollWpm == newSpeed.wpm) return
-        updateFormatting(itemId, current.copy(autoScrollWpm = newSpeed.wpm))
+        // Shared with iOS's HUD pill (nudgeSpeedAndPersistableWpm) so a nudge persists the same
+        // way on both platforms.
+        val newWpm = autoScrollController.nudgeSpeedAndPersistableWpm(by, current.autoScrollWpm) ?: return
+        updateFormatting(itemId, current.copy(autoScrollWpm = newWpm))
     }
 
     fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) {

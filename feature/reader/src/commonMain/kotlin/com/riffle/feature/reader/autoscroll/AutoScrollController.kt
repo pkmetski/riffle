@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader.autoscroll
+package com.riffle.feature.reader.autoscroll
 
 import com.riffle.core.common.Clock
+import com.riffle.core.common.platformSystemClock
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.common.SystemClock
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
@@ -35,9 +35,9 @@ import kotlinx.coroutines.launch
 
 open class AutoScrollController internal constructor(
     dispatcher: CoroutineDispatcher,
-    private var clock: Clock = SystemClock,
+    private var clock: Clock = platformSystemClock,
 ) {
-    constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate, SystemClock)
+    constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate, platformSystemClock)
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _state = MutableStateFlow<AutoScrollState>(AutoScrollState.Idle)
@@ -111,7 +111,26 @@ open class AutoScrollController internal constructor(
     companion object {
         const val FRAME_INTERVAL_MS: Long = 16L
 
-        internal fun forTest(dispatcher: CoroutineDispatcher): AutoScrollController =
+        /**
+         * A controller driven by a test dispatcher. Public rather than `internal` because the
+         * controller now lives in `:feature:reader` while `:app`'s `FormattingSessionTest` and
+         * `PdfReaderViewModelFormattingTest` still construct one.
+         */
+        fun forTest(dispatcher: CoroutineDispatcher): AutoScrollController =
             AutoScrollController(dispatcher)
     }
+}
+
+/**
+ * Nudge the live session's speed and report the wpm that should be persisted.
+ *
+ * Returns null when there is nothing to persist: no active session (so the nudge had no speed to
+ * act on), or the stored preference already holds the new value. Both hosts call this so a HUD
+ * nudge survives the reader identically — Android through `FormattingSession.nudgeAutoScroll`,
+ * iOS straight from the pill.
+ */
+fun AutoScrollController.nudgeSpeedAndPersistableWpm(by: Int, storedWpm: Int): Int? {
+    dispatch(AutoScrollEvent.NudgeSpeed(by))
+    val newWpm = state.value.speedOrNull?.wpm ?: return null
+    return newWpm.takeIf { it != storedWpm }
 }

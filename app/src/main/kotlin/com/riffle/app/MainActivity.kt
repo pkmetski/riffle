@@ -33,9 +33,9 @@ import com.riffle.app.feature.reader.VolumeKeyAction
 import com.riffle.app.feature.reader.VolumeKeyEventHandler
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.VolumeNavigationController
-import com.riffle.app.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
 import com.riffle.app.navigation.MainScreen
 import com.riffle.app.ui.BottomNavBarScrim

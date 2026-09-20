@@ -34,6 +34,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.asComicBackgroundTheme
@@ -61,11 +62,16 @@ private enum class SettingsPanel {
     AddSource,
 
     // Reading panels.
-    // Auto-scroll and Cadence are deliberately absent: neither reader overlay exists on iOS
-    // (they are part of #1072), so the panels that configure them would only write preferences
-    // no iOS surface reads. Restore them here together with the overlays.
+    // No Cadence panel yet: unlike Auto-scroll, Cadence needs the whole DOM-tokenisation
+    // pipeline on the iOS side (Intl.Segmenter feature-detect, per-chapter sentence span
+    // injection, a start-position probe and a per-sentence decoration), none of which exists
+    // here — `ReadiumSwiftNavigator.followCadenceSpan` / `measureCadenceColumns` /
+    // `snapCadenceColumn` are still stubs. Restore the panel with that pipeline, not before:
+    // a Cadence row over a reader that cannot highlight a sentence is the inert control this
+    // branch is removing everywhere else.
     Formatting,
     Display,
+    AutoScroll,
 
     // Listening
     Listening,
@@ -96,6 +102,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             val prefs by viewModel.globalFormattingPreferences.collectAsState()
             PanelScaffold("Display", onDismiss = { activePanel = SettingsPanel.None }) {
                 DisplayPanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
+            }
+        }
+        SettingsPanel.AutoScroll -> {
+            val prefs by viewModel.globalFormattingPreferences.collectAsState()
+            PanelScaffold("Auto-scroll", onDismiss = { activePanel = SettingsPanel.None }) {
+                AutoScrollPanelContent(prefs, onPrefsChange = { viewModel.updateGlobalFormatting(it) })
             }
         }
         SettingsPanel.Listening -> {
@@ -224,7 +236,10 @@ private fun MainSettingsContent(
         SectionHeader("Reading")
         SettingsDrillInRow("Formatting", ReaderSettingsSummaries.formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
         SettingsDrillInRow("Display", ReaderSettingsSummaries.displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
-        // No Auto-scroll / Cadence rows — see the SettingsPanel enum (#1072).
+        SettingsDrillInRow("Auto-scroll", ReaderSettingsSummaries.autoScrollSummary(globalFormatting)) {
+            onOpenPanel(SettingsPanel.AutoScroll)
+        }
+        // No Cadence row — see the SettingsPanel enum.
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
         SectionHeader("Listening")
@@ -420,6 +435,29 @@ internal fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (F
     PanelToggleRow("Time remaining", prefs.showReadingTimeEstimate) {
         onPrefsChange(prefs.copy(showReadingTimeEstimate = it))
     }
+}
+
+// `internal` for the same reason as DisplayPanelContent: the switch and the stepper are only
+// assertable by driving the real panel.
+@Composable
+internal fun AutoScrollPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+    PanelSection("Auto-scroll")
+    PanelToggleRow("Show auto-scroll toggle in reader", prefs.showAutoScroll) {
+        onPrefsChange(prefs.copy(showAutoScroll = it))
+    }
+    PanelSection("Speed (WPM)")
+    // AutoScrollSpeed owns the range and the snap-to-10 rule; going through it rather than
+    // hand-rolling the arithmetic is what keeps the stepper, the HUD pill's nudges and the
+    // ticker agreeing on what a legal speed is.
+    StepperRow(
+        label = "${prefs.autoScrollWpm} WPM",
+        onDecrement = {
+            onPrefsChange(prefs.copy(autoScrollWpm = AutoScrollSpeed.of(prefs.autoScrollWpm - AutoScrollSpeed.STEP_WPM).wpm))
+        },
+        onIncrement = {
+            onPrefsChange(prefs.copy(autoScrollWpm = AutoScrollSpeed.of(prefs.autoScrollWpm + AutoScrollSpeed.STEP_WPM).wpm))
+        },
+    )
 }
 
 @Composable

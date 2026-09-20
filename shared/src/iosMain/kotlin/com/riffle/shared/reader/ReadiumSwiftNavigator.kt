@@ -24,12 +24,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.koin.mp.KoinPlatform
 import platform.Foundation.NSArray
 import platform.Foundation.NSData
 import platform.Foundation.NSDictionary
 import platform.Foundation.NSJSONSerialization
 import platform.Foundation.create
+import kotlin.coroutines.resume
 
 /**
  * iOS implementation of [EpubNavigatorInterface] that delegates to [IosEpubNavigatorBridge],
@@ -184,6 +186,14 @@ class ReadiumSwiftNavigator(
      * [SpinePositions.Empty] until Readium has finished computing positions.
      */
     internal fun getSpine(): SpinePositions = parseSpineJson(bridge.getSpineJson())
+
+    /**
+     * Scroll the visible resource down by [pixels] device pixels; returns false when the document
+     * did not move, which auto-scroll reads as "end of this resource".
+     */
+    internal suspend fun scrollByPx(pixels: Int): Boolean = suspendCancellableCoroutine { cont ->
+        bridge.scrollByPx(pixels) { moved -> if (cont.isActive) cont.resume(moved) }
+    }
 
     override fun snapshotPosition(): NavigatorPosition? = lastPosition
         ?: bridge.snapshotLocatorJson()?.let { parseLocatorJson(it) }

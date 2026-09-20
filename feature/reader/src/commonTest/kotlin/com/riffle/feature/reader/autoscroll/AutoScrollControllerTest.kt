@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.autoscroll
+package com.riffle.feature.reader.autoscroll
 
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
@@ -13,9 +13,9 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AutoScrollControllerTest {
@@ -84,7 +84,7 @@ class AutoScrollControllerTest {
         controller.release()
 
         assertEquals(5, taken.size)
-        assertTrue("each delta should be a whole positive pixel", taken.all { it >= 1 })
+        assertTrue(taken.all { it >= 1 }, "each delta should be a whole positive pixel")
     }
 
     @Test
@@ -110,6 +110,6 @@ class AutoScrollControllerTest {
             // expected — no emissions
         }
         controller.release()
-        assertTrue("expected no emissions after Stop, but the ticker leaked one", !leaked)
+        assertTrue(!leaked, "expected no emissions after Stop, but the ticker leaked one")
     }
 }

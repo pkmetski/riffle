@@ -904,7 +904,7 @@ fun EpubReaderScreen(
                             if (formattingPrefs.showAutoScroll &&
                                 (effectiveOrientation == ReaderOrientation.Vertical || effectiveOrientation == ReaderOrientation.Continuous)
                             ) {
-                                com.riffle.app.feature.readersettings.AutoScrollToggleIcon(
+                                com.riffle.feature.reader.ui.AutoScrollToggleIcon(
                                     isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
                                     onClick = {
                                         if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
@@ -1019,8 +1019,9 @@ fun EpubReaderScreen(
             )
         }
         // Auto-Scroll HUD pill — overlays everything else and survives Immersive Mode.
-        com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill(
+        com.riffle.feature.reader.ui.AutoScrollHudPill(
             state = autoScrollStateForPill,
+            labels = androidSpeedHudLabels(),
             onPause = { viewModel.pauseAutoScrollFromPill() },
             onResume = { viewModel.resumeAutoScrollFromPill() },
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },

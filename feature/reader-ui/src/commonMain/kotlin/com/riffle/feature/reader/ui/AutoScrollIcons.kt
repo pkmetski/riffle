@@ -1,10 +1,7 @@
-package com.riffle.app.feature.readersettings
+package com.riffle.feature.reader.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
@@ -14,6 +11,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -31,12 +29,14 @@ fun AutoScrollToggleIcon(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.semantics {
-            contentDescription = if (isRunning) "Stop auto-scroll" else "Start auto-scroll"
-        },
+        modifier = modifier
+            .testTag("auto_scroll_toggle")
+            .semantics {
+                contentDescription = if (isRunning) "Stop auto-scroll" else "Start auto-scroll"
+            },
     ) {
         if (isRunning) {
-            Icon(Icons.Filled.Pause, contentDescription = null)
+            PauseGlyph(LocalContentColor.current, size = 24.dp)
         } else {
             // Three centred text bars + downward play apex — drawn as a single Canvas so the
             // proportions stay tight inside the standard 24×24 icon box.

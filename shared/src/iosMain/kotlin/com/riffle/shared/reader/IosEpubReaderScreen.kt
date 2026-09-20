@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,19 +25,28 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
+import com.riffle.core.domain.autoscroll.AutoScrollEvent
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.core.domain.autoscroll.AutoScrollState
+import com.riffle.core.domain.autoscroll.PauseCause
+import com.riffle.core.domain.autoscroll.layoutContextFor
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
@@ -46,13 +56,18 @@ import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.toReadiumTextStyling
+import com.riffle.feature.reader.ui.AutoScrollHudPill
+import com.riffle.feature.reader.ui.AutoScrollToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
+import com.riffle.feature.reader.ui.SpeedHudLabels
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
@@ -80,6 +95,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val appearanceCoordinator = koinInject<AppearanceCoordinator>()
     val publicationInspector = koinInject<IosPublicationInspector>()
     val readingSpeedStore = koinInject<ReadingSpeedStore>()
+    val dispatchers = koinInject<DispatcherProvider>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -91,6 +107,13 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var chapterMap by remember { mutableStateOf(ChapterMapUiState.Empty) }
     // The resolved (Auto already collapsed) preferences the chapter map paints itself with.
     var resolvedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
+    // Reader viewport width in device pixels — auto-scroll's pace depends on how many words fit
+    // on a line, so it has to be measured, not assumed.
+    var viewportWidthPx by remember { mutableStateOf(0) }
+    // The *stored* preferences, before Auto is resolved. Anything written back must start from
+    // these: persisting the resolved copy would silently collapse ReaderTheme.Auto into whatever
+    // it happened to resolve to at that moment.
+    var storedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
     var spine by remember { mutableStateOf(SpinePositions.Empty) }
     val scope = rememberCoroutineScope()
     val bridge = remember { bridgeFactory.create() }
@@ -160,8 +183,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         combine(
             formattingPreferencesStore.preferences,
             appearanceCoordinator.resolved,
-        ) { prefs, appearance -> prefs.withResolvedTheme(appearance) }
-            .collect { prefs ->
+        ) { prefs, appearance -> prefs to prefs.withResolvedTheme(appearance) }
+            .collect { (stored, prefs) ->
+                storedPrefs = stored
                 resolvedPrefs = prefs
                 val styling = prefs.toReadiumTextStyling()
                 navigator.applyReaderPreferences(
@@ -248,6 +272,37 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         )
     }
 
+    // ---- Auto-scroll -------------------------------------------------------------------------
+    // One controller per open book (Android's is a process singleton bound in Koin, which is why
+    // its FormattingSession has to defensively Stop on bind; scoping it to the composition makes
+    // that unnecessary here). The ticker, the WPM→px/s conversion and the state machine are all
+    // the shared ones — only the thing that consumes the pixel deltas is platform-specific.
+    val autoScroll = remember(item.id) { AutoScrollController(dispatchers) }
+    val autoScrollState by autoScroll.state.collectAsState()
+    val density = LocalDensity.current.density
+
+    LaunchedEffect(autoScroll, resolvedPrefs?.autoScrollWpm) {
+        resolvedPrefs?.let { autoScroll.setDefaultSpeed(AutoScrollSpeed.of(it.autoScrollWpm)) }
+    }
+    LaunchedEffect(autoScroll) {
+        // A supplier rather than a value: the pace has to follow a font-size change or a rotation
+        // without restarting the session, exactly as Android's FormattingSession wires it.
+        autoScroll.setLayoutContext {
+            val prefs = resolvedPrefs ?: FormattingPreferences()
+            layoutContextFor(prefs, viewportWidthPx, density)
+        }
+    }
+    LaunchedEffect(autoScroll, item.id) {
+        autoScroll.scrollDeltas.collect { px ->
+            // `false` means the document did not move — the bottom of the resource. Android's
+            // vertical mode stops there too rather than auto-advancing the chapter.
+            if (!navigator.scrollByPx(px)) autoScroll.dispatch(AutoScrollEvent.ReachedEndOfBook)
+        }
+    }
+    DisposableEffect(autoScroll) {
+        onDispose { autoScroll.release() }
+    }
+
     DisposableEffect(item.id) {
         onDispose {
             coordinator.stop()
@@ -274,7 +329,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onSizeChanged { viewportWidthPx = it.width }) {
         when {
             loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BasicText(loadError ?: "Error")
@@ -300,6 +355,27 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             BasicText(text = "← Back", modifier = Modifier.clickable(onClick = onBack))
             Spacer(modifier = Modifier.weight(1f))
             if (localPath != null) {
+                // Auto-scroll only makes sense where the document scrolls. Android gates its
+                // toggle on Vertical || Continuous for the same reason; on iOS both map to
+                // Readium's scroll mode via `epubScrollMode`, and paginated has nothing to scroll.
+                val prefsForChrome = resolvedPrefs
+                if (prefsForChrome != null &&
+                    prefsForChrome.showAutoScroll &&
+                    prefsForChrome.orientation != ReaderOrientation.Horizontal
+                ) {
+                    AutoScrollToggleIcon(
+                        isRunning = autoScrollState is AutoScrollState.Running,
+                        onClick = {
+                            autoScroll.dispatch(
+                                if (autoScrollState is AutoScrollState.Running) {
+                                    AutoScrollEvent.Stop
+                                } else {
+                                    AutoScrollEvent.Start
+                                },
+                            )
+                        },
+                    )
+                }
                 if (tocEntries.isNotEmpty()) {
                     BasicText(
                         text = "TOC",
@@ -352,6 +428,30 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 }
             }
         }
+
+        // Auto-scroll HUD pill — pause/resume and live WPM nudges, over everything else.
+        // A nudge is persisted so it survives the reader, matching Android's
+        // FormattingSession.nudgeAutoScroll.
+        AutoScrollHudPill(
+            state = autoScrollState,
+            labels = SpeedHudLabels.English,
+            onPause = { autoScroll.dispatch(AutoScrollEvent.Pause(PauseCause.UserPausedPill)) },
+            onResume = { autoScroll.dispatch(AutoScrollEvent.Resume) },
+            onSlower = {
+                val stored = storedPrefs
+                val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(-AutoScrollSpeed.STEP_WPM, stored?.autoScrollWpm ?: 0)
+                if (stored != null && newWpm != null) {
+                    scope.launch { formattingPreferencesStore.update(stored.copy(autoScrollWpm = newWpm)) }
+                }
+            },
+            onFaster = {
+                val stored = storedPrefs
+                val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(AutoScrollSpeed.STEP_WPM, stored?.autoScrollWpm ?: 0)
+                if (stored != null && newWpm != null) {
+                    scope.launch { formattingPreferencesStore.update(stored.copy(autoScrollWpm = newWpm)) }
+                }
+            },
+        )
 
         // On-screen info: the chapter map and the reading-progress labels, gated by the same five
         // FormattingPreferences flags Android's EpubReaderScreen gates them with. The composable

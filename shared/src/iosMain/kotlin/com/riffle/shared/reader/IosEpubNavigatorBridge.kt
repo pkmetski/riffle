@@ -98,6 +98,19 @@ interface IosEpubNavigatorBridge {
     fun getSpineJson(): String
 
     /**
+     * Scroll the visible resource down by [pixels] device pixels and report whether it actually moved.
+     *
+     * Auto-scroll's only output is a stream of whole-pixel deltas, and this is what consumes them.
+     * It goes through `window.scrollBy` in Readium's WKWebView rather than a native scroll for the
+     * same reason Android's vertical mode does: Readium owns the scrolling element, and a native
+     * scroll on the hosting view is either intercepted or fights the navigator's own pagination.
+     *
+     * [onResult] receives `false` when the document did not move — the bottom of the resource, or
+     * no navigator — which is how the reader knows to stop the ticker instead of spinning.
+     */
+    fun scrollByPx(pixels: Int, onResult: (moved: Boolean) -> Unit)
+
+    /**
      * Start a full-text search over the open publication. [onBatch] is called on the main thread
      * with a JSON array of matches each time Readium returns a page:
      * `[{"locatorJson":"…","snippet":"…"},…]`. [onDone] is called when the search finishes or is

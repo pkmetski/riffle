@@ -2,9 +2,11 @@ package com.riffle.shared.reader
 
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.RecordingLogger
+import kotlinx.coroutines.test.runTest
 import platform.UIKit.UIViewController
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -42,6 +44,13 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun applyReaderPreferences(preferences: IosReaderPreferences) = Unit
         override fun getTocJson(): String = "[]"
         override fun getSpineJson(): String = """{"hrefs":[],"positionCounts":[]}"""
+
+        var scrolledBy: Int? = null
+        var scrollMoves = true
+        override fun scrollByPx(pixels: Int, onResult: (Boolean) -> Unit) {
+            scrolledBy = pixels
+            onResult(scrollMoves)
+        }
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
     }
@@ -66,5 +75,24 @@ class ReadiumSwiftNavigatorErrorTest {
         ReadiumSwiftNavigator(bridge, RecordingLogger()).close()
 
         assertNull(bridge.errorCallback)
+    }
+
+    /**
+     * Auto-scroll's only output is a stream of pixel deltas; this is the seam that turns one into
+     * a scroll. The return value is what tells the ticker it has hit the bottom of the resource —
+     * swallowing it (always returning true) would leave auto-scroll spinning against a document
+     * that cannot move, which is the failure Android's vertical mode guards against too.
+     */
+    @Test
+    fun scrollByPxForwardsTheDeltaAndReportsWhetherTheDocumentMoved() = runTest {
+        val bridge = RecordingBridge()
+        val navigator = ReadiumSwiftNavigator(bridge, RecordingLogger())
+
+        assertTrue(navigator.scrollByPx(7))
+        assertEquals(7, bridge.scrolledBy)
+
+        bridge.scrollMoves = false
+        assertFalse(navigator.scrollByPx(3))
+        assertEquals(3, bridge.scrolledBy)
     }
 }
