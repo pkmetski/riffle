@@ -95,24 +95,6 @@ class ReaderSettingsSummariesTest {
         assertEquals("Light · Paginated · map on", ReaderSettingsSummaries.displaySummary(prefs))
     }
 
-    /**
-     * A host whose Display panel has no chapter-map toggle (iOS — the overlay does not exist
-     * there) must not advertise one in the summary above it. The segment is dropped whole, with
-     * no dangling separator.
-     */
-    @Test fun displaySummaryCanOmitTheChapterMapSegment() {
-        val prefs = defaults.copy(
-            theme = ReaderTheme.Light,
-            orientation = ReaderOrientation.Horizontal,
-            showChapterMap = true,
-        )
-        assertEquals("Light · Paginated", ReaderSettingsSummaries.displaySummary(prefs, includeChapterMap = false))
-        assertEquals(
-            "Light · Paginated",
-            ReaderSettingsSummaries.displaySummary(prefs.copy(showChapterMap = false), includeChapterMap = false),
-        )
-    }
-
     @Test fun displaySummaryShowsAutoMode() {
         val prefs = defaults.copy(
             theme = ReaderTheme.Auto,

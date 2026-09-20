@@ -82,6 +82,22 @@ interface IosEpubNavigatorBridge {
     fun getTocJson(): String
 
     /**
+     * The open publication's spine, serialised as
+     * `{"hrefs":["ch1.xhtml",…],"positionCounts":[12,…]}` — the reading order plus the number of
+     * Readium positions in each resource.
+     *
+     * Both lists are what `buildRailSegments` / `weightSegmentsByChapterLength` need to decide
+     * which TOC entries earn a rail segment and how wide each one is; without the counts the
+     * shared generator silently degrades to its no-positions fallback and draws a different
+     * (usually more collapsed) rail than Android does for the same book.
+     *
+     * Returns `{"hrefs":[],"positionCounts":[]}` until the publication has been opened and its
+     * positions computed — Readium computes them asynchronously, so the reader re-reads this on
+     * each page-load event until the lists are non-empty.
+     */
+    fun getSpineJson(): String
+
+    /**
      * Start a full-text search over the open publication. [onBatch] is called on the main thread
      * with a JSON array of matches each time Readium returns a page:
      * `[{"locatorJson":"…","snippet":"…"},…]`. [onDone] is called when the search finishes or is

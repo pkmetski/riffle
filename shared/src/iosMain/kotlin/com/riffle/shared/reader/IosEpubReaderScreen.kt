@@ -30,22 +30,29 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.ChapterMapUiState
 import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.chapterMapUiState
+import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.toReadiumTextStyling
+import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
@@ -72,6 +79,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
     val appearanceCoordinator = koinInject<AppearanceCoordinator>()
     val publicationInspector = koinInject<IosPublicationInspector>()
+    val readingSpeedStore = koinInject<ReadingSpeedStore>()
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -80,6 +88,10 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var searchOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<NavigatorSearchMatch>>(emptyList()) }
+    var chapterMap by remember { mutableStateOf(ChapterMapUiState.Empty) }
+    // The resolved (Auto already collapsed) preferences the chapter map paints itself with.
+    var resolvedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
+    var spine by remember { mutableStateOf(SpinePositions.Empty) }
     val scope = rememberCoroutineScope()
     val bridge = remember { bridgeFactory.create() }
     val navigator = remember(bridge) { ReadiumSwiftNavigator(bridge) }
@@ -150,6 +162,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             appearanceCoordinator.resolved,
         ) { prefs, appearance -> prefs.withResolvedTheme(appearance) }
             .collect { prefs ->
+                resolvedPrefs = prefs
                 val styling = prefs.toReadiumTextStyling()
                 navigator.applyReaderPreferences(
                     fontSizePercent = prefs.fontSize,
@@ -172,11 +185,45 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             }
     }
 
-    // Load TOC once the book is open (localPath becomes non-null).
+    // Load the TOC and the spine once the book is open (localPath becomes non-null). Readium
+    // computes both asynchronously after the publication opens, so re-read on every page-load
+    // event until each has arrived rather than sampling once and drawing a permanently empty
+    // (or unweighted) rail.
     LaunchedEffect(localPath) {
-        if (localPath != null) {
-            val toc = navigator.getToc()
-            if (toc.isNotEmpty()) tocEntries = toc
+        if (localPath == null) return@LaunchedEffect
+        navigator.getToc().takeIf { it.isNotEmpty() }?.let { tocEntries = it }
+        navigator.getSpine().takeIf { it.isUsable }?.let { spine = it }
+        if (tocEntries.isNotEmpty() && spine.isUsable) return@LaunchedEffect
+        navigator.pageLoadEvents.collect {
+            if (tocEntries.isEmpty()) {
+                navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc }
+            }
+            if (!spine.isUsable) {
+                navigator.getSpine().takeIf { it.isUsable }?.let { spine = it }
+            }
+        }
+    }
+
+    // The chapter map. Android derives these six values from six StateFlows on its reader
+    // ViewModel; iOS has none, so it assembles them with the same shared arithmetic
+    // (`chapterMapUiState`) off the navigator's position flow. Recomputed on every position
+    // because that is the only thing that moves the cursor.
+    LaunchedEffect(tocEntries, spine, item.id) {
+        if (tocEntries.isEmpty()) return@LaunchedEffect
+        combine(
+            navigator.positionFlow,
+            readingSpeedStore.speedSecPerPosition,
+        ) { position, speed -> position to speed }.collect { (position, speed) ->
+            chapterMap = chapterMapUiState(
+                tocEntries = tocEntries,
+                bookTitle = item.title,
+                spineHrefs = spine.hrefs,
+                positionCounts = spine.positionCounts,
+                currentHref = position.href,
+                chapterProgression = position.progression,
+                totalProgression = position.totalProgression,
+                speedSecPerPosition = speed,
+            )
         }
     }
 
@@ -304,6 +351,43 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     }
                 }
             }
+        }
+
+        // On-screen info: the chapter map and the reading-progress labels, gated by the same five
+        // FormattingPreferences flags Android's EpubReaderScreen gates them with. The composable
+        // itself is the shared one in :feature:reader-ui, so the two platforms cannot drift.
+        val prefs = resolvedPrefs
+        if (prefs != null && chapterMap.segments.isNotEmpty() && chapterMapVisible(prefs)) {
+            ChapterMapOverlay(
+                segments = chapterMap.segments,
+                activeIndex = chapterMap.activeIndex,
+                cursorPosition = chapterMap.cursorPosition,
+                totalProgress = chapterMap.labelProgress,
+                readerTheme = prefs.theme,
+                showRail = prefs.showChapterMap,
+                coloredChapterMap = prefs.coloredChapterMap,
+                showCurrentChapterLabel = prefs.showCurrentChapterLabel,
+                showProgressLabels = prefs.showReadingProgressLabels,
+                showReadingTimeEstimate = prefs.showReadingTimeEstimate,
+                // iOS has no string-resource mechanism yet (#1072's i18n item), so the host hands
+                // the shared overlay the English catalogue. Android hands it its own res/values*.
+                templates = ChapterMapProgressLabelTemplates.English,
+                chapterTimeRemaining = chapterMap.chapterTimeRemaining,
+                bookTimeRemaining = chapterMap.bookTimeRemaining,
+                onSegmentClick = { segment ->
+                    scope.launch {
+                        navigator.navigateTo(
+                            NavigatorNavigationTarget.ToHref(
+                                href = segment.href.substringBefore("#"),
+                                fragment = segment.href.substringAfter("#", "").ifEmpty { null },
+                            ),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+            )
         }
 
         // Search bar + results

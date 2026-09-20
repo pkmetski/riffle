@@ -178,6 +178,13 @@ class ReadiumSwiftNavigator(
     /** Fetch the TOC from the open publication. Returns empty list if no publication is open. */
     fun getToc(): List<TocEntry> = parseTocJson(bridge.getTocJson())
 
+    /**
+     * Fetch the reading order and per-resource position counts of the open publication — the
+     * inputs the shared rail generator weights chapter-map segments with. Returns
+     * [SpinePositions.Empty] until Readium has finished computing positions.
+     */
+    internal fun getSpine(): SpinePositions = parseSpineJson(bridge.getSpineJson())
+
     override fun snapshotPosition(): NavigatorPosition? = lastPosition
         ?: bridge.snapshotLocatorJson()?.let { parseLocatorJson(it) }
 

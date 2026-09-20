@@ -7,6 +7,9 @@ import ReadiumNavigator
 // MARK: - ReadiumEpubNavigatorBridge
 
 /// Implements IosEpubNavigatorBridge (generated from Kotlin iosMain's IosEpubNavigatorBridge).
+/// The spine payload a bridge reports before a publication is open, and again after dispose.
+private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
+
 /// Wraps Readium Swift 3.x EPUBNavigatorViewController, bridging it to the KMP shared layer.
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
@@ -17,6 +20,10 @@ import ReadiumNavigator
     private var cachedLocatorJson: String?
     // TOC fetched asynchronously after open; getTocJson() returns from this cache.
     private var cachedTocJson: String = "[]"
+    // Reading order + per-resource position counts, fetched asynchronously after open;
+    // getSpineJson() returns from this cache. Readium computes positions off the main actor and
+    // it can take a moment on a large EPUB, so the reader re-reads this until it stops being empty.
+    private var cachedSpineJson: String = emptySpineJson
 
     // Callbacks registered by ReadiumSwiftNavigator
     private var locatorCallback: ((String) -> Void)?
@@ -59,6 +66,7 @@ import ReadiumNavigator
                 guard case .success(let pub) = pubResult else { return }
                 self.publication = pub
                 self.prefetchToc(pub)
+                self.prefetchSpine(pub)
 
                 var initialLocator: Locator?
                 if let json = locatorJson,
@@ -126,6 +134,7 @@ import ReadiumNavigator
                 let (pub, _) = try OReillyPublicationBuilder.build(shapeJson: shapeJson, fetcher: fetcher)
                 self.publication = pub
                 self.prefetchToc(pub)
+                self.prefetchSpine(pub)
 
                 var initialLocator: Locator?
                 if let json = locatorJson,
@@ -164,6 +173,7 @@ import ReadiumNavigator
             self.publication = nil
             self.cachedLocatorJson = nil
             self.cachedTocJson = "[]"
+            self.cachedSpineJson = emptySpineJson
         }
     }
 
@@ -231,6 +241,27 @@ import ReadiumNavigator
         Task { @MainActor in
             guard case .success(let links) = await pub.tableOfContents(), !links.isEmpty else { return }
             self.cachedTocJson = self.serializeTocLinks(links)
+        }
+    }
+
+    func getSpineJson() -> String { cachedSpineJson }
+
+    /// Reading order + position count per resource: the weights the shared rail generator needs
+    /// to size chapter-map segments. `positionsByReadingOrder()` is index-aligned with
+    /// `readingOrder`, which is the invariant `buildRailSegments` and
+    /// `weightSegmentsByChapterLength` rely on. When Readium cannot compute positions the counts
+    /// stay empty and the Kotlin side falls back to unweighted segments rather than mis-weighting
+    /// them.
+    private func prefetchSpine(_ pub: Publication) {
+        Task { @MainActor in
+            let hrefs = pub.readingOrder
+                .map { "\"\($0.href.jsonEscaped)\"" }
+                .joined(separator: ",")
+            var counts = ""
+            if case .success(let positions) = await pub.positionsByReadingOrder() {
+                counts = positions.map { "\($0.count)" }.joined(separator: ",")
+            }
+            self.cachedSpineJson = "{\"hrefs\":[\(hrefs)],\"positionCounts\":[\(counts)]}"
         }
     }
 

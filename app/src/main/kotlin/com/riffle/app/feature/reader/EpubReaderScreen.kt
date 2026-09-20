@@ -158,6 +158,8 @@ import androidx.navigation.navArgument
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import java.net.URLEncoder
 import com.riffle.feature.reader.toCssRgba
+import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.chapterMapVisible
 
 
 /**
@@ -772,13 +774,7 @@ fun EpubReaderScreen(
         // Bottom stack (player bar above the chapter rail), both anchored to the absolute screen
         // bottom in one Column so the readaloud bar floats directly above the rail. The system nav
         // bar overlays this column without shifting it up.
-        val showRailOverlay = state is ReaderState.Ready &&
-            (
-                formattingPrefs.showChapterMap ||
-                    formattingPrefs.showReadingProgressLabels ||
-                    formattingPrefs.showCurrentChapterLabel ||
-                    formattingPrefs.showReadingTimeEstimate
-                )
+        val showRailOverlay = state is ReaderState.Ready && chapterMapVisible(formattingPrefs)
         val showReadaloudUi = shouldShowReadaloudUi(viewModel.readerSource)
         if (state is ReaderState.Ready && ((readaloudOpen && showReadaloudUi) || showRailOverlay)) {
             Column(
@@ -1095,6 +1091,7 @@ private fun EpubChapterRailOverlay(
         showCurrentChapterLabel = showChapterNameLabel,
         showProgressLabels = showProgressLabels,
         showReadingTimeEstimate = showReadingTimeEstimate,
+        templates = chapterMapProgressLabelTemplates(),
         chapterTimeRemaining = chapterTimeRemaining,
         bookTimeRemaining = bookTimeRemaining,
         bookmarkPositions = bookmarkPositions,

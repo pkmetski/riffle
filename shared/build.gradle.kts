@@ -80,6 +80,8 @@ kotlin {
             implementation(project(":core:sources"))
             implementation(project(":feature:source"))
             implementation(project(":feature:source-ui"))
+            // The shared reader overlays (chapter map + reading-progress labels) both hosts render.
+            implementation(project(":feature:reader-ui"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)

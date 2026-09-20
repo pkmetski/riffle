@@ -99,19 +99,18 @@ object ReaderSettingsSummaries {
     /**
      * `"<theme> · <mode> · map on|off"`, the subtitle of the Display drill-in row.
      *
-     * [includeChapterMap] drops the trailing `map on|off` segment. The chapter map is a reader
-     * overlay that only Android draws, so its toggle is absent from the iOS Display panel (#1072)
-     * — and a summary that advertises a control the panel behind it does not offer is the same
-     * "inert control" defect in the other direction. iOS passes false; Android keeps the default.
+     * One summary for both platforms. It briefly took an `includeChapterMap` flag so iOS could
+     * drop the trailing segment while its Display panel had no chapter-map toggle; the toggle and
+     * the overlay behind it now exist on iOS too, so the flag is gone and the row reads the same
+     * on both.
      */
-    fun displaySummary(prefs: FormattingPreferences, includeChapterMap: Boolean = true): String {
+    fun displaySummary(prefs: FormattingPreferences): String {
         val mode = orientationWord(prefs.orientation)
         val theme = if (prefs.theme == ReaderTheme.Auto) {
             "Auto ${autoModeLabel(prefs.autoReaderThemeMode)}"
         } else {
             themeLabel(prefs.theme)
         }
-        if (!includeChapterMap) return "$theme · $mode"
         val map = if (prefs.showChapterMap) "map on" else "map off"
         return "$theme · $mode · $map"
     }

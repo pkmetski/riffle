@@ -71,12 +71,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import androidx.compose.ui.graphics.asImageBitmap
-import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
 import com.riffle.app.feature.readersettings.palette
-import com.riffle.app.feature.reader.readerThemeLabelColor
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.ReaderTheme
@@ -92,6 +90,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.riffle.app.feature.reader.chapterMapProgressLabelTemplates
+import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.readerThemeLabelColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -337,6 +338,7 @@ fun CbzReaderScreen(
                             showCurrentChapterLabel = false,
                             showProgressLabels = false,
                             showReadingTimeEstimate = false,
+                            templates = chapterMapProgressLabelTemplates(),
                             onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
                         )
                     }

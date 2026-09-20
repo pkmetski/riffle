@@ -35,6 +35,9 @@ ktlint_standard_brace-style = disabled
 [feature/source-ui/**/*.kt]
 ktlint_function_naming_ignore_when_annotated_with = Composable
 
+[feature/reader-ui/**/*.kt]
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
 [shared/**/*.kt]
 ktlint_function_naming_ignore_when_annotated_with = Composable
 

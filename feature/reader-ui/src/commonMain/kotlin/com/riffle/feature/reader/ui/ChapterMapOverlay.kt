@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -10,23 +10,27 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import com.riffle.app.feature.readersettings.palette
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.riffle.app.R
-import com.riffle.feature.reader.RailSegment
-import com.riffle.feature.source.ui.RiffleTheme
 import com.riffle.core.common.TimeRemaining
 import com.riffle.core.domain.ReaderTheme
-import java.util.Locale
+import com.riffle.feature.reader.RailSegment
+import com.riffle.feature.source.ui.RiffleTheme
 
+/**
+ * The reader's on-screen-info overlay: the reading-progress labels and the chapter rail.
+ *
+ * One implementation for both hosts. Android mounts it from `EpubReaderScreen` /
+ * `PdfReaderScreen` / `CbzReaderScreen`; iOS mounts it from `IosEpubReaderScreen`. The five
+ * `FormattingPreferences` flags that gate it — `showChapterMap`, `coloredChapterMap`,
+ * `showCurrentChapterLabel`, `showReadingProgressLabels`, `showReadingTimeEstimate` — are already
+ * shared, so both platforms render the same thing from the same switch.
+ */
 @Composable
 fun ChapterMapOverlay(
     segments: List<RailSegment>,
@@ -39,6 +43,7 @@ fun ChapterMapOverlay(
     showCurrentChapterLabel: Boolean,
     showProgressLabels: Boolean,
     showReadingTimeEstimate: Boolean,
+    templates: ChapterMapProgressLabelTemplates,
     chapterTimeRemaining: TimeRemaining? = null,
     bookTimeRemaining: TimeRemaining? = null,
     bookmarkPositions: List<Float> = emptyList(),
@@ -50,7 +55,7 @@ fun ChapterMapOverlay(
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .background(readerTheme.palette.background),
+                .background(readerTheme.readerPalette.background),
         ) {
             if (showProgressLabels || showCurrentChapterLabel || showReadingTimeEstimate) {
                 ReadingProgressLabels(
@@ -62,6 +67,7 @@ fun ChapterMapOverlay(
                     showCountAndPercent = showProgressLabels,
                     showChapterName = showCurrentChapterLabel,
                     showReadingTimeEstimate = showReadingTimeEstimate,
+                    templates = templates,
                     chapterTimeRemaining = chapterTimeRemaining,
                     bookTimeRemaining = bookTimeRemaining,
                 )
@@ -72,6 +78,11 @@ fun ChapterMapOverlay(
                     activeIndex = activeIndex,
                     cursorPosition = cursorPosition,
                     readerTheme = readerTheme,
+                    railContentDescription = formatTemplate(
+                        templates.activeRailSegmentProgress,
+                        segments.getOrNull(activeIndex)?.title.orEmpty(),
+                        chapterRailProgressPercent(cursorPosition),
+                    ),
                     onSegmentClick = onSegmentClick,
                     coloredChapterMap = coloredChapterMap,
                     bookmarkPositions = bookmarkPositions,
@@ -81,104 +92,8 @@ fun ChapterMapOverlay(
     }
 }
 
-// Reader-theme-paired label colour: page foreground at reduced alpha so the labels read
-// as continuation of the page, not chrome — and don't compete with actual body text.
-// Per-theme alpha because the same alpha across themes reads as different "loudness" depending
-// on the foreground/background contrast.
-internal fun readerThemeLabelColor(theme: ReaderTheme): Color {
-    val alpha = when (theme) {
-        ReaderTheme.Light -> 0.65f
-        ReaderTheme.Dark -> 0.65f
-        ReaderTheme.DarkDim -> 0.85f
-        ReaderTheme.Sepia -> 0.70f
-        // Auto resolves upstream; treat as Light if it slips through.
-        ReaderTheme.Auto -> 0.65f
-    }
-    return theme.palette.foreground.copy(alpha = alpha)
-}
-
-internal data class ChapterMapProgressLabelTemplates(
-    val chapterCount: String,
-    val durationMinutes: String,
-    val durationHoursMinutes: String,
-    val chapterRemainingExact: String,
-    val chapterRemainingEstimated: String,
-    val chapterRemainingLessThanMinute: String,
-    val bookRemainingExact: String,
-    val bookRemainingEstimated: String,
-    val bookRemainingLessThanMinute: String,
-)
-
 @Composable
-private fun chapterMapProgressLabelTemplates() = ChapterMapProgressLabelTemplates(
-    chapterCount = stringResource(R.string.ui_chapter_progress_count),
-    durationMinutes = stringResource(R.string.ui_reader_duration_minutes),
-    durationHoursMinutes = stringResource(R.string.ui_reader_duration_hours_minutes),
-    chapterRemainingExact = stringResource(R.string.ui_chapter_time_remaining_exact),
-    chapterRemainingEstimated = stringResource(R.string.ui_chapter_time_remaining_estimated),
-    chapterRemainingLessThanMinute = stringResource(R.string.ui_chapter_time_remaining_less_than_minute),
-    bookRemainingExact = stringResource(R.string.ui_book_time_remaining_exact),
-    bookRemainingEstimated = stringResource(R.string.ui_book_time_remaining_estimated),
-    bookRemainingLessThanMinute = stringResource(R.string.ui_book_time_remaining_less_than_minute),
-)
-
-private fun String.withArgs(vararg args: Any): String =
-    String.format(Locale.getDefault(), this, *args)
-
-internal fun formatChapterCount(
-    activeChapterIndex: Int,
-    chapterCount: Int,
-    templates: ChapterMapProgressLabelTemplates,
-): String =
-    templates.chapterCount.withArgs((activeChapterIndex + 1).coerceAtMost(chapterCount), chapterCount)
-
-internal fun formatDuration(sec: Long, templates: ChapterMapProgressLabelTemplates): String {
-    val hours = sec / 3600
-    val minutes = (sec % 3600) / 60
-    return when {
-        hours > 0 -> templates.durationHoursMinutes.withArgs(hours, minutes)
-        else -> templates.durationMinutes.withArgs(minutes)
-    }
-}
-
-internal fun formatChapterRemaining(
-    remaining: TimeRemaining,
-    templates: ChapterMapProgressLabelTemplates,
-): String = when (remaining) {
-    is TimeRemaining.Exact -> {
-        val sec = remaining.sec
-        val h = sec / 3600
-        val m = (sec % 3600) / 60
-        val s = sec % 60
-        val duration = if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
-        templates.chapterRemainingExact.withArgs(duration)
-    }
-    is TimeRemaining.Estimated -> when {
-        remaining.sec < 60 -> templates.chapterRemainingLessThanMinute
-        else -> templates.chapterRemainingEstimated.withArgs(formatDuration(remaining.sec, templates))
-    }
-}
-
-internal fun formatBookRemaining(
-    remaining: TimeRemaining,
-    templates: ChapterMapProgressLabelTemplates,
-): String = when (remaining) {
-    is TimeRemaining.Exact -> {
-        val sec = remaining.sec
-        val h = sec / 3600
-        val m = (sec % 3600) / 60
-        val s = sec % 60
-        val duration = if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
-        templates.bookRemainingExact.withArgs(duration)
-    }
-    is TimeRemaining.Estimated -> when {
-        remaining.sec < 60 -> templates.bookRemainingLessThanMinute
-        else -> templates.bookRemainingEstimated.withArgs(formatDuration(remaining.sec, templates))
-    }
-}
-
-@Composable
-internal fun ReadingProgressLabels(
+fun ReadingProgressLabels(
     activeChapterIndex: Int,
     chapterCount: Int,
     activeChapterTitle: String,
@@ -186,23 +101,23 @@ internal fun ReadingProgressLabels(
     readerTheme: ReaderTheme,
     showCountAndPercent: Boolean,
     showChapterName: Boolean,
+    templates: ChapterMapProgressLabelTemplates,
     showReadingTimeEstimate: Boolean = false,
     chapterTimeRemaining: TimeRemaining? = null,
     bookTimeRemaining: TimeRemaining? = null,
 ) {
-    val labelTemplates = chapterMapProgressLabelTemplates()
     val chapterCountText = if (chapterCount > 0) {
-        formatChapterCount(activeChapterIndex, chapterCount, labelTemplates)
+        formatChapterCount(activeChapterIndex, chapterCount, templates)
     } else {
         ""
     }
-    val pctText = "%.1f%%".format(totalProgress.coerceIn(0f, 1f) * 100f)
+    val pctText = formatTotalProgressPercent(totalProgress)
     val textColor = readerThemeLabelColor(readerTheme)
     val isExact = chapterTimeRemaining is TimeRemaining.Exact &&
         bookTimeRemaining is TimeRemaining.Exact
     val timeColor = if (isExact) MaterialTheme.colorScheme.tertiary else textColor
-    val chapterTimeText = chapterTimeRemaining?.let { formatChapterRemaining(it, labelTemplates) }
-    val bookTimeText = bookTimeRemaining?.let { formatBookRemaining(it, labelTemplates) }
+    val chapterTimeText = chapterTimeRemaining?.let { formatChapterRemaining(it, templates) }
+    val bookTimeText = bookTimeRemaining?.let { formatBookRemaining(it, templates) }
     val showLeftColumn = showCountAndPercent || (showReadingTimeEstimate && chapterTimeText != null)
     val showRightColumn = showCountAndPercent || (showReadingTimeEstimate && bookTimeText != null)
     Row(
@@ -220,7 +135,7 @@ internal fun ReadingProgressLabels(
             ) {
                 if (showCountAndPercent) {
                     val readingProgressContentDescription =
-                        stringResource(R.string.ui_reading_progress_value, chapterCountText)
+                        formatTemplate(templates.readingProgressValue, chapterCountText)
                     Text(
                         text = chapterCountText,
                         style = MaterialTheme.typography.labelSmall,
@@ -246,7 +161,7 @@ internal fun ReadingProgressLabels(
         }
         if (showChapterName) {
             val currentChapterContentDescription =
-                stringResource(R.string.ui_current_chapter_value, activeChapterTitle)
+                formatTemplate(templates.currentChapterValue, activeChapterTitle)
             Text(
                 text = activeChapterTitle,
                 style = MaterialTheme.typography.labelSmall,
@@ -270,7 +185,7 @@ internal fun ReadingProgressLabels(
             ) {
                 if (showCountAndPercent) {
                     val totalProgressContentDescription =
-                        stringResource(R.string.ui_total_progress_value, pctText)
+                        formatTemplate(templates.totalProgressValue, pctText)
                     Text(
                         text = pctText,
                         style = MaterialTheme.typography.labelSmall,

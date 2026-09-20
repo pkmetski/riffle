@@ -1,8 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader.ui
 
 import com.riffle.core.common.TimeRemaining
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ChapterMapOverlayLabelTest {
 
@@ -16,6 +16,10 @@ class ChapterMapOverlayLabelTest {
         bookRemainingExact = "%1\$s total",
         bookRemainingEstimated = "~%1\$s total",
         bookRemainingLessThanMinute = "< 1 min total",
+        readingProgressValue = "Progreso de lectura: %1\$s",
+        currentChapterValue = "Capítulo actual: %1\$s",
+        totalProgressValue = "Progreso total: %1\$s",
+        activeRailSegmentProgress = "Segmento activo: %1\$s. Progreso %2\$d%%",
     )
 
     @Test
@@ -37,5 +41,29 @@ class ChapterMapOverlayLabelTest {
     fun `exact time labels use localized suffix templates`() {
         assertEquals("1:02:03 capítulo", formatChapterRemaining(TimeRemaining.Exact(3_723), spanishTemplates))
         assertEquals("12:05 total", formatBookRemaining(TimeRemaining.Exact(725), spanishTemplates))
+    }
+
+    // The accessibility strings and the rail's own description go through the same expander, so a
+    // regression in `formatTemplate` would silently reach VoiceOver/TalkBack rather than the
+    // visible labels. `%%` is the one escape any of Riffle's reader strings uses.
+    @Test
+    fun accessibilityTemplatesExpandPositionalArgumentsAndPercentEscape() {
+        assertEquals(
+            "Progreso de lectura: Capítulo 2 de 7",
+            formatTemplate(spanishTemplates.readingProgressValue, "Capítulo 2 de 7"),
+        )
+        assertEquals(
+            "Segmento activo: Prólogo. Progreso 42%",
+            formatTemplate(spanishTemplates.activeRailSegmentProgress, "Prólogo", 42),
+        )
+    }
+
+    // `%.1f%%` is JVM-only; the shared replacement must round the same way Android shipped.
+    @Test
+    fun totalProgressPercentKeepsOneDecimalAndClamps() {
+        assertEquals("0.0%", formatTotalProgressPercent(0f))
+        assertEquals("37.4%", formatTotalProgressPercent(0.3744f))
+        assertEquals("100.0%", formatTotalProgressPercent(0.9996f))
+        assertEquals("100.0%", formatTotalProgressPercent(1.4f))
     }
 }

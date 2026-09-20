@@ -143,6 +143,10 @@ import com.riffle.feature.reader.toMergeAnchor
 import com.riffle.feature.reader.validatedMergedSnippet
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.highlightOverlapsAtSamePosition
+import com.riffle.feature.reader.estimatedBookTimeRemaining
+import com.riffle.feature.reader.estimatedChapterTimeRemaining
+import com.riffle.feature.reader.railCursorPositionForTotalProgression
+import com.riffle.feature.reader.totalRailWeight
 
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
@@ -3776,19 +3780,7 @@ class EpubReaderViewModel constructor(
         railSegments,
         currentLocatorTotalProgression,
     ) { activeIndex, segments, totalProg ->
-        if (totalProg == null || segments.isEmpty()) return@combine 0f
-        val totalWeight = segments.fold(0f) { acc, s -> acc + s.weight }
-        if (totalWeight == 0f) return@combine 0f
-        val i = activeIndex.coerceIn(0, segments.size - 1)
-        var weightBefore = 0f
-        for (k in 0 until i) weightBefore += segments[k].weight
-        val segWeight = (segments.getOrNull(i)?.weight ?: 0f).coerceAtLeast(0f)
-        val withinSeg = if (segWeight > 0f) {
-            ((totalProg * totalWeight - weightBefore) / segWeight).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
-        weightedRailCursorPosition(i, segments, withinSeg)
+        railCursorPositionForTotalProgression(activeIndex, segments, totalProg)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     val bookmarkRailPositions: StateFlow<List<Float>> = combine(
@@ -3833,8 +3825,7 @@ class EpubReaderViewModel constructor(
         val segments = snap.segments
         val segIdx = snap.activeSegmentIndex
 
-        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
-        if (totalPositions == 0f) return@combine null
+        if (totalRailWeight(segments) == 0f) return@combine null
 
         if (pbState.connected && raTrack != null) {
             val posGlobal = pbState.positionGlobalSec
@@ -3848,17 +3839,9 @@ class EpubReaderViewModel constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val chapterWeight = segments.getOrNull(segIdx)?.weight ?: return@combine null
-        val totalProg = snap.totalProgression ?: return@combine null
-        // Compute where this chapter ends as a fraction of the total book. This works even when a
-        // TOC entry spans multiple spine resources (e.g. a "Part I" title page followed by several
-        // chapter files) because totalProgression increases monotonically across all resources.
-        var weightBefore = 0f
-        for (k in 0 until segIdx) weightBefore += segments[k].weight
-        val chapterEndFrac = (weightBefore + chapterWeight) / totalPositions
-        val remainingFrac = (chapterEndFrac - totalProg).coerceAtLeast(0f)
-        val sec = (remainingFrac * totalPositions * speed).toLong().coerceAtLeast(0L)
-        TimeRemaining.Estimated(sec)
+        // The estimate itself is shared (ChapterMapDerivations) so iOS's chapter map reads the
+        // same number; only the exact-from-audio branch above is host-specific.
+        estimatedChapterTimeRemaining(segments, segIdx, snap.totalProgression, speed)
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val bookTimeRemaining: StateFlow<TimeRemaining?> = combine(
@@ -3869,8 +3852,7 @@ class EpubReaderViewModel constructor(
     ) { snap, pbState, raTrack, speed ->
         val segments = snap.segments
 
-        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
-        if (totalPositions == 0f) return@combine null
+        if (totalRailWeight(segments) == 0f) return@combine null
 
         if (pbState.connected && raTrack != null) {
             val posGlobal = pbState.positionGlobalSec
@@ -3878,9 +3860,7 @@ class EpubReaderViewModel constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val totalProg = snap.totalProgression ?: return@combine null
-        val sec = ((1f - totalProg) * totalPositions * speed).toLong().coerceAtLeast(0L)
-        TimeRemaining.Estimated(sec)
+        estimatedBookTimeRemaining(segments, snap.totalProgression, speed)
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // ---- SearchController delegations ----------------------------------------------------------

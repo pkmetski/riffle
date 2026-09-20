@@ -43,6 +43,7 @@ import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.settings.AppUpdateStatus
 import com.riffle.feature.settings.PanelOverflowOptions
 import com.riffle.feature.settings.ReadaloudMatchSummary
+import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.comicDisplaySummary
@@ -222,7 +223,7 @@ private fun MainSettingsContent(
         // ── Reading ───────────────────────────────────────────────────────────────────────
         SectionHeader("Reading")
         SettingsDrillInRow("Formatting", ReaderSettingsSummaries.formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
-        SettingsDrillInRow("Display", displayRowSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
+        SettingsDrillInRow("Display", ReaderSettingsSummaries.displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
         // No Auto-scroll / Cadence rows — see the SettingsPanel enum (#1072).
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
@@ -362,7 +363,10 @@ private fun FormattingPanelContent(prefs: FormattingPreferences, onPrefsChange: 
 }
 
 @Composable
-private fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
+// `internal` rather than private so SettingsDisplayPanelTest can drive the real panel: the five
+// On-Screen Info switches below are the only proof that the iOS Display panel offers them, and
+// they cannot be asserted through a derivation.
+internal fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
     PanelSection("Reading Mode")
     ChipRow(
         options = readingModeChipOptions,
@@ -394,9 +398,28 @@ private fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (Fo
         label = { ReaderSettingsSummaries.autoModeLabel(it) },
         onSelect = { onPrefsChange(prefs.copy(autoReaderThemeMode = it)) },
     )
-    // No "On-Screen Info" section. The chapter map, the current-chapter label, the reading
-    // progress labels and the time-remaining readout are reader overlays that do not exist on
-    // iOS yet (#1072), so those five toggles only ever wrote preferences nothing read.
+    // On-Screen Info — the five switches behind the chapter-map overlay the iOS reader now
+    // renders (:feature:reader-ui's ChapterMapOverlay, mounted by IosEpubReaderScreen). Same
+    // five flags, same order and same enablement rule as Android's DisplaySection.
+    PanelSection("On-Screen Info")
+    PanelToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
+    PanelToggleRow(
+        label = "Colored chapter map",
+        checked = prefs.coloredChapterMap,
+        // Shared rule, not a second copy of "it depends on the parent": a sub-setting of the
+        // chapter map greys out when the map is off.
+        enabled = ReaderSettingsSections.coloredChapterMapEnabled(prefs.showChapterMap),
+        onCheckedChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
+    )
+    PanelToggleRow("Current chapter label", prefs.showCurrentChapterLabel) {
+        onPrefsChange(prefs.copy(showCurrentChapterLabel = it))
+    }
+    PanelToggleRow("Reading progress labels", prefs.showReadingProgressLabels) {
+        onPrefsChange(prefs.copy(showReadingProgressLabels = it))
+    }
+    PanelToggleRow("Time remaining", prefs.showReadingTimeEstimate) {
+        onPrefsChange(prefs.copy(showReadingTimeEstimate = it))
+    }
 }
 
 @Composable
@@ -608,21 +631,35 @@ private fun MoveLibraryButton(label: String, name: String, enabled: Boolean, onC
 }
 
 @Composable
-private fun PanelToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun PanelToggleRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .testTag("panel-toggle-$label")
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(label, style = TextStyle(fontSize = 14.sp), modifier = Modifier.weight(1f))
+        BasicText(
+            label,
+            style = TextStyle(fontSize = 14.sp, color = if (enabled) Color.Unspecified else Color.Gray),
+            modifier = Modifier.weight(1f),
+        )
         BasicText(
             text = if (checked) "ON" else "OFF",
             style = TextStyle(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (checked) Color(0xFF1565C0) else Color.Gray,
+                color = when {
+                    !enabled -> Color.LightGray
+                    checked -> Color(0xFF1565C0)
+                    else -> Color.Gray
+                },
             ),
         )
     }
@@ -740,15 +777,6 @@ internal fun readaloudSubtitle(
     serverVersions: Map<String, String>,
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
 ): String = readaloudRowSummary(storyteller, serverVersions, readaloudSummaries)
-
-/**
- * Subtitle of the Display drill-in row. The chapter-map segment is dropped because the panel
- * behind this row has no chapter-map toggle — that overlay does not exist on iOS (#1072), so the
- * five On-Screen Info switches were deleted from `DisplayPanelContent`. Advertising "map on" above
- * a panel that cannot change it is the same inert-control defect, one screen up.
- */
-internal fun displayRowSummary(prefs: FormattingPreferences): String =
-    ReaderSettingsSummaries.displaySummary(prefs, includeChapterMap = false)
 
 // Chip option lists, named so SettingsScreenDerivationsTest can assert they stay enum-backed.
 // A hand-written list of English words is what made every tap on these rows a silent no-op the

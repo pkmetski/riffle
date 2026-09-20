@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader.ui
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -11,20 +11,19 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import com.riffle.app.feature.readersettings.palette
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.riffle.app.R
-import com.riffle.feature.reader.RailSegment
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.reader.RailSegment
+import com.riffle.feature.reader.railSegmentBounds
+import com.riffle.feature.reader.railSegmentIndexAt
 import kotlin.math.roundToInt
 
-internal val CHAPTER_RAIL_GROUP_COLORS = listOf(
+val CHAPTER_RAIL_GROUP_COLORS = listOf(
     Color(0xFFE66100), // Vivid orange
     Color(0xFF0072B2), // Strong blue
     Color(0xFF009E73), // Bluish green
@@ -35,46 +34,54 @@ internal val CHAPTER_RAIL_GROUP_COLORS = listOf(
     Color(0xFFB8860B), // Dark amber
 )
 
-internal fun chapterRailUsesGroups(segments: List<RailSegment>): Boolean =
+fun chapterRailUsesGroups(segments: List<RailSegment>): Boolean =
     segments.any { it.groupIndex != null }
 
-internal fun chapterRailHeight(flatHeight: Dp): Dp =
+fun chapterRailHeight(flatHeight: Dp): Dp =
     flatHeight
 
-internal const val CHAPTER_RAIL_UNREAD_ALPHA = 0.5f
-internal val CHAPTER_RAIL_CURSOR_HALO_WIDTH = 4.dp
-internal val CHAPTER_RAIL_CURSOR_CORE_WIDTH = 2.dp
-internal val CHAPTER_RAIL_BOOKMARK_DOT_RADIUS = 2.5.dp
+const val CHAPTER_RAIL_UNREAD_ALPHA = 0.5f
+val CHAPTER_RAIL_CURSOR_HALO_WIDTH = 4.dp
+val CHAPTER_RAIL_CURSOR_CORE_WIDTH = 2.dp
+val CHAPTER_RAIL_BOOKMARK_DOT_RADIUS = 2.5.dp
 
 // The halo is a ring around the dot, so it's defined relative to the dot radius rather than as an
 // independent size. Its 2dp bleed past the 4dp rail lands in the overlay backdrop, which is painted
 // the same reader-page background color the halo uses, so the overflow is invisible there.
-internal val CHAPTER_RAIL_BOOKMARK_HALO_RADIUS = CHAPTER_RAIL_BOOKMARK_DOT_RADIUS + 1.5.dp
+val CHAPTER_RAIL_BOOKMARK_HALO_RADIUS = CHAPTER_RAIL_BOOKMARK_DOT_RADIUS + 1.5.dp
 
-internal fun chapterRailUsesColorProgress(
+fun chapterRailUsesColorProgress(
     segments: List<RailSegment>,
     coloredChapterMap: Boolean = true,
 ): Boolean = coloredChapterMap && chapterRailUsesGroups(segments)
 
-internal fun chapterRailGroupColorIndex(groupIndex: Int): Int =
+fun chapterRailGroupColorIndex(groupIndex: Int): Int =
     groupIndex % CHAPTER_RAIL_GROUP_COLORS.size
 
-internal fun chapterRailUnreadGroupColor(groupIndex: Int): Color =
+fun chapterRailUnreadGroupColor(groupIndex: Int): Color =
     CHAPTER_RAIL_GROUP_COLORS[chapterRailGroupColorIndex(groupIndex)]
         .copy(alpha = CHAPTER_RAIL_UNREAD_ALPHA)
 
-internal fun chapterRailBookmarkXs(bookmarkPositions: List<Float>, totalWidth: Float): List<Float> =
+fun chapterRailBookmarkXs(bookmarkPositions: List<Float>, totalWidth: Float): List<Float> =
     bookmarkPositions.map { it.coerceIn(0f, 1f) * totalWidth }
 
-internal fun chapterRailProgressPercent(cursorPosition: Float): Int =
+fun chapterRailProgressPercent(cursorPosition: Float): Int =
     (cursorPosition.coerceIn(0f, 1f) * 100).roundToInt()
 
+/**
+ * The chapter rail — one shared implementation rendered by the Android app and the iOS app.
+ *
+ * [railContentDescription] is supplied by the caller because the string catalogue belongs to the
+ * host; [ChapterMapOverlay] builds it from [ChapterMapProgressLabelTemplates] so neither platform
+ * has to phrase it itself.
+ */
 @Composable
 fun ChapterNavigationRail(
     segments: List<RailSegment>,
     activeIndex: Int,
     cursorPosition: Float,
     readerTheme: ReaderTheme,
+    railContentDescription: String,
     onSegmentClick: (RailSegment) -> Unit,
     coloredChapterMap: Boolean = true,
     bookmarkPositions: List<Float> = emptyList(),
@@ -87,25 +94,18 @@ fun ChapterNavigationRail(
     // the page background (white / sepia / black), so MaterialTheme.surfaceVariant has no reliable
     // contrast there (it's near-white on a white page and the unread track vanishes). Page
     // foreground at graded alpha guarantees the track is visible on every theme.
-    val pageForeground = readerTheme.palette.foreground
+    val pageForeground = readerTheme.readerPalette.foreground
     val barColor = pageForeground.copy(alpha = 0.30f)
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
     // Shared by the cursor and the bookmark dots: a page-background halo keeps either mark
     // visible over every chapter color and on all three reader themes.
-    val haloColor = readerTheme.palette.background
+    val haloColor = readerTheme.readerPalette.background
     val cursorColor = pageForeground
     val bookmarkColor = MaterialTheme.colorScheme.primary
 
-    val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
     val clampedCursor = cursorPosition.coerceIn(0f, 1f)
     val useColorProgress = chapterRailUsesColorProgress(segments, coloredChapterMap)
     val effectiveRailHeight = chapterRailHeight(railHeight)
-    val progressPercent = chapterRailProgressPercent(clampedCursor)
-    val railContentDescription = stringResource(
-        R.string.ui_active_rail_segment_progress,
-        activeTitle,
-        progressPercent,
-    )
 
     Box(
         modifier = modifier
@@ -142,7 +142,7 @@ fun ChapterNavigationRail(
                         if (useColorProgress) {
                             val groupIndex = segments[i].groupIndex ?: 0
                             val groupColor = CHAPTER_RAIL_GROUP_COLORS[
-                                chapterRailGroupColorIndex(groupIndex)
+                                chapterRailGroupColorIndex(groupIndex),
                             ]
                             // Keep unread sections identifiable by chapter color, but mute them
                             // enough that the saturated read portion forms an unmistakable progress

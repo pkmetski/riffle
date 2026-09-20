@@ -41,6 +41,7 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher) = Unit
         override fun applyReaderPreferences(preferences: IosReaderPreferences) = Unit
         override fun getTocJson(): String = "[]"
+        override fun getSpineJson(): String = """{"hrefs":[],"positionCounts":[]}"""
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
     }
