@@ -32,6 +32,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.data.localfiles.FolderPickerInterface
+import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
@@ -59,8 +61,6 @@ import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.source.ui.settings.SourcesSection
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
-import com.riffle.core.data.localfiles.FolderPickerInterface
-import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 

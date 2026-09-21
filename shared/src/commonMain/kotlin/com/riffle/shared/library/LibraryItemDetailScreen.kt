@@ -35,8 +35,8 @@ import com.riffle.feature.library.BookDownloadOutcome
 import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.feature.library.bookDownloadOutcome
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
