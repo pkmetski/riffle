@@ -90,10 +90,10 @@ import com.riffle.feature.reader.ui.CadenceHudPill
 import com.riffle.feature.reader.ui.CadenceToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
-import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.SpeedHudLabels
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine

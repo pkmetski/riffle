@@ -64,6 +64,8 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
         }
         // The exhaustive ported suites (AddSourceViewModelTest & friends) live in the Android
         // host-test source set, not commonTest, purely because Kotlin/Native rejects backticked
@@ -97,4 +99,16 @@ val copyComposeResourcesForApk by tasks.registering(Copy::class) {
     dependsOn(tasks.matching { it.name == "prepareComposeResourcesTaskForCommonMain" })
     from(layout.buildDirectory.dir("generated/compose/resourceGenerator/preparedResources/commonMain/composeResources"))
     into(layout.buildDirectory.dir("composeAssetsForApk/composeResources/com.riffle.feature.source.ui.generated.resources"))
+}
+
+// `runComposeUiTest` cannot run on the Android HOST test task: Compose's UI-test harness needs a
+// real Android runtime (it dereferences a null `android.os.Build.FINGERPRINT` on a bare JVM) and
+// this repo has no Robolectric. The suite is not skipped — it runs for real on
+// `:feature:source-ui:iosSimulatorArm64Test`, which CI executes. Same arrangement, and the same
+// reason, as :feature:reader-ui and :feature:player-ui. Delete this if Robolectric is ever added.
+tasks.withType<Test>().configureEach {
+    filter {
+        excludeTestsMatching("com.riffle.feature.source.ui.CornerBookmarkIndicatorSharedTest")
+        isFailOnNoMatchingTests = false
+    }
 }

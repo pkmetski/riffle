@@ -1,4 +1,4 @@
-package com.riffle.feature.reader.ui
+package com.riffle.feature.source.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
