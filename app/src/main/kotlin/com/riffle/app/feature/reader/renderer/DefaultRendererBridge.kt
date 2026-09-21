@@ -6,6 +6,7 @@ import com.riffle.app.feature.reader.FigureTapScript
 import com.riffle.app.feature.reader.FootnoteAnchorBridge
 import com.riffle.app.feature.reader.RECT_TO_JSON_POLYFILL_JS
 import com.riffle.app.feature.reader.SELECTION_SPAN_TRACKER_JS
+import com.riffle.feature.reader.ScrollProbes
 import com.riffle.feature.reader.decorations.figureBorderApplyJs
 import com.riffle.feature.reader.decorations.figureBorderInjectionJs
 import com.riffle.app.feature.reader.firstVisibleSentenceJs
@@ -222,12 +223,12 @@ internal class DefaultRendererBridge(
         val frag = fragment ?: return Pair(false, false)
         // Two separate JS calls so the failure mode is obvious if either ever returns malformed
         // JSON; both are pure reads of scroll state — no writes here.
-        val atForward = frag.evaluateJavascript(
-            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()",
-        )?.trim('"') == "true"
-        val atBackward = frag.evaluateJavascript(
-            "(window.scrollY <= 4).toString()",
-        )?.trim('"') == "true"
+        val atForward = ScrollProbes.parseBooleanProbe(
+            frag.evaluateJavascript(ScrollProbes.AT_FORWARD_BOUNDARY_JS),
+        )
+        val atBackward = ScrollProbes.parseBooleanProbe(
+            frag.evaluateJavascript(ScrollProbes.AT_BACKWARD_BOUNDARY_JS),
+        )
         return Pair(atForward, atBackward)
     }
 
@@ -272,19 +273,9 @@ internal class DefaultRendererBridge(
 
     override suspend fun readViewportFraction(): Double? {
         val frag = fragment ?: return null
-        val raw = frag.evaluateJavascript(
-            """
-            (function() {
-              var iw = window.innerWidth, sw = document.documentElement.scrollWidth;
-              var ih = window.innerHeight, sh = document.documentElement.scrollHeight;
-              // Pick the overflow axis. Paginated overflows horizontally; vertical/no-overflow
-              // fall through to the height ratio.
-              var v = sw > iw ? (iw / sw) : (ih > 0 ? ih / sh : 0);
-              return isFinite(v) && v > 0 ? v.toString() : "";
-            })()
-            """.trimIndent(),
-        )?.trim('"') ?: return null
-        return raw.toDoubleOrNull()
+        return ScrollProbes.parseViewportFraction(
+            frag.evaluateJavascript(ScrollProbes.VIEWPORT_FRACTION_JS),
+        )
     }
 
     companion object {

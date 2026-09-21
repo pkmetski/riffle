@@ -12,6 +12,7 @@
 		A1C0DE020001 /* CadenceBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE020002 /* CadenceBridgeTests.swift */; };
 		A1C0DE030001 /* AnnotationBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE030002 /* AnnotationBridgeTests.swift */; };
 		A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE050002 /* AnnotationWireFormatTests.swift */; };
+		A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE060002 /* ScrollProbeBridgeTests.swift */; };
 		A1C0DE040001 /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
@@ -133,6 +134,7 @@
 		A1C0DE020002 /* CadenceBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CadenceBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE030002 /* AnnotationBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE050002 /* AnnotationWireFormatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationWireFormatTests.swift; sourceTree = "<group>"; };
+		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
 		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -234,6 +236,7 @@
 				A1C0DE020002 /* CadenceBridgeTests.swift */,
 				A1C0DE030002 /* AnnotationBridgeTests.swift */,
 				A1C0DE050002 /* AnnotationWireFormatTests.swift */,
+				A1C0DE060002 /* ScrollProbeBridgeTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -488,6 +491,7 @@
 				A1C0DE020001 /* CadenceBridgeTests.swift in Sources */,
 				A1C0DE030001 /* AnnotationBridgeTests.swift in Sources */,
 				A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */,
+				A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */,
 				A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */,
 				B1053010 /* EpubProgressionLocatorTests.swift in Sources */,
 				B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */,
