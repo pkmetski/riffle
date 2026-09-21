@@ -167,4 +167,35 @@ private fun addSourceViewModel(type: SourceType): AddSourceViewModel {
     return KoinPlatform.getKoin().get { parametersOf(routeType) }
 }
 
+/**
+ * The WebDAV annotation-sync connect form, reached from the Settings "Annotations Sync" row —
+ * the same entry point Android's `AnnotationsSyncSettingsScreen` uses.
+ *
+ * WebDAV is not a browsable Source and so is deliberately absent from [iosSupportedSourceTypes];
+ * it is a sidecar the user attaches to sync highlights and reading positions between devices.
+ * The form itself is the shared [AddSourceScreen] with [AddSourceBackend.Webdav] — this host
+ * exists only to hand the ViewModel that route param, because [SourceOnboardingHost] always
+ * builds a `Credentialed` backend and therefore could never construct this one.
+ */
+@Suppress("ktlint:standard:function-naming")
+@Composable
+fun WebdavOnboardingHost(
+    onFinished: () -> Unit,
+    onCancelled: () -> Unit,
+) {
+    val viewModel = remember { webdavAddSourceViewModel() }
+    AddSourceScreen(
+        isExpandedWidth = false,
+        onNavigateBack = onCancelled,
+        // WebDAV has no libraries to select and no PendingSource to commit: connecting is the
+        // whole flow, so both terminal callbacks finish.
+        onAuthenticated = { onFinished() },
+        onAutoCompleted = onFinished,
+        viewModel = viewModel,
+    )
+}
+
+private fun webdavAddSourceViewModel(): AddSourceViewModel =
+    KoinPlatform.getKoin().get { parametersOf(AddSourceBackend.Webdav.routeType) }
+
 private fun selectLibrariesViewModel(): SelectLibrariesViewModel = KoinPlatform.getKoin().get()

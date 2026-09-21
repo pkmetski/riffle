@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.feature.library.DownloadState
+import com.riffle.feature.source.ui.library.ReadaloudDownloadButton
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

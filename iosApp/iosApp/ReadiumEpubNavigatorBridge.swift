@@ -30,6 +30,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var pageLoadCallback: (() -> Void)?
     private var tapCallback: (() -> Void)?
     private var errorCallback: ((String) -> Void)?
+    private var selectionCallback: ((String?) -> Void)?
+    private var decorationActivatedCallback: ((String) -> Void)?
+    /// Decoration groups the Kotlin side asked to make tappable. Re-registered on every open,
+    /// because `observeDecorationInteractions` lives on the navigator instance, not on us.
+    private var activableGroups: Set<String> = []
     /// Seam for `presentExternalURL`. Production opens the URL in Safari; tests swap it to observe.
     var urlOpener: (URL) -> Void = { UIApplication.shared.open($0) }
     // Track the last-loaded resource href so pageLoadCallback fires only on resource
@@ -74,24 +79,39 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
                     initialLocator = try? Locator(json: jsonValue, warnings: nil)
                 }
 
-                let config = EPUBNavigatorViewController.Configuration(
-                    preferences: self.pendingPreferences
-                )
-                let navigator = try EPUBNavigatorViewController(
-                    publication: pub,
-                    initialLocation: initialLocator,
-                    config: config
-                )
-                navigator.delegate = self
-                self.epubNavigator = navigator
-                self.hostViewController.addChild(navigator)
-                navigator.view.frame = self.hostViewController.view.bounds
-                navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                self.hostViewController.view.addSubview(navigator.view)
-                navigator.didMove(toParent: self.hostViewController)
+                try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
                 // Ignore open errors — reader shows blank state
             }
+        }
+    }
+
+    /// Build the navigator, install it in the host controller and re-register every decoration
+    /// group the Kotlin side asked to observe.
+    ///
+    /// Shared by the file-based and lazy (O'Reilly) open paths so the two cannot drift: before
+    /// this existed the lazy path was a copy of the file path, and any wiring added to one would
+    /// silently not apply to the other.
+    @MainActor
+    private func attach(publication pub: Publication, initialLocator: Locator?) throws {
+        let config = EPUBNavigatorViewController.Configuration(
+            preferences: pendingPreferences,
+            decorationTemplates: RiffleDecorationTemplates.all()
+        )
+        let navigator = try EPUBNavigatorViewController(
+            publication: pub,
+            initialLocation: initialLocator,
+            config: config
+        )
+        navigator.delegate = self
+        epubNavigator = navigator
+        hostViewController.addChild(navigator)
+        navigator.view.frame = hostViewController.view.bounds
+        navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        hostViewController.view.addSubview(navigator.view)
+        navigator.didMove(toParent: hostViewController)
+        for group in activableGroups {
+            registerDecorationObserver(navigator, group: group)
         }
     }
 
@@ -142,21 +162,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
                     initialLocator = try? Locator(json: jsonValue, warnings: nil)
                 }
 
-                let config = EPUBNavigatorViewController.Configuration(
-                    preferences: self.pendingPreferences
-                )
-                let navigator = try EPUBNavigatorViewController(
-                    publication: pub,
-                    initialLocation: initialLocator,
-                    config: config
-                )
-                navigator.delegate = self
-                self.epubNavigator = navigator
-                self.hostViewController.addChild(navigator)
-                navigator.view.frame = self.hostViewController.view.bounds
-                navigator.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                self.hostViewController.view.addSubview(navigator.view)
-                navigator.didMove(toParent: self.hostViewController)
+                try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
                 // Ignore open errors — reader shows blank state
             }
@@ -184,6 +190,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             guard let nav = epubNavigator else { return }
             let decorations = parseDecorations(decorationsJson)
             nav.apply(decorations: decorations, in: group)
+            if group == ReaderDecorationGroups.shared.noteGlyphs, !decorations.isEmpty {
+                // Readium lays decorations out on its own animation frame, so the clamp has to
+                // run after — it retries for a bounded number of frames on its own.
+                _ = await nav.evaluateJavaScript(RiffleDecorationTemplates.noteGlyphClampJs())
+            }
         }
     }
 
@@ -301,10 +312,13 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return []
         }
-        return array.compactMap { parseDecoration($0) }
+        return array.flatMap { parseDecoration($0) }
     }
 
-    private func parseDecoration(_ dict: [String: Any]) -> Decoration? {
+    /// One payload entry can produce more than one `Decoration`: an emphasis row carrying both
+    /// `underline` and `strike` needs a decoration per style, because a Readium decoration has
+    /// exactly one style.
+    private func parseDecoration(_ dict: [String: Any]) -> [Decoration] {
         guard let id = dict["id"] as? String,
               let type = dict["type"] as? String,
               let locatorDict = dict["locator"] as? [String: Any],
@@ -312,9 +326,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
               let locatorString = String(data: locatorData, encoding: .utf8),
               let jsonValue = try? JSONValue(jsonString: locatorString),
               let locator = try? Locator(json: jsonValue, warnings: nil)
-        else { return nil }
+        else { return [] }
 
-        let style: Decoration.Style
         switch type {
         case "highlight":
             // The fallback comes from Kotlin, not from a literal here. The old "#FFFF00"/0.4 pair
@@ -323,18 +336,59 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             let defaults = ReaderHighlightDefaults.shared
             let colorHex = dict["color"] as? String ?? defaults.highlightHex
             let alpha = (dict["alpha"] as? NSNumber)?.floatValue ?? defaults.highlightAlpha
-            style = .highlight(tint: UIColor(hex: colorHex).withAlphaComponent(CGFloat(alpha)))
+            let tint = UIColor(hex: colorHex).withAlphaComponent(CGFloat(alpha))
+            return [Decoration(id: id, locator: locator, style: .highlight(tint: tint))]
         case "bookmark":
-            style = .highlight(tint: UIColor.systemBlue.withAlphaComponent(0.3))
+            // A gutter bar, not a wash: Android marks a bookmarked page with a corner ribbon and
+            // never paints over the text, and the `fragmentAnchor` in this locator means the bar
+            // lands on the paragraph the reader actually bookmarked.
+            return [Decoration(
+                id: id,
+                locator: locator,
+                style: Decoration.Style(
+                    id: RiffleDecorationTemplates.sidemarkStyleId,
+                    config: Decoration.Style.HighlightConfig(tint: .systemBlue)
+                )
+            )]
         case "noteGlyph":
-            style = .highlight(tint: UIColor.systemOrange.withAlphaComponent(0.3))
+            return [Decoration(
+                id: id,
+                locator: locator,
+                style: Decoration.Style(id: RiffleDecorationTemplates.noteGlyphStyleId, config: nil)
+            )]
         case "searchMark":
             let isCurrent = dict["isCurrent"] as? Bool ?? false
-            style = .highlight(tint: (isCurrent ? UIColor.systemYellow : UIColor.systemGray).withAlphaComponent(0.5))
+            let base = isCurrent ? UIColor.systemYellow : UIColor.systemGray
+            return [Decoration(
+                id: id,
+                locator: locator,
+                style: .highlight(tint: base.withAlphaComponent(0.5))
+            )]
+        case "emphasis":
+            // Only the two styles that can be drawn over text without changing its metrics reach
+            // here; bold and italic reflow the line and are applied by EmphasisDomInjector.
+            let tokens = (dict["styles"] as? String ?? "")
+                .split(separator: ",")
+                .map(String.init)
+            return tokens.compactMap { token in
+                let styleId: Decoration.Style.Id
+                switch token {
+                case "underline": styleId = .underline
+                case "strike": styleId = RiffleDecorationTemplates.strikeStyleId
+                default: return nil
+                }
+                return Decoration(
+                    id: "\(id)#\(token)",
+                    locator: locator,
+                    style: Decoration.Style(
+                        id: styleId,
+                        config: Decoration.Style.HighlightConfig(tint: .label)
+                    )
+                )
+            }
         default:
-            return nil
+            return []
         }
-        return Decoration(id: id, locator: locator, style: style)
     }
 }
 
@@ -345,6 +399,7 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         guard let json = try? locator.jsonString() else { return }
         cachedLocatorJson = json
         locatorCallback?(json)
+        emitSelectionIfCleared()
         let href = locator.href.string
         if href != lastLoadedHref {
             lastLoadedHref = href
@@ -353,7 +408,21 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     }
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+        emitSelectionIfCleared()
         tapCallback?()
+    }
+
+    /// Report a *cleared* selection.
+    ///
+    /// `shouldShowMenuForSelection` only fires for a new, non-nil selection —
+    /// `EditingActionsController` sets `isEnabled = false` and notifies nobody when the WKWebView
+    /// reports the selection gone. Without this the annotate sheet would stay on screen over a
+    /// page the user has already deselected, or already turned away from. These two delegate
+    /// callbacks are exactly the moments a selection can disappear: a tap elsewhere, and a page
+    /// turn.
+    private func emitSelectionIfCleared() {
+        guard epubNavigator?.currentSelection == nil else { return }
+        selectionCallback?(nil)
     }
 
     /// Tapping an external link in a book did nothing until #1071 §17 — this delegate method was
@@ -368,6 +437,24 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
         errorCallback?(String(describing: error))
     }
+
+    /// The selection seam.
+    ///
+    /// Readium-Swift has no "selection changed" delegate callback. `EditingActionsController`
+    /// does, however, ask this question from its `selection` property observer every time the
+    /// WKWebView reports a new selection, which makes it the one place the host learns that the
+    /// user selected text. Forwarding it here is what gives iOS an annotate affordance at all.
+    ///
+    /// Returns `true`: Riffle's sheet is shown *alongside* the system menu rather than replacing
+    /// it, so Copy / Look Up / Share keep working. Returning `false` (the documented
+    /// custom-pop-up route) would suppress the system menu and silently remove three features to
+    /// add one.
+    func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
+        if let json = Self.selectionJson(locator: selection.locator, frame: selection.frame) {
+            selectionCallback?(json)
+        }
+        return true
+    }
 }
 
 // MARK: - Test helpers
@@ -381,6 +468,13 @@ extension ReadiumEpubNavigatorBridge {
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
+    @objc func simulateSelection(_ json: String?) { selectionCallback?(json) }
+    @objc func simulateDecorationActivated(_ json: String) { decorationActivatedCallback?(json) }
+
+    /// The groups `observeDecorationGroup` has been asked to make tappable. Readium only
+    /// dispatches taps for registered groups, so a test that asserts "the highlight is
+    /// tappable" has to be able to see this.
+    var observedDecorationGroups: Set<String> { activableGroups }
 
     var lastAppliedDecorationsJson: String? { _lastAppliedDecorationsJson }
     var lastAppliedGroup: String? { _lastAppliedGroup }
@@ -538,6 +632,114 @@ extension ReadiumEpubNavigatorBridge {
                 counts = positions.map { "\($0.count)" }.joined(separator: ",")
             }
             self.cachedSpineJson = "{\"hrefs\":[\(hrefs)],\"positionCounts\":[\(counts)]}"
+        }
+    }
+}
+
+// MARK: - Annotations
+//
+// The selection, decoration-activation and chapter-source seam. In an extension rather than the
+// class body for the same reason the spine/scroll block below is: swiftlint's type_body_length
+// limit is a real signal that the class has grown past what one screen can hold.
+extension ReadiumEpubNavigatorBridge {
+
+    func setSelectionCallback(callback: ((String?) -> Void)?) {
+        selectionCallback = callback
+    }
+
+    func clearSelection() {
+        Task { @MainActor in
+            epubNavigator?.clearSelection()
+            selectionCallback?(nil)
+        }
+    }
+
+    func setDecorationActivatedCallback(callback: ((String) -> Void)?) {
+        decorationActivatedCallback = callback
+    }
+
+    /// Registers `group` with Readium so its decorations become tap targets, and remembers it so
+    /// a later `openEpub` re-registers it on the new navigator.
+    ///
+    /// Readium gates tap dispatch per group: `DecorationGroup.setActivable()` only runs for
+    /// groups passed to `observeDecorationInteractions`, and `findDecorationTarget` skips every
+    /// group that is not activable. Without this a highlight paints and the tap falls straight
+    /// through to `didTapAt`, toggling the chrome instead of opening the actions sheet.
+    func observeDecorationGroup(group: String) {
+        activableGroups.insert(group)
+        Task { @MainActor in
+            guard let nav = epubNavigator else { return }
+            self.registerDecorationObserver(nav, group: group)
+        }
+    }
+
+    @MainActor
+    private func registerDecorationObserver(_ nav: EPUBNavigatorViewController, group: String) {
+        nav.observeDecorationInteractions(inGroup: group) { [weak self] event in
+            guard let self, let callback = self.decorationActivatedCallback else { return }
+            callback(Self.activationJson(id: event.decoration.id, group: event.group, rect: event.rect))
+        }
+    }
+
+    /// `{"id":…,"group":…,"x":…,"y":…,"width":…,"height":…}`.
+    ///
+    /// Takes the three values rather than the `OnDecorationActivatedEvent` itself because that
+    /// struct's memberwise initializer is `internal` to ReadiumNavigator — a test could not
+    /// build one, and an untested hand-rolled JSON builder is exactly where a silent wire-shape
+    /// break lives.
+    static func activationJson(id: String, group: String, rect: CGRect?) -> String {
+        let escapedId = id.jsonEscaped
+        let escapedGroup = group.jsonEscaped
+        guard let rect else {
+            return #"{"id":"\#(escapedId)","group":"\#(escapedGroup)"}"#
+        }
+        return #"{"id":"\#(escapedId)","group":"\#(escapedGroup)","x":\#(rect.origin.x),"y":\#(rect.origin.y),"#
+            + #""width":\#(rect.size.width),"height":\#(rect.size.height)}"#
+    }
+
+    /// `{"locatorJson":…,"href":…,"text":…,"before":…,"after":…,"progression":…,rect}`.
+    ///
+    /// `locatorJson` is carried as an escaped *string*, not a nested object, because the Kotlin
+    /// side hands it straight back to `goToLocator` / the annotation domain without reparsing.
+    /// Takes a `Locator` and a frame rather than a `Selection` for the same reason
+    /// [activationJson] does: `Selection`'s initializer is internal to ReadiumNavigator.
+    static func selectionJson(locator: Locator, frame: CGRect?) -> String? {
+        guard let locatorJson = try? locator.jsonString() else { return nil }
+        let text = locator.text
+        var out = #"{"locatorJson":"\#(locatorJson.jsonEscaped)""#
+        out += #","href":"\#(locator.href.string.jsonEscaped)""#
+        out += #","text":"\#((text.highlight ?? "").jsonEscaped)""#
+        out += #","before":"\#((text.before ?? "").jsonEscaped)""#
+        out += #","after":"\#((text.after ?? "").jsonEscaped)""#
+        out += #","progression":\#(locator.locations.progression ?? 0)"#
+        if let rect = frame {
+            out += #","x":\#(rect.origin.x),"y":\#(rect.origin.y)"#
+            out += #","width":\#(rect.size.width),"height":\#(rect.size.height)"#
+        }
+        return out + "}"
+    }
+
+    /// The chapter's source XHTML, read straight out of the publication.
+    ///
+    /// Everything the shared annotation domain decides — the CFI range, the merge, the enclosed
+    /// figures — is computed from these exact bytes, so this must NOT come from the live
+    /// WKWebView: Readium has already injected its own scripts there, and once Cadence has run
+    /// every sentence is wrapped in a span. The readable-character offsets would not match the
+    /// ones Android derives for the same book and the CFI would point at the wrong text.
+    func readResource(href: String, onResult: @escaping (String?) -> Void) {
+        Task {
+            guard let pub = self.publication,
+                  let url = AnyURL(string: href),
+                  let resource = pub.get(url)
+            else {
+                onResult(nil)
+                return
+            }
+            guard case .success(let data) = await resource.read() else {
+                onResult(nil)
+                return
+            }
+            onResult(String(data: data, encoding: .utf8))
         }
     }
 }

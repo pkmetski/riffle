@@ -30,6 +30,49 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+              "Open in Riffle". A book arriving from Files, a mail attachment, a browser download
+              or a share sheet lands here; MainActivity.handleIntent copies it into the app-owned
+              "Riffle Imports" folder and installs it as an ordinary Local Files book.
+
+              Both a mime-type filter and an extension filter are declared because the two miss
+              different senders: a content provider that reports `application/octet-stream` (most
+              mail clients, for EPUB and CBZ) is only caught by the extension pattern, and a
+              provider whose URI has no file extension at all is only caught by the mime type.
+            -->
+            <intent-filter android:label="@string/ui_open_in_riffle">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/vnd.comicbook+zip" />
+                <data android:mimeType="application/x-cbz" />
+                <data android:mimeType="application/vnd.comicbook-rar" />
+                <data android:mimeType="application/x-cbr" />
+            </intent-filter>
+            <intent-filter android:label="@string/ui_open_in_riffle">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.epub" />
+                <data android:pathPattern=".*\\.pdf" />
+                <data android:pathPattern=".*\\.cbz" />
+                <data android:pathPattern=".*\\.cbr" />
+            </intent-filter>
+            <intent-filter android:label="@string/ui_open_in_riffle">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/vnd.comicbook+zip" />
+                <data android:mimeType="application/x-cbz" />
+            </intent-filter>
         </activity>
 
         <service

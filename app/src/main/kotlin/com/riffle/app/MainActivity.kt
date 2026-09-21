@@ -1,8 +1,11 @@
 package com.riffle.app
 
 import com.riffle.feature.navigation.NowPlayingNavigator
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -39,7 +42,13 @@ import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
 import com.riffle.app.navigation.MainScreen
 import com.riffle.app.ui.BottomNavBarScrim
+import com.riffle.core.data.localfiles.OpenInImportFeed
+import com.riffle.core.data.localfiles.OpenInImportResult
+import com.riffle.core.data.localfiles.OpenInImporter
+import com.riffle.feature.source.ui.OpenInImportMessages
+import com.riffle.feature.source.ui.RiffleSnackbarHost
 import com.riffle.feature.source.ui.RiffleTheme
+import com.riffle.feature.source.ui.rememberTransientMessages
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ResolvedAppearance
@@ -50,6 +59,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
 
@@ -59,6 +69,8 @@ class MainActivity : FragmentActivity() {
     private val appearanceCoordinator: AppearanceCoordinator by inject()
     private val nowPlayingNavigator: NowPlayingNavigator by inject()
     private val autoScrollController: AutoScrollController by inject()
+    private val openInImporter: OpenInImporter by inject()
+    private val openInImportFeed: OpenInImportFeed by inject()
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
@@ -131,9 +143,15 @@ class MainActivity : FragmentActivity() {
                 RiffleTheme(darkTheme = isDark) {
                     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
                     val windowSizeClass = calculateWindowSizeClass(this)
+                    // "Open in Riffle" runs before any screen exists — the file arrives with the
+                    // intent that launched the activity — so its outcome is drained here at the
+                    // composition root, through the same shared host iOS uses.
+                    val importMessages = rememberTransientMessages()
+                    OpenInImportMessages(feed = openInImportFeed, messages = importMessages)
                     Box(Modifier.fillMaxSize()) {
                         MainScreen(windowSizeClass = windowSizeClass)
                         BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
+                        RiffleSnackbarHost(importMessages)
                     }
                 }
             }
@@ -216,19 +234,69 @@ class MainActivity : FragmentActivity() {
             windowManager.defaultDisplay.rotation
         }
 
-    /** Routes a media-notification tap to the active player; [MainScreen] reads NowPlayingStore. */
+    /**
+     * Routes the two intents that can reach this activity other than a plain launch: a
+     * media-notification tap (opens the player; [MainScreen] reads NowPlayingStore), and an
+     * "Open in Riffle" book handed over by Files, Mail, a browser download or the share sheet.
+     */
     private fun handleIntent(intent: Intent?) {
         if (intent?.action == ACTION_OPEN_NOW_PLAYING) {
             nowPlayingNavigator.requestOpen()
             // The activity retains its launch intent, so consume the action — otherwise a later
             // recreation (e.g. rotation) would re-fire this and yank the user back to the player.
             intent.action = null
+            return
+        }
+        val incoming = incomingBookUri(intent) ?: return
+        // Same reason the action above is consumed: the activity keeps its launch intent, and a
+        // rotation would otherwise re-import the same file on every recreation.
+        intent?.action = null
+        val displayName = contentResolver.displayNameFor(incoming)
+        lifecycleScope.launch {
+            val result = runCatching {
+                openInImporter.importFile(locator = incoming.toString(), displayName = displayName)
+            }.getOrElse { OpenInImportResult.Failed(displayName, it.message ?: "import failed") }
+            openInImportFeed.publish(result)
         }
     }
 
     companion object {
         const val ACTION_OPEN_NOW_PLAYING = "com.riffle.app.action.OPEN_NOW_PLAYING"
     }
+}
+
+/**
+ * The book URI an incoming intent carries, or null when the intent is not an "Open in Riffle".
+ *
+ * `ACTION_VIEW` puts it in `data`; a share sheet (`ACTION_SEND`) puts it in `EXTRA_STREAM`
+ * instead and leaves `data` null, which is why both are read. Pure over the intent so the
+ * routing rule is unit-testable without an Activity.
+ */
+internal fun incomingBookUri(intent: Intent?): Uri? {
+    if (intent == null) return null
+    return when (intent.action) {
+        Intent.ACTION_VIEW -> intent.data
+        Intent.ACTION_SEND ->
+            @Suppress("DEPRECATION")
+            (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)
+        else -> null
+    }
+}
+
+/**
+ * The file name to show and to derive the title from. Prefers the provider's
+ * `OpenableColumns.DISPLAY_NAME` — a `content://` URI's last path segment is routinely an opaque
+ * id with no extension, and the extension is what decides whether the file is accepted at all.
+ */
+internal fun ContentResolver.displayNameFor(uri: Uri): String {
+    val fromProvider = runCatching {
+        query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrNull()
+    return fromProvider?.takeIf { it.isNotBlank() }
+        ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+        ?: "book"
 }
 
 // Readium navigator fragments (EpubNavigatorFragment, PdfiumNavigatorFragment) have no

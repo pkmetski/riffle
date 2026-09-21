@@ -11,6 +11,7 @@ import org.jsoup.nodes.TextNode
 import com.riffle.feature.reader.buildHighlightCfiRange
 import com.riffle.feature.reader.figureHrefFilename
 import com.riffle.feature.reader.locateSnippetInBody
+import com.riffle.feature.reader.normalizeCaptionText
 
 /**
  * Opportunistically upgrades legacy `TYPE_IMAGE` annotations (figure long-presses whose caption
@@ -358,12 +359,3 @@ internal class CaptionHighlightUpgrader(
         val CAPTION_PREFIX_REGEX = Regex("^\\s*(Figure|Fig\\.?|Table|Chart)\\s+\\d", RegexOption.IGNORE_CASE)
     }
 }
-
-/**
- * Shared caption-identity normalizer used by both [CaptionHighlightUpgrader]'s dedup pass and
- * [EpubReaderViewModel.onFigureLongPress]'s dedup check — squashes internal whitespace runs so
- * different renderers of "the same" caption (`textSnippet` captured with newlines, jsoup
- * `text()` collapsed) both compare equal.
- */
-internal fun normalizeCaptionText(text: String): String =
-    text.replace(Regex("\\s+"), " ").trim()

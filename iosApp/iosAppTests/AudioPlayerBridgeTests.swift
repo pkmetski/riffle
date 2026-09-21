@@ -24,7 +24,7 @@ final class AudioPlayerBridgeTests: XCTestCase {
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         trackUrls = try (0..<3).map { index in
             let url = tempDir.appendingPathComponent("track\(index).wav")
-            try Self.writeSilentWav(seconds: trackSeconds, to: url)
+            try writeSilentWav(seconds: trackSeconds, to: url)
             return url
         }
     }
@@ -263,6 +263,49 @@ final class AudioPlayerBridgeTests: XCTestCase {
         XCTAssertEqual(center.skipBackwardCommand.preferredIntervals, [5])
     }
 
+    // MARK: - #1072 §3: why a bundle-backed book has to be extracted before it is queued
+
+    /// The premise behind `BundleAudioExtractor`.
+    ///
+    /// A bundle-backed session (ADR 0027) carries the zip's *entry* paths as its track URLs. Those
+    /// reached this bridge unchanged, `URL(string:)` parsed each one as a **schemeless relative
+    /// URL**, `AVPlayerItem` accepted it without complaint — and the book played silence with a
+    /// playhead that never moved. Nothing in Swift can fix that: the bytes are inside a zip, so the
+    /// Kotlin side materialises them as files first.
+    func testAZipEntryPathQueuesAnItemThatNeverPlays() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        let entryPaths = ["OEBPS/audio/part0001.mp4", "OEBPS/audio/part0002.mp4"]
+        XCTAssertNil(
+            URL(string: entryPaths[0])?.scheme,
+            "a zip-entry path parses as a relative URL — this is the trap the extractor exists for"
+        )
+
+        bridge.preparePlayer(trackUrls: entryPaths, startTrackIndex: 0, startOffsetSec: 0)
+        bridge.play()
+
+        XCTAssertFalse(
+            waitUntil(timeout: 2) { bridge.currentTrackOffsetSec() > 0.1 },
+            "a schemeless track cannot advance the playhead — offset was \(bridge.currentTrackOffsetSec())"
+        )
+        bridge.pause()
+    }
+
+    /// The positive half: once the Kotlin extractor has turned those entries into files, the very
+    /// same bridge call plays them. This is what a bundle-backed book now does.
+    func testExtractedFileUrlsPlayThrough() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+        bridge.play()
+
+        XCTAssertTrue(
+            waitUntil { bridge.currentTrackOffsetSec() > 0.1 },
+            "file:// tracks must actually advance the playhead"
+        )
+        bridge.pause()
+    }
+
     // MARK: - Helpers
 
     private final class PositionRecorder: NSObject, IosPositionCallback {
@@ -284,37 +327,39 @@ final class AudioPlayerBridgeTests: XCTestCase {
         }
         return condition()
     }
+}
 
-    /// 8 kHz mono 16-bit PCM silence — enough for AVURLAsset to treat it as a real, seekable track
-    /// without shipping a binary fixture into the unit-test target (which has no resources phase).
-    private static func writeSilentWav(seconds: Double, to url: URL) throws {
-        let sampleRate = 8000
-        let frameCount = Int(Double(sampleRate) * seconds)
-        let dataSize = frameCount * 2
-        var data = Data()
-        func appendAscii(_ text: String) { data.append(text.data(using: .ascii)!) }
-        func append32(_ value: UInt32) {
-            var le = value.littleEndian
-            withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
-        }
-        func append16(_ value: UInt16) {
-            var le = value.littleEndian
-            withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
-        }
-        appendAscii("RIFF")
-        append32(UInt32(36 + dataSize))
-        appendAscii("WAVE")
-        appendAscii("fmt ")
-        append32(16)
-        append16(1)
-        append16(1)
-        append32(UInt32(sampleRate))
-        append32(UInt32(sampleRate * 2))
-        append16(2)
-        append16(16)
-        appendAscii("data")
-        append32(UInt32(dataSize))
-        data.append(Data(count: dataSize))
-        try data.write(to: url)
+// MARK: - Fixture
+
+/// 8 kHz mono 16-bit PCM silence — enough for AVURLAsset to treat it as a real, seekable track
+/// without shipping a binary fixture into the unit-test target (which has no resources phase).
+private func writeSilentWav(seconds: Double, to url: URL) throws {
+    let sampleRate = 8000
+    let frameCount = Int(Double(sampleRate) * seconds)
+    let dataSize = frameCount * 2
+    var data = Data()
+    func appendAscii(_ text: String) { data.append(text.data(using: .ascii)!) }
+    func append32(_ value: UInt32) {
+        var le = value.littleEndian
+        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
     }
+    func append16(_ value: UInt16) {
+        var le = value.littleEndian
+        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+    }
+    appendAscii("RIFF")
+    append32(UInt32(36 + dataSize))
+    appendAscii("WAVE")
+    appendAscii("fmt ")
+    append32(16)
+    append16(1)
+    append16(1)
+    append32(UInt32(sampleRate))
+    append32(UInt32(sampleRate * 2))
+    append16(2)
+    append16(16)
+    appendAscii("data")
+    append32(UInt32(dataSize))
+    data.append(Data(count: dataSize))
+    try data.write(to: url)
 }

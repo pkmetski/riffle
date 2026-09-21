@@ -43,8 +43,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.PlaybackSpeed
-import com.riffle.app.feature.audio.PlaybackSpeedControl
-import com.riffle.app.feature.audio.SKIP_NUMBER_DOWN_FRACTION
+import com.riffle.feature.player.ui.PlaybackSpeedControl
+import com.riffle.feature.player.ui.SKIP_NUMBER_DOWN_FRACTION
 
 /**
  * The mini-player speed control: a compact chip on the bar that opens the shared granular speed
@@ -57,7 +57,12 @@ private fun SpeedControl(
     contentColor: Color,
     onSpeedChange: (Float) -> Unit,
 ) {
-    PlaybackSpeedControl(speed = speed, onSpeedChange = onSpeedChange, tagPrefix = "readaloud") { onClick ->
+    PlaybackSpeedControl(
+        speed = speed,
+        onSpeedChange = onSpeedChange,
+        tagPrefix = "readaloud",
+        title = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_playback_speed),
+    ) { onClick ->
         // Compact chip-style label. One tap toggles the sheet; there are no inline steppers and no
         // press-and-hold gesture — all adjustment happens in the sheet.
         Surface(

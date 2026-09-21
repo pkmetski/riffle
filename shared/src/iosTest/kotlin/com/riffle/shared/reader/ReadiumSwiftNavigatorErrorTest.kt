@@ -54,6 +54,27 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
 
+        override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) {
+            selectionCallback = callback
+        }
+        var selectionCallback: ((String?) -> Unit)? = null
+        var clearSelectionCalls = 0
+        override fun clearSelection() {
+            clearSelectionCalls++
+        }
+        override fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?) {
+            decorationCallback = callback
+        }
+        var decorationCallback: ((String) -> Unit)? = null
+        val observedGroups = mutableListOf<String>()
+        override fun observeDecorationGroup(group: String) {
+            observedGroups += group
+        }
+        var resources: Map<String, String> = emptyMap()
+        override fun readResource(href: String, onResult: (String?) -> Unit) {
+            onResult(resources[href])
+        }
+
         /** Scripts handed to the WebView, newest last, and the canned answer for each. */
         val evaluated = mutableListOf<String>()
         var jsResult: String? = null

@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
-import com.riffle.app.feature.library.DownloadProgressIndicator
+import com.riffle.feature.source.ui.library.DownloadProgressIndicator
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.library.DownloadState
 import com.riffle.core.dictionary.InstalledPack

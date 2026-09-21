@@ -52,7 +52,7 @@ import com.riffle.app.feature.settings.sections.DeveloperOptionsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
 import com.riffle.app.feature.settings.sections.ReadingSection
-import com.riffle.app.feature.settings.sections.SourcesSection
+import com.riffle.feature.source.ui.settings.SourcesSection
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.i18n.findActivity
 import com.riffle.app.ui.TabletContentWidthContainer
@@ -160,20 +160,21 @@ fun SettingsScreen(
             ) {
                 HorizontalDivider()
 
+                SettingsSectionHeader(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sources))
                 SourcesSection(
                     servers = servers,
                     localFilesSource = localFilesSource,
                     localFilesFolders = localFilesFolders,
                     localFilesFolderHealth = localFilesFolderHealth,
                     singletonWebSources = singletonWebSources,
-                    serverVersions = serverVersions,
+                    sourceVersions = serverVersions,
                     libraryItemsBySource = libraryItemsBySource,
                     readaloudSummaries = readaloudSummaries,
-                    expandedServers = expandedServers,
+                    expandedSources = expandedServers,
                     onNavigateToAddSourcePicker = onNavigateToAddSourcePicker,
                     onNavigateToAddLocalFolder = onNavigateToAddLocalFolder,
                     onOpenReadaloudMatches = { /* Storyteller no longer appears in the Sources list; wire is a no-op. */ },
-                    onRemoveServer = viewModel::removeServer,
+                    onRemoveSource = viewModel::removeServer,
                     onRemoveLocalFolder = viewModel::removeLocalFolder,
                     onRemoveLocalFilesSource = viewModel::removeLocalFilesSource,
                     onSetLibraryVisible = viewModel::setLibraryVisible,

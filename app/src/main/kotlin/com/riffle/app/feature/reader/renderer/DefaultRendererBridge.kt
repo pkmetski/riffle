@@ -6,8 +6,8 @@ import com.riffle.app.feature.reader.FigureTapScript
 import com.riffle.app.feature.reader.FootnoteAnchorBridge
 import com.riffle.app.feature.reader.RECT_TO_JSON_POLYFILL_JS
 import com.riffle.app.feature.reader.SELECTION_SPAN_TRACKER_JS
-import com.riffle.app.feature.reader.decorations.figureBorderApplyJs
-import com.riffle.app.feature.reader.decorations.figureBorderInjectionJs
+import com.riffle.feature.reader.decorations.figureBorderApplyJs
+import com.riffle.feature.reader.decorations.figureBorderInjectionJs
 import com.riffle.app.feature.reader.firstVisibleSentenceJs
 import com.riffle.app.feature.reader.readaloudReserveApplyJs
 import com.riffle.app.feature.reader.readaloudReserveInjectionJs
@@ -67,8 +67,8 @@ internal class DefaultRendererBridge(
 
     override suspend fun applyFigureBorders(
         cssRules: List<String>,
-        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
-        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark>,
+        svgMatches: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.RasterMark>,
     ) {
         val frag = fragment ?: return
         frag.evaluateJavascript(figureBorderInjectionJs())

@@ -1,5 +1,7 @@
 package com.riffle.feature.reader
 
+import com.riffle.core.models.EmphasisStyle
+
 /**
  * Readium Locator serialised to JSON — the platform-neutral position currency used throughout
  * the reader. Readium Android produces these via `Locator.toJSON().toString()`; the iOS
@@ -48,6 +50,24 @@ sealed class NavigatorDecoration {
         override val id: String,
         val locatorJson: LocatorJson,
     ) : NavigatorDecoration()
+
+    /**
+     * A `TYPE_EMPHASIS` range (ADR 0056) rendered as a decoration.
+     *
+     * Only [EmphasisStyle.UNDERLINE] and [EmphasisStyle.STRIKE] belong here: they are drawn
+     * *over* the text and do not change its metrics. [EmphasisStyle.BOLD] and
+     * [EmphasisStyle.ITALIC] reflow the line, so both platforms apply them by mutating the DOM
+     * before the navigator measures decoration rects — Android via
+     * `EmphasisDomInjector`, iOS via the same shared script through the JS seam. Sending them
+     * here would silently paint nothing.
+     *
+     * [styles] may carry the full set; the renderer picks out the two it can draw.
+     */
+    data class Emphasis(
+        override val id: String,
+        val locatorJson: LocatorJson,
+        val styles: Set<EmphasisStyle>,
+    ) : NavigatorDecoration()
 }
 
 /** Events the navigator emits in response to user interaction. */
@@ -86,6 +106,41 @@ sealed class NavigatorEvent {
     /** User tapped an annotation note glyph. */
     data class AnnotationGlyphTap(val href: String, val annotationId: String) : NavigatorEvent()
 }
+
+/**
+ * A rectangle in the navigator view's own coordinate space, in density-independent units.
+ *
+ * Carried so the host can anchor a popup next to what the user touched. Android already passes
+ * an `IntRect` through `onHighlight` / `onDecorationActivated`; this is the platform-neutral
+ * shape of the same thing.
+ */
+data class NavigatorRect(val x: Float, val y: Float, val width: Float, val height: Float)
+
+/**
+ * A live text selection in the rendered publication.
+ *
+ * [text] / [before] / [after] are Readium's `Locator.Text` triple — the text-quote anchor the
+ * whole annotation domain is built on. [progression] is the *page's* progression, not the
+ * selection's: both Readium implementations report the visible page's position and attach the
+ * selected text to it, which is why `buildHighlightAnchor` re-derives the true within-chapter
+ * position from the chapter HTML instead of trusting this value.
+ */
+data class NavigatorSelection(
+    val locatorJson: LocatorJson,
+    val href: String,
+    val text: String,
+    val before: String,
+    val after: String,
+    val progression: Double,
+    val rect: NavigatorRect?,
+)
+
+/** The user tapped a rendered decoration. [id] is the annotation id, [group] its decoration group. */
+data class NavigatorDecorationActivation(
+    val id: String,
+    val group: String,
+    val rect: NavigatorRect?,
+)
 
 /** A navigator page-turn direction. */
 enum class NavigatorPageDirection { Forward, Backward }

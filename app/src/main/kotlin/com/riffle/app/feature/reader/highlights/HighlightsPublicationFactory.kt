@@ -23,6 +23,7 @@ import org.readium.r2.shared.util.data.ReadError
 import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.resource.Resource
 import com.riffle.feature.reader.toCssRgba
+import com.riffle.feature.reader.normalizeCaptionText
 
 /**
  * Sentinel `originFontFamily` value written on annotation entities when the WebView had no live
@@ -34,7 +35,8 @@ import com.riffle.feature.reader.toCssRgba
  * plain `serif` for backwards compatibility with rows already written before the regression fix.
  * Issue #484 + elided-view-serif-font-regression follow-up.
  */
-internal const val FALLBACK_ORIGIN_FONT_FAMILY = "serif"
+internal const val FALLBACK_ORIGIN_FONT_FAMILY =
+    com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
 
 /**
  * Bare CSS generic font keywords that can never be trusted as a *captured publisher face*.
@@ -445,7 +447,7 @@ private fun appendInterleavedHighlight(
     emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
     val figures = highlight.decodedEmbeddedFigures()?.sortedBy { it.order }.orEmpty()
-    val normalizedSnippetOuter = com.riffle.app.feature.reader.normalizeCaptionText(highlight.textSnippet)
+    val normalizedSnippetOuter = normalizeCaptionText(highlight.textSnippet)
     if (figures.isEmpty() || figures.any { it.charOffset == null }) {
         // Caption-highlight shape (2026-07-14): the annotation is a HIGHLIGHT that covers only
         // the figure's caption text, with the figure as its sole embeddedFigure. Natural
@@ -468,7 +470,7 @@ private fun appendInterleavedHighlight(
         val singleFigure = figures.singleOrNull()
         val isCaptionHighlight = singleFigure != null && (
             (singleFigure.caption.isNotBlank() &&
-                com.riffle.app.feature.reader.normalizeCaptionText(singleFigure.caption) == normalizedSnippetOuter) ||
+                normalizeCaptionText(singleFigure.caption) == normalizedSnippetOuter) ||
                 (singleFigure.caption.isBlank() && CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippetOuter))
             )
         if (isCaptionHighlight) {
@@ -480,7 +482,7 @@ private fun appendInterleavedHighlight(
         figures.forEach { fig ->
             val effective = if (
                 fig.caption.isNotBlank() &&
-                com.riffle.app.feature.reader.normalizeCaptionText(fig.caption) == normalizedSnippetOuter
+                normalizeCaptionText(fig.caption) == normalizedSnippetOuter
             ) fig.copy(caption = "") else fig
             appendFigureBlock(sb, effective, highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
         }
@@ -490,7 +492,7 @@ private fun appendInterleavedHighlight(
         snippet = highlight.textSnippet,
         offsets = figures.map { it.charOffset },
     )
-    val normalizedSnippet = com.riffle.app.feature.reader.normalizeCaptionText(highlight.textSnippet)
+    val normalizedSnippet = normalizeCaptionText(highlight.textSnippet)
     // Emit alternating: chunk[0], figure[0], chunk[1], figure[1], ..., chunk[last].
     chunks.forEachIndexed { index, chunk ->
         if (chunk.isNotEmpty()) {
@@ -505,7 +507,7 @@ private fun appendInterleavedHighlight(
             // guard is caption-highlight-specific.
             val effectiveFigure = if (
                 fig.caption.isNotBlank() &&
-                com.riffle.app.feature.reader.normalizeCaptionText(fig.caption) == normalizedSnippet
+                normalizeCaptionText(fig.caption) == normalizedSnippet
             ) fig.copy(caption = "") else fig
             appendFigureBlock(sb, effectiveFigure, highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
         }

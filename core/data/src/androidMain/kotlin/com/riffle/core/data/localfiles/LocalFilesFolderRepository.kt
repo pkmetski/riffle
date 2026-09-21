@@ -34,12 +34,18 @@ class LocalFilesFolderRepository constructor(
      * folder's books in the drawer and catalog.
      */
     suspend fun addFolder(sourceId: String, treeUri: Uri): String {
-        context.contentResolver.takePersistableUriPermission(
-            treeUri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
         val treeUriStr = treeUri.toString()
-        val displayName = DocumentFile.fromTreeUri(context, treeUri)?.name
+        // The managed imports folder lives inside our own container and has no SAF grant to
+        // take — asking for one throws SecurityException, which used to be the only reason
+        // "Open in Riffle" could not reuse the ordinary folder-install path.
+        val appOwned = ManagedImportsFolders.isAppOwned(treeUriStr)
+        if (!appOwned) {
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+        val displayName = (if (appOwned) null else DocumentFile.fromTreeUri(context, treeUri)?.name)
             ?: treeUri.lastPathSegment
             ?: treeUriStr
         val existing = folderDao.forSource(sourceId).firstOrNull { it.treeUri == treeUriStr }
@@ -73,13 +79,15 @@ class LocalFilesFolderRepository constructor(
      */
     suspend fun removeFolder(sourceId: String, treeUri: String) {
         val folder = folderDao.forSource(sourceId).firstOrNull { it.treeUri == treeUri }
-        try {
-            context.contentResolver.releasePersistableUriPermission(
-                Uri.parse(treeUri),
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-        } catch (_: SecurityException) {
-            // Grant may already be gone (e.g. user cleared app data). Fall through.
+        if (!ManagedImportsFolders.isAppOwned(treeUri)) {
+            try {
+                context.contentResolver.releasePersistableUriPermission(
+                    Uri.parse(treeUri),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            } catch (_: SecurityException) {
+                // Grant may already be gone (e.g. user cleared app data). Fall through.
+            }
         }
         fileFolderDao.deleteFolder(sourceId, treeUri)
         folderDao.delete(sourceId, treeUri)

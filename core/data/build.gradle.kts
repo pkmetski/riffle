@@ -41,6 +41,10 @@ kotlin {
             // ProgressReconciler primitives (ProgressRemoteFactory, ReconcileLocks) shared with
             // Android's server-sync wiring.
             implementation(project(":core:sync"))
+            // CatalogRemoteProgressIndex drives the WebDAV PROPFIND enumeration. It moved out of
+            // androidMain once core:sources' webdav package became multiplatform (#1072), which
+            // is what gives iOS the clean-row branch of cross-device progress at all.
+            implementation(project(":core:sources"))
         }
         androidMain.dependencies {
             implementation(project(":core:dictionary"))

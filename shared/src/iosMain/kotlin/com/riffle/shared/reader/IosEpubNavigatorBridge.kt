@@ -39,6 +39,71 @@ interface IosEpubNavigatorBridge {
     fun setTapCallback(callback: (() -> Unit)?)
 
     /**
+     * Register a callback for text-selection changes — the seam that makes annotation *creation*
+     * possible at all.
+     *
+     * Readium-Swift has no "selection changed" delegate method. What it does have is
+     * `SelectableNavigatorDelegate.navigator(_:shouldShowMenuForSelection:)`, which
+     * `EditingActionsController` invokes from its `selection` property observer every time the
+     * WKWebView reports a new selection. The Swift bridge implements it, forwards the selection
+     * here and returns `true`, so the reader still gets the system Copy / Look Up / Share menu
+     * on top of Riffle's own annotate sheet.
+     *
+     * [selectionJson] is `null` when the selection is cleared, otherwise:
+     * ```json
+     * {"locatorJson":"<escaped Readium Locator JSON>","href":"…","text":"…","before":"…",
+     *  "after":"…","progression":0.42,"x":12.0,"y":340.0,"width":180.0,"height":22.0}
+     * ```
+     * The rect is in the navigator view's coordinate space, which is the reader Composable's own
+     * space because the navigator fills it — that is what lets the sheet anchor to the selection.
+     *
+     * Callbacks arrive on the main thread.
+     */
+    fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?)
+
+    /** Drop the current text selection (after the user has acted on it). */
+    fun clearSelection()
+
+    /**
+     * Register a callback for taps on a decoration — the seam that makes an existing annotation
+     * *editable*.
+     *
+     * [activationJson] is `{"id":"…","group":"…","x":…,"y":…,"width":…,"height":…}`. The id is
+     * the decoration id, which is the annotation id (Android's `annotationIdOf` strips a
+     * `#segN` suffix for figure-split highlights; iOS emits one decoration per annotation so
+     * there is no suffix to strip yet).
+     */
+    fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?)
+
+    /**
+     * Make decorations in [group] respond to taps.
+     *
+     * Readium gates this per group: `DecorationGroup.setActivable()` is only run for groups
+     * registered through `observeDecorationInteractions`, and `findDecorationTarget` skips every
+     * group that is not activable. Without this call a highlight renders and swallows nothing —
+     * the tap falls through to `didTapAt` and toggles the chrome instead of opening the sheet.
+     *
+     * Idempotent per group; call once after the navigator is open.
+     */
+    fun observeDecorationGroup(group: String)
+
+    /**
+     * Read a spine resource's raw XHTML out of the open publication.
+     *
+     * This is what makes the shared annotation domain usable on iOS. Every merge, overlap and
+     * CFI decision in `feature:reader` — `locateSnippetInBody`, `computeOverlapMerge`,
+     * `buildHighlightCfiRange`, `findEnclosedFiguresInHtml` — is a pure function of the
+     * chapter's *source* HTML. Reading it back out of the live WKWebView would not do: Readium
+     * has already injected its own scripts and wrapper elements, and Cadence may have wrapped
+     * every sentence in a span, so the character offsets would not match the ones Android
+     * computes for the same book.
+     *
+     * [onResult] receives null when the publication is closed or the href is not in the
+     * reading order.
+     */
+    fun readResource(href: String, onResult: (html: String?) -> Unit)
+
+    /**
      * Called when Readium reports a navigator error (e.g. `copyForbidden`). Before #1071 §17 the
      * Swift delegate's `presentError` was an empty body, so these were silently discarded;
      * [ReadiumSwiftNavigator] now logs them on [com.riffle.core.logging.LogChannel.Reader].

@@ -55,8 +55,8 @@ internal class ContinuousDecorationController(
     private val lastAppliedByHref = mutableMapOf<String, List<AnnotationHighlight>>()
     private var currentSearchHighlights: SearchHighlightsState? = null
     private var currentFigureCssRules: List<String> = emptyList()
-    private var currentSvgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList()
-    private var currentRasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList()
+    private var currentSvgMatches: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList()
+    private var currentRasterMarks: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList()
 
     /**
      * Cadence chapter-load hook (issue #403). The reader screen sets this on session bind so
@@ -111,14 +111,14 @@ internal class ContinuousDecorationController(
 
     /**
      * Push the given figure-border rules (raster CSS + inline-SVG JS matches, from
-     * [com.riffle.app.feature.reader.decorations.FigureBorderDecoration]) to every loaded chapter
+     * [com.riffle.feature.reader.decorations.FigureBorderDecoration]) to every loaded chapter
      * WebView, and remember them so chapters entering the sliding window later
      * (via [onChapterLoaded]) automatically pick them up.
      */
     fun applyFigureBorders(
         cssRules: List<String>,
-        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
-        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
+        svgMatches: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
     ) {
         currentFigureCssRules = cssRules
         currentSvgMatches = svgMatches
@@ -136,9 +136,9 @@ internal class ContinuousDecorationController(
         // leaves the previously-applied outline on the image forever (the CSS style block from
         // the earlier eval keeps matching).
         if (nothingToApply && figureBordersEverAppliedTo[wv] != true) return
-        wv.evaluateJavascript(com.riffle.app.feature.reader.decorations.figureBorderInjectionJs(), null)
+        wv.evaluateJavascript(com.riffle.feature.reader.decorations.figureBorderInjectionJs(), null)
         wv.evaluateJavascript(
-            com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches, currentRasterMarks),
+            com.riffle.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches, currentRasterMarks),
             null,
         )
         figureBordersEverAppliedTo[wv] = true

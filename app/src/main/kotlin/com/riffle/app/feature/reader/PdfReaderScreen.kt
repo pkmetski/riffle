@@ -74,6 +74,7 @@ import org.readium.r2.shared.publication.Locator
 import com.riffle.feature.reader.ui.ChapterNavigationRail
 import com.riffle.feature.reader.ui.chapterRailProgressPercent
 import com.riffle.feature.reader.ui.formatTemplate
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
 
 // TODO(figure-zoom): PDF figure-zoom follow-up. The EPUB reader supports single-tap-on-figure
 // opening a fullscreen zoom overlay (see FigureZoomOverlay + FigureTapScript). For PDF, the

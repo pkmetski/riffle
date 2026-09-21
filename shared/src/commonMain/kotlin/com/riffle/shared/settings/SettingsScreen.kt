@@ -15,9 +15,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,6 +32,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.data.localfiles.FolderPickerInterface
+import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
@@ -50,11 +56,12 @@ import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.comicDisplaySummary
-import com.riffle.feature.settings.idsWithSwap
 import com.riffle.feature.settings.label
 import com.riffle.feature.settings.readaloudRowSummary
-import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.feature.source.ui.settings.SourcesSection
 import com.riffle.shared.source.SourceOnboardingHost
+import com.riffle.shared.source.WebdavOnboardingHost
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 private enum class SettingsPanel {
@@ -62,6 +69,7 @@ private enum class SettingsPanel {
 
     // Source onboarding
     AddSource,
+    ConnectWebdav,
 
     // Reading panels
     Formatting,
@@ -84,6 +92,12 @@ fun SettingsScreen(onBack: () -> Unit) {
     when (activePanel) {
         SettingsPanel.AddSource -> {
             SourceOnboardingHost(
+                onFinished = { activePanel = SettingsPanel.None },
+                onCancelled = { activePanel = SettingsPanel.None },
+            )
+        }
+        SettingsPanel.ConnectWebdav -> {
+            WebdavOnboardingHost(
                 onFinished = { activePanel = SettingsPanel.None },
                 onCancelled = { activePanel = SettingsPanel.None },
             )
@@ -142,6 +156,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onBack = onBack,
                 onOpenPanel = { activePanel = it },
                 onAddSource = { activePanel = SettingsPanel.AddSource },
+                onConnectWebdav = { activePanel = SettingsPanel.ConnectWebdav },
             )
         }
     }
@@ -153,10 +168,14 @@ private fun MainSettingsContent(
     onBack: () -> Unit,
     onOpenPanel: (SettingsPanel) -> Unit,
     onAddSource: () -> Unit,
+    onConnectWebdav: () -> Unit,
 ) {
     val appTheme by viewModel.appTheme.collectAsState()
     val servers by viewModel.servers.collectAsState()
     val localFilesSource by viewModel.localFilesSource.collectAsState()
+    val localFilesFolders by viewModel.localFilesFolders.collectAsState()
+    val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
+    val singletonWebSources by viewModel.singletonWebSources.collectAsState()
     val libraryUiItemsBySource by viewModel.libraryUiItemsBySource.collectAsState()
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
@@ -170,6 +189,18 @@ private fun MainSettingsContent(
     val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
     val crashReports by viewModel.crashReports.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
+
+    // Which source rows are open. A plain snapshot map rather than rememberSaveable: the same
+    // shape Android's Settings uses, so both hosts collapse everything on a cold start.
+    val expandedSources = remember { mutableStateMapOf<String, Boolean>() }
+    // Android re-probes folder permissions on ON_RESUME; iOS has no lifecycle observer here, so
+    // the probe runs when the screen enters composition. Without it every folder renders as
+    // healthy and the "needs attention" warning can never appear.
+    LaunchedEffect(Unit) { viewModel.refreshLocalFilesFolderHealth() }
+
+    val folderPicker = koinInject<FolderPickerInterface>()
+    val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -193,39 +224,41 @@ private fun MainSettingsContent(
         )
 
         // ── Sources ───────────────────────────────────────────────────────────────────────
+        //
+        // The list itself is `feature:source-ui`'s shared SourcesSection — the same composable
+        // Android renders, so the expand/collapse, the source version in the subtitle, the
+        // swipe-to-delete gesture, the singleton web-source rows, the readaloud drill-in and the
+        // Local Files folder manager all arrive here rather than being re-written thinner. What
+        // used to be here was a flat "type · authority + Remove" row that dropped every one of
+        // those, and filtered the Local Files source out entirely — so `localFilesFolders`,
+        // `localFilesFolderHealth`, `removeLocalFolder()` and `removeLocalFilesSource()` had no
+        // caller on this platform at all.
         SectionHeader("Sources")
-        val nonLocalServers = servers.filter { it.id != localFilesSource?.id }
-        if (nonLocalServers.isEmpty()) {
-            SettingsRow("No sources configured")
-        } else {
-            nonLocalServers.forEach { source ->
-                val libraryItems = libraryUiItemsBySource[source.id] ?: emptyList()
-                SettingsRow(
-                    label = source.serverType.label,
-                    subtitle = source.url.authority(),
-                    trailing = "Remove",
-                    onTrailingClick = { viewModel.removeServer(source.id) },
-                    leading = { SourceIcon(source = source, size = 28.dp) },
-                )
-                libraryItems.forEachIndexed { index, item ->
-                    LibraryVisibilityRow(
-                        name = item.library.name,
-                        visible = item.isVisible,
-                        switchEnabled = item.switchEnabled,
-                        onToggle = { viewModel.setLibraryVisible(source.id, item.library.id, it) },
-                        // Reorder controls mirror Android's ReorderableLibraryList: explicit
-                        // move buttons rather than a drag gesture, which competes with the
-                        // settings scroll. NavigationDrawerViewModel already reads the stored
-                        // order on iOS — only the way to change it was missing.
-                        canMoveUp = index > 0,
-                        canMoveDown = index < libraryItems.lastIndex,
-                        onMoveUp = { viewModel.setLibraryOrder(source.id, libraryItems.idsWithSwap(index, index - 1)) },
-                        onMoveDown = { viewModel.setLibraryOrder(source.id, libraryItems.idsWithSwap(index, index + 1)) },
-                    )
+        SourcesSection(
+            servers = servers,
+            localFilesSource = localFilesSource,
+            localFilesFolders = localFilesFolders,
+            localFilesFolderHealth = localFilesFolderHealth,
+            singletonWebSources = singletonWebSources,
+            sourceVersions = serverVersions,
+            libraryItemsBySource = libraryUiItemsBySource,
+            readaloudSummaries = readaloudSummaries,
+            expandedSources = expandedSources,
+            onNavigateToAddSourcePicker = onAddSource,
+            onNavigateToAddLocalFolder = {
+                folderPicker.pickFolder { uri ->
+                    if (uri != null) scope.launch { runCatching { localFilesInstaller.installFolder(uri) } }
                 }
-            }
-        }
-        SettingsRow(label = "Add source", trailing = "Add", onTrailingClick = onAddSource)
+            },
+            onOpenReadaloudMatches = { /* Storyteller is a Service (ADR 0024), not a Sources row. */ },
+            onRemoveSource = { viewModel.removeServer(it) },
+            onRemoveLocalFolder = { viewModel.removeLocalFolder(it) },
+            onRemoveLocalFilesSource = { viewModel.removeLocalFilesSource() },
+            onSetLibraryVisible = { sourceId, libraryId, visible ->
+                viewModel.setLibraryVisible(sourceId, libraryId, visible)
+            },
+            onReorderLibraries = { sourceId, orderedIds -> viewModel.setLibraryOrder(sourceId, orderedIds) },
+        )
 
         // ── Appearance ───────────────────────────────────────────────────────────────────
         SectionHeader("Appearance")
@@ -286,9 +319,15 @@ private fun MainSettingsContent(
 
         // ── Annotations Sync ──────────────────────────────────────────────────────────────
         SectionHeader("Annotations Sync")
+        // Tappable, and it opens the real WebDAV connect form. Before the WebDAV client moved to
+        // commonMain this row was a dead readout: the form existed in the shared AddSourceScreen
+        // but no iOS code path could construct its backend, and the connection tester it calls
+        // was bound to a lambda that returned "unparseable URL" for every input.
         SettingsRow(
             label = annotationSyncRow.headline,
             subtitle = annotationSyncRow.sub.label(),
+            trailing = "Configure",
+            onTrailingClick = onConnectWebdav,
         )
 
         // ── Behavior ──────────────────────────────────────────────────────────────────────
@@ -710,60 +749,6 @@ private fun ToggleSettingsRow(
             ),
         )
     }
-}
-
-@Composable
-private fun LibraryVisibilityRow(
-    name: String,
-    visible: Boolean,
-    switchEnabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    canMoveUp: Boolean = false,
-    canMoveDown: Boolean = false,
-    onMoveUp: () -> Unit = {},
-    onMoveDown: () -> Unit = {},
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 32.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BasicText(
-            name,
-            style = TextStyle(
-                fontSize = 13.sp,
-                color = if (switchEnabled) Color.DarkGray else Color.Gray,
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .clickable(enabled = switchEnabled) { onToggle(!visible) },
-        )
-        if (canMoveUp || canMoveDown) {
-            MoveLibraryButton(label = "▲", name = name, enabled = canMoveUp, onClick = onMoveUp)
-            MoveLibraryButton(label = "▼", name = name, enabled = canMoveDown, onClick = onMoveDown)
-        }
-        BasicText(
-            text = if (visible) "Visible" else "Hidden",
-            style = TextStyle(
-                fontSize = 12.sp,
-                color = if (visible) Color(0xFF1565C0) else Color.Gray,
-            ),
-            modifier = Modifier.clickable(enabled = switchEnabled) { onToggle(!visible) },
-        )
-    }
-}
-
-@Composable
-private fun MoveLibraryButton(label: String, name: String, enabled: Boolean, onClick: () -> Unit) {
-    BasicText(
-        text = label,
-        style = TextStyle(fontSize = 14.sp, color = if (enabled) Color(0xFF1565C0) else Color.LightGray),
-        modifier = Modifier
-            .testTag("move-library-$label-$name")
-            .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-    )
 }
 
 @Composable

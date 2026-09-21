@@ -89,10 +89,8 @@
     <string name="ui_double_page_in_landscape">Double page in landscape</string>
     <string name="ui_force_paginated_in_landscape">Force paginated in landscape</string>
     <string name="ui_download">Download</string>
-    <string name="ui_download_cached_item">Download cached item</string>
     <string name="ui_download_only_audio_doesn_t_match">Download only · audio doesn\'t match</string>
     <string name="ui_download_only_no_audiobook_linked">Download only · no audiobook linked</string>
-    <string name="ui_download_readaloud">Download readaloud</string>
     <string name="ui_downloaded">Downloaded</string>
     <string name="ui_downloads">Downloads</string>
     <string name="ui_each_device_using_this_account_writes_its_own_annotation_file_per_book_to_webdav">Each device using this account writes its own annotation file per book to WebDAV. </string>
@@ -224,12 +222,10 @@
     <string name="ui_remove">Remove</string>
     <string name="ui_remove_all">Remove all</string>
     <string name="ui_remove_all_downloads">Remove all downloads?</string>
-    <string name="ui_remove_download">Remove download</string>
     <string name="ui_remove_folder">Remove folder?</string>
     <string name="ui_remove_folder_3">Remove folder</string>
     <string name="ui_remove_from_library">Remove from library</string>
     <string name="ui_remove_from_playlist">Remove from playlist</string>
-    <string name="ui_remove_readaloud_download">Remove readaloud download</string>
     <string name="ui_remove_source">Remove source</string>
     <string name="ui_remove_storyteller">Remove Storyteller</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Removes this device\'s files from the WebDAV server. Other devices still have copies of </string>
@@ -642,4 +638,5 @@
     <string name="ui_reading_time_estimated_total_remaining">%1$s estimated total · %2$s remaining</string>
     <string name="ui_pages">%1$d pages</string>
     <string name="ui_pages_of_read">%1$d of %2$d pages read</string>
+    <string name="ui_open_in_riffle">Open in Riffle</string>
 </resources>

@@ -122,6 +122,7 @@ import com.riffle.feature.reader.MergeSide
 import com.riffle.feature.reader.MergedDraftFields
 import com.riffle.feature.reader.anchorRangeToSnippet
 import com.riffle.feature.reader.applyMerge
+import com.riffle.feature.reader.buildHighlightAnchor
 import com.riffle.feature.reader.buildHighlightCfiRange
 import com.riffle.feature.reader.buildHighlightCfiRangeForSelection
 import com.riffle.feature.reader.buildMergedDraftFields
@@ -136,6 +137,7 @@ import com.riffle.feature.reader.highlightStartProgression
 import com.riffle.feature.reader.highlightsWithEmphasisStyles
 import com.riffle.feature.reader.locateSnippetInBody
 import com.riffle.feature.reader.mergeEnclosedFigures
+import com.riffle.feature.reader.planHighlightCommit
 import com.riffle.feature.reader.readableBodyText
 import com.riffle.feature.reader.readableTextBetween
 import com.riffle.feature.reader.snippetEndCharInBody
@@ -2100,24 +2102,22 @@ class EpubReaderViewModel constructor(
                 normalizeEpubHref(it.href.toString()) == normalizeEpubHref(href)
             }
             if (spineIndex < 0) return@launch
-            val spineStep = (spineIndex + 1) * 2
             val html = readChapterHtml(spineIndex) ?: return@launch
             val textBeforeCaptured = selectionLocator.text.before ?: ""
-            // Recover the selection's true within-chapter position via anchored text-search.
-            // Readium's `Locator.locations.progression` in paginated mode is the PAGE start, not
-            // the selection start — every highlight created on the same page would otherwise
-            // share the same stored progression, making the annotations-panel order (which sorts
-            // by progression + createdAt) print same-page highlights in creation order instead of
-            // reading order. See docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md.
-            val totalChars = com.riffle.core.domain.countBodyChars(org.jsoup.Jsoup.parse(html).body())
-            val locatedChar = if (totalChars > 0) {
-                locateSnippetInBody(html, snippet, textBeforeCaptured)
-            } else null
-            val progression = if (locatedChar != null) {
-                locatedChar.toDouble() / totalChars.toDouble()
-            } else {
-                selectionLocator.locations.progression ?: 0.0
-            }
+            // Recover the selection's true within-chapter position, build its CFI range and the
+            // char range the figure walk uses. Shared with iOS (`feature:reader`'s
+            // [buildHighlightAnchor]) so the two platforms anchor the same selection at the same
+            // progression and the same CFI — see that function's KDoc for why the navigator's own
+            // page-level progression cannot be trusted here.
+            val anchor = buildHighlightAnchor(
+                html = html,
+                spineIndex = spineIndex,
+                snippet = snippet,
+                textBefore = textBeforeCaptured,
+                pageProgression = selectionLocator.locations.progression ?: 0.0,
+            ) ?: return@launch
+            val progression = anchor.progression
+            val cfiRange = anchor.cfiRange
 
             // ADR 0056 §4: overlapping-highlight dedup used to happen here at create time. It's
             // now deferred to commitDraft — if the user cancels the sheet without picking a
@@ -2129,20 +2129,6 @@ class EpubReaderViewModel constructor(
             // neighbour (to recolour or note it differently). Merging now only fires at *edit*
             // time via [mergeAdjacentIntoHighlight] — recolour to match or note-cleared. See
             // docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md ("On note-clear").
-            val cfiRange = if (locatedChar != null) {
-                // End char via non-whitespace walk: a multi-paragraph snippet like "para1.\nThe"
-                // is 10 chars but the readable body has "para1.The" (9 chars) since blank-only
-                // text nodes between block elements are skipped. Using raw `snippet.length` would
-                // overshoot by the newline count and the CFI range would extend past the user's
-                // selection — reported 2026-07-20 as "wash extends to whole paragraph". Walking
-                // the body forward consuming non-whitespace chars gives the true end.
-                val endExclusive = snippetEndCharInBody(html, locatedChar, snippet)
-                buildHighlightCfiRange(
-                    spineStep, html, locatedChar, (endExclusive - 1L).coerceAtLeast(locatedChar),
-                )
-            } else {
-                buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
-            } ?: return@launch
             // Figures enclosed by the highlight's range. Two independent sources:
             //   1. JS-side stash written by SELECTION_SPAN_TRACKER_JS on selectionchange
             //      (raster figures rasterised via canvas to a data URI, SVG serialised verbatim).
@@ -2154,16 +2140,15 @@ class EpubReaderViewModel constructor(
             // Prefer stash entries for their `imageBytes`; supplement with the Kotlin walk so a
             // figure the JS walker missed still lands on the highlight (border-only, no bytes).
             val stashFigures = SelectionFiguresStash.consume()
-            // Anchor the range to the snippet's actual position in the body text — progression is
-            // too imprecise (off by 40-60 chars mid-chapter), which pushes the endpoint one char
-            // short of an enclosed figure and misses it entirely. See anchorRangeToSnippet's KDoc.
-            val (htmlStartChar, htmlEndChar) = anchorRangeToSnippet(
-                html = html,
-                snippet = snippet,
-                textBefore = selectionLocator.text.before ?: "",
-                progression = progression,
+            // The range is anchored to the snippet's actual position in the body text —
+            // progression is too imprecise (off by 40-60 chars mid-chapter), which pushes the
+            // endpoint one char short of an enclosed figure and misses it entirely. See
+            // anchorRangeToSnippet's KDoc; [buildHighlightAnchor] already did the walk.
+            val htmlFigures = findEnclosedFiguresInHtml(
+                html,
+                anchor.figureRangeStartChar,
+                anchor.figureRangeEndChar,
             )
-            val htmlFigures = findEnclosedFiguresInHtml(html, htmlStartChar, htmlEndChar)
             // The Kotlin walker finds the href but has no way to rasterise (no canvas). Load the
             // image bytes straight from the Readium publication so the annotations list can render
             // a thumbnail — without bytes, rowKindFor drops back to the color-dot Highlight row and
@@ -2299,77 +2284,28 @@ class EpubReaderViewModel constructor(
         val candidates = annotationSession.annotations.value
             .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT }
             .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(draft.chapterHref) }
-        val overlapMerge = html?.let {
-            computeOverlapMerge(
-                html = it,
-                draftSnippet = draft.textSnippet,
-                draftTextBefore = draft.textBefore,
-                candidates = candidates,
-                draftEmphasisStyles = combinedStyles,
-                emphasisPool = annotationSession.emphasisPool.value,
-            )
-        }
-        overlapMerge?.victimIds?.forEach { victimId ->
-            val victim = candidates.firstOrNull { it.id == victimId }
-            if (victim != null) {
-                annotationSession.emphasisPool.value
-                    .filter { it.cfi == victim.cfi }
-                    .forEach { annotationStore.delete(it.id) }
-            }
-            annotationStore.delete(victimId)
-        }
-        // If we merged, rebuild the persisted range fields from the union so the stored highlight
-        // covers the full `[mergedStart, mergedEnd)` span. Fall back to draft fields when no
-        // overlap was detected (the common path) or the DOM rebuild fails (safety net).
-        // overlapMerge is derived via `html?.let { ... }`, so a non-null overlapMerge implies a
-        // non-null html — Kotlin smart-casts html accordingly inside this branch.
-        val overlapFields: MergedDraftFields = if (overlapMerge != null) {
-            buildMergedDraftFields(html, draft.spineIndex, draft.embeddedFigures, overlapMerge, candidates)
-                ?: draft.toDraftFields()
-        } else {
-            draft.toDraftFields()
-        }
-        // Adjacency merge: after handling true overlaps, check whether the new draft sits
-        // immediately before or after an existing same-colour highlight (with only whitespace or a
-        // paragraph break between them). This is the create-time half of the auto-merge spec —
-        // the edit-time half runs in [mergeAdjacentIntoHighlight] on recolour/note-clear.
-        val overlapVictimIds = overlapMerge?.victimIds?.toSet() ?: emptySet()
-        val adjacentCandidates = candidates.filter { it.id !in overlapVictimIds }
-        val adjacentMerge = html?.let {
-            computeAdjacentCreateMerge(
-                html = it,
-                draftSnippet = overlapFields.textSnippet,
-                draftTextBefore = overlapFields.textBefore,
-                draftTextAfter = overlapFields.textAfter,
-                draftProgression = overlapFields.progression,
-                draftSpineIndex = draft.spineIndex,
-                draftChapterHref = draft.chapterHref,
-                draftColor = initialColor,
-                draftEmbeddedFigures = overlapFields.embeddedFigures,
-                candidates = adjacentCandidates,
-                draftEmphasisStyles = combinedStyles,
-                emphasisPool = annotationSession.emphasisPool.value,
-            )
-        }
-        adjacentMerge?.victimIds?.forEach { victimId ->
-            val victim = adjacentCandidates.firstOrNull { it.id == victimId }
-            if (victim != null) {
-                annotationSession.emphasisPool.value
-                    .filter { it.cfi == victim.cfi }
-                    .forEach { annotationStore.delete(it.id) }
-            }
-            annotationStore.delete(victimId)
-        }
-        val mergedFields = adjacentMerge?.fields ?: overlapFields
-        // Standalone TYPE_IMAGE absorption for figures the merged highlight now encloses.
-        val absorbedFilenames = mergedFields.embeddedFigures?.mapNotNull { it.href }?.map(::figureHrefFilename)?.toSet().orEmpty()
-        if (absorbedFilenames.isNotEmpty()) {
-            annotationSession.annotations.value
+        // Overlap merge, then adjacency merge, then standalone-TYPE_IMAGE absorption — one
+        // shared decision so iOS commits a draft exactly the way Android does. See
+        // [planHighlightCommit] for what each step means and why the order is load-bearing.
+        val plan = planHighlightCommit(
+            html = html,
+            draftFields = draft.toDraftFields(),
+            draftSpineIndex = draft.spineIndex,
+            draftChapterHref = draft.chapterHref,
+            draftColor = initialColor,
+            draftEmphasisStyles = combinedStyles,
+            candidates = candidates,
+            emphasisPool = annotationSession.emphasisPool.value,
+            imageAnnotations = annotationSession.annotations.value
                 .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE }
-                .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(draft.chapterHref) }
-                .filter { it.imageHref?.let(::figureHrefFilename) in absorbedFilenames }
-                .forEach { annotationStore.delete(it.id) }
-        }
+                .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(draft.chapterHref) },
+        )
+        // Emphasis siblings first: a cascade that runs after its anchor is gone would have
+        // nothing to match on (ADR 0056 §4).
+        plan.deleteEmphasisIds.forEach { annotationStore.delete(it) }
+        plan.deleteHighlightIds.forEach { annotationStore.delete(it) }
+        plan.deleteImageIds.forEach { annotationStore.delete(it) }
+        val mergedFields = plan.fields
         val created = annotationStore.createHighlight(
             sourceId = draft.sourceId,
             itemId = draft.itemId,
@@ -2387,7 +2323,7 @@ class EpubReaderViewModel constructor(
             // merge (overlap or adjacency), textSnippet spans more than the draft's original
             // selection and the draft's HTML only covers the narrow selection — grafting it in
             // would misalign formatting against the wider text.
-            textSnippetHtml = if (overlapMerge == null && adjacentMerge == null) draft.textSnippetHtml else null,
+            textSnippetHtml = if (plan.carrySnippetHtml) draft.textSnippetHtml else null,
         )
         if (note != null) {
             annotationStore.updateNote(created.id, note)

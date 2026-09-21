@@ -5,12 +5,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.ContentCacheCleaner
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.sync.ForegroundSyncDriver
+import com.riffle.feature.source.ui.OpenInImportMessages
+import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.RiffleTheme
+import com.riffle.feature.source.ui.rememberTransientMessages
 import kotlinx.coroutines.flow.Flow
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
@@ -44,6 +48,7 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
     val appBecameActive = koinInject<Flow<Unit>>(qualifier = named(ForegroundSyncDriver.APP_BECAME_ACTIVE))
     val connectivity = koinInject<ConnectivityObserver>()
     val dispatchers = koinInject<DispatcherProvider>()
+    val openInImportFeed = koinInject<OpenInImportFeed>()
 
     val systemDark = isSystemInDarkTheme()
     LaunchedEffect(appearanceCoordinator, systemDark) {
@@ -62,5 +67,13 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
     }
 
     val appearance by appearanceCoordinator.resolved.collectAsState()
-    RiffleTheme(darkTheme = appearance.appChrome.isDark, content = content)
+    RiffleTheme(darkTheme = appearance.appChrome.isDark) {
+        // "Open in Riffle" starts before any screen exists — the file arrives with the launch
+        // that opened the app — so the outcome has to be drained at the composition root or it
+        // is never seen at all. This is also the only SnackbarHost on the platform; screens that
+        // want one nest their own.
+        val messages = rememberTransientMessages()
+        OpenInImportMessages(feed = openInImportFeed, messages = messages)
+        RiffleMessageScaffold(messages, content = content)
+    }
 }

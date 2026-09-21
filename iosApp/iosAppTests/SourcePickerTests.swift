@@ -92,6 +92,7 @@ final class SourcePickerTests: XCTestCase {
     private func assertInstallsAndBrowses(
         card cardTitle: String,
         confirmTitle: String,
+        rowIdentifier: String,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -126,12 +127,22 @@ final class SourcePickerTests: XCTestCase {
                       "App must survive the \(cardTitle) install", file: file, line: line)
 
         assertBrowseSurfaceIsShowing(for: cardTitle, file: file, line: line)
-        assertSourceCanBeRemoved(burger: burger, file: file, line: line)
+        assertSourceCanBeRemoved(rowIdentifier: rowIdentifier, burger: burger, file: file, line: line)
     }
 
-    /// The removal tail both install tests carried before #1071 §17 gated them out. Kept as-is so
-    /// the install/remove round trip stays covered on top of the new browse assertions.
+    /// The removal tail both install tests carried before #1071 §17 gated them out.
+    ///
+    /// The behavioural claim is unchanged — Settings lists the installed source, and the user can
+    /// remove it from there — but the affordance is not. iOS used to render its own "Remove" text
+    /// button (`settings-trailing-Remove`) beside a flat source row, while Android removed a
+    /// source with an end-to-start swipe. Both hosts now render `feature:source-ui`'s shared
+    /// `SourcesSection`, so iOS has Android's swipe and no longer has the iOS-only text button:
+    /// the gesture this drives is the one Android's `SwipeToDeleteRowTest` covers.
+    ///
+    /// The final assertion is now "the row is gone" rather than the old "No sources configured"
+    /// copy, which the shared section (like Android's) does not render.
     private func assertSourceCanBeRemoved(
+        rowIdentifier: String,
         burger: XCUIElement,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -141,17 +152,23 @@ final class SourcePickerTests: XCTestCase {
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10),
                       "Drawer must offer Settings", file: file, line: line)
         settingsEntry.tap()
-        let removeButton = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'settings-trailing-Remove'")).firstMatch
+        let sourceRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", rowIdentifier)).firstMatch
         XCTAssertTrue(
-            removeButton.waitForExistence(timeout: 15),
-            "Settings must list the source with a Remove action",
+            sourceRow.waitForExistence(timeout: 15),
+            "Settings must list the installed source (\(rowIdentifier))",
             file: file, line: line
         )
-        removeButton.tap()
+
+        // A full end-to-start swipe, not a flick: SwipeToDismissBox only commits past its
+        // positional threshold, and a short XCUITest swipeLeft() lands short of it.
+        let start = sourceRow.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        let end = sourceRow.coordinate(withNormalizedOffset: CGVector(dx: -0.6, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: end)
+
         XCTAssertTrue(
-            app.staticTexts["No sources configured"].waitForExistence(timeout: 10),
-            "Removing the only source must leave Settings empty",
+            sourceRow.waitForNonExistence(timeout: 15),
+            "Swiping the source row away must remove the source",
             file: file, line: line
         )
     }
@@ -186,12 +203,20 @@ final class SourcePickerTests: XCTestCase {
     // MARK: - 17.3  Project Gutenberg install (zero-config, no server)
 
     func testGutenbergInstallDoesNotCrash() throws {
-        assertInstallsAndBrowses(card: "Project Gutenberg", confirmTitle: "Add Project Gutenberg")
+        assertInstallsAndBrowses(
+            card: "Project Gutenberg",
+            confirmTitle: "Add Project Gutenberg",
+            rowIdentifier: "GUTENBERGSourceRow"
+        )
     }
 
     // MARK: - 17.6  radio.es install (zero-config, no server)
 
     func testRadioEsInstallDoesNotCrash() throws {
-        assertInstallsAndBrowses(card: "radio.es", confirmTitle: "Add radio.es")
+        assertInstallsAndBrowses(
+            card: "radio.es",
+            confirmTitle: "Add radio.es",
+            rowIdentifier: "RADIO_ESSourceRow"
+        )
     }
 }

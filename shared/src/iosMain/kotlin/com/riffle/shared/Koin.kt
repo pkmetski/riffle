@@ -21,6 +21,7 @@ import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
+import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
@@ -160,9 +161,13 @@ import com.riffle.core.network.createDefaultHttpClient
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
+import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.sources.webdav.WebDavProgressEnumerator
+import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressSweep
+import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
@@ -207,8 +212,8 @@ import com.riffle.feature.source.ui.DevSourceDefaults
 import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SourceUiStrings
+import com.riffle.feature.source.ui.WebDavTargetConnectionTester
 import com.riffle.feature.source.ui.WebdavConnectionTester
-import com.riffle.feature.source.ui.WebdavTestOutcome
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
@@ -302,22 +307,34 @@ private fun iosLibraryModule(
             SourceType.KOMGA to get<KomgaSourceAdapter>(),
         )
     }
-    // The WebDAV annotation-sync sidecar has no iOS engine and no iOS form (#1071 §17, #1072).
+    // The real WebDAV connection tester, not a stub.
     //
-    // Unreachable, not merely unused: the iOS Add-Source picker offers ABS, Komga and Local Files
-    // only (`iosSupportedSourceTypes()`, pinned by IosSupportedSourceTypesTest), and
-    // SourceOnboardingHost always builds `AddSourceBackend.Credentialed(type, AUDIOBOOKSHELF)`,
-    // so no code path can construct the WebDAV backend whose form calls this tester. The binding
-    // exists solely because the shared AddSourceViewModel takes it as a constructor argument.
-    //
-    // Making it real is a port, not a wiring change: WebDavAnnotationSyncTarget lives in
-    // core/sources' jvmMain and its `testConnection` needs java.util.Base64 for the Basic auth
-    // header plus javax.net.ssl / java.io catch clauses to classify transport errors. Porting only
-    // the tester would still leave nothing to test a connection *for*, because every consumer of a
-    // WebDAV target (AnnotationSyncTargetHolder, WebDavProgressRemote, CatalogRemoteProgressIndex)
-    // is androidMain/jvmMain too, and the PROPFIND paths additionally need a multiplatform XML
-    // parser and an RFC-1123 date parser. Tracked in #1072.
-    single<WebdavConnectionTester> { WebdavConnectionTester { WebdavTestOutcome.UnparseableUrl } }
+    // `core:sources`' webdav package moved from jvmMain to commonMain (#1072): the PROPFIND
+    // response parser is ksoup instead of javax.xml SAX, the Basic-auth header is
+    // kotlin.io.encoding.Base64 instead of java.util.Base64, `Last-Modified` is parsed by a
+    // hand-rolled RFC-1123 parser instead of SimpleDateFormat, and the TLS-vs-network
+    // discrimination that needed javax.net.ssl is the one expect/actual left
+    // (`isWebDavTlsFailure`). The form this tester serves is reachable from Settings →
+    // Annotations Sync → Configure, via `WebdavOnboardingHost`.
+    single { WebDavAnnotationSyncTargetFactory(get<HttpClient>(), get()) }
+    single<WebdavConnectionTester> { WebDavTargetConnectionTester(get()) }
+    single { WebDavProgressRemoteFactory(get<HttpClient>(), get()) }
+    single { WebDavProgressEnumerator(get<HttpClient>(), get()) }
+    // Cross-device progress for web sources: the reconciler's "local row is clean but the server
+    // advanced" branch only fires for items the index reports, and iOS had no index at all
+    // (RemoteProgressIndex.EMPTY), so a position advanced on Android was never pulled back here
+    // unless the same book happened to be dirty locally.
+    single<RemoteProgressIndex> {
+        CatalogRemoteProgressIndex(
+            sourceRepository = get(),
+            annotationSyncConfigStore = get(),
+            enumerator = get(),
+            readingPositionDao = get(),
+            audiobookPositionDao = get(),
+            libraryItemDao = get(),
+            clock = get(),
+        )
+    }
     // Annotation sync has no iOS engine at all: AnnotationSyncController/AnnotationSweep are
     // androidMain and the only sync target (WebDAV) is jvmMain. This is a missing surface (#1072),
     // not dead wiring — there is nothing for the enqueuer to enqueue, so it stays a no-op until

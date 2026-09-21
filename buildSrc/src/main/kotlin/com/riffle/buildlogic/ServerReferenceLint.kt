@@ -48,12 +48,15 @@ object ServerReferenceLint {
         "core/sources/src/commonMain/kotlin/com/riffle/core/sources/SourceAdapter.kt",
         "core/sources/src/commonMain/kotlin/com/riffle/core/sources/abs/AbsSourceAdapter.kt",
         "core/sources/src/commonMain/kotlin/com/riffle/core/sources/komga/KomgaSourceAdapter.kt",
-        // WebDAV's ServerError is an HTTP result, not the Source/Service taxonomy.
-        "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/webdav/WebDavAnnotationSyncTarget.kt",
-        // Android's adapter from the jvmMain-only WebDAV target onto the shared
-        // WebdavConnectionTester seam. Same rationale: it consumes the grandfathered
-        // TestConnectionResult.ServerError HTTP branch and maps it to WebdavTestOutcome.HttpError.
-        "app/src/main/kotlin/com/riffle/app/sync/WebDavTargetConnectionTester.kt",
+        // WebDAV's ServerError is an HTTP result, not the Source/Service taxonomy. Moved
+        // jvmMain -> commonMain so Kotlin/Native can run the WebDAV client (#1072); same
+        // grandfathered name, new path.
+        "core/sources/src/commonMain/kotlin/com/riffle/core/sources/webdav/WebDavAnnotationSyncTarget.kt",
+        // The adapter from the WebDAV target onto the shared WebdavConnectionTester seam. Same
+        // rationale: it consumes the grandfathered TestConnectionResult.ServerError HTTP branch
+        // and maps it to WebdavTestOutcome.HttpError. Moved out of :app into feature:source-ui
+        // once the WebDAV client became multiplatform (#1072), so iOS binds the real tester.
+        "feature/source-ui/src/commonMain/kotlin/com/riffle/feature/source/ui/WebDavTargetConnectionTester.kt",
         // Credentialed-authenticator layer (ADR 0053 Phase 7) — the ABS and Komga authenticators
         // set `serverType` on the installed Source; the abstract Authenticator carries the field
         // through. Same rationale as SourceRepositoryImpl / AbsApiClient.
@@ -100,7 +103,10 @@ object ServerReferenceLint {
         // Split-out sections + Readaloud drill-in for Settings. Same ServerType / serverType
         // usage as SettingsScreen — routing per-source rendering and identifying the Storyteller
         // Service. Rename to Source-flavoured identifiers happens with the broader taxonomy sweep.
-        "app/src/main/kotlin/com/riffle/app/feature/settings/sections/SourcesSection.kt",
+        // Lifted out of :app into feature:source-ui so both hosts render one Sources list
+        // (#1072); still branches on the grandfathered ServerType to keep Storyteller Services
+        // out of the list and to title the ABS/Storyteller row.
+        "feature/source-ui/src/commonMain/kotlin/com/riffle/feature/source/ui/settings/SourcesSection.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/sections/ReadaloudSection.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/readaloud/ReadaloudSettingsScreen.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/readaloud/ReadaloudMatchesViewModel.kt",

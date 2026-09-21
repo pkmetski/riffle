@@ -16,6 +16,7 @@ import org.junit.Before
 import org.junit.Test
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator
+import com.riffle.feature.reader.EmphasisDomInjector
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadiumHighlightRendererTest {
