@@ -1,4 +1,4 @@
-package com.riffle.app.feature.audiobook
+package com.riffle.feature.player.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,10 +18,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 /**
- * Stateless dialog for naming a new bookmark (also reused for Rename — see Task 8 — via [title]).
+ * Stateless dialog for naming a new bookmark (also reused for Rename via [title]).
  *
  * Everything except the local edit-field state is supplied by the caller: the pre-filled
  * [initialTitle], the read-only [positionLabel] (e.g. "1:02:11 · The Conversation"), and the
@@ -32,12 +33,14 @@ fun BookmarkCreateDialog(
     initialTitle: String,
     positionLabel: String,
     suggestions: List<String>,
+    labels: PlayerChromeLabels,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
-    title: String = "New bookmark",
+    title: String = labels.newBookmark,
 ) {
     var text by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     AlertDialog(
+        modifier = Modifier.testTag("bookmark_dialog"),
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -48,7 +51,7 @@ fun BookmarkCreateDialog(
                     value = text,
                     onValueChange = { text = it },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("bookmark_title_field"),
                 )
                 val distinctSuggestions = suggestions.distinct()
                 if (distinctSuggestions.isNotEmpty()) {
@@ -70,12 +73,22 @@ fun BookmarkCreateDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text.trim().ifEmpty { initialTitle }) }) {
-                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save))
+            TextButton(
+                onClick = { onConfirm(text.trim().ifEmpty { initialTitle }) },
+                modifier = Modifier.testTag("bookmark_save"),
+            ) {
+                Text(labels.save)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
+            TextButton(onClick = onDismiss) { Text(labels.cancel) }
         },
     )
 }
+
+/**
+ * The position line the dialog shows above the name field: `"1:02:11 · The Conversation"`, or just
+ * the timestamp when the playhead is not inside a titled chapter.
+ */
+fun bookmarkPositionLabel(absoluteLabel: String, chapterTitle: String): String =
+    if (chapterTitle.isNotEmpty()) "$absoluteLabel · $chapterTitle" else absoluteLabel

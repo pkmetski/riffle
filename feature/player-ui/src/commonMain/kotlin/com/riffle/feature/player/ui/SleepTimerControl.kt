@@ -1,4 +1,4 @@
-package com.riffle.app.feature.audio
+package com.riffle.feature.player.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -22,11 +19,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.player.SleepTimerMode
-import com.riffle.feature.player.formatCountdown
 
-private val PRESETS_MINUTES = listOf(5, 15, 30, 45, 60, 90)
+internal val SLEEP_PRESETS_MINUTES = listOf(5, 15, 30, 45, 60, 90)
+
+private const val MS_PER_MINUTE = 60 * 1_000L
+
+/** The countdown a preset button arms. Pinned so the six buttons cannot drift from each other. */
+internal fun sleepPresetMode(minutes: Int): SleepTimerMode.CountDown =
+    SleepTimerMode.CountDown(minutes * MS_PER_MINUTE)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,18 +38,20 @@ fun SleepTimerControl(
     onSetTimer: (SleepTimerMode) -> Unit,
     onCancel: () -> Unit,
     onDismiss: () -> Unit,
+    labels: PlayerChromeLabels,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 24.dp)
+                .testTag("sleep_timer_sheet"),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleep_timer_3),
+                text = labels.sleepTimerSheetTitle,
                 style = MaterialTheme.typography.titleMedium,
             )
 
@@ -57,38 +62,39 @@ fun SleepTimerControl(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val bannerText = when (timerMode) {
-                        is SleepTimerMode.CountDown ->
-                            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleeping_in, timerMode.formatCountdown())
-                        is SleepTimerMode.EndOfChapter ->
-                            androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleeping_at_end_of_chapter)
-                        is SleepTimerMode.None -> ""
-                    }
                     Text(
-                        text = bannerText,
+                        text = sleepBannerLabel(timerMode, labels),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    IconButton(onClick = { onCancel(); onDismiss() }) {
-                        Icon(Icons.Filled.Close, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel_timer))
+                    IconButton(
+                        onClick = {
+                            onCancel()
+                            onDismiss()
+                        },
+                    ) {
+                        Icon(PlayerGlyphs.Close, contentDescription = labels.cancelTimer)
                     }
                 }
             }
 
             // End of chapter — full-width.
             FilledTonalButton(
-                onClick = { onSetTimer(SleepTimerMode.EndOfChapter); onDismiss() },
-                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    onSetTimer(SleepTimerMode.EndOfChapter)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth().testTag("sleep_end_of_chapter"),
                 shape = RoundedCornerShape(50),
             ) {
-                Icon(Icons.Filled.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(PlayerGlyphs.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
-                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_end_of_chapter))
+                Text(labels.endOfChapter)
             }
 
             // 3-column preset grid: row 1 = 5/15/30, row 2 = 45/60/90.
-            val rowOne = PRESETS_MINUTES.take(3)
-            val rowTwo = PRESETS_MINUTES.drop(3)
+            val rowOne = SLEEP_PRESETS_MINUTES.take(3)
+            val rowTwo = SLEEP_PRESETS_MINUTES.drop(3)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -99,6 +105,7 @@ fun SleepTimerControl(
                         minutes = minutes,
                         onSetTimer = onSetTimer,
                         onDismiss = onDismiss,
+                        labels = labels,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -113,6 +120,7 @@ fun SleepTimerControl(
                         minutes = minutes,
                         onSetTimer = onSetTimer,
                         onDismiss = onDismiss,
+                        labels = labels,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -126,16 +134,17 @@ private fun PresetButton(
     minutes: Int,
     onSetTimer: (SleepTimerMode) -> Unit,
     onDismiss: () -> Unit,
+    labels: PlayerChromeLabels,
     modifier: Modifier = Modifier,
 ) {
     OutlinedButton(
         onClick = {
-            onSetTimer(SleepTimerMode.CountDown(minutes * 60 * 1_000L))
+            onSetTimer(sleepPresetMode(minutes))
             onDismiss()
         },
-        modifier = modifier,
+        modifier = modifier.testTag("sleep_preset_$minutes"),
         shape = RoundedCornerShape(50),
     ) {
-        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_minutes_short, minutes), style = MaterialTheme.typography.labelLarge)
+        Text(sleepPresetLabel(minutes, labels), style = MaterialTheme.typography.labelLarge)
     }
 }

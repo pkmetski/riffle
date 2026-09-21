@@ -1,6 +1,5 @@
-package com.riffle.app.feature.audio
+package com.riffle.feature.player.ui
 
-import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,17 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -44,39 +35,39 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
-import com.riffle.feature.player.SleepTimerMode
-import com.riffle.feature.player.formatCountdown
-import com.riffle.feature.player.formatHms
 import com.riffle.feature.player.PlaybackSpeed
+import com.riffle.feature.player.SleepTimerMode
+import com.riffle.feature.player.formatHms
+import com.riffle.feature.player.skipBackwardLabel
+import com.riffle.feature.player.skipForwardLabel
+import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.asAuthHeader
 
 /**
  * How far down (as a fraction of the icon size) to nudge the "15"/"30" interval number so it lands in
- * the open centre of the [Icons.Filled.Replay] loop rather than over the arrowhead at the top. Shared
+ * the open centre of the [PlayerGlyphs.Replay] loop rather than over the arrowhead at the top. Shared
  * by both this surface and the Readaloud mini-player so the two affordances stay visually identical.
  */
-internal const val SKIP_NUMBER_DOWN_FRACTION = 0.09f
+const val SKIP_NUMBER_DOWN_FRACTION = 0.09f
 
 /**
  * Everything [PlayerSurface] renders. Both the standalone Audiobook player and the in-reader
@@ -126,6 +117,21 @@ data class PlayerSurfaceActions(
 )
 
 /**
+ * The height below which the player switches to its two-column layout — Material's
+ * `WindowHeightSizeClass.Compact` boundary, i.e. a phone in landscape. Below this the square cover
+ * pushes the transport off-screen in the vertical layout.
+ *
+ * `:app` reads the real `WindowSizeClass` (it already computes one for the whole activity) and
+ * passes the result in; `:shared` has no such API on iOS and calls [isCompactPlayerHeight] over
+ * `LocalWindowInfo`. Keeping the number here means the two hosts cannot disagree about where the
+ * breakpoint is.
+ */
+const val COMPACT_PLAYER_HEIGHT_DP = 480
+
+/** Whether a window this tall (in dp) is short enough to need the two-column player. */
+fun isCompactPlayerHeight(heightDp: Float): Boolean = heightDp < COMPACT_PLAYER_HEIGHT_DP
+
+/**
  * The full-screen player body (ADR 0035): square cover, title/author, current-chapter label, a
  * seekable chapter-map scrubber (vertical playhead + chapter ticks) with dual chapter/book time, and
  * a centered transport cluster — rewind 15s · prev chapter · play/pause · next chapter · forward 30s
@@ -136,15 +142,16 @@ data class PlayerSurfaceActions(
 fun PlayerSurface(
     state: PlayerSurfaceState,
     actions: PlayerSurfaceActions,
+    labels: PlayerChromeLabels,
     modifier: Modifier = Modifier,
     // A phone in landscape (Compact height): split into cover+details on the left and the controls on
     // the right so the transport never gets pushed off the short screen. Otherwise the vertical layout.
     twoColumn: Boolean = false,
 ) {
     if (twoColumn) {
-        PlayerSurfaceTwoColumn(state, actions, modifier)
+        PlayerSurfaceTwoColumn(state, actions, labels, modifier)
     } else {
-        PlayerSurfaceVertical(state, actions, modifier)
+        PlayerSurfaceVertical(state, actions, labels, modifier)
     }
 }
 
@@ -152,11 +159,14 @@ fun PlayerSurface(
 private fun PlayerSurfaceVertical(
     state: PlayerSurfaceState,
     actions: PlayerSurfaceActions,
+    labels: PlayerChromeLabels,
     modifier: Modifier,
 ) {
-    // Portrait phone gets a larger, more immersive cover; a (tall) landscape window stays smaller so
-    // the square cover doesn't overflow the shorter vertical space.
-    val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+    // Portrait gets a larger, more immersive cover; a (tall) landscape window stays smaller so the
+    // square cover doesn't overflow the shorter vertical space. `LocalConfiguration.orientation` is
+    // Android-only, so the aspect of the window itself is the shared equivalent.
+    val windowSize = LocalWindowInfo.current.containerSize
+    val isPortrait = windowSize.height >= windowSize.width
     val coverWidthFraction = if (isPortrait) 0.90f else 0.72f
     Column(
         modifier = modifier.fillMaxSize(),
@@ -171,7 +181,7 @@ private fun PlayerSurfaceVertical(
         PlayerTitleBlock(state, horizontalAlignment = Alignment.CenterHorizontally)
 
         Spacer(Modifier.height(18.dp))
-        PlayerControls(state, actions)
+        PlayerControls(state, actions, labels)
         Spacer(Modifier.weight(1f))
     }
 }
@@ -180,6 +190,7 @@ private fun PlayerSurfaceVertical(
 private fun PlayerSurfaceTwoColumn(
     state: PlayerSurfaceState,
     actions: PlayerSurfaceActions,
+    labels: PlayerChromeLabels,
     modifier: Modifier,
 ) {
     Row(
@@ -202,7 +213,7 @@ private fun PlayerSurfaceTwoColumn(
             modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            PlayerControls(state, actions)
+            PlayerControls(state, actions, labels)
         }
     }
 }
@@ -218,13 +229,17 @@ private fun PlayerCover(state: PlayerSurfaceState, modifier: Modifier) {
     ) {
         DefaultCoverPlaceholder(isAudiobook = true, modifier = Modifier.fillMaxSize())
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
+            model = ImageRequest.Builder(LocalPlatformContext.current)
                 .data(state.coverUrl)
-                .httpHeaders(NetworkHeaders.Builder().add("Authorization", "Bearer ${state.authToken}").build())
+                .httpHeaders(
+                    NetworkHeaders.Builder()
+                        .add("Authorization", state.authToken.asAuthHeader())
+                        .build(),
+                )
                 .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("player_cover"),
         )
     }
 }
@@ -255,7 +270,7 @@ private fun PlayerDetails(state: PlayerSurfaceState) {
     // nothing, hence the isNotBlank filter above rather than a bare null check.
     if (state.facts == null && blurb == null) return
     // The player recomposes on every position tick; parse the HTML once per description, not per frame.
-    val formattedBlurb = remember(blurb) { blurb?.let { AnnotatedString.fromHtml(it) } }
+    val formattedBlurb = remember(blurb) { blurb?.let { htmlBlurb(it) } }
     Spacer(Modifier.height(12.dp))
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         state.facts?.let {
@@ -264,6 +279,7 @@ private fun PlayerDetails(state: PlayerSurfaceState) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.testTag("player_facts"),
             )
         }
         formattedBlurb?.let {
@@ -281,7 +297,11 @@ private fun PlayerDetails(state: PlayerSurfaceState) {
 }
 
 @Composable
-private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActions) {
+private fun PlayerControls(
+    state: PlayerSurfaceState,
+    actions: PlayerSurfaceActions,
+    labels: PlayerChromeLabels,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -299,7 +319,7 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
         DualTime(state)
 
         Spacer(Modifier.height(18.dp))
-        TransportRow(state, actions)
+        TransportRow(state, actions, labels)
 
         Spacer(Modifier.height(20.dp))
         // Speed + sleep pills sit side-by-side, keeping play centered in the transport row above.
@@ -314,33 +334,36 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
                 speed = state.speed,
                 onSpeedChange = actions.onSpeedChange,
                 tagPrefix = "audiobook",
+                title = labels.playbackSpeed,
             ) { onClick ->
-                FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(50)) {
-                    Icon(Icons.Filled.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+                FilledTonalButton(
+                    onClick = onClick,
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.testTag("audiobook_speed_pill"),
+                ) {
+                    Icon(PlayerGlyphs.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(6.dp))
                     Text(PlaybackSpeed.label(state.speed), style = MaterialTheme.typography.titleSmall)
                 }
             }
 
             val timerActive = state.sleepTimer !is SleepTimerMode.None
-            val timerLabel = when (val t = state.sleepTimer) {
-                SleepTimerMode.None -> "Sleep"
-                is SleepTimerMode.CountDown -> t.formatCountdown()
-                SleepTimerMode.EndOfChapter -> "End of ch."
-            }
             FilledTonalButton(
                 onClick = { sleepSheetOpen = true },
                 shape = RoundedCornerShape(50),
-                colors = if (timerActive)
+                modifier = Modifier.testTag("audiobook_sleep_pill"),
+                colors = if (timerActive) {
                     ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
-                else ButtonDefaults.filledTonalButtonColors(),
+                } else {
+                    ButtonDefaults.filledTonalButtonColors()
+                },
             ) {
-                Icon(Icons.Filled.Bedtime, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_sleep_timer), modifier = Modifier.size(18.dp))
+                Icon(PlayerGlyphs.Bedtime, contentDescription = labels.sleepTimer, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
-                Text(timerLabel, style = MaterialTheme.typography.titleSmall)
+                Text(sleepPillLabel(state.sleepTimer, labels), style = MaterialTheme.typography.titleSmall)
             }
         }
 
@@ -350,13 +373,18 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
                 onSetTimer = actions.onSleepTimerSet,
                 onCancel = actions.onSleepTimerCancel,
                 onDismiss = { sleepSheetOpen = false },
+                labels = labels,
             )
         }
     }
 }
 
 @Composable
-private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceActions) {
+private fun TransportRow(
+    state: PlayerSurfaceState,
+    actions: PlayerSurfaceActions,
+    labels: PlayerChromeLabels,
+) {
     // Comfortable sizing: secondary controls at a 56dp touch target with 30dp glyphs (up from the
     // 48dp/24dp default) and a 60dp primary play circle with a 32dp glyph, separated by 10dp gaps.
     val secondaryButton = 56.dp
@@ -369,12 +397,16 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton)) {
-            SkipIcon(seconds = state.rewindIntervalSeconds, forward = false, iconSize = skipIcon)
+        IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton).testTag("audiobook-rewind")) {
+            SkipIcon(
+                seconds = state.rewindIntervalSeconds,
+                forward = false,
+                iconSize = skipIcon,
+            )
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {
-            Icon(Icons.Filled.SkipPrevious, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_previous_chapter), modifier = Modifier.size(secondaryIcon))
+            Icon(PlayerGlyphs.SkipPrevious, contentDescription = labels.previousChapter, modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
         Surface(
@@ -384,8 +416,8 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         ) {
             IconButton(onClick = actions.onTogglePlayPause) {
                 Icon(
-                    if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (state.isPlaying) "Pause" else "Play",
+                    if (state.isPlaying) PlayerGlyphs.Pause else PlayerGlyphs.PlayArrow,
+                    contentDescription = if (state.isPlaying) labels.pause else labels.play,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(32.dp),
                 )
@@ -393,23 +425,35 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onNextChapter, enabled = state.canNextChapter, modifier = Modifier.size(secondaryButton)) {
-            Icon(Icons.Filled.SkipNext, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_next_chapter), modifier = Modifier.size(secondaryIcon))
+            Icon(PlayerGlyphs.SkipNext, contentDescription = labels.nextChapter, modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
-        IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton)) {
-            SkipIcon(seconds = state.skipIntervalSeconds, forward = true, iconSize = skipIcon)
+        IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton).testTag("audiobook-forward")) {
+            SkipIcon(
+                seconds = state.skipIntervalSeconds,
+                forward = true,
+                iconSize = skipIcon,
+            )
         }
     }
 }
 
+/**
+ * The ⟲ / ⟳ transport glyph with the configured interval drawn inside the loop. The content
+ * description comes from [skipForwardLabel] / [skipBackwardLabel] — the same two functions the
+ * lock-screen transport uses — so the in-app button and the OS button describe the jump identically.
+ */
 @Composable
 private fun SkipIcon(seconds: Int, forward: Boolean, iconSize: Dp) {
     Box(contentAlignment = Alignment.Center) {
         Icon(
-            imageVector = Icons.Filled.Replay,
-            contentDescription = null,
-            modifier = if (forward) Modifier.size(iconSize).scale(scaleX = -1f, scaleY = 1f)
-                       else Modifier.size(iconSize),
+            imageVector = PlayerGlyphs.Replay,
+            contentDescription = if (forward) skipForwardLabel(seconds) else skipBackwardLabel(seconds),
+            modifier = if (forward) {
+                Modifier.size(iconSize).scale(scaleX = -1f, scaleY = 1f)
+            } else {
+                Modifier.size(iconSize)
+            },
         )
         Text(
             text = "$seconds",
@@ -423,15 +467,33 @@ private fun SkipIcon(seconds: Int, forward: Boolean, iconSize: Dp) {
     }
 }
 
+/**
+ * Elapsed on the left, remaining (negative) on the right — the standard player convention, and
+ * what both platforms now show. iOS used to print the total duration on the right, which reads as
+ * a static number that never moves.
+ */
 @Composable
 private fun DualTime(state: PlayerSurfaceState) {
-    // Elapsed on the left, remaining (negative) on the right — the standard player convention.
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(formatHms(state.positionSec), style = MaterialTheme.typography.bodySmall, color = muted)
-        Text("-${formatHms((state.durationSec - state.positionSec).coerceAtLeast(0.0))}", style = MaterialTheme.typography.bodySmall, color = muted)
+        Text(
+            formatHms(state.positionSec),
+            style = MaterialTheme.typography.bodySmall,
+            color = muted,
+            modifier = Modifier.testTag("player_elapsed"),
+        )
+        Text(
+            remainingTimeLabel(state.positionSec, state.durationSec),
+            style = MaterialTheme.typography.bodySmall,
+            color = muted,
+            modifier = Modifier.testTag("player_remaining"),
+        )
     }
 }
+
+/** `"-1:23:45"` — the time left in the book, never negative-of-negative past the end. */
+fun remainingTimeLabel(positionSec: Double, durationSec: Double): String =
+    "-${formatHms((durationSec - positionSec).coerceAtLeast(0.0))}"
 
 /** Continuous draggable seek track with chapter-boundary ticks and a vertical playhead (prototype 1b). */
 @Composable
@@ -446,7 +508,7 @@ private fun ChapterSeekBar(
 ) {
     val accent = MaterialTheme.colorScheme.primary
     // Buffered-ahead band: same hue as the played fill, muted so it reads as "loaded, not played yet"
-    // against the accent-filled portion below the playhead and the base-track above it.
+    // against the accent-filled portion below the playhead and the base track above it.
     val buffered = accent.copy(alpha = 0.35f)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
     val tickColor = MaterialTheme.colorScheme.background
@@ -455,7 +517,7 @@ private fun ChapterSeekBar(
     val bookmarkTickColor = MaterialTheme.colorScheme.onSurfaceVariant
     val cursorHaloColor = MaterialTheme.colorScheme.surface
     // While the user is actively dragging, render the bar from the finger position instead of the
-    // polled `positionSec`. Seeks round-trip through the MediaController binder on a ~250 ms poll, so
+    // polled `positionSec`. Seeks round-trip through the platform player on a ~250–500 ms poll, so
     // mid-drag the polled value lags multiple seeks behind the finger and the bar visibly snaps back
     // to stale positions. Seeks still fire on every drag delta so audio scrubs along; we just stop
     // letting their echoes drive the visual until the user lifts.
@@ -463,6 +525,7 @@ private fun ChapterSeekBar(
     Box(
         modifier = modifier
             .height(24.dp)
+            .testTag("player_scrubber")
             .pointerInput(durationSec) {
                 detectTapGestures { offset -> if (durationSec > 0) onSeek(durationSec * (offset.x / size.width).coerceIn(0f, 1f)) }
             }

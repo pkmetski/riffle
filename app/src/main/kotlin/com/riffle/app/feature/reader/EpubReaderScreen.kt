@@ -111,6 +111,7 @@ import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.app.ui.theme.RiffleIcons
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.feature.source.ui.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.models.HighlightColor

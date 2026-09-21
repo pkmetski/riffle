@@ -82,6 +82,8 @@ kotlin {
             implementation(project(":feature:source-ui"))
             // The shared reader overlays (chapter map + reading-progress labels) both hosts render.
             implementation(project(":feature:reader-ui"))
+            // The shared audiobook-player chrome both hosts render (AudiobookPlayerBody).
+            implementation(project(":feature:player-ui"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)
