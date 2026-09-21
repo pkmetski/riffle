@@ -77,7 +77,6 @@ tasks.withType<Test>().configureEach {
         // they execute for real on `iosSimulatorArm64Test`, and Android renders the ribbon
         // on-device in `app/src/androidTest` (`CornerBookmarkIndicatorTest`).
         excludeTestsMatching("com.riffle.feature.reader.ui.AnnotationActionsSheetTest")
-        excludeTestsMatching("com.riffle.feature.reader.ui.CornerBookmarkIndicatorSharedTest")
         isFailOnNoMatchingTests = false
     }
 }
