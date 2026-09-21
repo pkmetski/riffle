@@ -1,5 +1,6 @@
 package com.riffle.feature.source.ui
 
+import com.riffle.feature.designsystem.asAuthHeader
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

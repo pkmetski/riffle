@@ -35,20 +35,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.settings.ExpandableSourceRow
+import com.riffle.app.feature.settings.ReorderableLibraryList
+import com.riffle.core.database.LocalFilesFolderEntity
+import com.riffle.core.domain.WebSourceDescriptor
+import com.riffle.core.domain.WebSourceDescriptors
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.LibraryUiItem
 import com.riffle.feature.settings.ReadaloudMatchSummary
-import com.riffle.app.feature.settings.ReorderableLibraryList
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.feature.settings.idsWithSwap
 import com.riffle.feature.source.ui.SourceIcon
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle
-import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.models.ServerType
-import com.riffle.core.models.Source
-import com.riffle.core.models.SourceType
-import com.riffle.core.domain.WebSourceDescriptor
-import com.riffle.core.domain.WebSourceDescriptors
 
 /**
  * "Sources" section on the main Settings screen. Renders one row per configured browsable source

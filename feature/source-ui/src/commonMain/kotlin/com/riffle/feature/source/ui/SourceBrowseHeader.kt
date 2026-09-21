@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_clear_search
 import com.riffle.feature.source.ui.generated.resources.ui_open_menu
@@ -82,7 +83,7 @@ fun SourceBrowseHeader(
             modifier = Modifier.padding(end = 16.dp),
         ) {
             IconButton(onClick = onOpenDrawer, modifier = drawerButtonModifier) {
-                Icon(SourceUiIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
+                Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
             }
             if (sourceIcon != null) {
                 sourceIcon()
@@ -102,7 +103,7 @@ fun SourceBrowseHeader(
                 .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         ) {
             Icon(
-                imageVector = SourceUiIcons.Search,
+                imageVector = RiffleIcons.Search,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
@@ -147,7 +148,7 @@ fun SourceBrowseHeader(
                     modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
-                        imageVector = SourceUiIcons.Close,
+                        imageVector = RiffleIcons.Close,
                         contentDescription = stringResource(Res.string.ui_clear_search),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),

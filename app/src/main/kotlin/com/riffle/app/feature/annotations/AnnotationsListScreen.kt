@@ -31,17 +31,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.koin.androidx.compose.koinViewModel
 import coil3.compose.AsyncImage
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.riffle.app.feature.library.coverGridMinCellSize
-import com.riffle.feature.source.ui.fadingScrollbar
 import com.riffle.core.domain.AnnotatedBook
+import com.riffle.feature.designsystem.asAuthHeader
+import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.library.AnnotationsListUiState
-import com.riffle.feature.source.ui.asAuthHeader
+import com.riffle.feature.source.ui.fadingScrollbar
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun AnnotationsListScreen(
@@ -70,7 +70,7 @@ fun AnnotationsListScreen(
                 val gridState = rememberLazyGridState()
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Adaptive(coverGridMinCellSize()),
+                    columns = GridCells.Adaptive(coverGridMinCell()),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
                     modifier = Modifier
                         .fillMaxSize()

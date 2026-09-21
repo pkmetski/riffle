@@ -36,9 +36,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.settings.SettingsSectionHeader
-import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

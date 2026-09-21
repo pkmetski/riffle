@@ -1,53 +1,51 @@
 package com.riffle.app.feature.library
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import com.riffle.feature.source.ui.fadingScrollbar
-import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
@@ -72,12 +70,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
-import com.riffle.feature.source.ui.OfflineBanner
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -86,6 +83,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -93,30 +91,30 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
-import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.res.painterResource
-import android.util.Log
 import coil3.compose.AsyncImage
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
@@ -124,44 +122,43 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
-import com.riffle.feature.library.AnnotationSearchResult
-import com.riffle.feature.library.AnnotationsListViewModel
-import com.riffle.feature.library.AudiobookBookmarkSearchResult
-import com.riffle.feature.library.LibraryItemsViewModel
-import com.riffle.feature.library.LibrarySortMode
-import com.riffle.feature.library.LibraryTabVisibility
-import com.riffle.feature.library.shouldClampSelectedTab
-import com.riffle.feature.library.tabIndexForAnnotations
-import com.riffle.feature.library.tabIndexForPlaylists
-import com.riffle.app.ui.theme.RiffleIcons
-import com.riffle.core.logging.LogChannel
+import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.logging.LogChannel
 import com.riffle.core.models.Collection
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.LocalCoverGridScale
+import com.riffle.feature.designsystem.LocalCoversAreSquare
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.asAuthHeader
+import com.riffle.feature.designsystem.coverAspectRatio
+import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.pinchCoverZoom
+import com.riffle.feature.designsystem.shelfCoverMinCell
+import com.riffle.feature.library.AnnotationSearchResult
+import com.riffle.feature.library.AnnotationsListViewModel
+import com.riffle.feature.library.AudiobookBookmarkSearchResult
+import com.riffle.feature.library.LibraryItemsViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySortMode
+import com.riffle.feature.library.LibraryTabVisibility
+import com.riffle.feature.library.shouldClampSelectedTab
+import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.tabIndexForPlaylists
+import com.riffle.feature.source.ui.OfflineBanner
 import com.riffle.feature.source.ui.SourceIcon
-import com.riffle.feature.source.ui.pinchCoverZoom
+import com.riffle.feature.source.ui.fadingScrollbar
 import kotlinx.coroutines.flow.filterIsInstance
+import org.koin.androidx.compose.koinViewModel
 import kotlin.math.floor
 import kotlin.math.max
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
-import com.riffle.feature.source.ui.LocalCoverGridScale
-import com.riffle.feature.source.ui.asAuthHeader
-import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import com.riffle.app.ui.toScreenDimensionBucket
-import com.riffle.feature.library.LibrarySectionType
 
-
-/**
- * True within an audiobooks-only library, so cover tiles that carry no per-item audio signal —
- * [SeriesCoverTile], [CollectionCoverTile], [SeeMoreTile] — render square like the audiobook covers
- * around them (ADR 0035). Provided once at the library screen root from the ViewModel.
- */
-internal val LocalCoversAreSquare = staticCompositionLocalOf { false }
-
-private fun coverAspectRatio(square: Boolean): Float = if (square) 1f else 2f / 3f
 
 @Composable
 fun LibraryItemsScreen(
@@ -533,7 +530,7 @@ fun BookSectionGrid(
     tokenMap: Map<String, String> = emptyMap(),
     sourceBadgeProvider: ((LibraryItem) -> String?)? = null,
 ) {
-    val minCell = shelfCoverMinCellSize()
+    val minCell = shelfCoverMinCell()
     val spacing = 8.dp
     var longPressedItem by remember { mutableStateOf<LibraryItem?>(null) }
     BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
@@ -590,7 +587,7 @@ fun SeriesSectionGrid(
     onSeriesSelected: (Series) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
-    val minCell = shelfCoverMinCellSize()
+    val minCell = shelfCoverMinCell()
     val spacing = 8.dp
     BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
         val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
@@ -626,7 +623,7 @@ fun CollectionsSectionGrid(
     onCollectionSelected: (Collection) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
-    val minCell = shelfCoverMinCellSize()
+    val minCell = shelfCoverMinCell()
     val spacing = 8.dp
     BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
         val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
@@ -701,138 +698,6 @@ internal fun ImageRequest.Builder.instrumentCover(kind: String, key: String?, ur
             )
         },
     )
-
-@Composable
-fun BookCoverTile(
-    item: LibraryItem,
-    token: String,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    hasReadaloudLink: Boolean = false,
-    seriesNameBadge: String? = null,
-    sourceBadge: String? = null,
-) {
-    val alpha = if (!item.isPlayable) 0.38f else 1f
-    // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
-    // ratio so an audiobook tile is genuinely square, not a square letterboxed inside a 2:3 box
-    // (ADR 0035).
-    val isAudiobookOnly = item.isAudiobookOnly
-    val coverAspect = coverAspectRatio(isAudiobookOnly || LocalCoversAreSquare.current)
-    Column(
-        modifier = Modifier
-            .alpha(alpha)
-            .then(
-                if (onLongClick != null) {
-                    Modifier.combinedClickable(
-                        enabled = item.isPlayable,
-                        onClick = onClick,
-                        onLongClick = onLongClick,
-                    )
-                } else {
-                    Modifier.clickable(enabled = item.isPlayable, onClick = onClick)
-                }
-            ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(coverAspect)
-                .clip(RoundedCornerShape(4.dp)),
-        ) {
-            DefaultCoverPlaceholder(isAudiobook = isAudiobookOnly, modifier = Modifier.fillMaxSize())
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(item.coverUrl)
-                    .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
-                    .crossfade(true)
-                    .instrumentCover("item", item.id, item.coverUrl)
-                    .build(),
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            if (item.readingProgress > 0f) {
-                LinearProgressIndicator(
-                    progress = { item.readingProgress },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(3.dp),
-                    strokeCap = StrokeCap.Butt,
-                    gapSize = 0.dp,
-                    drawStopIndicator = {},
-                )
-            }
-            if (hasReadaloudLink) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.55f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_readaloud),
-                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_has_readaloud_synced_narration),
-                        tint = Color.White,
-                        modifier = Modifier.size(17.dp),
-                    )
-                }
-            }
-            if (seriesNameBadge != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(top = 5.dp, start = 5.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black.copy(alpha = 0.70f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text = seriesNameBadge,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (sourceBadge != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 7.dp, end = 4.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black.copy(alpha = 0.65f))
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text = sourceBadge,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = item.title,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = item.author,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
 
 @Composable
 fun SeriesCoverTile(
@@ -1189,15 +1054,6 @@ private fun ShowAllAnnotationsRow(count: Int, onClick: () -> Unit) {
 // --- Header / banner composables ---
 
 @Composable
-internal fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
 internal fun LibraryItemCard(
     item: LibraryItem,
     token: String,
@@ -1510,7 +1366,7 @@ private fun SeriesTabContent(
     val gridState = rememberLazyGridState()
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(coverGridMinCellSize()),
+        columns = GridCells.Adaptive(coverGridMinCell()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
@@ -1554,7 +1410,7 @@ private fun CollectionsTabContent(
     val gridState = rememberLazyGridState()
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(coverGridMinCellSize()),
+        columns = GridCells.Adaptive(coverGridMinCell()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
@@ -1598,7 +1454,7 @@ internal fun ToReadTabContent(
     val gridState = rememberLazyGridState()
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(shelfCoverMinCellSize()),
+        columns = GridCells.Adaptive(shelfCoverMinCell()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
@@ -1683,7 +1539,7 @@ private fun AllBooksTabContent(
             val gridState = rememberLazyGridState()
             LazyVerticalGrid(
                 state = gridState,
-                columns = GridCells.Adaptive(coverGridMinCellSize()),
+                columns = GridCells.Adaptive(coverGridMinCell()),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
                 modifier = Modifier
                     .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)

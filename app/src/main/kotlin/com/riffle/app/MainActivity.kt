@@ -1,8 +1,7 @@
 package com.riffle.app
 
-import com.riffle.feature.navigation.NowPlayingNavigator
-import android.content.Intent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -17,9 +16,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -27,29 +29,33 @@ import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentFactory
-import com.riffle.feature.reader.ReaderStateHolder
-import com.riffle.app.i18n.AppLocaleController
+import androidx.lifecycle.lifecycleScope
 import com.riffle.app.feature.reader.VolumeKeyAction
 import com.riffle.app.feature.reader.VolumeKeyEventHandler
-import com.riffle.feature.reader.VolumeNavEvent
-import com.riffle.feature.reader.VolumeNavigationController
-import com.riffle.core.domain.autoscroll.AutoScrollEvent
-import com.riffle.core.domain.autoscroll.AutoScrollSpeed
-import com.riffle.feature.reader.autoscroll.AutoScrollController
-import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
+import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.navigation.MainScreen
 import com.riffle.app.ui.BottomNavBarScrim
-import com.riffle.feature.source.ui.RiffleTheme
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ResolvedAppearance
-import androidx.compose.runtime.LaunchedEffect
-import org.koin.android.ext.android.inject
-import org.koin.androidx.compose.KoinAndroidContext
+import com.riffle.core.domain.autoscroll.AutoScrollEvent
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
+import com.riffle.core.logging.Logger
+import com.riffle.feature.designsystem.LocalCoverLoadReporter
+import com.riffle.feature.designsystem.LoggingCoverLoadReporter
+import com.riffle.feature.designsystem.RiffleTheme
+import com.riffle.feature.navigation.NowPlayingNavigator
+import com.riffle.feature.reader.ReaderStateHolder
+import com.riffle.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.VolumeNavigationController
+import com.riffle.feature.reader.autoscroll.AutoScrollController
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import androidx.lifecycle.lifecycleScope
+import org.koin.android.ext.android.inject
+import org.koin.androidx.compose.KoinAndroidContext
+import org.koin.compose.koinInject
 
 class MainActivity : FragmentActivity() {
 
@@ -131,9 +137,15 @@ class MainActivity : FragmentActivity() {
                 RiffleTheme(darkTheme = isDark) {
                     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
                     val windowSizeClass = calculateWindowSizeClass(this)
-                    Box(Modifier.fillMaxSize()) {
-                        MainScreen(windowSizeClass = windowSizeClass)
-                        BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
+                    // Keeps the RIFFLE_COVERS instrumentation alive now that the cover renderer
+                    // lives in :feature:design-system, which cannot reach android.util.Log.
+                    val coverLogger = koinInject<Logger>()
+                    val coverReporter = remember(coverLogger) { LoggingCoverLoadReporter(coverLogger) }
+                    CompositionLocalProvider(LocalCoverLoadReporter provides coverReporter) {
+                        Box(Modifier.fillMaxSize()) {
+                            MainScreen(windowSizeClass = windowSizeClass)
+                            BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
+                        }
                     }
                 }
             }

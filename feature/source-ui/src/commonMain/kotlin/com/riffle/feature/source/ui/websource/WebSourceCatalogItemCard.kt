@@ -21,7 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.riffle.core.catalog.CatalogItem
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.DefaultCoverPlaceholder
 
 @Composable
 fun WebSourceCatalogItemCard(

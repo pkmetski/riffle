@@ -49,6 +49,8 @@ import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.InsecureConnectionType
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_webdav
 import com.riffle.feature.source.ui.generated.resources.ui_back
@@ -140,7 +142,7 @@ fun AddSourceScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(SourceUiIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
             )
@@ -179,7 +181,7 @@ fun AddSourceScreen(
                         Box {
                             OutlinedButton(onClick = { schemeExpanded = true }) {
                                 Text(viewModel.scheme)
-                                Icon(SourceUiIcons.ArrowDropDown, contentDescription = stringResource(Res.string.ui_choose_scheme))
+                                Icon(RiffleIcons.ArrowDropDown, contentDescription = stringResource(Res.string.ui_choose_scheme))
                             }
                             DropdownMenu(
                                 expanded = schemeExpanded,
@@ -275,19 +277,19 @@ private fun WebdavStatusCard(banner: WebdavBanner) {
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
             stringResource(Res.string.ui_synced_via_webdav),
-            SourceUiIcons.CheckCircle,
+            RiffleIcons.CheckCircle,
         )
         WebdavBannerKind.Pending -> Quadruple(
             MaterialTheme.colorScheme.tertiaryContainer,
             MaterialTheme.colorScheme.onTertiaryContainer,
             stringResource(Res.string.ui_pending_will_retry_automatically),
-            SourceUiIcons.Schedule,
+            RiffleIcons.Schedule,
         )
         WebdavBannerKind.Error -> Quadruple(
             MaterialTheme.colorScheme.errorContainer,
             MaterialTheme.colorScheme.onErrorContainer,
             stringResource(Res.string.ui_sync_error),
-            SourceUiIcons.Warning,
+            RiffleIcons.Warning,
         )
     }
     Card(

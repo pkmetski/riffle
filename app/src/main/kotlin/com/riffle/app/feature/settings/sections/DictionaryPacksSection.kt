@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.DrillInChevron
-import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.feature.designsystem.SettingsSectionHeader
 
 @Composable
 internal fun DictionaryPacksSection(

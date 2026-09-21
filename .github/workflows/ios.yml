@@ -31,7 +31,8 @@ jobs:
             :core:common:ktlintIosMainSourceSetCheck \
             :core:catalog-komga:ktlintIosMainSourceSetCheck \
             :feature:source-ui:ktlintCheck \
-            :feature:reader-ui:ktlintCheck
+            :feature:reader-ui:ktlintCheck \
+            :feature:design-system:ktlintCheck
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: SwiftLint (iosApp/)
@@ -133,6 +134,7 @@ jobs:
             :feature:player:iosSimulatorArm64Test \
             :feature:reader:iosSimulatorArm64Test \
             :feature:reader-ui:iosSimulatorArm64Test \
+            :feature:design-system:iosSimulatorArm64Test \
             :feature:source:iosSimulatorArm64Test \
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
@@ -160,6 +162,7 @@ jobs:
             feature/library/build/reports/tests/
             feature/player/build/reports/tests/
             feature/reader/build/reports/tests/
+            feature/design-system/build/reports/tests/
             feature/source/build/reports/tests/
           if-no-files-found: ignore
 

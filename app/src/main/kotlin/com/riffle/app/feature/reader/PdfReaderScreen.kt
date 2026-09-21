@@ -2,8 +2,6 @@
 
 package com.riffle.app.feature.reader
 
-import com.riffle.feature.reader.VolumeNavEvent
-
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -34,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -52,28 +51,28 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
-import org.koin.androidx.compose.koinViewModel
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.formatting.toPdfiumPreferences
 import com.riffle.app.feature.readersettings.TocPanel
-import com.riffle.app.ui.theme.RiffleIcons
+import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.ui.ChapterNavigationRail
+import com.riffle.feature.reader.ui.chapterRailProgressPercent
+import com.riffle.feature.reader.ui.formatTemplate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFactory
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.publication.Locator
-import com.riffle.feature.reader.ui.ChapterNavigationRail
-import com.riffle.feature.reader.ui.chapterRailProgressPercent
-import com.riffle.feature.reader.ui.formatTemplate
 
 // TODO(figure-zoom): PDF figure-zoom follow-up. The EPUB reader supports single-tap-on-figure
 // opening a fullscreen zoom overlay (see FigureZoomOverlay + FigureTapScript). For PDF, the

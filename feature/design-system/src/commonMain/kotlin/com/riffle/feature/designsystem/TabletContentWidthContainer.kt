@@ -1,4 +1,4 @@
-package com.riffle.feature.source.ui
+package com.riffle.feature.designsystem
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 
 /**
  * Width-cap container for single-column list/form screens on the Tablet Layout
@@ -18,7 +17,8 @@ import androidx.compose.ui.unit.dp
  * Takes a plain boolean rather than `WindowSizeClass` because
  * `androidx.compose.material3.windowsizeclass` is an Android-only artifact and these screens
  * render on iOS too. `com.riffle.app.ui.TabletContentWidthContainer` is the Android-side
- * `WindowSizeClass` overload and delegates here.
+ * `WindowSizeClass` overload and delegates here; iOS callers get the same boolean from
+ * [isExpandedWidth].
  */
 @Composable
 fun TabletContentWidthContainer(
@@ -39,5 +39,3 @@ fun TabletContentWidthContainer(
         Box(modifier = modifier) { content() }
     }
 }
-
-private val MaxContentWidth = 600.dp

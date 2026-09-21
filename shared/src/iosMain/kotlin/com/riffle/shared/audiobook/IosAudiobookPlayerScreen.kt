@@ -39,12 +39,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.DefaultCoverPlaceholder
 import com.riffle.feature.player.AudiobookPlayerUiState
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.formatHms
 import com.riffle.feature.player.skipBackwardLabel
 import com.riffle.feature.player.skipForwardLabel
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.shared.ScreenScopedViewModelHost
 import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf

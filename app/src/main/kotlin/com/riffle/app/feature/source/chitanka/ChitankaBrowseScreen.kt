@@ -5,10 +5,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
-import com.riffle.feature.source.ui.SourceBrowseHeader
-import com.riffle.feature.source.ui.SourceTypeIcon
-import com.riffle.app.ui.theme.RiffleIcons
-import com.riffle.core.models.SourceType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -24,19 +20,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
-import com.riffle.feature.library.AnnotationsListViewModel
-import com.riffle.app.feature.library.LocalCoversAreSquare
-import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.source.common.rememberDrawerButtonGestureExclusion
+import com.riffle.app.feature.source.websource.WebSourceHomeTab
+import com.riffle.app.feature.source.websource.WebSourceToReadTab
+import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.LocalCoversAreSquare
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.library.AnnotationsListViewModel
+import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.source.ui.SourceBrowseHeader
+import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
-import com.riffle.app.feature.source.websource.WebSourceHomeTab
-import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.app.feature.source.websource.WebSourceToReadTab
-import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import org.koin.androidx.compose.koinViewModel
 
 /**
  * Chitanka Source screen. Dedicated route ("chitanka_browse/{libraryId}/{name}") distinct

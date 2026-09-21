@@ -9,8 +9,8 @@ import com.riffle.app.feature.readersettings.localizedDisplaySummary
 import com.riffle.app.feature.readersettings.localizedFormattingSummary
 import com.riffle.app.feature.settings.SettingsDrillInRow
 import com.riffle.app.feature.settings.SettingsPanel
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.designsystem.SettingsSectionHeader
 
 @Composable
 internal fun ReadingSection(

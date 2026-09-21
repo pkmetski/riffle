@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
-import com.riffle.feature.source.ui.SourceTypeIcon
-import com.riffle.core.models.SourceType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -26,17 +24,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.library.LocalCoversAreSquare
-import com.riffle.feature.source.ui.SourceBrowseHeader
-import com.riffle.feature.source.ui.websource.UnboundedBrowseContent
-import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
-import com.riffle.feature.source.ui.websource.WebSourceCatalogItemCard
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.catalog.oreilly.OReillyCatalog
+import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.LocalCoversAreSquare
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.source.ui.SourceBrowseHeader
+import com.riffle.feature.source.ui.SourceTypeIcon
+import com.riffle.feature.source.ui.websource.UnboundedBrowseContent
+import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
+import com.riffle.feature.source.ui.websource.WebSourceCatalogItemCard
 import org.koin.androidx.compose.koinViewModel
 
 @Composable

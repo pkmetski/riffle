@@ -27,9 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -64,6 +64,7 @@ fun LibraryItemDetailScreen(
         LibraryItemDetailUiState.Error -> ErrorContent(onBack = onBack)
         is LibraryItemDetailUiState.Ready -> ReadyContent(
             state = state,
+            token = vm.authToken,
             onBack = onBack,
             onRead = { onRead(state.item) },
             onToggleToRead = { vm.toggleToRead() },
@@ -103,6 +104,7 @@ private fun ErrorContent(onBack: () -> Unit) {
 @Composable
 private fun ReadyContent(
     state: LibraryItemDetailUiState.Ready,
+    token: String,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -132,7 +134,16 @@ private fun ReadyContent(
                 .clip(RoundedCornerShape(8.dp))
                 .align(Alignment.CenterHorizontally),
         ) {
-            DefaultCoverPlaceholder(isAudiobook = state.item.isAudiobookOnly)
+            // The hero was the procedural placeholder even when the item had artwork —
+            // `shared/commonMain` had no image loader call site at all.
+            CoverImage(
+                url = state.item.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = state.item.isAudiobookOnly,
+                instrumentationKind = "detail",
+                instrumentationKey = state.item.id,
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))

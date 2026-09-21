@@ -30,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
 import com.riffle.feature.source.ui.generated.resources.ui_back
@@ -77,7 +79,7 @@ fun SingletonSourceConfirmScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(SourceUiIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
             )

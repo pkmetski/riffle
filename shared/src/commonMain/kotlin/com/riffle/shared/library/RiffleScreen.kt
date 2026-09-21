@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -19,7 +21,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -27,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.shared.LibraryNav
@@ -124,12 +129,17 @@ fun RiffleScreen(
         val openDetail: (sourceId: String, itemId: String) -> Unit = { sourceId, itemId ->
             nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
         }
+        // `RiffleViewModel.authTokenMap` is documented as "sourceId -> auth token for
+        // authenticated cover image loading" and had no iOS caller at all, because nothing on
+        // iOS loaded a cover. This screen spans sources, so each row resolves its own.
+        val tokenFor: (String) -> String = { sourceId -> viewModel.authTokenMap[sourceId].orEmpty() }
         when (selectedTab) {
-            0 -> IosInProgressTab(inProgress, continueSeries) { openDetail(it.sourceId, it.id) }
-            1 -> IosToReadTab(toRead) { openDetail(it.sourceId, it.id) }
+            0 -> IosInProgressTab(inProgress, continueSeries, tokenFor) { openDetail(it.sourceId, it.id) }
+            1 -> IosToReadTab(toRead, tokenFor) { openDetail(it.sourceId, it.id) }
             // Same list the per-library Annotations tab renders — one composable, two hosts.
             else -> AnnotationsTabContent(
                 state = AnnotationsListUiState(loading = false, books = annotations),
+                tokenFor = tokenFor,
                 onBookSelected = openDetail,
             )
         }
@@ -140,6 +150,7 @@ fun RiffleScreen(
 private fun IosInProgressTab(
     inProgress: List<LibraryItem>,
     continueSeries: List<LibraryItem>,
+    tokenFor: (String) -> String,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -154,11 +165,11 @@ private fun IosInProgressTab(
         }
         if (inProgress.isNotEmpty()) {
             item { SectionLabel("In Progress") }
-            items(inProgress, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, onItemSelected) }
+            items(inProgress, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
         if (continueSeries.isNotEmpty()) {
             item { SectionLabel("Continue Series") }
-            items(continueSeries, key = { "cs_${it.sourceId}_${it.id}" }) { ItemRow(it, onItemSelected) }
+            items(continueSeries, key = { "cs_${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
     }
 }
@@ -166,6 +177,7 @@ private fun IosInProgressTab(
 @Composable
 private fun IosToReadTab(
     items: List<LibraryItem>,
+    tokenFor: (String) -> String,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
     if (items.isEmpty()) {
@@ -177,7 +189,7 @@ private fun IosToReadTab(
         return
     }
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(items, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, onItemSelected) }
+        items(items, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
     }
 }
 
@@ -191,14 +203,27 @@ private fun SectionLabel(title: String) {
 }
 
 @Composable
-private fun ItemRow(item: LibraryItem, onClick: (LibraryItem) -> Unit) {
+private fun ItemRow(item: LibraryItem, tokenFor: (String) -> String, onClick: (LibraryItem) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick(item) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        // The row used to be text only — no cover, not even the placeholder.
+        Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
+            CoverImage(
+                url = item.coverUrl,
+                token = tokenFor(item.sourceId),
+                // The clickable Row merges its descendants and already announces title + author.
+                contentDescription = null,
+                isAudiobook = item.isAudiobookOnly,
+                modifier = Modifier.fillMaxSize(),
+                instrumentationKey = item.id,
+            )
+        }
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
             BasicText(text = item.title, style = TextStyle(fontSize = 15.sp))
             if (item.author.isNotEmpty()) {
                 BasicText(text = item.author, style = TextStyle(fontSize = 13.sp, color = Color.Gray))

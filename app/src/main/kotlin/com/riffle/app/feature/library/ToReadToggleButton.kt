@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.riffle.app.ui.theme.RiffleIcons
+import com.riffle.feature.designsystem.RiffleIcons
 
 @Composable
 fun ToReadToggleButton(
