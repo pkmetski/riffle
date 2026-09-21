@@ -66,6 +66,17 @@ private data class BookmarkDraft(
     val chapterTitle: String,
 )
 
+/**
+ * Whether the swipe-down readaloud handoff should exist at all: the book must have a linked
+ * readaloud ebook AND the host must have somewhere to navigate to.
+ *
+ * Both halves matter. The gesture calls [AudiobookPlayerViewModel.prepareReadaloudHandoff], which
+ * stops the follow loop and releases the player — arming it on a host that cannot navigate would
+ * silently pause the book on a downward swipe and leave the user on the same dead screen.
+ */
+fun readaloudHandoffArmed(readaloudEbookItemId: String?, hostCanNavigate: Boolean): Boolean =
+    hostCanNavigate && readaloudEbookItemId != null
+
 /** The bookmark nearest [positionSec] within [BOOKMARK_WINDOW_SEC], or null when there is none. */
 fun bookmarkNear(bookmarks: List<AudiobookBookmark>, positionSec: Double): AudiobookBookmark? =
     bookmarks
@@ -92,11 +103,15 @@ fun AudiobookPlayerBody(
     twoColumn: Boolean = false,
     /**
      * Swipe-down handoff target. Called with the linked readaloud ebook item id and the current
-     * audio position once the drag passes [SWITCH_TO_READALOUD_THRESHOLD_PX]. The gesture is only
-     * armed when [AudiobookPlayerUiState.readaloudEbookItemId] is non-null, so a host with no
-     * readaloud reader simply never sees it fire.
+     * audio position once the drag passes [SWITCH_TO_READALOUD_THRESHOLD_PX].
+     *
+     * **Null means the host has no readaloud reader to hand off to**, and then neither the drag
+     * handle nor the gesture exists at all. That is not cosmetic: the gesture calls
+     * [AudiobookPlayerViewModel.prepareReadaloudHandoff], which stops the follow loop and releases
+     * the player, so arming it against a host that cannot navigate anywhere would silently pause
+     * the book on a downward swipe. iOS passes null until its readaloud reader lands (#1072 §2).
      */
-    onSwitchToReadaloud: (ebookItemId: String, atSec: Double) -> Unit = { _, _ -> },
+    onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
 ) {
     // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
     val latestState = rememberUpdatedState(state)
@@ -107,6 +122,10 @@ fun AudiobookPlayerBody(
     // so they don't drift with the still-running playhead while the user edits (see [BookmarkDraft]).
     var createDraft by remember { mutableStateOf<BookmarkDraft?>(null) }
     var renaming by remember { mutableStateOf<AudiobookBookmark?>(null) }
+
+    val handoffTarget = onSwitchToReadaloud
+        ?.takeIf { readaloudHandoffArmed(state.readaloudEbookItemId, hostCanNavigate = true) }
+    val latestHandoffTarget = rememberUpdatedState(handoffTarget)
 
     val gradient = Brush.verticalGradient(
         listOf(
@@ -125,7 +144,8 @@ fun AudiobookPlayerBody(
                     // a linked readaloud ebook; otherwise the drag does nothing). Down = toward
                     // reading. The scrubber's own horizontal drag is unaffected; taps still reach the
                     // transport.
-                    .pointerInput(Unit) {
+                    .pointerInput(handoffTarget != null) {
+                        if (latestHandoffTarget.value == null) return@pointerInput
                         var total = 0f
                         detectVerticalDragGestures(
                             // Pre-warm readaloud the moment a downward drag starts (ADR 0039):
@@ -142,12 +162,13 @@ fun AudiobookPlayerBody(
                             onDragEnd = {
                                 val s = latestState.value
                                 val ebookId = s.readaloudEbookItemId
-                                if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
+                                val handoff = latestHandoffTarget.value
+                                if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null && handoff != null) {
                                     // Release the shared player to readaloud (without stopping it)
                                     // before navigating, so readaloud keeps playing through the
                                     // handoff.
                                     viewModel.prepareReadaloudHandoff()
-                                    onSwitchToReadaloud(ebookId, s.positionSec)
+                                    handoff(ebookId, s.positionSec)
                                 } else {
                                     viewModel.cancelHandoffHint()
                                 }
@@ -158,7 +179,7 @@ fun AudiobookPlayerBody(
             ) {
                 // Leave room for the back button overlaid above, plus the read-along handle when present.
                 Spacer(Modifier.size(48.dp))
-                if (state.readaloudEbookItemId != null) {
+                if (handoffTarget != null) {
                     ReadAlongDragHandle()
                 }
 
