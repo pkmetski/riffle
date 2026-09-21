@@ -146,8 +146,20 @@ define run_harness_tests
 	adb -s $$SERIAL shell pm clear com.riffle.app 2>/dev/null || true; \
 	adb -s $$SERIAL uninstall com.riffle.app > /dev/null 2>&1 || true; \
 	adb -s $$SERIAL uninstall com.riffle.app.test > /dev/null 2>&1 || true; \
+	rm -rf app/build/outputs/androidTest-results/connected; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest $(2); \
 	TEST_EXIT=$$?; \
+	RAN=$$(find app/build/outputs/androidTest-results/connected -name '*.xml' 2>/dev/null \
+		| xargs -r sed -n 's/.*[^A-Za-z]tests="\([0-9]*\)".*/\1/p' \
+		| awk '{n+=$$1} END {print n+0}'); \
+	if [ "$$TEST_EXIT" = "0" ] && [ "$$RAN" = "0" ]; then \
+		echo "ERROR: the harness reported success but executed 0 tests."; \
+		echo "       connectedDebugAndroidTest exits 0 when every device is dropped,"; \
+		echo "       so a green run here means nothing. Check the install step above."; \
+		TEST_EXIT=1; \
+	else \
+		echo "Harness executed $$RAN test(s)."; \
+	fi; \
 	echo "Shutting down emulator..."; \
 	adb -s $$SERIAL emu kill; \
 	wait $$EMU_PID 2>/dev/null || true; \
