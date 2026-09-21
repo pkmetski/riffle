@@ -17,10 +17,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.app.feature.library.AnnotationSearchResultsScreen
+import com.riffle.app.feature.library.BookCoverTile
 import com.riffle.app.feature.library.CollectionDetailScreen
-import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemCard
+import com.riffle.app.feature.library.androidFilteredBooksLabels
+import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.feature.library.LibrarySectionType
@@ -28,8 +30,10 @@ import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.library.androidPlaylistLabels
 import com.riffle.app.feature.library.RiffleScreen
 import com.riffle.app.feature.navigation.HomeScreen
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
+import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import org.koin.androidx.compose.koinViewModel
 import java.net.URLDecoder
@@ -312,10 +316,16 @@ internal fun NavGraphBuilder.libraryNavGraph(
         ),
     ) { backStackEntry ->
         FilteredBooksScreen(
+            viewModel = koinViewModel<FilteredBooksViewModel>(),
+            labels = androidFilteredBooksLabels(),
+            minCellSize = coverGridMinCellSize(),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
             },
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+            tileContent = { item, token, onClick ->
+                BookCoverTile(item = item, token = token, onClick = onClick)
+            },
         )
     }
     composable(

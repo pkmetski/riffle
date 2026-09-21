@@ -1,4 +1,4 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,9 +13,6 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
-import com.riffle.feature.library.FacetType
-import com.riffle.feature.library.facetMatches
-import com.riffle.feature.library.urlDecode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -33,11 +30,11 @@ class FilteredBooksViewModel constructor(
     readaloudLinkRepository: ReadaloudLinkRepository,
 ) : ViewModel() {
 
-    private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
+    private val libraryId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: ""
     val facetType: FacetType = runCatching {
-        FacetType.valueOf(savedStateHandle.get<String>("facetType") ?: "")
+        FacetType.valueOf(savedStateHandle.get<String>(ROUTE_ARG_FACET_TYPE) ?: "")
     }.getOrDefault(FacetType.AUTHOR)
-    val facetValue: String = (savedStateHandle.get<String>("facetValue") ?: "").urlDecode()
+    val facetValue: String = (savedStateHandle.get<String>(ROUTE_ARG_FACET_VALUE) ?: "").urlDecode()
 
     val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
         .map { !it }
@@ -62,5 +59,15 @@ class FilteredBooksViewModel constructor(
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
         }
+    }
+
+    companion object {
+        // The SavedStateHandle keys, owned by the ViewModel so Android's
+        // `filtered_books/{libraryId}/{facetType}/{facetValue}` route and the handle the iOS Koin
+        // factory fabricates cannot drift — the same arrangement as
+        // UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID.
+        const val ROUTE_ARG_LIBRARY_ID: String = "libraryId"
+        const val ROUTE_ARG_FACET_TYPE: String = "facetType"
+        const val ROUTE_ARG_FACET_VALUE: String = "facetValue"
     }
 }

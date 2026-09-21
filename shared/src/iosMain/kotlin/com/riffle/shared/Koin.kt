@@ -177,6 +177,7 @@ import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.DownloadManager
 import com.riffle.feature.library.EpubTocExtractor
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
@@ -1011,6 +1012,24 @@ private fun iosLibraryModule(
             dispatchers = get(),
         )
     }
+    // (libraryId, facetType, facetValue) — the three route args Android's
+    // `filtered_books/{libraryId}/{facetType}/{facetValue}` carries. The facet type travels as
+    // its enum name because that is what the ViewModel parses on both hosts.
+    factory { params ->
+        FilteredBooksViewModel(
+            savedStateHandle = filteredBooksSavedStateHandle(
+                libraryId = params.get(0),
+                facetType = params.get(1),
+                facetValue = params.get(2),
+            ),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            offlineAvailability = get(),
+            connectivityObserver = get(),
+            readaloudLinkRepository = get(),
+        )
+    }
     // (libraryId, playlistId, playlistName) — the three route args Android's
     // `playlist_detail/{libraryId}/{playlistId}/{playlistName}` carries, packed into the handle
     // the shared ViewModel reads them from.
@@ -1052,6 +1071,26 @@ private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
  * name containing `+` or `%`, so the encode/decode pair is kept symmetric rather than relying on
  * the decoder being a no-op for "ordinary" names.
  */
+/**
+ * The [SavedStateHandle] [FilteredBooksViewModel] reads its facet from.
+ *
+ * [facetValue] is form-encoded on the way in for the same reason as the playlist name: the
+ * ViewModel `urlDecode()`s it because Android's route arrives percent-encoded, and a genre or
+ * author containing `+` or `%` would otherwise be corrupted — and then match nothing, so the
+ * screen would be empty with no error anywhere.
+ */
+private fun filteredBooksSavedStateHandle(
+    libraryId: String,
+    facetType: String,
+    facetValue: String,
+): SavedStateHandle = SavedStateHandle(
+    mapOf(
+        FilteredBooksViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+        FilteredBooksViewModel.ROUTE_ARG_FACET_TYPE to facetType,
+        FilteredBooksViewModel.ROUTE_ARG_FACET_VALUE to facetValue.urlFormEncode(),
+    ),
+)
+
 private fun playlistSavedStateHandle(
     libraryId: String,
     playlistId: String,

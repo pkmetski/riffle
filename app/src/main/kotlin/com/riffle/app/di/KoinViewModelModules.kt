@@ -12,7 +12,7 @@ import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
 import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
-import com.riffle.app.feature.library.FilteredBooksViewModel
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel

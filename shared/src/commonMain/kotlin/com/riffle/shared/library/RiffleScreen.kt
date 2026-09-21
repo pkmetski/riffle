@@ -34,6 +34,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
+import com.riffle.shared.FilteredBooksHost
 import com.riffle.shared.LibraryNav
 import com.riffle.shared.ReaderHost
 import com.riffle.shared.openItemForReading
@@ -67,6 +68,17 @@ fun RiffleScreen(
                 onRead = { item ->
                     openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
                 },
+                onFacetSelected = { facetLibraryId, facet, value ->
+                    nav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
+                },
+            )
+            return
+        }
+        is LibraryNav.FilteredBooks -> {
+            FilteredBooksHost(
+                destination = current,
+                onBack = { nav = null },
+                onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
             )
             return
         }
