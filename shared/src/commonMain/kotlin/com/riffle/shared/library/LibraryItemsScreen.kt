@@ -22,14 +22,18 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -47,8 +52,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AnnotatedBook
@@ -107,6 +114,7 @@ fun LibraryItemsScreen(
     onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
+    onSearchAnnotations: (String) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
@@ -188,6 +196,7 @@ fun LibraryItemsScreen(
                     onCollectionSelected = onCollectionSelected,
                     onSectionSeeMore = onSectionSeeMore,
                     onPlaylistSelected = onPlaylistSelected,
+                    onSearchAnnotations = onSearchAnnotations,
                 )
             }
         }
@@ -218,11 +227,19 @@ internal fun LibraryTabContent(
     onCollectionSelected: (Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
+    onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
         0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
         1 -> SimpleItemList(projection.toRead, "Nothing in To Read", onItemSelected)
-        tabIndexForAnnotations() -> AnnotationsTabContent(annotationsState, onAnnotatedBookSelected)
+        // The search field above the list is iOS's only route into the annotation-search
+        // results screen: Android reaches it from the library search bar's "Show all"
+        // affordance, which iOS has no equivalent of (#1072 §3). Without it
+        // `AnnotationSearchViewModel` would be bound and unreachable.
+        tabIndexForAnnotations() -> Column(Modifier.fillMaxSize()) {
+            AnnotationSearchField(onSearch = onSearchAnnotations)
+            AnnotationsTabContent(annotationsState, onAnnotatedBookSelected)
+        }
         3 -> SeriesTabContent(projection.series, onSeriesSelected)
         4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
         5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
@@ -419,6 +436,46 @@ internal fun AnnotationsTabContent(
             AnnotatedBookTile(book = book, onClick = { onBookSelected(book.sourceId, book.itemId) })
         }
     }
+}
+
+/** Placeholder copy of the annotation search field, matched on by the iOS harness. */
+internal const val ANNOTATION_SEARCH_PLACEHOLDER = "Search annotations"
+
+/** The submit button's label. */
+internal const val ANNOTATION_SEARCH_ACTION = "Search"
+
+/**
+ * The Annotations tab's search box.
+ *
+ * Submitting a non-blank query opens the shared annotation-search results screen. A blank query
+ * does nothing rather than opening a results screen that can only say "no annotations for """ —
+ * the ViewModel itself short-circuits a blank query, so an empty submit would be a dead end.
+ */
+@Composable
+private fun AnnotationSearchField(onSearch: (String) -> Unit) {
+    var query by rememberSaveable { mutableStateOf("") }
+    OutlinedTextField(
+        value = query,
+        onValueChange = { query = it },
+        singleLine = true,
+        placeholder = { Text(ANNOTATION_SEARCH_PLACEHOLDER) },
+        trailingIcon = {
+            TextButton(
+                onClick = { if (query.isNotBlank()) onSearch(query) },
+                modifier = Modifier
+                    .semantics { contentDescription = ANNOTATION_SEARCH_PLACEHOLDER }
+                    .testTag("annotation-search-submit"),
+            ) {
+                Text(ANNOTATION_SEARCH_ACTION)
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { if (query.isNotBlank()) onSearch(query) }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag("annotation-search-field"),
+    )
 }
 
 /** One annotated book: placeholder cover, highlight-count badge, title and author. */

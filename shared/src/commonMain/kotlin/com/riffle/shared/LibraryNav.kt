@@ -55,6 +55,15 @@ internal sealed interface LibraryNav {
     ) : LibraryNav
 
     /**
+     * Every annotation and audiobook bookmark in [searchLibraryId] matching [query]. Android
+     * reaches the same screen through `annotation_search/{libraryId}?query=…`.
+     */
+    data class AnnotationSearch(
+        val searchLibraryId: String,
+        val query: String,
+    ) : LibraryNav
+
+    /**
      * A destination that opens the book itself. Grouped so every host renders them through the
      * single [ReaderHost] `when` rather than repeating the four-way dispatch.
      */

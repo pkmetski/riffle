@@ -39,10 +39,13 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.shouldShowRiffleSource
+import com.riffle.feature.library.ui.AnnotationSearchLabels
+import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.FilteredBooksLabels
 import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
@@ -353,6 +356,7 @@ private fun LibraryHost(
                     )
                 },
                 onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
+                onSearchAnnotations = { query -> nav = LibraryNav.AnnotationSearch(libraryId, query) },
                 onPlaylistSelected = { playlist ->
                     nav = LibraryNav.PlaylistDetail(
                         playlistId = playlist.id,
@@ -387,6 +391,17 @@ private fun LibraryHost(
             destination = current,
             onBack = { nav = LibraryNav.Items },
             onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+        )
+        is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
+            destination = current,
+            onBack = { nav = LibraryNav.Items },
+            // Android opens the reader at the annotation's CFI; iOS's reader has no
+            // open-at-annotation entry point yet (#1072 §2 — the whole annotation seam is
+            // missing there), so a result opens the book's detail sheet, which is the furthest
+            // the iOS reader can currently be driven from outside.
+            onOpenBook = { sourceId, itemId ->
+                nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+            },
         )
         is LibraryNav.ReaderDestination -> {
             // End-of-book inside a playlist: the ViewModel has already found the next item id;
@@ -475,6 +490,34 @@ internal fun FilteredBooksHost(
         tileContent = { item, _, onClick ->
             BookCoverTile(item = item, onClick = onClick)
         },
+    )
+}
+
+/**
+ * Screen-scoped host for [AnnotationSearchResultsScreen].
+ *
+ * Same reason as the other two hosts: the ViewModel is a Koin `factory` keyed on the query and
+ * iOS has no navigation-provided `ViewModelStoreOwner`.
+ */
+@Composable
+internal fun AnnotationSearchHost(
+    destination: LibraryNav.AnnotationSearch,
+    onBack: () -> Unit,
+    onOpenBook: (sourceId: String, itemId: String) -> Unit,
+) {
+    val koin = getKoin()
+    val key = "${destination.searchLibraryId}/${destination.query}"
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel: AnnotationSearchViewModel = remember(key) {
+        host.adopt(koin.get { parametersOf(destination.searchLibraryId, destination.query) })
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+    AnnotationSearchResultsScreen(
+        viewModel = viewModel,
+        labels = AnnotationSearchLabels.English,
+        onNavigateBack = onBack,
+        onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
+        onAudiobookBookmarkSelected = { result -> onOpenBook(result.bookmark.sourceId, result.bookmark.itemId) },
     )
 }
 

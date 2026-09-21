@@ -42,6 +42,9 @@ kotlin {
             api(compose.material3)
             api(project(":core:domain"))
             api(project(":core:models"))
+            // AnnotationEntity.TYPE_BOOKMARK — the stored type token the annotation-search row
+            // branches on. Never the literal (AGENTS.md).
+            api(project(":core:database-api"))
             api(project(":feature:library"))
             // RiffleTheme, DefaultCoverPlaceholder, CornerBookmarkIndicator — the shared chrome
             // both hosts already wrap their screens in.
@@ -51,6 +54,12 @@ kotlin {
             // forking a shared derivation, so this module reuses it rather than declaring a
             // second one. Both hosts already depend on :feature:reader-ui, so nothing new ships.
             implementation(project(":feature:reader-ui"))
+            implementation(libs.coil.compose)
+            // NetworkHeaders/httpHeaders for the authenticated cover fetch on the
+            // annotation-search rows. coil-network-core is the multiplatform half of the network
+            // layer; each host supplies its own fetcher (OkHttp on Android, Ktor/Darwin on iOS)
+            // when it builds the ImageLoader. Same arrangement as :feature:player-ui.
+            implementation(libs.coil.network.core)
             implementation(libs.kotlinx.coroutines.core)
             api(libs.androidx.lifecycle.viewmodel)
         }

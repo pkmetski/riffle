@@ -16,11 +16,11 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
-import com.riffle.app.feature.library.AnnotationSearchResultsScreen
 import com.riffle.app.feature.library.BookCoverTile
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemCard
+import com.riffle.app.feature.library.androidAnnotationSearchLabels
 import com.riffle.app.feature.library.androidFilteredBooksLabels
 import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.app.feature.library.LibraryItemsScreen
@@ -30,9 +30,11 @@ import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.library.androidPlaylistLabels
 import com.riffle.app.feature.library.RiffleScreen
 import com.riffle.app.feature.navigation.HomeScreen
+import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
+import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import org.koin.androidx.compose.koinViewModel
@@ -340,6 +342,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
         ),
     ) { backStackEntry ->
         AnnotationSearchResultsScreen(
+            viewModel = koinViewModel<AnnotationSearchViewModel>(),
+            labels = androidAnnotationSearchLabels(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onAnnotationSelected = { result ->
                 val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
