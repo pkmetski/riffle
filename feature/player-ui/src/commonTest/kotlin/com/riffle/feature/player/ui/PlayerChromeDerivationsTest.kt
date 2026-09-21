@@ -87,6 +87,19 @@ class PlayerChromeDerivationsTest {
         assertEquals("1:02:11", bookmarkPositionLabel("1:02:11", ""))
     }
 
+    // ── readaloud handoff ───────────────────────────────────────────────────────
+
+    @Test
+    fun theHandoffSwipeNeedsBothALinkedEbookAndAHostThatCanNavigate() {
+        assertTrue(readaloudHandoffArmed("ebook-1", hostCanNavigate = true))
+        assertFalse(
+            readaloudHandoffArmed("ebook-1", hostCanNavigate = false),
+            "a host with no readaloud reader must not arm a gesture that pauses the book",
+        )
+        assertFalse(readaloudHandoffArmed(null, hostCanNavigate = true), "no linked ebook, no swipe")
+        assertFalse(readaloudHandoffArmed(null, hostCanNavigate = false))
+    }
+
     // ── chapters ────────────────────────────────────────────────────────────────
 
     @Test
