@@ -350,6 +350,106 @@ class IosAudioPlayerControllerTest {
         assertEquals(1, bridge.disposeCalls)
     }
 
+    // ── #1072 §3: bundle-backed offline audiobooks (ADR 0027) ───────────────────
+
+    /** Records what it was asked for and answers with `file://` URLs, like the real extractor. */
+    private class FakeBundleAudioExtractor(
+        private val resolve: (String) -> String? = { "file:///extracted/$it" },
+    ) : BundleAudioExtractor {
+        val requests = mutableListOf<Pair<String, List<String>>>()
+
+        override suspend fun extractedTrackUrls(zipFilePath: String, entryPaths: List<String>): List<String> {
+            requests += zipFilePath to entryPaths
+            return entryPaths.mapNotNull(resolve)
+        }
+    }
+
+    private val bundleEntries = listOf(
+        "OEBPS/audio/part0001.mp4",
+        "OEBPS/audio/part0002.mp4",
+        "OEBPS/audio/part0003.mp4",
+    )
+
+    /**
+     * The bug: `prepare` accepted `localZipFilePath` and ignored it, so the session's zip-entry
+     * paths went to Swift verbatim, `URL(string:)` made a schemeless relative URL out of each one
+     * and the book played silence. The queue must carry resolved `file://` URLs instead.
+     */
+    @Test
+    fun aBundleSessionQueuesExtractedFileUrlsNotZipEntryPaths() = runTest {
+        val bridge = FakeBridge()
+        val extractor = FakeBundleAudioExtractor()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(), extractor)
+
+        controller.prepare(
+            trackUrls = bundleEntries,
+            spans = spans,
+            durationSec = 300.0,
+            startAtSec = 0.0,
+            localZipFilePath = "/Library/Caches/epubs/book.epub",
+            bookTitle = "Test Book",
+            chapters = chapters,
+        )
+
+        assertEquals(
+            listOf("/Library/Caches/epubs/book.epub" to bundleEntries),
+            extractor.requests,
+            "the bundle path prepare() was given must be the one the entries are read out of",
+        )
+        assertEquals(
+            bundleEntries.map { "file:///extracted/$it" },
+            bridge.preparedUrls,
+            "AVQueuePlayer must be handed file:// URLs; a bare zip-entry path plays silence",
+        )
+    }
+
+    /**
+     * A bundle missing some of the audio the session's spans describe (a download cut short by a
+     * full disk) must not be queued: the surviving tracks would be mapped onto the wrong spans and
+     * every position written from then on would be wrong.
+     */
+    @Test
+    fun anIncompleteBundleIsNotQueued() = runTest {
+        val bridge = FakeBridge()
+        val extractor = FakeBundleAudioExtractor { entry ->
+            if (entry.endsWith("part0002.mp4")) null else "file:///extracted/$entry"
+        }
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(), extractor)
+
+        controller.prepare(
+            trackUrls = bundleEntries,
+            spans = spans,
+            durationSec = 300.0,
+            startAtSec = 0.0,
+            localZipFilePath = "/Library/Caches/epubs/book.epub",
+            bookTitle = "Test Book",
+            chapters = chapters,
+        )
+
+        assertEquals(emptyList(), bridge.preparedUrls, "a short extraction must not reach the player")
+    }
+
+    /** A streamed or downloaded session has no bundle, so the extractor must never be consulted. */
+    @Test
+    fun aNonBundleSessionBypassesTheExtractor() = runTest {
+        val bridge = FakeBridge()
+        val extractor = FakeBundleAudioExtractor()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(), extractor)
+
+        controller.prepare(
+            trackUrls = urls,
+            spans = spans,
+            durationSec = 300.0,
+            startAtSec = 0.0,
+            localZipFilePath = null,
+            bookTitle = "Test Book",
+            chapters = chapters,
+        )
+
+        assertEquals(emptyList(), extractor.requests)
+        assertEquals(urls, bridge.preparedUrls)
+    }
+
     // ── §15: the Listening skip/rewind intervals reach the lock screen ───────────
 
     @Test

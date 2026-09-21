@@ -138,9 +138,10 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 }
 
 // Opens a book from a library tile the way a user does: tile → item detail → Read → reader
-// (or audiobook player). Returns the reader's "← Back" control. Every reader and the player
-// render "← Back" as a clickable text, which XCUITest exposes as a Button; the item detail
-// screen shows the same control, so the Read button vanishing is what proves the reader opened.
+// (or audiobook player). Returns the reader's back control. The EPUB/PDF/CBZ readers render
+// "← Back" as a clickable text, which XCUITest exposes as a Button; the audiobook player renders
+// the shared Material back arrow, whose accessibility label is "Back". The item detail screen
+// shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
 func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 30) -> XCUIElement {
     revealTile(tile, in: app)
@@ -155,8 +156,10 @@ func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeIn
     XCTAssertTrue(read.exists, "Item detail must show the Read action")
     read.tap()
     XCTAssertTrue(read.waitForNonExistence(timeout: timeout), "Read must leave the item detail screen")
-    let back = app.buttons["← Back"].firstMatch
-    XCTAssertTrue(back.waitForExistence(timeout: timeout), "Reader must show ← Back")
+    let back = app.buttons.matching(
+        NSPredicate(format: "label == '← Back' OR label == 'Back'")
+    ).firstMatch
+    XCTAssertTrue(back.waitForExistence(timeout: timeout), "Reader must show its back control")
     return back
 }
 

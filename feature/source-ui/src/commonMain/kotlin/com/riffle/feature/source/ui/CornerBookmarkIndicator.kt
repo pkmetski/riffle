@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.source.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -24,13 +24,18 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-private val BookmarkActiveColor = Color(0xFFB5440E)
-private const val BookmarkIdleAlpha = 0.18f
+private val BOOKMARK_ACTIVE_COLOR = Color(0xFFB5440E)
+private const val BOOKMARK_IDLE_ALPHA = 0.18f
 
 /**
  * A pentagon bookmark ribbon pinned at the top-right corner of the reading area.
- * Idle: very low-opacity (ambient). Active: fills with [BookmarkActiveColor] + squish animation.
+ * Idle: very low-opacity (ambient). Active: fills with [BOOKMARK_ACTIVE_COLOR] + squish animation.
  * Hidden entirely when [isVisible] is false (non-ABS books, Storyteller-only).
+ *
+ * Lives here rather than in :app because BOTH platforms draw it: the Android EPUB/PDF readers and
+ * the Android audiobook player render it directly, and the iOS audiobook player renders it through
+ * :feature:player-ui's shared [com.riffle.feature.player.ui.AudiobookPlayerBody]. Keeping one
+ * definition is what stops the two ribbons from drifting.
  */
 @Composable
 fun CornerBookmarkIndicator(
@@ -43,8 +48,11 @@ fun CornerBookmarkIndicator(
     if (!isVisible) return
 
     val fillColor by animateColorAsState(
-        targetValue = if (isBookmarked) BookmarkActiveColor
-                      else BookmarkActiveColor.copy(alpha = BookmarkIdleAlpha),
+        targetValue = if (isBookmarked) {
+            BOOKMARK_ACTIVE_COLOR
+        } else {
+            BOOKMARK_ACTIVE_COLOR.copy(alpha = BOOKMARK_IDLE_ALPHA)
+        },
         animationSpec = tween(durationMillis = 180),
         label = "bookmarkFill",
     )

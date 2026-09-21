@@ -4,6 +4,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.player.ui.PlayerChromeLabels
+import com.riffle.feature.player.ui.PlayerSurface
+import com.riffle.feature.player.ui.PlayerSurfaceActions
+import com.riffle.feature.player.ui.PlayerSurfaceState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,10 +40,12 @@ class PlayerTitleYearTest {
         onSleepTimerCancel = {},
     )
 
+    private val labels = PlayerChromeLabels.English
+
     @Test
     fun yearShowsWhenPresent() {
         rule.setContent {
-            PlayerSurface(state = baseState.copy(publishedYear = "2014"), actions = noopActions)
+            PlayerSurface(state = baseState.copy(publishedYear = "2014"), actions = noopActions, labels = labels)
         }
         rule.onNodeWithText("Andy Weir").assertIsDisplayed()
         rule.onNodeWithText("2014").assertIsDisplayed()
@@ -48,7 +54,7 @@ class PlayerTitleYearTest {
     @Test
     fun yearIsOmittedWhenNull() {
         rule.setContent {
-            PlayerSurface(state = baseState.copy(publishedYear = null), actions = noopActions)
+            PlayerSurface(state = baseState.copy(publishedYear = null), actions = noopActions, labels = labels)
         }
         rule.onNodeWithText("Andy Weir").assertIsDisplayed()
         rule.onNodeWithText("2014").assertDoesNotExist()
@@ -57,7 +63,7 @@ class PlayerTitleYearTest {
     @Test
     fun yearIsOmittedWhenBlank() {
         rule.setContent {
-            PlayerSurface(state = baseState.copy(publishedYear = "   "), actions = noopActions)
+            PlayerSurface(state = baseState.copy(publishedYear = "   "), actions = noopActions, labels = labels)
         }
         rule.onNodeWithText("Andy Weir").assertIsDisplayed()
         rule.onNodeWithText("   ").assertDoesNotExist()

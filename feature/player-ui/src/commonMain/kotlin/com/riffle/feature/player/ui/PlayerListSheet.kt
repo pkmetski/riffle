@@ -1,6 +1,5 @@
-package com.riffle.app.feature.audiobook
+package com.riffle.feature.player.ui
 
-import com.riffle.feature.player.formatHms
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,12 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,11 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.models.AudiobookBookmark
+import com.riffle.feature.player.formatHms
 
 /**
  * What a [PlayerListSheet] renders. The sheet is opened parameterized to exactly ONE kind — there are
@@ -57,7 +52,6 @@ sealed interface PlayerListContent {
         val onSeek: (AudiobookBookmark) -> Unit,
         val onRename: (AudiobookBookmark) -> Unit,
         val onDelete: (AudiobookBookmark) -> Unit,
-        // Slice 2 surfaces this; pass false for now.
         val offlineNote: Boolean = false,
     ) : PlayerListContent
 }
@@ -71,6 +65,7 @@ sealed interface PlayerListContent {
 @Composable
 fun PlayerListSheet(
     content: PlayerListContent,
+    labels: PlayerChromeLabels,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -78,34 +73,40 @@ fun PlayerListSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         val title = when (content) {
-            is PlayerListContent.Chapters -> "Chapters"
-            is PlayerListContent.Bookmarks -> "Bookmarks"
+            is PlayerListContent.Chapters -> labels.chapters
+            is PlayerListContent.Bookmarks -> labels.bookmarks
         }
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                .testTag("player_list_sheet_title"),
         )
 
         when (content) {
-            is PlayerListContent.Chapters -> ChaptersList(content, onDismiss)
-            is PlayerListContent.Bookmarks -> BookmarksList(content, onDismiss)
+            is PlayerListContent.Chapters -> ChaptersList(content, labels, onDismiss)
+            is PlayerListContent.Bookmarks -> BookmarksList(content, labels, onDismiss)
         }
     }
 }
 
 @Composable
-private fun ChaptersList(content: PlayerListContent.Chapters, onDismiss: () -> Unit) {
+private fun ChaptersList(
+    content: PlayerListContent.Chapters,
+    labels: PlayerChromeLabels,
+    onDismiss: () -> Unit,
+) {
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         items(content.items) { chapter ->
             val isCurrent = chapter.index == content.currentIndex
-            val displayTitle = chapter.title.ifBlank { "Chapter ${chapter.index + 1}" }
             PlayerListRow(
                 lead = {
                     if (isCurrent) {
                         Icon(
-                            Icons.Filled.GraphicEq,
-                            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_now_playing),
+                            PlayerGlyphs.GraphicEq,
+                            contentDescription = labels.nowPlaying,
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     } else {
@@ -116,8 +117,8 @@ private fun ChaptersList(content: PlayerListContent.Chapters, onDismiss: () -> U
                         )
                     }
                 },
-                title = displayTitle,
-                subtitle = if (isCurrent) "Now playing" else null,
+                title = chapterDisplayTitle(chapter.title, chapter.index, labels),
+                subtitle = if (isCurrent) labels.nowPlaying else null,
                 trailing = {
                     Text(
                         text = formatHms(chapter.endSec - chapter.startSec),
@@ -136,10 +137,14 @@ private fun ChaptersList(content: PlayerListContent.Chapters, onDismiss: () -> U
 }
 
 @Composable
-private fun BookmarksList(content: PlayerListContent.Bookmarks, onDismiss: () -> Unit) {
+private fun BookmarksList(
+    content: PlayerListContent.Bookmarks,
+    labels: PlayerChromeLabels,
+    onDismiss: () -> Unit,
+) {
     if (content.offlineNote) {
         Text(
-            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_offline_bookmarks_will_sync),
+            text = labels.offlineBookmarksWillSync,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
@@ -147,7 +152,7 @@ private fun BookmarksList(content: PlayerListContent.Bookmarks, onDismiss: () ->
     }
     if (content.items.isEmpty()) {
         Text(
-            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_bookmarks_yet),
+            text = labels.noBookmarksYet,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -159,14 +164,14 @@ private fun BookmarksList(content: PlayerListContent.Bookmarks, onDismiss: () ->
             PlayerListRow(
                 lead = {
                     Icon(
-                        Icons.Filled.PlayArrow,
+                        PlayerGlyphs.PlayArrow,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 title = bookmark.title,
                 subtitle = null,
-                trailing = { BookmarkOverflow(bookmark, content) },
+                trailing = { BookmarkOverflow(bookmark, content, labels) },
                 highlighted = false,
                 onClick = {
                     content.onSeek(bookmark)
@@ -178,24 +183,28 @@ private fun BookmarksList(content: PlayerListContent.Bookmarks, onDismiss: () ->
 }
 
 @Composable
-private fun BookmarkOverflow(bookmark: AudiobookBookmark, content: PlayerListContent.Bookmarks) {
+private fun BookmarkOverflow(
+    bookmark: AudiobookBookmark,
+    content: PlayerListContent.Bookmarks,
+    labels: PlayerChromeLabels,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_bookmark_options))
+            Icon(PlayerGlyphs.MoreVert, contentDescription = labels.bookmarkOptions)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_rename)) },
-                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                text = { Text(labels.rename) },
+                leadingIcon = { Icon(PlayerGlyphs.Edit, contentDescription = null) },
                 onClick = {
                     expanded = false
                     content.onRename(bookmark)
                 },
             )
             DropdownMenuItem(
-                text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete)) },
-                leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                text = { Text(labels.delete) },
+                leadingIcon = { Icon(PlayerGlyphs.Delete, contentDescription = null) },
                 onClick = {
                     expanded = false
                     content.onDelete(bookmark)

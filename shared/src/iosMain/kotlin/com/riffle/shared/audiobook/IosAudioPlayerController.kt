@@ -40,6 +40,9 @@ class IosAudioPlayerController(
     // Injectable so unit tests can drive the controller without the main run loop; production
     // always uses the default (AVFoundation callbacks arrive on the main thread).
     mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
+    // Bundle-backed sessions (ADR 0027) carry zip-entry paths, which AVFoundation cannot open;
+    // see [BundleAudioExtractor].
+    private val bundleAudioExtractor: BundleAudioExtractor = IosBundleAudioExtractor(),
 ) : AudioPlayerInterface {
 
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
@@ -108,6 +111,21 @@ class IosAudioPlayerController(
         bookTitle: String?,
         chapters: List<AudiobookChapter>,
     ) {
+        // Bundle-backed offline audiobooks (ADR 0027) hand us the zip's *entry* paths, not URLs.
+        // Android serves those straight out of the zip through `zipaudio://`; AVFoundation has no
+        // such seam, so they are materialised as `file://` URLs first. Doing this before anything
+        // else means a bundle that cannot be resolved never reaches the player as a half-queued
+        // book — it used to be passed through verbatim, and Swift's `URL(string:)` turned each
+        // relative path into a schemeless URL that AVPlayerItem accepted and then played as
+        // silence (#1072 §3).
+        val playableUrls = if (localZipFilePath == null) {
+            trackUrls
+        } else {
+            val extracted = bundleAudioExtractor.extractedTrackUrls(localZipFilePath, trackUrls)
+            // A short result means the bundle is missing entries the session's spans describe;
+            // queueing it would map every span onto the wrong track. Refuse instead.
+            if (extracted.size != trackUrls.size) return else extracted
+        }
         // Flush any stale end-of-book event from a prior session before loading new tracks,
         // mirroring Android AudiobookController.resetReplayCache() before prepare().
         _playbackEnded.resetReplayCache()
@@ -126,7 +144,7 @@ class IosAudioPlayerController(
         // parity with Android's `setMediaItems(items, start.trackIndex, start.offsetMs)`.
         val start = AudiobookTracks.startPositionFor(startAtSec, durationSec, spans)
         bridge.preparePlayer(
-            trackUrls = trackUrls,
+            trackUrls = playableUrls,
             startTrackIndex = start.trackIndex,
             startOffsetSec = start.offsetMs / MS_PER_SEC,
         )
