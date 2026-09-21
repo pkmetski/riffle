@@ -61,6 +61,7 @@ import org.koin.mp.KoinPlatform
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -74,7 +75,9 @@ import kotlin.test.assertTrue
  */
 class IosKoinGraphTest {
 
-    private var nextDatabaseId = 0
+    private companion object {
+        private var nextDatabaseId = 0
+    }
 
     @AfterTest
     fun tearDown() {
@@ -91,7 +94,31 @@ class IosKoinGraphTest {
      * why this passed locally and failed on CI. Closing the driver in teardown is the wrong
      * lever: other suites in the same test binary open the production file too.
      */
-    private fun uniqueDatabaseFile(): String = "riffle-graph-test-${nextDatabaseId++}.db"
+    // `internal`, not private, so the isolation test below can call it on a SECOND instance —
+    // which is the whole property at stake.
+    internal fun uniqueDatabaseFile(): String = "riffle-graph-test-${nextDatabaseId++}.db"
+
+    /**
+     * Two cases must never be handed the same database file.
+     *
+     * Every case here starts the REAL production graph, which opens a real SQLite database, and
+     * `stopKoin()` drops the graph's references without closing the driver. Two cases sharing a
+     * file therefore race, and the loser fails with `SQLITE_BUSY` — only on a machine slow enough
+     * for the connections to overlap, which is why the first attempt at this passed locally and
+     * failed on CI twice.
+     *
+     * The counter has to be CLASS-level: kotlin.test constructs a fresh instance per test method,
+     * so an instance-level counter hands every case id 0 and isolates nothing. This asserts across
+     * two instances precisely because a single-instance assertion passes either way.
+     */
+    @Test
+    fun twoInstancesNeverShareADatabaseFile() {
+        assertNotEquals(
+            IosKoinGraphTest().uniqueDatabaseFile(),
+            IosKoinGraphTest().uniqueDatabaseFile(),
+            "kotlin.test builds a fresh instance per test, so the counter must be class-level",
+        )
+    }
 
     // The bridges are created only when a reader/player actually opens; the graph never calls
     // create(), so these stand-ins are enough to start Koin.
