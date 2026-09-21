@@ -32,6 +32,7 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.FormattingPreferences
@@ -53,11 +54,16 @@ import com.riffle.core.domain.cadence.currentRunningFeature
 import com.riffle.core.domain.cadence.runArbiter
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.logging.Logger
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.reader.ChapterMapUiState
 import com.riffle.feature.reader.NarratedColumnProgression
+import com.riffle.feature.reader.NavigatorDecoration
+import com.riffle.feature.reader.NavigatorEvent
 import com.riffle.feature.reader.NavigatorFollowResult
 import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorPageDirection
@@ -65,6 +71,7 @@ import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.annotationListLabel
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.cadence.CadenceController
@@ -75,13 +82,18 @@ import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.toReadiumTextStyling
+import com.riffle.feature.reader.ui.AnnotationActionsSheet
+import com.riffle.feature.reader.ui.AnnotationSheetLabels
 import com.riffle.feature.reader.ui.AutoScrollHudPill
 import com.riffle.feature.reader.ui.AutoScrollToggleIcon
 import com.riffle.feature.reader.ui.CadenceHudPill
 import com.riffle.feature.reader.ui.CadenceToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
+import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.SpeedHudLabels
+import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
@@ -144,6 +156,35 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             navigator = navigator,
         )
     }
+    val annotations by coordinator.annotations.collectAsState()
+    // Kept in a ref the editor's suppliers read, so the editor is constructed once and still
+    // sees the current spine / orientation rather than the values at first composition.
+    val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
+    val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
+    val editor = remember(navigator) {
+        ReaderAnnotationEditor(
+            sourceId = item.sourceId,
+            itemId = item.id,
+            annotationStore = annotationStore,
+            navigator = navigator,
+            annotations = { coordinator.annotations.value },
+            spineHrefs = { spineRef.value.hrefs },
+            spinePositionCounts = { spineRef.value.positionCounts },
+            orientation = { orientationRef.value },
+        )
+    }
+    val selection by navigator.selectionFlow.collectAsState()
+    // The annotation whose actions sheet is open, or null. Set by a decoration tap and by a
+    // fresh create so the sheet switches from "annotate this selection" to "edit this
+    // annotation" without the user having to tap the new highlight.
+    var editTargetId by remember { mutableStateOf<String?>(null) }
+    // Non-null while the note editor is up; the value is the annotation id, or "" for a note
+    // being written on a selection that has not been persisted yet.
+    var noteEditorFor by remember { mutableStateOf<String?>(null) }
+    var annotationsPanelOpen by remember { mutableStateOf(false) }
+    var currentBookmark by remember { mutableStateOf<Annotation?>(null) }
+    // Styles picked on a selection before it is persisted. Applied by `createHighlight`.
+    var pendingStyles by remember { mutableStateOf(emptySet<EmphasisStyle>()) }
     // Retained so DisposableEffect can cancel in-flight fetches on close.
     var lazyFetcher by remember { mutableStateOf<IosLazyChapterFetcher?>(null) }
     // Cached publication shape for prefetch index lookups — avoids re-fetching on every position.
@@ -205,6 +246,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             .collect { (stored, prefs) ->
                 storedPrefs = stored
                 resolvedPrefs = prefs
+                orientationRef.value = prefs.orientation
                 val styling = prefs.toReadiumTextStyling()
                 navigator.applyReaderPreferences(
                     fontSizePercent = prefs.fontSize,
@@ -234,16 +276,77 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     LaunchedEffect(localPath) {
         if (localPath == null) return@LaunchedEffect
         navigator.getToc().takeIf { it.isNotEmpty() }?.let { tocEntries = it }
-        navigator.getSpine().takeIf { it.isUsable }?.let { spine = it }
+        navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
         if (tocEntries.isNotEmpty() && spine.isUsable) return@LaunchedEffect
         navigator.pageLoadEvents.collect {
             if (tocEntries.isEmpty()) {
                 navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc }
             }
             if (!spine.isUsable) {
-                navigator.getSpine().takeIf { it.isUsable }?.let { spine = it }
+                navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
             }
         }
+    }
+
+    // ---- Annotations -------------------------------------------------------------------------
+    //
+    // Works in all three reading modes. Paginated and the two scroll modes (Vertical and
+    // Continuous both map to Readium's `scroll` via [epubScrollMode]) differ in exactly two
+    // places, and both degrade the way Android's do:
+    //  - the bookmark's `fragmentAnchor`: `CAPTURE_PAGE_FRAGMENT_ANCHOR_JS` deliberately
+    //    answers null for a scrolling document, which is the legacy "no anchor" shape every
+    //    consumer already handles, so a scroll-mode bookmark falls back to its progression;
+    //  - the note glyph's column clamp, which is a no-op where there are no columns.
+    // Everything else — the selection callback, the decoration groups, the text-quote anchor,
+    // the merge policy — is mode-independent because Readium resolves a decoration the same way
+    // in both layouts.
+    // A tap on a rendered decoration opens the actions sheet on that annotation. Readium reports
+    // the decoration id, which is the annotation id — except for an emphasis layer, whose id
+    // carries a `#<style>` suffix because one row can paint two decorations. Android strips a
+    // `#segN` suffix at the same seam (`annotationIdOf`) for the same reason.
+    LaunchedEffect(navigator) {
+        navigator.decorationActivations.collect { activation ->
+            editTargetId = activation.id.substringBefore('#')
+            annotationsPanelOpen = false
+        }
+    }
+
+    // A tap on the body dismisses the actions sheet. Readium's decorator consumes a tap that
+    // landed on a decoration before it ever becomes a body tap, so this cannot race with the
+    // collector above and close the sheet it just opened.
+    LaunchedEffect(navigator) {
+        navigator.eventFlow.collect { event ->
+            if (event is NavigatorEvent.BodyTap) {
+                editTargetId = null
+                pendingStyles = emptySet()
+            }
+        }
+    }
+
+    // Keep the corner ribbon in step with the page. Recomputed on every position change and
+    // whenever the annotation set changes, because both can flip the answer.
+    LaunchedEffect(navigator, annotations) {
+        currentBookmark = editor.bookmarkOnCurrentPage()
+        navigator.positionFlow.collect { currentBookmark = editor.bookmarkOnCurrentPage() }
+    }
+
+    // Search results painted in the page, not just listed. `searchMark` had no producer on iOS
+    // even though the Swift bridge already knew the type.
+    LaunchedEffect(searchResults, searchOpen) {
+        if (!searchOpen || searchResults.isEmpty()) {
+            navigator.applyDecorations(ReaderDecorationGroups.search, emptyList())
+            return@LaunchedEffect
+        }
+        navigator.applyDecorations(
+            ReaderDecorationGroups.search,
+            searchResults.mapIndexed { index, match ->
+                NavigatorDecoration.SearchMark(
+                    id = "search_$index",
+                    locatorJson = match.locatorJson,
+                    isCurrent = index == 0,
+                )
+            },
+        )
     }
 
     // The chapter map. Android derives these six values from six StateFlows on its reader
@@ -575,12 +678,22 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         },
                     )
                 }
+                BasicText(
+                    text = "✎",
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .clickable {
+                            annotationsPanelOpen = !annotationsPanelOpen
+                            tocOpen = false
+                            searchOpen = false
+                        },
+                )
                 if (tocEntries.isNotEmpty()) {
                     BasicText(
                         text = "TOC",
                         modifier = Modifier
                             .padding(horizontal = 8.dp)
-                            .clickable { tocOpen = !tocOpen; searchOpen = false },
+                            .clickable { tocOpen = !tocOpen; searchOpen = false; annotationsPanelOpen = false },
                     )
                 }
                 BasicText(
@@ -589,6 +702,162 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         .padding(horizontal = 8.dp)
                         .clickable { searchOpen = !searchOpen; tocOpen = false; searchQuery = ""; searchResults = emptyList() },
                 )
+            }
+        }
+
+        // The corner bookmark ribbon — the shared composable Android's three readers and its
+        // audiobook player render, not the blue in-page wash iOS used to paint. Tapping it
+        // creates or removes the bookmark on this page, using the same shared epsilon that
+        // decides whether it is lit (see `bookmarkEpsFor`), so the two can never disagree.
+        if (localPath != null) {
+            CornerBookmarkIndicator(
+                isBookmarked = currentBookmark != null,
+                isVisible = true,
+                onToggle = { scope.launch { editor.toggleBookmark() } },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .systemBarsPadding()
+                    .padding(top = 40.dp, end = 8.dp),
+            )
+        }
+
+        // The annotate sheet. Shown for a live selection, or for the annotation the reader just
+        // tapped. One sheet for both because the actions are the same — which is how Android's
+        // `HighlightActionsPopup` works too; only the anchoring differs (a Popup next to the
+        // tapped rect there, docked to the bottom here).
+        val editTarget = annotations.firstOrNull { it.id == editTargetId }
+        val liveSelection = selection
+        if (noteEditorFor == null && (editTarget != null || liveSelection != null)) {
+            // The reader's own paper colour, not the app surface: an alpha-0x80 swatch composited
+            // over the wrong backdrop previews a colour the book will never show. Same shared
+            // derivation Android's popup reads.
+            val readerBackground = (resolvedPrefs ?: FormattingPreferences()).readerSwatchBackdropColor
+            AnnotationActionsSheet(
+                selectedColor = editTarget?.let {
+                    if (it.color.isEmpty()) null else HighlightColor.fromToken(it.color)
+                },
+                emphasisStyles = editTarget?.let { editor.emphasisStylesFor(it) } ?: pendingStyles,
+                note = editTarget?.note,
+                readerBackground = readerBackground,
+                labels = AnnotationSheetLabels.English,
+                onPickColor = { color ->
+                    scope.launch {
+                        if (editTarget != null) {
+                            editor.recolor(editTarget.id, color)
+                        } else if (liveSelection != null) {
+                            editor.createHighlight(liveSelection, color, pendingStyles, null)
+                                ?.let { editTargetId = it.id }
+                            pendingStyles = emptySet()
+                        }
+                    }
+                },
+                onRemoveColor = {
+                    scope.launch {
+                        if (editTarget != null) {
+                            editor.recolor(editTarget.id, null)
+                        } else if (liveSelection != null) {
+                            editor.createHighlight(liveSelection, null, pendingStyles, null)
+                                ?.let { editTargetId = it.id }
+                            pendingStyles = emptySet()
+                        }
+                    }
+                },
+                onToggleEmphasis = { style ->
+                    scope.launch {
+                        if (editTarget != null) {
+                            editor.toggleEmphasis(editTarget, style)
+                        } else {
+                            // ADR 0056 §4: a chip tapped on a bare selection persists the
+                            // highlight (with no colour) plus its emphasis sibling, so the
+                            // formatting has something to anchor to.
+                            val next = if (style in pendingStyles) {
+                                pendingStyles - style
+                            } else {
+                                pendingStyles + style
+                            }
+                            pendingStyles = next
+                            if (liveSelection != null && next.isNotEmpty()) {
+                                editor.createHighlight(liveSelection, null, next, null)
+                                    ?.let { editTargetId = it.id }
+                                pendingStyles = emptySet()
+                            }
+                        }
+                    }
+                },
+                onOpenNoteEditor = { noteEditorFor = editTarget?.id ?: "" },
+                onDelete = editTarget?.let { target ->
+                    {
+                        scope.launch { editor.delete(target.id) }
+                        editTargetId = null
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            )
+        }
+
+        // The note editor. `""` means the note is being written on a selection that has not been
+        // persisted yet — confirming it creates the highlight and the note in one go, which is
+        // what Android's `commitDraftFromNoteEditor` does.
+        noteEditorFor?.let { target ->
+            val existing = annotations.firstOrNull { it.id == target }
+            NoteEditorSheet(
+                initialNote = existing?.note.orEmpty(),
+                labels = AnnotationSheetLabels.English,
+                onConfirm = { text ->
+                    scope.launch {
+                        if (existing != null) {
+                            editor.setNote(existing.id, text)
+                        } else {
+                            selection?.let { sel ->
+                                editor.createHighlight(sel, null, pendingStyles, text)
+                                    ?.let { editTargetId = it.id }
+                            }
+                            pendingStyles = emptySet()
+                        }
+                    }
+                    noteEditorFor = null
+                },
+                onDismiss = { noteEditorFor = null },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            )
+        }
+
+        // The annotations panel — every highlight, note and bookmark on the book, tap to go
+        // there. This is what makes "navigate to an annotation" reachable at all on iOS.
+        if (annotationsPanelOpen) {
+            Box(modifier = Modifier.fillMaxSize().padding(top = 56.dp)) {
+                LazyColumn(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .fillMaxWidth(0.8f)
+                        .padding(8.dp),
+                ) {
+                    items(annotations.filter { it.type != AnnotationEntity.TYPE_EMPHASIS }) { a ->
+                        BasicText(
+                            text = annotationListLabel(a),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp)
+                                .clickable {
+                                    annotationsPanelOpen = false
+                                    scope.launch {
+                                        navigator.navigateTo(
+                                            NavigatorNavigationTarget.ToLocatorJson(
+                                                annotationDecorationLocator(a),
+                                            ),
+                                        )
+                                        editTargetId = a.id
+                                    }
+                                },
+                        )
+                    }
+                }
             }
         }
 

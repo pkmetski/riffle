@@ -57,7 +57,7 @@ kotlin {
     }
 }
 
-// The three `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task:
+// The `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task:
 // Compose's UI-test harness needs a real Android runtime (it dereferences
 // `android.os.Build.FINGERPRINT`, which is null on a bare JVM) and the repo has no Robolectric.
 // They are not skipped — they run for real on `:feature:reader-ui:iosSimulatorArm64Test`, which
@@ -73,6 +73,11 @@ tasks.withType<Test>().configureEach {
         excludeTestsMatching("com.riffle.feature.reader.ui.AutoScrollHudPillTest")
         excludeTestsMatching("com.riffle.feature.reader.ui.CadenceUiTest")
         excludeTestsMatching("com.riffle.feature.reader.ui.ChapterMapOverlayRenderTest")
+        // The annotate sheet and the bookmark ribbon: same constraint, same coverage story —
+        // they execute for real on `iosSimulatorArm64Test`, and Android renders the ribbon
+        // on-device in `app/src/androidTest` (`CornerBookmarkIndicatorTest`).
+        excludeTestsMatching("com.riffle.feature.reader.ui.AnnotationActionsSheetTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.CornerBookmarkIndicatorSharedTest")
         isFailOnNoMatchingTests = false
     }
 }

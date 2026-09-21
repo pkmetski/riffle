@@ -1,8 +1,6 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.EmphasisStyle
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * ADR 0056: DOM-level emphasis renderer. Bold and italic can't render via Readium's overlay
@@ -23,11 +21,12 @@ import org.json.JSONObject
  *     inline publisher CSS.
  *
  * Only bold and italic are handled here. Underline and strike are still painted by
- * [ReadiumHighlightRenderer.applyEmphasisCompanions] via Readium/custom decorations, so a
+ * `ReadiumHighlightRenderer.applyEmphasisCompanions` on Android and by the
+ * `AnnotationDecorationCoordinator`'s emphasis group on iOS via Readium/custom decorations, so a
  * `{bold, underline}` annotation gets bold from this injector AND the underline from the
  * overlay simultaneously.
  */
-internal object EmphasisDomInjector {
+object EmphasisDomInjector {
 
     /** Payload sent per annotation from Kotlin → JS. Kept minimal on purpose: any change to this
      *  shape needs a matching edit in [WRAP_SCRIPT_TEMPLATE]. */
@@ -42,21 +41,43 @@ internal object EmphasisDomInjector {
      *  annotations that carry BOLD or ITALIC; empty input still yields a valid cleanup-only
      *  script that removes any leftover wrappers from a previous apply. */
     fun script(annotations: List<EmphasisRange>): String {
-        val payload = JSONArray().apply {
-            for (a in annotations) {
-                put(
-                    JSONObject()
-                        .put("id", a.id)
-                        .put("snippet", a.textSnippet)
-                        .put("before", a.textBefore)
-                        .put(
-                            "styles",
-                            JSONArray().apply { for (s in a.styles) put(s.token) },
-                        ),
-                )
-            }
-        }.toString()
+        // Hand-rolled rather than org.json: this object now lives in commonMain so iOS runs the
+        // very same script through its own JS seam, and `org.json` is JVM-only. The shape is
+        // fixed and tiny, and [jsEscape] covers everything a JSON string forbids.
+        val payload = annotations.joinToString(",", prefix = "[", postfix = "]") { a ->
+            val styles = a.styles.joinToString(",") { "\"" + jsEscape(it.token) + "\"" }
+            "{\"id\":\"${jsEscape(a.id)}\",\"snippet\":\"${jsEscape(a.textSnippet)}\"," +
+                "\"before\":\"${jsEscape(a.textBefore)}\",\"styles\":[$styles]}"
+        }
         return WRAP_SCRIPT_TEMPLATE.replace("__ANNOTATIONS__", payload)
+    }
+
+    /**
+     * Escape a value for a JSON string literal that is then spliced into JavaScript source.
+     *
+     * Beyond the JSON minimum this also escapes `<`, `>` and `/`: a snippet containing the
+     * literal `</script>` would otherwise close the script element early on the Android side
+     * and break the whole injection, and `org.json` — which this replaced — escaped `/` for
+     * exactly that reason.
+     */
+    internal fun jsEscape(value: String): String = buildString(value.length) {
+        for (ch in value) {
+            when {
+                ch == '\\' -> append("\\\\")
+                ch == '"' -> append("\\\"")
+                ch == '\n' -> append("\\n")
+                ch == '\r' -> append("\\r")
+                ch == '\t' -> append("\\t")
+                ch == '<' -> append("\\u003c")
+                ch == '>' -> append("\\u003e")
+                ch == '/' -> append("\\/")
+                ch < ' ' -> {
+                    append("\\u")
+                    append(ch.code.toString(16).padStart(4, '0'))
+                }
+                else -> append(ch)
+            }
+        }
     }
 
     // Language=JavaScript

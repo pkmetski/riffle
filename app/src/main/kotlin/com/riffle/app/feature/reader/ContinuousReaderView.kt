@@ -558,8 +558,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     fun applyFigureBorders(
         cssRules: List<String>,
-        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
-        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
+        svgMatches: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
     ) = controller.applyFigureBorders(cssRules, svgMatches, rasterMarks)
 
     /**

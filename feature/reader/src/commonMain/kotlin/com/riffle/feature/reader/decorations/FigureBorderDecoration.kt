@@ -1,10 +1,10 @@
-package com.riffle.app.feature.reader.decorations
+package com.riffle.feature.reader.decorations
 
-import com.riffle.app.feature.reader.normalizeCaptionText
-import com.riffle.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.reader.normalizeCaptionText
 import com.riffle.feature.reader.toCssRgba
 
 /**
@@ -18,7 +18,7 @@ import com.riffle.feature.reader.toCssRgba
  * [buildSvgApplyJs] that walks `document.querySelectorAll('svg')`, prefix-matches each element's
  * outerHTML against the stored SVG source, and sets `outline` inline on the winner.
  */
-internal object FigureBorderDecoration {
+object FigureBorderDecoration {
 
     private const val OUTLINE_WIDTH_CSS = "2px"
     private const val OUTLINE_OFFSET_CSS = "2px"
@@ -48,7 +48,7 @@ internal object FigureBorderDecoration {
      * whose range already covers the caption receive their tint from Readium's normal decoration
      * pipeline, so this stays false to avoid double-painting.
      */
-    internal data class RasterMark(
+    data class RasterMark(
         val filename: String,
         val color: String,
         val hasNote: Boolean,
@@ -128,7 +128,7 @@ internal object FigureBorderDecoration {
      * shape via the same canonical caption prefix used by
      * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
      */
-    private fun highlightOverlapsCaption(annotation: Annotation, figure: com.riffle.core.models.EmbeddedFigure): Boolean {
+    private fun highlightOverlapsCaption(annotation: Annotation, figure: EmbeddedFigure): Boolean {
         val normalizedSnippet = normalizeCaptionText(annotation.textSnippet)
         if (figure.caption.isBlank()) {
             if (CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)) return true
@@ -181,7 +181,7 @@ internal object FigureBorderDecoration {
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
      * two annotations reference the same SVG (same fingerprint).
      */
-    internal data class SvgMatch(
+    data class SvgMatch(
         val fingerprint: String,
         val color: String,
         val hasNote: Boolean = false,

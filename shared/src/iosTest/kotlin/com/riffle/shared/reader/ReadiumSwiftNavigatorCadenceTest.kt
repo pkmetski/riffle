@@ -50,6 +50,27 @@ class ReadiumSwiftNavigatorCadenceTest {
         override fun scrollByPx(pixels: Int, onResult: (Boolean) -> Unit) = onResult(false)
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
+
+        override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) {
+            selectionCallback = callback
+        }
+        var selectionCallback: ((String?) -> Unit)? = null
+        var clearSelectionCalls = 0
+        override fun clearSelection() {
+            clearSelectionCalls++
+        }
+        override fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?) {
+            decorationCallback = callback
+        }
+        var decorationCallback: ((String) -> Unit)? = null
+        val observedGroups = mutableListOf<String>()
+        override fun observeDecorationGroup(group: String) {
+            observedGroups += group
+        }
+        var resources: Map<String, String> = emptyMap()
+        override fun readResource(href: String, onResult: (String?) -> Unit) {
+            onResult(resources[href])
+        }
     }
 
     private fun navigator(bridge: ScriptBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())

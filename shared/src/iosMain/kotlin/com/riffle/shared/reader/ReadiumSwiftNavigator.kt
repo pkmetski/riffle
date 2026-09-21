@@ -7,6 +7,7 @@ import com.riffle.feature.reader.ColumnSnap
 import com.riffle.feature.reader.EpubNavigatorInterface
 import com.riffle.feature.reader.LocatorJson
 import com.riffle.feature.reader.NavigatorDecoration
+import com.riffle.feature.reader.NavigatorDecorationActivation
 import com.riffle.feature.reader.NavigatorEvent
 import com.riffle.feature.reader.NavigatorFollowResult
 import com.riffle.feature.reader.NavigatorNavigationOptions
@@ -14,8 +15,10 @@ import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorPageDirection
 import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
+import com.riffle.feature.reader.NavigatorRect
 import com.riffle.feature.reader.NavigatorScrollBoundary
 import com.riffle.feature.reader.NavigatorSearchMatch
+import com.riffle.feature.reader.NavigatorSelection
 import com.riffle.feature.reader.cadence.CadenceDomScript
 import com.riffle.feature.reader.cadence.CadenceInjector
 import kotlinx.cinterop.BetaInteropApi
@@ -25,6 +28,8 @@ import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -33,6 +38,7 @@ import platform.Foundation.NSArray
 import platform.Foundation.NSData
 import platform.Foundation.NSDictionary
 import platform.Foundation.NSJSONSerialization
+import platform.Foundation.NSNumber
 import platform.Foundation.create
 import kotlin.coroutines.resume
 
@@ -53,8 +59,24 @@ class ReadiumSwiftNavigator(
     private val _positionFlow = MutableSharedFlow<NavigatorPosition>(replay = 1, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<NavigatorPageLoad>(extraBufferCapacity = 16)
     private val _eventFlow = MutableSharedFlow<NavigatorEvent>(extraBufferCapacity = 16)
+    private val _selectionFlow = MutableStateFlow<NavigatorSelection?>(null)
+    private val _decorationActivations =
+        MutableSharedFlow<NavigatorDecorationActivation>(extraBufferCapacity = 16)
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
+
+    /**
+     * The live text selection, or null when there is none.
+     *
+     * A [MutableStateFlow] rather than a SharedFlow because the annotate sheet's visibility IS
+     * this value: the reader shows it while a selection exists and dismisses it when Readium
+     * reports the selection cleared, so a late collector must see the current state, not wait
+     * for the next change.
+     */
+    val selectionFlow: StateFlow<NavigatorSelection?> = _selectionFlow
+
+    /** Taps on a rendered decoration, keyed by decoration group. */
+    val decorationActivations: Flow<NavigatorDecorationActivation> = _decorationActivations
 
     private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
@@ -82,6 +104,12 @@ class ReadiumSwiftNavigator(
         bridge.setErrorCallback { message ->
             logger.e(LogChannel.Reader) { "navigator error: $message" }
         }
+        bridge.setSelectionCallback { json ->
+            _selectionFlow.value = json?.let { parseSelectionJson(it) }
+        }
+        bridge.setDecorationActivatedCallback { json ->
+            parseActivationJson(json)?.let { _decorationActivations.tryEmit(it) }
+        }
     }
 
     init {
@@ -105,7 +133,24 @@ class ReadiumSwiftNavigator(
         bridge.setPageLoadCallback(null)
         bridge.setTapCallback(null)
         bridge.setErrorCallback(null)
+        bridge.setSelectionCallback(null)
+        bridge.setDecorationActivatedCallback(null)
+        _selectionFlow.value = null
         bridge.disposeNavigator()
+    }
+
+    /** Drop the live selection — called once the user has acted on it. */
+    fun clearSelection() {
+        bridge.clearSelection()
+        _selectionFlow.value = null
+    }
+
+    /**
+     * Make [group]'s decorations tappable. Readium only dispatches taps for groups registered
+     * this way; an unregistered group renders but is inert.
+     */
+    fun observeDecorationGroup(group: String) {
+        bridge.observeDecorationGroup(group)
     }
 
     override val positionFlow: Flow<NavigatorPosition> = _positionFlow
@@ -154,6 +199,10 @@ class ReadiumSwiftNavigator(
                     """{"id":"${d.id.escapeForJson()}","type":"noteGlyph","locator":${d.locatorJson}}"""
                 is NavigatorDecoration.SearchMark ->
                     """{"id":"${d.id.escapeForJson()}","type":"searchMark","locator":${d.locatorJson},"isCurrent":${d.isCurrent}}"""
+                is NavigatorDecoration.Emphasis -> {
+                    val tokens = d.styles.joinToString(",") { it.token }
+                    """{"id":"${d.id.escapeForJson()}","type":"emphasis","locator":${d.locatorJson},"styles":"$tokens"}"""
+                }
             }
         }
         return "[$items]"
@@ -244,6 +293,44 @@ class ReadiumSwiftNavigator(
     internal suspend fun cadenceStartSpanId(): String? =
         CadenceDomScript.parseCadenceStartId(evaluateJs(CadenceDomScript.cadenceStartSpanIdJs()))
 
+    /**
+     * The DOM id of the first block element visible in the current column, or null.
+     *
+     * The element-anchored half of bookmark navigation (PR #671): stored on the bookmark as
+     * `fragmentAnchor`, it goes back into the locator as `locations.fragments` so returning to
+     * the bookmark lands on the paragraph rather than on a progression estimate that a font-size
+     * change has since invalidated.
+     *
+     * The shared script answers null for a scrolling document, which is the same "no anchor"
+     * shape a legacy bookmark has — so Vertical and Continuous simply keep the progression path.
+     */
+    internal suspend fun capturePageFragmentAnchor(): String? {
+        val raw = evaluateJs(ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS) ?: return null
+        val trimmed = raw.trim('"')
+        return if (trimmed == "null" || trimmed.isBlank()) null else trimmed
+    }
+
+    /**
+     * The publisher's computed `font-family` on `<body>`, for `AnnotationEntity.originFontFamily`
+     * (issue #484). Null when there is no navigator or the script threw.
+     */
+    internal suspend fun computedBodyFontFamily(): String? {
+        val raw = evaluateJs("getComputedStyle(document.body).fontFamily") ?: return null
+        val trimmed = raw.trim('"')
+        return if (trimmed == "null" || trimmed.isBlank()) null else trimmed
+    }
+
+    /**
+     * Run a shared decoration script (figure borders, the bold/italic wrap) in the live document.
+     *
+     * Neither can be a Readium decoration: a decoration anchors to a text range — an `<img>` has
+     * none — and an overlay cannot reflow text the way bold does. Android issues the identical
+     * scripts through `RendererBridge.evaluateJavascript`; this is the same seam.
+     */
+    internal suspend fun evaluateJavaScriptForDecorations(script: String) {
+        evaluateJs(script)
+    }
+
     private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
         bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
     }
@@ -278,7 +365,24 @@ class ReadiumSwiftNavigator(
     override fun snapshotPosition(): NavigatorPosition? = lastPosition
         ?: bridge.snapshotLocatorJson()?.let { parseLocatorJson(it) }
 
-    override suspend fun getChapterBytes(href: String): ByteArray? = null
+    /**
+     * The chapter's *source* XHTML, straight from the publication.
+     *
+     * Android reads the same bytes out of the EPUB zip (`EpubReaderViewModel.readChapterHtml`).
+     * It is what every shared annotation derivation is computed against, so it must be the
+     * unmodified resource — not `document.documentElement.outerHTML` from the live WKWebView,
+     * which carries Readium's injected scripts and, once Cadence has run, a `<span class=
+     * "riffle-cd">` around every sentence. The readable-character offsets those produce do not
+     * match Android's, and a CFI built from them points at the wrong text on the other device.
+     */
+    override suspend fun getChapterBytes(href: String): ByteArray? =
+        readChapterHtml(href)?.encodeToByteArray()
+
+    /** [getChapterBytes] as the string the shared derivations actually take. */
+    internal suspend fun readChapterHtml(href: String): String? =
+        suspendCancellableCoroutine { cont ->
+            bridge.readResource(href) { html -> if (cont.isActive) cont.resume(html) }
+        }
 
     override suspend fun scrollBoundary(): NavigatorScrollBoundary = NavigatorScrollBoundary.None
 
@@ -339,6 +443,56 @@ class ReadiumSwiftNavigator(
 
     // Delegate to the shared utility in JsonStringUtils.kt (commonMain).
     private fun String.escapeForJson() = jsonEscaped()
+
+    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+    private fun parseJsonObject(json: String): NSDictionary? {
+        val bytes = json.encodeToByteArray()
+        if (bytes.isEmpty()) return null
+        val data = bytes.usePinned { p ->
+            NSData.create(bytes = p.addressOf(0), length = bytes.size.toULong())
+        }
+        return NSJSONSerialization.JSONObjectWithData(data = data, options = 0u, error = null)
+            as? NSDictionary
+    }
+
+    private fun NSDictionary.doubleOrNull(key: String): Double? =
+        (objectForKey(key) as? NSNumber)?.doubleValue
+
+    private fun NSDictionary.rect(): NavigatorRect? {
+        val x = doubleOrNull("x") ?: return null
+        val y = doubleOrNull("y") ?: return null
+        val width = doubleOrNull("width") ?: return null
+        val height = doubleOrNull("height") ?: return null
+        return NavigatorRect(x.toFloat(), y.toFloat(), width.toFloat(), height.toFloat())
+    }
+
+    /** See [IosEpubNavigatorBridge.setSelectionCallback] for the payload shape. */
+    internal fun parseSelectionJson(json: String): NavigatorSelection? {
+        val dict = parseJsonObject(json) ?: return null
+        val text = dict.objectForKey("text") as? String ?: return null
+        // A whitespace-only selection is what a stray double-tap on a margin produces; treating
+        // it as a real selection pops the annotate sheet over nothing.
+        if (text.isBlank()) return null
+        return NavigatorSelection(
+            locatorJson = dict.objectForKey("locatorJson") as? String ?: return null,
+            href = dict.objectForKey("href") as? String ?: return null,
+            text = text,
+            before = dict.objectForKey("before") as? String ?: "",
+            after = dict.objectForKey("after") as? String ?: "",
+            progression = dict.doubleOrNull("progression") ?: 0.0,
+            rect = dict.rect(),
+        )
+    }
+
+    /** See [IosEpubNavigatorBridge.setDecorationActivatedCallback] for the payload shape. */
+    internal fun parseActivationJson(json: String): NavigatorDecorationActivation? {
+        val dict = parseJsonObject(json) ?: return null
+        return NavigatorDecorationActivation(
+            id = dict.objectForKey("id") as? String ?: return null,
+            group = dict.objectForKey("group") as? String ?: return null,
+            rect = dict.rect(),
+        )
+    }
 
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     private fun parseSearchMatches(json: String): List<NavigatorSearchMatch> {

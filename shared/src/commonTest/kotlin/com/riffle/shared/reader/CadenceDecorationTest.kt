@@ -71,8 +71,19 @@ class CadenceDecorationTest {
 
     @Test
     fun cadenceHasItsOwnGroupSoItCannotClobberTheAnnotationHighlights() {
-        assertTrue(DECORATION_GROUP_CADENCE != DECORATION_GROUP_HIGHLIGHTS)
-        assertTrue(DECORATION_GROUP_CADENCE != DECORATION_GROUP_BOOKMARKS)
+        // Mechanical rename only: the group names moved into ReaderDecorationGroups so the
+        // Swift side can read the same values. The claim — Cadence must not share a group with
+        // any annotation surface — is unchanged, and now covers all four of them.
+        val annotationGroups = listOf(
+            ReaderDecorationGroups.highlights,
+            ReaderDecorationGroups.bookmarks,
+            ReaderDecorationGroups.noteGlyphs,
+            ReaderDecorationGroups.emphasis,
+        )
+        annotationGroups.forEach { group ->
+            assertTrue(ReaderDecorationGroups.cadence != group, "cadence must not share \"$group\"")
+        }
+        assertEquals(annotationGroups.size, annotationGroups.toSet().size, "groups must be distinct")
     }
 
     @Test

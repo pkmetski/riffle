@@ -931,8 +931,8 @@ internal class ContinuousWindowController(
 
     fun applyFigureBorders(
         cssRules: List<String>,
-        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
-        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
+        svgMatches: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
     ) {
         decorations.applyFigureBorders(cssRules, svgMatches, rasterMarks)
     }
