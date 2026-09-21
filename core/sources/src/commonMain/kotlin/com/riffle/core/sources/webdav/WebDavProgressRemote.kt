@@ -16,8 +16,6 @@ import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 /**
  * [ProgressRemote] that reads and writes a single canonical progress file on a WebDAV server.
@@ -129,7 +127,7 @@ class WebDavProgressRemote(
     )
 
     companion object {
-        private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
+        private const val FINDER_USER_AGENT = WEBDAV_USER_AGENT
         private const val JSON_CONTENT_TYPE = "application/json; charset=utf-8"
         const val NAMESPACE_SEPARATOR = "__"
         const val EBOOK_PROGRESS_SUFFIX = "${NAMESPACE_SEPARATOR}progress.json"
@@ -138,10 +136,6 @@ class WebDavProgressRemote(
         const val AUDIO_PROGRESS_SUFFIX = "${NAMESPACE_SEPARATOR}audio_progress.json"
 
         internal val json = Json { ignoreUnknownKeys = true }
-
-        internal fun parseHttpDate(value: String): Long? = runCatching {
-            SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).parse(value)?.time
-        }.getOrNull()
 
         fun progressFileUrl(
             basePath: String,

@@ -13,7 +13,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
-import java.util.Base64
 
 /** Ebook and audio item IDs found on the WebDAV share by PROPFIND. */
 data class EnumeratedProgress(
@@ -54,8 +53,7 @@ open class WebDavProgressEnumerator(
         withContext(dispatchers.io) {
             val baseUrl = parseWebDavBaseUrl(config.baseUrl) ?: return@withContext EnumeratedProgress.EMPTY
             val basePath = baseUrl.toString().let { if (it.endsWith("/")) it else "$it/" }
-            val authHeader = "Basic " + Base64.getEncoder()
-                .encodeToString("${config.username}:${config.password}".toByteArray())
+            val authHeader = webDavBasicAuthHeader(config.username, config.password)
 
             val filenames = runCatching {
                 classifyWebDavTransportErrors {
@@ -94,11 +92,9 @@ open class WebDavProgressEnumerator(
         }
 
     companion object {
-        private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
-        private const val XML_CONTENT_TYPE = "application/xml; charset=utf-8"
-        private const val PROPFIND_BODY =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-                "<d:propfind xmlns:d=\"DAV:\"><d:prop><d:resourcetype/></d:prop></d:propfind>"
+        private const val FINDER_USER_AGENT = WEBDAV_USER_AGENT
+        private const val XML_CONTENT_TYPE = WEBDAV_XML_CONTENT_TYPE
+        private const val PROPFIND_BODY = WEBDAV_PROPFIND_BODY
         private const val PROPFIND_TIMEOUT_MS = 30_000L
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val READ_TIMEOUT_MS = 20_000L

@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.riffle.app.feature.settings.sections.ServerSettingsExpansion
+import com.riffle.feature.source.ui.settings.SourceSettingsExpansion
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.core.models.ServerType
@@ -45,8 +45,8 @@ class ServerSettingsExpansionTest {
     @Test
     fun activeAbsServerShowsLibrarySwitches() {
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+            SourceSettingsExpansion(
+                source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
@@ -64,8 +64,8 @@ class ServerSettingsExpansionTest {
         var toggledLibrary: String? = null
         var toggledVisible: Boolean? = null
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+            SourceSettingsExpansion(
+                source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction", visible = true)),
                 summary = null,
                 onSetLibraryVisible = { id, visible -> toggledLibrary = id; toggledVisible = visible },
@@ -84,8 +84,8 @@ class ServerSettingsExpansionTest {
     fun movingALibraryDownPersistsTheSwappedOrder() {
         var reordered: List<String>? = null
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+            SourceSettingsExpansion(
+                source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
@@ -103,8 +103,8 @@ class ServerSettingsExpansionTest {
     fun movingALibraryUpPersistsTheSwappedOrder() {
         var reordered: List<String>? = null
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+            SourceSettingsExpansion(
+                source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
@@ -121,8 +121,8 @@ class ServerSettingsExpansionTest {
     @Test
     fun firstLibraryCannotMoveUpAndLastCannotMoveDown() {
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+            SourceSettingsExpansion(
+                source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
@@ -139,8 +139,8 @@ class ServerSettingsExpansionTest {
     @Test
     fun inactiveAbsServerStillShowsItsLibraries() {
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.AUDIOBOOKSHELF, active = false),
+            SourceSettingsExpansion(
+                source = server(ServerType.AUDIOBOOKSHELF, active = false),
                 libraryItems = listOf(libraryItem("Fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
@@ -157,8 +157,8 @@ class ServerSettingsExpansionTest {
     fun storytellerServerShowsMatchesSummaryAndNavigates() {
         var opened = false
         composeTestRule.setContent {
-            ServerSettingsExpansion(
-                server = server(ServerType.STORYTELLER_SERVICE, active = true),
+            SourceSettingsExpansion(
+                source = server(ServerType.STORYTELLER_SERVICE, active = true),
                 libraryItems = emptyList(),
                 summary = ReadaloudMatchSummary(unmatchedCount = 2, suggestedCount = 1, partiallyMatchedCount = 1, matchedCount = 3),
                 onSetLibraryVisible = { _, _ -> },

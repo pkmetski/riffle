@@ -21,7 +21,6 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.Url
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
-import java.util.Base64
 
 /**
  * WebDAV-backed [AnnotationSyncTarget].
@@ -38,8 +37,7 @@ class WebDavAnnotationSyncTarget(
 ) : AnnotationSyncTarget {
 
     private val basePath: String = ensureTrailingSlash(baseUrl.toString())
-    private val authHeader: String =
-        "Basic " + Base64.getEncoder().encodeToString("$username:$password".toByteArray())
+    private val authHeader: String = webDavBasicAuthHeader(username, password)
 
     override suspend fun list(namespace: String, itemId: String): List<String> =
         withContext(dispatchers.io) {
@@ -105,7 +103,7 @@ class WebDavAnnotationSyncTarget(
                     .add(AnnotationFileRef(itemId = itemId, filename = filename))
             }
 
-            val rows = annotationFiles.keys.toSortedSet().map { deviceId ->
+            val rows = annotationFiles.keys.sorted().map { deviceId ->
                 DeviceFileSummary(
                     deviceId = deviceId,
                     annotationFiles = annotationFiles[deviceId]?.toList().orEmpty(),
@@ -128,7 +126,7 @@ class WebDavAnnotationSyncTarget(
                         annotationByNs[ns] = (annotationByNs[ns] ?: 0) + 1
                 }
             }
-            annotationByNs.keys.toSortedSet().map { ns ->
+            annotationByNs.keys.sorted().map { ns ->
                 NamespaceSummary(
                     namespace = ns,
                     annotationFileCount = annotationByNs[ns] ?: 0,
@@ -172,10 +170,8 @@ class WebDavAnnotationSyncTarget(
                     TestConnectionResult.ServerError(response.status.value)
                 else -> TestConnectionResult.ServerError(response.status.value)
             }
-        } catch (e: javax.net.ssl.SSLException) {
-            TestConnectionResult.TlsError(e.message ?: "TLS error")
-        } catch (e: java.io.IOException) {
-            TestConnectionResult.NetworkError(e.message ?: "Network error")
+        } catch (e: Throwable) {
+            webDavTransportTestResult(e) ?: throw e
         }
     }
 
@@ -192,10 +188,8 @@ class WebDavAnnotationSyncTarget(
                 TestConnectionResult.AuthFailed
             else -> TestConnectionResult.ServerError(response.status.value)
         }
-    } catch (e: javax.net.ssl.SSLException) {
-        TestConnectionResult.TlsError(e.message ?: "TLS error")
-    } catch (e: java.io.IOException) {
-        TestConnectionResult.NetworkError(e.message ?: "Network error")
+    } catch (e: Throwable) {
+        webDavTransportTestResult(e) ?: throw e
     }
 
     private suspend fun readFile(url: String): String? = withContext(dispatchers.io) {
@@ -323,14 +317,12 @@ class WebDavAnnotationSyncTarget(
         private const val DEVICE_META_NAME_PREFIX = "device-meta-"
         private const val JSONLD_SUFFIX = ".jsonld"
         private const val JSON_SUFFIX = ".json"
-        private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
-        private const val XML_CONTENT_TYPE = "application/xml; charset=utf-8"
+        private const val FINDER_USER_AGENT = WEBDAV_USER_AGENT
+        private const val XML_CONTENT_TYPE = WEBDAV_XML_CONTENT_TYPE
         private const val JSON_LD_CONTENT_TYPE = "application/ld+json; charset=utf-8"
         private const val JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 
-        private const val PROPFIND_BODY =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-                "<d:propfind xmlns:d=\"DAV:\"><d:prop><d:resourcetype/></d:prop></d:propfind>"
+        private const val PROPFIND_BODY = WEBDAV_PROPFIND_BODY
     }
 }
 
@@ -351,16 +343,6 @@ sealed class AnnotationSyncException(message: String, cause: Throwable? = null) 
         AnnotationSyncException("WebDAV $operation failed with HTTP $code")
     class NetworkError(message: String, cause: Throwable? = null) : AnnotationSyncException(message, cause)
     class TlsError(message: String, cause: Throwable? = null) : AnnotationSyncException(message, cause)
-}
-
-internal suspend inline fun <T> classifyWebDavTransportErrors(crossinline block: suspend () -> T): T {
-    return try {
-        block()
-    } catch (e: javax.net.ssl.SSLException) {
-        throw AnnotationSyncException.TlsError(e.message ?: "TLS error", e)
-    } catch (e: java.io.IOException) {
-        throw AnnotationSyncException.NetworkError(e.message ?: "network error", e)
-    }
 }
 
 /** Parse a user-supplied URL; returns null on malformed input. */

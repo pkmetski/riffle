@@ -120,7 +120,14 @@ import com.riffle.core.data.localfiles.LocalFilesFolderRepository
 import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
+import com.riffle.core.data.localfiles.AndroidManagedImportsFolder
+import com.riffle.core.data.localfiles.ManagedFolderWalker
+import com.riffle.core.data.localfiles.ManagedImportsFolder
+import com.riffle.core.data.localfiles.OpenInImportFeed
+import com.riffle.core.data.localfiles.OpenInImporter
 import com.riffle.core.data.localfiles.SafFolderWalker
+import com.riffle.core.data.localfiles.SchemeDispatchingFolderWalker
+import com.riffle.core.data.localfiles.SharedOpenInImporter
 import com.riffle.core.data.websource.PositionTombstoneWriter
 import com.riffle.core.data.websource.PositionTombstoneWriterImpl
 import com.riffle.core.data.websource.RemoteItemFreshness
@@ -1206,7 +1213,17 @@ private val coreDataMiscModule = module {
     }
 
     // LocalFiles
-    single<FolderWalker> { SafFolderWalker(androidContext()) }
+    // Two walkers, dispatched per folder: SAF for user-picked trees, plain files for the
+    // app-owned "Riffle Imports" directory that "Open in Riffle" writes into.
+    single<FolderWalker> {
+        SchemeDispatchingFolderWalker(
+            saf = SafFolderWalker(androidContext()),
+            managed = ManagedFolderWalker(get()),
+        )
+    }
+    single<ManagedImportsFolder> { AndroidManagedImportsFolder(androidContext(), get()) }
+    single<OpenInImporter> { SharedOpenInImporter(importsFolder = get(), installer = get()) }
+    single { OpenInImportFeed() }
     single<CopyInService> { AndroidCopyInService(androidContext()) }
     single {
         LocalFilesFolderRepository(

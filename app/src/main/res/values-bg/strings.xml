@@ -85,10 +85,8 @@
     <string name="ui_double_page_in_landscape">Двойна страница в пейзаж</string>
     <string name="ui_force_paginated_in_landscape">Принудително странично в пейзаж</string>
     <string name="ui_download">Изтегляне</string>
-    <string name="ui_download_cached_item">Изтегляне на кеширан елемент</string>
     <string name="ui_download_only_audio_doesn_t_match">Само изтегляне · аудиото не съвпада</string>
     <string name="ui_download_only_no_audiobook_linked">Само изтегляне · няма свързана аудиокнига</string>
-    <string name="ui_download_readaloud">Изтегляне на аудио за четене на глас</string>
     <string name="ui_downloaded">Изтеглено</string>
     <string name="ui_downloads">Изтегляния</string>
     <string name="ui_each_device_using_this_account_writes_its_own_annotation_file_per_book_to_webdav">Всяко устройство, използващо този акаунт, записва свой собствен файл с пояснения за всяка книга в WebDAV.</string>
@@ -220,12 +218,10 @@
     <string name="ui_remove">Премахнете</string>
     <string name="ui_remove_all">Премахни всички</string>
     <string name="ui_remove_all_downloads">Премахване на всички изтегляния?</string>
-    <string name="ui_remove_download">Премахване на изтеглянето</string>
     <string name="ui_remove_folder">Премахване на папка?</string>
     <string name="ui_remove_folder_3">Премахване на папка</string>
     <string name="ui_remove_from_library">Премахване от библиотеката</string>
     <string name="ui_remove_from_playlist">Премахване от плейлиста</string>
-    <string name="ui_remove_readaloud_download">Премахнете изтеглянето за четене на глас</string>
     <string name="ui_remove_source">Премахване на източника</string>
     <string name="ui_remove_storyteller">Премахване на Storyteller</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Премахва файловете на това устройство от сървъра WebDAV. Други устройства все още имат копия на</string>
@@ -633,4 +629,5 @@
     <string name="ui_oreilly_signing_in">Влизане…</string>
     <string name="ui_oreilly_signing_in_sub">Защита на сесията ви в O\'Reilly на това устройство</string>
     <string name="ui_oreilly_sign_in_failed">Сесията ви в O\'Reilly не беше запазена. Опитайте да влезете отново.</string>
+    <string name="ui_open_in_riffle">Отваряне в Riffle</string>
 </resources>

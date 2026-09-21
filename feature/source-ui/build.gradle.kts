@@ -67,6 +67,16 @@ kotlin {
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.uiTest)
         }
+        // Compose UI tests live in iosTest rather than commonTest: `runComposeUiTest` needs a
+        // platform test runtime, and the Android host-test JVM has none (Android's counterparts
+        // are the instrumentation tests in app/src/androidTest, which drive these same shared
+        // composables through createComposeRule).
+        iosTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
+        }
         // The exhaustive ported suites (AddSourceViewModelTest & friends) live in the Android
         // host-test source set, not commonTest, purely because Kotlin/Native rejects backticked
         // test names containing `(`, `)` or `,` ("Name contains illegal characters") and the
@@ -86,6 +96,10 @@ kotlin {
 // imports read like every other symbol here.
 compose.resources {
     packageOfResClass = "com.riffle.feature.source.ui.generated.resources"
+    // The generated `Res` object defaults to `internal`, which makes this module's strings
+    // unreachable from :shared and :app — so a screen hosted outside this module has no choice
+    // but to hardcode an English literal, which is exactly the drift this bundle exists to stop.
+    publicResClass = true
 }
 
 // Compose Multiplatform's own Android asset wiring (copyAndroidMainComposeResourcesToAndroidAssets)

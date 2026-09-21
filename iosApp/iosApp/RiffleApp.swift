@@ -21,6 +21,7 @@ struct RiffleApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { url in openIncomingDocument(url) }
         }
     }
 }

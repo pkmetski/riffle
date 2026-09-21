@@ -58,7 +58,7 @@ import com.riffle.feature.source.ui.ComposeResourceSourceUiStrings
 import com.riffle.feature.source.ui.DevSourceDefaults
 import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.SourceUiStrings
-import com.riffle.app.sync.WebDavTargetConnectionTester
+import com.riffle.feature.source.ui.WebDavTargetConnectionTester
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.app.feature.update.isDevVersionName
 import com.riffle.feature.player.NowPlayingStore

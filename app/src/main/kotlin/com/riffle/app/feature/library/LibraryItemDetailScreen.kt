@@ -97,6 +97,8 @@ import com.riffle.feature.player.CompactDurationLabelTemplates
 import com.riffle.feature.player.formatCompactDuration
 import com.riffle.app.feature.readersettings.TocPanel
 import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.feature.source.ui.library.DownloadButton
+import com.riffle.feature.source.ui.library.ReadaloudDownloadButton
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.feature.source.ui.asAuthHeader
@@ -107,6 +109,7 @@ import com.riffle.feature.library.listenStartAtSecForFinished
 import com.riffle.feature.library.ChaptersState
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
+import com.riffle.feature.library.bookDownloadAffordances
 import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
@@ -1563,13 +1566,21 @@ private fun ActionRow(
         if (capabilities.hasAddToPlaylist) {
             AddToPlaylistToggleButton(onClick = onAddToPlaylist)
         }
-        // Download affordances are gated on DownloadsCapability — Sources without a local store
-        // (LocalFiles today) hide every download button (ebook, audiobook, readaloud bundle).
-        val showDownloadAffordances = capabilities.hasDownloads
+        // Which download controls appear, and which are tappable, is the shared
+        // `bookDownloadAffordances` rule — the same one the shared `BookDownloadControls` uses on
+        // iOS, so the two hosts cannot drift about when a download button shows. Only the offline
+        // tooltips below are Android-specific chrome.
+        val affordances = bookDownloadAffordances(
+            item = item,
+            capabilities = capabilities,
+            isOffline = isOffline,
+            audiobookDownloadState = audiobookDownloadState,
+            readaloudDownloadState = readaloudDownloadState,
+        )
         // The base DownloadButton manages the ABS EPUB, so it only applies to a readable item. A
         // matched ABS item additionally gets the ReadaloudDownloadButton below, which fetches the
         // Storyteller synced bundle (ADR 0027/ADR 0032) for audio + highlight.
-        if (showDownloadAffordances && item.isReadable) {
+        if (affordances.showEbook) {
             DownloadButton(
                 state = downloadState,
                 onDownload = onDownload,
@@ -1578,17 +1589,16 @@ private fun ActionRow(
         }
         // A listenable item gets its own download control: the ABS audiobook tracks for offline play
         // (ADR 0035). Disabled offline when not yet downloaded (can't fetch).
-        if (showDownloadAffordances && item.isListenable && audiobookDownloadState != null) {
-            val audioOfflineBlocked = isOffline && audiobookDownloadState == DownloadState.NotDownloaded
+        if (affordances.showAudiobook && audiobookDownloadState != null) {
             val audioButton: @Composable () -> Unit = {
                 DownloadButton(
                     state = audiobookDownloadState,
                     onDownload = onDownloadAudiobook,
                     onRemove = onRemoveAudiobook,
-                    enabled = !audioOfflineBlocked,
+                    enabled = affordances.audiobookEnabled,
                 )
             }
-            if (audioOfflineBlocked) {
+            if (!affordances.audiobookEnabled) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_audiobook)) } },
@@ -1598,17 +1608,16 @@ private fun ActionRow(
                 audioButton()
             }
         }
-        if (capabilities.hasReadaloud && readaloudDownloadState != null) {
-            val readaloudOfflineBlocked = isOffline && readaloudDownloadState == DownloadState.NotDownloaded
+        if (affordances.showReadaloud && readaloudDownloadState != null) {
             val readaloudButton: @Composable () -> Unit = {
                 ReadaloudDownloadButton(
                     state = readaloudDownloadState,
                     onDownload = onDownloadReadaloud,
                     onRemove = onRemoveReadaloud,
-                    enabled = !readaloudOfflineBlocked,
+                    enabled = affordances.readaloudEnabled,
                 )
             }
-            if (readaloudOfflineBlocked) {
+            if (!affordances.readaloudEnabled) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_readaloud_audio)) } },

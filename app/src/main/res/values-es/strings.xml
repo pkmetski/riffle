@@ -85,10 +85,8 @@
     <string name="ui_double_page_in_landscape">Doble página en horizontal</string>
     <string name="ui_force_paginated_in_landscape">Forzar paginado en horizontal</string>
     <string name="ui_download">Descargar</string>
-    <string name="ui_download_cached_item">Descargar elemento en caché</string>
     <string name="ui_download_only_audio_doesn_t_match">Descargar solo · el audio no coincide</string>
     <string name="ui_download_only_no_audiobook_linked">Solo descarga · no hay ningún audiolibro enlazado</string>
-    <string name="ui_download_readaloud">Descargar lectura en voz alta</string>
     <string name="ui_downloaded">Descargado</string>
     <string name="ui_downloads">Descargas</string>
     <string name="ui_each_device_using_this_account_writes_its_own_annotation_file_per_book_to_webdav">Cada dispositivo que usa esta cuenta escribe su propio fichero de anotaciones por libro en WebDAV.</string>
@@ -220,12 +218,10 @@
     <string name="ui_remove">Eliminar</string>
     <string name="ui_remove_all">Quitar todo</string>
     <string name="ui_remove_all_downloads">¿Eliminar todas las descargas?</string>
-    <string name="ui_remove_download">Eliminar descarga</string>
     <string name="ui_remove_folder">¿Quitar carpeta?</string>
     <string name="ui_remove_folder_3">Quitar carpeta</string>
     <string name="ui_remove_from_library">Eliminar de la biblioteca</string>
     <string name="ui_remove_from_playlist">Eliminar de la lista de reproducción</string>
-    <string name="ui_remove_readaloud_download">Eliminar descarga de lectura en voz alta</string>
     <string name="ui_remove_source">Eliminar fuente</string>
     <string name="ui_remove_storyteller">Eliminar Storyteller</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Elimina los archivos de este dispositivo del servidor WebDAV. Otros dispositivos todavía tienen copias de</string>
@@ -633,4 +629,5 @@
     <string name="ui_oreilly_signing_in">Iniciando sesión…</string>
     <string name="ui_oreilly_signing_in_sub">Asegurando tu sesión de O\'Reilly en este dispositivo</string>
     <string name="ui_oreilly_sign_in_failed">No se pudo guardar tu sesión de O\'Reilly. Inténtalo de nuevo.</string>
+    <string name="ui_open_in_riffle">Abrir en Riffle</string>
 </resources>

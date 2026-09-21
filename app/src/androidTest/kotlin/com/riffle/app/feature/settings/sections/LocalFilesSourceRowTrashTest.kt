@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.feature.settings.LibraryUiItem
+import com.riffle.feature.source.ui.settings.LocalFilesSourceRow
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source

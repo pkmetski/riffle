@@ -19,6 +19,9 @@
 		A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
 		B1000010 /* RiffleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* RiffleApp.swift */; };
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
+		B1060010 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
+		B1060011 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
+		B1060012 /* OpenInDocumentStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060021 /* OpenInDocumentStagingTests.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
 		B1002010 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1002001 /* ReadiumShared */; };
@@ -86,6 +89,8 @@
 		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000020 /* RiffleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleApp.swift; sourceTree = "<group>"; };
 		B1000021 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B1060020 /* OpenInDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocument.swift; sourceTree = "<group>"; };
+		B1060021 /* OpenInDocumentStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocumentStagingTests.swift; sourceTree = "<group>"; };
 		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B1001001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
@@ -175,6 +180,7 @@
 			children = (
 				B1000020 /* RiffleApp.swift */,
 				B1000021 /* ContentView.swift */,
+				B1060020 /* OpenInDocument.swift */,
 				B1000022 /* Assets.xcassets */,
 				B1002030 /* ReadiumEpubNavigatorBridge.swift */,
 				B1003030 /* IosAudioPlayerBridgeImpl.swift */,
@@ -223,6 +229,7 @@
 				B1008026 /* ReaderHighlightsTests.swift */,
 				B1008027 /* ReaderSettingsTests.swift */,
 				B1008028 /* SettingsRowsTests.swift */,
+				B1060021 /* OpenInDocumentStagingTests.swift */,
 				B1008029 /* SettingsViewModelTests.swift */,
 				B1012020 /* OReillyLazyPublicationTests.swift */,
 				B1013020 /* AddKomgaSourceFlowTests.swift */,
@@ -429,6 +436,7 @@
 			files = (
 				B1000010 /* RiffleApp.swift in Sources */,
 				B1000011 /* ContentView.swift in Sources */,
+				B1060010 /* OpenInDocument.swift in Sources */,
 				B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */,
 				A1C0DE040001 /* ReadiumDecorationTemplates.swift in Sources */,
 				B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */,
@@ -473,6 +481,8 @@
 				B1008016 /* ReaderHighlightsTests.swift in Sources */,
 				B1008017 /* ReaderSettingsTests.swift in Sources */,
 				B1008018 /* SettingsRowsTests.swift in Sources */,
+				B1060011 /* OpenInDocument.swift in Sources */,
+				B1060012 /* OpenInDocumentStagingTests.swift in Sources */,
 				B1008019 /* SettingsViewModelTests.swift in Sources */,
 				B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */,
 				B101001A /* OReillyLazyContainer.swift in Sources */,

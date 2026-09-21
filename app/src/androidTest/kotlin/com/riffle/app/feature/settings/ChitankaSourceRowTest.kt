@@ -10,7 +10,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import com.riffle.feature.source.ui.SOURCE_ICON_TEST_TAG
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.riffle.app.feature.settings.sections.SingletonWebSourceRow
+import com.riffle.feature.source.ui.settings.SingletonWebSourceRow
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
 import com.riffle.core.models.Library
 import com.riffle.core.models.ServerType

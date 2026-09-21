@@ -15,6 +15,7 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.source.ui.settings.SwipeToDeleteRow
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

@@ -16,8 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,9 +31,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.BookDownloadOutcome
+import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.source.ui.DefaultCoverPlaceholder
+import com.riffle.feature.library.bookDownloadOutcome
+import com.riffle.feature.source.ui.RiffleMessageScaffold
+import com.riffle.feature.source.ui.generated.resources.Res
+import com.riffle.feature.source.ui.generated.resources.ui_download_complete
+import com.riffle.feature.source.ui.generated.resources.ui_download_failed
+import com.riffle.feature.source.ui.library.BookDownloadControls
+import com.riffle.feature.source.ui.rememberTransientMessages
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -59,6 +73,14 @@ fun LibraryItemDetailScreen(
     val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
     val uiState by vm.uiState.collectAsState()
 
+    // The three download states the shared BookDownloadControls needs. The ViewModel has always
+    // exposed them and always had working iOS repositories behind them; nothing on this platform
+    // collected them, so a file only ever reached the (evictable) cache as a side effect of
+    // opening the book.
+    val downloadState by vm.downloadState.collectAsState()
+    val audiobookDownloadState by vm.audiobookDownloadState.collectAsState()
+    val readaloudDownloadState by vm.readaloudDownloadState.collectAsState()
+
     when (val state = uiState) {
         LibraryItemDetailUiState.Loading -> LoadingContent()
         LibraryItemDetailUiState.Error -> ErrorContent(onBack = onBack)
@@ -67,6 +89,25 @@ fun LibraryItemDetailScreen(
             onBack = onBack,
             onRead = { onRead(state.item) },
             onToggleToRead = { vm.toggleToRead() },
+            downloadControls = {
+                // One call into the shared control rather than a second iOS-only copy of the
+                // three buttons. A host that restructures this screen keeps calling this.
+                BookDownloadControls(
+                    item = state.item,
+                    capabilities = state.capabilities,
+                    isOffline = state.isOffline,
+                    downloadState = downloadState,
+                    audiobookDownloadState = audiobookDownloadState,
+                    readaloudDownloadState = readaloudDownloadState,
+                    onDownloadEbook = { vm.startDownload() },
+                    onRemoveEbook = { vm.removeDownload() },
+                    onDownloadAudiobook = { vm.onDownloadAudiobook() },
+                    onRemoveAudiobook = { vm.onRemoveAudiobook() },
+                    onDownloadReadaloud = { vm.onDownloadReadaloud() },
+                    onRemoveReadaloud = { vm.onRemoveReadaloud() },
+                )
+            },
+            downloadState = downloadState,
         )
     }
 }
@@ -100,12 +141,55 @@ private fun ErrorContent(onBack: () -> Unit) {
     }
 }
 
+/**
+ * The loaded sheet.
+ *
+ * `internal` rather than private so `ItemDetailDownloadMountTest` can drive it: whether this
+ * screen mounts a download control at all — and whether a finished download says anything — is
+ * not derivable from any pure function, and it is exactly the wiring that was missing.
+ */
 @Composable
-private fun ReadyContent(
+internal fun ReadyContent(
     state: LibraryItemDetailUiState.Ready,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
+    downloadControls: @Composable () -> Unit,
+    downloadState: DownloadState,
+) {
+    val messages = rememberTransientMessages()
+    // A download that fails is otherwise indistinguishable from one that was never started: the
+    // ring just turns back into an outlined circle. bookDownloadOutcome reads the transition and
+    // the snackbar says which one happened.
+    var previousDownloadState by remember { mutableStateOf<DownloadState?>(null) }
+    val completeMessage = stringResource(Res.string.ui_download_complete)
+    val failedMessage = stringResource(Res.string.ui_download_failed)
+    LaunchedEffect(downloadState) {
+        when (bookDownloadOutcome(previousDownloadState, downloadState)) {
+            BookDownloadOutcome.Completed -> messages.show(completeMessage)
+            BookDownloadOutcome.Failed -> messages.show(failedMessage)
+            null -> Unit
+        }
+        previousDownloadState = downloadState
+    }
+    RiffleMessageScaffold(messages) {
+        ReadyBody(
+            state = state,
+            onBack = onBack,
+            onRead = onRead,
+            onToggleToRead = onToggleToRead,
+            downloadControls = downloadControls,
+        )
+    }
+}
+
+@Composable
+private fun ReadyBody(
+    state: LibraryItemDetailUiState.Ready,
+    onBack: () -> Unit,
+    onRead: () -> Unit,
+    onToggleToRead: () -> Unit,
+    downloadControls: @Composable () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -186,6 +270,9 @@ private fun ReadyContent(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        downloadControls()
 
         if (state.isOffline) {
             Spacer(modifier = Modifier.height(12.dp))

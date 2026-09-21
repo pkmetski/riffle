@@ -1,21 +1,22 @@
-package com.riffle.app.sync
+package com.riffle.feature.source.ui
 
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.sources.webdav.TestConnectionResult
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
-import com.riffle.feature.source.ui.WebdavConnectionTester
-import com.riffle.feature.source.ui.WebdavTestOutcome
 
 /**
- * Android's [WebdavConnectionTester]: probes a WebDAV annotation-sync target through
- * [WebDavAnnotationSyncTargetFactory].
+ * Probes a WebDAV annotation-sync target through [WebDavAnnotationSyncTargetFactory] and
+ * translates the low-level [TestConnectionResult] into the [WebdavTestOutcome] the shared
+ * add-source screen renders.
  *
- * The factory lives in `core/sources/src/jvmMain`, so it is invisible to the android+ios
- * `:feature:source-ui` module that owns the Add-Source form — hence the seam. This adapter is the
- * only place that translates [TestConnectionResult] into the shared [WebdavTestOutcome]; keeping
- * it in a file of its own limits the ADR 0049 `Server*`-identifier allowlist entry
- * (`TestConnectionResult.ServerError` is a pre-existing HTTP result, not the Source/Service
- * taxonomy) to these few lines instead of the whole Koin module.
+ * Both hosts bind this. It used to live in `:app` because `core:sources`' WebDAV client was
+ * `jvmMain`-only, so iOS bound a lambda that returned [WebdavTestOutcome.UnparseableUrl] for
+ * every input — the WebDAV backend of the shared add-source screen existed, was reachable, and
+ * could not succeed. With the client in `commonMain` the real tester compiles for Kotlin/Native
+ * and the stub is gone.
+ *
+ * This is the only place [TestConnectionResult] is mapped onto [WebdavTestOutcome]; a second copy
+ * is how the two platforms would start reporting different failures for the same server.
  */
 class WebDavTargetConnectionTester(
     private val factory: WebDavAnnotationSyncTargetFactory,

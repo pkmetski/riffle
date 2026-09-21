@@ -6,7 +6,6 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ProgressRemote
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
-import java.util.Base64
 
 /**
  * Builds a [WebDavProgressRemote] from an [AnnotationSyncConfig] (shared WebDAV credentials,
@@ -40,8 +39,7 @@ class WebDavProgressRemoteFactory(
         deleted: suspend () -> Boolean = { false },
     ): WebDavProgressRemote? {
         val baseUrl = parseWebDavBaseUrl(config.baseUrl) ?: return null
-        val authHeader = "Basic " + Base64.getEncoder()
-            .encodeToString("${config.username}:${config.password}".toByteArray())
+        val authHeader = webDavBasicAuthHeader(config.username, config.password)
         return WebDavProgressRemote(
             client = httpClient,
             authHeader = authHeader,

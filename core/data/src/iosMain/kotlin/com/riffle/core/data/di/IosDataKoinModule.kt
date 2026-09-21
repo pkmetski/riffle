@@ -42,7 +42,12 @@ import com.riffle.core.data.localfiles.IosFolderWalker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.IosLocalFilesSourceInstaller
+import com.riffle.core.data.localfiles.IosManagedImportsFolder
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.core.data.localfiles.ManagedImportsFolder
+import com.riffle.core.data.localfiles.OpenInImportFeed
+import com.riffle.core.data.localfiles.OpenInImporter
+import com.riffle.core.data.localfiles.SharedOpenInImporter
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookPositionDao
@@ -92,6 +97,7 @@ import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
+import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.core.sync.SyncSourceResolver
 import org.koin.dsl.module
 
@@ -107,6 +113,12 @@ val iosDataModule = module {
     single { IosLocalFilesScanner(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { IosLocalFilesFolderRepository(get(), get(), get(), get()) }
     single<LocalFilesInstallerInterface> { IosLocalFilesSourceInstaller(get(), get(), get()) }
+    // "Open in Riffle": the incoming file is copied into an app-owned folder that is then
+    // installed as an ordinary Local Files folder, so the book is scanned, classified and
+    // browsable through the machinery a picked folder already uses.
+    single<ManagedImportsFolder> { IosManagedImportsFolder(get()) }
+    single<OpenInImporter> { SharedOpenInImporter(importsFolder = get(), installer = get()) }
+    single { OpenInImportFeed() }
     single<DeviceIdStore> { IosDeviceIdStoreImpl() }
     single<ColorPageDecoder> { IosColorPageDecoder() }
     single<PageImageDecoder> { IosPageImageDecoder() }
@@ -188,6 +200,11 @@ val iosDataModule = module {
             bookmarkReconcile = BookmarkReconcile { sourceId, itemId ->
                 get<AudiobookBookmarkReconciler>().reconcile(sourceId, itemId)
             },
+            // Was left at RemoteProgressIndex.EMPTY because the WebDAV enumerator it needs was
+            // jvmMain-only (#1072). Without it the sweep only ever visits locally-dirty rows, so
+            // a position advanced on another device against a *clean* local row was never pulled
+            // back — the exact "clean-row gap" ADR 0063 added the index for.
+            remoteIndex = get<RemoteProgressIndex>(),
         )
     }
 
