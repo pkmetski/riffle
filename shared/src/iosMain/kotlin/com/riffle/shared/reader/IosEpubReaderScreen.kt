@@ -52,6 +52,7 @@ import com.riffle.core.domain.cadence.CadenceState
 import com.riffle.core.domain.cadence.Feature
 import com.riffle.core.domain.cadence.currentRunningFeature
 import com.riffle.core.domain.cadence.runArbiter
+import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.logging.Logger
 import com.riffle.core.models.Annotation
@@ -60,7 +61,10 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.AutoScrollStall
+import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
+import com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.NavigatorDecoration
 import com.riffle.feature.reader.NavigatorEvent
@@ -72,6 +76,7 @@ import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.annotationListLabel
+import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.cadence.CadenceController
@@ -81,6 +86,7 @@ import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
+import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toReadiumTextStyling
 import com.riffle.feature.reader.ui.AnnotationActionsSheet
 import com.riffle.feature.reader.ui.AnnotationSheetLabels
@@ -96,11 +102,13 @@ import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
 
 /**
@@ -161,6 +169,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     // sees the current spine / orientation rather than the values at first composition.
     val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
     val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
+    // Live `viewportSize / chapterSize` per normalised href. Kept in a ref for the same reason
+    // the spine is: the editor is constructed once and must see the newest measurement.
+    val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
     val editor = remember(navigator) {
         ReaderAnnotationEditor(
             sourceId = item.sourceId,
@@ -171,6 +182,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             spineHrefs = { spineRef.value.hrefs },
             spinePositionCounts = { spineRef.value.positionCounts },
             orientation = { orientationRef.value },
+            viewportFractionByHref = { viewportFractionRef.value },
         )
     }
     val selection by navigator.selectionFlow.collectAsState()
@@ -285,6 +297,99 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             if (!spine.isUsable) {
                 navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
             }
+        }
+    }
+
+    // ---- Scroll-state probes -------------------------------------------------------------------
+    //
+    // `viewportSize / chapterSize` for the resource on screen. Two consumers: the bookmark
+    // epsilon (`bookmarkEpsFor`, which is what decides whether the corner ribbon is lit and
+    // therefore whether tapping it deletes or creates) and, indirectly, the honesty of every
+    // bookmark round trip. iOS published none of it, so the epsilon always fell through to the
+    // position-count proxy.
+    //
+    // Measured on page load and after a typography change — the two moments Readium re-lays the
+    // document out — and never on scroll, which is the rule Android's `publishViewportFraction`
+    // follows for the same reason (the value does not change with scroll position, and
+    // re-emitting per frame is what flaked issue #399).
+    LaunchedEffect(navigator) {
+        navigator.viewportFractionEvents.collect { (href, fraction) ->
+            val current = viewportFractionRef.value
+            if (current[href] == fraction) return@collect
+            viewportFractionRef.value = current + (href to fraction)
+        }
+    }
+    LaunchedEffect(navigator, localPath, resolvedPrefs?.fontSize, resolvedPrefs?.margins, resolvedPrefs?.lineSpacing, resolvedPrefs?.orientation) {
+        if (localPath == null) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            val href = navigator.snapshotPosition()?.href ?: return@collect
+            navigator.publishViewportFraction(normalizeEpubHref(href))
+        }
+    }
+
+    // ---- Continuous mode ------------------------------------------------------------------------
+    //
+    // What makes Continuous continuous on a renderer that paginates per resource.
+    //
+    // Readium-Swift's EPUBNavigatorViewController has one scrolling mode and it renders a single
+    // resource, so `epubScrollMode` mapping both Vertical and Continuous to `scroll = true` gave
+    // iOS two identical modes: in each of them the reader hit the end of a chapter and had to
+    // page across. Android does not have this problem because its Continuous mode is a different
+    // view entirely (`ContinuousReaderView` stacks several chapters' WebViews), so a chapter
+    // boundary is not an event there at all.
+    //
+    // This closes the gap from the other side: probe the scroll boundary, and when the reader
+    // crosses it, cross the resource for them. The decision is the shared, edge-triggered
+    // [ContinuousBoundaryAdvancePolicy] — reading the last paragraph at rest must not advance,
+    // a chapter shorter than the viewport must not cascade, and the landing must not re-trigger.
+    //
+    // Backward crossings land at the *bottom* of the previous resource, which is the half that
+    // makes it read as one document — and Readium-Swift already does that for free:
+    // `go(to: .left)` resolves to `PageLocation.end`, and `EPUBReflowableSpreadView.scroll(
+    // toProgression: 1)` sets `contentOffset.y` to the bottom natively in scroll mode (it
+    // deliberately does NOT go through JS, because the JS layer cannot see the scroll view's
+    // content inset). So `pageBy(Backward)` is the whole backward crossing; adding a JS
+    // scroll-to-bottom on top would fight that and land short by the inset.
+    //
+    // Vertical deliberately keeps the page-across; the policy answers `None` for it.
+    val boundaryPolicy = remember(item.id) { ContinuousBoundaryAdvancePolicy() }
+    // A monotonic origin, not a wall clock: the policy's cooldown is a duration, and a wall clock
+    // can jump backwards (NTP, a timezone change) and disarm it for the rest of the session.
+    val clockOrigin = remember(item.id) { TimeSource.Monotonic.markNow() }
+
+    // Every navigation the reader did not make by scrolling goes through here. A TOC tap, a
+    // bookmark jump, a chapter-map segment and a search hit all land at a position the reader did
+    // not scroll to — usually the top of a resource, which is a backward boundary. Left
+    // unsuppressed, Continuous would read that landing as a crossing and bounce them into the
+    // chapter before the one they asked for.
+    val goTo: suspend (NavigatorNavigationTarget) -> Unit = { target ->
+        boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
+        navigator.navigateTo(target)
+    }
+    LaunchedEffect(navigator, localPath, resolvedPrefs?.orientation, spine) {
+        val orientation = resolvedPrefs?.orientation ?: return@LaunchedEffect
+        if (localPath == null || orientation != ReaderOrientation.Continuous) return@LaunchedEffect
+        // The reader lands on whatever resource was open when the mode became Continuous, very
+        // possibly at its top or bottom. That landing is not a crossing.
+        boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
+        while (true) {
+            val position = navigator.snapshotPosition()
+            if (position != null && spine.hrefs.isNotEmpty()) {
+                val index = spineIndexOfHref(spine.hrefs, position.href)
+                val advance = boundaryPolicy.decide(
+                    orientation = orientation,
+                    boundary = navigator.scrollBoundary(),
+                    canGoForward = index in 0 until spine.hrefs.size - 1,
+                    canGoBackward = index > 0,
+                    nowMs = clockOrigin.elapsedNow().inWholeMilliseconds,
+                )
+                when (advance) {
+                    BoundaryAdvance.Forward -> navigator.pageBy(NavigatorPageDirection.Forward)
+                    BoundaryAdvance.Backward -> navigator.pageBy(NavigatorPageDirection.Backward)
+                    BoundaryAdvance.None -> Unit
+                }
+            }
+            delay(BOUNDARY_POLL_INTERVAL_MS)
         }
     }
 
@@ -415,9 +520,25 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
     LaunchedEffect(autoScroll, item.id) {
         autoScroll.scrollDeltas.collect { px ->
-            // `false` means the document did not move — the bottom of the resource. Android's
-            // vertical mode stops there too rather than auto-advancing the chapter.
-            if (!navigator.scrollByPx(px)) autoScroll.dispatch(AutoScrollEvent.ReachedEndOfBook)
+            // `false` means the document did not move — the bottom of the resource.
+            //
+            // What that means depends on the mode, which is the shared [autoScrollStallAction]
+            // decision. Vertical stops, because the chapter end is a wall there — the same thing
+            // Android's Vertical does. Continuous crosses into the next resource and keeps
+            // scrolling, which Android gets for free because its Continuous view has no resource
+            // boundary at all. Collapsing the two (which is what this did) stopped hands-free
+            // reading dead at every chapter end.
+            if (navigator.scrollByPx(px)) return@collect
+            val position = navigator.snapshotPosition()
+            val index = position?.let { spineIndexOfHref(spineRef.value.hrefs, it.href) } ?: -1
+            val action = autoScrollStallAction(
+                orientation = orientationRef.value,
+                canGoForward = index in 0 until spineRef.value.hrefs.size - 1,
+            )
+            when (action) {
+                AutoScrollStall.AdvanceResource -> navigator.pageBy(NavigatorPageDirection.Forward)
+                AutoScrollStall.EndOfBook -> autoScroll.dispatch(AutoScrollEvent.ReachedEndOfBook)
+            }
         }
     }
     DisposableEffect(autoScroll) {
@@ -523,7 +644,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 if (spanId.isNotEmpty() &&
                     navigator.followCadenceSpan(spanId) == NavigatorFollowResult.OffPage
                 ) {
-                    navigator.navigateTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
+                    goTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
                 }
             }
     }
@@ -847,7 +968,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                                 .clickable {
                                     annotationsPanelOpen = false
                                     scope.launch {
-                                        navigator.navigateTo(
+                                        goTo(
                                             NavigatorNavigationTarget.ToLocatorJson(
                                                 annotationDecorationLocator(a),
                                             ),
@@ -883,7 +1004,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                                 .clickable {
                                     tocOpen = false
                                     scope.launch {
-                                        navigator.navigateTo(
+                                        goTo(
                                             NavigatorNavigationTarget.ToHref(
                                                 href = row.entry.href.substringBefore("#"),
                                                 fragment = row.entry.href.substringAfter("#", "").ifEmpty { null },
@@ -956,7 +1077,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 bookTimeRemaining = chapterMap.bookTimeRemaining,
                 onSegmentClick = { segment ->
                     scope.launch {
-                        navigator.navigateTo(
+                        goTo(
                             NavigatorNavigationTarget.ToHref(
                                 href = segment.href.substringBefore("#"),
                                 fragment = segment.href.substringAfter("#", "").ifEmpty { null },
@@ -1003,9 +1124,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     scope.launch {
-                                        navigator.navigateTo(
-                                            NavigatorNavigationTarget.ToLocatorJson(match.locatorJson),
-                                        )
+                                        goTo(NavigatorNavigationTarget.ToLocatorJson(match.locatorJson))
                                     }
                                 },
                         )
@@ -1028,6 +1147,18 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
  * `internal` and top-level rather than a lambda inside the Composable so the start decision is
  * reachable from a test.
  */
+/**
+ * How often Continuous re-reads the scroll boundary.
+ *
+ * The same 120 ms Android's Vertical boundary poll uses (`EpubReaderScreen.BOUNDARY_POLL_INTERVAL_MS`),
+ * and for the same reason: Readium's locator progression is not a usable boundary signal — it
+ * keeps re-emitting while a touch moves nothing, and it stops emitting exactly when the reader is
+ * wedged against the end, which is the moment that matters. A direct read of the scroll state is
+ * the only honest answer, and 120 ms is fast enough that the crossing feels like part of the
+ * gesture rather than a delayed jump.
+ */
+private const val BOUNDARY_POLL_INTERVAL_MS = 120L
+
 internal suspend fun startCadenceFromCurrentPage(
     navigator: ReadiumSwiftNavigator,
     cadence: CadenceSession,

@@ -19,6 +19,7 @@ import com.riffle.feature.reader.NavigatorRect
 import com.riffle.feature.reader.NavigatorScrollBoundary
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.NavigatorSelection
+import com.riffle.feature.reader.ScrollProbes
 import com.riffle.feature.reader.cadence.CadenceDomScript
 import com.riffle.feature.reader.cadence.CadenceInjector
 import kotlinx.cinterop.BetaInteropApi
@@ -31,7 +32,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.koin.mp.KoinPlatform
 import platform.Foundation.NSArray
@@ -48,8 +48,16 @@ import kotlin.coroutines.resume
  *
  * Cadence and Readaloud share the sentence-follow surface: both drive `feature:reader`'s
  * [ColumnSnap] JS through the bridge's `evaluateJavaScript` seam, so the column arithmetic is
- * the same code Android runs. DOM highlight patches and the continuous-mode scroll boundary have
- * no iOS analogue — Readium owns the scroll in both of iOS's modes.
+ * the same code Android runs.
+ *
+ * The scroll-state probes ([scrollBoundary], [publishViewportFraction]) run the same shared
+ * [ScrollProbes] scripts Android's `DefaultRendererBridge` runs. They are what gives iOS a
+ * Continuous mode at all: Readium owns the scroll in both of iOS's scrolling modes and renders
+ * one resource at a time, so the reader has to *detect* the chapter boundary in order to cross
+ * it — see [com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy].
+ *
+ * DOM highlight patches still have no iOS analogue; Readium-Swift's decoration templates cover
+ * what Android needs the patch for.
  */
 class ReadiumSwiftNavigator(
     private val bridge: IosEpubNavigatorBridge,
@@ -62,6 +70,8 @@ class ReadiumSwiftNavigator(
     private val _selectionFlow = MutableStateFlow<NavigatorSelection?>(null)
     private val _decorationActivations =
         MutableSharedFlow<NavigatorDecorationActivation>(extraBufferCapacity = 16)
+    private val _viewportFractionEvents =
+        MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
 
@@ -155,7 +165,21 @@ class ReadiumSwiftNavigator(
 
     override val positionFlow: Flow<NavigatorPosition> = _positionFlow
     override val pageLoadEvents: Flow<NavigatorPageLoad> = _pageLoadEvents
-    override val viewportFractionEvents: Flow<Pair<String, Double>> = emptyFlow()
+
+    /**
+     * Per-resource `viewportSize / chapterSize`, keyed by the *normalised* href.
+     *
+     * Normalised at the source rather than at the consumer because the only consumer,
+     * [com.riffle.feature.reader.bookmarkEpsFor], looks the map up by a normalised href — a raw
+     * Readium href would simply never hit, silently dropping the reader back onto the flat
+     * `BOOKMARK_PAGE_EPS` fallback and lighting the corner ribbon across three or four pages.
+     *
+     * Published from [publishViewportFraction], which the reader calls on page load and after a
+     * typography change — the two moments Readium re-lays the document out. Never on scroll:
+     * the measurement does not change with scroll position, and re-emitting per frame is what
+     * flaked Android's equivalent (issue #399).
+     */
+    override val viewportFractionEvents: Flow<Pair<String, Double>> = _viewportFractionEvents
     override val eventFlow: Flow<NavigatorEvent> = _eventFlow
 
     override suspend fun navigateTo(target: NavigatorNavigationTarget, options: NavigatorNavigationOptions) {
@@ -384,7 +408,34 @@ class ReadiumSwiftNavigator(
             bridge.readResource(href) { html -> if (cont.isActive) cont.resume(html) }
         }
 
-    override suspend fun scrollBoundary(): NavigatorScrollBoundary = NavigatorScrollBoundary.None
+    /**
+     * Where the visible resource's scroll sits — at its top, at its bottom, or in between.
+     *
+     * The whole reason Continuous mode did not exist on iOS. Readium-Swift's
+     * `EPUBNavigatorViewController` renders one resource at a time in `scroll` mode and stops at
+     * its end, so without this probe there was no way for the reader to know it had arrived at a
+     * chapter boundary and cross it by itself — Continuous and Vertical rendered identically.
+     *
+     * One round trip, not Android's two: see [ScrollProbes.BOUNDARY_PROBE_JS]. Answers
+     * [NavigatorScrollBoundary.None] in paginated mode, where the document overflows horizontally
+     * and `window.scrollY` never moves — which is exactly the contract
+     * [com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy] needs: no boundary, no advance.
+     */
+    override suspend fun scrollBoundary(): NavigatorScrollBoundary =
+        ScrollProbes.parseScrollBoundary(evaluateJs(ScrollProbes.BOUNDARY_PROBE_JS))
+
+    /**
+     * Measure the visible resource and publish it on [viewportFractionEvents] against
+     * [normalizedHref]. No-ops when the measurement is unusable, so a failed probe leaves the
+     * previous (good) value in place rather than replacing it with a zero.
+     */
+    internal suspend fun publishViewportFraction(normalizedHref: String) {
+        if (normalizedHref.isEmpty()) return
+        val fraction = ScrollProbes.parseViewportFraction(
+            evaluateJs(ScrollProbes.VIEWPORT_FRACTION_JS),
+        ) ?: return
+        _viewportFractionEvents.tryEmit(normalizedHref to fraction)
+    }
 
     fun applyReaderPreferences(
         fontSizePercent: Float,
