@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.reader.CbzReaderScreen
@@ -40,6 +41,17 @@ internal sealed interface LibraryNav {
         val playlistId: String,
         val playlistName: String,
         val playlistLibraryId: String,
+    ) : LibraryNav
+
+    /**
+     * The books in [facetLibraryId] matching one metadata facet — an author, a genre, a year, a
+     * language, or "has a readaloud". Android reaches the same screen through
+     * `filtered_books/{libraryId}/{facetType}/{facetValue}`.
+     */
+    data class FilteredBooks(
+        val facetLibraryId: String,
+        val facetType: FacetType,
+        val facetValue: String,
     ) : LibraryNav
 
     /**

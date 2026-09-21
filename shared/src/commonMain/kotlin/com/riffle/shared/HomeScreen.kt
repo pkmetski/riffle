@@ -39,20 +39,25 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.shouldShowRiffleSource
+import com.riffle.feature.library.ui.FilteredBooksLabels
+import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.downloads.DownloadsScreen
+import com.riffle.shared.library.BookCoverTile
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.library.SeriesDetailScreen
+import com.riffle.shared.library.coverGridMinCell
 import com.riffle.shared.settings.SettingsScreen
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.UnboundedBrowseScreen
@@ -374,6 +379,14 @@ private fun LibraryHost(
             onRead = { item ->
                 openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
             },
+            onFacetSelected = { facetLibraryId, facet, value ->
+                nav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
+            },
+        )
+        is LibraryNav.FilteredBooks -> FilteredBooksHost(
+            destination = current,
+            onBack = { nav = LibraryNav.Items },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
         )
         is LibraryNav.ReaderDestination -> {
             // End-of-book inside a playlist: the ViewModel has already found the next item id;
@@ -421,6 +434,48 @@ private fun LibraryHost(
             onPlayItem = { item -> nav = playlistPlayerNav(item, current) },
         )
     }
+}
+
+/**
+ * Screen-scoped host for [FilteredBooksScreen].
+ *
+ * Like the playlist host: the ViewModel is a Koin `factory` keyed on the facet, and iOS has no
+ * navigation-provided `ViewModelStoreOwner` to call `onCleared()`.
+ *
+ * `internal` rather than private because both iOS hosts reach it: the per-library browser here
+ * and the Riffle hub's detail sheet, whose facet chips drill into the same screen.
+ */
+@Composable
+internal fun FilteredBooksHost(
+    destination: LibraryNav.FilteredBooks,
+    onBack: () -> Unit,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
+    val koin = getKoin()
+    val key = "${destination.facetLibraryId}/${destination.facetType}/${destination.facetValue}"
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel: FilteredBooksViewModel = remember(key) {
+        host.adopt(
+            koin.get {
+                parametersOf(
+                    destination.facetLibraryId,
+                    destination.facetType.name,
+                    destination.facetValue,
+                )
+            },
+        )
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+    FilteredBooksScreen(
+        viewModel = viewModel,
+        labels = FilteredBooksLabels.English,
+        minCellSize = coverGridMinCell(),
+        onItemSelected = onItemSelected,
+        onNavigateBack = onBack,
+        tileContent = { item, _, onClick ->
+            BookCoverTile(item = item, onClick = onClick)
+        },
+    )
 }
 
 /**

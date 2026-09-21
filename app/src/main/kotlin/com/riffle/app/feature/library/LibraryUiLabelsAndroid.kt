@@ -3,6 +3,7 @@ package com.riffle.app.feature.library
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
+import com.riffle.feature.library.ui.FilteredBooksLabels
 import com.riffle.feature.library.ui.PlaylistLabels
 
 /**
@@ -28,4 +29,11 @@ internal fun androidPlaylistLabels(): PlaylistLabels = PlaylistLabels.English.co
     name = stringResource(R.string.ui_name),
     create = stringResource(R.string.ui_create),
     cancel = stringResource(R.string.ui_cancel),
+)
+
+/** Android's `res/values*` catalogue for the shared facet drill-in. */
+@Composable
+internal fun androidFilteredBooksLabels(): FilteredBooksLabels = FilteredBooksLabels.English.copy(
+    back = stringResource(R.string.ui_back),
+    noBooksFound = stringResource(R.string.ui_no_books_found),
 )

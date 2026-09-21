@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.ui.AddToPlaylistSheet
@@ -42,6 +43,7 @@ import org.koin.core.parameter.parametersOf
 
 private val TitleStyle = TextStyle(fontWeight = FontWeight.Bold, fontSize = 22.sp)
 private val AuthorStyle = TextStyle(fontSize = 16.sp, color = Color(0xFF666666))
+private val MetadataStyle = TextStyle(fontSize = 13.sp, color = Color(0xFF6650A4))
 private val ButtonTextStyle = TextStyle(
     fontWeight = FontWeight.SemiBold,
     fontSize = 16.sp,
@@ -62,6 +64,7 @@ fun LibraryItemDetailScreen(
     sourceId: String?,
     onBack: () -> Unit,
     onRead: (LibraryItem) -> Unit,
+    onFacetSelected: (libraryId: String, facet: FacetType, value: String) -> Unit,
 ) {
     val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
     val uiState by vm.uiState.collectAsState()
@@ -97,6 +100,31 @@ fun LibraryItemDetailScreen(
                 } else {
                     null
                 },
+                onFacet = { facet, value -> onFacetSelected(state.item.libraryId, facet, value) },
+            )
+        }
+    }
+}
+
+/**
+ * A row of tappable facet values. Renders nothing when [values] is empty, so an item with no
+ * genres (or no year, or no language) shows no stray blank line.
+ */
+@Composable
+private fun FacetRow(
+    values: List<String>,
+    style: TextStyle,
+    onClick: (String) -> Unit,
+) {
+    if (values.isEmpty()) return
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        values.forEach { value ->
+            BasicText(
+                text = value,
+                style = style,
+                modifier = Modifier
+                    .testTag("facet-$value")
+                    .clickable { onClick(value) },
             )
         }
     }
@@ -132,12 +160,16 @@ private fun ErrorContent(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ReadyContent(
+// `internal` rather than private so the facet chips and the Add-to-playlist gate can be driven
+// by a test: both are decisions inside a Composable body and neither is reachable through a
+// derivation.
+internal fun ReadyContent(
     state: LibraryItemDetailUiState.Ready,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
     onAddToPlaylist: (() -> Unit)?,
+    onFacet: (FacetType, String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -177,13 +209,36 @@ private fun ReadyContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        BasicText(
-            text = state.item.author,
+        // The byline is a facet drill-in, exactly as Android's `AuthorByline` is: tapping it
+        // lists every book by that author. Android splits a multi-author string on ", " when it
+        // matches (`facetMatches`), so each name is offered separately here too.
+        FacetRow(
+            values = state.item.author.split(", ").filter { it.isNotBlank() },
             style = AuthorStyle,
-            modifier = Modifier.fillMaxWidth(),
+            onClick = { onFacet(FacetType.AUTHOR, it) },
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Genre / year / language chips — the same four facets Android's `MetadataLines` offers.
+        // Without them `FilteredBooksViewModel` has no iOS entry point at all (#1072 §1).
+        FacetRow(
+            values = state.item.genres,
+            style = MetadataStyle,
+            onClick = { onFacet(FacetType.GENRE, it) },
+        )
+        FacetRow(
+            values = listOfNotNull(state.item.publishedYear?.takeIf { it.isNotBlank() }),
+            style = MetadataStyle,
+            onClick = { onFacet(FacetType.YEAR, it) },
+        )
+        FacetRow(
+            values = listOfNotNull(state.item.language?.takeIf { it.isNotBlank() }),
+            style = MetadataStyle,
+            onClick = { onFacet(FacetType.LANGUAGE, it) },
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
