@@ -52,6 +52,7 @@ import com.riffle.app.feature.settings.sections.DeveloperOptionsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
 import com.riffle.app.feature.settings.sections.ReadingSection
+import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.source.ui.settings.SourcesSection
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.i18n.findActivity

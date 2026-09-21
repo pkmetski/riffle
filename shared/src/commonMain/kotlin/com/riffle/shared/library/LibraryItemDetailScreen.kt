@@ -177,6 +177,7 @@ internal fun ReadyContent(
     RiffleMessageScaffold(messages) {
         ReadyBody(
             state = state,
+            token = token,
             onBack = onBack,
             onRead = onRead,
             onToggleToRead = onToggleToRead,
@@ -188,6 +189,7 @@ internal fun ReadyContent(
 @Composable
 private fun ReadyBody(
     state: LibraryItemDetailUiState.Ready,
+    token: String,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,

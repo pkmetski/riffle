@@ -90,7 +90,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.riffle.app.R
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
-import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
+import com.riffle.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.app.feature.reader.highlights.shouldShowReadaloudUi

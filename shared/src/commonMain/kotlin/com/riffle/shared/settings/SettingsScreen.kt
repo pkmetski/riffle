@@ -47,6 +47,7 @@ import com.riffle.core.domain.comic.asComicBackgroundTheme
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
+import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SkipIntervals
