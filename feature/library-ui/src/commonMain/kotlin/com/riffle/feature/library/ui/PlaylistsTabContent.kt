@@ -1,4 +1,4 @@
-package com.riffle.app.feature.library.playlists
+package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,24 +21,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.models.CatalogPlaylist
 
 /**
- * Playlists tab body. Shown only on ABS audiobook roots (gated by
- * [com.riffle.feature.library.LibraryItemsViewModel.tabVisibility]). The "To Read"
- * playlist is already filtered out by [com.riffle.core.data.PlaylistsRepository], so this
- * composable renders whatever it receives verbatim.
+ * Playlists tab body, rendered by both hosts. Shown only on ABS audiobook roots (gated by
+ * [com.riffle.feature.library.LibraryItemsViewModel.tabVisibility]). The "To Read" playlist is
+ * already filtered out by [com.riffle.core.domain.PlaylistsRepository], so this composable renders
+ * whatever it receives verbatim.
+ *
+ * [onPlaylistSelected] is what makes the tab a drill-in rather than a dead list — iOS's copy of
+ * this tab used to render names with no navigation at all because it had no
+ * `PlaylistDetailScreen` to open (#1072 §1).
  */
 @Composable
 fun PlaylistsTabContent(
     playlists: List<CatalogPlaylist>,
+    labels: PlaylistLabels,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
 ) {
     if (playlists.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_playlists_yet_create_one_from_any_item))
+            Text(labels.noPlaylistsFromAnyItem)
         }
         return
     }
@@ -51,7 +54,7 @@ fun PlaylistsTabContent(
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         items(playlists, key = { it.id }) { playlist ->
-            PlaylistRow(playlist = playlist, onClick = { onPlaylistSelected(playlist) })
+            PlaylistRow(playlist = playlist, labels = labels, onClick = { onPlaylistSelected(playlist) })
         }
     }
 }
@@ -59,11 +62,13 @@ fun PlaylistsTabContent(
 @Composable
 internal fun PlaylistRow(
     playlist: CatalogPlaylist,
+    labels: PlaylistLabels,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("playlist-row-${playlist.id}")
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -77,7 +82,7 @@ internal fun PlaylistRow(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                imageVector = LibraryUiGlyphs.QueueMusic,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
             )
@@ -90,17 +95,15 @@ internal fun PlaylistRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = pluralItems(playlist.bookCount),
+                text = playlistItemCountLabel(playlist.bookCount, labels),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Icon(
-            imageVector = Icons.Filled.ChevronRight,
+            imageVector = LibraryUiGlyphs.ChevronRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
-
-internal fun pluralItems(count: Int): String = if (count == 1) "1 item" else "$count items"

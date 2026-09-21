@@ -368,9 +368,10 @@ fun LibraryItemDetailScreen(
         if (showAddToPlaylistSheet && uiState is LibraryItemDetailUiState.Ready) {
             val readyState = uiState as LibraryItemDetailUiState.Ready
             LaunchedEffect(showAddToPlaylistSheet) { viewModel.refreshPlaylists() }
-            com.riffle.app.feature.library.playlists.AddToPlaylistSheet(
+            com.riffle.feature.library.ui.AddToPlaylistSheet(
                 itemId = readyState.item.id,
                 playlistsFlow = viewModel.playlistsForCurrentItem,
+                labels = androidPlaylistLabels(),
                 onToggle = { pl -> viewModel.toggleItemInPlaylist(pl) },
                 onCreate = { name -> viewModel.createPlaylistWithCurrentItem(name) },
                 onDismiss = { showAddToPlaylistSheet = false },

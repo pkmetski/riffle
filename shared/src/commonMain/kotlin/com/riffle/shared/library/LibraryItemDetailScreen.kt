@@ -16,12 +16,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.library.ui.AddToPlaylistSheet
+import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -58,16 +65,40 @@ fun LibraryItemDetailScreen(
 ) {
     val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
     val uiState by vm.uiState.collectAsState()
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
 
     when (val state = uiState) {
         LibraryItemDetailUiState.Loading -> LoadingContent()
         LibraryItemDetailUiState.Error -> ErrorContent(onBack = onBack)
-        is LibraryItemDetailUiState.Ready -> ReadyContent(
-            state = state,
-            onBack = onBack,
-            onRead = { onRead(state.item) },
-            onToggleToRead = { vm.toggleToRead() },
-        )
+        is LibraryItemDetailUiState.Ready -> {
+            // Same sheet, same gate and same refresh-on-open as Android's detail screen.
+            // `toggleItemInPlaylist` / `createPlaylistWithCurrentItem` were bound and injected on
+            // iOS with zero callers until this surface existed (#1072 §1, §3).
+            if (showAddToPlaylistSheet) {
+                LaunchedEffect(showAddToPlaylistSheet) { vm.refreshPlaylists() }
+                AddToPlaylistSheet(
+                    itemId = state.item.id,
+                    playlistsFlow = vm.playlistsForCurrentItem,
+                    labels = PlaylistLabels.English,
+                    onToggle = { playlist -> vm.toggleItemInPlaylist(playlist) },
+                    onCreate = { name -> vm.createPlaylistWithCurrentItem(name) },
+                    onDismiss = { showAddToPlaylistSheet = false },
+                )
+            }
+            ReadyContent(
+                state = state,
+                onBack = onBack,
+                onRead = { onRead(state.item) },
+                onToggleToRead = { vm.toggleToRead() },
+                // `null` hides the button: DetailCapabilities gating, honoured rather than
+                // rendering a control the Source cannot back.
+                onAddToPlaylist = if (state.capabilities.hasAddToPlaylist) {
+                    { showAddToPlaylistSheet = true }
+                } else {
+                    null
+                },
+            )
+        }
     }
 }
 
@@ -106,6 +137,7 @@ private fun ReadyContent(
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
+    onAddToPlaylist: (() -> Unit)?,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -183,6 +215,25 @@ private fun ReadyContent(
                     style = ButtonTextStyle.copy(
                         color = if (state.isInToRead) Color.White else Color(0xFF6650A4),
                     ),
+                )
+            }
+        }
+
+        if (onAddToPlaylist != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFEAE0F8))
+                    .testTag("detail-add-to-playlist")
+                    .clickable(onClick = onAddToPlaylist),
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(
+                    text = PlaylistLabels.English.addToPlaylist,
+                    style = ButtonTextStyle.copy(color = Color(0xFF6650A4)),
                 )
             }
         }

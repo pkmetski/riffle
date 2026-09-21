@@ -66,6 +66,8 @@ import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
+import com.riffle.feature.library.ui.PlaylistLabels
+import com.riffle.feature.library.ui.PlaylistsTabContent
 import com.riffle.feature.source.ui.DefaultCoverPlaceholder
 import com.riffle.feature.source.ui.LocalCoverGridScale
 import com.riffle.shared.SharedUiIcons
@@ -104,6 +106,7 @@ fun LibraryItemsScreen(
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
+    onPlaylistSelected: (CatalogPlaylist) -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
@@ -184,6 +187,7 @@ fun LibraryItemsScreen(
                     onSeriesSelected = onSeriesSelected,
                     onCollectionSelected = onCollectionSelected,
                     onSectionSeeMore = onSectionSeeMore,
+                    onPlaylistSelected = onPlaylistSelected,
                 )
             }
         }
@@ -213,6 +217,7 @@ internal fun LibraryTabContent(
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
+    onPlaylistSelected: (CatalogPlaylist) -> Unit,
 ) {
     when (selectedTab) {
         0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
@@ -223,8 +228,15 @@ internal fun LibraryTabContent(
         5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
         // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
         // Home tab. The shared ViewModel has exposed `playlists` all along
-        // (LibraryItemsViewModel.kt:201); the iOS screen just never read it.
-        tabIndexForPlaylists() -> PlaylistsTabContent(playlists)
+        // (LibraryItemsViewModel.kt:201); the iOS screen just never read it. The tab body is now
+        // :feature:library-ui's — the same one Android renders — so the two hosts cannot drift on
+        // the row layout or the item-count wording, and tapping a row drills in rather than
+        // dead-ending on a non-interactive list.
+        tabIndexForPlaylists() -> PlaylistsTabContent(
+            playlists = playlists,
+            labels = PlaylistLabels.English,
+            onPlaylistSelected = onPlaylistSelected,
+        )
         else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
     }
 }
@@ -762,35 +774,4 @@ private fun DownloadedBadge(downloaded: Boolean, modifier: Modifier = Modifier) 
             .clip(CircleShape)
             .background(color),
     )
-}
-
-/**
- * Playlists for this library. Tapping through to a playlist's contents is tracked separately
- * (there is no iOS `PlaylistDetailScreen` yet), so this lists them without navigation rather
- * than pretending to be interactive.
- */
-@Composable
-private fun PlaylistsTabContent(playlists: List<CatalogPlaylist>) {
-    if (playlists.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                "No playlists",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
-    }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(playlists, key = { it.id }) { playlist ->
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-                Text(playlist.name, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "${playlist.bookCount} book(s)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
 }

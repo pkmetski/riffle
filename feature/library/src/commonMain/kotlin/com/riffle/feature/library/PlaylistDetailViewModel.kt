@@ -1,15 +1,14 @@
-package com.riffle.app.feature.library.playlists
+package com.riffle.feature.library
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.catalog.CatalogPlaylist
-import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.PlaylistsRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.LibraryItem
-import com.riffle.feature.library.urlDecode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -37,10 +36,10 @@ class PlaylistDetailViewModel constructor(
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
-    val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
-    val playlistId: String = savedStateHandle.get<String>("playlistId") ?: ""
+    val libraryId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: ""
+    val playlistId: String = savedStateHandle.get<String>(ROUTE_ARG_PLAYLIST_ID) ?: ""
     private val initialName: String =
-        (savedStateHandle.get<String>("playlistName") ?: "").urlDecode()
+        (savedStateHandle.get<String>(ROUTE_ARG_PLAYLIST_NAME) ?: "").urlDecode()
 
     private sealed interface PlaylistLoad {
         data object Loading : PlaylistLoad
@@ -108,5 +107,14 @@ class PlaylistDetailViewModel constructor(
         } else {
             PlaylistLoad.Deleted
         }
+    }
+
+    companion object {
+        // The SavedStateHandle keys, owned by the ViewModel so Android's nav route and iOS's
+        // fabricated handle cannot drift — the same arrangement as
+        // UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID.
+        const val ROUTE_ARG_LIBRARY_ID: String = "libraryId"
+        const val ROUTE_ARG_PLAYLIST_ID: String = "playlistId"
+        const val ROUTE_ARG_PLAYLIST_NAME: String = "playlistName"
     }
 }

@@ -54,6 +54,7 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
             )
         }
 
@@ -79,6 +80,7 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
             )
         }
 
@@ -103,6 +105,7 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
             )
         }
 
@@ -133,11 +136,16 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
             )
         }
 
         onNodeWithText("Evening Queue").assertIsDisplayed()
-        onNodeWithText("4 book(s)").assertIsDisplayed()
+        // "4 items", not the "4 book(s)" the deleted iOS-only copy of this tab printed: the tab
+        // body is now :feature:library-ui's PlaylistsTabContent, the same one Android renders,
+        // and its count line comes from the shared `playlistItemCountLabel`. The claim this test
+        // pins — index 6 routes to the playlists body and not the Home tab — is unchanged.
+        onNodeWithText("4 items").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -156,10 +164,13 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
             )
         }
 
-        onNodeWithText("No playlists").assertIsDisplayed()
+        // Android's copy, for the same reason as the count line above: one empty state for both
+        // hosts rather than two wordings.
+        onNodeWithText("No playlists yet. Create one from any item.").assertIsDisplayed()
     }
 
     /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */
@@ -179,6 +190,7 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
             )
         }
 

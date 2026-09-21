@@ -66,7 +66,11 @@ fun RiffleScreen(
             return
         }
         is LibraryNav.ReaderDestination -> {
-            ReaderHost(destination = current, onBack = { nav = null })
+            // No playlist context ever reaches the hub: every destination here comes from
+            // `openItemForReading`, which builds `AudiobookPlayer(item)` with both playlist
+            // fields null, so `PlaylistAdvance` cannot be emitted. Same reasoning as Android's
+            // defaulted `onPlaylistAdvance` on its non-playlist player entry points.
+            ReaderHost(destination = current, onBack = { nav = null }, onPlaylistAdvance = { _, _ -> })
             return
         }
         else -> Unit
