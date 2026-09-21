@@ -36,6 +36,12 @@ kotlin {
             api(compose.material3)
             implementation(compose.components.resources)
             implementation(libs.coil.compose)
+            // The design system: RiffleTheme, RiffleIcons, DefaultCoverPlaceholder,
+            // TabletContentWidthContainer, the cover-grid zoom seam and asAuthHeader all moved
+            // down there so :shared and :app reach them without depending on source onboarding.
+            // `api` because this module's public screen signatures and every consumer's theming
+            // go through it.
+            api(project(":feature:design-system"))
             implementation(project(":core:common"))
             implementation(project(":core:database-api"))
             api(project(":core:domain"))

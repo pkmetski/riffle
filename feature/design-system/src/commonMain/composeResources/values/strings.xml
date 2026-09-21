@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The design system's own user-visible copy — the strings its shared components render.
+
+  This is the localisation mechanism for everything both hosts draw. Compose Multiplatform
+  resources are packaged into :app and :shared alike and follow the system locale, so a string
+  added here is translated once and served to Android and iOS from the same file. `checkTranslations`
+  scans this directory, so values-bg/strings.xml and values-es/strings.xml must carry every key.
+
+  Convention when moving a string out of app/src/main/res: keep the SAME key and the SAME English
+  value. Android's own res/values*/strings.xml keeps its copy for the Android-only screens that
+  still reference R.string, and an identical English value means the iOS XCUITest harness — which
+  matches on English label text — stays green.
+-->
+<resources>
+    <!-- Cover-tile badge announcing that an item has a synced narration (readaloud) track.
+         Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_has_readaloud_synced_narration">Has readaloud (synced narration)</string>
+    <!-- Cover-tile badge: the item's file is downloaded and pinned for offline use.
+         Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_downloaded">Downloaded</string>
+    <!-- Cover-tile badge: the item's file is in the evictable cache, not pinned.
+         Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_cached">Cached</string>
+    <!-- Empty state for a cover grid with no items.
+         Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_no_items">No items</string>
+    <!-- Trailing action on a library section header that opens the section's full list. -->
+    <string name="ui_see_all">See all</string>
+</resources>

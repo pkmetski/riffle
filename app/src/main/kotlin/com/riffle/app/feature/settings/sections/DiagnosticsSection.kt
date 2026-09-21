@@ -20,12 +20,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.riffle.app.R
 import androidx.core.content.FileProvider
+import com.riffle.app.R
 import com.riffle.app.feature.settings.DrillInChevron
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.crashReportShareSubject
 import com.riffle.core.models.CrashReport
+import com.riffle.feature.designsystem.SettingsSectionHeader
 import java.io.File
 import java.text.DateFormat
 import java.util.Date

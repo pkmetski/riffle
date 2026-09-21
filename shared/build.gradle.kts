@@ -79,6 +79,9 @@ kotlin {
             api(project(":feature:library"))
             implementation(project(":core:sources"))
             implementation(project(":feature:source"))
+            // The design system: RiffleTheme/RiffleIcons, the cover renderer, the shared library
+            // leaves and the composeResources string bundle the iOS screens now localise against.
+            implementation(project(":feature:design-system"))
             implementation(project(":feature:source-ui"))
             // The shared reader overlays (chapter map + reading-progress labels) both hosts render.
             implementation(project(":feature:reader-ui"))

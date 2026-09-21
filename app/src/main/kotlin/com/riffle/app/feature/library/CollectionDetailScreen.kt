@@ -17,12 +17,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import com.riffle.feature.source.ui.OfflineBanner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.source.ui.OfflineBanner
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +60,7 @@ fun CollectionDetailScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(coverGridMinCellSize()),
+                    columns = GridCells.Adaptive(coverGridMinCell()),
                     contentPadding = PaddingValues(
                         start = 12.dp,
                         end = 12.dp,

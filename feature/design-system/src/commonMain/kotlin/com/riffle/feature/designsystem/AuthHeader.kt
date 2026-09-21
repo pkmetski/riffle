@@ -1,4 +1,4 @@
-package com.riffle.feature.source.ui
+package com.riffle.feature.designsystem
 
 /**
  * Convert a stored source token into a full `Authorization` header value. Existing sources

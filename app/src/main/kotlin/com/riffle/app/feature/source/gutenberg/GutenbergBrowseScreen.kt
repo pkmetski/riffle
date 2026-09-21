@@ -24,8 +24,8 @@ import com.riffle.app.feature.source.common.rememberDrawerButtonGestureExclusion
 import com.riffle.app.feature.source.websource.WebSourceHomeTab
 import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.source.ui.SourceBrowseHeader

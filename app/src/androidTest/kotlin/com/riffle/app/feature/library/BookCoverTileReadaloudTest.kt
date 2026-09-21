@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.BookCoverTile
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

@@ -31,8 +31,9 @@ APIs; `commonMain` may not (see ADR 0059).
 ### Feature modules
 
 All but one target `jvm() + iosArm64 + iosSimulatorArm64`, so their `commonMain` serves both
-hosts and their `commonTest` runs on JVM **and** the iOS simulator. `feature:source-ui` is the
-exception — see its row. New feature logic belongs here, not in
+hosts and their `commonTest` runs on JVM **and** the iOS simulator. `feature:design-system`,
+`feature:source-ui` and `feature:reader-ui` are the exceptions — see their rows. New feature
+logic belongs here, not in
 `app` — code that lands in `app` is Android-only by construction and becomes a parity gap.
 
 | Module | Role |
@@ -43,6 +44,7 @@ exception — see its row. New feature logic belongs here, not in
 | `feature:navigation` | Routes, back-intercept, navigation drawer view model |
 | `feature:settings` | Settings derivations and preference surfaces |
 | `feature:source` | Source onboarding domain |
+| `feature:design-system` | **The shared design system** — `android { }` + iOS topology, material3, `coil.compose`, `composeResources`. `RiffleTheme`, the one `RiffleIcons` registry (one glyph per concept, hand-drawn Material path data because `material-icons-core` is not published for Kotlin/Native), `RiffleTokens` (the only sanctioned non-`colorScheme` colours: the scrims painted over cover artwork), the `isExpandedWidth()` form-factor primitive and `TabletContentWidthContainer`, the Coil-backed `CoverImage` with its `CoverLoadReporter` seam, and the presentational library leaves `SectionHeader` / `BookCoverTile` / `BookGrid`. Sits beneath `feature:source-ui` and `feature:reader-ui`; both depend on it. |
 | `feature:source-ui` | **The shared Compose UI module** — `android { }` + iOS (not `jvm()`), material3, `coil.compose`, `composeResources`. Both `app` and `shared` render its screens. A `jvm()`-target Compose artifact cannot be consumed by an Android application, so this is the only topology in which UI can be shared by both hosts — everything Compose that both platforms render belongs here. |
 | `feature:reader-ui` | **The shared reader UI module** — same `android { }` + iOS topology as `feature:source-ui`, for Compose both hosts render inside the reader: chapter-map overlay, navigation rail, reading-progress labels, the auto-scroll and cadence HUD pills. Glyphs are hand-drawn on a `Canvas` because `material-icons-core` is not published for Kotlin/Native. |
 | `feature:downloads` | Download queue and offline availability |
@@ -61,6 +63,31 @@ exception — see its row. New feature logic belongs here, not in
 | `iosApp` | Xcode project — SwiftUI/UIKit shell, Readium-Swift and AVFoundation bridges, XCTest suites |
 
 See [ADR 0059](docs/adr/0059-platform-agnostic-core-boundary.md) for the full rationale and the guardrail task descriptions.
+
+### Localising shared UI
+
+`app/src/main/res/values*/strings.xml` serves the Android-only screens through `R.string`.
+Everything **both** hosts render is localised through Compose Multiplatform `composeResources`
+instead — `feature:design-system` and `feature:source-ui` each own a bundle, packaged into `:app`
+and `:shared` alike and resolved against the system locale exactly like Android resources.
+`checkTranslations` scans every module's `src/commonMain/composeResources`, so a new bundle needs
+`values/`, `values-bg/` and `values-es/` from the first commit.
+
+Conventions:
+
+- **Keep the key and the English value** when a string moves out of `app/src/main/res`. An
+  identical English value is what keeps the iOS XCUITest harness — which matches on English label
+  text — green through the move.
+- **Give an element a `testTag` when its label is user-visible copy a test locates it by.**
+  XCUITest reads a Compose `testTag` as the element's `accessibilityIdentifier`, so a
+  locale-independent tag (`section-header-IN_PROGRESS`) survives translation where a label match
+  would not. The tag must not embed the translated text.
+- The generated `Res` class is `internal` by default. A bundle meant to serve other modules sets
+  `publicResClass = true` (design-system does; source-ui's is module-private).
+- AGP 9's KMP library plugin never packages a module's composeResources into the APK, so each
+  bundle needs the `copyComposeResourcesForApk` bridge plus an asset `srcDir` and task dependency
+  in `app/build.gradle.kts`. Without it every `stringResource` throws `MissingResourceException`
+  on Android at runtime while iOS is fine.
 
 ---
 

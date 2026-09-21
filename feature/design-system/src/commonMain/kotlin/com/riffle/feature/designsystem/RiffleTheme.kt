@@ -1,4 +1,4 @@
-package com.riffle.feature.source.ui
+package com.riffle.feature.designsystem
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

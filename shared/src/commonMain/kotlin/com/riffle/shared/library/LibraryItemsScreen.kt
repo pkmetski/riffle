@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -45,20 +46,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.Collection
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
+import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.BookGrid
+import com.riffle.feature.designsystem.CoverImage
+import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.LocalCoversAreSquare
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_see_all
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.AnnotationsListViewModel
-import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.library.LibrarySectionType
@@ -66,29 +74,19 @@ import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
-import com.riffle.feature.source.ui.LocalCoverGridScale
-import com.riffle.shared.SharedUiIcons
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 private const val SECTION_ROW_HEIGHT = 200
-private const val SECTION_CELL_WIDTH = 120
 
 /**
- * Minimum adaptive cell for the full-page cover grids, indexed on the window width per ADR 0019
- * exactly as Android's `coverGridMinCellSize()` is. Both read the numbers from
- * [CoverGridLayout], so a tablet-sized iPad lays its covers out on the same breakpoint an Android
- * tablet does instead of staying on the phone-sized cell.
+ * Taller than [SECTION_ROW_HEIGHT] because a [BookCoverTile] now carries Android's title/author
+ * caption under the artwork: a 120dp-wide 2:3 cover is 180dp on its own, so a 200dp row clipped
+ * the caption away. Series and collection tiles have no caption and keep the shorter row.
  */
-@Composable
-internal fun coverGridMinCell(): Dp {
-    val widthPx = LocalWindowInfo.current.containerSize.width
-    val widthDp = with(LocalDensity.current) { widthPx.toDp() }
-    // The second argument is the user's pinch multiplier, published by CoverGridZoomBox. It used
-    // to be a hardcoded 1f, which is why the persisted cover-grid density never reached a grid.
-    return CoverGridLayout.minCellSizeDp(widthDp.value, LocalCoverGridScale.current).dp
-}
+private const val BOOK_SECTION_ROW_HEIGHT = 250
+private const val SECTION_CELL_WIDTH = 120
 
 // The tab index vocabulary and the visibility/clamp rules come from
 // `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used
@@ -175,6 +173,7 @@ fun LibraryItemsScreen(
                 LibraryTabContent(
                     selectedTab = selectedTab,
                     projection = projection,
+                    token = viewModel.authToken,
                     playlists = playlists,
                     annotationsState = annotationsState,
                     coversAreSquare = coversAreSquare,
@@ -207,6 +206,9 @@ internal fun LibraryTabContent(
     playlists: List<CatalogPlaylist>,
     annotationsState: AnnotationsListUiState,
     coversAreSquare: Boolean,
+    // The source's stored credential, for the authenticated cover fetches every tile now makes.
+    // Defaulted so the tab-content tests can stay focused on the projection they exercise.
+    token: String = "",
     linkedItemIds: Set<String>,
     onItemSelected: (LibraryItem) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
@@ -215,17 +217,17 @@ internal fun LibraryTabContent(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
-        1 -> SimpleItemList(projection.toRead, "Nothing in To Read", onItemSelected)
-        tabIndexForAnnotations() -> AnnotationsTabContent(annotationsState, onAnnotatedBookSelected)
+        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
+        tabIndexForAnnotations() -> AnnotationsTabContent(annotationsState, { token }, onAnnotatedBookSelected)
         3 -> SeriesTabContent(projection.series, onSeriesSelected)
         4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
-        5 -> AllBooksTabContent(projection.allBooks, coversAreSquare, linkedItemIds, onItemSelected)
+        5 -> AllBooksTabContent(projection.allBooks, token, coversAreSquare, linkedItemIds, onItemSelected)
         // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
         // Home tab. The shared ViewModel has exposed `playlists` all along
         // (LibraryItemsViewModel.kt:201); the iOS screen just never read it.
         tabIndexForPlaylists() -> PlaylistsTabContent(playlists)
-        else -> HomeTabContent(projection, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
     }
 }
 
@@ -239,47 +241,47 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
-            icon = { Icon(SharedUiIcons.Home, contentDescription = "Home") },
+            icon = { Icon(RiffleIcons.Home, contentDescription = "Home") },
         )
         if (visibility.toRead) {
             NavigationBarItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                icon = { Icon(SharedUiIcons.Bookmarks, contentDescription = "To Read") },
+                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
             )
         }
         if (visibility.annotations) {
             NavigationBarItem(
                 selected = selectedTab == tabIndexForAnnotations(),
                 onClick = { onTabSelected(tabIndexForAnnotations()) },
-                icon = { Icon(SharedUiIcons.Star, contentDescription = "Annotations") },
+                icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
             )
         }
         if (visibility.series) {
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                icon = { Icon(SharedUiIcons.FormatListNumbered, contentDescription = "Series") },
+                icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = "Series") },
             )
         }
         if (visibility.collections) {
             NavigationBarItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
-                icon = { Icon(SharedUiIcons.Folder, contentDescription = "Collections") },
+                icon = { Icon(RiffleIcons.Folder, contentDescription = "Collections") },
             )
         }
         if (visibility.playlists) {
             NavigationBarItem(
                 selected = selectedTab == tabIndexForPlaylists(),
                 onClick = { onTabSelected(tabIndexForPlaylists()) },
-                icon = { Icon(SharedUiIcons.QueueMusic, contentDescription = "Playlists") },
+                icon = { Icon(RiffleIcons.QueueMusic, contentDescription = "Playlists") },
             )
         }
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
-            icon = { Icon(SharedUiIcons.GridView, contentDescription = "All Books") },
+            icon = { Icon(RiffleIcons.GridView, contentDescription = "All Books") },
         )
     }
 }
@@ -291,7 +293,7 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
         title = { Text(title) },
         navigationIcon = {
             IconButton(onClick = onMenuClick) {
-                Icon(SharedUiIcons.Menu, contentDescription = "Open menu")
+                Icon(RiffleIcons.Menu, contentDescription = "Open menu")
             }
         },
     )
@@ -300,6 +302,7 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
 @Composable
 private fun HomeTabContent(
     projection: LibraryProjection,
+    token: String,
     coversAreSquare: Boolean,
     linkedItemIds: Set<String>,
     onItemSelected: (LibraryItem) -> Unit,
@@ -307,41 +310,99 @@ private fun HomeTabContent(
     onCollectionSelected: (Collection) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        if (projection.inProgress.isNotEmpty()) {
-            item { SectionHeader("In Progress") { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) } }
-            item { HorizontalBookRow(items = projection.inProgress.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
-        }
-        if (projection.continueSeries.isNotEmpty()) {
-            item { SectionHeader("Continue Series") { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) } }
-            item { HorizontalBookRow(items = projection.continueSeries.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
-        }
-        if (projection.recentlyAdded.isNotEmpty()) {
-            item { SectionHeader("Recently Added") { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) } }
-            item { HorizontalBookRow(items = projection.recentlyAdded.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
-        }
-        if (projection.finished.isNotEmpty()) {
-            item { SectionHeader("Completed") { onSectionSeeMore(LibrarySectionType.FINISHED) } }
-            item { HorizontalBookRow(items = projection.finished.take(10), linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
-        }
-        if (projection.series.isNotEmpty()) {
-            item { SectionHeader("Series", onSeeAll = null) }
-            item { SeriesRow(series = projection.series.take(10), onSeriesClick = onSeriesSelected) }
-        }
-        if (projection.collections.isNotEmpty()) {
-            item { SectionHeader("Collections", onSeeAll = null) }
-            item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
-        }
-        if (projection.allBooks.isNotEmpty()) {
-            item { SectionHeader("All Books", onSeeAll = null) }
-            item { BookGrid(items = projection.allBooks, coversAreSquare = coversAreSquare, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
+    // Resolved once outside the LazyColumn: `stringResource` inside an `item { }` would re-read
+    // the resource table for every recycled row.
+    val seeAll = stringResource(Res.string.ui_see_all)
+    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            if (projection.inProgress.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "In Progress",
+                        actionLabel = seeAll,
+                        onAction = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
+                        tag = sectionHeaderTag(LibrarySectionType.IN_PROGRESS),
+                    )
+                }
+                item { HorizontalBookRow(items = projection.inProgress.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
+            }
+            if (projection.continueSeries.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Continue Series",
+                        actionLabel = seeAll,
+                        onAction = { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) },
+                        tag = sectionHeaderTag(LibrarySectionType.CONTINUE_SERIES),
+                    )
+                }
+                item {
+                    HorizontalBookRow(items = projection.continueSeries.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected)
+                }
+            }
+            if (projection.recentlyAdded.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Recently Added",
+                        actionLabel = seeAll,
+                        onAction = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
+                        tag = sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED),
+                    )
+                }
+                item {
+                    HorizontalBookRow(items = projection.recentlyAdded.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected)
+                }
+            }
+            if (projection.finished.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Completed",
+                        actionLabel = seeAll,
+                        onAction = { onSectionSeeMore(LibrarySectionType.FINISHED) },
+                        tag = sectionHeaderTag(LibrarySectionType.FINISHED),
+                    )
+                }
+                item { HorizontalBookRow(items = projection.finished.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
+            }
+            if (projection.series.isNotEmpty()) {
+                item { SectionHeader(title = "Series", tag = "section-header-SERIES") }
+                item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
+            }
+            if (projection.collections.isNotEmpty()) {
+                item { SectionHeader(title = "Collections", tag = "section-header-COLLECTIONS") }
+                item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
+            }
+            if (projection.allBooks.isNotEmpty()) {
+                item { SectionHeader(title = "All Books", tag = "section-header-ALL_BOOKS") }
+                // A horizontal shelf like every other section, NOT the 600dp LazyVerticalGrid
+                // this used to nest here. A vertically scrolling grid inside a vertically
+                // scrolling column swallows the drag as soon as the finger lands on it, so the
+                // sections below it (Collections, and anything added later) became unreachable
+                // — #1072 flags the "fixed 600dp nested grid" for exactly this reason. The whole
+                // library is one tap away on the All Books tab.
+                item {
+                    HorizontalBookRow(
+                        items = projection.allBooks.take(10),
+                        token = token,
+                        linkedItemIds = linkedItemIds,
+                        onItemClick = onItemSelected,
+                    )
+                }
+            }
         }
     }
 }
 
+/**
+ * Locale-independent `testTag` for a library section header, so the XCUITest harness can find a
+ * section by identity rather than by its translated title. XCUITest reads a Compose `testTag` as
+ * the element's `accessibilityIdentifier`.
+ */
+internal fun sectionHeaderTag(section: LibrarySectionType): String = "section-header-${section.name}"
+
 @Composable
 private fun SimpleItemList(
     items: List<LibraryItem>,
+    token: String,
     emptyLabel: String,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
@@ -358,7 +419,16 @@ private fun SimpleItemList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
-                    DefaultCoverPlaceholder(isAudiobook = item.isAudiobookOnly, modifier = Modifier.fillMaxSize())
+                    // contentDescription = null: the clickable Row merges its descendants and
+                    // already announces the title and author beside the thumbnail.
+                    CoverImage(
+                        url = item.coverUrl,
+                        token = token,
+                        contentDescription = null,
+                        isAudiobook = item.isAudiobookOnly,
+                        modifier = Modifier.fillMaxSize(),
+                        instrumentationKey = item.id,
+                    )
                 }
                 Column(Modifier.padding(start = 12.dp)) {
                     Text(item.title, style = MaterialTheme.typography.bodyLarge)
@@ -382,6 +452,10 @@ internal const val ANNOTATIONS_EMPTY_LABEL = "No highlights yet."
 @Composable
 internal fun AnnotationsTabContent(
     state: AnnotationsListUiState,
+    // sourceId -> auth token. A library's Annotations tab has one token; the cross-source Riffle
+    // home screen resolves each book's own from `RiffleViewModel.authTokenMap`, which existed for
+    // exactly this and had no iOS caller.
+    tokenFor: (String) -> String,
     onBookSelected: (sourceId: String, itemId: String) -> Unit,
 ) {
     if (state.loading) {
@@ -404,14 +478,18 @@ internal fun AnnotationsTabContent(
         modifier = Modifier.fillMaxSize(),
     ) {
         items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
-            AnnotatedBookTile(book = book, onClick = { onBookSelected(book.sourceId, book.itemId) })
+            AnnotatedBookTile(
+                book = book,
+                token = tokenFor(book.sourceId),
+                onClick = { onBookSelected(book.sourceId, book.itemId) },
+            )
         }
     }
 }
 
 /** One annotated book: placeholder cover, highlight-count badge, title and author. */
 @Composable
-internal fun AnnotatedBookTile(book: AnnotatedBook, onClick: () -> Unit) {
+internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -> Unit) {
     val title = book.title ?: book.itemId
     Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Box(
@@ -420,7 +498,14 @@ internal fun AnnotatedBookTile(book: AnnotatedBook, onClick: () -> Unit) {
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(6.dp)),
         ) {
-            DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
+            CoverImage(
+                url = book.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = false,
+                modifier = Modifier.fillMaxSize(),
+                instrumentationKey = book.itemId,
+            )
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -487,6 +572,7 @@ private fun CollectionsTabContent(collections: List<Collection>, onCollectionSel
 @Composable
 private fun AllBooksTabContent(
     items: List<LibraryItem>,
+    token: String,
     coversAreSquare: Boolean,
     linkedItemIds: Set<String>,
     onItemSelected: (LibraryItem) -> Unit,
@@ -497,161 +583,36 @@ private fun AllBooksTabContent(
         }
         return
     }
-    val aspect = if (coversAreSquare) 1f else 2f / 3f
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(coverGridMinCell()),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(items, key = { it.id }) { item ->
-            BookCoverTile(
-                item = item,
-                modifier = Modifier.aspectRatio(aspect),
-                onClick = { onItemSelected(item) },
-                hasReadaloudLink = item.id in linkedItemIds,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = {}) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = title, style = MaterialTheme.typography.titleMedium)
-        if (onSeeAll != null) {
-            Text(
-                text = "See all",
-                modifier = Modifier.clickable(onClick = onSeeAll),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
+    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+        BookGrid(
+            items = items,
+            token = token,
+            onItemSelected = onItemSelected,
+            hasReadaloudLink = { it.id in linkedItemIds },
+        )
     }
 }
 
 @Composable
 private fun HorizontalBookRow(
     items: List<LibraryItem>,
+    token: String,
     linkedItemIds: Set<String>,
     onItemClick: (LibraryItem) -> Unit,
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.height(SECTION_ROW_HEIGHT.dp),
+        modifier = Modifier.height(BOOK_SECTION_ROW_HEIGHT.dp),
     ) {
         items(items, key = { it.id }) { item ->
             BookCoverTile(
                 item = item,
+                token = token,
+                onClick = { onItemClick(item) },
                 modifier = Modifier.width(SECTION_CELL_WIDTH.dp),
-                onClick = { onItemClick(item) },
                 hasReadaloudLink = item.id in linkedItemIds,
             )
-        }
-    }
-}
-
-@Composable
-private fun BookGrid(
-    items: List<LibraryItem>,
-    coversAreSquare: Boolean,
-    linkedItemIds: Set<String>,
-    onItemClick: (LibraryItem) -> Unit,
-) {
-    val aspect = if (coversAreSquare) 1f else 2f / 3f
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(coverGridMinCell()),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.height(600.dp),
-    ) {
-        items(items, key = { it.id }) { item ->
-            BookCoverTile(
-                item = item,
-                modifier = Modifier.aspectRatio(aspect),
-                onClick = { onItemClick(item) },
-                hasReadaloudLink = item.id in linkedItemIds,
-            )
-        }
-    }
-}
-
-/**
- * Accessibility label for the readaloud badge. Mirrors Android's
- * `R.string.ui_has_readaloud_synced_narration`; the iOS harness matches on it.
- */
-internal const val READALOUD_BADGE_CONTENT_DESCRIPTION = "Has readaloud (synced narration)"
-
-@Composable
-fun BookCoverTile(
-    item: LibraryItem,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    hasReadaloudLink: Boolean = false,
-    seriesNameBadge: String? = null,
-) {
-    // The cover itself keeps the merged `contentDescription = title` node every harness test
-    // locates tiles by. The badges sit outside that merge so they stay individually addressable
-    // (a merged node would swallow the series position text).
-    Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .semantics(mergeDescendants = true) { contentDescription = item.title }
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onClick),
-        ) {
-            DefaultCoverPlaceholder(
-                isAudiobook = item.isAudiobookOnly,
-                modifier = Modifier.fillMaxSize(),
-            )
-            if (item.isDownloaded || item.isCached) {
-                DownloadedBadge(
-                    downloaded = item.isDownloaded,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
-                )
-            }
-        }
-        if (hasReadaloudLink) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.55f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = SharedUiIcons.Headphones,
-                    contentDescription = READALOUD_BADGE_CONTENT_DESCRIPTION,
-                    tint = Color.White,
-                    modifier = Modifier.size(17.dp),
-                )
-            }
-        }
-        if (seriesNameBadge != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 5.dp, start = 5.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.70f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            ) {
-                Text(
-                    text = seriesNameBadge,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
-                )
-            }
         }
     }
 }
@@ -659,6 +620,7 @@ fun BookCoverTile(
 @Composable
 private fun SeriesRow(
     series: List<Series>,
+    token: String,
     onSeriesClick: (Series) -> Unit,
 ) {
     LazyRow(
@@ -669,6 +631,7 @@ private fun SeriesRow(
         items(series, key = { it.id }) { s ->
             SeriesTile(
                 series = s,
+                token = token,
                 modifier = Modifier.width(SECTION_CELL_WIDTH.dp),
                 onClick = { onSeriesClick(s) },
             )
@@ -679,6 +642,7 @@ private fun SeriesRow(
 @Composable
 private fun SeriesTile(
     series: Series,
+    token: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
 ) {
@@ -688,9 +652,15 @@ private fun SeriesTile(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.BottomStart,
     ) {
-        DefaultCoverPlaceholder(
+        CoverImage(
+            url = series.coverUrl,
+            token = token,
+            // The name is drawn over the artwork below and the clickable Box merges it.
+            contentDescription = null,
             isAudiobook = false,
             modifier = Modifier.fillMaxSize(),
+            instrumentationKind = "series",
+            instrumentationKey = series.id,
         )
         Text(
             text = series.name,
@@ -751,17 +721,6 @@ private fun CollectionTile(
             color = Color.White,
         )
     }
-}
-
-@Composable
-private fun DownloadedBadge(downloaded: Boolean, modifier: Modifier = Modifier) {
-    val color = if (downloaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-    Box(
-        modifier = modifier
-            .size(8.dp)
-            .clip(CircleShape)
-            .background(color),
-    )
 }
 
 /**

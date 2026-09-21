@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.downloads.DownloadsUiState
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
@@ -149,7 +150,12 @@ internal fun DownloadsContent(
         }
 
         if (state.downloadedItems.isNotEmpty()) {
-            SectionHeader(title = "Downloaded (${formatBytes(state.downloadedTotalBytes)})")
+            SectionHeader(
+                title = "Downloaded",
+                totalLabel = formatBytes(state.downloadedTotalBytes),
+                // This Column already pads 16.dp horizontally.
+                contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
+            )
             state.downloadedItems.forEach { item ->
                 DownloadRow(item = item, onRemove = { onRemoveDownloadedItem(item) })
             }
@@ -165,7 +171,11 @@ internal fun DownloadsContent(
         }
 
         if (state.cachedItems.isNotEmpty()) {
-            SectionHeader(title = "Cached (${formatBytes(state.cachedTotalBytes)})")
+            SectionHeader(
+                title = "Cached",
+                totalLabel = formatBytes(state.cachedTotalBytes),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
+            )
             state.cachedItems.forEach { item ->
                 DownloadRow(item = item, onRemove = { onRemoveCachedItem(item) })
             }
@@ -180,15 +190,6 @@ internal fun DownloadsContent(
             )
         }
     }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-    )
 }
 
 @Composable

@@ -24,7 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.catalog.CatalogFacet
-import com.riffle.feature.source.ui.SourceUiIcons
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_all
 import com.riffle.feature.source.ui.generated.resources.ui_any
@@ -145,7 +145,7 @@ private fun CheckableFilterChip(selected: Boolean, onClick: () -> Unit, label: S
         leadingIcon = if (selected) {
             {
                 Icon(
-                    SourceUiIcons.Check,
+                    RiffleIcons.Check,
                     contentDescription = null,
                     modifier = Modifier.size(FilterChipDefaults.IconSize),
                 )
@@ -183,7 +183,7 @@ fun FacetDropdownChip(
             label = { Text(labelFor(selected?.label)) },
             trailingIcon = {
                 Icon(
-                    SourceUiIcons.ArrowDropDown,
+                    RiffleIcons.ArrowDropDown,
                     contentDescription = null,
                     modifier = Modifier.size(FilterChipDefaults.IconSize),
                 )
@@ -197,7 +197,7 @@ fun FacetDropdownChip(
                     expanded = false
                 },
                 leadingIcon = if (selected == null) {
-                    { Icon(SourceUiIcons.Check, contentDescription = null) }
+                    { Icon(RiffleIcons.Check, contentDescription = null) }
                 } else {
                     null
                 },
@@ -210,7 +210,7 @@ fun FacetDropdownChip(
                         expanded = false
                     },
                     leadingIcon = if (facet.key == selectedFacet) {
-                        { Icon(SourceUiIcons.Check, contentDescription = null) }
+                        { Icon(RiffleIcons.Check, contentDescription = null) }
                     } else {
                         null
                     },

@@ -6,6 +6,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.feature.designsystem.asAuthHeader
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

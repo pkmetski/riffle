@@ -39,12 +39,15 @@ android {
     namespace = "com.riffle.app"
     compileSdk = 37
 
-    // :feature:source-ui's Compose Multiplatform resources are not packaged by AGP 9's KMP
-    // library plugin (CMP's asset task is registered but unconfigured there) — consume the
-    // module's manually assembled asset layout instead. See copyComposeResourcesForApk in
-    // feature/source-ui/build.gradle.kts.
+    // The Compose Multiplatform resources of :feature:source-ui and :feature:design-system are
+    // not packaged by AGP 9's KMP library plugin (CMP's asset task is registered but unconfigured
+    // there) — consume each module's manually assembled asset layout instead. See
+    // copyComposeResourcesForApk in their build files.
     sourceSets.getByName("main").assets.srcDir(
         rootProject.layout.projectDirectory.dir("feature/source-ui/build/composeAssetsForApk"),
+    )
+    sourceSets.getByName("main").assets.srcDir(
+        rootProject.layout.projectDirectory.dir("feature/design-system/build/composeAssetsForApk"),
     )
 
     defaultConfig {
@@ -140,6 +143,7 @@ dependencies {
     implementation(project(":feature:player"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:source"))
+    implementation(project(":feature:design-system"))
     implementation(project(":feature:source-ui"))
     implementation(project(":feature:reader-ui"))
     implementation(project(":feature:player-ui"))
@@ -230,8 +234,8 @@ debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
-// Asset merging and lint tasks must wait for :feature:source-ui to assemble its Compose resources
-// into the directory registered as an asset srcDir above. AGP 9.4.0 introduced
+// Asset merging and lint tasks must wait for :feature:source-ui and :feature:design-system to
+// assemble their Compose resources into the directories registered as asset srcDirs above. AGP 9.4.0 introduced
 // generateReleaseLintVitalReportModel / lintVitalAnalyze* as tasks that also scan asset source
 // directories; without the dependsOn they fail with "implicit dependency" validation errors.
 // The same applies to the standard lint task's generateDebugLintReportModel / lintAnalyze* tasks.
@@ -243,4 +247,5 @@ tasks.matching {
         it.name.startsWith("lintAnalyze")
 }.configureEach {
     dependsOn(":feature:source-ui:copyComposeResourcesForApk")
+    dependsOn(":feature:design-system:copyComposeResourcesForApk")
 }

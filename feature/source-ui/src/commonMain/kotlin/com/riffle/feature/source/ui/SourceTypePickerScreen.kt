@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
 import com.riffle.feature.source.ui.generated.resources.ui_back
@@ -98,7 +100,7 @@ fun SourceTypePickerScreen(
                 title = { Text(stringResource(Res.string.ui_add_source)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(SourceUiIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
             )
@@ -159,7 +161,7 @@ private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
                 // LocalFiles intentionally keeps its Material Folder icon — see
                 // SourceIconResolver: LOCAL_FILES has no monogram drawable.
                 SourceType.LOCAL_FILES -> Icon(
-                    imageVector = SourceUiIcons.Folder,
+                    imageVector = RiffleIcons.Folder,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = iconModifier,

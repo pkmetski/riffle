@@ -1,4 +1,4 @@
-package com.riffle.feature.source.ui
+package com.riffle.feature.designsystem
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown

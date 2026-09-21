@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import com.riffle.feature.source.ui.LocalCoverGridScale
-import com.riffle.feature.source.ui.pinchCoverZoom
+import com.riffle.feature.designsystem.LocalCoverGridScale
+import com.riffle.feature.designsystem.pinchCoverZoom
 
 /**
  * A [Box] that publishes [scale] to every cover grid inside it and turns a two-finger pinch

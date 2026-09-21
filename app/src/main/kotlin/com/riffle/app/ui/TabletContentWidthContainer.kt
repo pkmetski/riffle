@@ -4,7 +4,7 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.riffle.feature.source.ui.TabletContentWidthContainer as SharedTabletContentWidthContainer
+import com.riffle.feature.designsystem.TabletContentWidthContainer as SharedTabletContentWidthContainer
 
 /**
  * Width-cap container for single-column list/form screens on the Tablet Layout

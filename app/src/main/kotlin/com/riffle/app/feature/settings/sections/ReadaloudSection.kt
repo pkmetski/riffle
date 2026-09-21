@@ -8,12 +8,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.DrillInChevron
-import com.riffle.feature.settings.ReadaloudMatchSummary
-import com.riffle.feature.settings.displayHost
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.StorytellerBadge
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.ReadaloudMatchSummary
+import com.riffle.feature.settings.displayHost
 
 /**
  * "Readaloud" section — collapsed to a single drill-in row that leads to the dedicated Readaloud

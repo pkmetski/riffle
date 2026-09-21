@@ -1,16 +1,9 @@
 package com.riffle.app.feature.downloads
 
-import com.riffle.feature.downloads.DownloadsViewModel
-import com.riffle.feature.downloads.LocalItemUi
-import com.riffle.feature.downloads.LocalMediaType
-import com.riffle.feature.downloads.displayOrder
-import com.riffle.feature.downloads.formatBytes
-import com.riffle.feature.source.ui.CacheSettingsDialog
-import com.riffle.feature.source.ui.CacheSettingsRow
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,10 +43,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.downloads.LocalItemUi
+import com.riffle.feature.downloads.LocalMediaType
+import com.riffle.feature.downloads.displayOrder
+import com.riffle.feature.downloads.formatBytes
+import com.riffle.feature.source.ui.CacheSettingsDialog
+import com.riffle.feature.source.ui.CacheSettingsRow
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +118,7 @@ fun DownloadsScreen(
                         totalLabel = if (uiState.downloadedItems.isNotEmpty()) formatBytes(uiState.downloadedTotalBytes) else null,
                         actionLabel = if (uiState.downloadedItems.isNotEmpty()) stringResource(R.string.ui_remove_all) else null,
                         onAction = { showRemoveAllDownloadsDialog = true },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
                 if (uiState.downloadedItems.isEmpty()) {
@@ -140,6 +142,7 @@ fun DownloadsScreen(
                         totalLabel = if (uiState.cachedItems.isNotEmpty()) formatBytes(uiState.cachedTotalBytes) else null,
                         actionLabel = if (uiState.cachedItems.isNotEmpty()) stringResource(R.string.ui_clear_all) else null,
                         onAction = { viewModel.clearAllCached() },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
                 item {
@@ -163,25 +166,6 @@ fun DownloadsScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, totalLabel: String?, actionLabel: String?, onAction: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = if (totalLabel != null) "$title · $totalLabel" else title,
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        if (actionLabel != null) {
-            TextButton(onClick = onAction) { Text(actionLabel) }
         }
     }
 }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_has_readaloud_synced_narration">Има четене на глас (синхронизиран разказ)</string>
+    <string name="ui_downloaded">Изтеглено</string>
+    <string name="ui_cached">Кеширано</string>
+    <string name="ui_no_items">Няма елементи</string>
+    <string name="ui_see_all">Виж всички</string>
+</resources>

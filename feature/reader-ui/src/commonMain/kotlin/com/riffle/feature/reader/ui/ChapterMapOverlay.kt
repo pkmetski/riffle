@@ -19,8 +19,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.common.TimeRemaining
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.designsystem.RiffleTheme
 import com.riffle.feature.reader.RailSegment
-import com.riffle.feature.source.ui.RiffleTheme
 
 /**
  * The reader's on-screen-info overlay: the reading-progress labels and the chapter rail.
