@@ -144,6 +144,8 @@ define run_harness_tests
 	adb -s $$SERIAL shell svc power stayon true; \
 	echo "Running harness tests on $$SERIAL..."; \
 	adb -s $$SERIAL shell pm clear com.riffle.app 2>/dev/null || true; \
+	adb -s $$SERIAL uninstall com.riffle.app > /dev/null 2>&1 || true; \
+	adb -s $$SERIAL uninstall com.riffle.app.test > /dev/null 2>&1 || true; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest $(2); \
 	TEST_EXIT=$$?; \
 	echo "Shutting down emulator..."; \
