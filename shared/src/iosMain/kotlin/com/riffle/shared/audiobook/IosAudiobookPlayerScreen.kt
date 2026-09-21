@@ -33,7 +33,13 @@ import org.koin.core.parameter.parametersOf
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
-actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
+actual fun AudiobookPlayerScreen(
+    item: LibraryItem,
+    playlistId: String?,
+    playlistLibraryId: String?,
+    onBack: () -> Unit,
+    onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+) {
     // The ViewModel is a Koin `factory` and iOS has no navigation-provided ViewModelStoreOwner, so
     // without an explicit host nothing ever calls AudiobookPlayerViewModel.onCleared() — the follow
     // loop keeps running, the final progress push never happens and controller.stop() (which is what
@@ -41,7 +47,14 @@ actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
     val koin = getKoin()
     val host = remember(item.id) { ScreenScopedViewModelHost() }
     val vm: AudiobookPlayerViewModel = remember(item.id) {
-        host.adopt(koin.get { parametersOf(item.id, item.sourceId) })
+        // The playlist context is positional (indices 2 and 3 of the Koin factory's params), so
+        // it is always supplied — "" where there is none, which the ViewModel already reads as
+        // absent. Passing nothing would make `params.get(2)` throw for every non-playlist open.
+        host.adopt(
+            koin.get {
+                parametersOf(item.id, item.sourceId, playlistId.orEmpty(), playlistLibraryId.orEmpty())
+            },
+        )
     }
     val state by vm.uiState.collectAsState()
 
@@ -51,14 +64,16 @@ actual fun AudiobookPlayerScreen(item: LibraryItem, onBack: () -> Unit) {
     // iOS used to collect nothing at all, so a finished book left the player sitting on a dead
     // transport with the scrubber pinned at the end.
     val latestOnBack = rememberUpdatedState(onBack)
+    val latestOnPlaylistAdvance = rememberUpdatedState(onPlaylistAdvance)
     LaunchedEffect(vm) {
         vm.events.collect { event ->
             when (event) {
                 AudiobookPlayerEvent.Finished -> latestOnBack.value()
-                // Playlist auto-advance needs a playlist context to have opened the player, which
-                // no iOS surface can supply yet (see the Koin factory's note) — so it cannot be
-                // emitted here. Treated as "the book ended" rather than silently ignored.
-                is AudiobookPlayerEvent.PlaylistAdvance -> latestOnBack.value()
+                // Reachable since PlaylistDetailScreen's Play carries the playlist context in
+                // (#1072 §1). Same handling as Android's ReaderNavGraph: hop into the next
+                // item's player rather than closing.
+                is AudiobookPlayerEvent.PlaylistAdvance ->
+                    latestOnPlaylistAdvance.value(event.sourceId, event.nextItemId)
             }
         }
     }

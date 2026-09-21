@@ -1,4 +1,4 @@
-package com.riffle.app.feature.library.playlists
+package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,23 +32,26 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.models.CatalogPlaylist
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /**
- * Bottom sheet for adding or removing the current item from playlists on the active Source. State
- * is driven by callers: [playlistsFlow] holds the current, "To Read"-filtered set; tapping a row
- * calls [onToggle]; "+ New playlist" opens a small dialog that calls [onCreate] and closes on ""
- * (empty string = success) or displays whatever error string it returns.
+ * Bottom sheet for adding or removing the current item from playlists on the active Source,
+ * rendered by both hosts. State is driven by callers: [playlistsFlow] holds the current,
+ * "To Read"-filtered set; tapping a row calls [onToggle]; "+ New playlist" opens a small dialog
+ * that calls [onCreate] and closes on "" (empty string = success) or displays whatever error
+ * string it returns.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddToPlaylistSheet(
     itemId: String,
     playlistsFlow: Flow<List<CatalogPlaylist>>,
+    labels: PlaylistLabels,
     onToggle: (CatalogPlaylist) -> Unit,
     onCreate: suspend (name: String) -> String,
     onDismiss: () -> Unit,
@@ -65,23 +65,26 @@ fun AddToPlaylistSheet(
         sheetState = sheetState,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_to_playlist),
+            Text(
+                labels.addToPlaylist,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
             )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .testTag("playlist-new")
                     .clickable { showCreateDialog = true }
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_new_playlist), style = MaterialTheme.typography.bodyLarge)
+                Icon(LibraryUiGlyphs.Add, contentDescription = null)
+                Text(labels.newPlaylist, style = MaterialTheme.typography.bodyLarge)
             }
             if (playlists.isEmpty()) {
-                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_playlists_yet_create_one_to_get_started),
+                Text(
+                    labels.noPlaylistsGetStarted,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -91,6 +94,7 @@ fun AddToPlaylistSheet(
                     items(playlists, key = { it.id }) { playlist ->
                         PickerRow(
                             playlist = playlist,
+                            labels = labels,
                             isSelected = itemId in playlist.itemIds,
                             onToggle = { onToggle(playlist) },
                         )
@@ -102,6 +106,7 @@ fun AddToPlaylistSheet(
 
     if (showCreateDialog) {
         NewPlaylistDialog(
+            labels = labels,
             onDismiss = { showCreateDialog = false },
             onCreate = onCreate,
             onSuccess = { showCreateDialog = false },
@@ -112,12 +117,14 @@ fun AddToPlaylistSheet(
 @Composable
 private fun PickerRow(
     playlist: CatalogPlaylist,
+    labels: PlaylistLabels,
     isSelected: Boolean,
     onToggle: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("playlist-pick-${playlist.id}")
             .clickable(onClick = onToggle)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -126,8 +133,8 @@ private fun PickerRow(
         Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             if (isSelected) {
                 Icon(
-                    Icons.Filled.Check,
-                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_in_this_playlist),
+                    LibraryUiGlyphs.Check,
+                    contentDescription = labels.inThisPlaylist,
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
@@ -140,7 +147,7 @@ private fun PickerRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = pluralItems(playlist.bookCount),
+                text = playlistItemCountLabel(playlist.bookCount, labels),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -150,6 +157,7 @@ private fun PickerRow(
 
 @Composable
 private fun NewPlaylistDialog(
+    labels: PlaylistLabels,
     onDismiss: () -> Unit,
     onCreate: suspend (name: String) -> String,
     onSuccess: () -> Unit,
@@ -160,7 +168,7 @@ private fun NewPlaylistDialog(
     val scope = rememberCoroutineScope()
     AlertDialog(
         onDismissRequest = { if (!isCreating) onDismiss() },
-        title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_new_playlist)) },
+        title = { Text(labels.newPlaylist) },
         text = {
             Column {
                 OutlinedTextField(
@@ -169,15 +177,16 @@ private fun NewPlaylistDialog(
                         name = it
                         if (error != null) error = null
                     },
-                    label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_name)) },
+                    label = { Text(labels.name) },
                     singleLine = true,
                     enabled = !isCreating,
                     isError = error != null,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("playlist-name-field"),
                 )
-                if (error != null) {
+                val currentError = error
+                if (currentError != null) {
                     Text(
-                        text = error!!,
+                        text = currentError,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 4.dp),
@@ -204,10 +213,10 @@ private fun NewPlaylistDialog(
                         if (err.isEmpty()) onSuccess() else error = err
                     }
                 },
-            ) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_create)) }
+            ) { Text(labels.create) }
         },
         dismissButton = {
-            TextButton(enabled = !isCreating, onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }
+            TextButton(enabled = !isCreating, onClick = onDismiss) { Text(labels.cancel) }
         },
     )
 }

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,8 @@ import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.bookDownloadOutcome
+import com.riffle.feature.library.ui.AddToPlaylistSheet
+import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
@@ -72,6 +75,7 @@ fun LibraryItemDetailScreen(
 ) {
     val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
     val uiState by vm.uiState.collectAsState()
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
 
     // The three download states the shared BookDownloadControls needs. The ViewModel has always
     // exposed them and always had working iOS repositories behind them; nothing on this platform
@@ -84,32 +88,52 @@ fun LibraryItemDetailScreen(
     when (val state = uiState) {
         LibraryItemDetailUiState.Loading -> LoadingContent()
         LibraryItemDetailUiState.Error -> ErrorContent(onBack = onBack)
-        is LibraryItemDetailUiState.Ready -> ReadyContent(
-            state = state,
-            token = vm.authToken,
-            onBack = onBack,
-            onRead = { onRead(state.item) },
-            onToggleToRead = { vm.toggleToRead() },
-            downloadControls = {
-                // One call into the shared control rather than a second iOS-only copy of the
-                // three buttons. A host that restructures this screen keeps calling this.
-                BookDownloadControls(
-                    item = state.item,
-                    capabilities = state.capabilities,
-                    isOffline = state.isOffline,
-                    downloadState = downloadState,
-                    audiobookDownloadState = audiobookDownloadState,
-                    readaloudDownloadState = readaloudDownloadState,
-                    onDownloadEbook = { vm.startDownload() },
-                    onRemoveEbook = { vm.removeDownload() },
-                    onDownloadAudiobook = { vm.onDownloadAudiobook() },
-                    onRemoveAudiobook = { vm.onRemoveAudiobook() },
-                    onDownloadReadaloud = { vm.onDownloadReadaloud() },
-                    onRemoveReadaloud = { vm.onRemoveReadaloud() },
+        is LibraryItemDetailUiState.Ready -> {
+            if (showAddToPlaylistSheet) {
+                LaunchedEffect(showAddToPlaylistSheet) { vm.refreshPlaylists() }
+                AddToPlaylistSheet(
+                    itemId = state.item.id,
+                    playlistsFlow = vm.playlistsForCurrentItem,
+                    labels = PlaylistLabels.English,
+                    onToggle = { playlist -> vm.toggleItemInPlaylist(playlist) },
+                    onCreate = { name -> vm.createPlaylistWithCurrentItem(name) },
+                    onDismiss = { showAddToPlaylistSheet = false },
                 )
-            },
-            downloadState = downloadState,
-        )
+            }
+            ReadyContent(
+                state = state,
+                token = vm.authToken,
+                onBack = onBack,
+                onRead = { onRead(state.item) },
+                onToggleToRead = { vm.toggleToRead() },
+                downloadControls = {
+                    // One call into the shared control rather than a second iOS-only copy of the
+                    // three buttons. A host that restructures this screen keeps calling this.
+                    BookDownloadControls(
+                        item = state.item,
+                        capabilities = state.capabilities,
+                        isOffline = state.isOffline,
+                        downloadState = downloadState,
+                        audiobookDownloadState = audiobookDownloadState,
+                        readaloudDownloadState = readaloudDownloadState,
+                        onDownloadEbook = { vm.startDownload() },
+                        onRemoveEbook = { vm.removeDownload() },
+                        onDownloadAudiobook = { vm.onDownloadAudiobook() },
+                        onRemoveAudiobook = { vm.onRemoveAudiobook() },
+                        onDownloadReadaloud = { vm.onDownloadReadaloud() },
+                        onRemoveReadaloud = { vm.onRemoveReadaloud() },
+                    )
+                },
+                downloadState = downloadState,
+                // `null` hides the button: DetailCapabilities gating, honoured rather than
+                // rendering a control the Source cannot back.
+                onAddToPlaylist = if (state.capabilities.hasAddToPlaylist) {
+                    { showAddToPlaylistSheet = true }
+                } else {
+                    null
+                },
+            )
+        }
     }
 }
 
@@ -158,6 +182,7 @@ internal fun ReadyContent(
     onToggleToRead: () -> Unit,
     downloadControls: @Composable () -> Unit,
     downloadState: DownloadState,
+    onAddToPlaylist: (() -> Unit)?,
 ) {
     val messages = rememberTransientMessages()
     // A download that fails is otherwise indistinguishable from one that was never started: the
@@ -182,6 +207,7 @@ internal fun ReadyContent(
             onRead = onRead,
             onToggleToRead = onToggleToRead,
             downloadControls = downloadControls,
+            onAddToPlaylist = onAddToPlaylist,
         )
     }
 }
@@ -194,6 +220,7 @@ private fun ReadyBody(
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
     downloadControls: @Composable () -> Unit,
+    onAddToPlaylist: (() -> Unit)?,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -280,6 +307,25 @@ private fun ReadyBody(
                     style = ButtonTextStyle.copy(
                         color = if (state.isInToRead) Color.White else Color(0xFF6650A4),
                     ),
+                )
+            }
+        }
+
+        if (onAddToPlaylist != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFEAE0F8))
+                    .testTag("detail-add-to-playlist")
+                    .clickable(onClick = onAddToPlaylist),
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(
+                    text = PlaylistLabels.English.addToPlaylist,
+                    style = ButtonTextStyle.copy(color = Color(0xFF6650A4)),
                 )
             }
         }

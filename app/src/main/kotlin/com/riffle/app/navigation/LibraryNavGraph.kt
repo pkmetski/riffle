@@ -20,14 +20,18 @@ import com.riffle.app.feature.library.AnnotationSearchResultsScreen
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
+import com.riffle.app.feature.library.LibraryItemCard
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
-import com.riffle.app.feature.library.playlists.PlaylistDetailScreen
+import com.riffle.app.feature.library.androidPlaylistLabels
 import com.riffle.app.feature.library.RiffleScreen
 import com.riffle.app.feature.navigation.HomeScreen
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.PlaylistDetailViewModel
+import com.riffle.feature.library.ui.PlaylistDetailScreen
+import org.koin.androidx.compose.koinViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
@@ -169,6 +173,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
         val playlistLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
         val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
         PlaylistDetailScreen(
+            viewModel = koinViewModel<PlaylistDetailViewModel>(),
+            labels = androidPlaylistLabels(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -184,6 +190,11 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 navController.navigate(
                     "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ"
                 )
+            },
+            // The one host-specific part of the shared screen: Android's card fetches the
+            // authenticated cover through its OkHttp-backed Coil loader.
+            itemContent = { item, token, onClick ->
+                LibraryItemCard(item = item, token = token, onClick = onClick)
             },
         )
     }

@@ -396,8 +396,9 @@ fun LibraryItemsScreen(
                         onCollectionSelected = onCollectionSelected,
                         onCoverScaleChange = onCoverScaleChange,
                     )
-                    tabIndexForPlaylists() -> com.riffle.app.feature.library.playlists.PlaylistsTabContent(
+                    tabIndexForPlaylists() -> com.riffle.feature.library.ui.PlaylistsTabContent(
                         playlists = playlists,
+                        labels = androidPlaylistLabels(),
                         onPlaylistSelected = onPlaylistSelected,
                     )
                     5 -> AllBooksTabContent(

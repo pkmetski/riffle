@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,13 +32,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.shouldShowRiffleSource
+import com.riffle.feature.library.ui.PlaylistDetailScreen
+import com.riffle.feature.library.ui.PlaylistItemRow
+import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.downloads.DownloadsScreen
 import com.riffle.shared.library.CollectionDetailScreen
@@ -53,7 +60,9 @@ import com.riffle.shared.source.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.koin.compose.getKoin
 import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
@@ -339,6 +348,16 @@ private fun LibraryHost(
                     )
                 },
                 onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
+                onPlaylistSelected = { playlist ->
+                    nav = LibraryNav.PlaylistDetail(
+                        playlistId = playlist.id,
+                        playlistName = playlist.name,
+                        // The playlist's own rootId, not the host's libraryId: the Playlists tab
+                        // is only visible on an ABS audiobook root and the two are the same
+                        // today, but every PlaylistsRepository call keys on the playlist's root.
+                        playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
+                    )
+                },
             )
         }
         is LibraryNav.Section -> LibrarySectionScreen(
@@ -356,10 +375,29 @@ private fun LibraryHost(
                 openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
             },
         )
-        is LibraryNav.ReaderDestination -> ReaderHost(
-            destination = current,
-            onBack = { nav = LibraryNav.Items },
-        )
+        is LibraryNav.ReaderDestination -> {
+            // End-of-book inside a playlist: the ViewModel has already found the next item id;
+            // this resolves it to a LibraryItem and re-enters the player carrying the same
+            // playlist context, so the chain continues. Android does the equivalent by
+            // navigating to the next player route with `popUpTo(AUDIOBOOK_PLAYER)`; replacing
+            // `nav` in place is this host's equivalent of that pop.
+            val libraryObserver = koinInject<LibraryObserver>()
+            var advanceToItemId by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(advanceToItemId) {
+                val nextItemId = advanceToItemId ?: return@LaunchedEffect
+                val context = current as? LibraryNav.AudiobookPlayer ?: return@LaunchedEffect
+                val rootId = context.playlistLibraryId ?: return@LaunchedEffect
+                advanceToItemId = null
+                val next = libraryObserver.observeLibraryItems(rootId).first()
+                    .firstOrNull { it.id == nextItemId }
+                nav = playlistAdvanceNav(next, context)
+            }
+            ReaderHost(
+                destination = current,
+                onBack = { nav = LibraryNav.Items },
+                onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
+            )
+        }
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
             seriesId = current.seriesId,
             libraryId = current.seriesLibraryId,
@@ -374,5 +412,48 @@ private fun LibraryHost(
             onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
             onNavigateBack = { nav = LibraryNav.Items },
         )
+        is LibraryNav.PlaylistDetail -> PlaylistDetailHost(
+            destination = current,
+            onBack = { nav = LibraryNav.Items },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+            // "Play" carries the playlist context into the player, which is what makes
+            // AudiobookPlayerViewModel's end-of-book auto-advance reachable on iOS at all.
+            onPlayItem = { item -> nav = playlistPlayerNav(item, current) },
+        )
     }
+}
+
+/**
+ * Screen-scoped host for [PlaylistDetailScreen].
+ *
+ * `PlaylistDetailViewModel` is a Koin `factory` keyed on the playlist's route arguments and iOS
+ * has no navigation-provided `ViewModelStoreOwner`, so without [ScreenScopedViewModelHost]
+ * nothing would ever call `onCleared()` and each visit would leak a live `stateIn` collector.
+ */
+@Composable
+private fun PlaylistDetailHost(
+    destination: LibraryNav.PlaylistDetail,
+    onBack: () -> Unit,
+    onItemSelected: (LibraryItem) -> Unit,
+    onPlayItem: (LibraryItem) -> Unit,
+) {
+    val koin = getKoin()
+    val key = destination.playlistLibraryId + "/" + destination.playlistId
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel: PlaylistDetailViewModel = remember(key) {
+        host.adopt(
+            koin.get {
+                parametersOf(destination.playlistLibraryId, destination.playlistId, destination.playlistName)
+            },
+        )
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+    PlaylistDetailScreen(
+        viewModel = viewModel,
+        labels = PlaylistLabels.English,
+        onNavigateBack = onBack,
+        onItemSelected = onItemSelected,
+        onPlayItem = onPlayItem,
+        itemContent = { item, _, onClick -> PlaylistItemRow(item = item, onClick = onClick) },
+    )
 }

@@ -16,6 +16,10 @@ kotlin {
             implementation(project(":core:logging"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.lifecycle.viewmodel)
+            // SavedStateHandle: PlaylistDetailViewModel (and the facet/annotation-search VMs)
+            // read their nav arguments through it on Android and through a handle the iOS Koin
+            // factory fabricates, so the key constants live on the VM and both hosts agree.
+            api(libs.androidx.lifecycle.viewmodel.savedstate)
             implementation(libs.compose.runtime)  // mutableStateOf in ViewModels
         }
         commonTest.dependencies {

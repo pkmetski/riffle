@@ -18,7 +18,7 @@ import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
-import com.riffle.app.feature.library.playlists.PlaylistDetailViewModel
+import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.SeriesDetailViewModel

@@ -87,6 +87,9 @@ kotlin {
             implementation(project(":feature:reader-ui"))
             // The shared audiobook-player chrome both hosts render (AudiobookPlayerBody).
             implementation(project(":feature:player-ui"))
+            // The shared library-browsing surfaces both hosts render (playlists, facet
+            // drill-ins, annotation search results).
+            implementation(project(":feature:library-ui"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)
