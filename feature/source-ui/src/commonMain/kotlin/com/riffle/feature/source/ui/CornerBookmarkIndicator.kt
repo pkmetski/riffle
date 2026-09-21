@@ -32,10 +32,14 @@ private const val BOOKMARK_IDLE_ALPHA = 0.18f
  * Idle: very low-opacity (ambient). Active: fills with [BOOKMARK_ACTIVE_COLOR] + squish animation.
  * Hidden entirely when [isVisible] is false (non-ABS books, Storyteller-only).
  *
- * Lives here rather than in :app because BOTH platforms draw it: the Android EPUB/PDF readers and
- * the Android audiobook player render it directly, and the iOS audiobook player renders it through
- * :feature:player-ui's shared [com.riffle.feature.player.ui.AudiobookPlayerBody]. Keeping one
- * definition is what stops the two ribbons from drifting.
+ * Lives here rather than in :app because BOTH platforms draw it: the Android EPUB/PDF/CBZ readers
+ * and the Android audiobook player render it directly; the iOS audiobook player renders it through
+ * :feature:player-ui's [com.riffle.feature.player.ui.AudiobookPlayerBody] and the iOS EPUB reader
+ * renders it directly. Keeping one definition is what stops the ribbons from drifting — the
+ * issue's "bookmark shows as a blue wash, not a ribbon" was iOS having no ribbon to render at all.
+ *
+ * :feature:source-ui rather than :feature:reader-ui because both reader-ui and player-ui depend on
+ * this module, so it is the only one of the three every caller can already see.
  */
 @Composable
 fun CornerBookmarkIndicator(

@@ -1,7 +1,8 @@
-package com.riffle.app.feature.reader.decorations
+package com.riffle.feature.reader.decorations
 
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertTrue
+
 
 class FigureBorderInjectionTest {
 
@@ -15,18 +16,9 @@ class FigureBorderInjectionTest {
         // Every apply pass must sweep figcaption[data-riffle-fig-tint] and clear the tint,
         // mirroring the SVG "always-clear-then-apply" pattern already in this file. Reverting
         // to a leave-stale-tints-in-place approach flips this red.
-        assertTrue(
-            "apply JS is missing the figcaption clear pass",
-            js.contains("data-riffle-fig-tint"),
-        )
-        assertTrue(
-            "apply JS clear pass must scan every tinted element (not just <figcaption>), so <p>/<div> caption fallbacks are also cleared on undo",
-            js.contains("querySelectorAll('[data-riffle-fig-tint]')"),
-        )
-        assertTrue(
-            "apply JS must invoke clearAllFigcaptionTints() every pass, not just define it",
-            js.contains("clearAllFigcaptionTints();"),
-        )
+        assertTrue(js.contains("data-riffle-fig-tint"), "apply JS is missing the figcaption clear pass")
+        assertTrue(js.contains("querySelectorAll('[data-riffle-fig-tint]')"), "apply JS clear pass must scan every tinted element (not just <figcaption>), so <p>/<div> caption fallbacks are also cleared on undo")
+        assertTrue(js.contains("clearAllFigcaptionTints();"), "apply JS must invoke clearAllFigcaptionTints() every pass, not just define it")
     }
 
     @Test
@@ -44,10 +36,7 @@ class FigureBorderInjectionTest {
         )
         val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
 
-        assertTrue(
-            "tintCaptionFor must use setProperty('background-color', ..., 'important')",
-            js.contains("setProperty('background-color', color, 'important')"),
-        )
+        assertTrue(js.contains("setProperty('background-color', color, 'important')"), "tintCaptionFor must use setProperty('background-color', ..., 'important')")
     }
 
     @Test
@@ -64,18 +53,9 @@ class FigureBorderInjectionTest {
         // For LaTeX/Kotobee/Vellum EPUBs (obfuscated class names, no <figure> wrapper), the tint
         // must fall back to finding the nearest block whose text starts with the caption prefix
         // "Figure N", "Fig. N", "Table N", "Chart N". Reverting the fallback flips this red.
-        assertTrue(
-            "apply JS should define the caption-prefix regex",
-            js.contains("(Figure|Fig\\.?|Table|Chart)"),
-        )
-        assertTrue(
-            "apply JS should define the nearestCaptionBlock helper",
-            js.contains("function nearestCaptionBlock("),
-        )
-        assertTrue(
-            "tintCaptionFor should call nearestCaptionBlock when semantic path fails",
-            js.contains("nearestCaptionBlock(el)"),
-        )
+        assertTrue(js.contains("(Figure|Fig\\.?|Table|Chart)"), "apply JS should define the caption-prefix regex")
+        assertTrue(js.contains("function nearestCaptionBlock("), "apply JS should define the nearestCaptionBlock helper")
+        assertTrue(js.contains("nearestCaptionBlock(el)"), "tintCaptionFor should call nearestCaptionBlock when semantic path fails")
     }
 
     @Test
@@ -92,23 +72,11 @@ class FigureBorderInjectionTest {
         // For every matched raster image, the JS must walk up to the containing <figure> (or
         // role="figure") and tint the first child <figcaption> with the annotation color.
         // Reverting the caption-tint pass flips this red.
-        assertTrue(
-            "apply JS should look for a figure ancestor via closest()",
-            js.contains("closest('figure, [role=\"figure\"]')") ||
-                js.contains("closest(\"figure, [role='figure']\")"),
-        )
-        assertTrue(
-            "apply JS should target figcaption (unscoped, mirroring the persistence walker)",
-            js.contains("querySelector('figcaption')"),
-        )
-        assertTrue(
-            "apply JS should set backgroundColor to the raster mark's color",
-            js.contains("52,211,153"),
-        )
-        assertTrue(
-            "raster branch must call tintCaptionFor(img, rf.color)",
-            js.contains("tintCaptionFor(img, rf.color)"),
-        )
+        assertTrue(js.contains("closest('figure, [role=\"figure\"]')") ||
+                js.contains("closest(\"figure, [role='figure']\")"), "apply JS should look for a figure ancestor via closest()")
+        assertTrue(js.contains("querySelector('figcaption')"), "apply JS should target figcaption (unscoped, mirroring the persistence walker)")
+        assertTrue(js.contains("52,211,153"), "apply JS should set backgroundColor to the raster mark's color")
+        assertTrue(js.contains("tintCaptionFor(img, rf.color)"), "raster branch must call tintCaptionFor(img, rf.color)")
     }
 
     @Test
@@ -127,14 +95,8 @@ class FigureBorderInjectionTest {
             ),
         )
         val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
-        assertTrue(
-            "tintCap flag must be encoded in the raster JSON payload",
-            js.contains("\"tintCap\":0"),
-        )
-        assertTrue(
-            "raster branch must gate tintCaptionFor on rf.tintCap",
-            js.contains("if (rf.tintCap) tintCaptionFor(img, rf.color)"),
-        )
+        assertTrue(js.contains("\"tintCap\":0"), "tintCap flag must be encoded in the raster JSON payload")
+        assertTrue(js.contains("if (rf.tintCap) tintCaptionFor(img, rf.color)"), "raster branch must gate tintCaptionFor on rf.tintCap")
     }
 
     @Test
@@ -148,14 +110,8 @@ class FigureBorderInjectionTest {
             ),
         )
         val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = matches, rasterMarks = emptyList())
-        assertTrue(
-            "tintCap flag must be encoded in the svg JSON payload",
-            js.contains("\"tintCap\":0"),
-        )
-        assertTrue(
-            "svg branch must gate tintCaptionFor on matches[j].tintCap",
-            js.contains("if (matches[j].tintCap) tintCaptionFor(s, matches[j].color)"),
-        )
+        assertTrue(js.contains("\"tintCap\":0"), "tintCap flag must be encoded in the svg JSON payload")
+        assertTrue(js.contains("if (matches[j].tintCap) tintCaptionFor(s, matches[j].color)"), "svg branch must gate tintCaptionFor on matches[j].tintCap")
     }
 
     @Test
@@ -171,18 +127,9 @@ class FigureBorderInjectionTest {
 
         // Same treatment for inline-SVG figures — must tint the containing figcaption.
         // Reverting the SVG branch's caption tint flips this red.
-        assertTrue(
-            "apply JS should carry the svg mark's color for the caption tint",
-            js.contains("56,189,248"),
-        )
-        assertTrue(
-            "svg branch should also invoke figure/figcaption traversal",
-            js.contains("closest('figure, [role=\"figure\"]')") ||
-                js.contains("closest(\"figure, [role='figure']\")"),
-        )
-        assertTrue(
-            "svg branch must call tintCaptionFor(s, matches[j].color)",
-            js.contains("tintCaptionFor(s, matches[j].color)"),
-        )
+        assertTrue(js.contains("56,189,248"), "apply JS should carry the svg mark's color for the caption tint")
+        assertTrue(js.contains("closest('figure, [role=\"figure\"]')") ||
+                js.contains("closest(\"figure, [role='figure']\")"), "svg branch should also invoke figure/figcaption traversal")
+        assertTrue(js.contains("tintCaptionFor(s, matches[j].color)"), "svg branch must call tintCaptionFor(s, matches[j].color)")
     }
 }

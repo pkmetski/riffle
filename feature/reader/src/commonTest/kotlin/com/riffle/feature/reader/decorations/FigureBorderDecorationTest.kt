@@ -1,12 +1,12 @@
-package com.riffle.app.feature.reader.decorations
+package com.riffle.feature.reader.decorations
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class FigureBorderDecorationTest {
 
@@ -94,7 +94,7 @@ class FigureBorderDecorationTest {
 
         val rule = FigureBorderDecoration.buildCssRules(listOf(a)).single()
 
-        assertTrue("outline must be !important", rule.contains("outline: 2px solid") && rule.contains("!important"))
+        assertTrue(rule.contains("outline: 2px solid") && rule.contains("!important"), "outline must be !important")
     }
 
     @Test
@@ -245,7 +245,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertFalse("blank-caption figure whose snippet crosses into caption label must not request CSS tint", mark.tintCaption)
+        assertFalse(mark.tintCaption, "blank-caption figure whose snippet crosses into caption label must not request CSS tint")
     }
 
     @Test
@@ -269,7 +269,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertTrue("blank-caption figure with prose-only snippet must keep CSS tint", mark.tintCaption)
+        assertTrue(mark.tintCaption, "blank-caption figure with prose-only snippet must keep CSS tint")
     }
 
     @Test
@@ -297,7 +297,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertFalse("null-charOffset snippet ending in figcaption must not request CSS tint (would double-paint)", mark.tintCaption)
+        assertFalse(mark.tintCaption, "null-charOffset snippet ending in figcaption must not request CSS tint (would double-paint)")
     }
 
     @Test
@@ -321,7 +321,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertTrue("null-charOffset snippet not entering figcaption must keep CSS tint", mark.tintCaption)
+        assertTrue(mark.tintCaption, "null-charOffset snippet not entering figcaption must keep CSS tint")
     }
 
     @Test
@@ -340,10 +340,7 @@ class FigureBorderDecorationTest {
             textSnippet = "This paragraph precedes the figure and the next paragraph follows it.",
         )
         val marks = FigureBorderDecoration.buildRasterMarks(listOf(bodyProseHighlight))
-        assertTrue(
-            "text-highlight whose range excludes the caption must keep the CSS caption tint",
-            marks.single().tintCaption,
-        )
+        assertTrue(marks.single().tintCaption, "text-highlight whose range excludes the caption must keep the CSS caption tint")
     }
 
     @Test
@@ -362,10 +359,7 @@ class FigureBorderDecorationTest {
             textSnippet = "Figure 20.2: The original code for allocating new space at the end of a Buffer.",
         )
         val rasters = FigureBorderDecoration.buildRasterMarks(listOf(captionHighlightRaster))
-        assertFalse(
-            "caption-highlight with blank figure.caption must not request CSS tint (would double-paint)",
-            rasters.single().tintCaption,
-        )
+        assertFalse(rasters.single().tintCaption, "caption-highlight with blank figure.caption must not request CSS tint (would double-paint)")
 
         val captionHighlightSvg = highlightAnnotation(
             id = "hl-svg",
@@ -374,10 +368,7 @@ class FigureBorderDecorationTest {
             textSnippet = "Table 3: Comparative results across all six datasets.",
         )
         val svgs = FigureBorderDecoration.buildSvgMatches(listOf(captionHighlightSvg))
-        assertFalse(
-            "SVG caption-highlight with blank figure.caption must not request CSS tint",
-            svgs.single().tintCaption,
-        )
+        assertFalse(svgs.single().tintCaption, "SVG caption-highlight with blank figure.caption must not request CSS tint")
 
         // Legacy decorative-figure shape (blank caption, non-caption textSnippet) still keeps the
         // CSS tint — the prefix check protects the pre-caption-highlight body-prose case.
@@ -388,10 +379,7 @@ class FigureBorderDecorationTest {
             textSnippet = "This paragraph discusses the surrounding topic and the diagram is decorative.",
         )
         val legacyRasters = FigureBorderDecoration.buildRasterMarks(listOf(legacyDecorative))
-        assertTrue(
-            "legacy decorative-figure highlight (no caption prefix in snippet) still requests CSS tint",
-            legacyRasters.single().tintCaption,
-        )
+        assertTrue(legacyRasters.single().tintCaption, "legacy decorative-figure highlight (no caption prefix in snippet) still requests CSS tint")
     }
 
     @Test

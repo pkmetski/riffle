@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.decorations
+package com.riffle.feature.reader.decorations
 
 /**
  * JS glue that pushes [FigureBorderDecoration.buildCssRules] output into a live document as a
@@ -16,7 +16,7 @@ private const val FIGURE_BORDER_STYLE_ID = "riffle-figure-borders"
  * Idempotently ensures a `<style id="riffle-figure-borders">` element exists in `document.head`.
  * Safe to call on every page load; a no-op if the element is already present.
  */
-internal fun figureBorderInjectionJs(): String =
+fun figureBorderInjectionJs(): String =
     """
     (function() {
       var id = '$FIGURE_BORDER_STYLE_ID';
@@ -34,7 +34,7 @@ internal fun figureBorderInjectionJs(): String =
  * underlying annotation set changes, and once per page load so a freshly served resource picks
  * up the current rules immediately.
  */
-internal fun figureBorderApplyJs(
+fun figureBorderApplyJs(
     cssRules: List<String>,
     svgMatches: List<FigureBorderDecoration.SvgMatch> = emptyList(),
     rasterMarks: List<FigureBorderDecoration.RasterMark> = emptyList(),

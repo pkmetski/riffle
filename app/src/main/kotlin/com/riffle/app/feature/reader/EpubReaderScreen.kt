@@ -53,7 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.riffle.app.feature.readersettings.TocPanel
-import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
+import com.riffle.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.app.feature.readersettings.swatchBackdropColor
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
@@ -161,6 +161,8 @@ import java.net.URLEncoder
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.chapterMapVisible
+import com.riffle.feature.reader.EmphasisDomInjector
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
 
 
 /**

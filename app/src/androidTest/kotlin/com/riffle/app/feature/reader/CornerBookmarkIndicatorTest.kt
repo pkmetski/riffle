@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
 
 @RunWith(AndroidJUnit4::class)
 class CornerBookmarkIndicatorTest {

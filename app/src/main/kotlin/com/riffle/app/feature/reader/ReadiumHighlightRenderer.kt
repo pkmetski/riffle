@@ -6,6 +6,7 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator
+import com.riffle.feature.reader.EmphasisDomInjector
 
 internal class ReadiumHighlightRenderer(
     /**

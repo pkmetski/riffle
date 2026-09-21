@@ -111,22 +111,39 @@ final class ReaderHighlightsTests: XCTestCase {
         XCTAssertEqual(channels.alpha, 0.502, accuracy: 0.01)
     }
 
-    func testEveryDecorationTypeResolvesToADistinctTint() throws {
-        var tints: [String: UIColor] = [:]
+    /// The claim is unchanged — bookmarks, note glyphs and search marks must not be
+    /// indistinguishable on the page. What changed is *how* they differ.
+    ///
+    /// When this was written every type was a `.highlight` style and could only differ by tint,
+    /// so the assertion compared tints. A bookmark now renders as a gutter sidemark and a note
+    /// as a margin glyph — each has its own style id and its own HTML template — so "a different
+    /// colour" is no longer the right, or the strongest, way to say it. The rendering identity
+    /// is now the (style id, tint) pair, and this asserts all four are distinct in that.
+    func testEveryDecorationTypeResolvesToADistinctRendering() throws {
+        var renderings: [String: String] = [:]
         for type in ["highlight", "bookmark", "noteGlyph", "searchMark"] {
             let decoration = try XCTUnwrap(
                 bridge().parseDecorations(decorationJson(type: type)).first,
                 "\(type) must produce a decoration"
             )
-            tints[type] = try XCTUnwrap(tint(of: decoration), "\(type) must resolve to a highlight style")
+            let colour = tint(of: decoration).map { paint -> String in
+                let channels = rgba(paint)
+                return "\(channels.red),\(channels.green),\(channels.blue)"
+            } ?? "no-tint"
+            renderings[type] = "\(decoration.style.id.rawValue)/\(colour)"
         }
 
-        // Bookmarks, note glyphs and search marks must not be indistinguishable on the page.
-        let distinct = Set(tints.values.map { tint -> String in
-            let ch = rgba(tint)
-            return "\(ch.red),\(ch.green),\(ch.blue)"
-        })
-        XCTAssertEqual(distinct.count, tints.count, "each decoration type must render a different colour")
+        XCTAssertEqual(
+            Set(renderings.values).count,
+            renderings.count,
+            "each decoration type must be visually distinguishable: \(renderings)"
+        )
+        // And each must have a template registered, or Readium drops it and nothing renders.
+        let templates = RiffleDecorationTemplates.all()
+        for (type, rendering) in renderings {
+            let styleId = Decoration.Style.Id(rawValue: String(rendering.split(separator: "/")[0]))
+            XCTAssertNotNil(templates[styleId], "\(type) has no registered template")
+        }
     }
 
     func testCurrentSearchMarkIsTintedDifferentlyFromTheRest() throws {

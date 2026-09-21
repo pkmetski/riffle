@@ -58,144 +58,32 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.reader.ui.AnnotationSheetLabels
+import com.riffle.feature.reader.ui.EmphasisChipRow
+import com.riffle.feature.reader.ui.HighlightSwatchRow
 
 /**
- * A row of the four highlight swatches. The selected swatch gets an onSurface ring + a centred
- * checkmark (reads clearly in both themes); the 4dp padding is always reserved so the row doesn't
- * shift on selection. Modelled on the readaloud settings picker for visual consistency.
- *
- * [readerBackground] is painted as an opaque backdrop behind each swatch so the semi-transparent
- * (alpha 0x80) highlight colour composites against the same paper the reader is drawing — otherwise
- * the swatches look muddy in a dark app while the reader is on light theme (or vice-versa).
+ * The strings the shared annotation rows need, from this app's resources — so `values-bg` and
+ * `values-es` keep serving them while the composables themselves live in `:feature:reader-ui`
+ * and are rendered by both platforms.
  */
 @Composable
-fun HighlightSwatchRow(
-    selected: HighlightColor?,
-    readerBackground: Color,
-    onPick: (HighlightColor) -> Unit,
-    onPickNone: () -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    val noHighlightColorContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_highlight_color)
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        // ADR 0056 §4: the `∅` swatch removes the highlight color while keeping any emphasis
-        // rows intact — the coupled "Annotate" sheet's escape hatch when the user only wanted
-        // formatting (bold/italic/underline/strike) and not a highlight.
-        val noneSelected = selected == null
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable { onPickNone() }
-                .then(
-                    if (noneSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                    else Modifier
-                )
-                .padding(4.dp)
-                .clip(CircleShape)
-                .border(1.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), CircleShape)
-                .semantics {
-                    contentDescription = noHighlightColorContentDescription + if (noneSelected) ", selected" else ""
-                },
-        ) {
-            Text(
-                text = "∅",
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-        HighlightColor.entries.forEach { color ->
-            val isSelected = color == selected
-            val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable { onPick(color) }
-                    .then(
-                        if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                        else Modifier
-                    )
-                    .padding(4.dp)
-                    .clip(CircleShape)
-                    .background(readerBackground)
-                    .background(swatchColor)
-                    .semantics {
-                        contentDescription = color.token.replaceFirstChar { it.uppercase() } +
-                            " highlight" + if (isSelected) ", selected" else ""
-                    },
-            ) {
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color(0xDD000000),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * ADR 0056 §4: Emphasis chip row. Four chips (B/I/U/S) rendered in their own style so the
- * affordance mirrors the visual result. Active chips fill with the reader accent; the row is
- * independent of the highlight-colour row above.
- */
-@Composable
-fun EmphasisChipRow(
-    selected: Set<EmphasisStyle>,
-    onToggle: (EmphasisStyle) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val emphasisContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_emphasis)
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        EmphasisStyle.entries.forEach { style ->
-            val isActive = style in selected
-            val bg = if (isActive) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant
-            val fg = if (isActive) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface
-            val label = when (style) {
-                EmphasisStyle.BOLD -> "B"
-                EmphasisStyle.ITALIC -> "I"
-                EmphasisStyle.UNDERLINE -> "U"
-                EmphasisStyle.STRIKE -> "S"
-            }
-            val chipStyle = when (style) {
-                EmphasisStyle.BOLD -> MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                )
-                EmphasisStyle.ITALIC -> MaterialTheme.typography.titleMedium.copy(
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                )
-                EmphasisStyle.UNDERLINE -> MaterialTheme.typography.titleMedium.copy(
-                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                )
-                EmphasisStyle.STRIKE -> MaterialTheme.typography.titleMedium.copy(
-                    textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
-                )
-            }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(width = 40.dp, height = 34.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(bg)
-                    .clickable { onToggle(style) }
-                    .semantics {
-                        contentDescription = emphasisContentDescription + style.token +
-                            if (isActive) ", active" else ""
-                    },
-            ) {
-                Text(text = label, color = fg, style = chipStyle)
-            }
-        }
-    }
-}
+internal fun rememberAnnotationSheetLabels(): AnnotationSheetLabels = AnnotationSheetLabels(
+    noHighlightColor = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_highlight_color),
+    selectedSuffix = ", selected",
+    highlightSuffix = " highlight",
+    emphasis = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_emphasis),
+    activeSuffix = ", active",
+    note = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_note),
+    addNote = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_a_note),
+    edit = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit),
+    save = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save),
+    remove = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove),
+    cancel = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel),
+    delete = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete_annotation),
+    bookmark = "Bookmark this page",
+    removeBookmark = "Remove bookmark",
+)
 
 @Composable
 fun HighlightActionsPopup(
@@ -218,6 +106,7 @@ fun HighlightActionsPopup(
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
     val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }
+    val sheetLabels = rememberAnnotationSheetLabels()
 
     Popup(
         popupPositionProvider = provider,
@@ -260,6 +149,7 @@ fun HighlightActionsPopup(
                         HighlightSwatchRow(
                             selected = selected,
                             readerBackground = readerBackground,
+                            labels = sheetLabels,
                             onPick = onPick,
                             onPickNone = onRemoveColor,
                         )
@@ -274,7 +164,11 @@ fun HighlightActionsPopup(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        EmphasisChipRow(selected = emphasisStyles, onToggle = onToggleEmphasis)
+                        EmphasisChipRow(
+                            selected = emphasisStyles,
+                            labels = sheetLabels,
+                            onToggle = onToggleEmphasis,
+                        )
                         IconButton(onClick = onDelete) {
                             Icon(
                                 imageVector = Icons.Default.Delete,

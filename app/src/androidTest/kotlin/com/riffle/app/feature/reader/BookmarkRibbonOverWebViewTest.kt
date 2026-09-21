@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import com.riffle.feature.source.ui.CornerBookmarkIndicator
 
 /**
  * Regression test for: the corner bookmark ribbon is hidden by Readium's WebView in the steady
