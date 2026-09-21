@@ -123,6 +123,8 @@ import coil3.request.crossfade
 import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.ui.toScreenDimensionBucket
+import com.riffle.feature.library.ui.AnnotationResultRow
+import com.riffle.feature.library.ui.AudiobookBookmarkResultRow
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.models.Collection
@@ -493,6 +495,7 @@ private fun SearchResultsContent(
                 AnnotationResultRow(
                     result = result,
                     token = token,
+                    labels = androidAnnotationSearchLabels(),
                     onClick = { onAnnotationSelected(result) },
                 )
             }
@@ -500,6 +503,7 @@ private fun SearchResultsContent(
                 AudiobookBookmarkResultRow(
                     result = result,
                     token = token,
+                    labels = androidAnnotationSearchLabels(),
                     onClick = { onAudiobookBookmarkSelected(result) },
                 )
             }
@@ -904,138 +908,6 @@ private fun SearchCollectionRow(collection: Collection, onClick: () -> Unit) {
     }
 }
 
-@Composable
-internal fun AnnotationResultRow(
-    result: AnnotationSearchResult,
-    token: String,
-    onClick: () -> Unit,
-) {
-    val annotation = result.annotation
-    val isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-            // Leading: highlight colour bar, or a bookmark glyph.
-            Box(modifier = Modifier.size(width = 16.dp, height = 40.dp), contentAlignment = Alignment.Center) {
-                if (isBookmark) {
-                    Icon(
-                        Icons.Filled.Bookmark,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
-                } else {
-                    val color = HighlightColor.fromToken(annotation.color)
-                    Surface(
-                        shape = RoundedCornerShape(2.dp),
-                        color = Color(color.argb.toLong() and 0xFFFFFFFFL),
-                        modifier = Modifier.size(width = 4.dp, height = 40.dp),
-                    ) {}
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                val primary = if (isBookmark) annotation.bookmarkTitle.ifBlank { "Bookmark" } else annotation.textSnippet
-                Text(
-                    text = primary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val note = annotation.note
-                if (!isBookmark && !note.isNullOrBlank()) {
-                    Text(
-                        text = note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(result.bookCoverUrl)
-                            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
-                            .crossfade(true)
-                            .build(),
-                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(width = 20.dp, height = 28.dp).clip(RoundedCornerShape(2.dp)),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = result.bookTitle,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun AudiobookBookmarkResultRow(
-    result: AudiobookBookmarkSearchResult,
-    token: String,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-            Box(modifier = Modifier.size(width = 16.dp, height = 40.dp), contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Filled.Bookmark,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = result.bookmark.title.ifBlank { "Audiobook Bookmark" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(result.bookCoverUrl)
-                            .httpHeaders(NetworkHeaders.Builder().add("Authorization", token.asAuthHeader()).build())
-                            .crossfade(true)
-                            .build(),
-                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(width = 20.dp, height = 28.dp).clip(RoundedCornerShape(2.dp)),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = result.bookTitle,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun ShowAllAnnotationsRow(count: Int, onClick: () -> Unit) {

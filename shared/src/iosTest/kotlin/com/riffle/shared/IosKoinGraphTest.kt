@@ -34,9 +34,12 @@ import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.SyncSourceResolver
+import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubTocExtractor
+import com.riffle.feature.library.FacetType
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.ReadaloudOfflineDownloader
@@ -223,6 +226,33 @@ class IosKoinGraphTest {
 
         assertEquals("root-9", viewModel.libraryId)
         assertEquals("pl-7", viewModel.playlistId)
+    }
+
+    /**
+     * #1072 §1 — the facet drill-in and the annotation-search results screen had no iOS
+     * ViewModel binding at all. Both take their arguments positionally from the host, and both
+     * re-encode a user-supplied string on the way in so the ViewModel's `urlDecode()` round-trips
+     * it; a search for `C++` reaching the store as `C  ` would match nothing and fail silently.
+     */
+    @Test
+    fun `the production graph builds the facet and annotation-search view models from their route arguments`() {
+        startKoinWithDatabase(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
+        )
+        val koin = KoinPlatform.getKoin()
+
+        val filtered = koin.get<FilteredBooksViewModel> {
+            parametersOf("lib-7", FacetType.GENRE.name, "Science Fiction")
+        }
+        assertEquals(FacetType.GENRE, filtered.facetType)
+        assertEquals("Science Fiction", filtered.facetValue)
+
+        val search = koin.get<AnnotationSearchViewModel> { parametersOf("lib-7", "C++ & 50%") }
+        assertEquals("C++ & 50%", search.query)
     }
 
     /**

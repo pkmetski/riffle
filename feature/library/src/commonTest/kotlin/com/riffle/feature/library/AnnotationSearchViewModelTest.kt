@@ -1,21 +1,22 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import androidx.lifecycle.SavedStateHandle
-import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.PendingSource
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -26,20 +27,26 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
+/**
+ * Moved from `:app`'s test source set when `AnnotationSearchViewModel` was lifted to
+ * `:feature:library` `commonMain` (#1072 §1). Same assertions, now also executed on iOS by
+ * `:feature:library:iosSimulatorArm64Test` — which is the point: the ViewModel had no iOS binding
+ * at all before, so nothing verified the search it performs there.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnnotationSearchViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    @Before
+    @BeforeTest
     fun setUp() { Dispatchers.setMain(testDispatcher) }
 
-    @After
+    @AfterTest
     fun tearDown() { Dispatchers.resetMain() }
 
     private val allItemsFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
@@ -72,44 +79,115 @@ class AnnotationSearchViewModelTest {
         override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<Annotation>())
         override fun observeAnnotationsForSource(sourceId: String) =
             annotationsFlow.map { all -> all.filter { it.sourceId == sourceId } }
-        override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?, originFontFamily: String, textSnippetHtml: String?) = error("unused")
-        override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String, originFontFamily: String, fragmentAnchor: String?) = error("unused")
-        override suspend fun createImageAnnotation(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String) = error("unused")
+
+        override suspend fun createHighlight(
+            sourceId: String,
+            itemId: String,
+            cfi: String,
+            textSnippet: String,
+            chapterHref: String,
+            textBefore: String,
+            textAfter: String,
+            color: String,
+            spineIndex: Int,
+            progression: Double,
+            embeddedFigures: List<EmbeddedFigure>?,
+            originFontFamily: String,
+            textSnippetHtml: String?,
+        ) = error("unused")
+
+        override suspend fun createBookmark(
+            sourceId: String,
+            itemId: String,
+            cfi: String,
+            textSnippet: String,
+            chapterHref: String,
+            spineIndex: Int,
+            progression: Double,
+            bookmarkTitle: String,
+            originFontFamily: String,
+            fragmentAnchor: String?,
+        ) = error("unused")
+
+        override suspend fun createImageAnnotation(
+            sourceId: String,
+            itemId: String,
+            cfi: String,
+            textSnippet: String,
+            chapterHref: String,
+            spineIndex: Int,
+            progression: Double,
+            imageHref: String?,
+            imageSvg: String?,
+            imageBytes: String?,
+            color: String,
+        ) = error("unused")
+
         override suspend fun upgradeImageToCaptionHighlight(
-            id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
-            figure: com.riffle.core.models.EmbeddedFigure,
+            id: String,
+            cfi: String,
+            textSnippet: String,
+            textBefore: String,
+            textAfter: String,
+            figure: EmbeddedFigure,
         ): Annotation? = null
+
         override suspend fun mergeFiguresIntoHighlight(
-            id: String, newFigures: List<com.riffle.core.models.EmbeddedFigure>,
+            id: String,
+            newFigures: List<EmbeddedFigure>,
         ): Annotation? = null
+
         override suspend fun delete(id: String) = error("unused")
         override suspend fun recolor(id: String, color: String) = error("unused")
         override suspend fun updateNote(id: String, note: String?) = error("unused")
         override suspend fun renameBookmark(id: String, title: String) = error("unused")
         override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
         override suspend fun findImageAnnotationForFigure(
-            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+            sourceId: String,
+            itemId: String,
+            chapterHref: String,
+            imageHref: String?,
+            imageSvg: String?,
         ): Annotation? = null
-        override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String) = error("unused")
-        override suspend fun healSentinelOriginFontFamily(sourceId: String, itemId: String, sentinel: String, fontFamily: String) = error("unused")
+
+        override suspend fun backfillNullOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            fontFamily: String,
+        ) = error("unused")
+
+        override suspend fun healSentinelOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            sentinel: String,
+            fontFamily: String,
+        ) = error("unused")
     }
 
-    private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
-        object : com.riffle.core.domain.AudiobookBookmarkStore {
-            override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.models.AudiobookBookmark>())
-            override fun observeForSource(sourceId: String) = MutableStateFlow(emptyList<com.riffle.core.models.AudiobookBookmark>())
-            override fun observeHasUnsynced(sourceId: String, itemId: String) = MutableStateFlow(false)
-            override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
-            override suspend fun rename(id: String, title: String, now: Long) = error("unused")
-            override suspend fun delete(id: String, now: Long) = error("unused")
-        }
+    private fun fakeAudiobookBookmarkStore(): AudiobookBookmarkStore = object : AudiobookBookmarkStore {
+        override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<AudiobookBookmark>())
+        override fun observeForSource(sourceId: String) = MutableStateFlow(emptyList<AudiobookBookmark>())
+        override fun observeHasUnsynced(sourceId: String, itemId: String) = MutableStateFlow(false)
+        override suspend fun add(
+            sourceId: String,
+            itemId: String,
+            positionSec: Double,
+            title: String,
+            now: Long,
+        ) = error("unused")
 
-    private fun fakeServerRepository(): SourceRepository = object : SourceRepository {
+        override suspend fun rename(id: String, title: String, now: Long) = error("unused")
+        override suspend fun delete(id: String, now: Long) = error("unused")
+    }
+
+    private fun fakeSourceRepository(): SourceRepository = object : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Source? =
             Source("srv1", SourceUrl.parse("http://localhost")!!, true, false, "test")
+
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
+
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
         override suspend fun getSourceVersion(sourceId: String): String? = null
@@ -160,10 +238,46 @@ class AnnotationSearchViewModelTest {
             annotation(id = "a1", sourceId = "srv1", itemId = "b1", textSnippet = "conscience"),
             annotation(id = "a2", sourceId = "srv1", itemId = "b1", textSnippet = "other"),
         )
-        val savedState = SavedStateHandle(mapOf("libraryId" to "lib1", "query" to "conscience"))
-        val vm = AnnotationSearchViewModel(savedState, fakeRepo(), fakeAnnotationStore(), fakeAudiobookBookmarkStore(), fakeServerRepository(), fakeTokenStorage())
+        val savedState = SavedStateHandle(
+            mapOf(
+                AnnotationSearchViewModel.ROUTE_ARG_LIBRARY_ID to "lib1",
+                AnnotationSearchViewModel.ROUTE_ARG_QUERY to "conscience",
+            ),
+        )
+        val vm = AnnotationSearchViewModel(
+            savedState,
+            fakeRepo(),
+            fakeAnnotationStore(),
+            fakeAudiobookBookmarkStore(),
+            fakeSourceRepository(),
+            fakeTokenStorage(),
+        )
 
         val results = vm.results.first { it.isNotEmpty() }
         assertEquals(listOf("a1"), results.map { it.annotation.id })
+    }
+
+    /**
+     * The route arrives form-encoded on both hosts, so the query the store is searched with must
+     * be the decoded one. A `+` left in place searches for a literal plus and matches nothing.
+     */
+    @Test
+    fun theQueryArrivesFormDecoded() = runTest {
+        val savedState = SavedStateHandle(
+            mapOf(
+                AnnotationSearchViewModel.ROUTE_ARG_LIBRARY_ID to "lib1",
+                AnnotationSearchViewModel.ROUTE_ARG_QUERY to "two+words+%26+more",
+            ),
+        )
+        val vm = AnnotationSearchViewModel(
+            savedState,
+            fakeRepo(),
+            fakeAnnotationStore(),
+            fakeAudiobookBookmarkStore(),
+            fakeSourceRepository(),
+            fakeTokenStorage(),
+        )
+
+        assertEquals("two words & more", vm.query)
     }
 }

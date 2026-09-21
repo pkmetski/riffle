@@ -1,12 +1,8 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.feature.library.AnnotationSearchResult
-import com.riffle.feature.library.AudiobookBookmarkSearchResult
-import com.riffle.feature.library.searchAnnotations
-import com.riffle.feature.library.searchAudiobookBookmarks
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.LibraryObserver
@@ -22,7 +18,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.net.URLDecoder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnnotationSearchViewModel constructor(
@@ -34,9 +29,12 @@ class AnnotationSearchViewModel constructor(
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
-    private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
-    val query: String = savedStateHandle.get<String>("query")
-        ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
+    private val libraryId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: ""
+
+    // `urlDecode`, not `java.net.URLDecoder`: the JVM class has no commonMain equivalent, and the
+    // shared implementation reproduces its `application/x-www-form-urlencoded` behaviour exactly
+    // (`+` → space, `%XX` runs decoded as UTF-8) — which is what Android's nav route produces.
+    val query: String = (savedStateHandle.get<String>(ROUTE_ARG_QUERY) ?: "").urlDecode()
 
     private val _authToken = MutableStateFlow("")
     val authToken: StateFlow<String> = _authToken.asStateFlow()
@@ -74,5 +72,13 @@ class AnnotationSearchViewModel constructor(
             val server = sourceRepository.getActive()
             if (server != null) _authToken.value = tokenStorage.getToken(server.id) ?: ""
         }
+    }
+
+    companion object {
+        // The SavedStateHandle keys, owned by the ViewModel so Android's
+        // `annotation_search/{libraryId}?query=…` route and the handle the iOS Koin factory
+        // fabricates cannot drift.
+        const val ROUTE_ARG_LIBRARY_ID: String = "libraryId"
+        const val ROUTE_ARG_QUERY: String = "query"
     }
 }

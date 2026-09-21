@@ -169,6 +169,7 @@ import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.BookImportManagerImpl
@@ -1012,6 +1013,20 @@ private fun iosLibraryModule(
             dispatchers = get(),
         )
     }
+    // (libraryId, query) — Android's `annotation_search/{libraryId}?query=…`.
+    factory { params ->
+        AnnotationSearchViewModel(
+            savedStateHandle = annotationSearchSavedStateHandle(
+                libraryId = params.get(0),
+                query = params.get(1),
+            ),
+            libraryObserver = get(),
+            annotationStore = get(),
+            audiobookBookmarkStore = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
     // (libraryId, facetType, facetValue) — the three route args Android's
     // `filtered_books/{libraryId}/{facetType}/{facetValue}` carries. The facet type travels as
     // its enum name because that is what the ViewModel parses on both hosts.
@@ -1079,6 +1094,23 @@ private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
  * author containing `+` or `%` would otherwise be corrupted — and then match nothing, so the
  * screen would be empty with no error anywhere.
  */
+/**
+ * The [SavedStateHandle] [AnnotationSearchViewModel] reads its library and query from.
+ *
+ * The query is form-encoded on the way in because the ViewModel `urlDecode()`s it — Android's
+ * route carries it percent-encoded. A search for "C++" or "50%" would otherwise be mangled into
+ * a query that matches nothing.
+ */
+private fun annotationSearchSavedStateHandle(
+    libraryId: String,
+    query: String,
+): SavedStateHandle = SavedStateHandle(
+    mapOf(
+        AnnotationSearchViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+        AnnotationSearchViewModel.ROUTE_ARG_QUERY to query.urlFormEncode(),
+    ),
+)
+
 private fun filteredBooksSavedStateHandle(
     libraryId: String,
     facetType: String,

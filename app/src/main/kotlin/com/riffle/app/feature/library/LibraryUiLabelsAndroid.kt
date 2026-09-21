@@ -3,6 +3,7 @@ package com.riffle.app.feature.library
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
+import com.riffle.feature.library.ui.AnnotationSearchLabels
 import com.riffle.feature.library.ui.FilteredBooksLabels
 import com.riffle.feature.library.ui.PlaylistLabels
 
@@ -36,4 +37,18 @@ internal fun androidPlaylistLabels(): PlaylistLabels = PlaylistLabels.English.co
 internal fun androidFilteredBooksLabels(): FilteredBooksLabels = FilteredBooksLabels.English.copy(
     back = stringResource(R.string.ui_back),
     noBooksFound = stringResource(R.string.ui_no_books_found),
+)
+
+/**
+ * Android's `res/values*` catalogue for the shared annotation-search surfaces.
+ *
+ * The two `%1$s` templates are fetched without format arguments so the raw template survives for
+ * the shared `formatTemplate` to expand — Android's `stringResource(id, arg)` would expand it
+ * here and the shared code would then have nothing to substitute.
+ */
+@Composable
+internal fun androidAnnotationSearchLabels(): AnnotationSearchLabels = AnnotationSearchLabels.English.copy(
+    back = stringResource(R.string.ui_back),
+    titleTemplate = stringResource(R.string.ui_annotations_query_title),
+    noResultsTemplate = stringResource(R.string.ui_no_annotations_for_query),
 )
