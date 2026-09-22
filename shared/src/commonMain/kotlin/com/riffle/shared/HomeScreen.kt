@@ -487,8 +487,8 @@ internal fun FilteredBooksHost(
         minCellSize = coverGridMinCell(),
         onItemSelected = onItemSelected,
         onNavigateBack = onBack,
-        tileContent = { item, _, onClick ->
-            BookCoverTile(item = item, onClick = onClick)
+        tileContent = { item, token, onClick ->
+            BookCoverTile(item = item, token = token, onClick = onClick)
         },
     )
 }
