@@ -512,6 +512,11 @@ class AnnotationFocusHarnessTest : KoinTest {
 
     private fun navigateWithSearch(phrase: String) {
         showTopAppBar()
+        // Back appears before Search in some layouts; wait for Search explicitly to avoid a
+        // timing flake where performClick fires before the icon is in the semantic tree.
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
