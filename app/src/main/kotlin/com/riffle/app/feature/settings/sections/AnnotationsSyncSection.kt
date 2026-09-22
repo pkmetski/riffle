@@ -10,8 +10,8 @@ import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.DrillInChevron
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.resolve
+import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.AnnotationSyncRowState
 
 /**

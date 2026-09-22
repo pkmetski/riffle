@@ -5,7 +5,7 @@ import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.SettingsDrillInRow
 import com.riffle.app.feature.settings.SettingsPanel
-import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.feature.designsystem.SettingsSectionHeader
 
 /**
  * "Listening" section — audiobook-playback preferences. Distinct from Readaloud (which is

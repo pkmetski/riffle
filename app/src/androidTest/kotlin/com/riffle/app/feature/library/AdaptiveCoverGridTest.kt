@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.harness.TabletLayout
+import com.riffle.feature.designsystem.coverGridMinCell
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,7 +39,7 @@ class AdaptiveCoverGridTest {
     fun expandedClassYieldsMoreThanThreeColumns() {
         composeTestRule.setContent {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(coverGridMinCellSize()),
+                columns = GridCells.Adaptive(coverGridMinCell()),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {

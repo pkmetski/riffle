@@ -169,6 +169,7 @@ import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.BookImportManagerImpl
@@ -177,16 +178,19 @@ import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.DownloadManager
 import com.riffle.feature.library.EpubTocExtractor
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.feature.library.WebSourceLibraryItemUpserter
+import com.riffle.feature.library.urlFormEncode
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.AudiobookReconciliationCoordinator
@@ -552,17 +556,17 @@ private fun iosLibraryModule(
         AudiobookPlayerViewModel(
             navItemId = params.get(0),
             navSourceId = params.get(1),
-            // #1071 §17: `null`/`-1f` are correct today, not placeholders. Android fills these
-            // from nav-route query args (audiobook_player/{sourceId}/{itemId}?startAtSec=...&
-            // playlistId=...), and iOS has no route layer — LibraryNav.AudiobookPlayer(item) is
-            // built only by readerNavForItem, from a library row. Nothing on iOS can supply
-            // either value: there is no playlist detail screen to open a book *from* a playlist
-            // (the Playlists tab lists without navigating), and bookmark jumps happen inside the
-            // open player through the VM, not through navigation. Widening the expect/actual
-            // AudiobookPlayerScreen signature now would add three more parameters nothing passes.
-            // Blocked on the missing surfaces in #1072.
-            navPlaylistId = null,
-            navPlaylistLibraryId = null,
+            // The playlist the player was opened *from*, which is what the ViewModel uses to
+            // look up the next item at end-of-book and auto-advance into it. Android fills these
+            // from nav-route query args (audiobook_player/{sourceId}/{itemId}?playlistId=...&
+            // libraryId=...); iOS has no route layer, so they ride on
+            // LibraryNav.AudiobookPlayer, which PlaylistDetailScreen's "Play" fills in. Empty
+            // for every other entry point — a library row, the Riffle hub, a series — and the
+            // ViewModel already treats "" as absent.
+            navPlaylistId = params.get<String>(2),
+            navPlaylistLibraryId = params.get<String>(3),
+            // Bookmark jumps happen inside the open player through the VM, not through
+            // navigation, so iOS has no navigation-time start position (#1071 §17).
             navStartAtSec = -1f,
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),
@@ -1009,6 +1013,54 @@ private fun iosLibraryModule(
             dispatchers = get(),
         )
     }
+    // (libraryId, query) — Android's `annotation_search/{libraryId}?query=…`.
+    factory { params ->
+        AnnotationSearchViewModel(
+            savedStateHandle = annotationSearchSavedStateHandle(
+                libraryId = params.get(0),
+                query = params.get(1),
+            ),
+            libraryObserver = get(),
+            annotationStore = get(),
+            audiobookBookmarkStore = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
+    // (libraryId, facetType, facetValue) — the three route args Android's
+    // `filtered_books/{libraryId}/{facetType}/{facetValue}` carries. The facet type travels as
+    // its enum name because that is what the ViewModel parses on both hosts.
+    factory { params ->
+        FilteredBooksViewModel(
+            savedStateHandle = filteredBooksSavedStateHandle(
+                libraryId = params.get(0),
+                facetType = params.get(1),
+                facetValue = params.get(2),
+            ),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            offlineAvailability = get(),
+            connectivityObserver = get(),
+            readaloudLinkRepository = get(),
+        )
+    }
+    // (libraryId, playlistId, playlistName) — the three route args Android's
+    // `playlist_detail/{libraryId}/{playlistId}/{playlistName}` carries, packed into the handle
+    // the shared ViewModel reads them from.
+    factory { params ->
+        PlaylistDetailViewModel(
+            savedStateHandle = playlistSavedStateHandle(
+                libraryId = params.get(0),
+                playlistId = params.get(1),
+                playlistName = params.get(2),
+            ),
+            playlistsRepository = get(),
+            libraryObserver = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
 }
 
 /**
@@ -1021,6 +1073,67 @@ private fun iosLibraryModule(
  */
 private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
     SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
+
+/**
+ * The [SavedStateHandle] [AnnotationSearchViewModel] reads its library and query from.
+ *
+ * The query is form-encoded on the way in because the ViewModel `urlDecode()`s it — Android's
+ * route carries it percent-encoded. A search for "C++" or "50%" would otherwise be mangled into
+ * a query that matches nothing.
+ */
+private fun annotationSearchSavedStateHandle(
+    libraryId: String,
+    query: String,
+): SavedStateHandle = SavedStateHandle(
+    mapOf(
+        AnnotationSearchViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+        AnnotationSearchViewModel.ROUTE_ARG_QUERY to query.urlFormEncode(),
+    ),
+)
+
+/**
+ * The [SavedStateHandle] [FilteredBooksViewModel] reads its facet from.
+ *
+ * [facetValue] is form-encoded on the way in for the same reason as the playlist name: the
+ * ViewModel `urlDecode()`s it because Android's route arrives percent-encoded, and a genre or
+ * author containing `+` or `%` would otherwise be corrupted — and then match nothing, so the
+ * screen would be empty with no error anywhere.
+ */
+private fun filteredBooksSavedStateHandle(
+    libraryId: String,
+    facetType: String,
+    facetValue: String,
+): SavedStateHandle = SavedStateHandle(
+    mapOf(
+        FilteredBooksViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+        FilteredBooksViewModel.ROUTE_ARG_FACET_TYPE to facetType,
+        FilteredBooksViewModel.ROUTE_ARG_FACET_VALUE to facetValue.urlFormEncode(),
+    ),
+)
+
+/**
+ * The [SavedStateHandle] [PlaylistDetailViewModel] reads its three route arguments from.
+ *
+ * Keyed on the constants the ViewModel owns, for the same reason as [browseSavedStateHandle]:
+ * Android puts them in the nav route and iOS packs them here, and a change to one host's key
+ * would otherwise leave the other loading an empty playlist with no failure anywhere.
+ *
+ * [playlistName] is form-encoded on the way in because the ViewModel `urlDecode()`s it —
+ * Android's nav route arrives percent-encoded. Passing the display name raw would corrupt any
+ * name containing `+` or `%`, so the encode/decode pair is kept symmetric rather than relying on
+ * the decoder being a no-op for "ordinary" names.
+ */
+private fun playlistSavedStateHandle(
+    libraryId: String,
+    playlistId: String,
+    playlistName: String,
+): SavedStateHandle = SavedStateHandle(
+    mapOf(
+        PlaylistDetailViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+        PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_ID to playlistId,
+        PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_NAME to playlistName.urlFormEncode(),
+    ),
+)
 
 /**
  * The Swift entry point. Its parameter list is the ObjC-exported surface, so it deliberately

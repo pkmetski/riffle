@@ -25,9 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.i18n.AppLanguage
 import com.riffle.core.domain.AppTheme
+import com.riffle.feature.designsystem.SettingsSectionHeader
 
 /**
  * Settings for app chrome. The app theme remains independent of the reader's content theme.

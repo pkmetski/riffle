@@ -2,8 +2,10 @@ package com.riffle.shared.library
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
@@ -13,6 +15,7 @@ import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Regression for the structurally-empty Annotations tab on iOS (#1071 §9).
@@ -54,6 +57,8 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
             )
         }
 
@@ -79,6 +84,8 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
             )
         }
 
@@ -103,10 +110,77 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
             )
         }
 
         onNodeWithText(ANNOTATIONS_EMPTY_LABEL).assertIsDisplayed()
+    }
+
+    /**
+     * #1072 §1 — `AnnotationSearchViewModel` had no iOS binding *and* no iOS surface could have
+     * opened it: Android reaches the results screen from its library search bar's "Show all"
+     * affordance and iOS has no search bar at all. This field is the whole entry point, so
+     * removing it (the revert) makes the screen unreachable again with nothing else failing.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun theAnnotationsTabSearchFieldOpensTheResultsScreen() = runComposeUiTest {
+        var searched: String? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = tabIndexForAnnotations(),
+                projection = LibraryProjection.Empty,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = listOf(annotatedBook)),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = { searched = it },
+            )
+        }
+
+        onNodeWithTag("annotation-search-field").performTextInput("margin")
+        onNodeWithTag("annotation-search-submit").performClick()
+
+        assertEquals("margin", searched)
+    }
+
+    /**
+     * A blank query is a dead end — the ViewModel short-circuits it and the results screen can
+     * only say "no annotations for """ — so submitting nothing must not navigate.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun submittingABlankAnnotationQueryDoesNotNavigate() = runComposeUiTest {
+        var searched: String? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = tabIndexForAnnotations(),
+                projection = LibraryProjection.Empty,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = listOf(annotatedBook)),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = { searched = it },
+            )
+        }
+
+        onNodeWithTag("annotation-search-submit").performClick()
+
+        assertNull(searched)
     }
 
     /**
@@ -133,11 +207,17 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
             )
         }
 
         onNodeWithText("Evening Queue").assertIsDisplayed()
-        onNodeWithText("4 book(s)").assertIsDisplayed()
+        // "4 items", not the "4 book(s)" the deleted iOS-only copy of this tab printed: the tab
+        // body is now :feature:library-ui's PlaylistsTabContent, the same one Android renders,
+        // and its count line comes from the shared `playlistItemCountLabel`. The claim this test
+        // pins — index 6 routes to the playlists body and not the Home tab — is unchanged.
+        onNodeWithText("4 items").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -156,10 +236,14 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
             )
         }
 
-        onNodeWithText("No playlists").assertIsDisplayed()
+        // Android's copy, for the same reason as the count line above: one empty state for both
+        // hosts rather than two wordings.
+        onNodeWithText("No playlists yet. Create one from any item.").assertIsDisplayed()
     }
 
     /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */
@@ -179,6 +263,8 @@ class LibraryTabContentTest {
                 onSeriesSelected = {},
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
             )
         }
 

@@ -2,10 +2,10 @@ package com.riffle.app.feature.library
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -18,27 +18,28 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.Alignment
-import com.riffle.app.ui.theme.RiffleAppIcon
-import com.riffle.app.ui.theme.RiffleIcons
 import androidx.compose.runtime.Composable
-import com.riffle.feature.source.ui.OfflineBanner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.navigation.sourceDisplayName
+import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
-import androidx.compose.ui.res.stringResource
-import com.riffle.app.R
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.library.AnnotationsListUiState
-import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.RiffleViewModel
+import com.riffle.feature.source.ui.OfflineBanner
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

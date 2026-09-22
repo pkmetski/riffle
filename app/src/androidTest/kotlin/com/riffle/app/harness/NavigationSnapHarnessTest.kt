@@ -341,9 +341,9 @@ class NavigationSnapHarnessTest : KoinTest {
     private fun openStandaloneReader() {
         addServerAndBrowseLibrary()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty()

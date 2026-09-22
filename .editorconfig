@@ -41,6 +41,15 @@ ktlint_function_naming_ignore_when_annotated_with = Composable
 [feature/player-ui/**/*.kt]
 ktlint_function_naming_ignore_when_annotated_with = Composable
 
+[feature/design-system/**/*.kt]
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+[feature/library-ui/**/*.kt]
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+[feature/settings-ui/**/*.kt]
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
 [shared/**/*.kt]
 ktlint_function_naming_ignore_when_annotated_with = Composable
 

@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,15 +32,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.feature.library.AnnotationSearchViewModel
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.shouldShowRiffleSource
+import com.riffle.feature.library.ui.AnnotationSearchLabels
+import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
+import com.riffle.feature.library.ui.FilteredBooksLabels
+import com.riffle.feature.library.ui.FilteredBooksScreen
+import com.riffle.feature.library.ui.PlaylistDetailScreen
+import com.riffle.feature.library.ui.PlaylistItemRow
+import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.downloads.DownloadsScreen
+import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
@@ -53,7 +68,9 @@ import com.riffle.shared.source.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.koin.compose.getKoin
 import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
@@ -339,6 +356,17 @@ private fun LibraryHost(
                     )
                 },
                 onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
+                onSearchAnnotations = { query -> nav = LibraryNav.AnnotationSearch(libraryId, query) },
+                onPlaylistSelected = { playlist ->
+                    nav = LibraryNav.PlaylistDetail(
+                        playlistId = playlist.id,
+                        playlistName = playlist.name,
+                        // The playlist's own rootId, not the host's libraryId: the Playlists tab
+                        // is only visible on an ABS audiobook root and the two are the same
+                        // today, but every PlaylistsRepository call keys on the playlist's root.
+                        playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
+                    )
+                },
             )
         }
         is LibraryNav.Section -> LibrarySectionScreen(
@@ -355,11 +383,49 @@ private fun LibraryHost(
             onRead = { item ->
                 openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
             },
+            onFacetSelected = { facetLibraryId, facet, value ->
+                nav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
+            },
         )
-        is LibraryNav.ReaderDestination -> ReaderHost(
+        is LibraryNav.FilteredBooks -> FilteredBooksHost(
             destination = current,
             onBack = { nav = LibraryNav.Items },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
         )
+        is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
+            destination = current,
+            onBack = { nav = LibraryNav.Items },
+            // Android opens the reader at the annotation's CFI; iOS's reader has no
+            // open-at-annotation entry point yet (#1072 §2 — the whole annotation seam is
+            // missing there), so a result opens the book's detail sheet, which is the furthest
+            // the iOS reader can currently be driven from outside.
+            onOpenBook = { sourceId, itemId ->
+                nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+            },
+        )
+        is LibraryNav.ReaderDestination -> {
+            // End-of-book inside a playlist: the ViewModel has already found the next item id;
+            // this resolves it to a LibraryItem and re-enters the player carrying the same
+            // playlist context, so the chain continues. Android does the equivalent by
+            // navigating to the next player route with `popUpTo(AUDIOBOOK_PLAYER)`; replacing
+            // `nav` in place is this host's equivalent of that pop.
+            val libraryObserver = koinInject<LibraryObserver>()
+            var advanceToItemId by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(advanceToItemId) {
+                val nextItemId = advanceToItemId ?: return@LaunchedEffect
+                val context = current as? LibraryNav.AudiobookPlayer ?: return@LaunchedEffect
+                val rootId = context.playlistLibraryId ?: return@LaunchedEffect
+                advanceToItemId = null
+                val next = libraryObserver.observeLibraryItems(rootId).first()
+                    .firstOrNull { it.id == nextItemId }
+                nav = playlistAdvanceNav(next, context)
+            }
+            ReaderHost(
+                destination = current,
+                onBack = { nav = LibraryNav.Items },
+                onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
+            )
+        }
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
             seriesId = current.seriesId,
             libraryId = current.seriesLibraryId,
@@ -374,5 +440,118 @@ private fun LibraryHost(
             onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
             onNavigateBack = { nav = LibraryNav.Items },
         )
+        is LibraryNav.PlaylistDetail -> PlaylistDetailHost(
+            destination = current,
+            onBack = { nav = LibraryNav.Items },
+            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+            // "Play" carries the playlist context into the player, which is what makes
+            // AudiobookPlayerViewModel's end-of-book auto-advance reachable on iOS at all.
+            onPlayItem = { item -> nav = playlistPlayerNav(item, current) },
+        )
     }
+}
+
+/**
+ * Screen-scoped host for [FilteredBooksScreen].
+ *
+ * Like the playlist host: the ViewModel is a Koin `factory` keyed on the facet, and iOS has no
+ * navigation-provided `ViewModelStoreOwner` to call `onCleared()`.
+ *
+ * `internal` rather than private because both iOS hosts reach it: the per-library browser here
+ * and the Riffle hub's detail sheet, whose facet chips drill into the same screen.
+ */
+@Composable
+internal fun FilteredBooksHost(
+    destination: LibraryNav.FilteredBooks,
+    onBack: () -> Unit,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
+    val koin = getKoin()
+    val key = "${destination.facetLibraryId}/${destination.facetType}/${destination.facetValue}"
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel: FilteredBooksViewModel = remember(key) {
+        host.adopt(
+            koin.get {
+                parametersOf(
+                    destination.facetLibraryId,
+                    destination.facetType.name,
+                    destination.facetValue,
+                )
+            },
+        )
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+    FilteredBooksScreen(
+        viewModel = viewModel,
+        labels = FilteredBooksLabels.English,
+        minCellSize = coverGridMinCell(),
+        onItemSelected = onItemSelected,
+        onNavigateBack = onBack,
+        tileContent = { item, token, onClick ->
+            BookCoverTile(item = item, token = token, onClick = onClick)
+        },
+    )
+}
+
+/**
+ * Screen-scoped host for [AnnotationSearchResultsScreen].
+ *
+ * Same reason as the other two hosts: the ViewModel is a Koin `factory` keyed on the query and
+ * iOS has no navigation-provided `ViewModelStoreOwner`.
+ */
+@Composable
+internal fun AnnotationSearchHost(
+    destination: LibraryNav.AnnotationSearch,
+    onBack: () -> Unit,
+    onOpenBook: (sourceId: String, itemId: String) -> Unit,
+) {
+    val koin = getKoin()
+    val key = "${destination.searchLibraryId}/${destination.query}"
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel: AnnotationSearchViewModel = remember(key) {
+        host.adopt(koin.get { parametersOf(destination.searchLibraryId, destination.query) })
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+    AnnotationSearchResultsScreen(
+        viewModel = viewModel,
+        labels = AnnotationSearchLabels.English,
+        onNavigateBack = onBack,
+        onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
+        onAudiobookBookmarkSelected = { result -> onOpenBook(result.bookmark.sourceId, result.bookmark.itemId) },
+    )
+}
+
+/**
+ * Screen-scoped host for [PlaylistDetailScreen].
+ *
+ * `PlaylistDetailViewModel` is a Koin `factory` keyed on the playlist's route arguments and iOS
+ * has no navigation-provided `ViewModelStoreOwner`, so without [ScreenScopedViewModelHost]
+ * nothing would ever call `onCleared()` and each visit would leak a live `stateIn` collector.
+ */
+@Composable
+private fun PlaylistDetailHost(
+    destination: LibraryNav.PlaylistDetail,
+    onBack: () -> Unit,
+    onItemSelected: (LibraryItem) -> Unit,
+    onPlayItem: (LibraryItem) -> Unit,
+) {
+    val koin = getKoin()
+    val key = destination.playlistLibraryId + "/" + destination.playlistId
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel: PlaylistDetailViewModel = remember(key) {
+        host.adopt(
+            koin.get {
+                parametersOf(destination.playlistLibraryId, destination.playlistId, destination.playlistName)
+            },
+        )
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+    PlaylistDetailScreen(
+        viewModel = viewModel,
+        labels = PlaylistLabels.English,
+        onNavigateBack = onBack,
+        onItemSelected = onItemSelected,
+        onPlayItem = onPlayItem,
+        itemContent = { item, _, onClick -> PlaylistItemRow(item = item, onClick = onClick) },
+    )
 }

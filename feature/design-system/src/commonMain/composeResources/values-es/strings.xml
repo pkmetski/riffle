@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_has_readaloud_synced_narration">Tiene lectura en voz alta (narración sincronizada)</string>
+    <string name="ui_downloaded">Descargado</string>
+    <string name="ui_cached">En caché</string>
+    <string name="ui_no_items">No hay elementos</string>
+    <string name="ui_see_all">Ver todo</string>
+</resources>

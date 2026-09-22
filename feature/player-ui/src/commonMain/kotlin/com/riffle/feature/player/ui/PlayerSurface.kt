@@ -54,13 +54,13 @@ import coil3.compose.LocalPlatformContext
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
+import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SleepTimerMode
 import com.riffle.feature.player.formatHms
 import com.riffle.feature.player.skipBackwardLabel
 import com.riffle.feature.player.skipForwardLabel
-import com.riffle.feature.source.ui.DefaultCoverPlaceholder
-import com.riffle.feature.source.ui.asAuthHeader
 
 /**
  * How far down (as a fraction of the icon size) to nudge the "15"/"30" interval number so it lands in

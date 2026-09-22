@@ -104,9 +104,9 @@ class EpubHarnessTest : KoinTest {
 
         // Series detail loads — tap the item
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_ITEM_TITLE).performClick()
 
         assertReaderReady()
     }
@@ -117,9 +117,9 @@ class EpubHarnessTest : KoinTest {
         addServerAndBrowseLibrary()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
         composeTestRule.waitUntil(timeoutMillis = 40_000) {
@@ -138,9 +138,9 @@ class EpubHarnessTest : KoinTest {
         addServerAndBrowseLibrary()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
         // Wait for a sync that carries a real CFI — the immediate sync in openBook() may fire
@@ -173,9 +173,9 @@ class EpubHarnessTest : KoinTest {
         addServerAndBrowseLibrary()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
         composeTestRule.waitUntil(timeoutMillis = 40_000) {

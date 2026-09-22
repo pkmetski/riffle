@@ -2,18 +2,23 @@ package com.riffle.shared
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.ContentCacheCleaner
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.logging.Logger
 import com.riffle.core.sync.ForegroundSyncDriver
+import com.riffle.feature.designsystem.LocalCoverLoadReporter
+import com.riffle.feature.designsystem.LoggingCoverLoadReporter
+import com.riffle.feature.designsystem.RiffleTheme
 import com.riffle.feature.source.ui.OpenInImportMessages
 import com.riffle.feature.source.ui.RiffleMessageScaffold
-import com.riffle.feature.source.ui.RiffleTheme
 import com.riffle.feature.source.ui.rememberTransientMessages
 import kotlinx.coroutines.flow.Flow
 import org.koin.compose.koinInject
@@ -67,13 +72,19 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
     }
 
     val appearance by appearanceCoordinator.resolved.collectAsState()
+    // iOS logged nothing at all about cover fetches, which is what made "the cover is blank
+    // offline" undiagnosable there. Same reporter and same RIFFLE_COVERS line as Android.
+    val coverLogger = koinInject<Logger>()
+    val coverReporter = remember(coverLogger) { LoggingCoverLoadReporter(coverLogger) }
     RiffleTheme(darkTheme = appearance.appChrome.isDark) {
-        // "Open in Riffle" starts before any screen exists — the file arrives with the launch
-        // that opened the app — so the outcome has to be drained at the composition root or it
-        // is never seen at all. This is also the only SnackbarHost on the platform; screens that
-        // want one nest their own.
-        val messages = rememberTransientMessages()
-        OpenInImportMessages(feed = openInImportFeed, messages = messages)
-        RiffleMessageScaffold(messages, content = content)
+        CompositionLocalProvider(LocalCoverLoadReporter provides coverReporter) {
+            // "Open in Riffle" starts before any screen exists — the file arrives with the launch
+            // that opened the app — so the outcome has to be drained at the composition root or it
+            // is never seen at all. This is also the only SnackbarHost on the platform; screens that
+            // want one nest their own.
+            val messages = rememberTransientMessages()
+            OpenInImportMessages(feed = openInImportFeed, messages = messages)
+            RiffleMessageScaffold(messages, content = content)
+        }
     }
 }

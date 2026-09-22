@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.reader.CbzReaderScreen
@@ -32,6 +33,37 @@ internal sealed interface LibraryNav {
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
 
     /**
+     * A playlist's contents. [playlistLibraryId] is the ABS root the playlist is scoped to — the
+     * `rootId` every [com.riffle.core.domain.PlaylistsRepository] call takes — and is carried
+     * separately from the id so "Play" can hand both to the player as auto-advance context.
+     */
+    data class PlaylistDetail(
+        val playlistId: String,
+        val playlistName: String,
+        val playlistLibraryId: String,
+    ) : LibraryNav
+
+    /**
+     * The books in [facetLibraryId] matching one metadata facet — an author, a genre, a year, a
+     * language, or "has a readaloud". Android reaches the same screen through
+     * `filtered_books/{libraryId}/{facetType}/{facetValue}`.
+     */
+    data class FilteredBooks(
+        val facetLibraryId: String,
+        val facetType: FacetType,
+        val facetValue: String,
+    ) : LibraryNav
+
+    /**
+     * Every annotation and audiobook bookmark in [searchLibraryId] matching [query]. Android
+     * reaches the same screen through `annotation_search/{libraryId}?query=…`.
+     */
+    data class AnnotationSearch(
+        val searchLibraryId: String,
+        val query: String,
+    ) : LibraryNav
+
+    /**
      * A destination that opens the book itself. Grouped so every host renders them through the
      * single [ReaderHost] `when` rather than repeating the four-way dispatch.
      */
@@ -42,7 +74,19 @@ internal sealed interface LibraryNav {
     data class Reader(override val item: LibraryItem) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination
-    data class AudiobookPlayer(override val item: LibraryItem) : ReaderDestination
+
+    /**
+     * The audiobook player. [playlistId] / [playlistLibraryId] are non-null only when the player
+     * was opened from [PlaylistDetail]; they are what lets `AudiobookPlayerViewModel` auto-advance
+     * to the next item at end-of-book, exactly as Android's `?playlistId=…&libraryId=…` query
+     * args do. Before the playlist surfaces existed no iOS caller could supply them, so the
+     * ViewModel's `navPlaylistId` was hard-wired to `null` and `PlaylistAdvance` was unreachable.
+     */
+    data class AudiobookPlayer(
+        override val item: LibraryItem,
+        val playlistId: String? = null,
+        val playlistLibraryId: String? = null,
+    ) : ReaderDestination
 }
 
 /**
@@ -86,13 +130,67 @@ internal fun openItemForReading(
     return destination
 }
 
-/** Renders [destination]. The single place the four reader surfaces are constructed. */
+/**
+ * The player destination for "Play" on a playlist detail screen.
+ *
+ * Extracted from the host's `when` so the one thing that makes iOS playlist auto-advance work at
+ * all — that the playlist's id **and** its root ride along into the player — is pinned by a test
+ * rather than living only inside a Composable. With either field dropped
+ * `AudiobookPlayerViewModel.nextInPlaylist()` returns null and the chain silently stops after one
+ * book.
+ */
+internal fun playlistPlayerNav(
+    item: LibraryItem,
+    from: LibraryNav.PlaylistDetail,
+): LibraryNav.AudiobookPlayer = LibraryNav.AudiobookPlayer(
+    item = item,
+    playlistId = from.playlistId,
+    playlistLibraryId = from.playlistLibraryId,
+)
+
+/**
+ * Where the host goes when an audiobook opened from a playlist reaches its end.
+ *
+ * [next] is the resolved next item, or `null` when the playlist referenced an id the library no
+ * longer has. The playlist context is carried forward so the *next* book can advance too —
+ * dropping it here would make auto-advance fire exactly once.
+ */
+internal fun playlistAdvanceNav(
+    next: LibraryItem?,
+    from: LibraryNav.AudiobookPlayer,
+): LibraryNav = when {
+    next == null -> LibraryNav.Items
+    else -> LibraryNav.AudiobookPlayer(
+        item = next,
+        playlistId = from.playlistId,
+        playlistLibraryId = from.playlistLibraryId,
+    )
+}
+
+/**
+ * Renders [destination]. The single place the four reader surfaces are constructed.
+ *
+ * [onPlaylistAdvance] fires when an audiobook opened from a playlist reaches its end and the
+ * ViewModel has found the next item; the host resolves that id to a [LibraryItem] and navigates.
+ * It can only fire for a destination carrying a playlist context, so a host that never builds one
+ * passes a no-op — the same arrangement as Android's defaulted `onPlaylistAdvance`.
+ */
 @Composable
-internal fun ReaderHost(destination: LibraryNav.ReaderDestination, onBack: () -> Unit) {
+internal fun ReaderHost(
+    destination: LibraryNav.ReaderDestination,
+    onBack: () -> Unit,
+    onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+) {
     when (destination) {
         is LibraryNav.Reader -> EpubReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = onBack)
-        is LibraryNav.AudiobookPlayer -> AudiobookPlayerScreen(item = destination.item, onBack = onBack)
+        is LibraryNav.AudiobookPlayer -> AudiobookPlayerScreen(
+            item = destination.item,
+            playlistId = destination.playlistId,
+            playlistLibraryId = destination.playlistLibraryId,
+            onBack = onBack,
+            onPlaylistAdvance = onPlaylistAdvance,
+        )
     }
 }

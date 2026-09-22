@@ -34,10 +34,14 @@ import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.SyncSourceResolver
+import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.BookImportManager
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.EpubTocExtractor
+import com.riffle.feature.library.FacetType
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
@@ -196,6 +200,59 @@ class IosKoinGraphTest {
         assertNotNull(koin.get<CrashReportRepository>())
         assertNotNull(koin.get<AppUpdateRepository>())
         assertNotNull(koin.get<AppUpdatePreferencesStore>())
+    }
+
+    /**
+     * #1072 §1 — the playlist detail screen is the surface that makes `IosPlaylistsRepositoryImpl`
+     * (143 real lines, bound, read by nothing) reachable, and it needs its ViewModel to resolve
+     * from the *production* graph with the three route arguments the host supplies positionally.
+     * A mis-ordered `params.get(n)` or a missing collaborator throws here; a wrong handle key
+     * would not, so the keys themselves are pinned separately by `PlaylistDetailRouteArgsTest`.
+     */
+    @Test
+    fun `the production graph builds a playlist detail view model from its three route arguments`() {
+        startKoinWithDatabase(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
+        )
+        val koin = KoinPlatform.getKoin()
+
+        val viewModel = koin.get<PlaylistDetailViewModel> {
+            parametersOf("root-9", "pl-7", "Evening Queue")
+        }
+
+        assertEquals("root-9", viewModel.libraryId)
+        assertEquals("pl-7", viewModel.playlistId)
+    }
+
+    /**
+     * #1072 §1 — the facet drill-in and the annotation-search results screen had no iOS
+     * ViewModel binding at all. Both take their arguments positionally from the host, and both
+     * re-encode a user-supplied string on the way in so the ViewModel's `urlDecode()` round-trips
+     * it; a search for `C++` reaching the store as `C  ` would match nothing and fail silently.
+     */
+    @Test
+    fun `the production graph builds the facet and annotation-search view models from their route arguments`() {
+        startKoinWithDatabase(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
+        )
+        val koin = KoinPlatform.getKoin()
+
+        val filtered = koin.get<FilteredBooksViewModel> {
+            parametersOf("lib-7", FacetType.GENRE.name, "Science Fiction")
+        }
+        assertEquals(FacetType.GENRE, filtered.facetType)
+        assertEquals("Science Fiction", filtered.facetValue)
+
+        val search = koin.get<AnnotationSearchViewModel> { parametersOf("lib-7", "C++ & 50%") }
+        assertEquals("C++ & 50%", search.query)
     }
 
     /**

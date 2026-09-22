@@ -115,10 +115,10 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     fun reapplyLandingSupersededSetByTouchClearedByNavigation() {
         addServerAndBrowseLibrary()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -176,10 +176,10 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     fun boundaryDetentArmedAfterBackwardPrepend() {
         addServerAndBrowseLibrary()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -232,10 +232,10 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     fun scrollsAcrossBothLongChapterShortPartTitleBoundaries() {
         addServerAndBrowseLibrary()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)

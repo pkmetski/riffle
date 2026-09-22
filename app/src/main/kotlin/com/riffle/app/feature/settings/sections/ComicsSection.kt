@@ -5,9 +5,9 @@ import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
 import com.riffle.app.feature.settings.SettingsDrillInRow
 import com.riffle.app.feature.settings.SettingsPanel
-import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.feature.designsystem.SettingsSectionHeader
 
 @Composable
 internal fun localizedComicDisplaySummary(prefs: ComicFormattingPreferences): String {

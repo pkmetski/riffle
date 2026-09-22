@@ -25,16 +25,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.R
-import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.DrillInChevron
-import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.app.feature.settings.disabledListItemColors
 import com.riffle.app.feature.settings.resolve
+import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.AnnotationSyncRowState
 import com.riffle.feature.settings.SettingsViewModel
-import com.riffle.app.feature.settings.disabledListItemColors
+import com.riffle.feature.source.ui.AddSourceBackend
+import org.koin.androidx.compose.koinViewModel
 
 /**
  * Full-screen drill-in that hosts every WebDAV annotation-sync setting. Reached from the collapsed

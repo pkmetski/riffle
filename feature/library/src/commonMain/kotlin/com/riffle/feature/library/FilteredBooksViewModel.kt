@@ -1,0 +1,73 @@
+package com.riffle.feature.library
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.LibraryItem
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class FilteredBooksViewModel constructor(
+    savedStateHandle: SavedStateHandle,
+    private val libraryObserver: LibraryObserver,
+    private val sourceRepository: SourceRepository,
+    private val tokenStorage: TokenStorage,
+    private val offlineAvailability: LibraryItemOfflineAvailability,
+    private val connectivityObserver: ConnectivityObserver,
+    readaloudLinkRepository: ReadaloudLinkRepository,
+) : ViewModel() {
+
+    private val libraryId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: ""
+    val facetType: FacetType = runCatching {
+        FacetType.valueOf(savedStateHandle.get<String>(ROUTE_ARG_FACET_TYPE) ?: "")
+    }.getOrDefault(FacetType.AUTHOR)
+    val facetValue: String = (savedStateHandle.get<String>(ROUTE_ARG_FACET_VALUE) ?: "").urlDecode()
+
+    val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
+        .map { !it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val items: StateFlow<List<LibraryItem>> = combine(
+        libraryObserver.observeLibraryItems(libraryId),
+        readaloudLinkRepository.observeLinkedAbsItemIds(),
+        connectivityObserver.isOnline,
+    ) { all, linkedIds, online ->
+        val matched = all.filter { facetMatches(it, facetType, facetValue, linkedIds) }
+        if (!online) matched.filter { offlineAvailability.isAvailableOffline(it) } else matched
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    var authToken: String by mutableStateOf("")
+        private set
+
+    init {
+        viewModelScope.launch {
+            val server = sourceRepository.getActive()
+            if (server != null) {
+                authToken = tokenStorage.getToken(server.id) ?: ""
+            }
+        }
+    }
+
+    companion object {
+        // The SavedStateHandle keys, owned by the ViewModel so Android's
+        // `filtered_books/{libraryId}/{facetType}/{facetValue}` route and the handle the iOS Koin
+        // factory fabricates cannot drift — the same arrangement as
+        // UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID.
+        const val ROUTE_ARG_LIBRARY_ID: String = "libraryId"
+        const val ROUTE_ARG_FACET_TYPE: String = "facetType"
+        const val ROUTE_ARG_FACET_VALUE: String = "facetValue"
+    }
+}

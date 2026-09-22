@@ -14,9 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
-import com.riffle.feature.settings.AppUpdateUiState
 import com.riffle.app.feature.settings.DrillInChevron
-import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.AppUpdateUiState
 
 /**
  * "App version" section — the manual update-check row. Advances through

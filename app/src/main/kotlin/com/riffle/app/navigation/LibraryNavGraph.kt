@@ -16,18 +16,28 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
-import com.riffle.app.feature.library.AnnotationSearchResultsScreen
+import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.app.feature.library.CollectionDetailScreen
-import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
+import com.riffle.app.feature.library.LibraryItemCard
+import com.riffle.app.feature.library.androidAnnotationSearchLabels
+import com.riffle.app.feature.library.androidFilteredBooksLabels
+import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
-import com.riffle.app.feature.library.playlists.PlaylistDetailScreen
+import com.riffle.app.feature.library.androidPlaylistLabels
 import com.riffle.app.feature.library.RiffleScreen
 import com.riffle.app.feature.navigation.HomeScreen
+import com.riffle.feature.library.AnnotationSearchViewModel
+import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.PlaylistDetailViewModel
+import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
+import com.riffle.feature.library.ui.FilteredBooksScreen
+import com.riffle.feature.library.ui.PlaylistDetailScreen
+import org.koin.androidx.compose.koinViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
@@ -169,6 +179,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
         val playlistLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
         val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
         PlaylistDetailScreen(
+            viewModel = koinViewModel<PlaylistDetailViewModel>(),
+            labels = androidPlaylistLabels(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -184,6 +196,11 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 navController.navigate(
                     "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ"
                 )
+            },
+            // The one host-specific part of the shared screen: Android's card fetches the
+            // authenticated cover through its OkHttp-backed Coil loader.
+            itemContent = { item, token, onClick ->
+                LibraryItemCard(item = item, token = token, onClick = onClick)
             },
         )
     }
@@ -301,10 +318,16 @@ internal fun NavGraphBuilder.libraryNavGraph(
         ),
     ) { backStackEntry ->
         FilteredBooksScreen(
+            viewModel = koinViewModel<FilteredBooksViewModel>(),
+            labels = androidFilteredBooksLabels(),
+            minCellSize = coverGridMinCell(),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
             },
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+            tileContent = { item, token, onClick ->
+                BookCoverTile(item = item, token = token, onClick = onClick)
+            },
         )
     }
     composable(
@@ -319,6 +342,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
         ),
     ) { backStackEntry ->
         AnnotationSearchResultsScreen(
+            viewModel = koinViewModel<AnnotationSearchViewModel>(),
+            labels = androidAnnotationSearchLabels(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onAnnotationSelected = { result ->
                 val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")

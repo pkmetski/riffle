@@ -14,6 +14,7 @@ import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.isExpandedWidth
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.source.ui.AddSourceScreen
@@ -54,9 +55,15 @@ fun SourceOnboardingHost(
 
     var step by remember { mutableStateOf<OnboardingStep>(OnboardingStep.Picker) }
 
+    // iOS used to hardcode `false` at all four of these call sites, so an iPad — in landscape, in
+    // Split View, or a 12.9" in portrait — rendered the phone layout and stretched the credential
+    // form edge to edge. Android reads the same predicate from its `WindowSizeClass`
+    // (`app/.../navigation/SourceNavGraph.kt`); both index on the 840dp Expanded breakpoint.
+    val expandedWidth = isExpandedWidth()
+
     when (val current = step) {
         OnboardingStep.Picker -> SourceTypePickerScreen(
-            isExpandedWidth = false,
+            isExpandedWidth = expandedWidth,
             onNavigateBack = onCancelled,
             onPick = { type ->
                 when {
@@ -84,7 +91,7 @@ fun SourceOnboardingHost(
             // ViewModel with the right `type` route param (mirrors Android's nav-arg behaviour).
             val viewModel = remember(current.type) { addSourceViewModel(current.type) }
             AddSourceScreen(
-                isExpandedWidth = false,
+                isExpandedWidth = expandedWidth,
                 onNavigateBack = { step = OnboardingStep.Picker },
                 onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending) },
                 onAutoCompleted = onFinished,
@@ -94,7 +101,7 @@ fun SourceOnboardingHost(
 
         is OnboardingStep.Confirm -> SingletonSourceConfirmScreen(
             type = current.type,
-            isExpandedWidth = false,
+            isExpandedWidth = expandedWidth,
             onNavigateBack = { step = OnboardingStep.Picker },
             onInstall = {
                 singletonInstaller.install(current.type)
@@ -105,7 +112,7 @@ fun SourceOnboardingHost(
         is OnboardingStep.SelectLibraries -> {
             val viewModel = remember { selectLibrariesViewModel() }
             SelectLibrariesScreen(
-                isExpandedWidth = false,
+                isExpandedWidth = expandedWidth,
                 pending = current.pending,
                 onNavigateBack = { step = OnboardingStep.Picker },
                 onContinueComplete = onFinished,

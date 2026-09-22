@@ -8,7 +8,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.readersettings.BehaviorSection
-import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.feature.designsystem.SettingsSectionHeader
 
 @Composable
 internal fun AppBehaviorSection(

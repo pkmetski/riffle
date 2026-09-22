@@ -46,6 +46,15 @@ class ReaderAnnotationEditor(
     private val spinePositionCounts: () -> List<Int>,
     /** The reader's configured orientation, for the bookmark epsilon. */
     private val orientation: () -> ReaderOrientation,
+    /**
+     * Live `viewportSize / chapterSize` per normalised href, from
+     * [ReadiumSwiftNavigator.viewportFractionEvents].
+     *
+     * The highest-priority input to [bookmarkEpsFor], and the reason the corner ribbon used to
+     * stay lit across three or four pages on iOS: this was hardcoded to `emptyMap()`, so the
+     * epsilon always fell through to the position-count proxy or the flat 5% fallback.
+     */
+    private val viewportFractionByHref: () -> Map<String, Double>,
 ) {
 
     /**
@@ -218,7 +227,7 @@ class ReaderAnnotationEditor(
         val eps = bookmarkEpsFor(
             orientation = orientation(),
             spineCounts = spineHrefs() to spinePositionCounts(),
-            viewportFractionByHref = emptyMap(),
+            viewportFractionByHref = viewportFractionByHref(),
             chapterHref = hrefNorm,
         )
         return annotations().firstOrNull { a ->

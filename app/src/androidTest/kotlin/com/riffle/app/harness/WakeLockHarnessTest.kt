@@ -138,9 +138,9 @@ class WakeLockHarnessTest : KoinTest {
         composeTestRule.onNodeWithContentDescription("All Books").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
 
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
@@ -176,9 +176,9 @@ class WakeLockHarnessTest : KoinTest {
         composeTestRule.onNodeWithContentDescription("All Books").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
 
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
@@ -214,7 +214,7 @@ class WakeLockHarnessTest : KoinTest {
         composeTestRule.onNodeWithContentDescription("All Books").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
         // Open navigation drawer and go to Settings
         composeTestRule.onNodeWithText("Settings").performClick()
@@ -223,9 +223,9 @@ class WakeLockHarnessTest : KoinTest {
 
     private fun openFirstBook() {
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
 
         composeTestRule.waitUntil(timeoutMillis = 20_000) {

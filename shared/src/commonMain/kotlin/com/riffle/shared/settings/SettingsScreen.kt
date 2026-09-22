@@ -47,6 +47,8 @@ import com.riffle.core.domain.comic.asComicBackgroundTheme
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
+import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.settings.AppUpdateStatus
@@ -261,7 +263,7 @@ private fun MainSettingsContent(
         )
 
         // ── Appearance ───────────────────────────────────────────────────────────────────
-        SectionHeader("Appearance")
+        SettingsSectionHeader("Appearance")
         SettingsRow(label = "App Theme", subtitle = appTheme.label())
         Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, bottom = 8.dp)) {
             AppTheme.entries.forEach { theme ->
@@ -279,7 +281,7 @@ private fun MainSettingsContent(
         }
 
         // ── Reading ───────────────────────────────────────────────────────────────────────
-        SectionHeader("Reading")
+        SettingsSectionHeader("Reading")
         SettingsDrillInRow("Formatting", ReaderSettingsSummaries.formattingSummary(globalFormatting)) { onOpenPanel(SettingsPanel.Formatting) }
         SettingsDrillInRow("Display", ReaderSettingsSummaries.displaySummary(globalFormatting)) { onOpenPanel(SettingsPanel.Display) }
         SettingsDrillInRow("Auto-scroll", ReaderSettingsSummaries.autoScrollSummary(globalFormatting)) {
@@ -295,20 +297,20 @@ private fun MainSettingsContent(
         }
 
         // ── Listening ─────────────────────────────────────────────────────────────────────
-        SectionHeader("Listening")
+        SettingsSectionHeader("Listening")
         SettingsDrillInRow(
             "Preferences",
             listeningSummary(speed, skip, rewind),
         ) { onOpenPanel(SettingsPanel.Listening) }
 
         // ── Comics ────────────────────────────────────────────────────────────────────────
-        SectionHeader("Comics")
+        SettingsSectionHeader("Comics")
         SettingsDrillInRow("Display", comicDisplaySummary(globalComicFormatting)) { onOpenPanel(SettingsPanel.ComicDisplay) }
 
         // ── Readaloud ─────────────────────────────────────────────────────────────────────
         val storytellerServers = servers.filter { it.serverType == ServerType.STORYTELLER_SERVICE }
         if (storytellerServers.isNotEmpty()) {
-            SectionHeader("Readaloud")
+            SettingsSectionHeader("Readaloud")
             storytellerServers.forEach { st ->
                 SettingsRow(
                     label = st.serverType.label,
@@ -331,7 +333,7 @@ private fun MainSettingsContent(
         )
 
         // ── Behavior ──────────────────────────────────────────────────────────────────────
-        SectionHeader("Behavior")
+        SettingsSectionHeader("Behavior")
         ToggleSettingsRow(
             label = "Keep screen on while reading",
             checked = keepScreenOn,
@@ -344,7 +346,7 @@ private fun MainSettingsContent(
         // the iOS UI is gone.
 
         // ── App Version ───────────────────────────────────────────────────────────────────
-        SectionHeader("App Version")
+        SettingsSectionHeader("App Version")
         SettingsRow(
             label = "Version",
             subtitle = AppUpdateStatus.statusText(appUpdateState, viewModel.installedVersionName),
@@ -353,7 +355,7 @@ private fun MainSettingsContent(
         )
 
         // ── Diagnostics ───────────────────────────────────────────────────────────────────
-        SectionHeader("Diagnostics")
+        SettingsSectionHeader("Diagnostics")
         SettingsRow(
             label = "Crash Reports",
             subtitle = if (crashReports.isEmpty()) "No crashes recorded" else "${crashReports.size} report(s)",
@@ -363,7 +365,7 @@ private fun MainSettingsContent(
 
         // ── Developer Options (unlocked by tapping version 7 times) ───────────────────────
         if (developerModeEnabled) {
-            SectionHeader("Developer Options")
+            SettingsSectionHeader("Developer Options")
             SettingsRow(label = "GitHub PAT", subtitle = "Tap to edit")
         }
 
@@ -401,7 +403,7 @@ private fun PanelScaffold(title: String, onDismiss: () -> Unit, content: @Compos
 
 @Composable
 private fun FormattingPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
-    PanelSection("Font Size")
+    SettingsSectionHeader("Font Size")
     StepperRow(
         // roundToInt, not toInt: the summary row on the previous screen goes through
         // ReaderSettingsSummaries, so a truncating stepper here made the same scale read 115% up
@@ -410,26 +412,26 @@ private fun FormattingPanelContent(prefs: FormattingPreferences, onPrefsChange: 
         onDecrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize - 0.1f).coerceAtLeast(0.5f))) },
         onIncrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize + 0.1f).coerceAtMost(3.0f))) },
     )
-    PanelSection("Font Family")
+    SettingsSectionHeader("Font Family")
     ChipRow(
         options = fontFamilyChipOptions,
         selected = prefs.fontFamily,
         label = { ReaderSettingsSummaries.fontFamilyLabel(it) },
         onSelect = { onPrefsChange(prefs.copy(fontFamily = it)) },
     )
-    PanelSection("Line Spacing")
+    SettingsSectionHeader("Line Spacing")
     StepperRow(
         label = ReaderSettingsSummaries.lineSpacingCaption(prefs.lineSpacing),
         onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f))) },
         onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(3.0f))) },
     )
-    PanelSection("Margins")
+    SettingsSectionHeader("Margins")
     StepperRow(
         label = ReaderSettingsSummaries.marginsCaption(prefs.margins),
         onDecrement = { onPrefsChange(prefs.copy(margins = (prefs.margins - 0.1f).coerceAtLeast(0.0f))) },
         onIncrement = { onPrefsChange(prefs.copy(margins = (prefs.margins + 0.1f).coerceAtMost(2.0f))) },
     )
-    PanelSection("Options")
+    SettingsSectionHeader("Options")
     PanelToggleRow("Justify text", prefs.justifyText) { onPrefsChange(prefs.copy(justifyText = it)) }
 }
 
@@ -438,28 +440,28 @@ private fun FormattingPanelContent(prefs: FormattingPreferences, onPrefsChange: 
 // On-Screen Info switches below are the only proof that the iOS Display panel offers them, and
 // they cannot be asserted through a derivation.
 internal fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
-    PanelSection("Reading Mode")
+    SettingsSectionHeader("Reading Mode")
     ChipRow(
         options = readingModeChipOptions,
         selected = prefs.orientation,
         label = { ReaderSettingsSummaries.orientationWord(it) },
         onSelect = { onPrefsChange(prefs.copy(orientation = it)) },
     )
-    PanelSection("Landscape")
+    SettingsSectionHeader("Landscape")
     PanelToggleRow("Force paginated in landscape", prefs.forcePaginatedInLandscape) {
         onPrefsChange(prefs.copy(forcePaginatedInLandscape = it))
     }
     PanelToggleRow("Double-page spread in landscape", prefs.doublePageSpread) {
         onPrefsChange(prefs.copy(doublePageSpread = it))
     }
-    PanelSection("Reader Theme")
+    SettingsSectionHeader("Reader Theme")
     ChipRow(
         options = readerThemeChipOptions,
         selected = prefs.theme,
         label = { ReaderSettingsSummaries.themeLabel(it) },
         onSelect = { onPrefsChange(prefs.copy(theme = it)) },
     )
-    PanelSection("Auto Theme Mode")
+    SettingsSectionHeader("Auto Theme Mode")
     // "Time based"/"App theme" — the same words the Display summary row one screen up renders.
     // These chips used to read "Schedule"/"Follow app theme", so the same setting was named two
     // different things on the same screen.
@@ -472,7 +474,7 @@ internal fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (F
     // On-Screen Info — the five switches behind the chapter-map overlay the iOS reader now
     // renders (:feature:reader-ui's ChapterMapOverlay, mounted by IosEpubReaderScreen). Same
     // five flags, same order and same enablement rule as Android's DisplaySection.
-    PanelSection("On-Screen Info")
+    SettingsSectionHeader("On-Screen Info")
     PanelToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
     PanelToggleRow(
         label = "Colored chapter map",
@@ -497,11 +499,11 @@ internal fun DisplayPanelContent(prefs: FormattingPreferences, onPrefsChange: (F
 // assertable by driving the real panel.
 @Composable
 internal fun AutoScrollPanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
-    PanelSection("Auto-scroll")
+    SettingsSectionHeader("Auto-scroll")
     PanelToggleRow("Show auto-scroll toggle in reader", prefs.showAutoScroll) {
         onPrefsChange(prefs.copy(showAutoScroll = it))
     }
-    PanelSection("Speed (WPM)")
+    SettingsSectionHeader("Speed (WPM)")
     // AutoScrollSpeed owns the range and the snap-to-10 rule; going through it rather than
     // hand-rolling the arithmetic is what keeps the stepper, the HUD pill's nudges and the
     // ticker agreeing on what a legal speed is.
@@ -530,7 +532,7 @@ internal const val CADENCE_UNSUPPORTED_NOTE: String =
 // colour chips are only assertable by driving the real panel.
 @Composable
 internal fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (FormattingPreferences) -> Unit) {
-    PanelSection(CADENCE_PANEL_TITLE)
+    SettingsSectionHeader(CADENCE_PANEL_TITLE)
     if (!prefs.cadencePlatformSupported) {
         BasicText(
             text = CADENCE_UNSUPPORTED_NOTE,
@@ -542,7 +544,7 @@ internal fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (F
     PanelToggleRow("Show cadence toggle in reader", prefs.showCadence) {
         onPrefsChange(prefs.copy(showCadence = it))
     }
-    PanelSection("Speed (WPM)")
+    SettingsSectionHeader("Speed (WPM)")
     // AutoScrollSpeed owns the 80–600 range and the snap-to-10 rule, and Cadence deliberately
     // reuses it (issue #403) so the stepper, the HUD pill's nudges and the ticker agree on what
     // a legal speed is. The version of this panel that was removed hand-rolled ±10 clamped to
@@ -556,7 +558,7 @@ internal fun CadencePanelContent(prefs: FormattingPreferences, onPrefsChange: (F
             onPrefsChange(prefs.copy(cadenceWpm = AutoScrollSpeed.of(prefs.cadenceWpm + AutoScrollSpeed.STEP_WPM).wpm))
         },
     )
-    PanelSection("Highlight Color")
+    SettingsSectionHeader("Highlight Color")
     // Keyed on the HighlightColor value, never on its rendered label — and the options come from
     // the enum, so the picker cannot offer a colour the reader cannot paint.
     ChipRow(
@@ -578,7 +580,7 @@ private fun ListeningPanelContent(
     onRewindChange: (Int) -> Unit,
     onRewindOnResumeChange: (Int) -> Unit,
 ) {
-    PanelSection("Playback Speed")
+    SettingsSectionHeader("Playback Speed")
     // PlaybackSpeed is the domain's range and snap rule (0.5–3.0 in steps of 0.05). The private
     // arithmetic here truncated to one decimal, so 0.75 rendered "0.7×", and clamped at 4.0 —
     // a full 1.0× past what the player accepts.
@@ -589,20 +591,20 @@ private fun ListeningPanelContent(
     )
     // The bounds come from SkipIntervals, which is also what clamps the value on its way to the
     // transport — so the stepper cannot offer an interval the player would refuse.
-    PanelSection("Skip Forward (seconds)")
+    SettingsSectionHeader("Skip Forward (seconds)")
     StepperRow(
         label = "${skipIntervalSeconds}s",
         onDecrement = { onSkipChange((skipIntervalSeconds - SKIP_STEP_SECONDS).coerceAtLeast(SkipIntervals.MIN_SECONDS)) },
         onIncrement = { onSkipChange((skipIntervalSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
     )
-    PanelSection("Rewind (seconds)")
+    SettingsSectionHeader("Rewind (seconds)")
     StepperRow(
         label = "${rewindIntervalSeconds}s",
         onDecrement = { onRewindChange((rewindIntervalSeconds - SKIP_STEP_SECONDS).coerceAtLeast(SkipIntervals.MIN_SECONDS)) },
         onIncrement = { onRewindChange((rewindIntervalSeconds + SKIP_STEP_SECONDS).coerceAtMost(SkipIntervals.MAX_SECONDS)) },
     )
     // Floors at 0, not MIN_SECONDS: 0 means "do not rewind on resume" and must stay reachable.
-    PanelSection("Rewind on Resume (seconds)")
+    SettingsSectionHeader("Rewind on Resume (seconds)")
     StepperRow(
         label = "${rewindOnResumeSeconds}s",
         onDecrement = { onRewindOnResumeChange((rewindOnResumeSeconds - SKIP_STEP_SECONDS).coerceAtLeast(0)) },
@@ -618,7 +620,7 @@ private fun ComicDisplayPanelContent(
     prefs: ComicFormattingPreferences,
     onPrefsChange: (ComicFormattingPreferences) -> Unit,
 ) {
-    PanelSection("Background Theme")
+    SettingsSectionHeader("Background Theme")
     // Options and selection come from core:domain, the same set Android's ThemeChipRows renders
     // with includeAuto = true. This row used to offer the three concrete chips only and select on
     // the raw stored value, so a stored Auto (or DarkDim) highlighted nothing at all.
@@ -628,7 +630,7 @@ private fun ComicDisplayPanelContent(
         label = { ReaderSettingsSummaries.themeLabel(it) },
         onSelect = { onPrefsChange(prefs.copy(backgroundTheme = it.asComicBackgroundTheme())) },
     )
-    PanelSection("Panel View")
+    SettingsSectionHeader("Panel View")
     PanelToggleRow("Enable panel view", prefs.panelViewOn) { onPrefsChange(prefs.copy(panelViewOn = it)) }
     if (prefs.panelViewOn) {
         // Order and wording from PanelOverflowOptions, the same table Android's radio group reads.
@@ -645,30 +647,12 @@ private fun ComicDisplayPanelContent(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
     }
-    PanelSection("HUD")
+    SettingsSectionHeader("HUD")
     PanelToggleRow("Reading progress", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
     PanelToggleRow("Page numbers", prefs.showPageProgress) { onPrefsChange(prefs.copy(showPageProgress = it)) }
 }
 
 // ── Primitive row components ──────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun SectionHeader(title: String) {
-    BasicText(
-        text = title,
-        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1565C0)),
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-    )
-}
-
-@Composable
-private fun PanelSection(title: String) {
-    BasicText(
-        text = title,
-        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1565C0)),
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-    )
-}
 
 @Composable
 private fun SettingsRow(

@@ -12,6 +12,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
+import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibraryItemDetailUiState
 import kotlin.test.Test
 
@@ -50,11 +51,14 @@ class ItemDetailDownloadMountTest {
         setContent {
             ReadyContent(
                 state = readyState(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
                 downloadControls = { BasicText("DOWNLOAD-SLOT") },
                 downloadState = DownloadState.NotDownloaded,
+                onAddToPlaylist = null,
+                onFacet = { _, _ -> },
             )
         }
         onNodeWithText("DOWNLOAD-SLOT").assertIsDisplayed()
@@ -66,11 +70,14 @@ class ItemDetailDownloadMountTest {
         setContent {
             ReadyContent(
                 state = readyState(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
                 downloadControls = {},
                 downloadState = state,
+                onAddToPlaylist = null,
+                onFacet = { _, _ -> },
             )
         }
         state = DownloadState.Downloaded
@@ -86,11 +93,14 @@ class ItemDetailDownloadMountTest {
         setContent {
             ReadyContent(
                 state = readyState(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
                 downloadControls = {},
                 downloadState = state,
+                onAddToPlaylist = null,
+                onFacet = { _, _ -> },
             )
         }
         state = DownloadState.NotDownloaded
@@ -103,11 +113,14 @@ class ItemDetailDownloadMountTest {
         setContent {
             ReadyContent(
                 state = readyState(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
                 downloadControls = {},
                 downloadState = DownloadState.Downloaded,
+                onAddToPlaylist = null,
+                onFacet = { _, _ -> },
             )
         }
         onNodeWithText("Download complete").assertDoesNotExist()

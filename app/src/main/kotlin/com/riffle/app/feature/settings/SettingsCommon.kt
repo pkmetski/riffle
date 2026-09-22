@@ -31,21 +31,6 @@ import androidx.compose.ui.unit.dp
 import com.riffle.feature.settings.AnnotationSyncRowState
 
 /**
- * The colored header + divider pair that opens every top-level section on the Settings screen.
- * Extracting it removes an 8× copy-paste and locks the visual weight of every section header.
- */
-@Composable
-internal fun SettingsSectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-    HorizontalDivider()
-}
-
-/**
  * A clickable "opens a full-screen or bottom-sheet drill-in" row with a right-aligned "Edit" text
  * button — the shape used by every reader/pacing/listening panel row. Both the row body and the
  * trailing text button call [onClick] so the whole row is a valid tap target.

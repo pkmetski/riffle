@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.PendingSource
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings
@@ -60,7 +62,7 @@ fun SelectLibrariesScreen(
                 title = { Text(stringResource(Res.string.ui_select_libraries)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(SourceUiIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
             )

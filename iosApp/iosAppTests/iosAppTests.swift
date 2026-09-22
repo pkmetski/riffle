@@ -82,12 +82,20 @@ final class IosAppTests: AbsHarnessTestCase {
     func testCollectionTileNavigatesToDetailAndBackReturns() throws {
         waitForLibraryToLoad()
 
+        // Reached through the Collections tab rather than the Home tab's Collections shelf.
+        // That shelf is the last item of a LazyColumn, so whether it is composed at all depends
+        // on exactly where the scroll lands — it happened to fit on the first screenful until
+        // the cover tiles grew a title/author caption, and scrolling to it is unreliable because
+        // a vertical drag starting over one of the horizontal cover shelves is swallowed by that
+        // `LazyRow`. The tab is the canonical way into a collection and is always present. The
+        // claim is unchanged: a collection is reachable in the library and tapping it opens
+        // collection detail.
+        let collectionsTab = app.buttons["Collections"].firstMatch
+        XCTAssertTrue(collectionsTab.waitForExistence(timeout: 15), "Collections tab must be present")
+        collectionsTab.tap()
+
         let collectionTile = app.buttons[StubAbsServer.testCollectionName].firstMatch
         XCTAssertTrue(collectionTile.waitForExistence(timeout: 15), "Collection tile must appear in library")
-        for _ in 0..<5 {
-            if collectionTile.isHittable { break }
-            app.swipeUp()
-        }
         XCTAssertTrue(collectionTile.isHittable, "Collection tile must be hittable before tap")
         collectionTile.tap()
 
@@ -145,12 +153,20 @@ final class IosAppTests: AbsHarnessTestCase {
     func testItemTapInCollectionDetailNavigatesToItemDetail() throws {
         waitForLibraryToLoad()
 
+        // Reached through the Collections tab rather than the Home tab's Collections shelf.
+        // That shelf is the last item of a LazyColumn, so whether it is composed at all depends
+        // on exactly where the scroll lands — it happened to fit on the first screenful until
+        // the cover tiles grew a title/author caption, and scrolling to it is unreliable because
+        // a vertical drag starting over one of the horizontal cover shelves is swallowed by that
+        // `LazyRow`. The tab is the canonical way into a collection and is always present. The
+        // claim is unchanged: a collection is reachable in the library and tapping it opens
+        // collection detail.
+        let collectionsTab = app.buttons["Collections"].firstMatch
+        XCTAssertTrue(collectionsTab.waitForExistence(timeout: 15), "Collections tab must be present")
+        collectionsTab.tap()
+
         let collectionTile2 = app.buttons[StubAbsServer.testCollectionName].firstMatch
         XCTAssertTrue(collectionTile2.waitForExistence(timeout: 15), "Collection tile must appear in library")
-        for _ in 0..<5 {
-            if collectionTile2.isHittable { break }
-            app.swipeUp()
-        }
         XCTAssertTrue(collectionTile2.isHittable, "Collection tile must be hittable before tap")
         collectionTile2.tap()
 
