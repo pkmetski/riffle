@@ -512,9 +512,11 @@ class AnnotationFocusHarnessTest : KoinTest {
 
     private fun navigateWithSearch(phrase: String) {
         showTopAppBar()
-        // Back appears before Search in some layouts; wait for Search explicitly to avoid a
-        // timing flake where performClick fires before the icon is in the semantic tree.
-        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+        // The Search icon is gated on ReaderState.Ready. During a chapter navigation triggered by
+        // the previous search result, the reader briefly re-enters a loading state and Search
+        // disappears from the semantic tree. Wait up to 15 s (matching the chapter-load budget
+        // used elsewhere in this test) before declaring failure.
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
