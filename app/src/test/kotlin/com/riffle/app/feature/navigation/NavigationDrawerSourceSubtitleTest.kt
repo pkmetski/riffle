@@ -23,6 +23,34 @@ class NavigationDrawerSourceSubtitleTest {
     }
 
     @Test
+    fun `radio_es source switcher subtitle shows static descriptor subtitle`() {
+        val source = source(
+            type = SourceType.RADIO_ES,
+            url = "https://radio-es.invalid",
+        )
+
+        assertEquals("Podcasts & radio", sourceSwitcherSubtitle(source, version = null))
+    }
+
+    @Test
+    fun `every non-network-host source with a descriptor subtitle shows it in the switcher`() {
+        WebSourceDescriptors.all
+            .filter { !it.hasNetworkHost && it.subtitle != null }
+            .forEach { descriptor ->
+                val source = source(
+                    type = descriptor.type,
+                    url = descriptor.urlPlaceholder ?: "https://${descriptor.type.name.lowercase()}.invalid",
+                )
+
+                assertEquals(
+                    "${descriptor.type} must show its static subtitle in the source switcher",
+                    descriptor.subtitle,
+                    sourceSwitcherSubtitle(source, version = null),
+                )
+            }
+    }
+
+    @Test
     fun `every network-host source switcher subtitle includes configured address`() {
         WebSourceDescriptors.all
             .filter { it.hasNetworkHost }

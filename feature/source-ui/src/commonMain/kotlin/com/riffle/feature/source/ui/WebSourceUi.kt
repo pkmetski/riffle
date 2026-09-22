@@ -42,6 +42,7 @@ import com.riffle.feature.source.ui.generated.resources.ui_source_local_files_su
 import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_oreilly_subtitle
 import com.riffle.feature.source.ui.generated.resources.ui_source_radio_es_picker_blurb
+import com.riffle.feature.source.ui.generated.resources.ui_source_radio_es_subtitle
 import com.riffle.feature.source.ui.generated.resources.ui_source_storyteller_help_text
 import com.riffle.feature.source.ui.generated.resources.ui_source_url
 import org.jetbrains.compose.resources.StringResource
@@ -75,9 +76,9 @@ internal fun sourceSubtitleRes(type: SourceType): StringResource? = when (type) 
     SourceType.CHITANKA -> Res.string.ui_source_chitanka_subtitle
     SourceType.GUTENBERG -> Res.string.ui_source_gutenberg_subtitle
     SourceType.OREILLY -> Res.string.ui_source_oreilly_subtitle
+    SourceType.RADIO_ES -> Res.string.ui_source_radio_es_subtitle
     SourceType.ABS,
     SourceType.KOMGA,
-    SourceType.RADIO_ES,
     -> null
 }
 

@@ -68,8 +68,12 @@ interface WebSourceDescriptor {
      */
     val toReadSupport: ToReadSupport
 
-    /** Optional static subtitle. `null` when the subtitle depends on runtime data (host, version). */
-    val subtitle: String? get() = null
+    /**
+     * Static subtitle shown in the source switcher. `null` for network-host sources whose
+     * subtitle is the configured address at runtime. Every descriptor must declare this
+     * explicitly — no default — so a new source without a subtitle is a compile error.
+     */
+    val subtitle: String?
 
     /** True when only one instance can be installed per device (Chitanka, Gutenberg, LocalFiles). */
     val isSingleton: Boolean get() = true
@@ -277,6 +281,7 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.ABS
     override val displayName = "Audiobookshelf"
     override val toReadSupport = ToReadSupport.Synced
+    override val subtitle = null
     override val isSingleton = false
     override val hasCredentials = true
     override val hasNetworkHost = true
@@ -397,6 +402,7 @@ object KomgaWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.KOMGA
     override val displayName = "Komga"
     override val toReadSupport = ToReadSupport.Synced
+    override val subtitle = null
     override val isSingleton = false
     override val hasCredentials = true
     override val hasNetworkHost = true
@@ -468,7 +474,7 @@ object RadioEsWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.RADIO_ES
     override val displayName = "radio.es"
     override val toReadSupport = ToReadSupport.LocalOnly
-    override val subtitle = "Podcast directory"
+    override val subtitle = "Podcasts & radio"
     override val supportingHosts = "radio.es · prod.radio-api.net"
     override val addRoute = "add_radio_es"
     override val browseRoutePrefix = "radio_es_browse"
