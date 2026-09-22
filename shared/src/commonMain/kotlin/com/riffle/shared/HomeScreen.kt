@@ -53,14 +53,14 @@ import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.downloads.DownloadsScreen
-import com.riffle.shared.library.BookCoverTile
+import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.library.SeriesDetailScreen
-import com.riffle.shared.library.coverGridMinCell
 import com.riffle.shared.settings.SettingsScreen
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.UnboundedBrowseScreen
