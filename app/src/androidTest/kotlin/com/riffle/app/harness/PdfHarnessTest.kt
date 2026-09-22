@@ -69,9 +69,9 @@ class PdfHarnessTest : KoinTest {
         addServerAndBrowseLibrary()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
 
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
@@ -114,9 +114,9 @@ class PdfHarnessTest : KoinTest {
         addServerAndBrowseLibrary()
 
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
 
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
