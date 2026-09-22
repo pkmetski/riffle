@@ -16,13 +16,13 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
-import com.riffle.app.feature.library.BookCoverTile
+import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemCard
 import com.riffle.app.feature.library.androidAnnotationSearchLabels
 import com.riffle.app.feature.library.androidFilteredBooksLabels
-import com.riffle.app.feature.library.coverGridMinCellSize
+import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.feature.library.LibrarySectionType
@@ -320,7 +320,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
         FilteredBooksScreen(
             viewModel = koinViewModel<FilteredBooksViewModel>(),
             labels = androidFilteredBooksLabels(),
-            minCellSize = coverGridMinCellSize(),
+            minCellSize = coverGridMinCell(),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
             },
