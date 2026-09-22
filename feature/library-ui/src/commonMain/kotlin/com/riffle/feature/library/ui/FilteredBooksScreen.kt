@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
-import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.facetTitle
 import com.riffle.feature.source.ui.OfflineBanner

@@ -45,11 +45,11 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.library.AnnotationSearchResult
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.AudiobookBookmarkSearchResult
 import com.riffle.feature.reader.ui.formatTemplate
-import com.riffle.feature.designsystem.asAuthHeader
 
 /**
  * Every annotation and audiobook bookmark in a library matching a search query. Rendered by both
