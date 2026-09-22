@@ -511,6 +511,9 @@ class AnnotationFocusHarnessTest : KoinTest {
     }
 
     private fun navigateWithSearch(phrase: String) {
+        // Ensure the loading spinner from any in-progress chapter navigation is gone before
+        // showing chrome — TAG_READER_READY alone does not guarantee ReaderState.Ready.
+        waitForReaderReady()
         showTopAppBar()
         // The Search icon is gated on ReaderState.Ready. During a chapter navigation triggered by
         // the previous search result, the reader briefly re-enters a loading state and Search
