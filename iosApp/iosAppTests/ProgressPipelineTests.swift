@@ -84,8 +84,8 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
         // Position restore path: the player must seek to the saved position before showing its
         // back control. After AudiobookPlayerTests run in the same simulator clone, resource
-        // pressure makes this seek take longer — 60 s avoids a false timeout flake.
-        let reopenedBack = openReader(from: sameTile, in: app, timeout: 60)
+        // pressure makes this seek take longer — 90 s avoids a false timeout flake.
+        let reopenedBack = openReader(from: sameTile, in: app, timeout: 90)
         XCTAssertTrue(reopenedBack.exists, "\(kind) should re-open — position restore doesn't crash the screen")
     }
 
