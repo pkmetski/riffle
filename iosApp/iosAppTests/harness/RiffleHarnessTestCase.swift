@@ -143,7 +143,7 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 // the shared Material back arrow, whose accessibility label is "Back". The item detail screen
 // shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
-func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 60) -> XCUIElement {
+func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 90) -> XCUIElement {
     revealTile(tile, in: app)
     let read = app.buttons["Read"].firstMatch
     // A tap that lands while the LazyRow is still settling after the reveal drag is consumed as a

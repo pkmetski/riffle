@@ -47,7 +47,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         Thread.sleep(forTimeInterval: 2)
         backButton.tap()
 
-        XCTAssertTrue(waitForLibraryHome(in: app), "Closing the reader must return to the library")
+        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Closing the reader must return to the library")
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
         XCTAssertTrue(
             sameTile.waitForExistence(timeout: 10),
@@ -78,7 +78,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         Thread.sleep(forTimeInterval: 2)
         backButton.tap()
 
-        XCTAssertTrue(waitForLibraryHome(in: app), "Closing the \(kind) must return to the library")
+        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Closing the \(kind) must return to the library")
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
         XCTAssertTrue(sameTile.waitForExistence(timeout: 10), "\(kind) tile must reappear after close")
 

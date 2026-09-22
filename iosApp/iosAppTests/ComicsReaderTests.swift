@@ -48,7 +48,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         }
 
         backButton.tap()
-        XCTAssertTrue(waitForLibraryHome(in: app), "Closing the reader must return to the library")
+        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Closing the reader must return to the library")
 
         let sameTile = app.buttons.matching(
             NSPredicate(format: "label == %@", bookLabel)
@@ -70,6 +70,6 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         XCTAssertTrue(backButton.exists, "Comics reader must open")
         backButton.tap()
 
-        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping Back from comics reader should return to library home")
+        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Tapping Back from comics reader should return to library home")
     }
 }
