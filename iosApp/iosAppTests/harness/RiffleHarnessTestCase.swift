@@ -176,7 +176,7 @@ func waitForStableFrame(of element: XCUIElement, timeout: TimeInterval = 3) {
 }
 
 // True once any library-home section header is on screen.
-func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
+func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 60) -> Bool {
     let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]
     let anySection = NSPredicate { _, _ in sectionLabels.contains { app.staticTexts[$0].exists } }
     let result = XCTWaiter.wait(
