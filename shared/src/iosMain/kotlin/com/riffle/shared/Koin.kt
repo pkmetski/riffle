@@ -880,6 +880,7 @@ private fun iosLibraryModule(
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
     factory { params ->
@@ -893,6 +894,7 @@ private fun iosLibraryModule(
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
     factory { params ->
@@ -906,6 +908,7 @@ private fun iosLibraryModule(
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
 
