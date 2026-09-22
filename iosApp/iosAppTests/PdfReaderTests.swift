@@ -33,6 +33,8 @@ final class PdfReaderTests: AbsHarnessTestCase {
         XCTAssertTrue(backButton.exists, "PDF reader must open")
         backButton.tap()
 
-        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping Back from PDF reader should return to library home")
+        // After back-tap the nav stack unwinds and the library home must re-render. On a loaded
+        // CI runner the default 10 s is insufficient; match the budget used by other nav waits.
+        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Tapping Back from PDF reader should return to library home")
     }
 }

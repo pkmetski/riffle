@@ -181,8 +181,10 @@ final class SourcePickerTests: XCTestCase {
         let chipStrip = NSPredicate { _, _ in
             self.app.staticTexts["Not Started"].exists || self.app.staticTexts["All"].exists
         }
+        // On a loaded CI runner the Compose layout can take >60 s to settle after a cold-start
+        // install; 90 s provides headroom while remaining well under the overall job limit.
         XCTAssertEqual(
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chipStrip, object: nil)], timeout: 60),
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chipStrip, object: nil)], timeout: 90),
             .completed,
             "\(cardTitle) must open the unbounded browse surface, not the Room-backed library screen",
             file: file, line: line
@@ -192,7 +194,7 @@ final class SourcePickerTests: XCTestCase {
             !self.app.staticTexts["No items in this library"].exists
         }
         XCTAssertEqual(
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 60),
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 90),
             .completed,
             "\(cardTitle)'s catalogue must resolve to items or a real error — a permanently empty "
                 + "grid with no error is the #1071 §17 defect (no CatalogFactory registered)",

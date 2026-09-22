@@ -511,7 +511,17 @@ class AnnotationFocusHarnessTest : KoinTest {
     }
 
     private fun navigateWithSearch(phrase: String) {
+        // Ensure the loading spinner from any in-progress chapter navigation is gone before
+        // showing chrome — TAG_READER_READY alone does not guarantee ReaderState.Ready.
+        waitForReaderReady()
         showTopAppBar()
+        // The Search icon is gated on ReaderState.Ready. During a chapter navigation triggered by
+        // the previous search result, the reader briefly re-enters a loading state and Search
+        // disappears from the semantic tree. Wait up to 15 s (matching the chapter-load budget
+        // used elsewhere in this test) before declaring failure.
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
