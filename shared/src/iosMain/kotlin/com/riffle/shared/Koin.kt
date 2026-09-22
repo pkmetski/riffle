@@ -598,6 +598,7 @@ private fun iosLibraryModule(
             playlistsRepository = get(),
             contentCacheAccessStore = get(),
             progressSweep = ProgressSweepRunner { get<ProgressSweep>().run() },
+            sleepStopStore = get(),
         )
     }
 

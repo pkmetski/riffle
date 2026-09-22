@@ -6,6 +6,7 @@ import com.riffle.core.common.FileStore
 import com.riffle.core.common.IosRandomProvider
 import com.riffle.core.common.RandomProvider
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
+import com.riffle.core.data.IosAudiobookSleepStopStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.CatalogSyncSourceResolver
 import com.riffle.core.data.DaoDirtyBookmarkLedger
@@ -136,6 +137,7 @@ val iosDataModule = module {
     single<AudiobookPositionStore> { get<AudiobookPositionStoreImpl>() }
     single<SyncPositionStore<Double>> { get<AudiobookPositionStoreImpl>() }
     single<ReadaloudResumeStore> { ReadaloudResumeStoreImpl(get<ReadaloudResumePositionDao>(), get<Clock>()) }
+    single<com.riffle.core.domain.AudiobookSleepStopStore> { IosAudiobookSleepStopStoreImpl() }
 
     single { ReconcileLocks() }
     single { WebSourceLibraryItemUpserter(get<LibraryItemDao>()) }

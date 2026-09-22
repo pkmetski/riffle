@@ -55,6 +55,8 @@ class IosAudioPlayerController(
 
     private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     override val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
+    private val _sleepTimerFired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val sleepTimerFired: SharedFlow<Unit> = _sleepTimerFired.asSharedFlow()
 
     private var totalDurationSec: Double = 0.0
     private var spans: List<AudiobookTrackSpan> = emptyList()
@@ -189,6 +191,7 @@ class IosAudioPlayerController(
                         if (remaining <= 0) {
                             bridge.pause()
                             _sleepTimer.value = SleepTimerMode.None
+                            _sleepTimerFired.tryEmit(Unit)
                         } else {
                             _sleepTimer.value = SleepTimerMode.CountDown(remaining.coerceAtLeast(0))
                         }
@@ -208,6 +211,7 @@ class IosAudioPlayerController(
         sleepJob?.cancel()
         _sleepTimer.value = SleepTimerMode.None
         bridge.pause()
+        _sleepTimerFired.tryEmit(Unit)
     }
 
     override fun seekTo(absoluteSec: Double) {

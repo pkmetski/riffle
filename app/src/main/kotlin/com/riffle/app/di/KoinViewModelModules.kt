@@ -685,6 +685,7 @@ private val audiobookViewModelModule = module {
             playlistsRepository = get(),
             contentCacheAccessStore = get(),
             progressSweep = ProgressSweepRunner { get<com.riffle.core.sync.ProgressSweep>().run() },
+            sleepStopStore = get(),
         )
     }
 }
