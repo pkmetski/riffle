@@ -89,6 +89,8 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         XCTAssertTrue(backButton.exists, "Player screen must open")
         backButton.tap()
 
-        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping back from the player should return to library home")
+        // After back-tap the nav stack unwinds and the library home must re-render. On a loaded
+        // CI runner this can take >10s (the default); match the budget used by other nav waits.
+        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Tapping back from the player should return to library home")
     }
 }
