@@ -34,10 +34,10 @@ import com.riffle.feature.settings.LibraryUiItem
 import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.feature.settings.idsWithSwap
 import com.riffle.feature.settings.label
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.source.ui.ConfirmDestructiveDialog
 import com.riffle.feature.source.ui.MaterialGlyphs
 import com.riffle.feature.source.ui.SourceIcon
-import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_active
 import com.riffle.feature.source.ui.generated.resources.ui_add_folder

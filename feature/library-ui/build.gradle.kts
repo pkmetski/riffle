@@ -48,6 +48,7 @@ kotlin {
             api(project(":feature:library"))
             // RiffleTheme, DefaultCoverPlaceholder, CornerBookmarkIndicator — the shared chrome
             // both hosts already wrap their screens in.
+            api(project(":feature:design-system"))
             api(project(":feature:source-ui"))
             // Solely for `formatTemplate`, the shared expander for Android-style positional
             // string templates. It is the repo's only implementation and AGENTS.md forbids
