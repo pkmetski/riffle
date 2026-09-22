@@ -9,6 +9,7 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.DetailCapabilities
+import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibraryItemDetailUiState
 import kotlin.test.Test
@@ -58,9 +59,12 @@ class LibraryItemDetailFacetsTest {
         setContent {
             ReadyContent(
                 state = ready(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
+                downloadControls = {},
+                downloadState = DownloadState.NotDownloaded,
                 onAddToPlaylist = null,
                 onFacet = { facet, value -> selected = facet to value },
             )
@@ -77,9 +81,12 @@ class LibraryItemDetailFacetsTest {
         setContent {
             ReadyContent(
                 state = ready(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
+                downloadControls = {},
+                downloadState = DownloadState.NotDownloaded,
                 onAddToPlaylist = null,
                 onFacet = { facet, value -> selected += facet to value },
             )
@@ -101,9 +108,12 @@ class LibraryItemDetailFacetsTest {
         setContent {
             ReadyContent(
                 state = ready(author = "Ann Leckie, Becky Chambers"),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
+                downloadControls = {},
+                downloadState = DownloadState.NotDownloaded,
                 onAddToPlaylist = null,
                 onFacet = { facet, value -> selected = facet to value },
             )
@@ -122,9 +132,12 @@ class LibraryItemDetailFacetsTest {
         setContent {
             ReadyContent(
                 state = ready(author = "", genres = emptyList(), publishedYear = null, language = null),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
+                downloadControls = {},
+                downloadState = DownloadState.NotDownloaded,
                 onAddToPlaylist = null,
                 onFacet = { facet, value -> selected = facet to value },
             )
@@ -143,9 +156,12 @@ class LibraryItemDetailFacetsTest {
         setContent {
             ReadyContent(
                 state = ready(),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
+                downloadControls = {},
+                downloadState = DownloadState.NotDownloaded,
                 onAddToPlaylist = null,
                 onFacet = { _, _ -> },
             )
@@ -163,9 +179,12 @@ class LibraryItemDetailFacetsTest {
         setContent {
             ReadyContent(
                 state = ready(capabilities = DetailCapabilities.All),
+                token = "",
                 onBack = {},
                 onRead = {},
                 onToggleToRead = {},
+                downloadControls = {},
+                downloadState = DownloadState.NotDownloaded,
                 onAddToPlaylist = { opened = true },
                 onFacet = { _, _ -> },
             )
