@@ -138,9 +138,9 @@ final class ScrollProbeBridgeTests: XCTestCase {
 
     func testTheProbeReportsTheTopOfAFreshlyOpenedResource() {
         guard let bridge = openFixture(scroll: true) else { return }
-        let b = boundary(bridge)
+        let bounds = boundary(bridge)
         XCTAssertTrue(
-            b.atBackwardBoundary,
+            bounds.atBackwardBoundary,
             "a resource that has just opened is scrolled to its top; if the probe cannot see "
                 + "that, Continuous can never cross backwards into the previous chapter"
         )
