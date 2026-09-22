@@ -17,6 +17,7 @@
     <string name="ui_source_local_files_subtitle">на това устройство</string>
     <string name="ui_source_chitanka_subtitle">Българска публична библиотека</string>
     <string name="ui_source_gutenberg_subtitle">Електронни книги от общественото достояние</string>
+    <string name="ui_source_radio_es_subtitle">Подкасти и радио</string>
     <string name="ui_source_abs_picker_blurb">Поточно четене на електронни книги и слушане на аудиокниги от вашия Audiobookshelf сървър.</string>
     <string name="ui_source_local_files_picker_blurb">Четете EPUB и PDF файлове от папка на това устройство.</string>
     <string name="ui_source_chitanka_picker_blurb">Разглеждайте български електронни книги (chitanka.info) и аудиокниги (gramofonche).</string>

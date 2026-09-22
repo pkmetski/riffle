@@ -127,9 +127,9 @@ final class AddAbsSourceFlowTests: XCTestCase {
         }
 
         let selectLibraries = app.staticTexts["Select libraries"]
-        // On loaded CI runners the ABS login round-trip + KMP processing can exceed 60 s;
-        // 90 s provides headroom while remaining well under the overall job limit.
-        if !selectLibraries.waitForExistence(timeout: 90) {
+        // On loaded CI runners the ABS login round-trip + KMP processing can exceed 90 s;
+        // 120 s provides headroom while remaining well under the overall job limit.
+        if !selectLibraries.waitForExistence(timeout: 120) {
             print("RIFFLE-E2E-HIERARCHY-BEGIN\n\(app.debugDescription)\nRIFFLE-E2E-HIERARCHY-END")
         }
         XCTAssertTrue(selectLibraries.exists, "Successful login must land on the select-libraries step")

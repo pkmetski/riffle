@@ -143,6 +143,9 @@ class SharedSourceOnboardingTest {
         // Local files has a subtitle but no credentialed form — it is not a login-backed source.
         assertTrue(sourceSubtitleRes(SourceType.LOCAL_FILES) != null)
         assertNull(addSourceFormResources(SourceType.LOCAL_FILES, ServerType.AUDIOBOOKSHELF))
+        // radio.es has a subtitle (regression: it was null before this fix, causing the switcher
+        // row to show no subtext for radio.es while all other non-network-host sources had one).
+        assertTrue(sourceSubtitleRes(SourceType.RADIO_ES) != null)
     }
 
     @Test

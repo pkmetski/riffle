@@ -24,6 +24,7 @@
     <string name="ui_source_local_files_subtitle">on this device</string>
     <string name="ui_source_chitanka_subtitle">Bulgarian public library</string>
     <string name="ui_source_gutenberg_subtitle">Public-domain ebooks</string>
+    <string name="ui_source_radio_es_subtitle">Podcasts &amp; radio</string>
     <string name="ui_source_abs_picker_blurb">Stream ebooks and audiobooks from your Audiobookshelf server.</string>
     <string name="ui_source_local_files_picker_blurb">Read EPUBs and PDFs from a folder on this device.</string>
     <string name="ui_source_chitanka_picker_blurb">Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).</string>

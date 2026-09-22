@@ -11,6 +11,7 @@ import com.riffle.feature.source.ui.generated.resources.ui_source_komga_help_tex
 import com.riffle.feature.source.ui.generated.resources.ui_source_komga_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_local_files_picker_blurb
 import com.riffle.feature.source.ui.generated.resources.ui_source_local_files_subtitle
+import com.riffle.feature.source.ui.generated.resources.ui_source_radio_es_subtitle
 import com.riffle.feature.source.ui.generated.resources.ui_source_url
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,5 +40,10 @@ class WebSourceUiTest {
     fun `local files has localized subtitle but no credentialed add-source copy`() {
         assertEquals(Res.string.ui_source_local_files_subtitle, sourceSubtitleRes(SourceType.LOCAL_FILES))
         assertNull(addSourceFormResources(SourceType.LOCAL_FILES, ServerType.AUDIOBOOKSHELF))
+    }
+
+    @Test
+    fun `radio_es has localized subtitle`() {
+        assertEquals(Res.string.ui_source_radio_es_subtitle, sourceSubtitleRes(SourceType.RADIO_ES))
     }
 }

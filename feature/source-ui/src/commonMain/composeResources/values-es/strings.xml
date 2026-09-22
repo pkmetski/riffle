@@ -17,6 +17,7 @@
     <string name="ui_source_local_files_subtitle">en este dispositivo</string>
     <string name="ui_source_chitanka_subtitle">Biblioteca pública búlgara</string>
     <string name="ui_source_gutenberg_subtitle">Ebooks de dominio público</string>
+    <string name="ui_source_radio_es_subtitle">Podcasts y radio</string>
     <string name="ui_source_abs_picker_blurb">Reproduce en streaming ebooks y audiolibros desde tu servidor Audiobookshelf.</string>
     <string name="ui_source_local_files_picker_blurb">Lee archivos EPUB y PDF desde una carpeta de este dispositivo.</string>
     <string name="ui_source_chitanka_picker_blurb">Explora ebooks búlgaros (chitanka.info) y audiolibros (gramofonche).</string>
