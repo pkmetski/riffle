@@ -15,8 +15,9 @@ private const val DEFAULT_MARGINS = 1.0f
 
 /**
  * Maps Riffle's cross-format [FormattingPreferences] onto pdfium's native preference type.
- * PdfiumPreferences only supports 4 fields (fit, pageSpacing, readingProgression, scrollAxis) —
- * there is no backgroundColor/scroll/spread/offset. Theme, fontFamily, fontSize, lineSpacing,
+ * PdfiumPreferences supports fit, pageSpacing, readingProgression, scrollAxis, and (in 3.4.0+)
+ * scroll — but scroll/spread/backgroundColor/offset are managed at the engine level via
+ * PdfiumDefaults (see PdfReaderScreen). Theme, fontFamily, fontSize, lineSpacing,
  * justifyText, autoScrollWpm, and doublePageSpread have no pdfium equivalent and are ignored here.
  *
  * Nulls mean "defer to Readium's default" — critical so the mapper does not silently override

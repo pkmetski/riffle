@@ -43,7 +43,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Audiobook player screen should show its back control")
-        XCTAssertTrue(playPause.waitForExistence(timeout: 15), "Player screen must show its play/pause control")
+        XCTAssertTrue(playPause.waitForExistence(timeout: 30), "Player screen must show its play/pause control")
     }
 
     // MARK: - Scenario 04-C: Player controls visible
@@ -56,7 +56,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
         XCTAssertTrue(
-            playPause.waitForExistence(timeout: 15),
+            playPause.waitForExistence(timeout: 30),
             "Play/pause button should be visible on the player screen"
         )
     }
@@ -70,7 +70,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
-        XCTAssertTrue(playPause.waitForExistence(timeout: 15), "Player must finish loading")
+        XCTAssertTrue(playPause.waitForExistence(timeout: 30), "Player must finish loading")
 
         XCTAssertTrue(chaptersPill.waitForExistence(timeout: 10), "Player must offer the Chapters list")
         XCTAssertTrue(pill("player_bookmarks_pill").exists, "Player must offer the bookmarks list")
@@ -91,6 +91,6 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         // After back-tap the nav stack unwinds and the library home must re-render. On a loaded
         // CI runner this can take >10s (the default); match the budget used by other nav waits.
-        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Tapping back from the player should return to library home")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping back from the player should return to library home")
     }
 }

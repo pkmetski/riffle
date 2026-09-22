@@ -65,6 +65,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import org.readium.adapter.pdfium.navigator.PdfiumDefaults
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFactory
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
@@ -487,7 +488,7 @@ private fun PdfNavigatorViewContent(
             if (fm.findFragmentById(containerId) == null) {
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
-                    pdfEngineProvider = PdfiumEngineProvider(),
+                    pdfEngineProvider = PdfiumEngineProvider(defaults = PdfiumDefaults(scroll = true)),
                 ).createFragmentFactory(
                     initialLocator = latestLocator() ?: state.initialLocator,
                     initialPreferences = pdfiumPreferences,

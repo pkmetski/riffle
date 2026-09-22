@@ -45,7 +45,7 @@ import androidx.sqlite.execSQL
         LookupHistoryEntity::class,
         CoverGridScaleEntity::class,
     ],
-    version = 73,
+    version = 74,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1902,6 +1902,37 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `audiobook_positions` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        // Readium 3.4.0 fixed a PDFium page-position bug: positions were stored one too high
+        // (visible page 1 → position 2). Decrement the "position" field in every stored PDF locator
+        // so existing reading positions restore to the correct page after the engine upgrade.
+        val MIGRATION_73_74 = object : Migration(73, 74) {
+            private val positionRegex = Regex(""""position"\s*:\s*(\d+)""")
+
+            override fun migrate(db: SQLiteConnection) {
+                val rows = mutableListOf<Pair<Long, String>>()
+                db.query("SELECT rowid, cfi FROM reading_positions WHERE cfi LIKE '%\"application/pdf\"%'")
+                    .use { c ->
+                        while (c.moveToNext()) {
+                            rows.add(c.getLong(0) to c.getString(1))
+                        }
+                    }
+                for ((rowid, cfi) in rows) {
+                    val corrected = decrementPdfiumPosition(cfi) ?: continue
+                    db.execSQL(
+                        "UPDATE reading_positions SET cfi = ? WHERE rowid = ?",
+                        arrayOf<Any>(corrected, rowid),
+                    )
+                }
+            }
+
+            private fun decrementPdfiumPosition(json: String): String? {
+                val match = positionRegex.find(json) ?: return null
+                val position = match.groupValues[1].toLongOrNull() ?: return null
+                if (position <= 1L) return null
+                return json.replaceFirst(match.value, """"position": ${position - 1}""")
             }
         }
     }

@@ -28,11 +28,11 @@ class ReadiumVersionPinTest {
     @Test
     fun readiumIsPinnedToTheVersionWhereTheReadaloudHighlightIsVerified() {
         assertEquals(
-            "Readium was bumped from the pinned 3.3.0. Before accepting this, RE-VERIFY on a real " +
+            "Readium was bumped from the pinned 3.4.0. Before accepting this, RE-VERIFY on a real " +
                 "readaloud book (e.g. The Martian / Project Hail Mary): the synced highlight renders AND " +
                 "the reflowable page stays single-column. If verified good, update this expectation and " +
                 "the comment in gradle/libs.versions.toml.",
-            "3.3.0",
+            "3.4.0",
             BuildConfig.READIUM_VERSION,
         )
     }

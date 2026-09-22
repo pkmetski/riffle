@@ -33,7 +33,7 @@ final class LibraryGridAndTabsUITests: AbsHarnessTestCase {
     /// Same technique as `AdaptiveCoverGridTest`: read the rendered tile frames and count how
     /// many share the topmost row.
     func testAllBooksGridLaysOutMultipleColumnsPerRow() throws {
-        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Library home must load")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
 
         let allBooks = tab("All Books")
         XCTAssertTrue(allBooks.waitForExistence(timeout: 15), "The All Books tab must be present")
@@ -82,7 +82,7 @@ final class LibraryGridAndTabsUITests: AbsHarnessTestCase {
     /// All Books — which are unconditional — are present. A regression that hard-codes the bar
     /// would surface an Annotations tab onto an empty screen.
     func testTabBarOmitsTabsWithNoData() throws {
-        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Library home must load")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
 
         XCTAssertTrue(tab("Home").waitForExistence(timeout: 15), "Home is always visible")
         XCTAssertTrue(tab("All Books").exists, "All Books is always visible")
@@ -98,7 +98,7 @@ final class LibraryGridAndTabsUITests: AbsHarnessTestCase {
 
     /// Switching to a tab must actually change the content, not just the selection highlight.
     func testSelectingAllBooksSwitchesAwayFromTheHomeSections() throws {
-        XCTAssertTrue(waitForLibraryHome(in: app, timeout: 30), "Library home must load")
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
         // The Home tab shows section headers; All Books does not.
         let recentlyAdded = app.staticTexts["Recently Added"]
         XCTAssertTrue(recentlyAdded.waitForExistence(timeout: 20), "Home must show its section headers")
