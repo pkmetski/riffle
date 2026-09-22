@@ -21,7 +21,7 @@ security = "1.1.0"
 hilt = "2.60.1"
 koin = "4.2.2"
 acra = "5.13.1"
-# Pinned to latest (3.3.0). The readaloud highlight is now text-anchored so it's engine-independent
+# Pinned to latest (3.4.0). The readaloud highlight is now text-anchored so it's engine-independent
 # (Readium strips media-overlay spans regardless of version). Reflowable column defaults and decoration
 # positioning ARE version-sensitive, so ReadiumVersionPinTest fails on any bump — re-verify on a real
 # readaloud book (highlight renders + single column) before raising the pin. See ReadiumVersionPinTest.

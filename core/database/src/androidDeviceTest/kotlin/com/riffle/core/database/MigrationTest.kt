@@ -1994,6 +1994,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_70_71,
             RiffleDatabase.MIGRATION_71_72,
             RiffleDatabase.MIGRATION_72_73,
+            RiffleDatabase.MIGRATION_73_74,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3301,6 +3302,54 @@ class MigrationTest {
             db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'book2'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(1, cursor.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration73To74_decrementsStoredPdfiumPagePositions() {
+        helper.createDatabase(TEST_DB, 73).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            // PDF locator: position 5 (was stored as page 5 but actually page 4 due to the
+            // Readium 3.3.x off-by-one bug; after migration should be 4).
+            db.execSQL(
+                "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt, lastSyncedAt, deleted) " +
+                    """VALUES ('src1', 'pdf1', '{"href":"/book.pdf","type":"application/pdf","locations":{"position":5,"progression":0.04}}', 1000, 1000, 0)"""
+            )
+            // EPUB CFI: must be left unchanged.
+            db.execSQL(
+                "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt, lastSyncedAt, deleted) " +
+                    "VALUES ('src1', 'epub1', 'epubcfi(/6/2[chap01]!/4/2/1:0)', 1000, 1000, 0)"
+            )
+            // PDF locator at position 1: no correction (already minimal; decrementing to 0 is invalid).
+            db.execSQL(
+                "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt, lastSyncedAt, deleted) " +
+                    """VALUES ('src1', 'pdf2', '{"href":"/book.pdf","type":"application/pdf","locations":{"position":1,"progression":0.01}}', 1000, 1000, 0)"""
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 74, true, RiffleDatabase.MIGRATION_73_74
+        ).use { db ->
+            // PDF position 5 → 4
+            db.query("SELECT cfi FROM reading_positions WHERE itemId = 'pdf1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                val cfi = cursor.getString(0)
+                assertTrue("position should be decremented to 4", cfi.contains("\"position\": 4"))
+            }
+            // EPUB CFI unchanged
+            db.query("SELECT cfi FROM reading_positions WHERE itemId = 'epub1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("epubcfi(/6/2[chap01]!/4/2/1:0)", cursor.getString(0))
+            }
+            // PDF position 1 unchanged (no decrement below 1)
+            db.query("SELECT cfi FROM reading_positions WHERE itemId = 'pdf2'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                val cfi = cursor.getString(0)
+                assertTrue("position 1 must not be decremented", cfi.contains("\"position\":1"))
             }
         }
     }

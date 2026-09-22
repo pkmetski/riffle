@@ -237,7 +237,7 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     )
 
     // v3 -> v4: add tables for reading positions, audiobook positions and per-book formatting.
-    // DDL mirrors the Room entities column-for-column (schema v73 / Room entity definitions).
+    // DDL mirrors the Room entities column-for-column (schema v74 / Room entity definitions).
     private val POSITION_AND_PREFS_DDL = listOf(
         """CREATE TABLE IF NOT EXISTS reading_positions (
             sourceId TEXT NOT NULL,
@@ -299,7 +299,7 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     )
 
     // v4 -> v5: add tables for the 14 DAOs that were bound to no-op stubs (issue #1057).
-    // DDL mirrors the Room entities column-for-column (schema v73 / Room entity definitions).
+    // DDL mirrors the Room entities column-for-column (schema v74 / Room entity definitions).
     private val FORMERLY_NOOP_DAO_DDL = listOf(
         """CREATE TABLE IF NOT EXISTS readaloud_links (
             absSourceId TEXT NOT NULL,
