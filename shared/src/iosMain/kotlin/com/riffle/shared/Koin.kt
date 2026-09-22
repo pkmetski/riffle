@@ -1075,26 +1075,6 @@ private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
     SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
 
 /**
- * The [SavedStateHandle] [PlaylistDetailViewModel] reads its three route arguments from.
- *
- * Keyed on the constants the ViewModel owns, for the same reason as [browseSavedStateHandle]:
- * Android puts them in the nav route and iOS packs them here, and a change to one host's key
- * would otherwise leave the other loading an empty playlist with no failure anywhere.
- *
- * [playlistName] is form-encoded on the way in because the ViewModel `urlDecode()`s it —
- * Android's nav route arrives percent-encoded. Passing the display name raw would corrupt any
- * name containing `+` or `%`, so the encode/decode pair is kept symmetric rather than relying on
- * the decoder being a no-op for "ordinary" names.
- */
-/**
- * The [SavedStateHandle] [FilteredBooksViewModel] reads its facet from.
- *
- * [facetValue] is form-encoded on the way in for the same reason as the playlist name: the
- * ViewModel `urlDecode()`s it because Android's route arrives percent-encoded, and a genre or
- * author containing `+` or `%` would otherwise be corrupted — and then match nothing, so the
- * screen would be empty with no error anywhere.
- */
-/**
  * The [SavedStateHandle] [AnnotationSearchViewModel] reads its library and query from.
  *
  * The query is form-encoded on the way in because the ViewModel `urlDecode()`s it — Android's
@@ -1111,6 +1091,14 @@ private fun annotationSearchSavedStateHandle(
     ),
 )
 
+/**
+ * The [SavedStateHandle] [FilteredBooksViewModel] reads its facet from.
+ *
+ * [facetValue] is form-encoded on the way in for the same reason as the playlist name: the
+ * ViewModel `urlDecode()`s it because Android's route arrives percent-encoded, and a genre or
+ * author containing `+` or `%` would otherwise be corrupted — and then match nothing, so the
+ * screen would be empty with no error anywhere.
+ */
 private fun filteredBooksSavedStateHandle(
     libraryId: String,
     facetType: String,
@@ -1123,6 +1111,18 @@ private fun filteredBooksSavedStateHandle(
     ),
 )
 
+/**
+ * The [SavedStateHandle] [PlaylistDetailViewModel] reads its three route arguments from.
+ *
+ * Keyed on the constants the ViewModel owns, for the same reason as [browseSavedStateHandle]:
+ * Android puts them in the nav route and iOS packs them here, and a change to one host's key
+ * would otherwise leave the other loading an empty playlist with no failure anywhere.
+ *
+ * [playlistName] is form-encoded on the way in because the ViewModel `urlDecode()`s it —
+ * Android's nav route arrives percent-encoded. Passing the display name raw would corrupt any
+ * name containing `+` or `%`, so the encode/decode pair is kept symmetric rather than relying on
+ * the decoder being a no-op for "ordinary" names.
+ */
 private fun playlistSavedStateHandle(
     libraryId: String,
     playlistId: String,
