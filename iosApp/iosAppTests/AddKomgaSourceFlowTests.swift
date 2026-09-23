@@ -92,18 +92,17 @@ final class AddKomgaSourceFlowTests: XCTestCase {
             app.buttons["Connect anyway"].tap()
         }
 
-        // 60s, not 30s: on CI this step (login → fetch libraries → render) runs on a contended
-        // parallel simulator clone. Measured end-to-end cost of this test is ~24s standalone but
-        // ~42s with parallel clones on a fast machine, so a 30s budget for the slowest single step
-        // leaves no headroom on slower CI hardware — it expired there while every assertion in the
-        // flow still held. The waits below already use 60s for the same reason.
+        // 120s: on a loaded CI runner the Komga login round-trip + KMP processing can exceed 60 s;
+        // matches the headroom used by AddAbsSourceFlowTests for the same reason.
         let selectLibraries = app.staticTexts["Select libraries"]
-        if !selectLibraries.waitForExistence(timeout: 60) {
+        if !selectLibraries.waitForExistence(timeout: 120) {
             print("RIFFLE-E2E-HIERARCHY-BEGIN\n\(app.debugDescription)\nRIFFLE-E2E-HIERARCHY-END")
         }
         XCTAssertTrue(selectLibraries.exists, "Successful login must land on the select-libraries step")
         let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+        // 30 s: on a loaded runner "Select libraries" text appears before the Continue
+        // button's accessibility node is populated; 5 s proved too tight (113 s total test).
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 30))
         if !continueButton.isEnabled {
             let firstSwitch = app.switches.firstMatch
             XCTAssertTrue(firstSwitch.waitForExistence(timeout: 5))

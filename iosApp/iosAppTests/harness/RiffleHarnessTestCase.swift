@@ -70,11 +70,13 @@ func seedSourceArgument(type: String, url: String, username: String, password: S
 // The seeded source must land the app on the library home (burger menu) — never on the source picker.
 func waitForSeededLibraryHome(in app: XCUIApplication, sourceName: String) {
     let burger = app.buttons["Open menu"]
-    // Cold launch + seeded-source install + first library load, on a CI runner sharing its cores
-    // with the other simulator clone. 60s was marginal before issue #1066 grew the harness from
-    // 29 to 39 tests; the first test in each suite then began timing out here while every later
-    // test in the same suite reached the home screen in seconds.
-    if !burger.waitForExistence(timeout: 150) {
+    // Cold launch + seeded-source install + first library load on a 3-core CI runner shared between
+    // two simulator clones. 60s was marginal before #1066 grew the harness to 39 tests; 150s proved
+    // too tight once two heavy suites (ProgressPipelineTests + AudiobookPlayerTests) landed on both
+    // clones simultaneously — observed load time reached ~120s, leaving only 30s of headroom. 250s
+    // gives 130s of headroom while still catching a genuinely hung app well within the 50-min job
+    // budget.
+    if !burger.waitForExistence(timeout: 250) {
         XCTFail("Seeded \(sourceName) source must land on the library home; picker visible: \(app.staticTexts["Add source"].exists)")
     }
 }
@@ -143,7 +145,7 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 // the shared Material back arrow, whose accessibility label is "Back". The item detail screen
 // shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
-func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 90) -> XCUIElement {
+func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 120) -> XCUIElement {
     revealTile(tile, in: app)
     let read = app.buttons["Read"].firstMatch
     // A tap that lands while the LazyRow is still settling after the reveal drag is consumed as a
@@ -151,7 +153,9 @@ func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeIn
     for attempt in 0..<2 {
         waitForStableFrame(of: tile)
         tile.tap()
-        if read.waitForExistence(timeout: attempt == 0 ? 5 : 15) { break }
+        // On a loaded CI runner (Clone 1 after 7+ min of sequential tests) the item-detail
+        // screen can take >60 s to settle after a tap; 90 s on the retry gives headroom.
+        if read.waitForExistence(timeout: attempt == 0 ? 5 : 90) { break }
     }
     XCTAssertTrue(read.exists, "Item detail must show the Read action")
     read.tap()
@@ -176,7 +180,7 @@ func waitForStableFrame(of element: XCUIElement, timeout: TimeInterval = 3) {
 }
 
 // True once any library-home section header is on screen.
-func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 60) -> Bool {
+func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) -> Bool {
     let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]
     let anySection = NSPredicate { _, _ in sectionLabels.contains { app.staticTexts[$0].exists } }
     let result = XCTWaiter.wait(

@@ -70,12 +70,44 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
-        XCTAssertTrue(playPause.waitForExistence(timeout: 30), "Player must finish loading")
+        // 150 s: the CMP iOS accessibility bridge populates the player controls asynchronously
+        // after the reader screen opens. On Clone 1 after 5+ min of sequential heavy tests the
+        // tree can take >90 s to settle; 150 s covers the worst observed lag while remaining
+        // well under the 600 s per-test execution allowance.
+        XCTAssertTrue(playPause.waitForExistence(timeout: 150), "Player must finish loading")
 
-        XCTAssertTrue(chaptersPill.waitForExistence(timeout: 10), "Player must offer the Chapters list")
-        XCTAssertTrue(pill("player_bookmarks_pill").exists, "Player must offer the bookmarks list")
-        XCTAssertTrue(pill("audiobook_sleep_pill").exists, "Player must offer the sleep timer")
-        XCTAssertTrue(pill("audiobook_speed_pill").exists, "Player must offer the playback-speed control")
+        // The pills all appear when loading=false, but the iOS accessibility tree is populated
+        // incrementally — a pill can be on-screen while its identifier hasn't landed in the tree
+        // yet. Use waitForExistence rather than .exists for each pill so a brief lag doesn't
+        // produce a spurious failure.
+        //
+        // testTag identifiers are not used here because CMP's iOS accessibility bridge does not
+        // reliably expose them for sibling buttons inside a shared container: only the first
+        // element in a group propagates its identifier to XCUITest. Label predicates are stable
+        // for these pills because their text content is fixed in the stub environment:
+        //   - chapters: "Chapters" (static label, first in its Row → identifier works)
+        //   - bookmarks: "0 bookmarks" (AssistChip, second in Row → identifier silently absent)
+        //   - sleep: icon contentDescription "Sleep timer" + text "Sleep" → CONTAINS 'sleep'
+        //   - speed: icon contentDescription null + text "1×" → CONTAINS '×'
+        // 45 s per pill: label predicates match immediately on a fast clone (< 1 s each) but the
+        // CMP iOS accessibility bridge updates the tree asynchronously — on a heavily loaded CI
+        // runner (e.g. Clone 1 after a 250 s testAddAbsSourceEndToEnd) the lag can reach 20+ s
+        // even though the element is visually present. 30 s proved too tight when the preceding
+        // playPause wait also consumed its full budget on the same loaded runner.
+        XCTAssertTrue(chaptersPill.waitForExistence(timeout: 45), "Player must offer the Chapters list")
+        let bookmarksPill = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'bookmark'")
+        ).firstMatch
+        XCTAssertTrue(bookmarksPill.waitForExistence(timeout: 45), "Player must offer the bookmarks list")
+        let sleepPill = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'sleep'")
+        ).firstMatch
+        XCTAssertTrue(sleepPill.waitForExistence(timeout: 45), "Player must offer the sleep timer")
+        // '×' is U+00D7 (multiplication sign), matching PlaybackSpeed.label output e.g. "1×".
+        let speedPill = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '×'")
+        ).firstMatch
+        XCTAssertTrue(speedPill.waitForExistence(timeout: 45), "Player must offer the playback-speed control")
     }
 
     // MARK: - Scenario 04-G: Back navigation

@@ -41,7 +41,7 @@ final class AddAbsSourceFlowTests: XCTestCase {
         // from 29 to 39 tests across the same two clones and pushed the old 40s past the
         // edge for whichever test runs first in its suite. Later tests in the same class
         // reach this in under 10s because the app is warm.
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 200),
                       "App must start on the source picker")
 
         let card = app.staticTexts["Chitanka"]
@@ -97,11 +97,14 @@ final class AddAbsSourceFlowTests: XCTestCase {
 
     /// Full add-ABS-source flow: picker → credentials → select-libraries → library home.
     func testAddAbsSourceEndToEnd() throws {
-        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 120),
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 200),
                       "App must start on the source picker")
 
         let absCard = app.staticTexts["Audiobookshelf"]
-        XCTAssertTrue(absCard.waitForExistence(timeout: 5), "Picker must show the Audiobookshelf card")
+        // 30 s: on a cold Clone 1 launch the "Add source" title appears before the CMP
+        // accessibility tree populates the picker cards — 5 s proved too tight when the
+        // cold-boot took ~135 s and the tree was still settling.
+        XCTAssertTrue(absCard.waitForExistence(timeout: 30), "Picker must show the Audiobookshelf card")
         absCard.tap()
 
         // Wait for the credential form (scheme selector appears when the form is ready)
@@ -127,14 +130,18 @@ final class AddAbsSourceFlowTests: XCTestCase {
         }
 
         let selectLibraries = app.staticTexts["Select libraries"]
+        // On loaded CI runners the ABS login round-trip + KMP processing can exceed 60 s;
+        // 90 s provides headroom while remaining well under the overall job limit.
         // On loaded CI runners the ABS login round-trip + KMP processing can exceed 90 s;
-        // 120 s provides headroom while remaining well under the overall job limit.
-        if !selectLibraries.waitForExistence(timeout: 120) {
+        // 150 s provides headroom while remaining well under the overall job limit.
+        if !selectLibraries.waitForExistence(timeout: 150) {
             print("RIFFLE-E2E-HIERARCHY-BEGIN\n\(app.debugDescription)\nRIFFLE-E2E-HIERARCHY-END")
         }
         XCTAssertTrue(selectLibraries.exists, "Successful login must land on the select-libraries step")
         let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+        // 30 s: on a loaded runner "Select libraries" text appears before the Continue
+        // button is populated in the CMP accessibility tree; 5 s proved too tight.
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 30))
         if !continueButton.isEnabled {
             let firstSwitch = app.switches.firstMatch
             XCTAssertTrue(firstSwitch.waitForExistence(timeout: 5))
