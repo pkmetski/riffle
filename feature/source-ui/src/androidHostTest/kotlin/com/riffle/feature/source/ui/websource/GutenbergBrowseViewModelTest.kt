@@ -106,6 +106,7 @@ class GutenbergBrowseViewModelTest {
             libraryFilterPreferencesStore,
             emptyLibraryObserver(),
             FakeConnectivityObserver(),
+            TestDispatcherProvider(dispatcher),
         )
         return vm to gate
     }

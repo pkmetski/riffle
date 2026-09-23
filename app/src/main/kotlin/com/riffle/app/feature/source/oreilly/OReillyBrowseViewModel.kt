@@ -10,6 +10,7 @@ import com.riffle.core.catalog.oreilly.OReillyHttpException
 import com.riffle.core.catalog.oreilly.oReillyFriendlyErrorMessage
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
@@ -25,6 +26,7 @@ class OReillyBrowseViewModel constructor(
     libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     libraryObserver: LibraryObserver,
     connectivityObserver: ConnectivityObserver,
+    dispatchers: DispatcherProvider,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -39,4 +41,5 @@ class OReillyBrowseViewModel constructor(
     defaultRootId = OReillyCatalog.ROOT_BOOKS,
     pageSize = 20,
     friendlyError = ::oReillyFriendlyErrorMessage,
+    dispatchers = dispatchers,
 )
