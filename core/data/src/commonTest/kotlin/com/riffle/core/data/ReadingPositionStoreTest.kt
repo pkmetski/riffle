@@ -3,12 +3,17 @@ package com.riffle.core.data
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class ReadingPositionStoreTest {
+
+    private companion object {
+        const val NOW_MS = 1_700_000_000_000L
+    }
 
     private class FakeReadingPositionDao : ReadingPositionDao {
         private val entities: MutableMap<Pair<String, String>, ReadingPositionEntity> = mutableMapOf()
@@ -57,7 +62,7 @@ class ReadingPositionStoreTest {
     @Test
     fun `save persists the CFI for the given item`() = runTest {
         val dao = FakeReadingPositionDao()
-        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
+        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS))
         store.save("source-A", "item-1", "epubcfi(/6/4[chap01]!/4/2[body01]/1:0)")
         assertEquals("epubcfi(/6/4[chap01]!/4/2[body01]/1:0)", dao.store["source-A" to "item-1"]?.cfi)
     }
@@ -67,20 +72,20 @@ class ReadingPositionStoreTest {
         val dao = FakeReadingPositionDao().also {
             it.seed(ReadingPositionEntity("source-A", "item-1", "epubcfi(/6/2!/4/1:42)"))
         }
-        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
+        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS))
         assertEquals("epubcfi(/6/2!/4/1:42)", store.load("source-A", "item-1"))
     }
 
     @Test
     fun `load returns null for an item with no saved position`() = runTest {
-        val store = ReadingPositionStoreImpl(FakeReadingPositionDao(), com.riffle.core.domain.TestClock(System.currentTimeMillis()))
+        val store = ReadingPositionStoreImpl(FakeReadingPositionDao(), com.riffle.core.domain.TestClock(NOW_MS))
         assertNull(store.load("source-A", "item-new"))
     }
 
     @Test
     fun `save overwrites the previous position for the same source-item`() = runTest {
         val dao = FakeReadingPositionDao()
-        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
+        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS))
         store.save("source-A", "item-1", "epubcfi(/6/2!/4/1:10)")
         store.save("source-A", "item-1", "epubcfi(/6/2!/4/1:99)")
         assertEquals("epubcfi(/6/2!/4/1:99)", store.load("source-A", "item-1"))
@@ -97,7 +102,7 @@ class ReadingPositionStoreTest {
     @Test
     fun `positions for the same itemId on different servers are isolated`() = runTest {
         val dao = FakeReadingPositionDao()
-        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
+        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS))
 
         store.save("source-A", "item-1", "epubcfi(/6/2!/4/1:10)")
         store.save("source-B", "item-1", "epubcfi(/6/8!/4/1:99)")
@@ -112,18 +117,18 @@ class ReadingPositionStoreTest {
         // Regression: when ABS's clock is ahead of the device, the sync cycle adopts a future source
         // stamp as localUpdatedAt. A subsequent save() using raw now() would silently lower
         // localUpdatedAt back under the source's last-known stamp, making every next cycle conclude
-        // source-wins and yank the reader to the older source position — the "periodic sync
+        // source-wins and yank the reader to the older source position -- the "periodic sync
         // overwrites my position" bug. save() must always advance localUpdatedAt strictly past
         // whatever's already stored.
         val dao = FakeReadingPositionDao()
-        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
-        val futureServerStamp = System.currentTimeMillis() + 120_000L // 2 minutes ahead
+        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS))
+        val futureServerStamp = NOW_MS + 120_000L // 2 minutes ahead
         dao.seed(ReadingPositionEntity("source-A", "item-1", "old", futureServerStamp, futureServerStamp))
 
         store.save("source-A", "item-1", "fresh")
 
         val after = dao.store["source-A" to "item-1"]?.localUpdatedAt ?: 0L
-        assert(after > futureServerStamp) {
+        assertTrue(after > futureServerStamp) {
             "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureServerStamp"
         }
         assertEquals("fresh", store.load("source-A", "item-1"))
@@ -134,7 +139,7 @@ class ReadingPositionStoreTest {
         val dao = FakeReadingPositionDao().also {
             it.seed(ReadingPositionEntity("source-A", "item-1", "epubcfi(/6/2!/4/1:42)"))
         }
-        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
+        val store = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS))
         assertNull(store.load("source-B", "item-1"))
     }
 }
