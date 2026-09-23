@@ -1,20 +1,13 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import com.riffle.feature.reader.MergeAnchor
-import com.riffle.feature.reader.MergeCandidate
-import com.riffle.feature.reader.MergeSide
-import com.riffle.feature.reader.applyMerge
-import com.riffle.feature.reader.collectMergedEmphasisStyles
-import com.riffle.feature.reader.findAnyMergeableNeighbor
-import com.riffle.feature.reader.isMergeEligible
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Regression tests for emphasis auto-merge (ADR 0056). Mirrors [HighlightMergeTest]'s shape:
@@ -128,7 +121,7 @@ class EmphasisMergeTest {
     }
 
     @Test
-    fun `different chapters (spineIndex) are not eligible`() {
+    fun differentChaptersSpineIndexAreNotEligible() {
         val a = anchor(styles = BOLD, textSnippet = "Foo", textAfter = " Bar", spineIndex = 0)
         val n = emphasis(styles = BOLD, textSnippet = "Bar", spineIndex = 1)
         assertEquals(false, isMergeEligible(a, n))
@@ -143,7 +136,7 @@ class EmphasisMergeTest {
     }
 
     @Test
-    fun `empty anchor styles set is never eligible (defensive)`() {
+    fun emptyAnchorStylesSetIsNeverEligible() {
         // An empty-styles emphasis row is not a legal state — createEmphasis rejects it — but
         // defence-in-depth: even if one leaked in via a decode error, it must never absorb a peer.
         val a = anchor(styles = emptySet(), textSnippet = "Foo", textAfter = " Bar")
