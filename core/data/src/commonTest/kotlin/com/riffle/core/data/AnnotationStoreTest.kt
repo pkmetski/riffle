@@ -9,11 +9,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 private const val TEST_FONT = "Georgia, serif"
 
@@ -351,18 +352,20 @@ class AnnotationStoreTest {
     // Empty styles is a caller error — the ViewModel gates on non-empty before invoking the store.
     // A regression that let the store persist an empty-styles row would create a shadow annotation
     // the renderer can't paint and the merge logic can't equate.
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `createEmphasis rejects an empty styles set`() = runTest {
-        val store = buildStore()
-        store.createEmphasis(
-            sourceId = "abs1",
-            itemId = "item1",
-            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
-            textSnippet = "phrase",
-            chapterHref = "chap01.xhtml",
-            styles = emptySet(),
-            originFontFamily = TEST_FONT,
-        )
+        assertFailsWith<IllegalArgumentException> {
+            val store = buildStore()
+            store.createEmphasis(
+                sourceId = "abs1",
+                itemId = "item1",
+                cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+                textSnippet = "phrase",
+                chapterHref = "chap01.xhtml",
+                styles = emptySet(),
+                originFontFamily = TEST_FONT,
+            )
+        }
     }
 
     // Toggle-off from partial selection is a range shrink at the reader layer; here we only

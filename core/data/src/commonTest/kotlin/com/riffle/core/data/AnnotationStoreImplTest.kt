@@ -9,10 +9,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 private const val TEST_FONT = "Georgia, serif"
 
@@ -225,23 +226,27 @@ class AnnotationStoreImplTest {
         assertEquals("\"Merriweather\", serif", dao.getById(created.id)?.originFontFamily)
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `createHighlight rejects blank originFontFamily`() = runTest {
-        store().createHighlight(
-            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
-            textSnippet = "t", chapterHref = "c.xhtml",
-            originFontFamily = "  ",
-        )
+        assertFailsWith<IllegalArgumentException> {
+            store().createHighlight(
+                sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+                textSnippet = "t", chapterHref = "c.xhtml",
+                originFontFamily = "  ",
+            )
+        }
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `createBookmark rejects blank originFontFamily`() = runTest {
-        store().createBookmark(
-            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/6!/4/1:0)",
-            textSnippet = "", chapterHref = "c.xhtml",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "",
-            originFontFamily = "",
-        )
+        assertFailsWith<IllegalArgumentException> {
+            store().createBookmark(
+                sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/6!/4/1:0)",
+                textSnippet = "", chapterHref = "c.xhtml",
+                spineIndex = 0, progression = 0.0, bookmarkTitle = "",
+                originFontFamily = "",
+            )
+        }
     }
 
     @Test
@@ -299,7 +304,7 @@ class AnnotationStoreImplTest {
     // the local edit stamps updatedAt = clock() ≤ peer stamp, and the next AnnotationLiveSync tick
     // upserts the peer's old color back over the recolor — the "color reverts" bug.
     @Test
-    fun `recolor stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+    fun recolorStampsStrictlyNewerThanInheritedFutureUpdatedAtRevertRaceGuard() = runTest {
         val s = store()
         val created = s.createHighlight(
             "abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml",
@@ -317,13 +322,13 @@ class AnnotationStoreImplTest {
         val row = dao.getById(created.id)
         assertEquals("blue", row?.color)
         assertTrue(
-            "updatedAt must be strictly greater than the pre-existing stamp; was ${row?.updatedAt}",
             (row?.updatedAt ?: 0L) > 999_999L,
+            "updatedAt must be strictly greater than the pre-existing stamp; was ${row?.updatedAt}",
         )
     }
 
     @Test
-    fun `updateNote stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+    fun updateNoteStampsStrictlyNewerThanInheritedFutureUpdatedAtRevertRaceGuard() = runTest {
         val s = store()
         val created = s.createHighlight(
             "abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml",
@@ -342,7 +347,7 @@ class AnnotationStoreImplTest {
     }
 
     @Test
-    fun `delete tombstone stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+    fun deleteTombstoneStampsStrictlyNewerThanInheritedFutureUpdatedAtRevertRaceGuard() = runTest {
         val s = store()
         val created = s.createHighlight(
             "abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml",
@@ -361,7 +366,7 @@ class AnnotationStoreImplTest {
     }
 
     @Test
-    fun `renameBookmark stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+    fun renameBookmarkStampsStrictlyNewerThanInheritedFutureUpdatedAtRevertRaceGuard() = runTest {
         val s = store()
         val created = s.createBookmark(
             "abs1", "item1", "epubcfi(/6/6!/4/1:0)", "", "ch2.xhtml",
@@ -422,7 +427,7 @@ class AnnotationStoreImplTest {
     }
 
     @Test
-    fun `tombstoned highlights are excluded from observeHighlights (and thus from rendering)`() = runTest {
+    fun tombstonedHighlightsAreExcludedFromObserveHighlights() = runTest {
         val s = store()
         val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         assertEquals(1, s.observeHighlights("abs1", "item1").first().size)
@@ -433,7 +438,7 @@ class AnnotationStoreImplTest {
     }
 
     @Test
-    fun `createBookmark stores spineIndex, progression and bookmarkTitle`() = runTest {
+    fun createBookmarkStoresSpineIndexProgressionAndBookmarkTitle() = runTest {
         val created = store().createBookmark(
             sourceId = "abs1", itemId = "item1",
             cfi = "epubcfi(/6/6!/4/1:0)",

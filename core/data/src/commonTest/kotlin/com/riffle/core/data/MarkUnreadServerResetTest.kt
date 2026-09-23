@@ -1,27 +1,33 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
+import com.riffle.core.catalog.DefaultCatalogRegistry
+import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Reproduces the "phantom progress after mark-unread" bug at the layer that drives it: the reader's
@@ -89,9 +95,35 @@ class MarkUnreadServerResetTest {
         }
     }
 
+    private object NoopLibraryApi : AbsLibraryApi {
+        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkLibrary>())
+        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkLibraryItem>())
+        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkSeries>())
+        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkCollection>())
+    }
+
+    private object NoopServerInfoApi : AbsServerInfoApi {
+        override suspend fun getServerInfo(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
+        override suspend fun getCurrentUserId(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
+    }
+
+    private object FakeTokenStorage : TokenStorage {
+        override suspend fun saveToken(sourceId: String, token: String) {}
+        override suspend fun getToken(sourceId: String): String = "tok"
+        override suspend fun deleteToken(sourceId: String) {}
+    }
+
+    private object FakeDeviceIdStore : DeviceIdStore {
+        override suspend fun getOrCreate(): String = "test-device"
+    }
+
     private fun repo(api: AbsSessionApi): ReadingSessionRepositoryImpl {
+        val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
         val sourceRepo = object : SourceRepository {
-            val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
             override suspend fun getActive(): Source = source
             override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
@@ -99,33 +131,49 @@ class MarkUnreadServerResetTest {
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
+        val catalogRegistry = DefaultCatalogRegistry(
+            factories = mapOf(
+                SourceType.ABS to AbsCommonCatalogFactory(
+                    libraryApi = NoopLibraryApi,
+                    sessionApi = api,
+                    serverInfoApi = NoopServerInfoApi,
+                    tokenStorage = FakeTokenStorage,
+                    deviceIdStore = FakeDeviceIdStore,
+                    clock = object : Clock {
+                        override fun nowMs(): Long = 5_000L
+                        override fun nowNs(): Long = 5_000L * 1_000_000L
+                    },
+                )
+            ),
+            sourceRepository = sourceRepo,
+        )
         return ReadingSessionRepositoryImpl(
-            catalogRegistry = InlineCatalogRegistry(testAbsCatalog(sessionApi = api, libraryApi = com.riffle.core.data.NoopLibraryApi)),
+            catalogRegistry = catalogRegistry,
             sourceRepository = sourceRepo,
             positionStore = object : ReadingPositionStore {
-            override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
-            override suspend fun load(sourceId: String, itemId: String): String? = null
-            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
-            override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
-            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-        },
-        audiobookPositionStore = object : AudiobookPositionStore {
-            override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
-            override suspend fun load(sourceId: String, itemId: String): Double? = null
-            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
-            override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
-            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-        },
-        readaloudResumeStore = object : ReadaloudResumeStore {
-            override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) = Unit
-            override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
-            override suspend fun clear(sourceId: String, itemId: String) = Unit
-        },
-        libraryItemDao = FakeLibraryItemDao(),
+                override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
+                override suspend fun load(sourceId: String, itemId: String): String? = null
+                override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
+                override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
+                override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            },
+            audiobookPositionStore = object : AudiobookPositionStore {
+                override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
+                override suspend fun load(sourceId: String, itemId: String): Double? = null
+                override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
+                override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
+                override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            },
+            readaloudResumeStore = object : ReadaloudResumeStore {
+                override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) = Unit
+                override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
+                override suspend fun clear(sourceId: String, itemId: String) = Unit
+            },
+            libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(),
         )
     }

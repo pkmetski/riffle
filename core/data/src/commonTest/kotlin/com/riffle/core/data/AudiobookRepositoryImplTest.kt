@@ -19,9 +19,9 @@ import com.riffle.core.common.Clock
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class AudiobookRepositoryImplTest {
 
@@ -31,7 +31,7 @@ class AudiobookRepositoryImplTest {
     )
 
     @Test
-    fun `openSession maps stream tracks, chapters and timeline`() = runTest {
+    fun openSessionMapsStreamTracksChaptersAndTimeline() = runTest {
         val stream = CatalogAudiobookStream(
             trackUrls = listOf(
                 "http://host:13378/api/items/it/file/1?token=TKN",

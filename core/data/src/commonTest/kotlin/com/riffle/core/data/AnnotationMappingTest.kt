@@ -3,9 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Entity <-> domain round-trip coverage for the image-annotation fields added to
@@ -64,7 +64,7 @@ class AnnotationMappingTest {
     }
 
     @Test
-    fun `null embeddedFigures maps to null, not empty list`() {
+    fun nullEmbeddedFiguresMapsToNullNotEmptyList() {
         val entity = baseAnnotation(embeddedFigures = null).toEntity()
 
         assertNull(entity.embeddedFigures)
