@@ -1,10 +1,10 @@
 package com.riffle.core.catalog.chitanka
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class ChitankaScraperTest {
 
@@ -66,7 +66,7 @@ class ChitankaScraperTest {
     }
 
     @Test
-    fun `detail page extracts title, authors, and epub download link`() {
+    fun detailPageExtractsTitleAuthorsAndEpubDownloadLink() {
         val html = fixture("chitanka-text-detail.html")
         val d = ChitankaScraper.parseDetailPage(html, "https://chitanka.info/text/44723-abu-hasan")
         assertTrue("title should be non-empty", d.title.isNotEmpty())
