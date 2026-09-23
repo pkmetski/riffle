@@ -83,11 +83,10 @@ kotlin {
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.uiTest)
         }
-        // The exhaustive ported suites (AddSourceViewModelTest & friends) live in the Android
-        // host-test source set, not commonTest, purely because Kotlin/Native rejects backticked
-        // test names containing `(`, `)` or `,` ("Name contains illegal characters") and the
-        // repo's checkTestGuardrails forbids renaming an existing @Test. commonTest carries
-        // Native-legal coverage of the same shared logic so iOS still executes it.
+        // ViewModel tests (AddSourceViewModelTest & friends) remain in the Android host-test
+        // source set: they depend on Room DAOs (Android-only) or mockk (JVM-only). Pure logic
+        // tests (AuthHeaderTest, FadingScrollbarMetricsTest, SourceIconResolverTest,
+        // SourceTypePickerTest, WebSourceUiTest) live in commonTest so iOS executes them too.
         getByName("androidHostTest").dependencies {
             implementation(kotlin("test"))
             implementation(libs.junit)

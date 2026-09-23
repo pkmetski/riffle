@@ -1,8 +1,8 @@
 package com.riffle.core.logging
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class InMemoryLogBufferTest {
 
@@ -15,7 +15,7 @@ class InMemoryLogBufferTest {
     )
 
     @Test
-    fun `append preserves order and exposes via snapshot`() {
+    fun appendPreservesOrderAndExposesViaSnapshot() {
         val buf = InMemoryLogBuffer()
         buf.append(entry(1))
         buf.append(entry(2))
@@ -24,7 +24,7 @@ class InMemoryLogBufferTest {
     }
 
     @Test
-    fun `ring evicts oldest at capacity`() {
+    fun ringEvictsOldestAtCapacity() {
         val buf = InMemoryLogBuffer()
         repeat(InMemoryLogBuffer.CAPACITY + 5) { buf.append(entry(it)) }
         val snap = buf.snapshot()
@@ -35,7 +35,7 @@ class InMemoryLogBufferTest {
     }
 
     @Test
-    fun `clear empties the buffer and StateFlow`() {
+    fun clearEmptiesBufferAndStateFlow() {
         val buf = InMemoryLogBuffer()
         buf.append(entry(1))
         buf.clear()
@@ -44,7 +44,7 @@ class InMemoryLogBufferTest {
     }
 
     @Test
-    fun `entries StateFlow emits appended snapshots`() {
+    fun entriesStateFlowEmitsAppendedSnapshots() {
         val buf = InMemoryLogBuffer()
         assertTrue(buf.entries.value.isEmpty())
         buf.append(entry(1))
@@ -54,7 +54,7 @@ class InMemoryLogBufferTest {
     }
 
     @Test
-    fun `append stamps monotonically increasing unique seq even for identical entries`() {
+    fun appendStampsMonotonicallyIncreasingUniqueSeqEvenForIdenticalEntries() {
         // Regression: DebugLogScreen's LazyColumn crashed with "Key was already used" when
         // two log entries hashed to the same value (same timestamp/level/channel/message).
         // Every appended entry must carry a distinct seq so it can serve as the LazyColumn key.
@@ -73,7 +73,7 @@ class InMemoryLogBufferTest {
     }
 
     @Test
-    fun `snapshot is independent of subsequent appends`() {
+    fun snapshotIsIndependentOfSubsequentAppends() {
         val buf = InMemoryLogBuffer()
         buf.append(entry(1))
         val snap = buf.snapshot()
