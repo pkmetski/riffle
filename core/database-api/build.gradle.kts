@@ -22,8 +22,8 @@ kotlin {
             api(libs.androidx.room.runtime)
             implementation(libs.kotlinx.coroutines.core)
         }
-        jvmTest.dependencies {
-            implementation(libs.junit)
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }

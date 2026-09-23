@@ -1,7 +1,7 @@
 package com.riffle.core.database
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Verifies that [AnnotationEntity.TYPE_HIGHLIGHT] and [AnnotationEntity.TYPE_IMAGE] constants match
