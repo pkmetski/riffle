@@ -7,9 +7,9 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class BookComicFormattingPreferencesStoreImplTest {
 
@@ -22,7 +22,7 @@ class BookComicFormattingPreferencesStoreImplTest {
         return BookComicFormattingPreferencesStoreImpl(dao)
     }
 
-    @Test fun `unknown panelOverflow name maps to null — forward-compat guard`() = runTest {
+    @Test fun unknownPanelOverflowNameMapsToNullForwardCompatGuard() = runTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
             backgroundTheme = null,
@@ -30,7 +30,7 @@ class BookComicFormattingPreferencesStoreImplTest {
             panelAnimationSpeedMs = null,
         )
         val result = storeWith(entity).overrides("src::item").first()
-        assertNull("Unknown enum name must not crash; maps to null", result.panelOverflow)
+        assertNull(result.panelOverflow, "Unknown enum name must not crash; maps to null")
         assertEquals(true, result.panelViewOn)
     }
 
@@ -75,7 +75,7 @@ class BookComicFormattingPreferencesStoreImplTest {
         assertEquals(400, result.panelAnimationSpeedMs)
     }
 
-    @Test fun `null panelAnimationSpeedMs in entity maps to null override — follows global`() = runTest {
+    @Test fun `null panelAnimationSpeedMs in entity maps to null override -- follows global`() = runTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
             backgroundTheme = null,
@@ -119,7 +119,7 @@ class BookComicFormattingPreferencesStoreImplTest {
         assertEquals(ReaderTheme.Dark, result.backgroundTheme)
     }
 
-    @Test fun `unknown backgroundTheme maps to null — forward-compat guard`() = runTest {
+    @Test fun unknownBackgroundThemeMapsToNullForwardCompatGuard() = runTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
             backgroundTheme = "UNKNOWN_FUTURE_VALUE",
@@ -127,7 +127,7 @@ class BookComicFormattingPreferencesStoreImplTest {
             panelAnimationSpeedMs = null,
         )
         val result = storeWith(entity).overrides("src::item").first()
-        assertNull("Unknown enum name must not crash; maps to null", result.backgroundTheme)
+        assertNull(result.backgroundTheme, "Unknown enum name must not crash; maps to null")
     }
 
     @Test fun `save writes backgroundTheme override into entity`() = runTest {

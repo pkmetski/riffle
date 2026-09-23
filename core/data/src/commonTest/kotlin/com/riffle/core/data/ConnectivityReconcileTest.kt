@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * Exhaustive truth-table tests for [reconcileOnline] — the predicate that gates every
@@ -78,13 +78,13 @@ class ConnectivityReconcileTest {
         // different library and forces a fresh refresh in a new ViewModel.
         //
         // Neither the callback-driven path nor the ON_START sweep can rescue this: no callback
-        // fires (dropped), and ON_START only fires on background→foreground transitions
+        // fires (dropped), and ON_START only fires on background->foreground transitions
         // (irrelevant while the user is sitting on the screen).
         //
         // The foreground poll inside `ConnectivityObserverImpl` closes this gap: every
         // POLL_INTERVAL_MS it calls `emitReconciled(tracker.isOnline())`, which threads through
-        // this predicate with a FRESH `activeNetwork` read. Airplane on → `activeNetwork == null`
-        // → veto fires → offline. This test captures the exact tracker+activeNetwork state that
+        // this predicate with a FRESH `activeNetwork` read. Airplane on -> `activeNetwork == null`
+        // -> veto fires -> offline. This test captures the exact tracker+activeNetwork state that
         // the poll observes at that moment. Do not delete it if the poll is refactored — rewire
         // the assertion to the new mechanism.
         val tracker = ValidatedNetworkTracker<String>()
