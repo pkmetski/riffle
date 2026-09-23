@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
-import kotlin.test.Test
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 /**
  * Fence off the Huawei-shaped "banner permanently shows offline while the user's source, WebDAV,
@@ -35,11 +35,11 @@ class QualifyingNetworkTest {
     }
 
     @Test
-    fun `internet without validated is online -- Huawei and Google-firewalled networks`() {
+    fun `internet without validated is online — Huawei and Google-firewalled networks`() {
         // The load-bearing assertion for this regression class. Huawei-without-GMS, corporate
         // networks that block `connectivitycheck.gstatic.com`, and users in regions where Google
         // is unreachable all end up here. The OS cannot validate, but Riffle does not talk to
-        // Google -- it talks to the user's ABS source, WebDAV, and Storyteller peer -- so we must
+        // Google — it talks to the user's ABS source, WebDAV, and Storyteller peer — so we must
         // treat these networks as online. Source-reachability is signalled separately via
         // `LibraryItemsViewModel._refreshFailed`.
         assertTrue(isQualifyingNetwork(hasInternet = true, hasValidated = false))
@@ -55,7 +55,7 @@ class QualifyingNetworkTest {
 
     @Test
     fun `neither capability is offline`() {
-        // Clean disconnect -- nothing to route traffic through.
+        // Clean disconnect — nothing to route traffic through.
         assertFalse(isQualifyingNetwork(hasInternet = false, hasValidated = false))
     }
 }

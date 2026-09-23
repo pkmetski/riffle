@@ -19,10 +19,10 @@ import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
-import kotlin.test.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class ToReadRepositoryTest {
 
@@ -127,7 +127,7 @@ class ToReadRepositoryTest {
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-A", "To Read", emptyList()))), addFails = true)
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
-        assertTrue(repo.addToToRead("item-1", "lib-1"), "recovery create should heal the tap")
+        assertTrue("recovery create should heal the tap", repo.addToToRead("item-1", "lib-1"))
         assertEquals(listOf("lib-1" to "To Read"), cap.createCalls)
         assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }

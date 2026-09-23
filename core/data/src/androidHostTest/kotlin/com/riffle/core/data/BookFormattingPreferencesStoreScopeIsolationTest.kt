@@ -7,9 +7,9 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import kotlinx.coroutines.test.runTest
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
 
 /**
  * Regression pins for the book-formatting-preferences key shape. Both the full-book reader and
@@ -84,13 +84,13 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
         store.clear(sourceId, "item-1", dim)
 
         assertNull(
-            store.load(sourceId, "item-1", dim)?.fontSize,
             "Portrait value must be gone after a portrait-scoped clear",
+            store.load(sourceId, "item-1", dim)?.fontSize,
         )
         assertEquals(
+            "Landscape value must survive a portrait-scoped clear",
             1.8f,
             store.load(sourceId, "item-1", dimLandscape)?.fontSize,
-            "Landscape value must survive a portrait-scoped clear",
         )
     }
 
