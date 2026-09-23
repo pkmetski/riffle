@@ -146,18 +146,24 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 // shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
 func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 120) -> XCUIElement {
-    revealTile(tile, in: app)
     let read = app.buttons["Read"].firstMatch
-    // A tap that lands while the LazyRow is still settling after the reveal drag is consumed as a
-    // scroll stop rather than a click, so give the row a moment and retry once if nothing opened.
-    for attempt in 0..<2 {
+    // Re-reveal the tile before EVERY tap, not just once up front. Two things make a single reveal
+    // unreliable: a tap that lands while the LazyRow is still settling is swallowed as a scroll
+    // stop, and after re-entering the library (e.g. reopening a book) the target tile is often
+    // scrolled past the right edge — so a retry that taps the original position hits an offscreen
+    // spot and never opens the detail screen (the reopen-flake root cause). Stop as soon as the
+    // detail screen appears, or once the tap has navigated the tile out of the library.
+    for attempt in 0..<3 {
+        if read.exists { break }
+        revealTile(tile, in: app)
+        guard tile.exists else { break }
         waitForStableFrame(of: tile)
         tile.tap()
-        // On a loaded CI runner (Clone 1 after 7+ min of sequential tests) the item-detail
-        // screen can take >60 s to settle after a tap; 90 s on the retry gives headroom.
-        if read.waitForExistence(timeout: attempt == 0 ? 5 : 90) { break }
+        if read.waitForExistence(timeout: attempt == 0 ? 5 : 30) { break }
     }
-    XCTAssertTrue(read.exists, "Item detail must show the Read action")
+    // A final settle wait covers the case where the last tap navigated but the loaded runner is
+    // still rendering the item detail.
+    XCTAssertTrue(read.waitForExistence(timeout: 30), "Item detail must show the Read action")
     read.tap()
     XCTAssertTrue(read.waitForNonExistence(timeout: timeout), "Read must leave the item detail screen")
     let back = app.buttons.matching(
