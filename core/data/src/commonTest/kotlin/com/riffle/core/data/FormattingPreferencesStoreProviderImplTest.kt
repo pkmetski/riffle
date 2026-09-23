@@ -4,8 +4,8 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.junit.Assert.assertSame
-import org.junit.Test
+import kotlin.test.assertSame
+import kotlin.test.Test
 
 /**
  * Pins that FormattingPreferencesStoreProviderImpl returns the same store instance every time
@@ -25,9 +25,9 @@ class FormattingPreferencesStoreProviderImplTest {
         val fullBook = StubStore()
         val provider = FormattingPreferencesStoreProviderImpl(fullBook)
         assertSame(
-            "store() must return the shared fullBook instance so global settings reach both reader modes",
             fullBook,
             provider.store(),
+            "store() must return the shared fullBook instance so global settings reach both reader modes",
         )
     }
 }
