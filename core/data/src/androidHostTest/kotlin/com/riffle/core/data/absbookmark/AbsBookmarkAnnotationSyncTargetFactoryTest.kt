@@ -9,9 +9,9 @@ import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Test
 
 class AbsBookmarkAnnotationSyncTargetFactoryTest {
 
