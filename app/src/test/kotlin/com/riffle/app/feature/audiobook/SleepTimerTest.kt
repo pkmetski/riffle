@@ -204,6 +204,7 @@ class SleepTimerTest {
         bookmarkStore: AudiobookBookmarkStore = FakeBookmarkStore(),
         connectivity: FakeConnectivityObserver = FakeConnectivityObserver(online = true),
         sleepStopStore: com.riffle.core.domain.AudiobookSleepStopStore = FakeSleepStopStore(),
+        navUserPlay: Boolean = true,
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -278,6 +279,7 @@ class SleepTimerTest {
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
             sleepStopStore = sleepStopStore,
+            navUserPlay = navUserPlay,
         )
     }
 
@@ -421,17 +423,17 @@ class SleepTimerTest {
     }
 
     @Test
-    fun `sleep-stopped flag suppresses auto-play on next open`() = runTest(testDispatcher) {
+    fun `sleep-stopped flag suppresses auto-play on mini-player reopen`() = runTest(testDispatcher) {
         val store = FakeSleepStopStore()
         // Pre-mark as stopped by a previous sleep timer (simulates the flag persisted from a prior session)
         store.markSleepStopped(sourceId, itemId)
 
         val controller = FakeController()
-        val vm = buildViewModel(controller, sleepStopStore = store)
+        // navUserPlay=false simulates the mini-player / now-playing card tap (not an explicit play button press)
+        val vm = buildViewModel(controller, sleepStopStore = store, navUserPlay = false)
         runCurrent()
 
-        // play() is not called on the FakeController when the flag is set (it's a no-op override so
-        // we check the store state, which is the ground truth: flag must be cleared after suppressed open)
+        // Flag must be cleared on open so a subsequent reopen auto-plays normally
         assertTrue("flag should be cleared after being consumed on open", !store.wasSleepStopped(sourceId, itemId))
         vm.clearForTest()
     }
@@ -442,7 +444,8 @@ class SleepTimerTest {
         store.markSleepStopped(sourceId, itemId)
 
         val controller = FakeController()
-        val vm = buildViewModel(controller, sleepStopStore = store)
+        // navUserPlay=false = mini-player tap; flag is consumed (cleared) and suppression applies
+        val vm = buildViewModel(controller, sleepStopStore = store, navUserPlay = false)
         runCurrent()
 
         // Flag should have been consumed (cleared) on open — a subsequent reopen would auto-play

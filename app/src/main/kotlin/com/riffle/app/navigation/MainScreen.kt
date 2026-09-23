@@ -76,7 +76,7 @@ internal const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{fac
 internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}?sourceId={sourceId}"
 internal const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
 internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
-internal const val AUDIOBOOK_PLAYER = "audiobook_player/{sourceId}/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
+internal const val AUDIOBOOK_PLAYER = "audiobook_player/{sourceId}/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}&userPlay={userPlay}"
 
 
 @Composable

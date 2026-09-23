@@ -149,7 +149,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onAudiobookBookmarkSelected = { result ->
                 val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}&userPlay=true")
             },
             onShowAllAnnotations = { query ->
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
@@ -194,7 +194,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 val plQ = URLEncoder.encode(playlistIdArg, "UTF-8")
                 val libQ = URLEncoder.encode(playlistLibraryId, "UTF-8")
                 navController.navigate(
-                    "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ"
+                    "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ&userPlay=true"
                 )
             },
             // The one host-specific part of the shared screen: Android's card fetches the
@@ -283,7 +283,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onListenItem = { item ->
                 val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?userPlay=true")
             },
             onReadItemAtHref = { item, href ->
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
@@ -298,7 +298,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onListenItemAtSec = { item, startSec ->
                 val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec&userPlay=true")
             },
             onNavigateToFacet = { libraryId, facet, value ->
                 val encoded = URLEncoder.encode(value, "UTF-8")
@@ -356,7 +356,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onAudiobookBookmarkSelected = { result ->
                 val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}&userPlay=true")
             },
         )
     }
