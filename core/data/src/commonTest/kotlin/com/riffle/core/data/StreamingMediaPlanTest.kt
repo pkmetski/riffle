@@ -32,7 +32,7 @@ class StreamingMediaPlanTest {
     }
 
     @Test
-    fun `single-file segments point at the same track, clipped by offset`() {
+    fun `single-file segments point at the same track clipped by offset`() {
         val items = StreamingMediaPlan.build(
             placements = listOf(
                 SegmentPlacement("c1.mp3", 0, 0.0, 5.0),

@@ -66,7 +66,7 @@ class SyncPositionStoreTest {
     // --- snapshot ---
 
     @Test
-    fun `snapshot reflects position, localUpdatedAt and lastSyncedAt`() = runTest {
+    fun `snapshot reflects position localUpdatedAt and lastSyncedAt`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 300L, 100L) }
         val snap = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(NOW_MS)).snapshot("s", "i")
         assertEquals("cfi", snap.position)
