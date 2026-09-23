@@ -275,8 +275,8 @@ abstract class UnboundedBrowseViewModel(
                 .filter { item -> !notStartedActive || (item.readingProgress ?: 0f) <= 0f }
                 .filter { item -> !unownedActive || !index.isOwned(item) }
         }
-        .flowOn(dispatchers.default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .flowOn(dispatchers.default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> =
