@@ -321,6 +321,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         get() = controller.isBoundaryDetentArmed
 
     /**
+     * Test seam — see [ContinuousWindowController.firstRevealGatedOnPaint].
+     * The assertion that would fail if the fix is reverted: `firstRevealGatedOnPaint` stays false
+     * because the reveal uses `postOnAnimation` instead of `onCurrentContentPainted`.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal val firstRevealGatedOnPaint: Boolean
+        get() = controller.firstRevealGatedOnPaint
+
+    /**
      * Decline to be a nested-scrolling parent for child [ChapterWebView]s. See historical comment
      * in git — Chromium WebView's dispatchNestedPreScroll would otherwise scroll our viewport to
      * keep the active selection visible, jumping the page mid-highlight.

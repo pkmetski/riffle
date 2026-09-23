@@ -87,6 +87,14 @@ internal class ContinuousWindowController(
         private const val LANDING_HOLD_MS = 600L
 
         /**
+         * Fallback delay after the initial scroll before the reader is revealed unconditionally,
+         * in case [ChapterWebView.onCurrentContentPainted] is never delivered (renderer crash,
+         * API-level quirk on older devices). Keeps the reader from appearing stuck at a blank
+         * screen when the callback is dropped.
+         */
+        private const val PAINTED_FALLBACK_MS = 2000L
+
+        /**
          * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
          * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
          * closely enough that rapid presses feel the same in both modes. Also the validity window for
@@ -292,6 +300,16 @@ internal class ContinuousWindowController(
     @androidx.annotation.VisibleForTesting
     internal val isBoundaryDetentArmed: Boolean
         get() = boundaryDetentArmed
+
+    /**
+     * Test seam: true once the first-land reveal was gated on [ChapterWebView.onCurrentContentPainted]
+     * rather than firing on the next animation frame. The regression assertion is that this is true
+     * after any initial open: if the fix is reverted (postOnAnimation replaces the paint-callback
+     * gate), this stays false and the test fails.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal var firstRevealGatedOnPaint: Boolean = false
+        private set
 
     /**
      * True while the current touch gesture has already been consumed by a backward prepend.
@@ -595,9 +613,33 @@ internal class ContinuousWindowController(
                         port.scrollTo(y)
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
-                        port.postOnAnimation {
-                            container.visibility = android.view.View.VISIBLE
-                            notifyFirstLoadCompleteOnce()
+                        if (isFirstLand) {
+                            // Gate reveal on Chromium's visual-state callback so the container
+                            // becomes visible only once tiles at y are rasterized. Without this,
+                            // layout completes in <100 ms but rasterization of a large chapter
+                            // takes 500 ms–2 s; the reader appears over a blank white gap.
+                            val wv = webViews.getOrNull(i)
+                            if (wv != null) {
+                                firstRevealGatedOnPaint = true
+                                var revealed = false
+                                fun revealReader() {
+                                    if (!revealed) {
+                                        revealed = true
+                                        container.visibility = android.view.View.VISIBLE
+                                        notifyFirstLoadCompleteOnce()
+                                    }
+                                }
+                                wv.onCurrentContentPainted { revealReader() }
+                                container.postDelayed({ revealReader() }, PAINTED_FALLBACK_MS)
+                            } else {
+                                container.visibility = android.view.View.VISIBLE
+                                notifyFirstLoadCompleteOnce()
+                            }
+                        } else {
+                            port.postOnAnimation {
+                                container.visibility = android.view.View.VISIBLE
+                                notifyFirstLoadCompleteOnce()
+                            }
                         }
                     }
                 }
