@@ -22,10 +22,10 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.domain.TestClock
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class AudiobookChapterCacheRepositoryImplTest {
 

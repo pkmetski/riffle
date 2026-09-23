@@ -99,7 +99,7 @@ class ReadaloudTrackTest {
     }
 
     @Test
-    fun `resolveStartClip still prefers the exact href#id match over a bare-id match`() {
+    fun `resolveStartClip still prefers the exact hrefId match over a bare-id match`() {
         // Two clips could share a span id across chapters only by collision; the exact href#id match
         // must win when the rendered href DOES line up with the bundle, so a matching book is unaffected.
         assertEquals(chapterClips[1], chapterTrack.resolveStartClip("text/c1.html", "s2"))

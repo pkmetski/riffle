@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.models.AudiobookFingerprint
 import com.riffle.core.models.AudiobookIdentityResult
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /**
  * Turns the two fetched fingerprints into a verdict (ADR 0040). Extracted from the credential/

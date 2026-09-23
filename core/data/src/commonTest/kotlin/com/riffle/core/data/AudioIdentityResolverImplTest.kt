@@ -8,8 +8,8 @@ import com.riffle.core.models.AudioIdentity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class AudioIdentityResolverImplTest {
 
