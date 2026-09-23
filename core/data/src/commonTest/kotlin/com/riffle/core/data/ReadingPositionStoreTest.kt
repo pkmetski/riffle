@@ -128,9 +128,7 @@ class ReadingPositionStoreTest {
         store.save("source-A", "item-1", "fresh")
 
         val after = dao.store["source-A" to "item-1"]?.localUpdatedAt ?: 0L
-        assertTrue(after > futureServerStamp) {
-            "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureServerStamp"
-        }
+        assertTrue(after > futureServerStamp, "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureServerStamp")
         assertEquals("fresh", store.load("source-A", "item-1"))
     }
 
