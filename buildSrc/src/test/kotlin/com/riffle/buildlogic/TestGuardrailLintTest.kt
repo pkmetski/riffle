@@ -197,4 +197,62 @@ class TestGuardrailLintTest {
         assertTrue(TestGuardrailLint.isCounterpartTestFile("iosApp/iosAppUnitTests/BarTest.swift"))
         assertFalse(TestGuardrailLint.isCounterpartTestFile("iosApp/iosApp/SomeView.swift"))
     }
+
+    // ── checkIosModuleTestParity ──────────────────────────────────────────
+
+    @Test
+    fun `flags jvmTest file with no commonTest counterpart in same module`() {
+        val added = setOf("core/domain/src/jvmTest/kotlin/com/riffle/core/domain/FooTest.kt")
+        val all = setOf("feature/reader/src/commonTest/kotlin/FooTest.kt") // different module
+        assertEquals(
+            listOf(TestGuardrailLint.ParityViolation("core/domain/src/jvmTest/kotlin/com/riffle/core/domain/FooTest.kt", "FooTest")),
+            TestGuardrailLint.checkIosModuleTestParity(added, all),
+        )
+    }
+
+    @Test
+    fun `accepts commonTest counterpart with same filename in same module`() {
+        val added = setOf("core/domain/src/jvmTest/kotlin/com/riffle/core/domain/FooTest.kt")
+        val all = setOf("core/domain/src/commonTest/kotlin/com/riffle/core/domain/FooTest.kt")
+        assertEquals(emptyList<TestGuardrailLint.ParityViolation>(), TestGuardrailLint.checkIosModuleTestParity(added, all))
+    }
+
+    @Test
+    fun `flags androidHostTest file with no commonTest counterpart`() {
+        val added = setOf("feature/source-ui/src/androidHostTest/kotlin/com/riffle/feature/source/ui/BarTest.kt")
+        val all = emptySet<String>()
+        assertEquals(
+            listOf(TestGuardrailLint.ParityViolation("feature/source-ui/src/androidHostTest/kotlin/com/riffle/feature/source/ui/BarTest.kt", "BarTest")),
+            TestGuardrailLint.checkIosModuleTestParity(added, all),
+        )
+    }
+
+    @Test
+    fun `accepts declared parity-skip for iOS module test`() {
+        val added = setOf("core/net/src/jvmTest/kotlin/com/riffle/core/network/OkHttpTest.kt")
+        val all = emptySet<String>()
+        assertEquals(
+            emptyList<TestGuardrailLint.ParityViolation>(),
+            TestGuardrailLint.checkIosModuleTestParity(added, all, declared = setOf("OkHttpTest")),
+        )
+    }
+
+    @Test
+    fun `ignores app-src-test files in iOS module parity check`() {
+        // app/src/test is handled by checkParityMirror, not checkIosModuleTestParity
+        val added = setOf("app/src/test/kotlin/com/riffle/app/FooTest.kt")
+        val all = emptySet<String>()
+        assertEquals(emptyList<TestGuardrailLint.ParityViolation>(), TestGuardrailLint.checkIosModuleTestParity(added, all))
+    }
+
+    @Test
+    fun `commonTest in a different module does not satisfy same-module requirement`() {
+        val added = setOf("core/domain/src/jvmTest/kotlin/com/riffle/core/domain/BazTest.kt")
+        // BazTest.kt exists in core/logging commonTest, not core/domain
+        val all = setOf("core/logging/src/commonTest/kotlin/com/riffle/core/logging/BazTest.kt")
+        assertEquals(
+            listOf(TestGuardrailLint.ParityViolation("core/domain/src/jvmTest/kotlin/com/riffle/core/domain/BazTest.kt", "BazTest")),
+            TestGuardrailLint.checkIosModuleTestParity(added, all),
+        )
+    }
 }
