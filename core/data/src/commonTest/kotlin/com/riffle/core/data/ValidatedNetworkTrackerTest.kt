@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class ValidatedNetworkTrackerTest {
 
@@ -70,7 +70,7 @@ class ValidatedNetworkTrackerTest {
         tracker.onAvailable("cellular")
 
         assertTrue(tracker.mergeIn(setOf("wifi")))
-        // Both networks now tracked — either being lost keeps us online.
+        // Both networks now tracked -- either being lost keeps us online.
         assertTrue(tracker.onLost("cellular"))
         assertFalse(tracker.onLost("wifi"))
     }
@@ -78,7 +78,7 @@ class ValidatedNetworkTrackerTest {
     @Test
     fun `mergeIn with an empty snapshot preserves the existing set`() {
         // A stale getAllNetworks() during airplane-mode teardown must NOT clobber a correct
-        // onLost-derived offline state — mergeIn only unions in fresh networks, never removes.
+        // onLost-derived offline state -- mergeIn only unions in fresh networks, never removes.
         val tracker = ValidatedNetworkTracker<String>()
         tracker.onAvailable("wifi")
 
@@ -89,7 +89,7 @@ class ValidatedNetworkTrackerTest {
     fun `isOnline mirrors the tracker set without mutating it`() {
         // The 15s foreground poll in ConnectivityObserverImpl re-emits `emitReconciled(
         // tracker.isOnline())` on a schedule so the `activeNetwork == null` veto can fire even
-        // when Android 13 drops the `onLost` callback entirely. The tick must be READ-ONLY — if
+        // when Android 13 drops the `onLost` callback entirely. The tick must be READ-ONLY -- if
         // isOnline() ever grew a side effect, the poll would silently mutate tracker state and
         // resurrect the class of bug PR #396 removed the old syncNow() to fix.
         val tracker = ValidatedNetworkTracker<String>()
@@ -97,7 +97,7 @@ class ValidatedNetworkTrackerTest {
 
         tracker.onAvailable("wifi")
         assertTrue(tracker.isOnline())
-        // Repeated reads must be idempotent — same answer, no state change.
+        // Repeated reads must be idempotent -- same answer, no state change.
         assertTrue(tracker.isOnline())
         assertTrue(tracker.isOnline())
         // Losing the network still flows through the callback path normally.
@@ -108,7 +108,7 @@ class ValidatedNetworkTrackerTest {
     @Test
     fun `clear drops every tracked network`() {
         // Called from the ProcessLifecycleOwner ON_START sweep when
-        // `ConnectivityManager.activeNetwork` is null — the coarse ground-truth signal that no
+        // `ConnectivityManager.activeNetwork` is null -- the coarse ground-truth signal that no
         // radio is currently routable (airplane mode, all radios off, etc.).
         val tracker = ValidatedNetworkTracker<String>()
         tracker.onAvailable("wifi")

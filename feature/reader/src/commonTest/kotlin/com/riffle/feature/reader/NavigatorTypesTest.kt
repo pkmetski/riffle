@@ -3,6 +3,7 @@ package com.riffle.feature.reader
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class NavigatorTypesTest {
 
@@ -67,9 +68,9 @@ class NavigatorTypesTest {
     fun `NavigatorFollowResult values are distinct`() {
         val values = NavigatorFollowResult.entries
         assertEquals(3, values.size)
-        assert(NavigatorFollowResult.Snapped in values)
-        assert(NavigatorFollowResult.OffPage in values)
-        assert(NavigatorFollowResult.Unavailable in values)
+        assertTrue(NavigatorFollowResult.Snapped in values)
+        assertTrue(NavigatorFollowResult.OffPage in values)
+        assertTrue(NavigatorFollowResult.Unavailable in values)
     }
 
     @Test

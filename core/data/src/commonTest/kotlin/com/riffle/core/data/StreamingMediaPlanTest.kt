@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.SegmentPlacement
 import com.riffle.core.network.NetworkAbsAudioTrack
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class StreamingMediaPlanTest {
 

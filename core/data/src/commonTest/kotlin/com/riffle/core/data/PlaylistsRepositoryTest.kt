@@ -232,7 +232,7 @@ class PlaylistsRepositoryTest {
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
         assertTrue(repo.addItemToPlaylist("lib-1", "pl-a", "i-1"))
-        assertTrue("no source call for a no-op", cap.addCalls.isEmpty())
+        assertTrue(cap.addCalls.isEmpty(), "no source call for a no-op")
     }
 
     @Test
