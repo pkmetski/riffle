@@ -1,8 +1,8 @@
 package com.riffle.core.common
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class UuidUtilTest {
 
@@ -17,6 +17,6 @@ class UuidUtilTest {
     fun `two calls return distinct ids`() {
         val a = randomUuidString()
         val b = randomUuidString()
-        assertTrue("Expected distinct UUIDs, got $a twice", a != b)
+        assertTrue(a != b, "Expected distinct UUIDs, got $a twice")
     }
 }
