@@ -81,7 +81,11 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    timeout-minutes: 35
+    # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
+    # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
+    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 matches the harness
+    # job's ceiling and is a hard safety cap, not a per-test wait.
+    timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -427,15 +431,4 @@ jobs:
         with:
           name: ios-harness-log
           path: xcodebuild-harness.log
-          if-no-files-found: ignore
-
-      # TEMPORARY (harness-perf diagnosis): the .xcresult retains per-test/per-activity timing and
-      # the clone-side logs that the plain xcodebuild log drops in parallel mode. Remove once the
-      # add-source slowness is characterised.
-      - name: Upload xcresult bundle
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-harness-xcresult
-          path: ~/derived-data/Logs/Test/*.xcresult
           if-no-files-found: ignore
