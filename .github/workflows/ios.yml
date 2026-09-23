@@ -147,7 +147,8 @@ jobs:
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
-            :core:logging:iosSimulatorArm64Test
+            :core:logging:iosSimulatorArm64Test \
+            :core:database-api:iosSimulatorArm64Test
 
       - name: Upload iOS commonTest reports
         if: always()
@@ -155,25 +156,34 @@ jobs:
         with:
           name: ios-commontest-reports
           path: |
+            core/common/build/reports/tests/
             core/models/build/reports/tests/
             core/net/build/reports/tests/
             core/sources/build/reports/tests/
             core/catalog-oreilly/build/reports/tests/
             core/sync/build/reports/tests/
+            core/domain/build/reports/tests/
             core/dictionary/build/reports/tests/
             core/catalog/build/reports/tests/
             core/catalog-komga/build/reports/tests/
             core/catalog-gutenberg/build/reports/tests/
             core/catalog-radio-es/build/reports/tests/
             core/catalog-chitanka/build/reports/tests/
+            core/logging/build/reports/tests/
+            core/database-api/build/reports/tests/
             shared/build/reports/tests/
             feature/library/build/reports/tests/
+            feature/navigation/build/reports/tests/
             feature/player/build/reports/tests/
             feature/player-ui/build/reports/tests/
             feature/library-ui/build/reports/tests/
             feature/reader/build/reports/tests/
+            feature/reader-ui/build/reports/tests/
             feature/design-system/build/reports/tests/
             feature/source/build/reports/tests/
+            feature/source-ui/build/reports/tests/
+            feature/settings/build/reports/tests/
+            feature/downloads/build/reports/tests/
           if-no-files-found: ignore
 
       # Only the simulator slice is needed here: xcodebuild's embed phase links from

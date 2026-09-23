@@ -9,6 +9,8 @@ kotlin {
         compileSdk = 37
         minSdk = 24
 
+        withHostTest {}
+
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
@@ -22,8 +24,8 @@ kotlin {
             api(libs.androidx.room.runtime)
             implementation(libs.kotlinx.coroutines.core)
         }
-        jvmTest.dependencies {
-            implementation(libs.junit)
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }

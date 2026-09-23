@@ -6,18 +6,18 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AnnotationW3CCodecTest {
 
     private lateinit var codec: AnnotationW3CCodec
 
-    @Before
+    @BeforeTest
     fun setup() {
         codec = AnnotationW3CCodec
     }
@@ -45,8 +45,8 @@ class AnnotationW3CCodecTest {
 
         val json = codec.annotationEntityToW3C(entity)
 
-        assertTrue("JSON should contain motivation highlighting", json.contains("\"motivation\":\"highlighting\""))
-        assertTrue("JSON should contain color yellow in value", json.contains("\"value\":\"yellow\""))
+        assertTrue(json.contains("\"motivation\":\"highlighting\""), "JSON should contain motivation highlighting")
+        assertTrue(json.contains("\"value\":\"yellow\""), "JSON should contain color yellow in value")
     }
 
     // Test 2: Round-trip highlight preserves all fields
@@ -76,18 +76,18 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("ID should match", original.id, w3cAnnotation.id)
-        assertEquals("CFI should match", original.cfi, w3cAnnotation.cfi)
-        assertEquals("Type should match", original.type, w3cAnnotation.type)
-        assertEquals("Color should match", original.color, w3cAnnotation.color)
-        assertEquals("Text snippet should match", original.textSnippet, w3cAnnotation.textSnippet)
-        assertEquals("Chapter href should match", original.chapterHref, w3cAnnotation.chapterHref)
-        assertNull("Note should be null", w3cAnnotation.note)
-        assertEquals("Created timestamp should match", original.createdAt, w3cAnnotation.createdAt)
-        assertEquals("Updated timestamp should match", original.updatedAt, w3cAnnotation.updatedAt)
-        assertEquals("Origin device ID should match", original.originDeviceId, w3cAnnotation.originDeviceId)
-        assertEquals("Last modified device ID should match", original.lastModifiedByDeviceId, w3cAnnotation.lastModifiedByDeviceId)
-        assertFalse("Deleted flag should be false", w3cAnnotation.deleted)
+        assertEquals(original.id, w3cAnnotation.id, "ID should match")
+        assertEquals(original.cfi, w3cAnnotation.cfi, "CFI should match")
+        assertEquals(original.type, w3cAnnotation.type, "Type should match")
+        assertEquals(original.color, w3cAnnotation.color, "Color should match")
+        assertEquals(original.textSnippet, w3cAnnotation.textSnippet, "Text snippet should match")
+        assertEquals(original.chapterHref, w3cAnnotation.chapterHref, "Chapter href should match")
+        assertNull(w3cAnnotation.note, "Note should be null")
+        assertEquals(original.createdAt, w3cAnnotation.createdAt, "Created timestamp should match")
+        assertEquals(original.updatedAt, w3cAnnotation.updatedAt, "Updated timestamp should match")
+        assertEquals(original.originDeviceId, w3cAnnotation.originDeviceId, "Origin device ID should match")
+        assertEquals(original.lastModifiedByDeviceId, w3cAnnotation.lastModifiedByDeviceId, "Last modified device ID should match")
+        assertFalse(w3cAnnotation.deleted, "Deleted flag should be false")
     }
 
     // Test 3: Round-trip bookmark preserves type and title
@@ -118,10 +118,10 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("Type should be BOOKMARK", AnnotationEntity.TYPE_BOOKMARK, w3cAnnotation.type)
-        assertEquals("Bookmark title should match", original.bookmarkTitle, w3cAnnotation.bookmarkTitle)
-        assertEquals("ID should match", original.id, w3cAnnotation.id)
-        assertEquals("CFI should match", original.cfi, w3cAnnotation.cfi)
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, w3cAnnotation.type, "Type should be BOOKMARK")
+        assertEquals(original.bookmarkTitle, w3cAnnotation.bookmarkTitle, "Bookmark title should match")
+        assertEquals(original.id, w3cAnnotation.id, "ID should match")
+        assertEquals(original.cfi, w3cAnnotation.cfi, "CFI should match")
     }
 
     // Test 4: Round-trip highlight with note preserves note content
@@ -149,9 +149,9 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("Note should match", original.note, w3cAnnotation.note)
-        assertEquals("Type should still be HIGHLIGHT", AnnotationEntity.TYPE_HIGHLIGHT, w3cAnnotation.type)
-        assertEquals("Color should match", original.color, w3cAnnotation.color)
+        assertEquals(original.note, w3cAnnotation.note, "Note should match")
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, w3cAnnotation.type, "Type should still be HIGHLIGHT")
+        assertEquals(original.color, w3cAnnotation.color, "Color should match")
     }
 
     // Test 5: Round-trip deleted annotation preserves deleted flag and device IDs
@@ -179,10 +179,10 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertTrue("Deleted flag should be true", w3cAnnotation.deleted)
-        assertEquals("Origin device ID should match", original.originDeviceId, w3cAnnotation.originDeviceId)
-        assertEquals("Last modified device ID should match", original.lastModifiedByDeviceId, w3cAnnotation.lastModifiedByDeviceId)
-        assertEquals("Updated timestamp should reflect deletion time", original.updatedAt, w3cAnnotation.updatedAt)
+        assertTrue(w3cAnnotation.deleted, "Deleted flag should be true")
+        assertEquals(original.originDeviceId, w3cAnnotation.originDeviceId, "Origin device ID should match")
+        assertEquals(original.lastModifiedByDeviceId, w3cAnnotation.lastModifiedByDeviceId, "Last modified device ID should match")
+        assertEquals(original.updatedAt, w3cAnnotation.updatedAt, "Updated timestamp should reflect deletion time")
     }
 
     // Test 6: Snippet with before/after context round-trips correctly
@@ -210,10 +210,10 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("Text snippet should match", original.textSnippet, w3cAnnotation.textSnippet)
+        assertEquals(original.textSnippet, w3cAnnotation.textSnippet, "Text snippet should match")
         // Note: W3CAnnotation doesn't have textBefore/textAfter directly, but they're in the JSON
-        assertTrue("JSON should contain prefix", w3cJson.contains("\"prefix\":\"This is the beginning \""))
-        assertTrue("JSON should contain suffix", w3cJson.contains("\"suffix\":\" and this is the end.\""))
+        assertTrue(w3cJson.contains("\"prefix\":\"This is the beginning \""), "JSON should contain prefix")
+        assertTrue(w3cJson.contains("\"suffix\":\" and this is the end.\""), "JSON should contain suffix")
     }
 
     // Test 7: Complex CFI range serialization and preservation
@@ -242,8 +242,8 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("Complex CFI should be preserved exactly", complexCfi, w3cAnnotation.cfi)
-        assertTrue("JSON should contain exact CFI", w3cJson.contains(complexCfi))
+        assertEquals(complexCfi, w3cAnnotation.cfi, "Complex CFI should be preserved exactly")
+        assertTrue(w3cJson.contains(complexCfi), "JSON should contain exact CFI")
     }
 
     // Test 8: Timestamps (millis) round-trip via ISO 8601 conversion
@@ -274,11 +274,11 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("Created timestamp should match", createdMillis, w3cAnnotation.createdAt)
-        assertEquals("Updated timestamp should match", updatedMillis, w3cAnnotation.updatedAt)
+        assertEquals(createdMillis, w3cAnnotation.createdAt, "Created timestamp should match")
+        assertEquals(updatedMillis, w3cAnnotation.updatedAt, "Updated timestamp should match")
         // Verify ISO 8601 is in JSON (contains the date and "Z" for UTC)
-        assertTrue("JSON should contain created timestamp in ISO format", w3cJson.contains("\"created\":\"2021-12-20") && w3cJson.contains("\""))
-        assertTrue("JSON should contain modified timestamp in ISO format", w3cJson.contains("\"modified\":\"2021-12-21") && w3cJson.contains("\""))
+        assertTrue(w3cJson.contains("\"created\":\"2021-12-20") && w3cJson.contains("\""), "JSON should contain created timestamp in ISO format")
+        assertTrue(w3cJson.contains("\"modified\":\"2021-12-21") && w3cJson.contains("\""), "JSON should contain modified timestamp in ISO format")
     }
 
     // Test 9: Device IDs (origin and lastModifiedBy) both preserved
@@ -306,10 +306,10 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertEquals("Origin device ID should match", "device-phone-001", w3cAnnotation.originDeviceId)
-        assertEquals("Last modified device ID should match", "device-tablet-002", w3cAnnotation.lastModifiedByDeviceId)
-        assertTrue("JSON should contain riffle:originDeviceId", w3cJson.contains("\"riffle:originDeviceId\":\"device-phone-001\""))
-        assertTrue("JSON should contain riffle:lastModifiedByDeviceId", w3cJson.contains("\"riffle:lastModifiedByDeviceId\":\"device-tablet-002\""))
+        assertEquals("device-phone-001", w3cAnnotation.originDeviceId, "Origin device ID should match")
+        assertEquals("device-tablet-002", w3cAnnotation.lastModifiedByDeviceId, "Last modified device ID should match")
+        assertTrue(w3cJson.contains("\"riffle:originDeviceId\":\"device-phone-001\""), "JSON should contain riffle:originDeviceId")
+        assertTrue(w3cJson.contains("\"riffle:lastModifiedByDeviceId\":\"device-tablet-002\""), "JSON should contain riffle:lastModifiedByDeviceId")
     }
 
     // Test 10: All annotation types map motivation correctly
@@ -338,8 +338,8 @@ class AnnotationW3CCodecTest {
         val hlJson = codec.annotationEntityToW3C(highlight)
         val hlRestored = codec.w3cToAnnotationEntity(hlJson)
 
-        assertEquals("Highlight type should be preserved", AnnotationEntity.TYPE_HIGHLIGHT, hlRestored.type)
-        assertTrue("Highlight JSON should have highlighting motivation", hlJson.contains("\"motivation\":\"highlighting\""))
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, hlRestored.type, "Highlight type should be preserved")
+        assertTrue(hlJson.contains("\"motivation\":\"highlighting\""), "Highlight JSON should have highlighting motivation")
 
         // Test BOOKMARK
         val bookmark = AnnotationEntity(
@@ -365,8 +365,8 @@ class AnnotationW3CCodecTest {
         val bmJson = codec.annotationEntityToW3C(bookmark)
         val bmRestored = codec.w3cToAnnotationEntity(bmJson)
 
-        assertEquals("Bookmark type should be preserved", AnnotationEntity.TYPE_BOOKMARK, bmRestored.type)
-        assertTrue("Bookmark JSON should have bookmarking motivation", bmJson.contains("\"motivation\":\"bookmarking\""))
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, bmRestored.type, "Bookmark type should be preserved")
+        assertTrue(bmJson.contains("\"motivation\":\"bookmarking\""), "Bookmark JSON should have bookmarking motivation")
     }
 
     // Test 11: JSON structure validation (required W3C fields)
@@ -394,14 +394,14 @@ class AnnotationW3CCodecTest {
         val json = codec.annotationEntityToW3C(entity)
 
         // Verify required W3C fields
-        assertTrue("JSON should contain @context", json.contains("\"@context\":\"http://www.w3.org/ns/anno.jsonld\""))
-        assertTrue("JSON should contain id with urn:uuid:", json.contains("\"id\":\"urn:uuid:uuid-struct\""))
-        assertTrue("JSON should contain type Annotation", json.contains("\"type\":\"Annotation\""))
-        assertTrue("JSON should contain motivation", json.contains("\"motivation\""))
-        assertTrue("JSON should contain target", json.contains("\"target\""))
-        assertTrue("JSON should contain body", json.contains("\"body\""))
-        assertTrue("JSON should contain created timestamp", json.contains("\"created\""))
-        assertTrue("JSON should contain modified timestamp", json.contains("\"modified\""))
+        assertTrue(json.contains("\"@context\":\"http://www.w3.org/ns/anno.jsonld\""), "JSON should contain @context")
+        assertTrue(json.contains("\"id\":\"urn:uuid:uuid-struct\""), "JSON should contain id with urn:uuid:")
+        assertTrue(json.contains("\"type\":\"Annotation\""), "JSON should contain type Annotation")
+        assertTrue(json.contains("\"motivation\""), "JSON should contain motivation")
+        assertTrue(json.contains("\"target\""), "JSON should contain target")
+        assertTrue(json.contains("\"body\""), "JSON should contain body")
+        assertTrue(json.contains("\"created\""), "JSON should contain created timestamp")
+        assertTrue(json.contains("\"modified\""), "JSON should contain modified timestamp")
     }
 
     // Test 12: Riffle extensions present in JSON output
@@ -429,10 +429,10 @@ class AnnotationW3CCodecTest {
         val json = codec.annotationEntityToW3C(entity)
 
         // Verify Riffle extensions
-        assertTrue("JSON should contain riffle:originDeviceId", json.contains("\"riffle:originDeviceId\":\"device-riffle-1\""))
-        assertTrue("JSON should contain riffle:lastModifiedByDeviceId", json.contains("\"riffle:lastModifiedByDeviceId\":\"device-riffle-2\""))
-        assertTrue("JSON should contain riffle:updatedAt", json.contains("\"riffle:updatedAt\":1640532000000"))
-        assertTrue("JSON should contain riffle:deleted", json.contains("\"riffle:deleted\":true"))
+        assertTrue(json.contains("\"riffle:originDeviceId\":\"device-riffle-1\""), "JSON should contain riffle:originDeviceId")
+        assertTrue(json.contains("\"riffle:lastModifiedByDeviceId\":\"device-riffle-2\""), "JSON should contain riffle:lastModifiedByDeviceId")
+        assertTrue(json.contains("\"riffle:updatedAt\":1640532000000"), "JSON should contain riffle:updatedAt")
+        assertTrue(json.contains("\"riffle:deleted\":true"), "JSON should contain riffle:deleted")
     }
 
     // Test 13: Empty note field handled correctly
@@ -460,7 +460,7 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertNull("Empty note should round-trip as null", w3cAnnotation.note)
+        assertNull(w3cAnnotation.note, "Empty note should round-trip as null")
     }
 
     // Test 14: Bookmark with title in body and riffle extensions
@@ -489,11 +489,11 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(original)
 
         // Verify title in both body and riffle namespace
-        assertTrue("Bookmark title should be in body value", w3cJson.contains("\"value\":\"Important Plot Point\""))
-        assertTrue("Bookmark title should be in riffle:bookmarkTitle", w3cJson.contains("\"riffle:bookmarkTitle\":\"Important Plot Point\""))
+        assertTrue(w3cJson.contains("\"value\":\"Important Plot Point\""), "Bookmark title should be in body value")
+        assertTrue(w3cJson.contains("\"riffle:bookmarkTitle\":\"Important Plot Point\""), "Bookmark title should be in riffle:bookmarkTitle")
 
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
-        assertEquals("Bookmark title should round-trip", original.bookmarkTitle, w3cAnnotation.bookmarkTitle)
+        assertEquals(original.bookmarkTitle, w3cAnnotation.bookmarkTitle, "Bookmark title should round-trip")
     }
 
     // Test 15: FragmentSelector and TextQuoteSelector both present in target
@@ -521,12 +521,12 @@ class AnnotationW3CCodecTest {
         val json = codec.annotationEntityToW3C(entity)
 
         // Verify selector structures
-        assertTrue("JSON should contain FragmentSelector", json.contains("\"type\":\"FragmentSelector\""))
-        assertTrue("JSON should contain TextQuoteSelector", json.contains("\"type\":\"TextQuoteSelector\""))
-        assertTrue("FragmentSelector should contain CFI", json.contains("epubcfi(/6/4!/4/2,/1:0,/1:50)"))
-        assertTrue("TextQuoteSelector should contain exact text", json.contains("\"exact\":\"selector test\""))
-        assertTrue("TextQuoteSelector should contain prefix", json.contains("\"prefix\":\"prefix \""))
-        assertTrue("TextQuoteSelector should contain suffix", json.contains("\"suffix\":\" suffix\""))
+        assertTrue(json.contains("\"type\":\"FragmentSelector\""), "JSON should contain FragmentSelector")
+        assertTrue(json.contains("\"type\":\"TextQuoteSelector\""), "JSON should contain TextQuoteSelector")
+        assertTrue(json.contains("epubcfi(/6/4!/4/2,/1:0,/1:50)"), "FragmentSelector should contain CFI")
+        assertTrue(json.contains("\"exact\":\"selector test\""), "TextQuoteSelector should contain exact text")
+        assertTrue(json.contains("\"prefix\":\"prefix \""), "TextQuoteSelector should contain prefix")
+        assertTrue(json.contains("\"suffix\":\" suffix\""), "TextQuoteSelector should contain suffix")
     }
 
     // Test 16: Source field correctly formatted as epub://item-*
@@ -554,8 +554,8 @@ class AnnotationW3CCodecTest {
         val w3cJson = codec.annotationEntityToW3C(entity)
         val w3cAnnotation = codec.w3cToAnnotationEntity(w3cJson)
 
-        assertTrue("Source should be formatted as epub://item-*", w3cJson.contains("\"source\":\"epub://item-item-abc123\""))
-        assertEquals("Chapter href should be extracted from source", "item-abc123", w3cAnnotation.chapterHref)
+        assertTrue(w3cJson.contains("\"source\":\"epub://item-item-abc123\""), "Source should be formatted as epub://item-*")
+        assertEquals("item-abc123", w3cAnnotation.chapterHref, "Chapter href should be extracted from source")
     }
 
     // Test 17: TextQuoteSelector prefix/suffix round-trip through parse so the disambiguation
@@ -711,16 +711,22 @@ class AnnotationW3CCodecTest {
     @Test
     fun `PDF highlight serializes with RFC 3778 FragmentSelector and refinedBy DataPositionSelector`() {
         val json = codec.annotationEntityToW3C(pdfHighlightEntity())
-        assertTrue("source uses pdf:// scheme", json.contains("\"pdf://item-pdf-item\""))
-        assertTrue("FragmentSelector conformsTo RFC 3778",
-            json.contains("\"http://tools.ietf.org/rfc/rfc3778\""))
-        assertTrue("value carries page= fragment", json.contains("\"value\":\"page=42\""))
-        assertTrue("RefinedBy is a DataPositionSelector",
-            json.contains("\"DataPositionSelector\""))
-        assertTrue("char range start present", json.contains("\"start\":1503"))
-        assertTrue("char range end present", json.contains("\"end\":1547"))
-        assertTrue("quads ride as Riffle-namespaced property",
-            json.contains("\"riffle:quads\""))
+        assertTrue(json.contains("\"pdf://item-pdf-item\""), "source uses pdf:// scheme")
+        assertTrue(
+            json.contains("\"http://tools.ietf.org/rfc/rfc3778\""),
+            "FragmentSelector conformsTo RFC 3778",
+        )
+        assertTrue(json.contains("\"value\":\"page=42\""), "value carries page= fragment")
+        assertTrue(
+            json.contains("\"DataPositionSelector\""),
+            "RefinedBy is a DataPositionSelector",
+        )
+        assertTrue(json.contains("\"start\":1503"), "char range start present")
+        assertTrue(json.contains("\"end\":1547"), "char range end present")
+        assertTrue(
+            json.contains("\"riffle:quads\""),
+            "quads ride as Riffle-namespaced property",
+        )
     }
 
     @Test
@@ -749,7 +755,7 @@ class AnnotationW3CCodecTest {
     }
 
     @Test
-    fun `PDF bookmark (no char range) serializes without RefinedBy`() {
+    fun `PDF bookmark no char range serializes without RefinedBy`() {
         val entity = pdfHighlightEntity().copy(
             id = "uuid-pdf-bm-1",
             type = AnnotationEntity.TYPE_BOOKMARK,
@@ -761,12 +767,14 @@ class AnnotationW3CCodecTest {
             bookmarkTitle = "Page 7",
         )
         val json = codec.annotationEntityToW3C(entity)
-        assertTrue("bookmark motivation", json.contains("\"motivation\":\"bookmarking\""))
-        assertTrue("source uses pdf:// scheme", json.contains("\"pdf://item-pdf-item\""))
-        assertTrue("value carries page= fragment", json.contains("\"value\":\"page=7\""))
-        assertFalse("no RefinedBy for char-rangeless bookmark",
-            json.contains("\"DataPositionSelector\""))
-        assertFalse("no quads on a bookmark", json.contains("\"riffle:quads\""))
+        assertTrue(json.contains("\"motivation\":\"bookmarking\""), "bookmark motivation")
+        assertTrue(json.contains("\"pdf://item-pdf-item\""), "source uses pdf:// scheme")
+        assertTrue(json.contains("\"value\":\"page=7\""), "value carries page= fragment")
+        assertFalse(
+            json.contains("\"DataPositionSelector\""),
+            "no RefinedBy for char-rangeless bookmark",
+        )
+        assertFalse(json.contains("\"riffle:quads\""), "no quads on a bookmark")
     }
 
     @Test
@@ -788,7 +796,7 @@ class AnnotationW3CCodecTest {
         assertEquals("application/pdf", roundTripped["type"]?.jsonPrimitive?.content)
         val locations = roundTripped["locations"]?.jsonObject!!
         assertEquals(7, locations["position"]?.jsonPrimitive?.intOrNull)
-        assertNull("no char range / quads on a bookmark", locations["otherLocations"])
+        assertNull(locations["otherLocations"], "no char range / quads on a bookmark")
         assertEquals(AnnotationEntity.TYPE_BOOKMARK, parsed.type)
         assertEquals("Page 7", parsed.bookmarkTitle)
     }
@@ -813,14 +821,22 @@ class AnnotationW3CCodecTest {
             lastModifiedByDeviceId = "device-A",
         )
         val json = codec.annotationEntityToW3C(entity)
-        assertTrue("source uses epub:// scheme",
-            json.contains("\"epub://item-epub-item\""))
-        assertTrue("FragmentSelector conformsTo IDPF EPUB CFI",
-            json.contains("\"http://idpf.org/epub/linking/cfi/epub-cfi.html\""))
-        assertTrue("value carries raw epubcfi",
-            json.contains("\"epubcfi(/6/4!/4/2,/1:0,/1:100)\""))
-        assertFalse("no RFC 3778 conformsTo for EPUB",
-            json.contains("rfc3778"))
+        assertTrue(
+            json.contains("\"epub://item-epub-item\""),
+            "source uses epub:// scheme",
+        )
+        assertTrue(
+            json.contains("\"http://idpf.org/epub/linking/cfi/epub-cfi.html\""),
+            "FragmentSelector conformsTo IDPF EPUB CFI",
+        )
+        assertTrue(
+            json.contains("\"epubcfi(/6/4!/4/2,/1:0,/1:100)\""),
+            "value carries raw epubcfi",
+        )
+        assertFalse(
+            json.contains("rfc3778"),
+            "no RFC 3778 conformsTo for EPUB",
+        )
     }
 
     // ---- riffle:image Web Annotation body (Task 12) -------------------------
@@ -846,14 +862,14 @@ class AnnotationW3CCodecTest {
         )
 
         val w3cJson = codec.annotationEntityToW3C(entity)
-        assertTrue("body carries riffle:image type", w3cJson.contains("\"type\":\"riffle:image\""))
-        assertTrue("body carries href", w3cJson.contains("\"href\":\"images/g.png\""))
-        assertFalse("TYPE_IMAGE body carries no order", w3cJson.contains("\"order\""))
+        assertTrue(w3cJson.contains("\"type\":\"riffle:image\""), "body carries riffle:image type")
+        assertTrue(w3cJson.contains("\"href\":\"images/g.png\""), "body carries href")
+        assertFalse(w3cJson.contains("\"order\""), "TYPE_IMAGE body carries no order")
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
-        assertEquals("Type should be IMAGE", AnnotationEntity.TYPE_IMAGE, parsed.type)
+        assertEquals(AnnotationEntity.TYPE_IMAGE, parsed.type, "Type should be IMAGE")
         assertEquals("images/g.png", parsed.imageHref)
-        assertNull("svg should be null", parsed.imageSvg)
+        assertNull(parsed.imageSvg, "svg should be null")
         assertEquals("Figure 1", parsed.textSnippet)
     }
 
@@ -878,11 +894,11 @@ class AnnotationW3CCodecTest {
         )
 
         val w3cJson = codec.annotationEntityToW3C(entity)
-        assertTrue("body carries svg", w3cJson.contains("\"svg\":\"<svg>diagram</svg>\""))
+        assertTrue(w3cJson.contains("\"svg\":\"<svg>diagram</svg>\""), "body carries svg")
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
-        assertEquals("Type should be IMAGE", AnnotationEntity.TYPE_IMAGE, parsed.type)
-        assertNull("href should be null", parsed.imageHref)
+        assertEquals(AnnotationEntity.TYPE_IMAGE, parsed.type, "Type should be IMAGE")
+        assertNull(parsed.imageHref, "href should be null")
         assertEquals("<svg>diagram</svg>", parsed.imageSvg)
         assertEquals("Diagram", parsed.textSnippet)
     }
@@ -911,16 +927,16 @@ class AnnotationW3CCodecTest {
         )
 
         val w3cJson = codec.annotationEntityToW3C(entity)
-        assertTrue("JSON contains text body", w3cJson.contains("\"purpose\":\"highlighting\""))
-        assertTrue("JSON contains riffle:image bodies", w3cJson.contains("\"type\":\"riffle:image\""))
+        assertTrue(w3cJson.contains("\"purpose\":\"highlighting\""), "JSON contains text body")
+        assertTrue(w3cJson.contains("\"type\":\"riffle:image\""), "JSON contains riffle:image bodies")
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
-        assertEquals("Type should still be HIGHLIGHT", AnnotationEntity.TYPE_HIGHLIGHT, parsed.type)
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, parsed.type, "Type should still be HIGHLIGHT")
         assertEquals("surrounding text", parsed.textSnippet)
         assertEquals(
-            "Figures should round-trip sorted by order",
             listOf("a.png", "b.png"),
             parsed.embeddedFigures?.map { it.href },
+            "Figures should round-trip sorted by order",
         )
         assertEquals(listOf(0, 1), parsed.embeddedFigures?.map { it.order })
     }
@@ -958,8 +974,8 @@ class AnnotationW3CCodecTest {
         )
 
         val w3cJson = codec.annotationEntityToW3C(entity)
-        assertTrue("outbound JSON must carry charOffset", w3cJson.contains("\"charOffset\":42"))
-        assertTrue("outbound JSON must carry imageBytes", w3cJson.contains("\"imageBytes\":\"data:image/jpeg;base64,ZZZZ\""))
+        assertTrue(w3cJson.contains("\"charOffset\":42"), "outbound JSON must carry charOffset")
+        assertTrue(w3cJson.contains("\"imageBytes\":\"data:image/jpeg;base64,ZZZZ\""), "outbound JSON must carry imageBytes")
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
         val f = parsed.embeddedFigures?.single()
@@ -989,8 +1005,8 @@ class AnnotationW3CCodecTest {
 
         val w3cJson = codec.annotationEntityToW3C(entity)
         assertTrue(
-            "TYPE_IMAGE outbound JSON must carry imageBytes as an extension on the riffle:image body",
             w3cJson.contains("\"imageBytes\":\"data:image/png;base64,QQQQ\""),
+            "TYPE_IMAGE outbound JSON must carry imageBytes as an extension on the riffle:image body",
         )
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
@@ -1017,7 +1033,7 @@ class AnnotationW3CCodecTest {
         )
 
         val w3cJson = codec.annotationEntityToW3C(entity)
-        assertFalse("No riffle:image bodies should be emitted", w3cJson.contains("riffle:image"))
+        assertFalse(w3cJson.contains("riffle:image"), "No riffle:image bodies should be emitted")
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
         assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, parsed.type)
@@ -1044,7 +1060,7 @@ class AnnotationW3CCodecTest {
         )
 
         val w3cJson = codec.annotationEntityToW3C(entity)
-        assertFalse("No riffle:image bodies should be emitted", w3cJson.contains("riffle:image"))
+        assertFalse(w3cJson.contains("riffle:image"), "No riffle:image bodies should be emitted")
 
         val parsed = codec.w3cToAnnotationEntity(w3cJson)
         assertNull(parsed.embeddedFigures)
@@ -1071,7 +1087,7 @@ class AnnotationW3CCodecTest {
 
         assertEquals(AnnotationEntity.TYPE_IMAGE, parsed.type)
         assertEquals("raster.png", parsed.imageHref)
-        assertNull("svg should be nulled out when href wins", parsed.imageSvg)
+        assertNull(parsed.imageSvg, "svg should be nulled out when href wins")
         assertEquals("malformed figure", parsed.textSnippet)
     }
 
@@ -1100,10 +1116,12 @@ class AnnotationW3CCodecTest {
             emphasisStyles = "bold,underline",
         )
         val json = codec.annotationEntityToW3C(entity)
-        assertTrue("body carries riffle:emphasis type", json.contains("\"type\":\"riffle:emphasis\""))
-        assertTrue("body value carries the styles token", json.contains("\"styles\":\"bold,underline\""))
-        assertTrue("motivation is commenting so legacy peers don't render phantom highlights (F3)",
-            json.contains("\"motivation\":\"commenting\""))
+        assertTrue(json.contains("\"type\":\"riffle:emphasis\""), "body carries riffle:emphasis type")
+        assertTrue(json.contains("\"styles\":\"bold,underline\""), "body value carries the styles token")
+        assertTrue(
+            json.contains("\"motivation\":\"commenting\""),
+            "motivation is commenting so legacy peers don't render phantom highlights (F3)",
+        )
     }
 
     @Test
@@ -1161,7 +1179,7 @@ class AnnotationW3CCodecTest {
     // the peer's format-only anchor as YELLOW on device B. Reproduced as "device A sets formatting
     // without color, device B syncs the formatting, but sets the color to yellow" (2026-07-21).
     @Test
-    fun `format-only highlight round-trips with empty color, not yellow`() {
+    fun `format-only highlight round-trips with empty color not yellow`() {
         val entity = AnnotationEntity(
             id = "uuid-format-only",
             sourceId = "abs1",
@@ -1182,8 +1200,8 @@ class AnnotationW3CCodecTest {
 
         val json = codec.annotationEntityToW3C(entity)
         assertTrue(
-            "empty color must be emitted as `\"value\":\"\"` so peers know it's ∅ not unspecified",
             json.contains("\"value\":\"\""),
+            "empty color must be emitted as `\"value\":\"\"` so peers know it's ∅ not unspecified",
         )
 
         val parsed = codec.w3cToAnnotationEntity(json)

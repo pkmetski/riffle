@@ -120,7 +120,10 @@ func dismissKeyboard(in app: XCUIApplication) {
 // tree, but XCUITest cannot compute a hit point for it — even asking `isHittable` fails the test.
 // Decide from the reported frame instead and drag the row until the tile is fully on screen.
 func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
-    guard tile.exists else { return }
+    guard tile.exists else {
+        XCTFail("revealTile: tile does not exist in the accessibility tree — fixture missing or library not loaded")
+        return
+    }
     let screen = app.frame
     for _ in 0..<6 {
         let frame = tile.frame

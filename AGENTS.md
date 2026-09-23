@@ -53,6 +53,14 @@ When adding a new Room migration:
      - `helper.runMigrationsAndValidate(TEST_DB, N+1, true, RiffleDatabase.MIGRATION_N_(N+1))`
      - Cursor assertions verifying new columns have correct default values and all pre-existing data is preserved
    - Add the new migration to the `migrateFullChain` test's `runMigrationsAndValidate` call.
+5. **If the migrated table is used on iOS** (check whether `IosRiffleDatabaseSchema.kt` creates the table and whether any `Ios*Dao.kt` touches the changed column):
+   - Bump `version` in `IosRiffleDatabaseSchema.kt`.
+   - Add the corresponding DDL to the `migrate()` call for the new version range.
+   - Open `core/database/src/iosTest/kotlin/com/riffle/core/database/IosRiffleDatabaseSchemaTest.kt` and add a `@Test fun migrateVNToVN1()` following the pattern of the existing migration tests:
+     - Drop or alter the table to put the database into a genuine pre-migration shape.
+     - Call `IosRiffleDatabaseSchema.migrate(driver, (N-1).toLong(), N.toLong())`.
+     - Assert that the new columns or tables exist and pre-existing data is preserved.
+   - Add the new version to `migrateFullChain` (if that test exists for the iOS schema) or create one.
 
 ## Commit every uncommitted change on the branch
 

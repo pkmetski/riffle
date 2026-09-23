@@ -128,6 +128,48 @@ object TestGuardrailLint {
             path.endsWith(".swift") && Regex("""(^|/)iosApp/iosApp(Unit)?Tests/""").containsMatchIn(path)
     }
 
+    // ── iOS-targeted module jvmTest / androidHostTest parity ─────────────────────────────────────
+
+    /** Matches jvmTest or androidHostTest source dirs in non-app modules. */
+    val IOS_MODULE_TEST_DIR = Regex("""(^|/)src/(jvmTest|androidHostTest)/""")
+
+    /**
+     * Finds test classes newly added to `jvmTest` or `androidHostTest` in iOS-targeted modules
+     * ([addedIosModuleTestFiles]) that have no matching file in `commonTest` of the **same
+     * module**. A skip can be declared with a `Parity-skip: <ClassName>` commit-message trailer
+     * when the test genuinely cannot run on Kotlin/Native (OkHttp, JVM reflection, etc.).
+     *
+     * "Same module" is determined by the path prefix before `/src/(jvmTest|androidHostTest)/`.
+     */
+    fun checkIosModuleTestParity(
+        addedIosModuleTestFiles: Set<String>,
+        allCurrentTestFiles: Set<String>,
+        declared: Set<String> = emptySet(),
+    ): List<ParityViolation> {
+        // Index commonTest files by (moduleRoot → set of simple filenames) for O(1) lookup.
+        val commonTestByModule = buildMap<String, MutableSet<String>> {
+            allCurrentTestFiles
+                .filter { it.endsWith(".kt") && Regex("""(^|/)src/commonTest/""").containsMatchIn(it) }
+                .forEach { path ->
+                    val moduleRoot = path.substringBefore("/src/commonTest/")
+                    getOrPut(moduleRoot) { mutableSetOf() } += path.substringAfterLast('/')
+                }
+        }
+
+        return addedIosModuleTestFiles
+            .filter { it.endsWith(".kt") && IOS_MODULE_TEST_DIR.containsMatchIn(it) }
+            .mapNotNull { file ->
+                val simpleFile = file.substringAfterLast('/')
+                val className = simpleFile.removeSuffix(".kt")
+                if (className in declared) return@mapNotNull null
+                val match = IOS_MODULE_TEST_DIR.find(file) ?: return@mapNotNull null
+                val moduleRoot = file.substring(0, match.range.first)
+                val hasCounterpart = commonTestByModule[moduleRoot]?.contains(simpleFile) == true
+                if (hasCounterpart) null else ParityViolation(file, className)
+            }
+            .sortedBy { it.appTestFile }
+    }
+
     /** Parses `Parity-skip: <ClassName>` trailer lines from commit messages. */
     fun parseDeclaredParitySkips(commitMessages: String): Set<String> =
         Regex("""^Parity-skip:\s*(.+)$""", RegexOption.MULTILINE)

@@ -1,7 +1,6 @@
 import XCTest
 import Riffle
 
-// Covers scenarios from docs/testing/ios-scenarios/05-audiobook-player-viewmodel.md
 //
 // Exercises the pure Kotlin helpers promoted to feature:player/commonMain so they compile
 // and behave correctly on iOS without any JVM-specific APIs.

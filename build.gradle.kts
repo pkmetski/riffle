@@ -464,7 +464,8 @@ tasks.register<CreateTranslationTask>("createTranslation") {
 // `Parity-skip: <ClassName>` and justify the omission in the commit body / PR description.
 tasks.register("checkParityMirror") {
     group = "verification"
-    description = "Fails if a new @Test class in app/src/test has no commonTest or XCTest counterpart."
+    description = "Fails if a new @Test class in app/src/test or in jvmTest/androidHostTest of an " +
+        "iOS-targeted module has no commonTest or XCTest counterpart."
     notCompatibleWithConfigurationCache("invokes git at execution time")
 
     doLast {
@@ -487,38 +488,80 @@ tasks.register("checkParityMirror") {
         val head = git("rev-parse", "HEAD")?.trim()
         if (head == null || base == head) return@doLast
 
-        // Collect newly added files in app/src/test.
+        // Determine which module roots are iOS-targeted by scanning build.gradle.kts files.
+        val iosTargetedModuleRoots: Set<String> = projectRoot.walkTopDown()
+            .filter { it.name == "build.gradle.kts" && !it.path.contains("/buildSrc/") && !it.path.contains("/app/") }
+            .filter { file ->
+                val text = file.readText()
+                text.contains("iosArm64()") || text.contains("iosSimulatorArm64()")
+            }
+            .map { it.parentFile.relativeTo(projectRoot).path.replace('\\', '/') }
+            .toSet()
+
+        // Collect all newly added test files (status A) on this branch.
         val addedAppTestFiles = mutableSetOf<String>()
+        val addedIosModuleTestFiles = mutableSetOf<String>()
         val nameStatus = git("diff", "--name-status", "-M", base, "HEAD") ?: return@doLast
         for (line in nameStatus.lineSequence().filter { it.isNotBlank() }) {
             val parts = line.split('\t')
             val status = parts[0]
             val path = if (status.startsWith("R") || status.startsWith("C")) parts.getOrNull(2) else parts.getOrNull(1)
-            if (path != null && status.startsWith("A") && TestGuardrailLint.APP_TEST_DIR.containsMatchIn(path)) {
-                addedAppTestFiles += path
+            if (path != null && status.startsWith("A")) {
+                when {
+                    TestGuardrailLint.APP_TEST_DIR.containsMatchIn(path) -> addedAppTestFiles += path
+                    TestGuardrailLint.IOS_MODULE_TEST_DIR.containsMatchIn(path) -> {
+                        val match = TestGuardrailLint.IOS_MODULE_TEST_DIR.find(path)
+                        val moduleRoot = if (match != null) path.substring(0, match.range.first) else null
+                        if (moduleRoot != null && moduleRoot in iosTargetedModuleRoots) {
+                            addedIosModuleTestFiles += path
+                        }
+                    }
+                }
             }
         }
-        if (addedAppTestFiles.isEmpty()) return@doLast
+        if (addedAppTestFiles.isEmpty() && addedIosModuleTestFiles.isEmpty()) return@doLast
 
         // Collect all current test files in counterpart locations (commonTest, iosTest, XCTest).
         val allCurrentFiles = git("ls-tree", "-r", "--name-only", head)
             ?.lineSequence()
-            ?.filter { TestGuardrailLint.isCounterpartTestFile(it) }
+            ?.filter { it.endsWith(".kt") || it.endsWith(".swift") }
             ?.toSet()
             ?: return@doLast
 
         val declared = TestGuardrailLint.parseDeclaredParitySkips(
             git("log", "--format=%B", "$base..HEAD").orEmpty(),
         )
-        val violations = TestGuardrailLint.checkParityMirror(addedAppTestFiles, allCurrentFiles, declared)
-        if (violations.isNotEmpty()) {
-            throw GradleException(
-                "Parity mirror: these test classes were added to app/src/test without a counterpart " +
-                    "in commonTest or the iOS XCTest suites. Add a matching test in commonTest or " +
-                    "iosApp/*Tests/, or declare the class as Android-only with a commit trailer " +
-                    "`Parity-skip: <ClassName>` and justify the omission in the commit body / PR:\n" +
-                    violations.joinToString("\n") { "  ${it.render()}" },
-            )
+
+        val allViolations = mutableListOf<TestGuardrailLint.ParityViolation>()
+
+        if (addedAppTestFiles.isNotEmpty()) {
+            val counterpartFiles = allCurrentFiles.filter { TestGuardrailLint.isCounterpartTestFile(it) }.toSet()
+            allViolations += TestGuardrailLint.checkParityMirror(addedAppTestFiles, counterpartFiles, declared)
+        }
+
+        if (addedIosModuleTestFiles.isNotEmpty()) {
+            allViolations += TestGuardrailLint.checkIosModuleTestParity(addedIosModuleTestFiles, allCurrentFiles, declared)
+        }
+
+        if (allViolations.isNotEmpty()) {
+            val appViolations = allViolations.filter { TestGuardrailLint.APP_TEST_DIR.containsMatchIn(it.appTestFile) }
+            val moduleViolations = allViolations - appViolations.toSet()
+            val msg = buildString {
+                if (appViolations.isNotEmpty()) {
+                    appendLine("Parity mirror (app/src/test): these test classes have no counterpart in commonTest or " +
+                        "the iOS XCTest suites. Add a matching test in commonTest or iosApp/*Tests/, or declare " +
+                        "the class as Android-only with a commit trailer `Parity-skip: <ClassName>`:")
+                    appViolations.forEach { appendLine("  ${it.render()}") }
+                }
+                if (moduleViolations.isNotEmpty()) {
+                    appendLine("Parity mirror (iOS-targeted module jvmTest/androidHostTest): these test classes have " +
+                        "no counterpart in commonTest of the same module. Move the test to commonTest, or declare " +
+                        "the class as JVM-only with a commit trailer `Parity-skip: <ClassName>` (with justification " +
+                        "— OkHttp, JVM reflection, java.io.File, etc.):")
+                    moduleViolations.forEach { appendLine("  ${it.render()}") }
+                }
+            }
+            throw GradleException(msg.trimEnd())
         }
     }
 }
