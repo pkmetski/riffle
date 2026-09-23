@@ -3,9 +3,9 @@ package com.riffle.core.data.di
 import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Enforces that every [SourceType] has a [com.riffle.core.domain.WebSourceDescriptor] registered
@@ -19,9 +19,9 @@ class WebSourceRegistryCompletenessTest {
     fun `every SourceType resolves to a descriptor via static registry`() {
         val missing = SourceType.values().filter { WebSourceDescriptors.forType(it) == null }
         assertTrue(
+            missing.isEmpty(),
             "SourceType entries without a WebSourceDescriptor: $missing — add a descriptor " +
                 "object in :core:domain/WebSourceDescriptor.kt and register it in WebSourceDescriptors.all",
-            missing.isEmpty(),
         )
     }
 
@@ -29,14 +29,14 @@ class WebSourceRegistryCompletenessTest {
     fun `every SourceType resolves via injected WebSourceRegistry`() {
         val registry = WebSourceRegistry(WebSourceDescriptors.all)
         val missing = SourceType.values().filter { registry.forType(it) == null }
-        assertTrue("missing bindings via WebSourceRegistry: $missing", missing.isEmpty())
+        assertTrue(missing.isEmpty(), "missing bindings via WebSourceRegistry: $missing")
     }
 
     @Test
     fun `descriptor set contains no duplicates by type`() {
         val perType = WebSourceDescriptors.all.groupBy { it.type }.mapValues { it.value.size }
         val duplicates = perType.filterValues { it > 1 }
-        assertTrue("duplicate descriptors registered per SourceType: $duplicates", duplicates.isEmpty())
+        assertTrue(duplicates.isEmpty(), "duplicate descriptors registered per SourceType: $duplicates")
     }
 
     @Test
@@ -57,9 +57,9 @@ class WebSourceRegistryCompletenessTest {
             .filter { it.addSourceCopy == null }
             .map { it.type }
         assertTrue(
+            missing.isEmpty(),
             "credentialed WebSourceDescriptor(s) without addSourceCopy: $missing — populate " +
                 "`addSourceCopy = AddSourceCopy(...)` in the descriptor object",
-            missing.isEmpty(),
         )
     }
 
@@ -72,9 +72,9 @@ class WebSourceRegistryCompletenessTest {
             .filter { it.isUnboundedCatalog }
             .filter { WebSourceDescriptors.forTypeOrError(it).browseRoutePrefix == null }
         assertTrue(
+            missing.isEmpty(),
             "unbounded SourceType(s) without browseRoutePrefix: $missing — drawer library taps " +
                 "would silently route to `library_items` and render empty",
-            missing.isEmpty(),
         )
     }
 }

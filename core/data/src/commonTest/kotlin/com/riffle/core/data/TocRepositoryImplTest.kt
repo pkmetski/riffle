@@ -5,10 +5,11 @@ import com.riffle.core.database.TocCacheEntity
 import com.riffle.core.domain.TestClock
 import com.riffle.core.models.TocEntry
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class TocRepositoryImplTest {
 
@@ -61,8 +62,8 @@ class TocRepositoryImplTest {
         assertEquals("item", entity.itemId)
         assertEquals("ino99", entity.ebookFileIno)
         assertEquals(NOW_MS, entity.cachedAt)
-        assert(entity.entriesJson.contains("Ch 1")) { "JSON should contain 'Ch 1'" }
-        assert(entity.entriesJson.contains("Ch 2")) { "JSON should contain 'Ch 2'" }
+        assertTrue(entity.entriesJson.contains("Ch 1"), "JSON should contain 'Ch 1'")
+        assertTrue(entity.entriesJson.contains("Ch 2"), "JSON should contain 'Ch 2'")
     }
 
     @Test

@@ -1,12 +1,12 @@
 package com.riffle.core.data.localfiles
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class FileClassifierTest {
 
     private val epubMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(200)
-    private val pdfMagic = "%PDF-1.7".toByteArray()
+    private val pdfMagic = "%PDF-1.7".encodeToByteArray()
     private val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(200)
 
     @Test
@@ -32,12 +32,12 @@ class FileClassifierTest {
 
     @Test
     fun `epub extension with wrong magic returns UNKNOWN`() {
-        assertEquals(FileClassifier.Kind.UNKNOWN, FileClassifier.classify("book.epub", "not a zip".toByteArray()))
+        assertEquals(FileClassifier.Kind.UNKNOWN, FileClassifier.classify("book.epub", "not a zip".encodeToByteArray()))
     }
 
     @Test
     fun `pdf extension with wrong magic returns UNKNOWN`() {
-        assertEquals(FileClassifier.Kind.UNKNOWN, FileClassifier.classify("book.pdf", "not a pdf".toByteArray()))
+        assertEquals(FileClassifier.Kind.UNKNOWN, FileClassifier.classify("book.pdf", "not a pdf".encodeToByteArray()))
     }
 
     @Test
@@ -54,7 +54,7 @@ class FileClassifierTest {
     fun `cbz extension with non-zip magic returns UNKNOWN`() {
         assertEquals(
             FileClassifier.Kind.UNKNOWN,
-            FileClassifier.classify("comic.cbz", "not a zip".toByteArray()),
+            FileClassifier.classify("comic.cbz", "not a zip".encodeToByteArray()),
         )
     }
 

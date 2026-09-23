@@ -4,9 +4,11 @@ import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadaloudResumePositionEntity
 import com.riffle.core.domain.ReadaloudResumePosition
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.math.abs
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ReadaloudResumeStoreTest {
 
@@ -31,7 +33,7 @@ class ReadaloudResumeStoreTest {
         store.save("source-A", "item-1", ReadaloudResumePosition("ch1.xhtml", 0.25, "ch1.xhtml#s5"))
         val saved = dao.store["source-A" to "item-1"]
         assertEquals("ch1.xhtml", saved?.href)
-        assertEquals(0.25, saved?.progression!!, 1e-9)
+        assertTrue(abs(saved?.progression!! - 0.25) < 1e-9)
         assertEquals("ch1.xhtml#s5", saved.fragmentRef)
     }
 
