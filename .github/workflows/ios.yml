@@ -420,3 +420,14 @@ jobs:
           name: ios-harness-log
           path: xcodebuild-harness.log
           if-no-files-found: ignore
+
+      # TEMPORARY (harness-perf diagnosis): the .xcresult retains per-test/per-activity timing and
+      # the clone-side logs that the plain xcodebuild log drops in parallel mode. Remove once the
+      # add-source slowness is characterised.
+      - name: Upload xcresult bundle
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-harness-xcresult
+          path: ~/derived-data/Logs/Test/*.xcresult
+          if-no-files-found: ignore
