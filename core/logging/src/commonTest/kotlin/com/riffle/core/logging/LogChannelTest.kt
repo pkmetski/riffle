@@ -1,7 +1,7 @@
 package com.riffle.core.logging
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class LogChannelTest {
     @Test

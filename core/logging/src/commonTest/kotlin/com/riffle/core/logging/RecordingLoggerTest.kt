@@ -1,11 +1,11 @@
 package com.riffle.core.logging
 
 import com.riffle.core.logging.RecordingLogger.Level
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class RecordingLoggerTest {
 
