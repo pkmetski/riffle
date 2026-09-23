@@ -3,10 +3,10 @@ package com.riffle.core.data
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import com.riffle.core.domain.KomgaWebSourceDescriptor
 import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * Regression tests for the pre-`abs_` legacy-file classifier that both [WebDavAnnotationSyncTarget]
@@ -74,7 +74,7 @@ class LegacyAbsNamespaceMigrationTest {
     }
 
     @Test
-    fun `migratedName is idempotent — second call is a no-op`() {
+    fun `migratedName is idempotent -- second call is a no-op`() {
         val legacy = "${absUuid}__book1__annotations-devA.jsonld"
         val once = LegacyAbsNamespaceMigration.migratedName(legacy)
         val twice = LegacyAbsNamespaceMigration.migratedName(once)
@@ -82,7 +82,7 @@ class LegacyAbsNamespaceMigrationTest {
     }
 
     @Test
-    fun `device-meta files also migrate — classifier looks at namespace only`() {
+    fun `device-meta files also migrate -- classifier looks at namespace only`() {
         val legacyMeta = "${absUuid}__device-meta-devA.json"
         assertTrue(LegacyAbsNamespaceMigration.isLegacyAbsFilename(legacyMeta))
         assertEquals(

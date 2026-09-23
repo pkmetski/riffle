@@ -1,14 +1,14 @@
 package com.riffle.core.data
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class AndroidDeviceLabelResolverTest {
 
     @Test
-    fun `composeBuildLabel drops manufacturer when MODEL already starts with it (case-insensitive)`() {
+    fun `composeBuildLabel drops manufacturer when MODEL already starts with it caseInsensitive`() {
         assertEquals(
             "Samsung Galaxy S24",
             AndroidDeviceLabelResolver.composeBuildLabel("Samsung", "Samsung Galaxy S24"),

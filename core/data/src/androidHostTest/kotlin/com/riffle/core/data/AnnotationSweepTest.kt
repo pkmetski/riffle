@@ -20,9 +20,9 @@ import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AnnotationSweepTest {
 
@@ -81,7 +81,7 @@ class AnnotationSweepTest {
         )
 
         val returned = sweep.run()
-        assertTrue("run() must return the reported outcome", returned is CycleOutcome.Success)
+        assertTrue(returned is CycleOutcome.Success, "run() must return the reported outcome")
 
         assertEquals(1, target.writes.size)
         val write = target.writes.single()
@@ -91,13 +91,13 @@ class AnnotationSweepTest {
         assertTrue(write.content.contains("ann-1"))
         assertTrue(write.content.contains("ann-2"))
         // Verify the file body carries the file-header object written by AnnotationFileHeaderCodec.
-        assertTrue("sweep output must contain riffle:FileHeader", write.content.contains("riffle:FileHeader"))
+        assertTrue(write.content.contains("riffle:FileHeader"), "sweep output must contain riffle:FileHeader")
         // The per-file header is book-scoped only: deviceId + bookTitle. Device-scoped fields
         // (label/lastSyncedAt/username) live in the per-device sentinel — see below.
-        assertTrue("sweep header must include bookTitle", write.content.contains("\"bookTitle\":\"Project Hail Mary\""))
-        assertTrue("no label in per-file header", !write.content.contains("\"label\""))
-        assertTrue("no lastSeenAt in per-file header", !write.content.contains("\"lastSeenAt\""))
-        assertTrue("no username in per-file header", !write.content.contains("\"username\""))
+        assertTrue(write.content.contains("\"bookTitle\":\"Project Hail Mary\""), "sweep header must include bookTitle")
+        assertTrue(!write.content.contains("\"label\""), "no label in per-file header")
+        assertTrue(!write.content.contains("\"lastSeenAt\""), "no lastSeenAt in per-file header")
+        assertTrue(!write.content.contains("\"username\""), "no username in per-file header")
 
         assertEquals(listOf("ann-1", "ann-2"), dao.lastMarkSyncedIds)
         assertEquals(now, dao.lastMarkSyncedAt)
@@ -187,7 +187,7 @@ class AnnotationSweepTest {
         assertTrue(status.lastCycleOutcome.value is CycleOutcome.Failed.Network)
         // run() returns Failed.Network so the worker maps it to Result.retry() — that's the queue
         // entry whose CONNECTED constraint re-fires when the device comes back online.
-        assertTrue("run() must return Failed.Network", returned is CycleOutcome.Failed.Network)
+        assertTrue(returned is CycleOutcome.Failed.Network, "run() must return Failed.Network")
     }
 
     @Test
@@ -280,12 +280,14 @@ class AnnotationSweepTest {
         val outcome = sweep.run()
 
         // --- push assertions: emphasis row lands on WebDAV with the correct body ---
-        assertTrue("sweep must succeed", outcome is CycleOutcome.Success)
+        assertTrue(outcome is CycleOutcome.Success, "sweep must succeed")
         val write = target.writes.single()
-        assertTrue("body carries the riffle:emphasis type", write.content.contains("\"type\":\"riffle:emphasis\""))
-        assertTrue("body carries the styles token", write.content.contains("\"styles\":\"bold,underline\""))
-        assertTrue("motivation is commenting so legacy peers don't render phantom highlights",
-            write.content.contains("\"motivation\":\"commenting\""))
+        assertTrue(write.content.contains("\"type\":\"riffle:emphasis\""), "body carries the riffle:emphasis type")
+        assertTrue(write.content.contains("\"styles\":\"bold,underline\""), "body carries the styles token")
+        assertTrue(
+            write.content.contains("\"motivation\":\"commenting\""),
+            "motivation is commenting so legacy peers don't render phantom highlights",
+        )
         assertEquals(listOf("emph-1"), dao.lastMarkSyncedIds)
 
         // --- round-trip: pretend a peer reads what we wrote and merges it back into the store ---

@@ -23,8 +23,10 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.domain.TestClock
 import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.test.Test
 
 class AudiobookChapterCacheRepositoryImplTest {
@@ -92,7 +94,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     }
 
     @Test
-    fun `fetchAndCacheChapters calls catalog, maps chapters, and upserts`() = runTest {
+    fun `fetchAndCacheChapters calls catalog maps chapters and upserts`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val catalog = FakeCatalog(listOf(CatalogAudiobookChapter(0, 0.0, 600.0, "Ch 1")))
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog), TestClock(NOW_MS))
@@ -104,7 +106,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         assertEquals(0, result[0].index)
         assertEquals(0.0, result[0].startSec, 0.001)
         assertEquals(600.0, result[0].endSec, 0.001)
-        assert(dao.upsertCalled) { "dao.upsert should have been called" }
+        assertTrue(dao.upsertCalled, "dao.upsert should have been called")
         val entity = dao.store["srv" to "item"]
         assertNotNull(entity)
         assertEquals("srv", entity!!.sourceId)
@@ -119,7 +121,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         val result = repo.fetchAndCacheChapters("srv", "item")
 
         assertEquals(emptyList<AudiobookChapter>(), result)
-        assert(!dao.upsertCalled) { "dao.upsert should NOT have been called on error" }
+        assertFalse(dao.upsertCalled, "dao.upsert should NOT have been called on error")
     }
 
     /**

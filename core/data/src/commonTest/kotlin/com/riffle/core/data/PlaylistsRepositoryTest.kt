@@ -28,13 +28,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
+import kotlin.test.Test
 
 class PlaylistsRepositoryTest {
 
@@ -48,7 +48,7 @@ class PlaylistsRepositoryTest {
         )
     }
 
-    // ── the "To Read" invariant ───────────────────────────────────────────────
+    // -- the "To Read" invariant ---
 
     /**
      * Regression test for the reserved-name filter. If someone removes the filter in
@@ -130,7 +130,7 @@ class PlaylistsRepositoryTest {
             fail("expected ReservedPlaylistNameException")
         } catch (_: ReservedPlaylistNameException) {
         }
-        assertTrue("must not hit the source", cap.createCalls.isEmpty())
+        assertTrue(cap.createCalls.isEmpty(), "must not hit the source")
     }
 
     @Test
@@ -147,7 +147,7 @@ class PlaylistsRepositoryTest {
         assertTrue(cap.createCalls.isEmpty())
     }
 
-    // ── refresh + cache (Room-backed) ─────────────────────────────────────────
+    // -- refresh + cache (Room-backed) ---
 
     @Test
     fun `refresh persists per-root cache`() = runTest {
@@ -179,7 +179,7 @@ class PlaylistsRepositoryTest {
         assertEquals(emptyList<CatalogPlaylist>(), repo.observePlaylists("lib-1").first())
     }
 
-    // ── create ────────────────────────────────────────────────────────────────
+    // -- create ---
 
     @Test
     fun `createPlaylist adds to the cache and returns the created playlist`() = runTest {
@@ -202,7 +202,7 @@ class PlaylistsRepositoryTest {
         assertEquals(listOf("lib-1" to "My List"), cap.createCalls)
     }
 
-    // ── add / remove ──────────────────────────────────────────────────────────
+    // -- add / remove ---
 
     @Test
     fun `addItemToPlaylist updates the DAO after the source call succeeds`() = runTest {
@@ -271,7 +271,7 @@ class PlaylistsRepositoryTest {
         assertEquals(listOf("i-1", "i-2"), repo.observePlaylists("lib-1").first().first().itemIds)
     }
 
-    // ── getPlaylist ───────────────────────────────────────────────────────────
+    // -- getPlaylist ---
 
     @Test
     fun `getPlaylist returns the full playlist including To Read`() = runTest {
@@ -289,7 +289,7 @@ class PlaylistsRepositoryTest {
         assertNull(makeRepo(cap).getPlaylist("lib-1", "pl-missing"))
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────
+    // -- helpers ---
 
     private fun playlist(id: String, name: String, itemIds: List<String>, rootId: String = "lib-1") = CatalogPlaylist(
         id = id, rootId = rootId, name = name, bookCount = itemIds.size, itemIds = itemIds,

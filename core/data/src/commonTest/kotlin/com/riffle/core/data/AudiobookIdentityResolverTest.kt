@@ -36,7 +36,7 @@ class AudiobookIdentityResolverTest {
     }
 
     @Test
-    fun `a fetch error resolves to UNKNOWN, never a false verify`() {
+    fun `a fetch error resolves to UNKNOWN never a false verify`() {
         assertEquals(
             AudiobookIdentityResult.UNKNOWN,
             AudiobookIdentityResolver.resolve(ok(martian), Result.failure(RuntimeException())),
