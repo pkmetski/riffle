@@ -68,6 +68,8 @@ class SkipIntervalsTest {
 
         private val _ended = MutableSharedFlow<Unit>(replay = 1)
         override val playbackEnded: SharedFlow<Unit> = _ended.asSharedFlow()
+        private val _sleepTimerFired = MutableSharedFlow<Unit>()
+        override val sleepTimerFired: SharedFlow<Unit> = _sleepTimerFired.asSharedFlow()
 
         override suspend fun prepare(
             trackUrls: List<String>,

@@ -23,6 +23,7 @@ import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
+import com.riffle.core.data.AudiobookSleepStopStoreImpl
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.common.Clock
@@ -342,6 +343,7 @@ private const val DS_APP_UPDATE = "appUpdatePreferencesDataStore"
 private const val DS_COMIC_FORMATTING = "comicFormattingPreferencesDataStore"
 private const val DS_DEVELOPER_OPTIONS = "developerOptionsDataStore"
 private const val DS_PANEL_VIEW = "panelViewPreferencesDataStore"
+private const val DS_AUDIOBOOK_SLEEP_STOP = "audiobookSleepStopDataStore"
 
 private const val DEFAULT_HTTP_CACHE_BYTES: Long = 20L * 1024L * 1024L
 private const val WEB_SOURCE_CACHE_BYTES: Long = 10L * 1024L * 1024L
@@ -546,6 +548,7 @@ private val coreDataPreferencesModule = module {
     single(named(DS_CONTENT_CACHE_ACCESS)) { androidContext().contentCacheAccessDataStore }
     single(named(DS_APP_UPDATE)) { androidContext().appUpdatePreferencesDataStore }
     single(named(DS_COMIC_FORMATTING)) { androidContext().comicFormattingPreferencesDataStore }
+    single(named(DS_AUDIOBOOK_SLEEP_STOP)) { androidContext().audiobookSleepStopDataStore }
 
     // Preference store implementations — concrete registration first where needed as dependency
     single { FormattingPreferencesStoreImpl(get(named(DS_FORMATTING))) }
@@ -572,6 +575,9 @@ private val coreDataPreferencesModule = module {
     single<ContentCacheAccessStore> { ContentCacheAccessStoreImpl(get(named(DS_CONTENT_CACHE_ACCESS)), get()) }
     single<ComicFormattingPreferencesStore> {
         ComicFormattingPreferencesStoreImpl(get(named(DS_COMIC_FORMATTING)))
+    }
+    single<com.riffle.core.domain.AudiobookSleepStopStore> {
+        AudiobookSleepStopStoreImpl(get(named(DS_AUDIOBOOK_SLEEP_STOP)))
     }
 
     // Single-key DataStore wrappers

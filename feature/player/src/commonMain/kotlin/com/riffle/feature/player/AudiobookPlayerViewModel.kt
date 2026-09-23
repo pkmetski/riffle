@@ -12,6 +12,7 @@ import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.domain.AudiobookSleepStopStore
 
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
@@ -49,6 +50,7 @@ class AudiobookPlayerViewModel constructor(
     navPlaylistId: String?,
     navPlaylistLibraryId: String?,
     navStartAtSec: Float,
+    navUserPlay: Boolean = true,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
     private val audiobookCacheRepository: com.riffle.core.domain.AudiobookCacheRepository,
@@ -79,6 +81,7 @@ class AudiobookPlayerViewModel constructor(
     private val playlistsRepository: com.riffle.core.domain.PlaylistsRepository,
     private val contentCacheAccessStore: ContentCacheAccessStore,
     private val progressSweep: ProgressSweepRunner,
+    private val sleepStopStore: AudiobookSleepStopStore,
 ) : ViewModel() {
 
     private val itemId: String = navItemId
@@ -341,7 +344,13 @@ class AudiobookPlayerViewModel constructor(
                 controller.setSpeed(initialSpeed)
                 reconciledResumeSec = resumeSec
                 localUpdatedAt = resumeStamp
-                if (!resume.wasFinishedOnOpen) controller.play()
+                val wasSleepStopped = sourceId.isNotEmpty() &&
+                    sleepStopStore.wasSleepStopped(sourceId, itemId)
+                if (wasSleepStopped) sleepStopStore.clearSleepStopped(sourceId, itemId)
+                // Suppress auto-play only when the flag is set AND the user did not explicitly
+                // press a play button (navUserPlay=false = mini-player / now-playing card tap).
+                val suppressAutoPlay = !navUserPlay && wasSleepStopped
+                if (!resume.wasFinishedOnOpen && !suppressAutoPlay) controller.play()
                 attachReaderSync(resumeSec, resumeStamp)
                 followLoopOrchestrator.start(viewModelScope, followContext)
             }
@@ -402,6 +411,14 @@ class AudiobookPlayerViewModel constructor(
                 eocPrevChapterIndex = idx
             }
         }
+
+        if (sourceId.isNotEmpty()) {
+            viewModelScope.launch {
+                controller.sleepTimerFired.collect {
+                    sleepStopStore.markSleepStopped(sourceId, itemId)
+                }
+            }
+        }
     }
 
     private fun audiobookCacheKey(sourceId: String, itemId: String): ContentCacheKey =
@@ -419,6 +436,9 @@ class AudiobookPlayerViewModel constructor(
             controller.pause()
             followLoopOrchestrator.flushNow()
         } else {
+            if (sourceId.isNotEmpty()) {
+                viewModelScope.launch { sleepStopStore.clearSleepStopped(sourceId, itemId) }
+            }
             val rewindSec = rewindOnResumeSec.value
             val posBeforeRewind = controller.currentAbsoluteSec()
             if (rewindSec > 0) {

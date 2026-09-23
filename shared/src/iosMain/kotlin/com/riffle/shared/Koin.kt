@@ -568,6 +568,9 @@ private fun iosLibraryModule(
             // Bookmark jumps happen inside the open player through the VM, not through
             // navigation, so iOS has no navigation-time start position (#1071 §17).
             navStartAtSec = -1f,
+            // iOS navigation is always an explicit user action; there is no automatic
+            // now-playing-card path that bypasses user intent.
+            navUserPlay = true,
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),
             audiobookCacheRepository = get(),
@@ -598,6 +601,7 @@ private fun iosLibraryModule(
             playlistsRepository = get(),
             contentCacheAccessStore = get(),
             progressSweep = ProgressSweepRunner { get<ProgressSweep>().run() },
+            sleepStopStore = get(),
         )
     }
 

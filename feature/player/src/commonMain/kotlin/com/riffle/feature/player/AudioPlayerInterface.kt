@@ -22,6 +22,14 @@ interface AudioPlayerInterface {
     val playbackEnded: SharedFlow<Unit>
 
     /**
+     * Emits once each time the sleep timer fires naturally (countdown reaches zero or end-of-chapter
+     * boundary is crossed). Does NOT emit when the timer is cancelled by the user or by an explicit
+     * pause. Consumers use this to persist a "stopped by sleep timer" flag that suppresses auto-play
+     * on the next open.
+     */
+    val sleepTimerFired: SharedFlow<Unit>
+
+    /**
      * Connects (if needed) and queues the audiobook's [trackUrls], one per [spans] entry,
      * then seeks to [startAtSec] on the book-absolute timeline.
      *

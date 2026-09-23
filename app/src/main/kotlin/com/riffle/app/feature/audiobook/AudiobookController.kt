@@ -78,6 +78,8 @@ open class AudiobookController constructor(
     // after that point can't re-trigger; idempotent.
     private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     override val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
+    private val _sleepTimerFired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val sleepTimerFired: SharedFlow<Unit> = _sleepTimerFired.asSharedFlow()
     private var timerJob: Job? = null
 
     private val controller: MediaController? get() = connector?.controller
@@ -267,9 +269,13 @@ open class AudiobookController constructor(
             delay(FADE_STEP_MS)
         }
         pollJob?.cancel()
+        // Reset wantsToPlay before pausing so the Player.Listener EVENT_IS_PLAYING_CHANGED
+        // callback that fires after pause() does not immediately restart via maybeStart().
+        wantsToPlay = false
         controller?.pause()
         controller?.setVolume(1f)
         _sleepTimer.value = SleepTimerMode.None
+        _sleepTimerFired.tryEmit(Unit)
     }
 
     /** Seeks to a book-absolute position, resolving it to the right track + offset. */

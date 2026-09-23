@@ -230,10 +230,17 @@ class AudiobookPlayerViewModelBookmarkTest {
             playlistsRepository = playlistsRepository,
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
+            sleepStopStore = NoopSleepStopStore,
         )
     }
 
     private companion object {
+        val NoopSleepStopStore = object : com.riffle.core.domain.AudiobookSleepStopStore {
+            override suspend fun markSleepStopped(sourceId: String, itemId: String) {}
+            override suspend fun clearSleepStopped(sourceId: String, itemId: String) {}
+            override suspend fun wasSleepStopped(sourceId: String, itemId: String) = false
+        }
+
         val NoopPlaylistsRepository = object : com.riffle.core.data.PlaylistsRepository {
             override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.catalog.CatalogPlaylist>())
             override suspend fun refresh(rootId: String) = true
@@ -779,6 +786,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             playlistsRepository = NoopPlaylistsRepository,
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
+            sleepStopStore = NoopSleepStopStore,
         )
         runCurrent()
 

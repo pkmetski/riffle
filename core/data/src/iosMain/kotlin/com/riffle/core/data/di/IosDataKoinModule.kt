@@ -10,6 +10,7 @@ import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.CatalogSyncSourceResolver
 import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
+import com.riffle.core.data.IosAudiobookSleepStopStoreImpl
 import com.riffle.core.data.IosBookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosCatalogProgressRemoteFactory
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
@@ -136,6 +137,7 @@ val iosDataModule = module {
     single<AudiobookPositionStore> { get<AudiobookPositionStoreImpl>() }
     single<SyncPositionStore<Double>> { get<AudiobookPositionStoreImpl>() }
     single<ReadaloudResumeStore> { ReadaloudResumeStoreImpl(get<ReadaloudResumePositionDao>(), get<Clock>()) }
+    single<com.riffle.core.domain.AudiobookSleepStopStore> { IosAudiobookSleepStopStoreImpl() }
 
     single { ReconcileLocks() }
     single { WebSourceLibraryItemUpserter(get<LibraryItemDao>()) }

@@ -66,8 +66,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -145,6 +147,8 @@ class SleepTimerTest {
 
         private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
         override val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+        private val _sleepTimerFired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        override val sleepTimerFired: kotlinx.coroutines.flow.SharedFlow<Unit> = _sleepTimerFired.asSharedFlow()
 
         val setSleepTimerCalls = mutableListOf<SleepTimerMode>()
         var cancelCalled = 0
@@ -180,6 +184,12 @@ class SleepTimerTest {
         override fun triggerSleepNow() {
             triggerNowCalled++
             _sleepTimer.value = SleepTimerMode.None
+            _sleepTimerFired.tryEmit(Unit)
+        }
+
+        fun fireSleepTimer() {
+            _sleepTimer.value = SleepTimerMode.None
+            _sleepTimerFired.tryEmit(Unit)
         }
     }
 
@@ -193,6 +203,8 @@ class SleepTimerTest {
         controller: FakeController,
         bookmarkStore: AudiobookBookmarkStore = FakeBookmarkStore(),
         connectivity: FakeConnectivityObserver = FakeConnectivityObserver(online = true),
+        sleepStopStore: com.riffle.core.domain.AudiobookSleepStopStore = FakeSleepStopStore(),
+        navUserPlay: Boolean = true,
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -266,6 +278,8 @@ class SleepTimerTest {
             },
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
+            sleepStopStore = sleepStopStore,
+            navUserPlay = navUserPlay,
         )
     }
 
@@ -389,6 +403,74 @@ class SleepTimerTest {
         runCurrent()
 
         assertEquals(0, controller.triggerNowCalled)
+        vm.clearForTest()
+    }
+
+    // ── sleep-stop store tests ────────────────────────────────────────────────────
+
+    @Test
+    fun `sleepTimerFired marks item as sleep-stopped in store`() = runTest(testDispatcher) {
+        val store = FakeSleepStopStore()
+        val controller = FakeController()
+        val vm = buildViewModel(controller, sleepStopStore = store)
+        runCurrent()
+
+        controller.fireSleepTimer()
+        runCurrent()
+
+        assertTrue("item should be marked sleep-stopped after timer fires", store.wasSleepStopped(sourceId, itemId))
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `sleep-stopped flag suppresses auto-play on mini-player reopen`() = runTest(testDispatcher) {
+        val store = FakeSleepStopStore()
+        // Pre-mark as stopped by a previous sleep timer (simulates the flag persisted from a prior session)
+        store.markSleepStopped(sourceId, itemId)
+
+        val controller = FakeController()
+        // navUserPlay=false simulates the mini-player / now-playing card tap (not an explicit play button press)
+        val vm = buildViewModel(controller, sleepStopStore = store, navUserPlay = false)
+        runCurrent()
+
+        // Flag must be cleared on open so a subsequent reopen auto-plays normally
+        assertTrue("flag should be cleared after being consumed on open", !store.wasSleepStopped(sourceId, itemId))
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `sleep-stopped flag is cleared after being consumed on open`() = runTest(testDispatcher) {
+        val store = FakeSleepStopStore()
+        store.markSleepStopped(sourceId, itemId)
+
+        val controller = FakeController()
+        // navUserPlay=false = mini-player tap; flag is consumed (cleared) and suppression applies
+        val vm = buildViewModel(controller, sleepStopStore = store, navUserPlay = false)
+        runCurrent()
+
+        // Flag should have been consumed (cleared) on open — a subsequent reopen would auto-play
+        assertTrue("flag must be cleared on first open so future opens auto-play normally", !store.wasSleepStopped(sourceId, itemId))
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `togglePlayPause play clears sleep-stopped flag`() = runTest(testDispatcher) {
+        val store = FakeSleepStopStore()
+        val controller = FakeController()
+        val vm = buildViewModel(controller, sleepStopStore = store)
+        runCurrent()
+
+        // Arm and fire the timer so the flag is set
+        controller.fireSleepTimer()
+        runCurrent()
+        assertTrue(store.wasSleepStopped(sourceId, itemId))
+
+        // Simulate user pressing play — should clear the flag
+        controller.state.value = AudioPlayerInterface.PlaybackState(isPlaying = false, positionSec = 0.0)
+        vm.togglePlayPause()
+        runCurrent()
+
+        assertTrue("flag should be cleared when user explicitly presses play", !store.wasSleepStopped(sourceId, itemId))
         vm.clearForTest()
     }
 
@@ -543,6 +625,13 @@ class SleepTimerTest {
             onProgress: (Long, Long) -> Unit,
         ) = com.riffle.core.domain.AudioDownloadResult.NoBundle
         override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0
+    }
+
+    private class FakeSleepStopStore : com.riffle.core.domain.AudiobookSleepStopStore {
+        private val stopped = mutableSetOf<String>()
+        override suspend fun markSleepStopped(sourceId: String, itemId: String) { stopped.add("$sourceId/$itemId") }
+        override suspend fun clearSleepStopped(sourceId: String, itemId: String) { stopped.remove("$sourceId/$itemId") }
+        override suspend fun wasSleepStopped(sourceId: String, itemId: String): Boolean = "$sourceId/$itemId" in stopped
     }
 
     private class FakePositionStore : com.riffle.core.domain.AudiobookPositionStore {

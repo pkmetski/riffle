@@ -9,6 +9,7 @@ import com.riffle.feature.player.followSkipIntervals
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -512,5 +513,50 @@ class IosAudioPlayerControllerTest {
         override suspend fun setRewindOnResumeSeconds(seconds: Int) {
             rewindOnResumeSeconds.value = seconds
         }
+    }
+
+    // ── sleepTimerFired ────────────────────────────────────────────────────────────
+
+    @Test
+    fun `sleepTimerFired emits when countdown reaches zero`() = runTest(UnconfinedTestDispatcher()) {
+        val bridge = FakeBridge()
+        // Share testScheduler so advanceTimeBy drives the controller's coroutines.
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(testScheduler))
+        val fired = mutableListOf<Unit>()
+        val job = launch { controller.sleepTimerFired.collect { fired.add(it) } }
+
+        // The countdown loop ticks every 1000ms; set a short timer and advance past one tick.
+        controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 500L))
+        advanceTimeBy(1001L)
+
+        assertEquals(1, fired.size)
+        job.cancel()
+    }
+
+    @Test
+    fun `sleepTimerFired emits on triggerSleepNow`() = runTest(UnconfinedTestDispatcher()) {
+        val bridge = FakeBridge()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(testScheduler))
+        val fired = mutableListOf<Unit>()
+        val job = launch { controller.sleepTimerFired.collect { fired.add(it) } }
+
+        controller.triggerSleepNow()
+
+        assertEquals(1, fired.size)
+        job.cancel()
+    }
+
+    @Test
+    fun `sleepTimerFired does NOT emit when cancelSleepTimer is called`() = runTest(UnconfinedTestDispatcher()) {
+        val bridge = FakeBridge()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(testScheduler))
+        val fired = mutableListOf<Unit>()
+        val job = launch { controller.sleepTimerFired.collect { fired.add(it) } }
+
+        controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 60_000L))
+        controller.cancelSleepTimer()
+
+        assertEquals(0, fired.size)
+        job.cancel()
     }
 }

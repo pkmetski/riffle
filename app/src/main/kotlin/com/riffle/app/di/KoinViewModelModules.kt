@@ -655,6 +655,7 @@ private val audiobookViewModelModule = module {
             navPlaylistId = handle.get<String>("playlistId"),
             navPlaylistLibraryId = handle.get<String>("libraryId"),
             navStartAtSec = handle.get<Float>("startAtSec") ?: -1f,
+            navUserPlay = handle.get<Boolean>("userPlay") ?: false,
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),
             audiobookCacheRepository = get(),
@@ -685,6 +686,7 @@ private val audiobookViewModelModule = module {
             playlistsRepository = get(),
             contentCacheAccessStore = get(),
             progressSweep = ProgressSweepRunner { get<com.riffle.core.sync.ProgressSweep>().run() },
+            sleepStopStore = get(),
         )
     }
 }
