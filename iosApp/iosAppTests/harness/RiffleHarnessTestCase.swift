@@ -70,11 +70,13 @@ func seedSourceArgument(type: String, url: String, username: String, password: S
 // The seeded source must land the app on the library home (burger menu) — never on the source picker.
 func waitForSeededLibraryHome(in app: XCUIApplication, sourceName: String) {
     let burger = app.buttons["Open menu"]
-    // Cold launch + seeded-source install + first library load, on a CI runner sharing its cores
-    // with the other simulator clone. 60s was marginal before issue #1066 grew the harness from
-    // 29 to 39 tests; the first test in each suite then began timing out here while every later
-    // test in the same suite reached the home screen in seconds.
-    if !burger.waitForExistence(timeout: 150) {
+    // Cold launch + seeded-source install + first library load on a 3-core CI runner shared between
+    // two simulator clones. 60s was marginal before #1066 grew the harness to 39 tests; 150s proved
+    // too tight once two heavy suites (ProgressPipelineTests + AudiobookPlayerTests) landed on both
+    // clones simultaneously — observed load time reached ~120s, leaving only 30s of headroom. 250s
+    // gives 130s of headroom while still catching a genuinely hung app well within the 50-min job
+    // budget.
+    if !burger.waitForExistence(timeout: 250) {
         XCTFail("Seeded \(sourceName) source must land on the library home; picker visible: \(app.staticTexts["Add source"].exists)")
     }
 }
@@ -144,16 +146,24 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 // shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
 func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 150) -> XCUIElement {
-    revealTile(tile, in: app)
     let read = app.buttons["Read"].firstMatch
-    // A tap that lands while the LazyRow is still settling after the reveal drag is consumed as a
-    // scroll stop rather than a click, so give the row a moment and retry once if nothing opened.
-    for attempt in 0..<2 {
+    // Re-reveal the tile before EVERY tap, not just once up front. Two things make a single reveal
+    // unreliable: a tap that lands while the LazyRow is still settling is swallowed as a scroll
+    // stop, and after re-entering the library (e.g. reopening a book) the target tile is often
+    // scrolled past the right edge — so a retry that taps the original position hits an offscreen
+    // spot and never opens the detail screen (the reopen-flake root cause). Stop as soon as the
+    // detail screen appears, or once the tap has navigated the tile out of the library.
+    for attempt in 0..<3 {
+        if read.exists { break }
+        revealTile(tile, in: app)
+        guard tile.exists else { break }
         waitForStableFrame(of: tile)
         tile.tap()
-        if read.waitForExistence(timeout: attempt == 0 ? 5 : 15) { break }
+        if read.waitForExistence(timeout: attempt == 0 ? 5 : 30) { break }
     }
-    XCTAssertTrue(read.exists, "Item detail must show the Read action")
+    // A final settle wait covers the case where the last tap navigated but the loaded runner is
+    // still rendering the item detail.
+    XCTAssertTrue(read.waitForExistence(timeout: 30), "Item detail must show the Read action")
     read.tap()
     XCTAssertTrue(read.waitForNonExistence(timeout: timeout), "Read must leave the item detail screen")
     let back = app.buttons.matching(
@@ -175,8 +185,21 @@ func waitForStableFrame(of element: XCUIElement, timeout: TimeInterval = 3) {
     }
 }
 
+// Taps a reader/player back control and waits for the library home to re-render. On a loaded CI
+// runner a single back tap can be swallowed while the screen is still settling, leaving the app on
+// the reader so the library home never appears; retry the tap once before failing. Same swallowed-
+// tap hazard the openReader reveal loop guards against, on the return leg.
+func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
+                      file: StaticString = #filePath, line: UInt = #line) {
+    back.tap()
+    if waitForLibraryHome(in: app, timeout: 45) { return }
+    if back.exists { back.tap() }
+    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 45),
+                  "Tapping back from the reader should return to library home", file: file, line: line)
+}
+
 // True once any library-home section header is on screen.
-func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 60) -> Bool {
+func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) -> Bool {
     let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]
     let anySection = NSPredicate { _, _ in sectionLabels.contains { app.staticTexts[$0].exists } }
     let result = XCTWaiter.wait(

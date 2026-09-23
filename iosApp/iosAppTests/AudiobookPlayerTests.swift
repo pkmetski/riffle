@@ -72,12 +72,36 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
-        XCTAssertTrue(playPause.waitForExistence(timeout: 60), "Player must finish loading")
+        // 150 s: the CMP iOS accessibility bridge populates the player controls asynchronously
+        // after the reader screen opens. On Clone 1 after 5+ min of sequential heavy tests the
+        // tree can take >90 s to settle; 150 s covers the worst observed lag while remaining
+        // well under the 600 s per-test execution allowance.
+        XCTAssertTrue(playPause.waitForExistence(timeout: 150), "Player must finish loading")
 
-        XCTAssertTrue(chaptersPill.waitForExistence(timeout: 10), "Player must offer the Chapters list")
-        XCTAssertTrue(pill("player_bookmarks_pill").exists, "Player must offer the bookmarks list")
-        XCTAssertTrue(pill("audiobook_sleep_pill").exists, "Player must offer the sleep timer")
-        XCTAssertTrue(pill("audiobook_speed_pill").exists, "Player must offer the playback-speed control")
+        // All four pills render together when loading=false, but the CMP iOS accessibility bridge
+        // populates the tree incrementally, so a pill can be visible before its node lands. Wait
+        // for all four in ONE bounded expectation that polls until every pill is present, rather
+        // than four compounding per-pill timeouts: the old 45s-each form could stack to 180s under
+        // load and was the suite's single most frequent flake. This form caps the total pill wait
+        // at 60s and passes the instant the tree settles.
+        //
+        // Label predicates (not testTag identifiers) because CMP does not expose sibling chips'
+        // testTags to XCUITest — only the first element in a group propagates its identifier:
+        //   - bookmarks: "0 bookmarks" (CONTAINS 'bookmark')
+        //   - sleep: icon contentDescription "Sleep timer" + text "Sleep" (CONTAINS 'sleep')
+        //   - speed: text "1×" (CONTAINS '×', U+00D7)
+        let bookmarksPill = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'bookmark'")).firstMatch
+        let sleepPill = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'sleep'")).firstMatch
+        let speedPill = app.buttons.matching(NSPredicate(format: "label CONTAINS '×'")).firstMatch
+        let allPillsPresent = NSPredicate { _, _ in
+            self.chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
+        }
+        let pillsResult = XCTWaiter.wait(
+            for: [XCTNSPredicateExpectation(predicate: allPillsPresent, object: nil)],
+            timeout: 60
+        )
+        XCTAssertEqual(pillsResult, .completed,
+                       "Player must offer Chapters, bookmarks, sleep-timer and speed controls")
     }
 
     // MARK: - Scenario 04-G: Back navigation
@@ -89,10 +113,9 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
-        backButton.tap()
-
-        // After back-tap the nav stack unwinds and the library home must re-render. On a loaded
-        // CI runner this can take >10s (the default); match the budget used by other nav waits.
-        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping back from the player should return to library home")
+        // Retry the back tap if the first is swallowed while the player is still settling — the
+        // failure mode that made this the suite's last flake (both retry iterations failed while
+        // sibling tests using the same openReader passed).
+        tapBackToLibrary(backButton, in: app)
     }
 }

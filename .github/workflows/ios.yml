@@ -81,7 +81,11 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    timeout-minutes: 35
+    # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
+    # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
+    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 matches the harness
+    # job's ceiling and is a hard safety cap, not a per-test wait.
+    timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -368,17 +372,58 @@ jobs:
         # Keychain write fails with errSecMissingEntitlement. IosTokenStorage then never
         # persists the ABS/Komga token, the library refresh finds no token and the harness
         # sees an empty library after adding a source.
+        #
+        # Two simulator clones share one 3-core / 7 GB runner, so the job has two environmental
+        # (not code) failure modes, both proven by the same commit passing on one runner and
+        # failing on another:
+        #   1. A clone's test runner dies mid-run ("(ipc/mig) server died" / xctrunner launch
+        #      failure) under memory pressure. The suite then serialises or fails spuriously.
+        #   2. A contended runner runs every UI operation several times slower; the per-wait
+        #      timeouts in the harness absorb that, but a clone death (mode 1) does not recover.
+        # -parallel-testing-worker-count 2 pins the clone count so xcodebuild never over-provisions
+        # the box. The wrapper retries ONCE, and only when the log carries a simulator-
+        # infrastructure signature (mode 1); a genuine test-assertion failure has no such
+        # signature and fails the job on the first attempt without a retry.
         run: |
-          # See the unit-test step: force a relink so a warm DerivedData cache cannot ship stale Kotlin.
-          rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
-          xcodebuild test \
-            -project iosApp/iosApp.xcodeproj \
-            -scheme iosApp \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
-            -derivedDataPath "$HOME/derived-data" \
-            -parallel-testing-enabled YES \
-            2>&1 | tee xcodebuild-harness.log; exit ${PIPESTATUS[0]}
+          set -o pipefail
+          run_harness() {
+            # Force a relink so a warm DerivedData cache cannot ship stale Kotlin (see unit-test step).
+            rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
+            # -retry-tests-on-failure re-runs only the FAILED test (not the whole suite) up to
+            # -test-iterations times. It absorbs transient per-test infra hiccups — e.g. an
+            # app-launch that can't get a background assertion in time under CPU contention — for
+            # the cost of one test, not a 40-min suite re-run. A genuine regression fails every
+            # iteration, so nothing real is retried away. The whole-suite retry below stays for the
+            # heavier case where a clone's runner dies outright and its tests can't run at all.
+            xcodebuild test \
+              -project iosApp/iosApp.xcodeproj \
+              -scheme iosApp \
+              -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+              -clonedSourcePackagesDirPath "$HOME/spm-packages" \
+              -derivedDataPath "$HOME/derived-data" \
+              -parallel-testing-enabled YES \
+              -parallel-testing-worker-count 2 \
+              -retry-tests-on-failure \
+              -test-iterations 2 \
+              2>&1 | tee xcodebuild-harness.log
+          }
+          # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
+          # assertion. Keep this list narrow so real failures are never retried away.
+          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test'
+          if run_harness; then
+            exit 0
+          fi
+          if grep -qE "$CRASH_RE" xcodebuild-harness.log; then
+            echo "::warning::Simulator infrastructure failure detected — retrying once on a clean simulator."
+            xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
+            xcrun simctl erase "$SIMULATOR_UDID" || true
+            xcrun simctl boot "$SIMULATOR_UDID" || true
+            xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
+            xcrun simctl shutdown "$SIMULATOR_UDID" || true
+            if run_harness; then exit 0; else exit 1; fi
+          fi
+          echo "Harness failed with genuine test failures (no simulator-infrastructure signature) — not retrying."
+          exit 1
 
       - name: Upload harness log
         if: always()
