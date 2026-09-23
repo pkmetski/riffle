@@ -21,6 +21,22 @@ class AudiobookProgressUtilsTest {
     }
 
     @Test
+    fun honorsTrackedPositionOfExactlyZeroDoesNotFallBack() {
+        // A genuine "at the start" record must be kept, not replaced by the progress fallback —
+        // the falsy-zero trap: a zero reconciledSec with hadTrackedPosition=true must win.
+        assertEquals(
+            0.0,
+            audiobookResumeSec(
+                reconciledSec = 0.0,
+                hadTrackedPosition = true,
+                readingProgressFraction = 0.5f,
+                durationSec = 1000.0,
+            ),
+            absoluteTolerance = 1e-9,
+        )
+    }
+
+    @Test
     fun `audiobookResumeSec uses fraction fallback when no tracked position`() {
         val result = audiobookResumeSec(
             reconciledSec = 0.0,
@@ -29,6 +45,20 @@ class AudiobookProgressUtilsTest {
             durationSec = 3600.0,
         )
         assertEquals(1800.0, result, absoluteTolerance = 0.001)
+    }
+
+    @Test
+    fun `audiobookResumeSec falls back to zero when no progress and no tracked position`() {
+        assertEquals(
+            0.0,
+            audiobookResumeSec(
+                reconciledSec = 0.0,
+                hadTrackedPosition = false,
+                readingProgressFraction = 0.0f,
+                durationSec = 1000.0,
+            ),
+            absoluteTolerance = 1e-9,
+        )
     }
 
     @Test
@@ -43,6 +73,20 @@ class AudiobookProgressUtilsTest {
     }
 
     @Test
+    fun `audiobookResumeSec stays at zero when duration is unknown and no tracked position`() {
+        assertEquals(
+            0.0,
+            audiobookResumeSec(
+                reconciledSec = 0.0,
+                hadTrackedPosition = false,
+                readingProgressFraction = 0.5f,
+                durationSec = 0.0,
+            ),
+            absoluteTolerance = 1e-9,
+        )
+    }
+
+    @Test
     fun `audiobookResumeSec returns reconciledSec when duration is zero`() {
         val result = audiobookResumeSec(
             reconciledSec = 50.0,
@@ -51,6 +95,20 @@ class AudiobookProgressUtilsTest {
             durationSec = 0.0,
         )
         assertEquals(50.0, result)
+    }
+
+    @Test
+    fun `audiobookResumeSec clamps full-progress fallback to duration`() {
+        assertEquals(
+            1000.0,
+            audiobookResumeSec(
+                reconciledSec = 0.0,
+                hadTrackedPosition = false,
+                readingProgressFraction = 1.0f,
+                durationSec = 1000.0,
+            ),
+            absoluteTolerance = 1e-9,
+        )
     }
 
     // ── audiobookStartSec ───────────────────────────────────────────────────────
@@ -65,6 +123,29 @@ class AudiobookProgressUtilsTest {
     }
 
     @Test
+    fun restartsFinishedBookAtEndFromZero() {
+        // ExoPlayer at STATE_ENDED on exact-duration resume: play() is a no-op. Must restart.
+        assertEquals(0.0, audiobookStartSec(resumeSec = 1000.0, durationSec = 1000.0), absoluteTolerance = 1e-9)
+    }
+
+    @Test
+    fun `audiobookStartSec restarts when within finished epsilon of end`() {
+        assertEquals(
+            0.0,
+            audiobookStartSec(
+                resumeSec = 1000.0 - AUDIOBOOK_FINISHED_EPS_SEC / 2,
+                durationSec = 1000.0,
+            ),
+            absoluteTolerance = 1e-9,
+        )
+    }
+
+    @Test
+    fun `audiobookStartSec keeps a resume just before finished epsilon`() {
+        assertEquals(990.0, audiobookStartSec(resumeSec = 990.0, durationSec = 1000.0), absoluteTolerance = 1e-9)
+    }
+
+    @Test
     fun `audiobookStartSec returns resumeSec when not near end`() {
         val durationSec = 3600.0
         val resumeSec = 100.0
@@ -76,6 +157,11 @@ class AudiobookProgressUtilsTest {
     fun `audiobookStartSec returns resumeSec when duration unknown`() {
         val result = audiobookStartSec(100.0, 0.0)
         assertEquals(100.0, result)
+    }
+
+    @Test
+    fun `audiobookStartSec leaves position alone when duration is unknown`() {
+        assertEquals(42.0, audiobookStartSec(resumeSec = 42.0, durationSec = 0.0), absoluteTolerance = 1e-9)
     }
 
     // ── audiobookProgressFraction ───────────────────────────────────────────────
