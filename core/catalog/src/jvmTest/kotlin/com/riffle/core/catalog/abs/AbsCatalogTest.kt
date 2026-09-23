@@ -59,13 +59,13 @@ import kotlinx.coroutines.test.runTest
 import io.ktor.utils.io.readRemaining
 import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.ByteReadChannel
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
-import kotlin.test.fail
-import kotlin.test.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
 
 class AbsCatalogTest {
 
@@ -948,7 +948,7 @@ class AbsCatalogTest {
 
     // region ProgressPeerCapability
 
-    @Test fun pushEbookProgressIsFinishedNullLeavesAudioDimensionUntouchedRoutineSave() = runTest {
+    @Test fun `pushEbookProgress with isFinished=null leaves the audio dimension untouched (routine save)`() = runTest {
         // Regression: forwarding `false` here would zero ABS's audio currentTime+progress per
         // NetworkEbookProgressPayload's contract, clobbering audiobook progress on every ordinary
         // reader position save. Only mark-finished / mark-unread callers pass a non-null value.
@@ -967,7 +967,7 @@ class AbsCatalogTest {
         assertEquals(null, payload.isFinished)
     }
 
-    @Test fun pushEbookProgressIsFinishedTrueForwardsFlagMarkFinished() = runTest {
+    @Test fun `pushEbookProgress with isFinished=true forwards the flag (mark-finished)`() = runTest {
         catalog.pushEbookProgress(
             itemId = "it-1",
             location = "epubcfi(/6/4)",
@@ -992,7 +992,7 @@ class AbsCatalogTest {
         assertEquals(3600.0, sessionApi.lastAudiobookPushPayload!!.duration, 0.0)
     }
 
-    @Test fun pullProgressReturnsReachableEmptyCatalogProgressLastUpdateZeroRatherThanNull() = runTest {
+    @Test fun `pullProgress returns a reachable-empty CatalogProgress (lastUpdate=0) rather than null`() = runTest {
         // Distinct from a null on network failure — an empty record means "reachable but never
         // touched", so the caller can push the first position on this device instead of skipping.
         sessionApi.progressForItem["it-1"] = NetworkServerProgress(ebookLocation = "", lastUpdate = 0L)
@@ -1190,7 +1190,7 @@ class AbsCatalogTest {
         assertEquals(listOf(1800.0, 1800.0), fp.trackDurations)
     }
 
-    @Test fun getFingerprintReturnsNullWhenItemHasNoAudiobookDefinitiveNoAudiobookVerdict() = runTest {
+    @Test fun `getFingerprint returns null when item has no audiobook (definitive NO_AUDIOBOOK verdict)`() = runTest {
         libraryApi.fingerprints["it-1"] = null
 
         assertEquals(null, catalog.getFingerprint(itemId = "it-1"))
