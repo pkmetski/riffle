@@ -156,7 +156,7 @@ class EmphasisMergeTest {
     }
 
     @Test
-    fun `distinct-styles adjacency does not merge — kept as two rows, layered at render`() {
+    fun `distinct-styles adjacency does not merge kept as two rows layered at render`() {
         val a = anchor(styles = BOLD, textSnippet = "the door", textAfter = " was never locked")
         val n = emphasis(styles = ITALIC, textSnippet = "was never locked", textBefore = "the door ")
         assertNull(findAnyMergeableNeighbor(a, listOf(n), emptySet()))
