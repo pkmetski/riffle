@@ -185,6 +185,19 @@ func waitForStableFrame(of element: XCUIElement, timeout: TimeInterval = 3) {
     }
 }
 
+// Taps a reader/player back control and waits for the library home to re-render. On a loaded CI
+// runner a single back tap can be swallowed while the screen is still settling, leaving the app on
+// the reader so the library home never appears; retry the tap once before failing. Same swallowed-
+// tap hazard the openReader reveal loop guards against, on the return leg.
+func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
+                      file: StaticString = #filePath, line: UInt = #line) {
+    back.tap()
+    if waitForLibraryHome(in: app, timeout: 45) { return }
+    if back.exists { back.tap() }
+    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 45),
+                  "Tapping back from the reader should return to library home", file: file, line: line)
+}
+
 // True once any library-home section header is on screen.
 func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) -> Bool {
     let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]

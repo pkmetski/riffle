@@ -111,10 +111,9 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
-        backButton.tap()
-
-        // After back-tap the nav stack unwinds and the library home must re-render. On a loaded
-        // CI runner this can take >10s (the default); match the budget used by other nav waits.
-        XCTAssertTrue(waitForLibraryHome(in: app), "Tapping back from the player should return to library home")
+        // Retry the back tap if the first is swallowed while the player is still settling — the
+        // failure mode that made this the suite's last flake (both retry iterations failed while
+        // sibling tests using the same openReader passed).
+        tapBackToLibrary(backButton, in: app)
     }
 }
