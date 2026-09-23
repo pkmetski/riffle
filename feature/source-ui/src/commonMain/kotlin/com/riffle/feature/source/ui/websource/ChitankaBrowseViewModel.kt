@@ -8,6 +8,7 @@ import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
@@ -33,6 +34,7 @@ class ChitankaBrowseViewModel constructor(
     libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     libraryObserver: LibraryObserver,
     connectivityObserver: ConnectivityObserver,
+    dispatchers: DispatcherProvider,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -49,6 +51,7 @@ class ChitankaBrowseViewModel constructor(
     // grid usually has to scroll before we page again.
     pageSize = 50,
     friendlyError = ::chitankaFriendlyErrorMessage,
+    dispatchers = dispatchers,
 )
 
 /**

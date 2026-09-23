@@ -108,6 +108,7 @@ class ChitankaBrowseViewModelTest {
             libraryFilterPreferencesStore,
             libraryObserver,
             FakeConnectivityObserver(),
+            TestDispatcherProvider(dispatcher),
         )
     }
 
@@ -174,6 +175,7 @@ class ChitankaBrowseViewModelTest {
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
             FakeConnectivityObserver(),
+            TestDispatcherProvider(dispatcher),
         )
         advanceUntilIdle()
 
@@ -208,6 +210,7 @@ class ChitankaBrowseViewModelTest {
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
             FakeConnectivityObserver(),
+            TestDispatcherProvider(dispatcher),
         )
         advanceUntilIdle()
 
@@ -242,6 +245,7 @@ class ChitankaBrowseViewModelTest {
             FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
             FakeConnectivityObserver(),
+            TestDispatcherProvider(dispatcher),
         )
         advanceUntilIdle()
 

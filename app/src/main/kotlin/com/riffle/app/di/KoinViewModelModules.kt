@@ -450,6 +450,7 @@ private val sourceViewModelModule = module {
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
     viewModel { AddChitankaViewModel(installer = get()) }
@@ -464,6 +465,7 @@ private val sourceViewModelModule = module {
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
     viewModel { AddGutenbergViewModel(installer = get()) }
@@ -492,6 +494,7 @@ private val sourceViewModelModule = module {
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
     viewModel { OReillyLoginViewModel(repository = get()) }
@@ -506,6 +509,7 @@ private val sourceViewModelModule = module {
             libraryFilterPreferencesStore = get(),
             libraryObserver = get(),
             connectivityObserver = get(),
+            dispatchers = get(),
         )
     }
 }

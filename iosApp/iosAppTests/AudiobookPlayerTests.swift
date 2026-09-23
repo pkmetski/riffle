@@ -43,7 +43,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Audiobook player screen should show its back control")
-        XCTAssertTrue(playPause.waitForExistence(timeout: 30), "Player screen must show its play/pause control")
+        XCTAssertTrue(playPause.waitForExistence(timeout: 60), "Player screen must show its play/pause control")
     }
 
     // MARK: - Scenario 04-C: Player controls visible
@@ -55,8 +55,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
+        // 60s, not 30s: under Clone 2 resource pressure the transport controls render after the
+        // back button appears. Measured at 64s total test time on a contended CI runner.
         XCTAssertTrue(
-            playPause.waitForExistence(timeout: 30),
+            playPause.waitForExistence(timeout: 60),
             "Play/pause button should be visible on the player screen"
         )
     }

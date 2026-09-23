@@ -12,6 +12,7 @@ import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -92,6 +94,8 @@ abstract class UnboundedBrowseViewModel(
      * Default 250 ms; subclasses override if their source doesn't share the constraint.
      */
     private val facetDebounceMs: Long = 250L,
+    /** Off-Main dispatcher for ownership/progress index builds and the filtered-items combine. */
+    private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
 
     val isOffline: StateFlow<Boolean> = connectivityObserver.isOnline
@@ -197,6 +201,7 @@ abstract class UnboundedBrowseViewModel(
                         }
                     }
             }
+            .flowOn(dispatchers.default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, buildOwnedItemIndex(emptyList()))
 
     // Local progress for Room-backed web-source items. Items absent from Room have no progress
@@ -204,6 +209,7 @@ abstract class UnboundedBrowseViewModel(
     private val localReadingProgressByItemId: StateFlow<Map<String, Float>> =
         libraryObserver.observeAllBooks(rootId)
             .map { books -> books.associate { it.id to it.readingProgress } }
+            .flowOn(dispatchers.default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     // Progress from server-source items (e.g. ABS), keyed by normalised title+author. Used as a
@@ -211,8 +217,8 @@ abstract class UnboundedBrowseViewModel(
     // via the in-app import or an external script and then listened to entirely on the server side.
     // Loaded eagerly (not gated on _unownedFilterActive) because the progress indicator must appear
     // regardless of whether the Unowned filter is on. buildProgressByNormKey() is much lighter than
-    // buildOwnedItemIndex() — it only filters items with progress > 0 — so the main-thread cost is
-    // acceptable even for large ABS libraries.
+    // buildOwnedItemIndex() — it only filters items with progress > 0 — so the per-item regex work
+    // is still pushed off Main via flowOn.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val serverSourceProgressByNormKey: StateFlow<Map<String, Float>> =
         sourceRepository.observeAll()
@@ -227,6 +233,7 @@ abstract class UnboundedBrowseViewModel(
                     combine(perSourceFlows) { arrays -> buildProgressByNormKey(arrays.flatMap { it }) }
                 }
             }
+            .flowOn(dispatchers.default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     // Merged progress lookup — local Chitanka progress by item id (primary source, highest
@@ -267,7 +274,9 @@ abstract class UnboundedBrowseViewModel(
                 }
                 .filter { item -> !notStartedActive || (item.readingProgress ?: 0f) <= 0f }
                 .filter { item -> !unownedActive || !index.isOwned(item) }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        }
+            .flowOn(dispatchers.default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> =
