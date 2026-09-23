@@ -254,7 +254,7 @@ class EmphasisMergeTest {
             pool = listOf(unrelatedEmphasis),
             cascadeCfis = setOf(cascadeCfi),
         )
-        assertTrue("emphasis at an unrelated CFI must not bleed into the merged result", result.isEmpty())
+        assertTrue(result.isEmpty(), "emphasis at an unrelated CFI must not bleed into the merged result")
     }
 
     @Test

@@ -1,7 +1,6 @@
 import XCTest
 import Riffle
 
-// Covers scenarios from docs/testing/ios-scenarios/6-settings-viewmodel.md
 //
 // Exercises pure Kotlin logic in feature:settings/commonMain that is shared with iOS via the
 // KMP framework. Tests use the sealed-class subtitle variants and derive functions directly.

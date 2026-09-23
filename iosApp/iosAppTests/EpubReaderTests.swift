@@ -3,7 +3,6 @@ import Riffle
 import ReadiumShared
 import ReadiumNavigator
 
-// Covers scenarios from docs/testing/ios-scenarios/03-epub-reader.md
 
 final class EpubReaderTests: XCTestCase {
 

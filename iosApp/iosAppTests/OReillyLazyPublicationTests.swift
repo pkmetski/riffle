@@ -2,7 +2,6 @@ import XCTest
 import Riffle
 import ReadiumShared
 
-// Covers scenarios from docs/testing/ios-scenarios/20-oreilly-lazy-publication.md
 
 // MARK: - Stub fetcher
 

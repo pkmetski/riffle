@@ -9,6 +9,8 @@ kotlin {
         compileSdk = 37
         minSdk = 24
 
+        withHostTest {}
+
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }

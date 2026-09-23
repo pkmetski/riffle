@@ -1,7 +1,6 @@
 import XCTest
 import Riffle
 
-// Covers scenarios from docs/testing/ios-scenarios/11-settings-rows.md
 final class SettingsRowsTests: XCTestCase {
 
     // Scenario 11.3 — Cadence default state: showCadence is off, default colour is yellow,

@@ -2,7 +2,6 @@ import XCTest
 import Riffle
 import ReadiumNavigator
 
-// Covers scenarios from docs/testing/ios-scenarios/07-annotations.md
 
 final class AnnotationTests: XCTestCase {
 

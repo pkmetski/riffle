@@ -2,7 +2,6 @@ import XCTest
 import WebKit
 import Riffle
 
-// Covers scenarios from docs/testing/ios-scenarios/08-auto-follow-js.md
 //
 // Mirrors AutoFollowJsTest.kt: verifies ColumnSnap.autoFollowSnapJs() by injecting the
 // generated JS into a real WKWebView and asserting the scroll/return behaviour.

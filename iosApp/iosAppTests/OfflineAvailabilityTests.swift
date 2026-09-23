@@ -1,7 +1,6 @@
 import XCTest
 import Riffle
 
-// Covers scenarios from docs/testing/ios-scenarios/4-offline-availability.md
 //
 // Scenarios 4.1–4.4 require a running ABS instance or simulator file injection and must be
 // verified manually. The tests below exercise IosLibraryItemOfflineAvailabilityImpl against
