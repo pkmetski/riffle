@@ -92,7 +92,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         let sleepPill = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'sleep'")).firstMatch
         let speedPill = app.buttons.matching(NSPredicate(format: "label CONTAINS '×'")).firstMatch
         let allPillsPresent = NSPredicate { _, _ in
-            chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
+            self.chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
         }
         let pillsResult = XCTWaiter.wait(
             for: [XCTNSPredicateExpectation(predicate: allPillsPresent, object: nil)],
