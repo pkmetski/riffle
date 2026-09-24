@@ -10,6 +10,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.feature.reader.ReaderSyncCoordinator
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
@@ -1251,6 +1252,124 @@ class ReadaloudSessionTest {
                 "quoteBundle must be seeded to the cached sidecar",
                 sidecar,
                 session.quoteBuilder.quoteBundle,
+            )
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    // ── Regression: resumeFragmentRef must not cross chapter boundaries (matched-book path) ──
+
+    /**
+     * Regression test for: readaloud starting from last audiobook sentence even when user has
+     * navigated to a different chapter.
+     *
+     * ## The bug
+     * In the matched-book path of `ensurePreparedAndPlay`, `resumeFragmentRef` (the saved sentence
+     * from the last readaloud session, loaded from DB at `bind()`) was used unconditionally —
+     * without checking whether the user is still on the same chapter.
+     *
+     * `pendingStartFragmentRef` already had a same-chapter guard; `resumeFragmentRef` did not.
+     * When the user read chapter 2 and pressed Play, readaloud jumped back to chapter 1.
+     *
+     * ## The fix
+     * Compute `currentFragment` (coordinator.fragmentForCanonical for the current reader position)
+     * first, then gate `resumeFragmentRef` on same chapter: only use the saved sentence when its
+     * chapter portion matches `currentFragment`'s chapter portion. Otherwise fall through to
+     * `currentFragment` itself so narration starts from where the user is reading.
+     */
+    @Test
+    fun `resumeFragmentRef on different chapter is discarded in matched-book path`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakePlayer = FakePlayerController()
+            val bundle = java.io.File.createTempFile("bundle", ".zip")
+            bundle.deleteOnExit()
+            // Audio repository returns a real (empty) track so ensureOpened succeeds.
+            val fakeRepo = object : JvmReadaloudAudioRepository {
+                override fun bundleFile(sourceId: String, bookId: String) = bundle
+                override fun isAudioAvailable(sourceId: String, bookId: String) = true
+                override suspend fun probeSizeBytes(sourceId: String, bookId: String): Long? = null
+                override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult = AudioDownloadResult.Success
+                override suspend fun readTrack(sourceId: String, bookId: String) = ReadaloudTrack(emptyList())
+                override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0L
+            }
+            // Coordinator returns chapter-2 fragment for the current locator position.
+            val coordinator = mockk<ReaderSyncCoordinator>()
+            every { coordinator.audioItemId } returns null
+            every { coordinator.fragmentForCanonical(any()) } returns "chapter02.html#s01"
+
+            // Reader is currently on chapter 2.
+            val chapter2Locator = makeLocator("OEBPS/chapter02.xhtml", progression = 0.1)
+
+            val session = makeSessionForOpenClose(
+                scope = sessionScope,
+                playerController = fakePlayer,
+                audioRepository = fakeRepo,
+                snapshotLocator = { chapter2Locator },
+            )
+            session.audioBookId = "book1"
+            session.audioServerId = "srv1"
+            session.itemId = "book1"
+            session._readaloudAvailable.value = true
+            session.readerSyncProvider = { coordinator }
+            // Simulate a saved resume position from the last session — on chapter 1.
+            session.resumeFragmentRef = "chapter01.html#s99"
+
+            session.onPlayTapped()
+
+            assertEquals(
+                "playFromHere must be called with the current chapter fragment, not the saved chapter-1 fragment",
+                listOf("chapter02.html#s01"),
+                fakePlayer.playFromHereCalls,
+            )
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `resumeFragmentRef on same chapter is kept in matched-book path`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakePlayer = FakePlayerController()
+            val bundle = java.io.File.createTempFile("bundle", ".zip")
+            bundle.deleteOnExit()
+            val fakeRepo = object : JvmReadaloudAudioRepository {
+                override fun bundleFile(sourceId: String, bookId: String) = bundle
+                override fun isAudioAvailable(sourceId: String, bookId: String) = true
+                override suspend fun probeSizeBytes(sourceId: String, bookId: String): Long? = null
+                override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult = AudioDownloadResult.Success
+                override suspend fun readTrack(sourceId: String, bookId: String) = ReadaloudTrack(emptyList())
+                override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0L
+            }
+            // Coordinator returns a chapter-1 fragment for the current position — user is on ch 1.
+            val coordinator = mockk<ReaderSyncCoordinator>()
+            every { coordinator.audioItemId } returns null
+            every { coordinator.fragmentForCanonical(any()) } returns "chapter01.html#s01"
+
+            val chapter1Locator = makeLocator("OEBPS/chapter01.xhtml", progression = 0.5)
+
+            val session = makeSessionForOpenClose(
+                scope = sessionScope,
+                playerController = fakePlayer,
+                audioRepository = fakeRepo,
+                snapshotLocator = { chapter1Locator },
+            )
+            session.audioBookId = "book1"
+            session.audioServerId = "srv1"
+            session.itemId = "book1"
+            session._readaloudAvailable.value = true
+            session.readerSyncProvider = { coordinator }
+            // Saved resume position is also on chapter 1 — should be kept (resume in place).
+            session.resumeFragmentRef = "chapter01.html#s77"
+
+            session.onPlayTapped()
+
+            assertEquals(
+                "playFromHere must use the saved sentence when resume is on the same chapter",
+                listOf("chapter01.html#s77"),
+                fakePlayer.playFromHereCalls,
             )
         } finally {
             sessionScope.cancel()

@@ -895,10 +895,18 @@ class ReadaloudSession constructor(
             val pending = pendingStartFragmentRef?.takeIf { p ->
                 lastLoc?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
             }
+            // Translate current reader position into Storyteller-space once; used both as the
+            // chapter anchor for the same-chapter guard below and as the final fallback.
+            val currentFragment = lastLoc?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
+            // Only resume at the saved sentence if the user is still on the same chapter;
+            // otherwise the saved sentence would jump them backward/forward without warning.
+            val resume = resumeFragmentRef?.takeIf { r ->
+                currentFragment != null && r.substringBefore('#') == currentFragment.substringBefore('#')
+            }
             val startFragment = localAudioStartFragment
                 ?: pending
-                ?: resumeFragmentRef
-                ?: lastLoc?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
+                ?: resume
+                ?: currentFragment
             pendingStartFragmentRef = null
             closeLocator = null
             resumeFragmentRef = null

@@ -32,9 +32,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ic_readaloud
 import com.riffle.feature.designsystem.generated.resources.ui_cached
 import com.riffle.feature.designsystem.generated.resources.ui_downloaded
 import com.riffle.feature.designsystem.generated.resources.ui_has_readaloud_synced_narration
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -167,7 +169,7 @@ fun BookCoverTile(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = RiffleIcons.ReadaloudBadge,
+                        painter = painterResource(Res.drawable.ic_readaloud),
                         contentDescription = stringResource(Res.string.ui_has_readaloud_synced_narration),
                         tint = RiffleTokens.OnCoverScrim,
                         modifier = Modifier.size(17.dp),
