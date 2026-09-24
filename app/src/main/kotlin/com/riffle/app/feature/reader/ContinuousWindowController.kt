@@ -599,15 +599,48 @@ internal class ContinuousWindowController(
                         // reverting each frame back to `pre` until LANDING_HOLD_MS elapses.
                         landingHoldTargetY = -1
                         landingHoldUntilUptimeMs = 0L
-                        // Reveal and start the tween on the SAME animation frame. Previously the
-                        // reveal used `postOnAnimation` (next vsync) and the smoothScrollTo used
-                        // `port.post` (next Handler drain — typically fires FIRST); the tween
-                        // began ~1 frame before the container became VISIBLE, so the user saw a
-                        // partial animation from wherever the scroll had already advanced.
-                        port.postOnAnimation {
-                            container.visibility = android.view.View.VISIBLE
-                            notifyFirstLoadCompleteOnce()
-                            port.smoothScrollTo(y)
+                        val wvSmooth = webViews.getOrNull(i)
+                        val densitySmooth = wvSmooth?.resources?.displayMetrics?.density ?: 1f
+                        val cssYSmooth = ((y - slot.top) / densitySmooth).toInt()
+                        if (wvSmooth != null && cssYSmooth > 0) {
+                            // Apply the same JS viewport trick as the non-smoothTail path: move
+                            // Chrome's internal viewport to cssY before revealing content so that
+                            // tiles at the reading position are rasterised before the overlay
+                            // removes and the smooth-tail animation starts. Without this the
+                            // smooth-tail animation scrolls through un-rasterised tiles (blank
+                            // frames) for TOC/bookmark jumps to deep positions.
+                            wvSmooth.evaluateJavascript(
+                                "document.documentElement.style.overflowY='scroll';" +
+                                "window.scrollTo(0,$cssYSmooth);",
+                            ) {}
+                            port.postOnAnimation {
+                                port.postOnAnimation {
+                                    wvSmooth.onCurrentContentPainted {
+                                        wvSmooth.evaluateJavascript(
+                                            "document.documentElement.style.overflowY='';" +
+                                            "window.scrollTo(0,0);",
+                                        ) {}
+                                        port.postOnAnimation {
+                                            port.postOnAnimation {
+                                                container.visibility = android.view.View.VISIBLE
+                                                notifyFirstLoadCompleteOnce()
+                                                port.smoothScrollTo(y)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Reveal and start the tween on the SAME animation frame. Previously
+                            // the reveal used `postOnAnimation` (next vsync) and smoothScrollTo
+                            // used `port.post` (next Handler drain — typically fires FIRST); the
+                            // tween began ~1 frame before the container became VISIBLE, so the
+                            // user saw a partial animation from wherever the scroll had advanced.
+                            port.postOnAnimation {
+                                container.visibility = android.view.View.VISIBLE
+                                notifyFirstLoadCompleteOnce()
+                                port.smoothScrollTo(y)
+                            }
                         }
                     } else {
                         port.scrollTo(y)
@@ -654,11 +687,14 @@ internal class ContinuousWindowController(
                                                     "document.documentElement.style.overflowY='';" +
                                                     "window.scrollTo(0,0);",
                                                 ) {}
-                                                // Wait for the restore to commit so the overlay
-                                                // removes with Chrome at page_scroll=0. The pre-
-                                                // raster cache retains tiles at HTML CSS y=cssY,
-                                                // which the NestedScrollView at y will expose.
-                                                wv.onCurrentContentPainted { dismissSpinner() }
+                                                // Two animation frames give Chrome time to process
+                                                // the restore JS so page_scroll=0 before the
+                                                // overlay removes. Pre-raster retains tiles at
+                                                // HTML CSS y=cssY; NestedScrollView at y exposes
+                                                // them once the overlay is gone.
+                                                port.postOnAnimation {
+                                                    port.postOnAnimation { dismissSpinner() }
+                                                }
                                             }
                                         }
                                     }
