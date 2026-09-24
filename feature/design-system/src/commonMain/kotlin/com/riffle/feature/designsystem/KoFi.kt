@@ -23,13 +23,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.Flow
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_body
 import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_not_now
 import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_support
 import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_title
 import com.riffle.feature.designsystem.generated.resources.ui_support_support_on_ko_fi
+import kotlinx.coroutines.flow.Flow
 import org.jetbrains.compose.resources.stringResource
 
 private const val KO_FI_URL = "https://ko-fi.com/pkmetski"

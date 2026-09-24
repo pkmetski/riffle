@@ -2,7 +2,9 @@ package com.riffle.core.domain
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AppUpdateVersionsTest {
 
@@ -62,7 +64,7 @@ class AppUpdateVersionsTest {
         )
         val result = AppUpdateVersions.listReleasesSince(releases, sinceVersionCode = 0)
         val changelog = result.single().changelog
-        assert(!changelog.contains("[![")) { "Badge line should have been stripped" }
-        assert(changelog.contains("Fixed a crash")) { "Real notes should be preserved" }
+        assertFalse(changelog.contains("[!["), "Badge line should have been stripped")
+        assertTrue(changelog.contains("Fixed a crash"), "Real notes should be preserved")
     }
 }
