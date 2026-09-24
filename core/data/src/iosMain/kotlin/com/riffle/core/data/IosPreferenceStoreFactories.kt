@@ -59,4 +59,3 @@ internal fun WakeLockPreferencesStore(): WakeLockPreferencesStore = wakeLockPref
         write = { defaults, key, value -> defaults.setBool(value, forKey = key) },
     ),
 )
-

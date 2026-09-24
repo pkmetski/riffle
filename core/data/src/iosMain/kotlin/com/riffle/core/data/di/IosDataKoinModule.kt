@@ -100,7 +100,6 @@ import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
 import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.core.sync.SyncSourceResolver
-import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val iosDataModule = module {

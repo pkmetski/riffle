@@ -107,7 +107,10 @@ fun KoFiNudgeCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     OutlinedButton(
-                        onClick = { uriHandler.openUri(KO_FI_URL); onSupport() },
+                        onClick = {
+                            uriHandler.openUri(KO_FI_URL)
+                            onSupport()
+                        },
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         ),
