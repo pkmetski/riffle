@@ -129,6 +129,28 @@ internal class ContinuousWindowController(
          * white).
          */
         private const val PREPEND_PAINT_TIMEOUT_MS = 5_000L
+
+        /**
+         * JS that temporarily makes the document scrollable and moves Chrome's internal viewport
+         * to [cssY] CSS pixels from the chapter top. This primes the tile rasteriser at the
+         * reading position before the container is revealed, eliminating the blank-gap that
+         * otherwise appears because Chrome rasterises from y=0 regardless of NestedScrollView
+         * scroll. Must be paired with [preRasterRestoreJs] after the reveal.
+         *
+         * `window.scrollTo()` is a no-op in ReadiumCSS pages (the document is non-scrollable via
+         * that API); `documentElement.scrollTop` correctly moves `window.scrollY` and directs
+         * Chrome's rasteriser.
+         */
+        internal fun preRasterScrollJs(cssY: Int): String =
+            "document.documentElement.style.overflowY='scroll';" +
+            "document.body.style.overflowY='scroll';" +
+            "document.documentElement.scrollTop=$cssY;true;"
+
+        /** JS that undoes the temporary scroll applied by [preRasterScrollJs]. */
+        internal fun preRasterRestoreJs(): String =
+            "document.documentElement.scrollTop=0;" +
+            "document.documentElement.style.overflowY='';" +
+            "document.body.style.overflowY='';true;"
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -603,31 +625,26 @@ internal class ContinuousWindowController(
                         val densitySmooth = wvSmooth?.resources?.displayMetrics?.density ?: 1f
                         val cssYSmooth = ((y - slot.top) / densitySmooth).toInt()
                         if (wvSmooth != null && cssYSmooth > 0) {
-                            // Apply the same JS viewport trick as the non-smoothTail path: move
-                            // Chrome's internal viewport to cssY before revealing content so that
-                            // tiles at the reading position are rasterised before the overlay
-                            // removes and the smooth-tail animation starts. Without this the
-                            // smooth-tail animation scrolls through un-rasterised tiles (blank
-                            // frames) for TOC/bookmark jumps to deep positions.
-                            wvSmooth.evaluateJavascript(
-                                "document.documentElement.style.overflowY='scroll';" +
-                                "window.scrollTo(0,$cssYSmooth);",
-                            ) {}
-                            port.postOnAnimation {
-                                port.postOnAnimation {
-                                    wvSmooth.onCurrentContentPainted {
+                            // JS viewport trick: temporarily make the document scrollable and set
+                            // documentElement.scrollTop = cssY so Chrome's tile-rasteriser
+                            // prioritises the reading position. window.scrollTo() is a no-op in
+                            // ReadiumCSS pages; scrollTop on the root element moves window.scrollY.
+                            // Wait for the paint callback (Chrome committed a frame at cssY), then
+                            // reveal and start the smooth-scroll animation. Both Chrome's internal
+                            // viewport and NestedScrollView point at the same content, so tiles are
+                            // already rasterized on reveal. Restore after animation starts to avoid
+                            // evicting the tile cache before the animation completes.
+                            wvSmooth.evaluateJavascript(preRasterScrollJs(cssYSmooth)) { _ ->
+                                wvSmooth.onCurrentContentPainted {
+                                    container.visibility = android.view.View.VISIBLE
+                                    notifyFirstLoadCompleteOnce()
+                                    port.smoothScrollTo(y)
+                                    container.postDelayed({
                                         wvSmooth.evaluateJavascript(
-                                            "document.documentElement.style.overflowY='';" +
-                                            "window.scrollTo(0,0);",
-                                        ) {}
-                                        port.postOnAnimation {
-                                            port.postOnAnimation {
-                                                container.visibility = android.view.View.VISIBLE
-                                                notifyFirstLoadCompleteOnce()
-                                                port.smoothScrollTo(y)
-                                            }
-                                        }
-                                    }
+                                            preRasterRestoreJs(),
+                                            null as ((String?) -> Unit)?,
+                                        )
+                                    }, 200L)
                                 }
                             }
                         } else {
@@ -661,41 +678,20 @@ internal class ContinuousWindowController(
                                     }
                                 }
                                 if (cssY > 0) {
-                                    // Chrome's tile rasteriser uses its own page-scroll position,
-                                    // not the NestedScrollView's scroll, to decide which tiles to
-                                    // prioritise. With overflow:visible (set by ReadiumCSS),
-                                    // window.scrollTo is a no-op, so Chrome always rasterises from
-                                    // y=0 and the reading position (deep in the chapter) gets blank
-                                    // tiles. Fix: temporarily override overflow so Chrome accepts
-                                    // the scrollTo, moving its internal viewport to cssY. Chrome
-                                    // rasterises tiles there first. setOffscreenPreRaster (always
-                                    // ON) keeps those tiles in the GPU cache. We then restore
-                                    // overflow and wait for a second commit so page_scroll=0 when
-                                    // the overlay removes; NestedScrollView at y shows the cached
-                                    // tiles at HTML CSS y=cssY.
-                                    wv.evaluateJavascript(
-                                        "document.documentElement.style.overflowY='scroll';" +
-                                        "window.scrollTo(0,$cssY);",
-                                    ) {}
-                                    // Two frames let Chrome process the JS before the paint
-                                    // callback is registered, so it fires for the cssY frame
-                                    // rather than an earlier y=0 frame.
-                                    port.postOnAnimation {
-                                        port.postOnAnimation {
-                                            wv.onCurrentContentPainted {
+                                    // JS viewport trick: temporarily make the document scrollable
+                                    // and set documentElement.scrollTop = cssY so Chrome's tile-
+                                    // rasteriser prioritises the reading position before reveal.
+                                    // window.scrollTo() is a no-op in ReadiumCSS pages; scrollTop
+                                    // on the root element correctly moves window.scrollY.
+                                    wv.evaluateJavascript(preRasterScrollJs(cssY)) { _ ->
+                                        wv.onCurrentContentPainted {
+                                            dismissSpinner()
+                                            container.postDelayed({
                                                 wv.evaluateJavascript(
-                                                    "document.documentElement.style.overflowY='';" +
-                                                    "window.scrollTo(0,0);",
-                                                ) {}
-                                                // Two animation frames give Chrome time to process
-                                                // the restore JS so page_scroll=0 before the
-                                                // overlay removes. Pre-raster retains tiles at
-                                                // HTML CSS y=cssY; NestedScrollView at y exposes
-                                                // them once the overlay is gone.
-                                                port.postOnAnimation {
-                                                    port.postOnAnimation { dismissSpinner() }
-                                                }
-                                            }
+                                                    preRasterRestoreJs(),
+                                                    null as ((String?) -> Unit)?,
+                                                )
+                                            }, 200L)
                                         }
                                     }
                                 } else {
@@ -703,7 +699,9 @@ internal class ContinuousWindowController(
                                         wv.onCurrentContentPainted { dismissSpinner() }
                                     }
                                 }
-                                container.postDelayed({ dismissSpinner() }, PAINTED_FALLBACK_MS)
+                                container.postDelayed({
+                                    dismissSpinner()
+                                }, PAINTED_FALLBACK_MS)
                             } else {
                                 notifyFirstLoadCompleteOnce()
                             }
