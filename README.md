@@ -89,10 +89,10 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 - Bookmark pages for quick return
 - Search across all highlights, notes, and bookmarks in your library
 - Highlights, notes, and bookmarks sync across devices automatically for Audiobookshelf users; Komga users can optionally configure a WebDAV server for the same.
-- Reading and listening progress for Chitanka and Project Gutenberg syncs across devices via an optional WebDAV server — configure once and your position follows you to every device without touching a book first
+- Reading and listening progress for Chitanka and Project Gutenberg syncs across devices via an optional WebDAV server — configure once and your position follows you to every device
 
 ### Listening
-- Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server — including audiobook-only items with no paired ebook
+- Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server
 - Transport controls: play/pause, skip 15s back / 30s forward, and previous/next chapter
 - Seekable chapter-map scrubber with chapter ticks, plus per-chapter and whole-book remaining time
 - Variable playback speed (0.5×–3.0×) with quick presets, remembered per book
@@ -145,14 +145,20 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 
 ## Architecture
 
-Riffle follows a strict layered architecture designed for future Kotlin Multiplatform (KMP) migration:
+Riffle follows a strict Kotlin Multiplatform (KMP) layered architecture:
 
 ```
-app/                  # Android UI — Jetpack Compose + Hilt
-core/domain/          # Pure Kotlin — entities, repository interfaces, domain logic
-core/network/         # Pure Kotlin — OkHttp-based ABS API client
-core/database/        # Android — Room database
-core/data/            # Android — repository implementations, Keystore token storage
+app/              # Android host — Jetpack Compose + Hilt
+core/domain/      # KMP — entities, repository interfaces, domain logic
+core/models/      # KMP — shared data models
+core/sources/     # KMP — source plugin contracts and catalog adapters
+core/sync/        # KMP — progress sync engine
+core/net/         # KMP — API client interfaces
+core/network/     # JVM — OkHttp-based network implementation
+core/database/    # Android — Room schema and DAOs
+core/data/        # Android — repository implementations, Keystore token storage
+feature/*/        # KMP — per-feature ViewModels and domain logic
+feature/*-ui/     # Android — Compose screens for each feature
 ```
 
 ## Development
@@ -170,10 +176,13 @@ make bootstrap   # Install JDK 17, download Gradle wrapper, fetch bundled fonts
 ### Build
 
 ```sh
-make build       # Assemble debug APK
-make test        # Run unit tests
-make check       # Full CI check: build + lint + tests
-make install     # Build and install debug APK on connected device
+make build             # Build the project
+make test              # Run unit tests
+make lint              # Run lint checks
+make check             # Full CI check: build + lint + tests
+make install           # Build and install debug APK on connected device
+make harness-test      # Clone a fresh emulator, run instrumentation tests, then delete it
+make harness-test-tablet  # Same but for tablet-layout tests
 ```
 
 ## License
