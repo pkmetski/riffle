@@ -71,6 +71,8 @@ class ReadiumSwiftNavigatorCadenceTest {
         override fun readResource(href: String, onResult: (String?) -> Unit) {
             onResult(resources[href])
         }
+        override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
     }
 
     private fun navigator(bridge: ScriptBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())
