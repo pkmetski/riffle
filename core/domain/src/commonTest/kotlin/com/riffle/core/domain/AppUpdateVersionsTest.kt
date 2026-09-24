@@ -8,8 +8,6 @@ import kotlin.test.assertTrue
 
 class AppUpdateVersionsTest {
 
-    // --- versionCodeOf ---
-
     @Test
     fun versionCodeOfParsesStandardTag() {
         assertEquals(10203, AppUpdateVersions.versionCodeOf("1.2.3"))
@@ -20,7 +18,26 @@ class AppUpdateVersionsTest {
         assertNull(AppUpdateVersions.versionCodeOf("not-a-version"))
     }
 
-    // --- badge stripping in listReleasesSince ---
+    @Test
+    fun evaluateReturnsUpdateAvailableWhenReleaseIsNewer() {
+        val candidate = ReleaseCandidate(tagName = "v1.0.1", downloadUrl = "url", sizeBytes = 100L)
+        val result = AppUpdateVersions.evaluate(currentVersionCode = 10000, release = candidate)
+        assertTrue(result is UpdateCheckResult.UpdateAvailable)
+    }
+
+    @Test
+    fun evaluateReturnsUpToDateWhenReleaseIsNotNewer() {
+        val candidate = ReleaseCandidate(tagName = "v1.0.0", downloadUrl = "url", sizeBytes = 100L)
+        val result = AppUpdateVersions.evaluate(currentVersionCode = 10000, release = candidate)
+        assertEquals(UpdateCheckResult.UpToDate, result)
+    }
+
+    @Test
+    fun evaluateReturnsFailedForUnrecognizedTag() {
+        val candidate = ReleaseCandidate(tagName = "nightly-2026-09-24", downloadUrl = "url", sizeBytes = 100L)
+        val result = AppUpdateVersions.evaluate(currentVersionCode = 10000, release = candidate)
+        assertTrue(result is UpdateCheckResult.Failed)
+    }
 
     @Test
     fun badgeLinesAreStrippedFromChangelog() {
