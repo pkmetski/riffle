@@ -27,4 +27,14 @@
     <string name="ui_no_items">No items</string>
     <!-- Trailing action on a library section header that opens the section's full list. -->
     <string name="ui_see_all">See all</string>
+    <!-- Ko-fi support drawer button. Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_support_support_on_ko_fi">☕ Support on Ko-fi</string>
+    <!-- Ko-fi nudge card: headline shown when the user nears the end of a book. -->
+    <string name="ui_kofi_nudge_title">Enjoying Riffle?</string>
+    <!-- Ko-fi nudge card: body text inviting the user to support development. -->
+    <string name="ui_kofi_nudge_body">Support development on Ko-fi.</string>
+    <!-- Ko-fi nudge card: primary action button label. -->
+    <string name="ui_kofi_nudge_support">Support</string>
+    <!-- Ko-fi nudge card: dismiss button label. -->
+    <string name="ui_kofi_nudge_not_now">Not now</string>
 </resources>

@@ -5,4 +5,9 @@
     <string name="ui_cached">En caché</string>
     <string name="ui_no_items">No hay elementos</string>
     <string name="ui_see_all">Ver todo</string>
+    <string name="ui_support_support_on_ko_fi">☕ Apoyar en Ko-fi</string>
+    <string name="ui_kofi_nudge_title">¿Disfrutando de Riffle?</string>
+    <string name="ui_kofi_nudge_body">Apoya el desarrollo en Ko-fi.</string>
+    <string name="ui_kofi_nudge_support">Apoyar</string>
+    <string name="ui_kofi_nudge_not_now">Ahora no</string>
 </resources>

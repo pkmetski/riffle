@@ -50,13 +50,20 @@ object AppUpdateVersions {
             ReleaseInfo(
                 versionName = versionName,
                 versionCode = versionCode,
-                changelog = release.body,
+                changelog = release.body.stripBadges(),
                 downloadUrl = release.downloadUrl,
                 sizeBytes = release.sizeBytes,
                 releaseUrl = release.htmlUrl,
                 publishedAt = release.publishedAt,
             )
         }
+
+    /**
+     * Drops Markdown badge lines ([![...](img)](url)) prepended by the release workflow so the
+     * changelog screen shows only human-readable release notes.
+     */
+    private fun String.stripBadges(): String =
+        lines().filterNot { it.trimStart().startsWith("[![") }.joinToString("\n").trim()
 
     /**
      * Mirrors the release workflow's tag→code formula:
