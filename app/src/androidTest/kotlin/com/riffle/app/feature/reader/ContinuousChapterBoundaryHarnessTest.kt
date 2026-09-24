@@ -228,6 +228,57 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         )
     }
 
+    /**
+     * Regression for the blank-area-on-open bug: when the initial landing scrolls to a non-zero
+     * position inside a long chapter, Chromium has not yet rasterized tiles at that position.
+     * Making the container visible before rasterization completes causes a blank white gap.
+     *
+     * The fix gates `container.visibility = VISIBLE` on [ChapterWebView.onCurrentContentPainted]
+     * (Chromium's visual-state callback) instead of on the next animation frame. The specific
+     * assertion that fails if the fix is reverted: `firstRevealGatedOnPaint` stays false because
+     * the old `postOnAnimation { container.visibility = VISIBLE }` path never sets the flag.
+     */
+    @Test
+    fun firstRevealGatedOnPaintCallbackNotAnimationFrame() {
+        addServerAndBrowseLibrary()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.assertNoErrorState()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            findContinuousReader()?.isFirstLoadComplete?.value == true
+        }
+        val reader = requireNotNull(findContinuousReader()) { "continuous reader view was not mounted" }
+
+        // Navigate to the middle of a long chapter so the initial scroll lands at a non-zero
+        // position. This is the scenario where the blank-area bug manifested.
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.navigateTo("OEBPS/ch06.html", progression = 0.5f, alignToTop = false)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
+
+        var gated = false
+        composeTestRule.activityRule.scenario.onActivity { gated = reader.firstRevealGatedOnPaint }
+        assertTrue(
+            "container reveal must be gated on Chromium's visual-state callback " +
+                "(onCurrentContentPainted), not on the next animation frame; if false, the " +
+                "reader would appear before tiles at the scroll position are rasterized, " +
+                "producing the blank white gap reported in the field",
+            gated,
+        )
+    }
+
     @Test
     fun scrollsAcrossBothLongChapterShortPartTitleBoundaries() {
         addServerAndBrowseLibrary()

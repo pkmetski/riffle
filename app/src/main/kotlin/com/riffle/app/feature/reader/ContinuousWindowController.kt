@@ -87,6 +87,14 @@ internal class ContinuousWindowController(
         private const val LANDING_HOLD_MS = 600L
 
         /**
+         * Fallback delay after the initial scroll before the reader is revealed unconditionally,
+         * in case [ChapterWebView.onCurrentContentPainted] is never delivered (renderer crash,
+         * API-level quirk on older devices). Keeps the reader from appearing stuck at a blank
+         * screen when the callback is dropped.
+         */
+        private const val PAINTED_FALLBACK_MS = 2000L
+
+        /**
          * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
          * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
          * closely enough that rapid presses feel the same in both modes. Also the validity window for
@@ -121,6 +129,28 @@ internal class ContinuousWindowController(
          * white).
          */
         private const val PREPEND_PAINT_TIMEOUT_MS = 5_000L
+
+        /**
+         * JS that temporarily makes the document scrollable and moves Chrome's internal viewport
+         * to [cssY] CSS pixels from the chapter top. This primes the tile rasteriser at the
+         * reading position before the container is revealed, eliminating the blank-gap that
+         * otherwise appears because Chrome rasterises from y=0 regardless of NestedScrollView
+         * scroll. Must be paired with [preRasterRestoreJs] after the reveal.
+         *
+         * `window.scrollTo()` is a no-op in ReadiumCSS pages (the document is non-scrollable via
+         * that API); `documentElement.scrollTop` correctly moves `window.scrollY` and directs
+         * Chrome's rasteriser.
+         */
+        internal fun preRasterScrollJs(cssY: Int): String =
+            "document.documentElement.style.overflowY='scroll';" +
+            "document.body.style.overflowY='scroll';" +
+            "document.documentElement.scrollTop=$cssY;true;"
+
+        /** JS that undoes the temporary scroll applied by [preRasterScrollJs]. */
+        internal fun preRasterRestoreJs(): String =
+            "document.documentElement.scrollTop=0;" +
+            "document.documentElement.style.overflowY='';" +
+            "document.body.style.overflowY='';true;"
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -292,6 +322,16 @@ internal class ContinuousWindowController(
     @androidx.annotation.VisibleForTesting
     internal val isBoundaryDetentArmed: Boolean
         get() = boundaryDetentArmed
+
+    /**
+     * Test seam: true once the first-land reveal was gated on [ChapterWebView.onCurrentContentPainted]
+     * rather than firing on the next animation frame. The regression assertion is that this is true
+     * after any initial open: if the fix is reverted (postOnAnimation replaces the paint-callback
+     * gate), this stays false and the test fails.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal var firstRevealGatedOnPaint: Boolean = false
+        private set
 
     /**
      * True while the current touch gesture has already been consumed by a backward prepend.
@@ -581,23 +621,103 @@ internal class ContinuousWindowController(
                         // reverting each frame back to `pre` until LANDING_HOLD_MS elapses.
                         landingHoldTargetY = -1
                         landingHoldUntilUptimeMs = 0L
-                        // Reveal and start the tween on the SAME animation frame. Previously the
-                        // reveal used `postOnAnimation` (next vsync) and the smoothScrollTo used
-                        // `port.post` (next Handler drain — typically fires FIRST); the tween
-                        // began ~1 frame before the container became VISIBLE, so the user saw a
-                        // partial animation from wherever the scroll had already advanced.
-                        port.postOnAnimation {
-                            container.visibility = android.view.View.VISIBLE
-                            notifyFirstLoadCompleteOnce()
-                            port.smoothScrollTo(y)
+                        val wvSmooth = webViews.getOrNull(i)
+                        val densitySmooth = wvSmooth?.resources?.displayMetrics?.density ?: 1f
+                        val cssYSmooth = ((y - slot.top) / densitySmooth).toInt()
+                        if (wvSmooth != null && cssYSmooth > 0) {
+                            // JS viewport trick: temporarily make the document scrollable and set
+                            // documentElement.scrollTop = cssY so Chrome's tile-rasteriser
+                            // prioritises the reading position. window.scrollTo() is a no-op in
+                            // ReadiumCSS pages; scrollTop on the root element moves window.scrollY.
+                            // Wait for the paint callback (Chrome committed a frame at cssY), then
+                            // reveal and start the smooth-scroll animation. Both Chrome's internal
+                            // viewport and NestedScrollView point at the same content, so tiles are
+                            // already rasterized on reveal. Restore after animation starts to avoid
+                            // evicting the tile cache before the animation completes.
+                            var smoothRevealed = false
+                            fun revealSmooth() {
+                                if (!smoothRevealed) {
+                                    smoothRevealed = true
+                                    container.visibility = android.view.View.VISIBLE
+                                    notifyFirstLoadCompleteOnce()
+                                    port.smoothScrollTo(y)
+                                }
+                            }
+                            wvSmooth.evaluateJavascript(preRasterScrollJs(cssYSmooth)) { _ ->
+                                wvSmooth.onCurrentContentPainted {
+                                    revealSmooth()
+                                    container.postDelayed({
+                                        wvSmooth.evaluateJavascript(
+                                            preRasterRestoreJs(),
+                                            null as ((String?) -> Unit)?,
+                                        )
+                                    }, 200L)
+                                }
+                            }
+                            container.postDelayed({ revealSmooth() }, PAINTED_FALLBACK_MS)
+                        } else {
+                            // Reveal and start the tween on the SAME animation frame. Previously
+                            // the reveal used `postOnAnimation` (next vsync) and smoothScrollTo
+                            // used `port.post` (next Handler drain — typically fires FIRST); the
+                            // tween began ~1 frame before the container became VISIBLE, so the
+                            // user saw a partial animation from wherever the scroll had advanced.
+                            port.postOnAnimation {
+                                container.visibility = android.view.View.VISIBLE
+                                notifyFirstLoadCompleteOnce()
+                                port.smoothScrollTo(y)
+                            }
                         }
                     } else {
                         port.scrollTo(y)
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
-                        port.postOnAnimation {
+                        if (isFirstLand) {
                             container.visibility = android.view.View.VISIBLE
-                            notifyFirstLoadCompleteOnce()
+                            val wv = webViews.getOrNull(i)
+                            if (wv != null) {
+                                firstRevealGatedOnPaint = true
+                                val density = wv.resources.displayMetrics.density
+                                val cssY = ((y - slot.top) / density).toInt()
+                                var spinnerDismissed = false
+                                fun dismissSpinner() {
+                                    if (!spinnerDismissed) {
+                                        spinnerDismissed = true
+                                        notifyFirstLoadCompleteOnce()
+                                    }
+                                }
+                                if (cssY > 0) {
+                                    // JS viewport trick: temporarily make the document scrollable
+                                    // and set documentElement.scrollTop = cssY so Chrome's tile-
+                                    // rasteriser prioritises the reading position before reveal.
+                                    // window.scrollTo() is a no-op in ReadiumCSS pages; scrollTop
+                                    // on the root element correctly moves window.scrollY.
+                                    wv.evaluateJavascript(preRasterScrollJs(cssY)) { _ ->
+                                        wv.onCurrentContentPainted {
+                                            dismissSpinner()
+                                            container.postDelayed({
+                                                wv.evaluateJavascript(
+                                                    preRasterRestoreJs(),
+                                                    null as ((String?) -> Unit)?,
+                                                )
+                                            }, 200L)
+                                        }
+                                    }
+                                } else {
+                                    port.postOnAnimation {
+                                        wv.onCurrentContentPainted { dismissSpinner() }
+                                    }
+                                }
+                                container.postDelayed({
+                                    dismissSpinner()
+                                }, PAINTED_FALLBACK_MS)
+                            } else {
+                                notifyFirstLoadCompleteOnce()
+                            }
+                        } else {
+                            port.postOnAnimation {
+                                container.visibility = android.view.View.VISIBLE
+                                notifyFirstLoadCompleteOnce()
+                            }
                         }
                     }
                 }
@@ -989,6 +1109,7 @@ internal class ContinuousWindowController(
                 val wasPlaceholder = measuredHeights[i] == placeholder
                 val oldHeight = measuredHeights[i]
                 val delta = measuredPx - oldHeight
+
                 if (wasPlaceholder && i != 0 && delta < 0) {
                     measuredHeights[i] = measuredPx
                     val newMaxScroll = (measuredHeights.sum() - port.viewportHeightPx).coerceAtLeast(0)

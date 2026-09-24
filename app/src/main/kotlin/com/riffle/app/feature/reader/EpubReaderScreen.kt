@@ -2926,19 +2926,23 @@ private fun EpubNavigatorView(
                 },
                 modifier = readerModifier,
             )
-            // Cover the still-INVISIBLE container with a spinner during initial land. Continuous
-            // mode holds `container.visibility = INVISIBLE` from openWindowAt until every chapter
-            // in the initial window has measured (or the safety-net fallback fires), so without
-            // this overlay a cold open shows a blank reader for up to a few seconds on low-memory
-            // Android 7.1 devices where the initial-window WebViews spin up in parallel. Also
-            // re-shows during renderer-gone recovery (see recoverFromRendererGone).
+            // Cover the container with a full-screen opaque overlay while it is either still
+            // INVISIBLE (initial window measuring) or VISIBLE but waiting for Chromium to finish
+            // rasterizing tiles at the initial scroll position. Without a full-screen overlay a
+            // cold open at a non-zero position shows blank white tiles (Chromium rasterizes
+            // asynchronously) around a small spinner for up to a few seconds. Also re-shows
+            // during renderer-gone recovery (see recoverFromRendererGone).
             val continuousReaderForSpinner = continuousViewRef.value
             if (continuousReaderForSpinner != null && !continuousReaderForSpinner.isFirstLoadComplete.value) {
-                CircularProgressIndicator(
+                Box(
                     modifier = Modifier
-                        .align(Alignment.Center)
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
                         .testTag("reader_loading"),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
             }
             // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a
             // layout-phase effect, while LaunchedEffect runs as a composition-phase effect — there
