@@ -61,6 +61,8 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.reader.FigureTapMessageParser
+import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -153,6 +155,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     // it happened to resolve to at that moment.
     var storedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
     var spine by remember { mutableStateOf(SpinePositions.Empty) }
+    var figureZoomState by remember { mutableStateOf<FigureZoomState?>(null) }
     val scope = rememberCoroutineScope()
     val bridge = remember { bridgeFactory.create() }
     val navigator = remember(bridge) { ReadiumSwiftNavigator(bridge) }
@@ -612,6 +615,22 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
+    // Figure-tap: inject the tap-interceptor script on every page load and collect the resulting
+    // payloads to show the zoom overlay. The shim that wires `window.RiffleFigureBridge` to
+    // `window.webkit.messageHandlers.*` is already injected by the Readium setupUserScripts
+    // delegate; this installs the per-page click listener on top of it.
+    LaunchedEffect(navigator, localPath) {
+        if (localPath == null) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            navigator.injectFigureTapScript()
+        }
+    }
+    LaunchedEffect(navigator) {
+        navigator.figureTapPayloads.collect { payload ->
+            figureZoomState = FigureTapMessageParser.parse(payload)
+        }
+    }
+
     // Paint the current sentence and keep it on screen. One decoration group of its own so it
     // replaces atomically and never fights the annotation highlights.
     LaunchedEffect(cadence, navigator) {
@@ -728,6 +747,15 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 update = {},
             )
         }
+
+        // Figure zoom overlay — fullscreen, above all reader layers including chrome. Mirrors the
+        // Android placement at the top of EpubReaderScreen's outer Box.
+        IosEpubFigureZoomOverlay(
+            state = figureZoomState,
+            navigator = navigator,
+            onDismiss = { figureZoomState = null },
+            modifier = Modifier.fillMaxSize(),
+        )
 
         // Top chrome row
         Row(

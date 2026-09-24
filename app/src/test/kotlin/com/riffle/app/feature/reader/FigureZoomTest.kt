@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
-import org.json.JSONObject
+import com.riffle.feature.reader.FigureTapMessageParser
+import com.riffle.feature.reader.clampPanZoom
+import com.riffle.feature.reader.fitImageIntoViewport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -10,8 +12,8 @@ import org.junit.Test
 /**
  * Regression coverage for the figure-zoom feature. Two pure helpers back the whole feature:
  *  - [FigureTapMessageParser.parse] — accepts the JSON payload from figure-tap.js and turns it
- *    into a typed [FigureZoomState]. A schema drift on the JS side must fail loudly here rather
- *    than silently no-op the tap.
+ *    into a typed [com.riffle.feature.reader.FigureZoomState]. A schema drift on the JS side must
+ *    fail loudly here rather than silently no-op the tap.
  *  - [clampPanZoom] — the pinch/pan clamp inside [FigureZoomOverlay]. If the clamp lets the image
  *    leave the viewport, a user can pinch-and-lose their tap target with nothing left to tap on to
  *    dismiss.
@@ -27,12 +29,7 @@ class FigureZoomTest {
 
     @Test
     fun `parse img payload returns href and natural dimensions`() {
-        val json = JSONObject()
-            .put("kind", "img")
-            .put("href", "images/fig1.jpg")
-            .put("w", 800)
-            .put("h", 600)
-            .toString()
+        val json = """{"kind":"img","href":"images/fig1.jpg","w":800,"h":600}"""
         val parsed = FigureTapMessageParser.parse(json)
         assertNotNull(parsed)
         assertEquals("images/fig1.jpg", parsed!!.href)
@@ -44,7 +41,7 @@ class FigureZoomTest {
     @Test
     fun `parse svg payload returns markup and skips href`() {
         val svg = "<svg width='100' height='100'><rect width='100' height='100'/></svg>"
-        val json = JSONObject().put("kind", "svg").put("svg", svg).put("w", 100).put("h", 100).toString()
+        val json = """{"kind":"svg","svg":"$svg","w":100,"h":100}"""
         val parsed = FigureTapMessageParser.parse(json)
         assertNotNull(parsed)
         assertEquals(svg, parsed!!.svgMarkup)
@@ -53,7 +50,7 @@ class FigureZoomTest {
 
     @Test
     fun `parse rejects zero-sized figures`() {
-        val json = JSONObject().put("kind", "img").put("href", "a.png").put("w", 0).put("h", 100).toString()
+        val json = """{"kind":"img","href":"a.png","w":0,"h":100}"""
         assertNull(FigureTapMessageParser.parse(json))
     }
 
@@ -66,13 +63,13 @@ class FigureZoomTest {
 
     @Test
     fun `parse rejects img without href`() {
-        val json = JSONObject().put("kind", "img").put("w", 100).put("h", 100).toString()
+        val json = """{"kind":"img","w":100,"h":100}"""
         assertNull(FigureTapMessageParser.parse(json))
     }
 
     @Test
     fun `parse rejects svg without markup`() {
-        val json = JSONObject().put("kind", "svg").put("w", 100).put("h", 100).toString()
+        val json = """{"kind":"svg","w":100,"h":100}"""
         assertNull(FigureTapMessageParser.parse(json))
     }
 

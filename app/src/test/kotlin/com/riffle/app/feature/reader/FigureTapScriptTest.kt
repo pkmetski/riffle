@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.FigureCaptionWalker
+import com.riffle.feature.reader.FigureTapScript
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.webkit.JavascriptInterface
+import com.riffle.feature.reader.FigureTapScript
 
 /**
  * JS bridge that receives figure-tap events from paged/vertical mode's Readium WebViews. Continuous

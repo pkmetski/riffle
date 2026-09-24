@@ -5,6 +5,9 @@ package com.riffle.app.feature.reader
 import android.annotation.SuppressLint
 import android.util.Base64
 import android.webkit.WebView
+import com.riffle.feature.reader.FigureZoomState
+import com.riffle.feature.reader.clampPanZoom
+import com.riffle.feature.reader.fitImageIntoViewport
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -116,46 +119,43 @@ private fun FigureZoomContent(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.75f))
-            .pointerInput(state) {
-                // Tap outside the image dismisses. Tap on the image is consumed by the transformable
-                // pointer stream, so this only fires for background taps.
-                detectTapGestures(onTap = { onDismiss() })
-            },
+            .background(Color.Black.copy(alpha = 0.75f)),
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val vpW = with(LocalDensity.current) { maxWidth.toPx() }
-            val vpH = with(LocalDensity.current) { maxHeight.toPx() }
-            val fit = fitImageIntoViewport(state.naturalWidth, state.naturalHeight, vpW, vpH)
-            val fitW = fit.width.coerceAtLeast(1)
-            val fitH = fit.height.coerceAtLeast(1)
+        val vpW = with(LocalDensity.current) { maxWidth.toPx() }
+        val vpH = with(LocalDensity.current) { maxHeight.toPx() }
+        val fit = fitImageIntoViewport(state.naturalWidth, state.naturalHeight, vpW, vpH)
+        val fitW = fit.width.coerceAtLeast(1)
+        val fitH = fit.height.coerceAtLeast(1)
 
-            var scale by remember { mutableStateOf(1f) }
-            var tx by remember { mutableStateOf(0f) }
-            var ty by remember { mutableStateOf(0f) }
+        var scale by remember { mutableStateOf(1f) }
+        var tx by remember { mutableStateOf(0f) }
+        var ty by remember { mutableStateOf(0f) }
 
-            val transformState = rememberTransformableState { panChange, zoomChange, _, _ ->
-                val clamped = clampPanZoom(
-                    scale = scale * zoomChange,
-                    translationX = tx + panChange.x,
-                    translationY = ty + panChange.y,
-                    fittedWidth = fitW.toFloat(),
-                    fittedHeight = fitH.toFloat(),
-                    viewportWidth = vpW,
-                    viewportHeight = vpH,
-                )
-                scale = clamped.scale
-                tx = clamped.translationX
-                ty = clamped.translationY
-            }
+        // transformable lives on the full-screen box so drags that start on the visually-expanded
+        // image (outside its layout bounds) are still captured. graphicsLayer scales the image
+        // visually but does not affect hit testing — without this, panning only works when the
+        // finger starts inside the original unzoomed image bounds.
+        val transformState = rememberTransformableState { panChange, zoomChange, _, _ ->
+            val clamped = clampPanZoom(
+                scale = scale * zoomChange,
+                translationX = tx + panChange.x,
+                translationY = ty + panChange.y,
+                fittedWidth = fitW.toFloat(),
+                fittedHeight = fitH.toFloat(),
+                viewportWidth = vpW,
+                viewportHeight = vpH,
+            )
+            scale = clamped.scale
+            tx = clamped.translationX
+            ty = clamped.translationY
+        }
 
-            val imgModifier = Modifier
-                .align(Alignment.Center)
-                .size(with(LocalDensity.current) { fitW.toDp() }, with(LocalDensity.current) { fitH.toDp() })
-                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = tx, translationY = ty)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
                 .transformable(transformState)
                 .pointerInput(state) {
                     detectTapGestures(
@@ -173,13 +173,19 @@ private fun FigureZoomContent(
                             tx = reset.translationX
                             ty = reset.translationY
                         },
-                        onTap = { /* consume — don't dismiss */ },
+                        onTap = { onDismiss() },
                     )
-                }
+                },
+        ) {
+            val imgModifier = Modifier
+                .align(Alignment.Center)
+                .size(with(LocalDensity.current) { fitW.toDp() }, with(LocalDensity.current) { fitH.toDp() })
+                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = tx, translationY = ty)
 
+            val svgMarkup = state.svgMarkup
             when {
-                state.svgMarkup != null -> {
-                    SvgWebView(svgMarkup = state.svgMarkup, modifier = imgModifier)
+                svgMarkup != null -> {
+                    SvgWebView(svgMarkup = svgMarkup, modifier = imgModifier)
                 }
                 bitmap.value != null -> {
                     Image(

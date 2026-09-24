@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 /**
  * JavaScript that hit-tests taps against `<img>`, inline `<svg>`, `<picture>`, and single-image
@@ -37,7 +37,7 @@ package com.riffle.app.feature.reader
  * The bridge argument [bridgeName] is the `@JavascriptInterface`-registered object name — either
  * `RiffleChapter` (continuous — extended with `onFigureTap`) or `RiffleFigureBridge` (paged).
  */
-internal object FigureTapScript {
+object FigureTapScript {
 
     /** Global name of the paged/vertical figure-tap JS interface. */
     const val PAGED_BRIDGE_NAME: String = "RiffleFigureBridge"

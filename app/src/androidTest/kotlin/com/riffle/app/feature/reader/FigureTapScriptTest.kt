@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import com.riffle.feature.reader.FigureTapScript
 import android.webkit.WebViewClient
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
