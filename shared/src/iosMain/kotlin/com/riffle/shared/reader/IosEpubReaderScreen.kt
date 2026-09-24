@@ -1202,16 +1202,9 @@ private fun KoFiNudgeOverlay(
     val shownFlow = remember { MutableStateFlow(false) }
     val shown by shownFlow.collectAsState()
     LaunchedEffect(Unit) {
-        var seenBelowThreshold = false
-        var shownThisSession = false
-        positionFlow.collect { position ->
-            val prog = position.totalProgression ?: return@collect
-            if (!seenBelowThreshold && prog < 0.98f) seenBelowThreshold = true
-            if (prog >= 0.98f && seenBelowThreshold && !shownThisSession) {
-                shownFlow.value = true
-                shownThisSession = true
-            }
-        }
+        com.riffle.feature.designsystem.collectKoFiProgressionNudge(
+            positionFlow.map { it.totalProgression },
+        ) { shownFlow.value = true }
     }
     com.riffle.feature.designsystem.KoFiNudgeCard(
         visible = shown,

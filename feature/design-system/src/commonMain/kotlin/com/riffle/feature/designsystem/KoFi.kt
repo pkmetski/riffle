@@ -23,8 +23,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.Flow
 
 private const val KO_FI_URL = "https://ko-fi.com/pkmetski"
+
+const val KO_FI_THRESHOLD = 0.98f
+
+/**
+ * Collects [progressionFlow] and calls [onTrigger] exactly once when the user reaches
+ * ≥[KO_FI_THRESHOLD] after having been seen below it — preventing the saved bookmark
+ * (often already ≥98%) from immediately triggering the nudge on book-open.
+ */
+suspend fun collectKoFiProgressionNudge(
+    progressionFlow: Flow<Float?>,
+    onTrigger: () -> Unit,
+) {
+    var seenBelowThreshold = false
+    var shownThisSession = false
+    progressionFlow.collect { prog ->
+        if (prog == null) return@collect
+        if (!seenBelowThreshold && prog < KO_FI_THRESHOLD) seenBelowThreshold = true
+        if (prog >= KO_FI_THRESHOLD && seenBelowThreshold && !shownThisSession) {
+            onTrigger()
+            shownThisSession = true
+        }
+    }
+}
 
 @Composable
 fun KoFiDrawerButton(modifier: Modifier = Modifier) {

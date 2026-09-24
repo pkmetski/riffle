@@ -1194,20 +1194,9 @@ class EpubReaderViewModel constructor(
                 if (index >= 0) c.prefetchNext(index)
             }
         }
-        // Show the Ko-fi nudge once per reader session when the user reaches ≥98%.
-        // seenBelowThreshold prevents the first high-position emission (the saved bookmark)
-        // from locking out the nudge — once any emission drops below 0.98, the gate opens.
-        // shownThisSession ensures dismiss is sticky for the session; the nudge reappears
-        // the next time this book (or any book) is opened.
         viewModelScope.launch {
-            var seenBelowThreshold = false
-            var shownThisSession = false
-            currentLocatorTotalProgression.filterNotNull().collect { prog ->
-                if (!seenBelowThreshold && prog < 0.98f) seenBelowThreshold = true
-                if (prog >= 0.98f && seenBelowThreshold && !shownThisSession) {
-                    _showKoFiNudge.value = true
-                    shownThisSession = true
-                }
+            com.riffle.feature.designsystem.collectKoFiProgressionNudge(currentLocatorTotalProgression) {
+                _showKoFiNudge.value = true
             }
         }
         viewModelScope.launch {
