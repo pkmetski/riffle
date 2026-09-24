@@ -15,6 +15,7 @@
     <string name="ui_add_source">Добавете източник</string>
     <string name="ui_add_storyteller">Добавете Storyteller</string>
     <string name="ui_add_to_playlist">Добавяне към плейлиста</string>
+    <string name="ui_add_bookmark">Добавяне на отметка</string>
     <string name="ui_add_webdav">Добавете WebDAV</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_all_orientations">Добавя превключвателя към горната лента на четеца (всички ориентации)</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_vertical_and_continuous_only">Добавя превключвателя към горната лента на четеца (само вертикално и непрекъснато)</string>
@@ -30,7 +31,10 @@
     <string name="ui_auto_scroll_creeps_the_page_upward_at_a_set_pace_so_you_can_read_hands_free">Автоматичното превъртане придвижва страницата нагоре със зададено темпо, за да четете без ръце.</string>
     <string name="ui_back">Назад</string>
     <string name="ui_backward_rewind">Превъртане назад</string>
+    <string name="ui_bookmark_count_one">1 отметка</string>
+    <string name="ui_bookmark_count_other">%1$d отметки</string>
     <string name="ui_bookmark_options">Опции за отметки</string>
+    <string name="ui_bookmarks">Отметки</string>
     <string name="ui_browse_bulgarian_ebooks_and_audiobooks_from_two_public_digital_libraries">Разгледайте български електронни книги и аудиокниги от две обществени дигитални библиотеки.</string>
     <string name="ui_browse_tens_of_thousands_of_free_public_domain_ebooks_no_account_is">Разгледайте десетки хиляди безплатни електронни книги, които са обществено достояние. Няма акаунт</string>
     <string name="ui_cached">Кеширано</string>
@@ -143,6 +147,7 @@
     <string name="ui_matched">Съвпадение</string>
     <string name="ui_more_options">Още опции</string>
     <string name="ui_name">Име</string>
+    <string name="ui_new_bookmark">Нова отметка</string>
     <string name="ui_new_playlist">Нов плейлист</string>
     <string name="ui_newest_first">Първо най-новите</string>
     <string name="ui_next_chapter">Следваща глава</string>
@@ -199,6 +204,7 @@
     <string name="ui_permission_revoked">Разрешението е отменено</string>
     <string name="ui_pick_a_folder">Изберете папка</string>
     <string name="ui_pick_cover_image">Изберете изображение на корицата</string>
+    <string name="ui_pause">Пауза</string>
     <string name="ui_play">Пускане</string>
     <string name="ui_playback_speed">Скорост на възпроизвеждане</string>
     <string name="ui_playlists">Плейлисти</string>
@@ -221,6 +227,7 @@
     <string name="ui_remove_folder">Премахване на папка?</string>
     <string name="ui_remove_folder_3">Премахване на папка</string>
     <string name="ui_remove_from_library">Премахване от библиотеката</string>
+    <string name="ui_remove_bookmark">Премахване на отметка</string>
     <string name="ui_remove_from_playlist">Премахване от плейлиста</string>
     <string name="ui_remove_source">Премахване на източника</string>
     <string name="ui_remove_storyteller">Премахване на Storyteller</string>
@@ -260,6 +267,8 @@
     <string name="ui_shown_on_every_device_in_the_household">Показва се на всяко устройство в домакинството.</string>
     <string name="ui_sign_in_to_an_audiobookshelf_server_to_see_device_files_the_sync_namespace_is_yo">Влезте в Audiobookshelf сървър, за да видите файловете на устройството (пространството от имена за синхронизиране е вашият потребителски идентификатор на ABS).</string>
     <string name="ui_skip_guided_panels_on_this_page">Пропуснете управляваните панели на тази страница</string>
+    <string name="ui_sleep_pill_end_of_chapter">Край на гл.</string>
+    <string name="ui_sleep_pill_idle">Сън</string>
     <string name="ui_sleep_timer">Таймер за заспиване</string>
     <string name="ui_sleep_timer_3">Таймер за заспиване</string>
     <string name="ui_slower">По-бавно</string>
@@ -540,6 +549,7 @@
     <string name="ui_current_chapter_label">Етикет на текущата глава</string>
     <string name="ui_reading_progress_labels">Етикети за напредъка на четене</string>
     <string name="ui_time_remaining">Оставащо време</string>
+    <string name="ui_chapter_number">Глава %1$d</string>
     <string name="ui_chapter_progress_count">Глава %1$d от %2$d</string>
     <string name="ui_reader_duration_minutes">%1$d мин</string>
     <string name="ui_reader_duration_hours_minutes">%1$d ч %2$d мин</string>

@@ -15,6 +15,7 @@
     <string name="ui_add_source">Añadir fuente</string>
     <string name="ui_add_storyteller">Añadir Storyteller</string>
     <string name="ui_add_to_playlist">Añadir a la lista de reproducción</string>
+    <string name="ui_add_bookmark">Añadir marcador</string>
     <string name="ui_add_webdav">Añadir WebDAV</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_all_orientations">Añade el interruptor a la barra superior del lector (todas las orientaciones)</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_vertical_and_continuous_only">Añade el interruptor a la barra superior del lector (solo vertical y continuo)</string>
@@ -30,7 +31,10 @@
     <string name="ui_auto_scroll_creeps_the_page_upward_at_a_set_pace_so_you_can_read_hands_free">El desplazamiento automático mueve la página hacia arriba a un ritmo fijo para que puedas leer con las manos libres.</string>
     <string name="ui_back">Atrás</string>
     <string name="ui_backward_rewind">Retroceder</string>
+    <string name="ui_bookmark_count_one">1 marcador</string>
+    <string name="ui_bookmark_count_other">%1$d marcadores</string>
     <string name="ui_bookmark_options">Opciones de marcador</string>
+    <string name="ui_bookmarks">Marcadores</string>
     <string name="ui_browse_bulgarian_ebooks_and_audiobooks_from_two_public_digital_libraries">Explora libros electrónicos y audiolibros búlgaros de dos bibliotecas digitales públicas.</string>
     <string name="ui_browse_tens_of_thousands_of_free_public_domain_ebooks_no_account_is">Explora decenas de miles de libros electrónicos gratuitos de dominio público. No hace falta una cuenta</string>
     <string name="ui_cached">En caché</string>
@@ -143,6 +147,7 @@
     <string name="ui_matched">Coincidencia encontrada</string>
     <string name="ui_more_options">Más opciones</string>
     <string name="ui_name">Nombre</string>
+    <string name="ui_new_bookmark">Nuevo marcador</string>
     <string name="ui_new_playlist">Nueva lista de reproducción</string>
     <string name="ui_newest_first">Lo más nuevo primero</string>
     <string name="ui_next_chapter">Siguiente capítulo</string>
@@ -199,6 +204,7 @@
     <string name="ui_permission_revoked">Permiso revocado</string>
     <string name="ui_pick_a_folder">Elige una carpeta</string>
     <string name="ui_pick_cover_image">Elige la imagen de portada</string>
+    <string name="ui_pause">Pausar</string>
     <string name="ui_play">Reproducir</string>
     <string name="ui_playback_speed">Velocidad de reproducción</string>
     <string name="ui_playlists">Listas de reproducción</string>
@@ -221,6 +227,7 @@
     <string name="ui_remove_folder">¿Quitar carpeta?</string>
     <string name="ui_remove_folder_3">Quitar carpeta</string>
     <string name="ui_remove_from_library">Eliminar de la biblioteca</string>
+    <string name="ui_remove_bookmark">Eliminar marcador</string>
     <string name="ui_remove_from_playlist">Eliminar de la lista de reproducción</string>
     <string name="ui_remove_source">Eliminar fuente</string>
     <string name="ui_remove_storyteller">Eliminar Storyteller</string>
@@ -260,6 +267,8 @@
     <string name="ui_shown_on_every_device_in_the_household">Se muestra en todos los dispositivos del hogar.</string>
     <string name="ui_sign_in_to_an_audiobookshelf_server_to_see_device_files_the_sync_namespace_is_yo">Inicia sesión en un servidor Audiobookshelf para ver los archivos del dispositivo (el espacio de nombres de sincronización es tu ID de usuario de ABS).</string>
     <string name="ui_skip_guided_panels_on_this_page">Saltar paneles guiados en esta página</string>
+    <string name="ui_sleep_pill_end_of_chapter">Fin del cap.</string>
+    <string name="ui_sleep_pill_idle">Dormir</string>
     <string name="ui_sleep_timer">Temporizador de sueño</string>
     <string name="ui_sleep_timer_3">Temporizador de apagado</string>
     <string name="ui_slower">Más lento</string>
@@ -540,6 +549,7 @@
     <string name="ui_current_chapter_label">Etiqueta del capítulo actual</string>
     <string name="ui_reading_progress_labels">Etiquetas de progreso de lectura</string>
     <string name="ui_time_remaining">Tiempo restante</string>
+    <string name="ui_chapter_number">Capítulo %1$d</string>
     <string name="ui_chapter_progress_count">Capítulo %1$d de %2$d</string>
     <string name="ui_reader_duration_minutes">%1$d min</string>
     <string name="ui_reader_duration_hours_minutes">%1$d h %2$d min</string>

@@ -20,6 +20,7 @@
     <string name="ui_add_source">Add source</string>
     <string name="ui_add_storyteller">Add Storyteller</string>
     <string name="ui_add_to_playlist">Add to playlist</string>
+    <string name="ui_add_bookmark">Add bookmark</string>
     <string name="ui_add_webdav">Add WebDAV</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_all_orientations">Adds the toggle to the reader top bar (all orientations)</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_vertical_and_continuous_only">Adds the toggle to the reader top bar (Vertical &amp; Continuous only)</string>
@@ -35,7 +36,10 @@
     <string name="ui_auto_scroll_creeps_the_page_upward_at_a_set_pace_so_you_can_read_hands_free">Auto-Scroll creeps the page upward at a set pace so you can read hands-free. </string>
     <string name="ui_back">Back</string>
     <string name="ui_backward_rewind">Backward rewind</string>
+    <string name="ui_bookmark_count_one">1 bookmark</string>
+    <string name="ui_bookmark_count_other">%1$d bookmarks</string>
     <string name="ui_bookmark_options">Bookmark options</string>
+    <string name="ui_bookmarks">Bookmarks</string>
     <string name="ui_browse_bulgarian_ebooks_and_audiobooks_from_two_public_digital_libraries">Browse Bulgarian ebooks and audiobooks from two public digital libraries. </string>
     <string name="ui_browse_tens_of_thousands_of_free_public_domain_ebooks_no_account_is">Browse tens of thousands of free public-domain ebooks. No account is </string>
     <string name="ui_cached">Cached</string>
@@ -147,6 +151,7 @@
     <string name="ui_matched">Matched</string>
     <string name="ui_more_options">More options</string>
     <string name="ui_name">Name</string>
+    <string name="ui_new_bookmark">New bookmark</string>
     <string name="ui_new_playlist">New playlist</string>
     <string name="ui_newest_first">Newest first</string>
     <string name="ui_next_chapter">Next chapter</string>
@@ -203,6 +208,7 @@
     <string name="ui_permission_revoked">Permission revoked</string>
     <string name="ui_pick_a_folder">Pick a folder</string>
     <string name="ui_pick_cover_image">Pick cover image</string>
+    <string name="ui_pause">Pause</string>
     <string name="ui_play">Play</string>
     <string name="ui_playback_speed">Playback Speed</string>
     <string name="ui_playlists">Playlists</string>
@@ -225,6 +231,7 @@
     <string name="ui_remove_folder">Remove folder?</string>
     <string name="ui_remove_folder_3">Remove folder</string>
     <string name="ui_remove_from_library">Remove from library</string>
+    <string name="ui_remove_bookmark">Remove bookmark</string>
     <string name="ui_remove_from_playlist">Remove from playlist</string>
     <string name="ui_remove_source">Remove source</string>
     <string name="ui_remove_storyteller">Remove Storyteller</string>
@@ -263,6 +270,8 @@
     <string name="ui_shown_on_every_device_in_the_household">Shown on every device in the household.</string>
     <string name="ui_sign_in_to_an_audiobookshelf_server_to_see_device_files_the_sync_namespace_is_yo">Sign in to a Komga server to see device annotation files.</string>
     <string name="ui_skip_guided_panels_on_this_page">Skip guided panels on this page</string>
+    <string name="ui_sleep_pill_end_of_chapter">End of ch.</string>
+    <string name="ui_sleep_pill_idle">Sleep</string>
     <string name="ui_sleep_timer">Sleep timer</string>
     <string name="ui_sleep_timer_3">Sleep Timer</string>
     <string name="ui_slower">Slower</string>
@@ -542,6 +551,7 @@
     <string name="ui_current_chapter_label">Current chapter label</string>
     <string name="ui_reading_progress_labels">Reading progress labels</string>
     <string name="ui_time_remaining">Time remaining</string>
+    <string name="ui_chapter_number">Chapter %1$d</string>
     <string name="ui_chapter_progress_count">Chapter %1$d of %2$d</string>
     <string name="ui_reader_duration_minutes">%1$dmin</string>
     <string name="ui_reader_duration_hours_minutes">%1$dh %2$dmin</string>
