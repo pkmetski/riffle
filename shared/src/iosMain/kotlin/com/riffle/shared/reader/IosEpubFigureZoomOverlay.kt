@@ -5,8 +5,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,10 +24,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.abs
 import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.clampPanZoom
@@ -38,6 +44,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.create
+import kotlin.time.TimeSource
 import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageView
@@ -131,44 +138,74 @@ private fun IosEpubFigureZoomContent(
         var scale by remember { mutableStateOf(1f) }
         var tx by remember { mutableStateOf(0f) }
         var ty by remember { mutableStateOf(0f) }
+        var lastTapMark by remember { mutableStateOf<TimeSource.Monotonic.ValueTimeMark?>(null) }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // detectTransformGestures handles single-finger pan and pinch-zoom full-screen.
-                // It calls change.consume() after touchSlop, cancelling the detectTapGestures
-                // coroutine below so onTap never fires after a drag.
+                // Single pointerInput block handles pan, pinch-zoom, tap-to-dismiss, and
+                // double-tap-to-reset together. Two separate pointerInput blocks race on
+                // single-finger events because the second block dispatches first; this unified
+                // handler avoids that conflict. Mirrors FigureZoomContent on Android.
                 .pointerInput(state) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        val clamped = clampPanZoom(
-                            scale = scale * zoom,
-                            translationX = tx + pan.x,
-                            translationY = ty + pan.y,
-                            fittedWidth = fitW.toFloat(),
-                            fittedHeight = fitH.toFloat(),
-                            viewportWidth = vpW,
-                            viewportHeight = vpH,
-                        )
-                        scale = clamped.scale
-                        tx = clamped.translationX
-                        ty = clamped.translationY
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        var pastTouchSlop = false
+                        var cumulativePan = Offset.Zero
+                        var cumulativeZoom = 1f
+                        do {
+                            val event = awaitPointerEvent()
+                            val anyConsumed = event.changes.any { it.isConsumed }
+                            if (!anyConsumed) {
+                                val zoomChange = event.calculateZoom()
+                                val panChange = event.calculatePan()
+                                if (!pastTouchSlop) {
+                                    cumulativePan += panChange
+                                    cumulativeZoom *= zoomChange
+                                    val centroidSize = event.calculateCentroidSize(useCurrent = false)
+                                    val panDist = cumulativePan.getDistance()
+                                    val zoomMotion = abs(1f - cumulativeZoom) * centroidSize
+                                    pastTouchSlop = panDist > viewConfiguration.touchSlop ||
+                                        zoomMotion > viewConfiguration.touchSlop
+                                }
+                                if (pastTouchSlop) {
+                                    val clamped = clampPanZoom(
+                                        scale = scale * zoomChange,
+                                        translationX = tx + panChange.x,
+                                        translationY = ty + panChange.y,
+                                        fittedWidth = fitW.toFloat(),
+                                        fittedHeight = fitH.toFloat(),
+                                        viewportWidth = vpW,
+                                        viewportHeight = vpH,
+                                    )
+                                    scale = clamped.scale
+                                    tx = clamped.translationX
+                                    ty = clamped.translationY
+                                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+
+                        if (!pastTouchSlop) {
+                            val mark = lastTapMark
+                            val elapsed = mark?.elapsedNow()?.inWholeMilliseconds ?: Long.MAX_VALUE
+                            if (elapsed < 300L) {
+                                val reset = clampPanZoom(
+                                    scale = 1f,
+                                    translationX = 0f, translationY = 0f,
+                                    fittedWidth = fitW.toFloat(), fittedHeight = fitH.toFloat(),
+                                    viewportWidth = vpW, viewportHeight = vpH,
+                                )
+                                scale = reset.scale
+                                tx = reset.translationX
+                                ty = reset.translationY
+                                lastTapMark = null
+                            } else {
+                                onDismiss()
+                                lastTapMark = TimeSource.Monotonic.markNow()
+                            }
+                        }
                     }
-                }
-                .pointerInput(state) {
-                    detectTapGestures(
-                        onDoubleTap = {
-                            val reset = clampPanZoom(
-                                scale = 1f,
-                                translationX = 0f, translationY = 0f,
-                                fittedWidth = fitW.toFloat(), fittedHeight = fitH.toFloat(),
-                                viewportWidth = vpW, viewportHeight = vpH,
-                            )
-                            scale = reset.scale
-                            tx = reset.translationX
-                            ty = reset.translationY
-                        },
-                        onTap = { onDismiss() },
-                    )
                 },
         ) {
             val imgModifier = Modifier
