@@ -614,17 +614,12 @@ internal class ContinuousWindowController(
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                         if (isFirstLand) {
-                            // Make the container visible NOW so Chromium starts rasterizing
-                            // tiles at position y. Chromium only rasterizes for visible views;
-                            // keeping it INVISIBLE and waiting for a VisualStateCallback would
-                            // fire the callback on a blank/empty state (no tiles to rasterize
-                            // for an invisible container). The CircularProgressIndicator in
-                            // EpubReaderScreen overlays the container while isFirstLoadComplete
-                            // is false, hiding the momentarily blank tile content.
                             container.visibility = android.view.View.VISIBLE
                             val wv = webViews.getOrNull(i)
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
+                                val density = wv.resources.displayMetrics.density
+                                val cssY = ((y - slot.top) / density).toInt()
                                 var spinnerDismissed = false
                                 fun dismissSpinner() {
                                     if (!spinnerDismissed) {
@@ -632,12 +627,45 @@ internal class ContinuousWindowController(
                                         notifyFirstLoadCompleteOnce()
                                     }
                                 }
-                                // Fire notifyFirstLoadCompleteOnce only after Chromium has
-                                // rasterized and committed the tiles at y to the compositor.
-                                // This makes the EpubReaderScreen spinner linger until rendered
-                                // content is actually visible — no more blank white gap.
-                                wv.onCurrentContentPainted {
-                                    dismissSpinner()
+                                if (cssY > 0) {
+                                    // Chrome's tile rasteriser uses its own page-scroll position,
+                                    // not the NestedScrollView's scroll, to decide which tiles to
+                                    // prioritise. With overflow:visible (set by ReadiumCSS),
+                                    // window.scrollTo is a no-op, so Chrome always rasterises from
+                                    // y=0 and the reading position (deep in the chapter) gets blank
+                                    // tiles. Fix: temporarily override overflow so Chrome accepts
+                                    // the scrollTo, moving its internal viewport to cssY. Chrome
+                                    // rasterises tiles there first. setOffscreenPreRaster (always
+                                    // ON) keeps those tiles in the GPU cache. We then restore
+                                    // overflow and wait for a second commit so page_scroll=0 when
+                                    // the overlay removes; NestedScrollView at y shows the cached
+                                    // tiles at HTML CSS y=cssY.
+                                    wv.evaluateJavascript(
+                                        "document.documentElement.style.overflowY='scroll';" +
+                                        "window.scrollTo(0,$cssY);",
+                                    ) {}
+                                    // Two frames let Chrome process the JS before the paint
+                                    // callback is registered, so it fires for the cssY frame
+                                    // rather than an earlier y=0 frame.
+                                    port.postOnAnimation {
+                                        port.postOnAnimation {
+                                            wv.onCurrentContentPainted {
+                                                wv.evaluateJavascript(
+                                                    "document.documentElement.style.overflowY='';" +
+                                                    "window.scrollTo(0,0);",
+                                                ) {}
+                                                // Wait for the restore to commit so the overlay
+                                                // removes with Chrome at page_scroll=0. The pre-
+                                                // raster cache retains tiles at HTML CSS y=cssY,
+                                                // which the NestedScrollView at y will expose.
+                                                wv.onCurrentContentPainted { dismissSpinner() }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    port.postOnAnimation {
+                                        wv.onCurrentContentPainted { dismissSpinner() }
+                                    }
                                 }
                                 container.postDelayed({ dismissSpinner() }, PAINTED_FALLBACK_MS)
                             } else {
