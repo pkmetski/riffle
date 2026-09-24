@@ -60,7 +60,7 @@ When adding a new Room migration:
      - Drop or alter the table to put the database into a genuine pre-migration shape.
      - Call `IosRiffleDatabaseSchema.migrate(driver, (N-1).toLong(), N.toLong())`.
      - Assert that the new columns or tables exist and pre-existing data is preserved.
-   - Add the new version to `migrateFullChain` (if that test exists for the iOS schema) or create one.
+   - Add the new version range to the `migrateFullChain` test's `migrate(driver, 1L, N.toLong())` call in `IosRiffleDatabaseSchemaTest.kt`.
 
 ## Commit every uncommitted change on the branch
 

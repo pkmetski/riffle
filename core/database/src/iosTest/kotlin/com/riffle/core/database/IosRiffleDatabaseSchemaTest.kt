@@ -779,6 +779,47 @@ class IosRiffleDatabaseSchemaTest {
         }
     }
 
+    // ── Full migration chain ──────────────────────────────────────────────────
+
+    @Test
+    fun migrateFullChain() {
+        // The driver is already at the current version (setUp creates it via IosRiffleDatabaseSchema
+        // which runs all migrations). Rebuild from v1 by dropping the tables that each migration
+        // step would have created, then let migrate() run the full chain and verify the schema
+        // emerges correctly. This catches a missing migrate() branch or wrong version range.
+
+        // Drop all tables added after v1 so the driver resembles a genuine v1 state.
+        val tablesAddedAfterV1 = listOf(
+            // v2: local_files
+            "local_files_file_folders", "local_files_files", "local_files_folders",
+            // v3: series/collections rebuilt
+            "series_entities", "collection_entities",
+            // v4: position + preferences tables
+            "reading_positions", "audiobook_positions", "book_formatting_preferences",
+            "book_comic_formatting_preferences", "audio_playback_preferences_v4",
+            // v5: formerly no-op DAO tables
+            "readaloud_links", "readaloud_candidates", "readaloud_dismissals", "cross_epub_index",
+            "readaloud_resume_positions", "audio_playback_preferences", "audiobook_bookmarks",
+            "audiobook_chapter_cache", "local_file_metadata_overrides", "remote_item_freshness",
+            "publication_metrics_cache", "dictionary_packs", "lookup_history", "cover_grid_scale",
+        )
+        tablesAddedAfterV1.forEach { driver.execute(null, "DROP TABLE IF EXISTS $it", 0) }
+
+        // Put series/collections into the broken v2 shape so v3 migration can rebuild them.
+        driver.execute(null, "CREATE TABLE IF NOT EXISTS series_entities (id TEXT NOT NULL, sourceId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (id, sourceId))", 0)
+        driver.execute(null, "CREATE TABLE IF NOT EXISTS collection_entities (id TEXT NOT NULL, sourceId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (id, sourceId))", 0)
+
+        IosRiffleDatabaseSchema.migrate(driver, 1L, 5L)
+
+        val tables = allTableNames()
+        // Spot-check one representative table from each migration step.
+        assertTrue("local_files_folders" in tables, "v2 migration must have created local_files_folders")
+        assertTrue("series_entities" in tables, "v3 migration must have created series_entities")
+        assertTrue("reading_positions" in tables, "v4 migration must have created reading_positions")
+        assertTrue("readaloud_links" in tables, "v5 migration must have created readaloud_links")
+        assertTrue("cover_grid_scale" in tables, "v5 migration must have created cover_grid_scale")
+    }
+
     // ── DAO round-trips on a fresh schema ────────────────────────────────────
     //
     // These are the assertions that would have failed on v3, proving the tables exist and the

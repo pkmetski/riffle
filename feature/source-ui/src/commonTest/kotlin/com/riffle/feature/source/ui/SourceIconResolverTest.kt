@@ -74,7 +74,7 @@ class SourceIconResolverTest {
     }
 
     @Test
-    fun `favicon URL for Gutenberg is null - gutendex is an API mirror, no branded favicon`() {
+    fun faviconUrlForGutenbergIsNullGutendexIsApiMirrorNoBrandedFavicon() {
         val url = SourceIconResolver.faviconUrlFor(source(type = SourceType.GUTENBERG))
         assertNull(url)
     }

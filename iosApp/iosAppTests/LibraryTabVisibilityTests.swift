@@ -3,16 +3,18 @@ import Riffle
 
 // Counterpart to shared/src/commonTest/kotlin/com/riffle/shared/library/LibraryTabLogicTest.kt
 //
-// Verifies the LibraryTabVisibility data class exported from the Riffle framework. The tab-bar
-// switching logic (isTabVisible, shouldClampSelectedTab) is internal Kotlin and exercised by the
-// KMP commonTest suite on both JVM and K/N; this file exercises the exported value-type contract
-// that iOS consumers depend on.
+// Verifies the LibraryTabVisibility value type exported from the Riffle framework and the
+// isTabVisible / shouldClampSelectedTab logic that the iOS tab bar depends on. The commonTest
+// suite exercises every branch of these functions on both JVM and K/N; this file pins the
+// Swift-callable signatures and the sentinel boundary values that the iOS host reads directly.
 final class LibraryTabVisibilityTests: XCTestCase {
+
+    private var empty: LibraryTabVisibility { LibraryTabVisibility.companion.Empty }
+    private var all: LibraryTabVisibility { LibraryTabVisibility.companion.All }
 
     // MARK: — Companion sentinels
 
     func testEmptyHidesAllOptionalTabs() {
-        let empty = LibraryTabVisibility.companion.Empty
         XCTAssertFalse(empty.toRead, "Empty sentinel must have toRead=false")
         XCTAssertFalse(empty.series, "Empty sentinel must have series=false")
         XCTAssertFalse(empty.collections, "Empty sentinel must have collections=false")
@@ -21,7 +23,6 @@ final class LibraryTabVisibilityTests: XCTestCase {
     }
 
     func testAllShowsAllOptionalTabs() {
-        let all = LibraryTabVisibility.companion.All
         XCTAssertTrue(all.toRead, "All sentinel must have toRead=true")
         XCTAssertTrue(all.series, "All sentinel must have series=true")
         XCTAssertTrue(all.collections, "All sentinel must have collections=true")
@@ -46,17 +47,41 @@ final class LibraryTabVisibilityTests: XCTestCase {
         XCTAssertFalse(visibility.playlists)
     }
 
-    // MARK: — Equality
+    // MARK: — isTabVisible behavioural coverage (mirrors LibraryTabLogicTest in commonTest)
+    //
+    // The home tab (0) and all-books tab (5) are always visible regardless of the visibility
+    // flags; optional tabs 1–4 and 6 follow their flag. A regression that hardcodes `true`
+    // for all tabs would break the UI by showing tabs for empty libraries.
 
-    func testEqualityMatchesComponentValues() {
-        let lhsVisibility = LibraryTabVisibility(toRead: true, series: true, collections: false, annotations: true, playlists: false)
-        let rhsVisibility = LibraryTabVisibility(toRead: true, series: true, collections: false, annotations: true, playlists: false)
-        XCTAssertEqual(lhsVisibility, rhsVisibility)
+    func testHomeTabAlwaysVisibleEvenWithEmptyVisibility() {
+        XCTAssertTrue(LibraryTabsKt.isTabVisible(selectedTab: 0, visibility: empty),
+                      "Home tab must always be visible")
     }
 
-    func testInequalityOnDifferentValues() {
-        let lhsVisibility = LibraryTabVisibility(toRead: true, series: false, collections: false, annotations: false, playlists: false)
-        let rhsVisibility = LibraryTabVisibility(toRead: false, series: false, collections: false, annotations: false, playlists: false)
-        XCTAssertNotEqual(lhsVisibility, rhsVisibility)
+    func testAllBooksTabAlwaysVisibleEvenWithEmptyVisibility() {
+        XCTAssertTrue(LibraryTabsKt.isTabVisible(selectedTab: 5, visibility: empty),
+                      "All-books tab must always be visible")
+    }
+
+    func testToReadTabHiddenWhenFlagFalse() {
+        XCTAssertFalse(LibraryTabsKt.isTabVisible(selectedTab: 1, visibility: empty),
+                       "To-read tab must be hidden when toRead=false")
+    }
+
+    func testToReadTabVisibleWhenFlagTrue() {
+        XCTAssertTrue(LibraryTabsKt.isTabVisible(selectedTab: 1, visibility: all),
+                      "To-read tab must be visible when toRead=true")
+    }
+
+    func testShouldClampWhenSelectedTabBecomesHidden() {
+        // Series tab (3) becomes hidden: the selected tab must be clamped back to home.
+        XCTAssertTrue(LibraryTabsKt.shouldClampSelectedTab(searchQuery: "", visibility: empty, selectedTab: 3),
+                      "Should clamp when the selected tab is hidden and no search is active")
+    }
+
+    func testNoClampWhileSearching() {
+        // Active search overrides tab visibility clamping.
+        XCTAssertFalse(LibraryTabsKt.shouldClampSelectedTab(searchQuery: "kotlin", visibility: empty, selectedTab: 3),
+                       "Should not clamp while a search is active")
     }
 }

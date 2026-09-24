@@ -1,15 +1,14 @@
 package com.riffle.feature.source.ui
 
-import org.junit.Assert.assertNull
-import org.junit.Test
 import kotlin.math.abs
+import kotlin.test.Test
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class FadingScrollbarMetricsTest {
 
     private fun assertClose(expected: Float, actual: Float, tol: Float = 0.001f) {
-        assert(abs(expected - actual) <= tol) {
-            "expected ~$expected but was $actual (tol=$tol)"
-        }
+        assertTrue(abs(expected - actual) <= tol, "expected ~$expected but was $actual (tol=$tol)")
     }
 
     // --- computeListScrollMetrics ---
@@ -92,9 +91,7 @@ class FadingScrollbarMetricsTest {
             firstVisibleIndex = 5, firstVisibleScrollOffset = 90,
             firstVisibleItemSize = itemSize,
         )!!
-        assert(b.offsetFraction > a.offsetFraction) {
-            "offset regressed on forward scroll: a=${a.offsetFraction}, b=${b.offsetFraction}"
-        }
+        assertTrue(b.offsetFraction > a.offsetFraction, "offset regressed on forward scroll: a=${a.offsetFraction}, b=${b.offsetFraction}")
         // Continuity across the item boundary: scrolled fully through item 5, handoff to item 6.
         val boundaryA = computeListScrollMetrics(
             total = 40, viewport = 900,
@@ -144,7 +141,7 @@ class FadingScrollbarMetricsTest {
             firstItemOffsetY = 0,
         )!!
         // Sanity: with correct columns=3, extent > 0.5. With buggy columns=1, extent would be ~0.06.
-        assert(m.extentFraction > 0.5f) { "extent collapsed: ${m.extentFraction}" }
+        assertTrue(m.extentFraction > 0.5f, "extent collapsed: ${m.extentFraction}")
     }
 
     @Test

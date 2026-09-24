@@ -62,8 +62,10 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
     // MARK: - Helpers
 
-    /// Opens the first tile matching `hintKeywords`, closes the reader, and re-opens the same book:
-    /// the position-restore path on second open must land in the reader without crashing.
+    /// Opens the first tile matching `hintKeywords`, navigates to a non-zero position (for ebook
+    /// formats), closes the reader, and re-opens the same book. Asserts both that the reader
+    /// reopens without crashing AND (for ebooks) that the saved position was restored rather than
+    /// silently reset to 0%.
     private func assertReaderReopens(hintKeywords: [String], kind: String) throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
 
@@ -73,7 +75,20 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: tile, in: app)
         XCTAssertTrue(backButton.exists, "\(kind) must open")
-        Thread.sleep(forTimeInterval: 2)
+
+        let isEbook = !hintKeywords.contains("audiobook")
+        if isEbook {
+            // Advance the ebook position by swiping left (next page) before closing.
+            // This ensures the position saved is non-trivially zero.
+            let center = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+            center.press(forDuration: 0.05, thenDragTo: leftEdge)
+            Thread.sleep(forTimeInterval: 1)
+        } else {
+            // Audiobook: brief pause before closing so the server can record the initial position.
+            Thread.sleep(forTimeInterval: 2)
+        }
+
         tapBackToLibrary(backButton, in: app)
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
         XCTAssertTrue(sameTile.waitForExistence(timeout: 10), "\(kind) tile must reappear after close")
@@ -84,6 +99,18 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         // a false timeout flake when both clones are under load.
         let reopenedBack = openReader(from: sameTile, in: app, timeout: 150)
         XCTAssertTrue(reopenedBack.exists, "\(kind) should re-open — position restore doesn't crash the screen")
+
+        if isEbook {
+            // The chapter_navigation_rail contentDescription encodes the current chapter position
+            // (e.g. "Chapter 1: 35%"). A regression that resets position to 0% would show ": 0%".
+            let rail = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier == 'chapter_navigation_rail'"))
+                .firstMatch
+            if rail.waitForExistence(timeout: 15) {
+                XCTAssertFalse(rail.label.contains(": 0%"),
+                    "\(kind) reading position should be restored, not reset to 0% (rail: '\(rail.label)')")
+            }
+        }
     }
 
     private func findFirstBookTile(hintKeywords: [String]) -> XCUIElement {

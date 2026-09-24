@@ -27,7 +27,7 @@ class AuthHeaderTest {
         assertEquals("Digest xyz", "Digest xyz".asAuthHeader())
     }
 
-    @Test fun `empty string stays empty (distinguishable from bare Bearer)`() {
+    @Test fun emptyStringStaysEmptyDistinguishableFromBareBearer() {
         // Coil rejects blank header NAMES but accepts blank VALUES; callers use "" to mean
         // "no token yet" and expect it to round-trip, not become "Bearer ".
         assertEquals("", "".asAuthHeader())

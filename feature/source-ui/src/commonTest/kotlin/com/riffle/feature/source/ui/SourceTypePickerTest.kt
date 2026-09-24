@@ -98,7 +98,7 @@ class SourceTypePickerTest {
     // ABS is not a singleton — a second ABS server is a first-class use case. Even with an ABS
     // source installed, the picker still shows the ABS card.
     @Test
-    fun `ABS card is shown even when an ABS source exists (multi-server)`() {
+    fun absCardIsShownEvenWhenAbsSourceExistsMultiServer() {
         val cards = sourceTypeCards(installedTypes = setOf(SourceType.ABS))
         assertTrue(cards.any { it.type == SourceType.ABS })
     }

@@ -49,14 +49,13 @@ final class SettingsRowsTests: XCTestCase {
         XCTAssertFalse(prefs.showReadingTimeEstimate)
     }
 
-    // Scenario 11.12 — HighlightColor enum contains all four cadence colour options
-    // and each resolves to a distinct value via its token string.
-    func testHighlightColorEnumContainsAllCadenceColorOptions() {
-        XCTAssertNotEqual(HighlightColor.yellow, HighlightColor.green)
-        XCTAssertNotEqual(HighlightColor.yellow, HighlightColor.blue)
-        XCTAssertNotEqual(HighlightColor.yellow, HighlightColor.red)
-        XCTAssertNotEqual(HighlightColor.green, HighlightColor.blue)
-        XCTAssertNotEqual(HighlightColor.green, HighlightColor.red)
-        XCTAssertNotEqual(HighlightColor.blue, HighlightColor.red)
+    // Scenario 11.12 — Cadence WPM and auto-scroll WPM share the same default value.
+    // This invariant is intentional: both controls are surfaced in the same settings panel
+    // and a user who adjusts one should see a coherent starting point in the other.
+    // A regression that drifts the two defaults apart would produce an inconsistent UI.
+    func testCadenceWpmMatchesAutoScrollWpmByDefault() {
+        let prefs = FormattingPreferences.companion.defaults()
+        XCTAssertEqual(prefs.cadenceWpm, prefs.autoScrollWpm,
+                       "cadenceWpm and autoScrollWpm must share the same default so the settings panel feels coherent")
     }
 }
