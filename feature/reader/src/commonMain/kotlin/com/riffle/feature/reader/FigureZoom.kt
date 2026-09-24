@@ -1,7 +1,7 @@
 package com.riffle.feature.reader
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -39,8 +39,10 @@ object FigureTapMessageParser {
         if (json.isNullOrBlank()) return null
         val obj = runCatching { lenient.parseToJsonElement(json).jsonObject }.getOrNull() ?: return null
         val kind = obj["kind"]?.jsonPrimitive?.content ?: "img"
-        val w = obj["w"]?.jsonPrimitive?.int ?: 0
-        val h = obj["h"]?.jsonPrimitive?.int ?: 0
+        // intOrNull handles integer JSON values; the float fallback handles "800.0" from some
+        // browsers that encode naturalWidth as a float when they shouldn't.
+        val w = obj["w"]?.jsonPrimitive?.let { it.intOrNull ?: it.content.toDoubleOrNull()?.toInt() } ?: 0
+        val h = obj["h"]?.jsonPrimitive?.let { it.intOrNull ?: it.content.toDoubleOrNull()?.toInt() } ?: 0
         if (w <= 0 || h <= 0) return null
         return when (kind) {
             "svg" -> {

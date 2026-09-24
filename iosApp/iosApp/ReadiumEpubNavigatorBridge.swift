@@ -447,6 +447,9 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
                 }
             };
             """
+        // Remove before add — idempotent guard against duplicate registration if Readium calls
+        // setupUserScripts more than once for the same WKUserContentController.
+        userContentController.removeScriptMessageHandler(forName: "RiffleFigureBridge")
         userContentController.add(self, name: "RiffleFigureBridge")
         userContentController.addUserScript(WKUserScript(
             source: shim,

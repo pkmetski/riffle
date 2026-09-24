@@ -29,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +46,7 @@ import kotlin.math.abs
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.Url
 
@@ -138,8 +138,6 @@ private fun FigureZoomContent(
         var scale by remember { mutableStateOf(1f) }
         var tx by remember { mutableStateOf(0f) }
         var ty by remember { mutableStateOf(0f) }
-        // Tracks the timestamp of the last quick-tap for double-tap detection.
-        var lastTapMs by remember { mutableLongStateOf(0L) }
 
         Box(
             modifier = Modifier
@@ -188,9 +186,27 @@ private fun FigureZoomContent(
                         } while (event.changes.any { it.pressed })
 
                         if (!pastTouchSlop) {
-                            val now = System.currentTimeMillis()
-                            val doubleTapMs = 300L
-                            if (now - lastTapMs < doubleTapMs) {
+                            // Debounce: wait up to 300ms for a second tap before acting.
+                            // A second tap with no drag → double-tap → reset zoom.
+                            // Timeout (no second tap) → single tap → dismiss.
+                            // This mirrors detectTapGestures(onDoubleTap, onTap) semantics.
+                            var isDoubleTap = false
+                            withTimeoutOrNull(300L) {
+                                awaitFirstDown(requireUnconsumed = false)
+                                var secondPastTouchSlop = false
+                                var secondCumPan = Offset.Zero
+                                var secondPressed = true
+                                while (secondPressed) {
+                                    val secondEvent = awaitPointerEvent()
+                                    if (!secondPastTouchSlop && !secondEvent.changes.any { it.isConsumed }) {
+                                        secondCumPan += secondEvent.calculatePan()
+                                        secondPastTouchSlop = secondCumPan.getDistance() > viewConfiguration.touchSlop
+                                    }
+                                    secondPressed = secondEvent.changes.any { it.pressed }
+                                }
+                                isDoubleTap = !secondPastTouchSlop
+                            }
+                            if (isDoubleTap) {
                                 val reset = clampPanZoom(
                                     scale = 1f,
                                     translationX = 0f, translationY = 0f,
@@ -200,10 +216,8 @@ private fun FigureZoomContent(
                                 scale = reset.scale
                                 tx = reset.translationX
                                 ty = reset.translationY
-                                lastTapMs = 0L
                             } else {
                                 onDismiss()
-                                lastTapMs = now
                             }
                         }
                     }
@@ -253,10 +267,12 @@ private fun SvgWebView(svgMarkup: String, modifier: Modifier) {
                 settings.javaScriptEnabled = false
                 settings.useWideViewPort = false
                 settings.loadWithOverviewMode = true
+                loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
             }
         },
-        update = { wv ->
-            wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        update = { _ ->
+            // html is derived from svgMarkup which is fixed for the overlay lifetime;
+            // loading here (not in update) prevents a reload on every gesture recomposition.
         },
         modifier = modifier,
     )

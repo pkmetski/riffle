@@ -37,6 +37,15 @@ class FigureZoomTest {
     }
 
     @Test
+    fun parseDimensionsWithFloatJsonValues() {
+        // Some browsers encode naturalWidth as a float (e.g. 800.0); parser must not crash.
+        val parsed = FigureTapMessageParser.parse("""{"kind":"img","href":"a.png","w":800.0,"h":600.0}""")
+        assertNotNull(parsed)
+        assertEquals(800, parsed!!.naturalWidth)
+        assertEquals(600, parsed.naturalHeight)
+    }
+
+    @Test
     fun parseRejectsZeroSizedFigures() {
         assertNull(FigureTapMessageParser.parse("""{"kind":"img","href":"a.png","w":0,"h":100}"""))
     }

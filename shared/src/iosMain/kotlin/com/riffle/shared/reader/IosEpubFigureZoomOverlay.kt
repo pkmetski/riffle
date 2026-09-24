@@ -44,7 +44,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.create
-import kotlin.time.TimeSource
+import kotlinx.coroutines.withTimeoutOrNull
 import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageView
@@ -138,7 +138,6 @@ private fun IosEpubFigureZoomContent(
         var scale by remember { mutableStateOf(1f) }
         var tx by remember { mutableStateOf(0f) }
         var ty by remember { mutableStateOf(0f) }
-        var lastTapMark by remember { mutableStateOf<TimeSource.Monotonic.ValueTimeMark?>(null) }
 
         Box(
             modifier = Modifier
@@ -187,9 +186,25 @@ private fun IosEpubFigureZoomContent(
                         } while (event.changes.any { it.pressed })
 
                         if (!pastTouchSlop) {
-                            val mark = lastTapMark
-                            val elapsed = mark?.elapsedNow()?.inWholeMilliseconds ?: Long.MAX_VALUE
-                            if (elapsed < 300L) {
+                            // Debounce: wait up to 300ms for a second tap before acting.
+                            // Mirrors FigureZoomContent on Android — see comment there.
+                            var isDoubleTap = false
+                            withTimeoutOrNull(300L) {
+                                awaitFirstDown(requireUnconsumed = false)
+                                var secondPastTouchSlop = false
+                                var secondCumPan = Offset.Zero
+                                var secondPressed = true
+                                while (secondPressed) {
+                                    val secondEvent = awaitPointerEvent()
+                                    if (!secondPastTouchSlop && !secondEvent.changes.any { it.isConsumed }) {
+                                        secondCumPan += secondEvent.calculatePan()
+                                        secondPastTouchSlop = secondCumPan.getDistance() > viewConfiguration.touchSlop
+                                    }
+                                    secondPressed = secondEvent.changes.any { it.pressed }
+                                }
+                                isDoubleTap = !secondPastTouchSlop
+                            }
+                            if (isDoubleTap) {
                                 val reset = clampPanZoom(
                                     scale = 1f,
                                     translationX = 0f, translationY = 0f,
@@ -199,10 +214,8 @@ private fun IosEpubFigureZoomContent(
                                 scale = reset.scale
                                 tx = reset.translationX
                                 ty = reset.translationY
-                                lastTapMark = null
                             } else {
                                 onDismiss()
-                                lastTapMark = TimeSource.Monotonic.markNow()
                             }
                         }
                     }
@@ -266,10 +279,12 @@ private fun SvgWebView(svgMarkup: String, modifier: Modifier) {
                 backgroundColor = UIColor.clearColor
                 scrollView.backgroundColor = UIColor.clearColor
                 scrollView.scrollEnabled = false
+                loadHTMLString(html, baseURL = null)
             }
         },
-        update = { wv ->
-            wv.loadHTMLString(html, baseURL = null)
+        update = { _ ->
+            // html is derived from svgMarkup which is fixed for the overlay lifetime;
+            // loading in factory prevents a reload on every gesture recomposition.
         },
         modifier = modifier,
     )
