@@ -5,4 +5,9 @@
     <string name="ui_cached">Кеширано</string>
     <string name="ui_no_items">Няма елементи</string>
     <string name="ui_see_all">Виж всички</string>
+    <string name="ui_support_support_on_ko_fi">☕ Подкрепете в Ko-fi</string>
+    <string name="ui_kofi_nudge_title">Харесва ли ви Riffle?</string>
+    <string name="ui_kofi_nudge_body">Подкрепете разработката в Ko-fi.</string>
+    <string name="ui_kofi_nudge_support">Подкрепете</string>
+    <string name="ui_kofi_nudge_not_now">Не сега</string>
 </resources>

@@ -24,6 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_body
+import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_not_now
+import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_support
+import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_title
+import com.riffle.feature.designsystem.generated.resources.ui_support_support_on_ko_fi
+import org.jetbrains.compose.resources.stringResource
 
 private const val KO_FI_URL = "https://ko-fi.com/pkmetski"
 
@@ -59,7 +66,7 @@ fun KoFiDrawerButton(modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Text("☕ Support on Ko-fi")
+        Text(stringResource(Res.string.ui_support_support_on_ko_fi))
     }
 }
 
@@ -94,12 +101,12 @@ fun KoFiNudgeCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Enjoying Riffle?",
+                        text = stringResource(Res.string.ui_kofi_nudge_title),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                     Text(
-                        text = "Support development on Ko-fi.",
+                        text = stringResource(Res.string.ui_kofi_nudge_body),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
@@ -115,11 +122,11 @@ fun KoFiNudgeCard(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         ),
                     ) {
-                        Text("Support")
+                        Text(stringResource(Res.string.ui_kofi_nudge_support))
                     }
                     TextButton(onClick = onNotNow) {
                         Text(
-                            text = "Not now",
+                            text = stringResource(Res.string.ui_kofi_nudge_not_now),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
