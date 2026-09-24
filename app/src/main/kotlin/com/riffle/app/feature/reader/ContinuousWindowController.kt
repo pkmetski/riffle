@@ -634,11 +634,18 @@ internal class ContinuousWindowController(
                             // viewport and NestedScrollView point at the same content, so tiles are
                             // already rasterized on reveal. Restore after animation starts to avoid
                             // evicting the tile cache before the animation completes.
-                            wvSmooth.evaluateJavascript(preRasterScrollJs(cssYSmooth)) { _ ->
-                                wvSmooth.onCurrentContentPainted {
+                            var smoothRevealed = false
+                            fun revealSmooth() {
+                                if (!smoothRevealed) {
+                                    smoothRevealed = true
                                     container.visibility = android.view.View.VISIBLE
                                     notifyFirstLoadCompleteOnce()
                                     port.smoothScrollTo(y)
+                                }
+                            }
+                            wvSmooth.evaluateJavascript(preRasterScrollJs(cssYSmooth)) { _ ->
+                                wvSmooth.onCurrentContentPainted {
+                                    revealSmooth()
                                     container.postDelayed({
                                         wvSmooth.evaluateJavascript(
                                             preRasterRestoreJs(),
@@ -647,6 +654,7 @@ internal class ContinuousWindowController(
                                     }, 200L)
                                 }
                             }
+                            container.postDelayed({ revealSmooth() }, PAINTED_FALLBACK_MS)
                         } else {
                             // Reveal and start the tween on the SAME animation frame. Previously
                             // the reveal used `postOnAnimation` (next vsync) and smoothScrollTo
