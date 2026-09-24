@@ -756,8 +756,8 @@ class LibraryItemDetailViewModel constructor(
                     item = current.item.copy(readingProgress = 1.0f),
                     isInToRead = false,
                 )
+                _showKoFiNudge.value = true
             }
-            _showKoFiNudge.value = true
         }
     }
 

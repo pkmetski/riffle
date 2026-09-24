@@ -68,13 +68,13 @@ class KoFiNudgeGateTest {
         val progression = MutableStateFlow<Float?>(null)
         var triggered = false
 
-        backgroundScope.launch { collectKoFiProgressionNudge(progression) { triggered = false } }
+        backgroundScope.launch { collectKoFiProgressionNudge(progression) { triggered = true } }
         runCurrent()
 
         progression.value = null
         runCurrent()
 
-        assertFalse(triggered)
+        assertFalse(triggered, "null progression must never trigger the nudge")
     }
 
     @Test
