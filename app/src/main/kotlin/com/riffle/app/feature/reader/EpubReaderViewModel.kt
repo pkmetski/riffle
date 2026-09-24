@@ -362,6 +362,9 @@ class EpubReaderViewModel constructor(
     private val progressSweep: com.riffle.core.sync.ProgressSweep,
 ) : AndroidViewModel(application) {
 
+    private val _showKoFiNudge = MutableStateFlow(false)
+    val showKoFiNudge: StateFlow<Boolean> = _showKoFiNudge
+
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
     // the active Catalog's capability set is known (issue #439). Starts false so a coordinator tick
     // that fires before init completes stays a no-op — the coordinator won't heartbeat/flush until
@@ -680,7 +683,13 @@ class EpubReaderViewModel constructor(
     fun setAutoScrollPaused(paused: Boolean, cause: com.riffle.core.domain.autoscroll.PauseCause) =
         formatting.setAutoScrollPaused(paused, cause)
 
-    fun reachedEndOfBookForAutoScroll() = formatting.reachedEndOfBookForAutoScroll()
+    fun reachedEndOfBookForAutoScroll() {
+        formatting.reachedEndOfBookForAutoScroll()
+    }
+
+    fun dismissKoFiNudge() {
+        _showKoFiNudge.value = false
+    }
 
     fun startAutoScroll() {
         // Three-way mutual exclusion via the pure arbiter (ADR 0053 + issue #403). Compute the
@@ -1183,6 +1192,22 @@ class EpubReaderViewModel constructor(
                 val c = lazyContainer ?: return@collect
                 val index = c.pub.spine.indexOfFirst { it.fullPath == href }
                 if (index >= 0) c.prefetchNext(index)
+            }
+        }
+        // Show the Ko-fi nudge once per reader session when the user reaches ≥98%.
+        // seenBelowThreshold prevents the first high-position emission (the saved bookmark)
+        // from locking out the nudge — once any emission drops below 0.98, the gate opens.
+        // shownThisSession ensures dismiss is sticky for the session; the nudge reappears
+        // the next time this book (or any book) is opened.
+        viewModelScope.launch {
+            var seenBelowThreshold = false
+            var shownThisSession = false
+            currentLocatorTotalProgression.filterNotNull().collect { prog ->
+                if (!seenBelowThreshold && prog < 0.98f) seenBelowThreshold = true
+                if (prog >= 0.98f && seenBelowThreshold && !shownThisSession) {
+                    _showKoFiNudge.value = true
+                    shownThisSession = true
+                }
             }
         }
         viewModelScope.launch {

@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.KoFiDrawerButton
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.WebSourceDescriptors
@@ -302,7 +303,8 @@ private fun DrawerSheetContent(
             onClick = onNavigateToSettings,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-        Spacer(Modifier.height(12.dp))
+        KoFiDrawerButton()
+        Spacer(Modifier.height(4.dp))
     }
 }
 

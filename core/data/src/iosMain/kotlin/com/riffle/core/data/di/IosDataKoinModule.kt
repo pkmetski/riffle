@@ -100,6 +100,7 @@ import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
 import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.core.sync.SyncSourceResolver
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val iosDataModule = module {
@@ -215,12 +216,11 @@ val iosDataModule = module {
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
     single<LibraryMutator> { IosLibraryMutatorImpl(get<LibraryItemDao>(), get<SourceRepository>(), get<Clock>()) }
 
-    // These three are unified with Android via the PreferenceStore seam in commonMain.
+    // These are unified with Android via the PreferenceStore seam in commonMain.
     // Fully-qualified to disambiguate from the domain interfaces of the same name.
     single<AppThemeStore> { com.riffle.core.data.AppThemeStore() }
     single<ReadingSpeedStore> { com.riffle.core.data.ReadingSpeedStore() }
     single<WakeLockPreferencesStore> { com.riffle.core.data.WakeLockPreferencesStore() }
-
     single<CoverGridDensityStore> { IosCoverGridDensityStoreImpl(get<CoverGridScaleDao>()) }
     single<LibraryFilterPreferencesStore> { IosLibraryFilterPreferencesStoreImpl() }
     single<LibraryOrderPreferencesStore> { IosLibraryOrderPreferencesStoreImpl() }

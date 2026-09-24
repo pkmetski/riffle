@@ -154,6 +154,7 @@ fun LibraryItemDetailScreen(
     val uploadDestinations by viewModel.uploadDestinations.collectAsState()
     val uploadPreflight by viewModel.uploadPreflight.collectAsState()
     val bookImportState by viewModel.bookImportState.collectAsState()
+    val showKoFiNudge by viewModel.showKoFiNudge.collectAsState()
 
     LaunchedEffect(viewModel) {
         viewModel.snackbarEvents.collect { message ->
@@ -277,6 +278,7 @@ fun LibraryItemDetailScreen(
         UploadPreflight.Idle, UploadPreflight.Checking -> Unit
     }
 
+    Box {
     Scaffold(
         topBar = {
             Column {
@@ -526,6 +528,13 @@ fun LibraryItemDetailScreen(
                 }
             }
         }
+    }
+    com.riffle.feature.designsystem.KoFiNudgeCard(
+        visible = showKoFiNudge,
+        onNotNow = viewModel::dismissKoFiNudge,
+        onSupport = viewModel::dismissKoFiNudge,
+        modifier = Modifier.align(Alignment.BottomCenter),
+    )
     }
 }
 

@@ -239,6 +239,9 @@ class LibraryItemDetailViewModel constructor(
     private val _audiobookDownloadState = MutableStateFlow<DownloadState?>(null)
     val audiobookDownloadState: StateFlow<DownloadState?> = _audiobookDownloadState
 
+    private val _showKoFiNudge = MutableStateFlow(false)
+    val showKoFiNudge: StateFlow<Boolean> = _showKoFiNudge.asStateFlow()
+
     private val _tocState = MutableStateFlow<TocState>(TocState.Loading)
     val tocState: StateFlow<TocState> = _tocState.asStateFlow()
 
@@ -754,7 +757,12 @@ class LibraryItemDetailViewModel constructor(
                     isInToRead = false,
                 )
             }
+            _showKoFiNudge.value = true
         }
+    }
+
+    fun dismissKoFiNudge() {
+        _showKoFiNudge.value = false
     }
 
     fun markAsUnread() {

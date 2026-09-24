@@ -365,7 +365,6 @@ fun EpubReaderScreen(
     val readaloudBarMessage by viewModel.readaloudBarMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val lookupTarget by viewModel.lookupTarget.collectAsState()
-
     // Starting (or resuming) readaloud is a "lean back and listen" intent, so drop into
     // immersive mode. See ImmersiveOnReadaloudPlay for the why (hides system bars + TopAppBar
     // together, one-way, plays nicely with rotation/sleep-resume restore).
@@ -1039,6 +1038,10 @@ fun EpubReaderScreen(
             onResume = { viewModel.resumeCadenceIfPaused() },
             onSlower = { viewModel.nudgeCadence(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
             onFaster = { viewModel.nudgeCadence(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+        )
+        KoFiNudgeOverlay(
+            viewModel = viewModel,
+            modifier = androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
         )
         // Figure-zoom overlay — mounted at the outermost Box so it dims and covers every reader
         // mode, all reader chrome, and every bottom stack element (readaloud, chapter rail).
@@ -3175,6 +3178,17 @@ private fun PullChip(forward: Boolean, progress: Float) {
 // later colour-picker slice maps `color` to other tints.
 private fun highlightTint(color: String): Int =
     android.graphics.Color.parseColor("#FFFDE68A")
+
+@Composable
+private fun KoFiNudgeOverlay(viewModel: EpubReaderViewModel, modifier: Modifier = Modifier) {
+    val showKoFiNudge by viewModel.showKoFiNudge.collectAsState()
+    com.riffle.feature.designsystem.KoFiNudgeCard(
+        visible = showKoFiNudge,
+        onNotNow = viewModel::dismissKoFiNudge,
+        onSupport = viewModel::dismissKoFiNudge,
+        modifier = modifier,
+    )
+}
 
 @Composable
 private fun AudiobookPlayerOverlay(
