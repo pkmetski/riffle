@@ -72,6 +72,7 @@ class ReadiumSwiftNavigator(
         MutableSharedFlow<NavigatorDecorationActivation>(extraBufferCapacity = 16)
     private val _viewportFractionEvents =
         MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
+    private val _figureTapPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
 
@@ -87,6 +88,15 @@ class ReadiumSwiftNavigator(
 
     /** Taps on a rendered decoration, keyed by decoration group. */
     val decorationActivations: Flow<NavigatorDecorationActivation> = _decorationActivations
+
+    /**
+     * Raw JSON payloads from the JS figure-tap bridge.
+     *
+     * Emitted whenever a JS figure-tap event arrives. Parsed by
+     * [com.riffle.feature.reader.FigureTapMessageParser.parse] — collectors that need the typed
+     * state use that parser rather than dealing with raw JSON.
+     */
+    val figureTapPayloads: Flow<String> = _figureTapPayloads
 
     private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
@@ -120,6 +130,9 @@ class ReadiumSwiftNavigator(
         bridge.setDecorationActivatedCallback { json ->
             parseActivationJson(json)?.let { _decorationActivations.tryEmit(it) }
         }
+        bridge.setFigureTapCallback { payload ->
+            _figureTapPayloads.tryEmit(payload)
+        }
     }
 
     init {
@@ -145,6 +158,7 @@ class ReadiumSwiftNavigator(
         bridge.setErrorCallback(null)
         bridge.setSelectionCallback(null)
         bridge.setDecorationActivatedCallback(null)
+        bridge.setFigureTapCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
     }
@@ -355,6 +369,23 @@ class ReadiumSwiftNavigator(
         evaluateJs(script)
     }
 
+    /**
+     * Inject the figure-tap interceptor script into the current page.
+     *
+     * The shim that maps [com.riffle.feature.reader.FigureTapScript]'s
+     * `window.RiffleFigureBridge.onFigureTap(p)` call convention to
+     * `window.webkit.messageHandlers.RiffleFigureBridge.postMessage(p)` is added once per
+     * WKWebView lifecycle via [navigator(_:setupUserScripts:)], so it is already present before
+     * the page starts loading.  This re-injects the tap listener itself (which must run after DOM
+     * is ready) on every page-load event — the same cadence Android's [FigureTapBridge] uses when
+     * it calls [installScript] from [onPageStarted].
+     */
+    internal suspend fun injectFigureTapScript() {
+        evaluateJs(com.riffle.feature.reader.FigureTapScript.installScript(
+            com.riffle.feature.reader.FigureTapScript.PAGED_BRIDGE_NAME
+        ))
+    }
+
     private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
         bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
     }
@@ -407,6 +438,22 @@ class ReadiumSwiftNavigator(
         suspendCancellableCoroutine { cont ->
             bridge.readResource(href) { html -> if (cont.isActive) cont.resume(html) }
         }
+
+    /**
+     * Load a non-text resource (e.g. cover image, chapter illustration) and return its raw bytes.
+     *
+     * The Swift bridge reads the bytes from the open [Publication], encodes them as Base64, and
+     * returns the string here; this function decodes that back to a [ByteArray] so callers never
+     * see the Base64 encoding detail.  Returns `null` when the publication is closed or the href
+     * is not in the publication's reading order.
+     */
+    @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+    internal suspend fun readResourceBytes(href: String): ByteArray? {
+        val base64 = suspendCancellableCoroutine<String?> { cont ->
+            bridge.readResourceBase64(href) { b64 -> if (cont.isActive) cont.resume(b64) }
+        } ?: return null
+        return kotlin.io.encoding.Base64.decode(base64)
+    }
 
     /**
      * Where the visible resource's scroll sits — at its top, at its bottom, or in between.

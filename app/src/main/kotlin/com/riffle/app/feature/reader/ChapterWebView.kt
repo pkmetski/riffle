@@ -11,6 +11,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.reader.FigureTapScript
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger

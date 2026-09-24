@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 /**
  * JavaScript helpers for resolving figure captions and walking a DOM range for embedded figures
@@ -19,7 +19,7 @@ package com.riffle.app.feature.reader
  * (accurate), whereas the heuristic is proximity-based (can be fooled by a nearby "Table 3
  * summarizes…" prose block). When an image carries a meaningful alt attribute, that wins.
  */
-internal object FigureCaptionWalker {
+object FigureCaptionWalker {
 
     /**
      * `function resolveCaption(el)` — returns the best-effort caption text for [el], or `""` if
@@ -55,9 +55,6 @@ internal object FigureCaptionWalker {
         }
         function resolveCaption(el) {
             if (!el) return "";
-            // Order matters: figcaption (per-figure semantic) → alt (per-image attribute) →
-            // aria-label (accessibility) → text-prefix block (proximity heuristic — last so a
-            // real alt="Photo of author" beats a nearby "Table 3 summarizes…" prose block).
             var cap = resolveFigcaptionElement(el);
             if (cap) return (cap.textContent || '').trim();
             var alt = el.getAttribute && el.getAttribute('alt');
@@ -69,18 +66,14 @@ internal object FigureCaptionWalker {
             return "";
         }
         function riffleCollectTextAround(capEl, direction, maxChars) {
-            // Walk the document by text-node order, starting from capEl. direction === -1 = walk
-            // backwards; +1 = forwards. Collects up to maxChars of text OUTSIDE capEl. Uses a fresh
-            // TreeWalker over document.body so caption-boundary probes match how Kotlin locates the
-            // snippet in the flattened body text via jsoup.
             if (!capEl || !document.body || !document.body.contains(capEl)) return "";
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
             var texts = []; var current = null;
             while ((current = walker.nextNode())) {
                 if (capEl.contains(current)) continue;
                 var pos = capEl.compareDocumentPosition(current);
-                var isBefore = (pos & 2) !== 0; // capEl follows current → current is before
-                var isAfter = (pos & 4) !== 0;  // current follows capEl
+                var isBefore = (pos & 2) !== 0;
+                var isAfter = (pos & 4) !== 0;
                 if (direction < 0 && isBefore) texts.push(current.data || '');
                 else if (direction > 0 && isAfter) texts.push(current.data || '');
             }
@@ -89,10 +82,6 @@ internal object FigureCaptionWalker {
             return joined.slice(0, maxChars);
         }
         function resolveCaptionRange(el) {
-            // Non-null iff the caption resolves to a DOM element (figcaption or a text-prefix p/div).
-            // Returns null for alt/aria-label captions — those aren't visible ranges we can highlight.
-            // For range resolution the figcaption path wins over text-prefix (semantic > proximity);
-            // resolveCaption's alt/aria-label paths are skipped here because they carry no range.
             var cap = resolveFigcaptionElement(el) || resolveTextPrefixElement(el);
             if (!cap) return null;
             var text = (cap.textContent || '').replace(/\s+/g, ' ').trim();
@@ -118,10 +107,7 @@ internal object FigureCaptionWalker {
 
     /**
      * Includes [CAPTION_RESOLVER_JS] and [SVG_SERIALIZER_JS] plus `function figuresInRange(
-     * startNode, endNode)`, which walks the DOM range `[startNode, endNode]` (inclusive) via
-     * `TreeWalker`, collecting `img` / `svg` / `picture` / `figure` elements in document order,
-     * deduped by resolved target element, and returns
-     * `[{ href|null, svg|null, caption, order }]`.
+     * startNode, endNode)`.
      */
     val FIGURES_IN_RANGE_JS: String = """
         $CAPTION_RESOLVER_JS

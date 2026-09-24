@@ -71,6 +71,8 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun evaluateJavaScript(script: String, onResult: (String?) -> Unit) = onResult(null)
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
+        override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
     }
 
     private fun navigator(bridge: FakeBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())

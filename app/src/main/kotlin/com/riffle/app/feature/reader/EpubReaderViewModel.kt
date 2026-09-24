@@ -3,6 +3,8 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.feature.navigation.EPUB_READER
+import com.riffle.feature.reader.FigureTapMessageParser
+import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.RailSegment

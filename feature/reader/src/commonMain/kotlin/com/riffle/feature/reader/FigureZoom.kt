@@ -1,14 +1,15 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * The reader's "figure zoom" overlay state. Non-null while a fullscreen zoomed view of the tapped
- * image is showing; null otherwise. Owned by the reader ViewModel and observed by
- * [EpubReaderScreen], which mounts [FigureZoomOverlay] above every reader mode.
+ * image is showing; null otherwise.
  *
- * [href] is the EPUB-package-relative path to the image resource (used by
- * [FigureZoomOverlay] to load bytes via `Publication.get(href)`). [naturalWidth] / [naturalHeight]
+ * [href] is the EPUB-package-relative path to the image resource. [naturalWidth] / [naturalHeight]
  * are the image's intrinsic CSS pixel dimensions as reported by the JS hit-test — used to compute
  * the initial fit-to-screen size before the bitmap has decoded.
  *
@@ -17,7 +18,7 @@ import org.json.JSONObject
  * `<svg>` outerHTML by the hit-test and passed as `svgMarkup`; the overlay renders those via
  * WebView.
  */
-internal data class FigureZoomState(
+data class FigureZoomState(
     val href: String,
     val naturalWidth: Int,
     val naturalHeight: Int,
@@ -30,26 +31,27 @@ internal data class FigureZoomState(
  * resolved src for `img`/`picture` targets (may be a `data:` URI), `svg` is the outerHTML for
  * inline SVG targets. Missing or malformed input returns null so the JS interface can't crash the
  * app on a badly-shaped tap.
- *
- * Extracted for JVM unit-testing so the schema is exercised without a live WebView; the JS is the
- * only writer, but a schema drift there is easy to make and hard to notice.
  */
-internal object FigureTapMessageParser {
+object FigureTapMessageParser {
+    private val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
+
     fun parse(json: String?): FigureZoomState? {
         if (json.isNullOrBlank()) return null
-        val obj = runCatching { JSONObject(json) }.getOrNull() ?: return null
-        val kind = obj.optString("kind", "img")
-        val w = obj.optInt("w", 0)
-        val h = obj.optInt("h", 0)
+        val obj = runCatching { lenient.parseToJsonElement(json).jsonObject }.getOrNull() ?: return null
+        val kind = obj["kind"]?.jsonPrimitive?.content ?: "img"
+        // intOrNull handles integer JSON values; the float fallback handles "800.0" from some
+        // browsers that encode naturalWidth as a float when they shouldn't.
+        val w = obj["w"]?.jsonPrimitive?.let { it.intOrNull ?: it.content.toDoubleOrNull()?.toInt() } ?: 0
+        val h = obj["h"]?.jsonPrimitive?.let { it.intOrNull ?: it.content.toDoubleOrNull()?.toInt() } ?: 0
         if (w <= 0 || h <= 0) return null
         return when (kind) {
             "svg" -> {
-                val svg = obj.optString("svg", "")
+                val svg = obj["svg"]?.jsonPrimitive?.content ?: ""
                 if (svg.isBlank()) return null
                 FigureZoomState(href = "", naturalWidth = w, naturalHeight = h, svgMarkup = svg)
             }
             else -> {
-                val href = obj.optString("href", "")
+                val href = obj["href"]?.jsonPrimitive?.content ?: ""
                 if (href.isBlank()) return null
                 FigureZoomState(href = href, naturalWidth = w, naturalHeight = h)
             }
@@ -65,16 +67,11 @@ internal object FigureTapMessageParser {
  * larger the drag can move it exactly as far as the excess in that axis (half the excess in each
  * direction).
  *
- * Pure Kotlin so it JVM-unit-tests without a Compose runtime — the pinch-gesture composable
- * delegates all math here so a "double-tap resets and the image jumps 40px off-centre" regression
- * would flip a unit test, not require an emulator to catch.
- *
- * All lengths are in the same coordinate space (device px, CSS px, whatever the caller uses),
- * because the function only operates on ratios and differences.
+ * Pure Kotlin so it JVM-unit-tests without a Compose runtime.
  */
-internal data class PanZoom(val scale: Float, val translationX: Float, val translationY: Float)
+data class PanZoom(val scale: Float, val translationX: Float, val translationY: Float)
 
-internal fun clampPanZoom(
+fun clampPanZoom(
     scale: Float,
     translationX: Float,
     translationY: Float,
@@ -95,17 +92,15 @@ internal fun clampPanZoom(
     return PanZoom(s, tx, ty)
 }
 
-/** Plain-Kotlin size type so [fitImageIntoViewport] is trivially JVM-testable — Rect requires
- *  the Android framework which isn't linked in unit tests. */
-internal data class FittedSize(val width: Int, val height: Int)
+/** Plain-Kotlin size type so [fitImageIntoViewport] is trivially JVM-testable. */
+data class FittedSize(val width: Int, val height: Int)
 
 /**
  * Compute the fitted (initial-view) size of an image with intrinsic size
  * [naturalWidth] x [naturalHeight] inside a viewport of [viewportWidth] x [viewportHeight],
- * preserving aspect ratio. Fits by the more constraining axis, so the whole image is always
- * visible at scale = 1.
+ * preserving aspect ratio.
  */
-internal fun fitImageIntoViewport(
+fun fitImageIntoViewport(
     naturalWidth: Int,
     naturalHeight: Int,
     viewportWidth: Float,

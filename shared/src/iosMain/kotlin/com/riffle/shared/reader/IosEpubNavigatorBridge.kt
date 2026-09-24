@@ -39,6 +39,14 @@ interface IosEpubNavigatorBridge {
     fun setTapCallback(callback: (() -> Unit)?)
 
     /**
+     * Register a callback for figure-tap events posted by `figure-tap.js`.
+     *
+     * [payload] is the raw JSON string emitted by the JS bridge — the same shape that
+     * [com.riffle.feature.reader.FigureTapMessageParser.parse] accepts. Called on the main thread.
+     */
+    fun setFigureTapCallback(callback: ((payload: String) -> Unit)?)
+
+    /**
      * Register a callback for text-selection changes — the seam that makes annotation *creation*
      * possible at all.
      *
@@ -86,6 +94,17 @@ interface IosEpubNavigatorBridge {
      * Idempotent per group; call once after the navigator is open.
      */
     fun observeDecorationGroup(group: String)
+
+    /**
+     * Read a non-text resource (e.g. image) from the open publication and return its content
+     * Base64-encoded, so binary data survives the Kotlin/Swift string boundary.
+     *
+     * [href] is the URL the WebView reported (Readium's virtual-host form). The Swift
+     * implementation strips any readium-origin prefix before looking up in the [Publication].
+     * [onResult] receives `null` when the publication is closed, the href is not in the
+     * publication, or the resource is empty.
+     */
+    fun readResourceBase64(href: String, onResult: (base64: String?) -> Unit)
 
     /**
      * Read a spine resource's raw XHTML out of the open publication.

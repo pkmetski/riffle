@@ -1,19 +1,9 @@
-@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+package com.riffle.shared.reader
 
-package com.riffle.app.feature.reader
-
-import android.annotation.SuppressLint
-import android.util.Base64
-import android.webkit.WebView
-import com.riffle.feature.reader.FigureZoomState
-import com.riffle.feature.reader.clampPanZoom
-import com.riffle.feature.reader.fitImageIntoViewport
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -36,46 +26,58 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
-import kotlin.math.abs
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.viewinterop.UIKitView
+import com.riffle.feature.reader.FigureZoomState
+import com.riffle.feature.reader.clampPanZoom
+import com.riffle.feature.reader.fitImageIntoViewport
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.util.Url
+import platform.CoreGraphics.CGRect
+import platform.Foundation.NSData
+import platform.Foundation.create
+import platform.UIKit.UIColor
+import platform.UIKit.UIImage
+import platform.UIKit.UIImageView
+import platform.UIKit.UIViewContentMode
+import platform.WebKit.WKWebView
+import platform.WebKit.WKWebViewConfiguration
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.abs
 
 /**
- * Fullscreen overlay that shows the tapped [state] figure zoomed into a fit-to-viewport view with
- * background text dimmed. Handles pinch-to-zoom (up to 5×), drag-to-pan (clamped so the image can't
- * leave the viewport), double-tap to reset, and tap-outside / system Back to dismiss.
+ * Fullscreen figure-zoom overlay for the iOS EPUB reader.
  *
- * The overlay is mounted at the TOP of [EpubReaderScreen]'s outer Box so it renders above every
- * reader mode (paginated, vertical, continuous) and above the reader chrome without any per-mode
- * plumbing.
+ * Mirrors [com.riffle.app.feature.reader.FigureZoomOverlay] on Android. Both share the same
+ * pan/zoom math ([clampPanZoom], [fitImageIntoViewport]) from `feature:reader commonMain`. The
+ * platform-specific part is image loading:
+ *  - Android: [org.readium.r2.shared.publication.Publication.get] + BitmapFactory
+ *  - iOS: [ReadiumSwiftNavigator.readResourceBytes] + UIImage
  *
- * Image loading:
- *  - `data:` URIs: decoded inline via Base64.
- *  - Other `href`s: fetched via [Publication.get] — the same path annotations use, so images
- *    load offline and don't re-hit the network.
- *  - Inline SVG (`state.svgMarkup != null`): rendered in a minimal WebView so vector art
- *    reflows to the fit box.
+ * Three rendering modes mirror Android:
+ *  - `data:` URI → decode Base64 inline
+ *  - EPUB resource → load bytes via [ReadiumSwiftNavigator.readResourceBytes]
+ *  - SVG markup → render in a WKWebView via [UIKitView]
+ *
+ * The overlay is placed above the reader via [IosEpubReaderScreen]'s outer Box, same as Android.
  */
 @Composable
-internal fun FigureZoomOverlay(
+internal fun IosEpubFigureZoomOverlay(
     state: FigureZoomState?,
-    publication: Publication?,
+    navigator: ReadiumSwiftNavigator,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Cache the last non-null state so the fadeOut animates the actual content instead of an
-    // empty subtree — a null-guarded `return@AnimatedVisibility` during exit would render nothing
-    // for the whole 150ms, making dismissal look instant.
     var lastVisible by remember { mutableStateOf<FigureZoomState?>(null) }
     if (state != null) lastVisible = state
     AnimatedVisibility(
@@ -85,43 +87,41 @@ internal fun FigureZoomOverlay(
         modifier = modifier,
     ) {
         val visibleState = lastVisible ?: return@AnimatedVisibility
-        FigureZoomContent(state = visibleState, publication = publication, onDismiss = onDismiss)
+        IosEpubFigureZoomContent(
+            state = visibleState,
+            navigator = navigator,
+            onDismiss = onDismiss,
+        )
     }
 }
 
+@OptIn(ExperimentalEncodingApi::class)
 @Composable
-private fun FigureZoomContent(
+private fun IosEpubFigureZoomContent(
     state: FigureZoomState,
-    publication: Publication?,
+    navigator: ReadiumSwiftNavigator,
     onDismiss: () -> Unit,
 ) {
-    BackHandler(enabled = true) { onDismiss() }
+    // Load image bytes off the main thread. Null until loaded; SVG renders separately via WebView.
+    var imageBytes by remember(state.href, state.svgMarkup) { mutableStateOf<ByteArray?>(null) }
 
-    // Load image bytes off the main thread. Bitmap loading only — SVGs render via WebView below.
-    val bitmap = remember(state.href, state.svgMarkup) {
-        mutableStateOf<android.graphics.Bitmap?>(null)
-    }
-    // Cap the decode at 2048px on either axis. That's the largest natural size a user can meaningfully
-    // resolve on a phone/tablet at 5x pinch (the max zoom clamp), and it prevents a 12-megapixel figure
-    // from allocating ~48 MB on decode — enough to OOM the annotations flow on a 1 GB device.
-    val decodeCapPx = 2048
     LaunchedEffect(state.href, state.svgMarkup) {
         if (state.svgMarkup != null) return@LaunchedEffect
-        val decoded = withContext(Dispatchers.IO) {
-            val bytes = loadImageBytes(state.href, publication) ?: return@withContext null
-            decodeSampledBitmap(bytes, decodeCapPx, decodeCapPx)
+        imageBytes = withContext(Dispatchers.IO) {
+            val href = state.href
+            if (href.startsWith("data:")) {
+                // data:image/jpeg;base64,<payload>
+                val commaIdx = href.indexOf(',')
+                val meta = if (commaIdx >= 0) href.substring(0, commaIdx) else return@withContext null
+                if (!meta.contains(";base64")) return@withContext null
+                runCatching { Base64.decode(href.substring(commaIdx + 1)) }.getOrNull()
+            } else {
+                navigator.readResourceBytes(href)
+            }
         }
-        bitmap.value = decoded
     }
-    // Recycle the decoded Bitmap when this overlay leaves composition or the target figure changes.
-    // Without this, quickly opening/closing several figure zooms keeps their full-resolution bitmaps
-    // in the mutableStateOf remember scope until GC pressure eventually collects them.
     DisposableEffect(state.href, state.svgMarkup) {
-        onDispose {
-            val b = bitmap.value
-            bitmap.value = null
-            if (b != null && !b.isRecycled) b.recycle()
-        }
+        onDispose { imageBytes = null }
     }
 
     BoxWithConstraints(
@@ -143,9 +143,9 @@ private fun FigureZoomContent(
             modifier = Modifier
                 .fillMaxSize()
                 // Single pointerInput block handles pan, pinch-zoom, tap-to-dismiss, and
-                // double-tap-to-reset together. Two separate pointerInput blocks (detectTransformGestures
-                // + detectTapGestures) race on single-finger events because the second block in a
-                // modifier chain dispatches first; this unified handler avoids that conflict.
+                // double-tap-to-reset together. Two separate pointerInput blocks race on
+                // single-finger events because the second block dispatches first; this unified
+                // handler avoids that conflict. Mirrors FigureZoomContent on Android.
                 .pointerInput(state) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
@@ -187,9 +187,7 @@ private fun FigureZoomContent(
 
                         if (!pastTouchSlop) {
                             // Debounce: wait up to 300ms for a second tap before acting.
-                            // A second tap with no drag → double-tap → reset zoom.
-                            // Timeout (no second tap) → single tap → dismiss.
-                            // This mirrors detectTapGestures(onDoubleTap, onTap) semantics.
+                            // Mirrors FigureZoomContent on Android — see comment there.
                             var isDoubleTap = false
                             withTimeoutOrNull(300L) {
                                 awaitFirstDown(requireUnconsumed = false)
@@ -225,86 +223,69 @@ private fun FigureZoomContent(
         ) {
             val imgModifier = Modifier
                 .align(Alignment.Center)
-                .size(with(LocalDensity.current) { fitW.toDp() }, with(LocalDensity.current) { fitH.toDp() })
+                .size(
+                    with(LocalDensity.current) { fitW.toDp() },
+                    with(LocalDensity.current) { fitH.toDp() },
+                )
                 .graphicsLayer(scaleX = scale, scaleY = scale, translationX = tx, translationY = ty)
 
             val svgMarkup = state.svgMarkup
             when {
-                svgMarkup != null -> {
-                    SvgWebView(svgMarkup = svgMarkup, modifier = imgModifier)
-                }
-                bitmap.value != null -> {
-                    Image(
-                        bitmap = bitmap.value!!.asImageBitmap(),
-                        contentDescription = null,
-                        modifier = imgModifier,
-                    )
-                }
-                else -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color.White)
-                    }
+                svgMarkup != null -> SvgWebView(svgMarkup = svgMarkup, modifier = imgModifier)
+                imageBytes != null -> ImageBytesView(bytes = imageBytes!!, modifier = imgModifier)
+                else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
                 }
             }
         }
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 @Composable
-private fun SvgWebView(svgMarkup: String, modifier: Modifier) {
-    // Inline SVGs are rendered in a barebones WebView. The graphicsLayer scale on the parent
-    // Modifier resizes the WebView tile, so pinch/zoom work naturally.
-    val html = remember(svgMarkup) {
-        """<!doctype html><html><head><meta name="viewport" content="width=device-width">
-           <style>html,body{margin:0;padding:0;background:transparent}svg{width:100%;height:100%;display:block}</style>
-           </head><body>$svgMarkup</body></html>""".trimIndent()
-    }
-    AndroidView(
-        factory = { ctx ->
-            WebView(ctx).apply {
-                setBackgroundColor(0)
-                settings.javaScriptEnabled = false
-                settings.useWideViewPort = false
-                settings.loadWithOverviewMode = true
-                loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+private fun ImageBytesView(bytes: ByteArray, modifier: Modifier) {
+    UIKitView(
+        factory = {
+            UIImageView().apply {
+                contentMode = UIViewContentMode.UIViewContentModeScaleAspectFit
+                backgroundColor = UIColor.clearColor
             }
         },
-        update = { _ ->
-            // html is derived from svgMarkup which is fixed for the overlay lifetime;
-            // loading here (not in update) prevents a reload on every gesture recomposition.
+        update = { view ->
+            bytes.usePinned { pinned ->
+                val nsData = NSData.create(
+                    bytes = pinned.addressOf(0),
+                    length = bytes.size.toULong(),
+                )
+                view.image = UIImage.imageWithData(nsData)
+            }
         },
         modifier = modifier,
     )
 }
 
-/**
- * Load image bytes for the given [href] (as reported by the WebView).
- *  - `data:` URI → Base64-decoded payload.
- *  - `http`/`https`/`file` under Readium's `readium_package` virtual host → strip and query the
- *    Publication.
- *  - Anything else that resolves to a Publication href → same.
- */
-private suspend fun loadImageBytes(href: String, publication: Publication?): ByteArray? {
-    if (href.startsWith("data:")) {
-        val comma = href.indexOf(',')
-        if (comma < 0) return null
-        val meta = href.substring(0, comma)
-        val payload = href.substring(comma + 1)
-        // Only base64 payloads decode cleanly to bitmap bytes. A URL-encoded data URI is text
-        // (typically inline SVG), and re-encoding it via URLDecoder+String.toByteArray produces
-        // UTF-8 bytes that BitmapFactory can't decode — the overlay would spin forever. Return
-        // null so the caller shows the "not available" state instead of feeding corrupt bytes.
-        // Inline SVG never arrives here (JS captures outerHTML into svgMarkup, not src).
-        if (!meta.contains(";base64")) return null
-        return runCatching { Base64.decode(payload, Base64.DEFAULT) }.getOrNull()
+@OptIn(ExperimentalForeignApi::class)
+@Composable
+private fun SvgWebView(svgMarkup: String, modifier: Modifier) {
+    val html = remember(svgMarkup) {
+        """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+           <style>html,body{margin:0;padding:0;background:transparent}svg{width:100%;height:100%;display:block}</style>
+           </head><body>$svgMarkup</body></html>""".trimIndent()
     }
-    val pub = publication ?: return null
-    // Strip the readium_package origin the WebView reports for served EPUB resources.
-    val stripped = href
-        .removePrefix("http://readium_package/")
-        .removePrefix("https://readium_package/")
-        .substringBefore('#')
-    val url = Url(stripped) ?: return null
-    return pub.get(url)?.read()?.getOrNull()
+    UIKitView(
+        factory = {
+            WKWebView(frame = kotlinx.cinterop.cValue<CGRect>(), configuration = WKWebViewConfiguration()).apply {
+                opaque = false
+                backgroundColor = UIColor.clearColor
+                scrollView.backgroundColor = UIColor.clearColor
+                scrollView.scrollEnabled = false
+                loadHTMLString(html, baseURL = null)
+            }
+        },
+        update = { _ ->
+            // html is derived from svgMarkup which is fixed for the overlay lifetime;
+            // loading in factory prevents a reload on every gesture recomposition.
+        },
+        modifier = modifier,
+    )
 }

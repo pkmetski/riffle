@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 import Riffle
 import ReadiumShared
 import ReadiumStreamer
@@ -32,6 +33,12 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var errorCallback: ((String) -> Void)?
     private var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
+    private var figureTapCallback: ((String) -> Void)?
+    /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
+    /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
+    /// remove the handler and break the retain cycle that WKUserContentController's strong
+    /// reference to a WKScriptMessageHandler would otherwise create.
+    private var figureHandlerControllers: NSHashTable<WKUserContentController> = .weakObjects()
     /// Decoration groups the Kotlin side asked to make tappable. Re-registered on every open,
     /// because `observeDecorationInteractions` lives on the navigator instance, not on us.
     private var activableGroups: Set<String> = []
@@ -144,6 +151,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         tapCallback = callback
     }
 
+    func setFigureTapCallback(callback: ((String) -> Void)?) {
+        figureTapCallback = callback
+    }
+
     func setErrorCallback(callback: ((String) -> Void)?) {
         errorCallback = callback
     }
@@ -180,6 +191,12 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.cachedLocatorJson = nil
             self.cachedTocJson = "[]"
             self.cachedSpineJson = emptySpineJson
+            // Remove the figure-tap message handler from every spread's WKWebView to break the
+            // strong WKUserContentController → WKScriptMessageHandler retain cycle.
+            for controller in self.figureHandlerControllers.allObjects {
+                controller.removeScriptMessageHandler(forName: "RiffleFigureBridge")
+            }
+            self.figureHandlerControllers.removeAllObjects()
         }
     }
 
@@ -412,6 +429,36 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         tapCallback?()
     }
 
+    /// Called by Readium for each spread's WKWebView before its page content loads.
+    ///
+    /// Injects a thin shim that maps Android's `window.RiffleFigureBridge.onFigureTap(payload)`
+    /// call convention to WKWebView's `window.webkit.messageHandlers.*` API, then registers
+    /// `self` as the `WKScriptMessageHandler` so the message arrives in `userContentController`.
+    ///
+    /// The message handler name must match `FigureTapScript.PAGED_BRIDGE_NAME` ("RiffleFigureBridge").
+    func navigator(
+        _ navigator: EPUBNavigatorViewController,
+        setupUserScripts userContentController: WKUserContentController
+    ) {
+        let shim = """
+            window.RiffleFigureBridge = {
+                onFigureTap: function(p) {
+                    window.webkit.messageHandlers.RiffleFigureBridge.postMessage(p);
+                }
+            };
+            """
+        // Remove before add — idempotent guard against duplicate registration if Readium calls
+        // setupUserScripts more than once for the same WKUserContentController.
+        userContentController.removeScriptMessageHandler(forName: "RiffleFigureBridge")
+        userContentController.add(self, name: "RiffleFigureBridge")
+        userContentController.addUserScript(WKUserScript(
+            source: shim,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        ))
+        figureHandlerControllers.add(userContentController)
+    }
+
     /// Report a *cleared* selection.
     ///
     /// `shouldShowMenuForSelection` only fires for a new, non-nil selection —
@@ -457,6 +504,19 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     }
 }
 
+// MARK: - WKScriptMessageHandler (figure-tap bridge)
+
+extension ReadiumEpubNavigatorBridge: WKScriptMessageHandler {
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == "RiffleFigureBridge",
+              let body = message.body as? String else { return }
+        figureTapCallback?(body)
+    }
+}
+
 // MARK: - Test helpers
 
 extension ReadiumEpubNavigatorBridge {
@@ -467,6 +527,7 @@ extension ReadiumEpubNavigatorBridge {
     }
     @objc func simulatePageLoad() { pageLoadCallback?() }
     @objc func simulateTap() { tapCallback?() }
+    @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
     @objc func simulateSelection(_ json: String?) { selectionCallback?(json) }
     @objc func simulateDecorationActivated(_ json: String) { decorationActivatedCallback?(json) }
@@ -740,6 +801,24 @@ extension ReadiumEpubNavigatorBridge {
                 return
             }
             onResult(String(data: data, encoding: .utf8))
+        }
+    }
+
+    func readResourceBase64(href: String, onResult: @escaping (String?) -> Void) {
+        Task {
+            guard let pub = self.publication else { onResult(nil); return }
+            // Strip the Readium virtual-host origin (same normalization as readResource).
+            let stripped = href
+                .replacingOccurrences(of: #"^https?://[^/]+/"#, with: "", options: .regularExpression)
+                .components(separatedBy: "#").first ?? ""
+            guard let url = AnyURL(string: stripped),
+                  let resource = pub.get(url)
+            else { onResult(nil); return }
+            guard case .success(let data) = await resource.read(), !data.isEmpty else {
+                onResult(nil)
+                return
+            }
+            onResult(data.base64EncodedString())
         }
     }
 }

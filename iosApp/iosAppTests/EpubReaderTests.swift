@@ -198,6 +198,50 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertTrue(received?.contains("copyForbidden") == true,
                       "Expected the error description, got \(received ?? "nil")")
     }
+
+    // MARK: - Figure-tap bridge (iOS parity for Android's FigureTapBridge)
+
+    // simulateFigureTap forwards the payload string to the registered figureTapCallback.
+    // This is the same assertion shape as Android's EpubReaderViewModel.onFigureTapPayload path:
+    // the raw JSON arrives at the callback, the Kotlin side (FigureTapMessageParser) parses it.
+    func testFigureTapCallbackReceivesPayload() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var received: String?
+        bridge.setFigureTapCallback { payload in received = payload }
+
+        let payload = #"{"kind":"img","href":"images/fig1.jpg","w":800,"h":600}"#
+        bridge.simulateFigureTap(payload)
+
+        XCTAssertEqual(received, payload,
+                       "figureTapCallback must relay the exact payload from simulateFigureTap")
+    }
+
+    // Clearing the callback stops it from firing — same guarantee testClearingCallbacksStopsFiring
+    // enforces for the locator callback.
+    func testFigureTapCallbackDoesNotFireAfterClearing() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var callCount = 0
+        bridge.setFigureTapCallback { _ in callCount += 1 }
+        bridge.setFigureTapCallback(callback: nil)
+
+        bridge.simulateFigureTap(#"{"kind":"img","href":"a.png","w":100,"h":100}"#)
+
+        XCTAssertEqual(callCount, 0,
+                       "figureTapCallback must not fire after being cleared")
+    }
+
+    // SVG payloads are relayed without modification. The parser on the Kotlin side handles the
+    // kind-dispatch; the bridge is transparent.
+    func testFigureTapCallbackRelaysSvgPayload() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var received: String?
+        bridge.setFigureTapCallback { received = $0 }
+
+        let payload = #"{"kind":"svg","svg":"<svg/>","w":200,"h":200}"#
+        bridge.simulateFigureTap(payload)
+
+        XCTAssertEqual(received, payload)
+    }
 }
 
 /// Minimal `Navigator` for the two delegate methods above, both of which ignore the navigator
