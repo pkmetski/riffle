@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
-import kotlin.math.abs
 import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.clampPanZoom
@@ -42,18 +41,19 @@ import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import platform.CoreGraphics.CGRect
 import platform.Foundation.NSData
 import platform.Foundation.create
-import kotlinx.coroutines.withTimeoutOrNull
 import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageView
 import platform.UIKit.UIViewContentMode
-import platform.CoreGraphics.CGRect
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.abs
 
 /**
  * Fullscreen figure-zoom overlay for the iOS EPUB reader.

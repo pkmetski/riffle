@@ -61,12 +61,12 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
-import com.riffle.feature.reader.FigureTapMessageParser
-import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
 import com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy
+import com.riffle.feature.reader.FigureTapMessageParser
+import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.NavigatorDecoration
 import com.riffle.feature.reader.NavigatorEvent
