@@ -614,25 +614,33 @@ internal class ContinuousWindowController(
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                         if (isFirstLand) {
-                            // Gate reveal on Chromium's visual-state callback so the container
-                            // becomes visible only once tiles at y are rasterized. Without this,
-                            // layout completes in <100 ms but rasterization of a large chapter
-                            // takes 500 ms–2 s; the reader appears over a blank white gap.
+                            // Make the container visible NOW so Chromium starts rasterizing
+                            // tiles at position y. Chromium only rasterizes for visible views;
+                            // keeping it INVISIBLE and waiting for a VisualStateCallback would
+                            // fire the callback on a blank/empty state (no tiles to rasterize
+                            // for an invisible container). The CircularProgressIndicator in
+                            // EpubReaderScreen overlays the container while isFirstLoadComplete
+                            // is false, hiding the momentarily blank tile content.
+                            container.visibility = android.view.View.VISIBLE
                             val wv = webViews.getOrNull(i)
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
-                                var revealed = false
-                                fun revealReader() {
-                                    if (!revealed) {
-                                        revealed = true
-                                        container.visibility = android.view.View.VISIBLE
+                                var spinnerDismissed = false
+                                fun dismissSpinner() {
+                                    if (!spinnerDismissed) {
+                                        spinnerDismissed = true
                                         notifyFirstLoadCompleteOnce()
                                     }
                                 }
-                                wv.onCurrentContentPainted { revealReader() }
-                                container.postDelayed({ revealReader() }, PAINTED_FALLBACK_MS)
+                                // Fire notifyFirstLoadCompleteOnce only after Chromium has
+                                // rasterized and committed the tiles at y to the compositor.
+                                // This makes the EpubReaderScreen spinner linger until rendered
+                                // content is actually visible — no more blank white gap.
+                                wv.onCurrentContentPainted {
+                                    dismissSpinner()
+                                }
+                                container.postDelayed({ dismissSpinner() }, PAINTED_FALLBACK_MS)
                             } else {
-                                container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
                             }
                         } else {
@@ -1031,6 +1039,7 @@ internal class ContinuousWindowController(
                 val wasPlaceholder = measuredHeights[i] == placeholder
                 val oldHeight = measuredHeights[i]
                 val delta = measuredPx - oldHeight
+
                 if (wasPlaceholder && i != 0 && delta < 0) {
                     measuredHeights[i] = measuredPx
                     val newMaxScroll = (measuredHeights.sum() - port.viewportHeightPx).coerceAtLeast(0)
