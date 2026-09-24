@@ -16,8 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -134,35 +132,33 @@ private fun FigureZoomContent(
         var tx by remember { mutableStateOf(0f) }
         var ty by remember { mutableStateOf(0f) }
 
-        // transformable lives on the full-screen box so drags that start on the visually-expanded
-        // image (outside its layout bounds) are still captured. graphicsLayer scales the image
-        // visually but does not affect hit testing — without this, panning only works when the
-        // finger starts inside the original unzoomed image bounds.
-        val transformState = rememberTransformableState { panChange, zoomChange, _, _ ->
-            val clamped = clampPanZoom(
-                scale = scale * zoomChange,
-                translationX = tx + panChange.x,
-                translationY = ty + panChange.y,
-                fittedWidth = fitW.toFloat(),
-                fittedHeight = fitH.toFloat(),
-                viewportWidth = vpW,
-                viewportHeight = vpH,
-            )
-            scale = clamped.scale
-            tx = clamped.translationX
-            ty = clamped.translationY
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .transformable(transformState)
+                // detectTransformGestures handles both single-finger pan and pinch-zoom on the
+                // full-screen Box so drags starting outside the original image layout bounds (i.e.
+                // in the visually-expanded area after zooming) are still captured. It also calls
+                // change.consume() on each MOVE event after touchSlop, which cancels the
+                // detectTapGestures coroutine below — preventing onTap from firing after a pan.
+                .pointerInput(state) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val clamped = clampPanZoom(
+                            scale = scale * zoom,
+                            translationX = tx + pan.x,
+                            translationY = ty + pan.y,
+                            fittedWidth = fitW.toFloat(),
+                            fittedHeight = fitH.toFloat(),
+                            viewportWidth = vpW,
+                            viewportHeight = vpH,
+                        )
+                        scale = clamped.scale
+                        tx = clamped.translationX
+                        ty = clamped.translationY
+                    }
+                }
                 .pointerInput(state) {
                     detectTapGestures(
                         onDoubleTap = {
-                            // Route the reset through clampPanZoom so the single source of truth
-                            // for valid transforms owns it — if minScale ever moves off 1f, the
-                            // reset can't land outside the clamp and jump on the next pan.
                             val reset = clampPanZoom(
                                 scale = 1f,
                                 translationX = 0f, translationY = 0f,

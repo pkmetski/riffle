@@ -6,8 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -133,27 +132,28 @@ private fun IosEpubFigureZoomContent(
         var tx by remember { mutableStateOf(0f) }
         var ty by remember { mutableStateOf(0f) }
 
-        // transformable on the full-screen Box so drags starting outside the original layout
-        // bounds of the image (after graphicsLayer zooms it) are still captured.
-        val transformState = rememberTransformableState { panChange, zoomChange, _, _ ->
-            val clamped = clampPanZoom(
-                scale = scale * zoomChange,
-                translationX = tx + panChange.x,
-                translationY = ty + panChange.y,
-                fittedWidth = fitW.toFloat(),
-                fittedHeight = fitH.toFloat(),
-                viewportWidth = vpW,
-                viewportHeight = vpH,
-            )
-            scale = clamped.scale
-            tx = clamped.translationX
-            ty = clamped.translationY
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .transformable(transformState)
+                // detectTransformGestures handles single-finger pan and pinch-zoom full-screen.
+                // It calls change.consume() after touchSlop, cancelling the detectTapGestures
+                // coroutine below so onTap never fires after a drag.
+                .pointerInput(state) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val clamped = clampPanZoom(
+                            scale = scale * zoom,
+                            translationX = tx + pan.x,
+                            translationY = ty + pan.y,
+                            fittedWidth = fitW.toFloat(),
+                            fittedHeight = fitH.toFloat(),
+                            viewportWidth = vpW,
+                            viewportHeight = vpH,
+                        )
+                        scale = clamped.scale
+                        tx = clamped.translationX
+                        ty = clamped.translationY
+                    }
+                }
                 .pointerInput(state) {
                     detectTapGestures(
                         onDoubleTap = {
