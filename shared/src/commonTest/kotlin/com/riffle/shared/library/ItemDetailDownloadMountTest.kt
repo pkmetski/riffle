@@ -12,7 +12,6 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
-import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibraryItemDetailUiState
 import kotlin.test.Test
 
