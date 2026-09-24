@@ -98,11 +98,24 @@ jobs:
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --verbose "${{ steps.apk.outputs.path }}"
 
+      - name: Build release body
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name="${{ github.ref_name }}" \
+            --jq '.body')
+          {
+            echo "[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)"
+            echo ""
+            echo "$NOTES"
+          } > release_body.md
+
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: ${{ steps.apk.outputs.path }}
-          generate_release_notes: true
+          body_path: release_body.md
           prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
 
       - name: Cleanup keystore

@@ -2,6 +2,7 @@ package com.riffle.app.feature.navigation
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import com.riffle.feature.designsystem.KoFiDrawerButton
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -42,7 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
+
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -180,17 +181,7 @@ private fun DrawerSheetContent(
             selected = false,
             onClick = onSettingsSelected,
         )
-        val uriHandler = LocalUriHandler.current
-        Text(
-            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_support_support_on_ko_fi),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { uriHandler.openUri("https://ko-fi.com/pkmetski") }
-                .padding(top = 8.dp, bottom = 2.dp),
-            textAlign = TextAlign.Center,
-        )
+        KoFiDrawerButton()
         val sha = BuildConfig.GIT_SHA.takeIf { it.isNotEmpty() }
         Text(
             text = androidx.compose.ui.res.stringResource(

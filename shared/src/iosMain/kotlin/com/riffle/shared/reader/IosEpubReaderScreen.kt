@@ -105,6 +105,7 @@ import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -1119,6 +1120,11 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             )
         }
 
+        KoFiNudgeOverlay(
+            positionFlow = navigator.positionFlow,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+
         // Search bar + results
         if (searchOpen) {
             Column(
@@ -1186,6 +1192,26 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
  * gesture rather than a delayed jump.
  */
 private const val BOUNDARY_POLL_INTERVAL_MS = 120L
+
+@Composable
+private fun KoFiNudgeOverlay(
+    positionFlow: kotlinx.coroutines.flow.Flow<com.riffle.feature.reader.NavigatorPosition>,
+    modifier: Modifier = Modifier,
+) {
+    val shownFlow = remember { MutableStateFlow(false) }
+    val shown by shownFlow.collectAsState()
+    LaunchedEffect(Unit) {
+        com.riffle.feature.designsystem.collectKoFiProgressionNudge(
+            positionFlow.map { it.totalProgression },
+        ) { shownFlow.value = true }
+    }
+    com.riffle.feature.designsystem.KoFiNudgeCard(
+        visible = shown,
+        onNotNow = { shownFlow.value = false },
+        onSupport = { shownFlow.value = false },
+        modifier = modifier,
+    )
+}
 
 internal suspend fun startCadenceFromCurrentPage(
     navigator: ReadiumSwiftNavigator,

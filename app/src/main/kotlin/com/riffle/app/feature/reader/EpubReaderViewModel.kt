@@ -362,6 +362,9 @@ class EpubReaderViewModel constructor(
     private val progressSweep: com.riffle.core.sync.ProgressSweep,
 ) : AndroidViewModel(application) {
 
+    private val _showKoFiNudge = MutableStateFlow(false)
+    val showKoFiNudge: StateFlow<Boolean> = _showKoFiNudge
+
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
     // the active Catalog's capability set is known (issue #439). Starts false so a coordinator tick
     // that fires before init completes stays a no-op — the coordinator won't heartbeat/flush until
@@ -680,7 +683,13 @@ class EpubReaderViewModel constructor(
     fun setAutoScrollPaused(paused: Boolean, cause: com.riffle.core.domain.autoscroll.PauseCause) =
         formatting.setAutoScrollPaused(paused, cause)
 
-    fun reachedEndOfBookForAutoScroll() = formatting.reachedEndOfBookForAutoScroll()
+    fun reachedEndOfBookForAutoScroll() {
+        formatting.reachedEndOfBookForAutoScroll()
+    }
+
+    fun dismissKoFiNudge() {
+        _showKoFiNudge.value = false
+    }
 
     fun startAutoScroll() {
         // Three-way mutual exclusion via the pure arbiter (ADR 0053 + issue #403). Compute the
@@ -1183,6 +1192,11 @@ class EpubReaderViewModel constructor(
                 val c = lazyContainer ?: return@collect
                 val index = c.pub.spine.indexOfFirst { it.fullPath == href }
                 if (index >= 0) c.prefetchNext(index)
+            }
+        }
+        viewModelScope.launch {
+            com.riffle.feature.designsystem.collectKoFiProgressionNudge(currentLocatorTotalProgression) {
+                _showKoFiNudge.value = true
             }
         }
         viewModelScope.launch {

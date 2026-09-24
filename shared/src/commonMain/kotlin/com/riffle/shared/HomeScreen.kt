@@ -39,6 +39,9 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.KoFiDrawerButton
+import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
@@ -53,8 +56,6 @@ import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.localizedSourceDisplayName
 import com.riffle.shared.downloads.DownloadsScreen
-import com.riffle.feature.designsystem.BookCoverTile
-import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.shared.library.CollectionDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.library.LibraryItemsScreen
@@ -302,7 +303,8 @@ private fun DrawerSheetContent(
             onClick = onNavigateToSettings,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-        Spacer(Modifier.height(12.dp))
+        KoFiDrawerButton()
+        Spacer(Modifier.height(4.dp))
     }
 }
 

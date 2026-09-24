@@ -1182,6 +1182,34 @@ class LibraryItemDetailViewModelTest {
         )
     }
 
+    @Test
+    fun `markAsRead shows Ko-fi nudge`() = runTest {
+        val vm = makeVm(repo = fakeRepo(knownItem))
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.showKoFiNudge.value)
+        vm.markAsRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.showKoFiNudge.value)
+    }
+
+    @Test
+    fun `dismissKoFiNudge hides Ko-fi nudge shown by markAsRead`() = runTest {
+        val vm = makeVm(repo = fakeRepo(knownItem))
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.showKoFiNudge.value)
+
+        vm.dismissKoFiNudge()
+
+        assertFalse(vm.showKoFiNudge.value)
+    }
+
     // Bug 2: marking unread must reset BOTH coupled items to 0 so a surviving audiobook progress
     // can't reappear as ghost progress.
     @Test
