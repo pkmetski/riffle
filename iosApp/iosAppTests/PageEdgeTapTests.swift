@@ -14,50 +14,55 @@ final class PageEdgeTapTests: XCTestCase {
 
     func testLeftEdgeCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var x: Float = -1; var y: Float = -1; var w: Float = -1; var h: Float = -1
-        bridge.setTapCallback { rx, ry, rw, rh in x = rx; y = ry; w = rw; h = rh }
-        // x/width = 50/360 = 0.139 — inside left edge zone (< 0.20)
+        var receivedX: Float = -1
+        var receivedY: Float = -1
+        var receivedWidth: Float = -1
+        var receivedHeight: Float = -1
+        bridge.setTapCallback { tapX, tapY, tapW, tapH in
+            receivedX = tapX; receivedY = tapY; receivedWidth = tapW; receivedHeight = tapH
+        }
+        // tapX/width = 50/360 = 0.139 — inside left edge zone (< 0.20)
         bridge.simulateTapAt(x: 50, y: 400, viewWidth: 360, viewHeight: 800)
-        XCTAssertEqual(x, 50)
-        XCTAssertEqual(y, 400)
-        XCTAssertEqual(w, 360)
-        XCTAssertEqual(h, 800)
+        XCTAssertEqual(receivedX, 50)
+        XCTAssertEqual(receivedY, 400)
+        XCTAssertEqual(receivedWidth, 360)
+        XCTAssertEqual(receivedHeight, 800)
     }
 
     func testRightEdgeCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var x: Float = -1
-        bridge.setTapCallback { rx, _, _, _ in x = rx }
-        // x/width = 310/360 = 0.861 — inside right edge zone (> 0.80)
+        var receivedX: Float = -1
+        bridge.setTapCallback { tapX, _, _, _ in receivedX = tapX }
+        // tapX/width = 310/360 = 0.861 — inside right edge zone (> 0.80)
         bridge.simulateTapAt(x: 310, y: 400, viewWidth: 360, viewHeight: 800)
-        XCTAssertEqual(x, 310)
+        XCTAssertEqual(receivedX, 310)
     }
 
     func testCenterCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var x: Float = -1
-        bridge.setTapCallback { rx, _, _, _ in x = rx }
-        // x/width = 180/360 = 0.50 — center, not in any edge zone
+        var receivedX: Float = -1
+        bridge.setTapCallback { tapX, _, _, _ in receivedX = tapX }
+        // tapX/width = 180/360 = 0.50 — center, not in any edge zone
         bridge.simulateTapAt(x: 180, y: 400, viewWidth: 360, viewHeight: 800)
-        XCTAssertEqual(x, 180)
+        XCTAssertEqual(receivedX, 180)
     }
 
     func testTopBandCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var y: Float = -1
-        bridge.setTapCallback { _, ry, _, _ in y = ry }
-        // y/height = 60/800 = 0.075 — inside top guard band (< 0.15), excluded from edge nav
+        var receivedY: Float = -1
+        bridge.setTapCallback { _, tapY, _, _ in receivedY = tapY }
+        // tapY/height = 60/800 = 0.075 — inside top guard band (< 0.15), excluded from edge nav
         bridge.simulateTapAt(x: 50, y: 60, viewWidth: 360, viewHeight: 800)
-        XCTAssertEqual(y, 60)
+        XCTAssertEqual(receivedY, 60)
     }
 
     func testBottomBandCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var y: Float = -1
-        bridge.setTapCallback { _, ry, _, _ in y = ry }
-        // y/height = 740/800 = 0.925 — inside bottom guard band (> 0.85), excluded from edge nav
+        var receivedY: Float = -1
+        bridge.setTapCallback { _, tapY, _, _ in receivedY = tapY }
+        // tapY/height = 740/800 = 0.925 — inside bottom guard band (> 0.85), excluded from edge nav
         bridge.simulateTapAt(x: 310, y: 740, viewWidth: 360, viewHeight: 800)
-        XCTAssertEqual(y, 740)
+        XCTAssertEqual(receivedY, 740)
     }
 
     func testNilCallbackDoesNotCrash() {
