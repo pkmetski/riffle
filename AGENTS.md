@@ -160,7 +160,9 @@ Deleting or `@Ignore`-ing a red test to unblock a PR is never acceptable.
 
 ## No empty commits to retrigger CI
 
-Never push a `git commit --allow-empty` (or any commit whose sole purpose is to kick off a new CI run). If CI fails with an infrastructure flake (emulator boot failure, network blip, ZIP corruption), wait — the failure is transient and the next legitimate push will retrigger it. If all outstanding CI jobs are infrastructure failures and there is genuinely no code fix to make, say so to the user and ask them to retrigger manually. An empty commit pollutes the branch history and makes `git log` misleading.
+Never push a `git commit --allow-empty` (or any commit whose sole purpose is to kick off a new CI run). An empty commit pollutes the branch history and makes `git log` misleading.
+
+When a CI check fails, always analyze the failure and fix the root cause — in the test, in the production code, or in test infrastructure. If a test fails non-deterministically, make the test more resilient (increase a timeout that proved too tight, reduce flaky UI interactions, add a wait that was missing) rather than relying on reruns. The goal is tests that pass every time, not tests that pass eventually with enough retries.
 
 ## Validate before claiming done
 
