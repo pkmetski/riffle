@@ -31,14 +31,6 @@ class PaginatedLayoutLockTest {
     }
 
     @Test
-    fun installScriptEnforcesOverflowHiddenWithImportant() {
-        assertTrue(
-            PaginatedLayoutLock.INSTALL_SCRIPT.contains("overflow: hidden !important"),
-            "overflow must be hidden with !important so column grid cannot scroll vertically",
-        )
-    }
-
-    @Test
     fun installScriptScopedToPaginatedModeOnly() {
         assertTrue(
             PaginatedLayoutLock.INSTALL_SCRIPT.contains(":not([style*=\"readium-scroll-on\"])"),

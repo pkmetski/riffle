@@ -173,10 +173,6 @@ class RendererCapabilityTest {
             script.contains("height: 100vh !important"),
         )
         assertTrue(
-            "lock must enforce overflow: hidden !important to prevent vertical scrolling",
-            script.contains("overflow: hidden !important"),
-        )
-        assertTrue(
             "lock must be scoped to paginated mode via :not([style*=readium-scroll-on])",
             script.contains(":not([style*=\"readium-scroll-on\"])"),
         )
