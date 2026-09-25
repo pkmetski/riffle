@@ -75,9 +75,10 @@ class ReadiumSwiftNavigator(
     private val _figureTapPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
-    // Tracks whether the reader is in paginated (non-scroll) mode. Updated via applyReaderPreferences.
-    // Written and read on the main thread (all bridge callbacks are main-thread), so no lock needed.
-    private var isPaginatedMode = true
+    // Tracks whether the reader is in paginated (non-scroll) mode. Null until the first
+    // applyReaderPreferences call; edge-tap navigation is suppressed while null so an early tap
+    // before Compose's LaunchedEffect fires does not accidentally navigate in vertical/scroll mode.
+    private var isPaginatedMode: Boolean? = null
 
     /**
      * The live text selection, or null when there is none.
@@ -117,7 +118,7 @@ class ReadiumSwiftNavigator(
         // (Android handles the same logic in EpubReaderScreen's InputListener.onTap, where
         // Readium's TapEvent carries the coordinates directly.)
         bridge.setTapCallback { x, y, viewWidth, viewHeight ->
-            if (isPaginatedMode && viewWidth > 0 && viewHeight > 0) {
+            if (isPaginatedMode == true && viewWidth > 0 && viewHeight > 0) {
                 val xFrac = x / viewWidth
                 val yFrac = y / viewHeight
                 if (yFrac > PAGE_EDGE_TAP_VERTICAL_GUARD && yFrac < 1f - PAGE_EDGE_TAP_VERTICAL_GUARD) {
