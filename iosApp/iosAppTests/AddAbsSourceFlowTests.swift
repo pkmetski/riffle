@@ -101,10 +101,11 @@ final class AddAbsSourceFlowTests: XCTestCase {
                       "App must start on the source picker")
 
         let absCard = app.staticTexts["Audiobookshelf"]
-        // 30 s: on a cold Clone 1 launch the "Add source" title appears before the CMP
-        // accessibility tree populates the picker cards — 5 s proved too tight when the
-        // cold-boot took ~135 s and the tree was still settling.
-        XCTAssertTrue(absCard.waitForExistence(timeout: 30), "Picker must show the Audiobookshelf card")
+        // 60 s: on a cold Clone 1 launch the "Add source" title appears before the CMP
+        // accessibility tree populates the picker cards — 5 s proved too tight at ~135 s
+        // cold-boot, and 30 s proved too tight on loaded CI runners where the CMP tree
+        // takes longer to settle after a long boot.
+        XCTAssertTrue(absCard.waitForExistence(timeout: 60), "Picker must show the Audiobookshelf card")
         absCard.tap()
 
         // Wait for the credential form (scheme selector appears when the form is ready)

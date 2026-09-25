@@ -458,6 +458,7 @@ fun EpubReaderScreen(
                     )
                 } else {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
+                    val tocHref by viewModel.currentTocHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     // Holds the RendererBridge created inside EpubNavigatorView so sibling
                     // composables (e.g. CornerBookmarkIndicator) can invoke bridge methods
@@ -703,7 +704,7 @@ fun EpubReaderScreen(
                     if (tocVisible) {
                         TocPanel(
                             entries = tocEntries,
-                            activeHref = locatorHref,
+                            activeHref = tocHref,
                             // Jumping to a location is a "start reading there" intent, so drop
                             // straight into immersive mode (system bars + TopAppBar hidden) the
                             // same way opening the book does.

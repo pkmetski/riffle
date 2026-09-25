@@ -17,6 +17,7 @@ import org.readium.r2.streamer.PublicationOpener
 import java.io.File
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.activeTocHref
 import com.riffle.feature.reader.findActiveEntry
 
 /**
@@ -119,6 +120,28 @@ class TocIntegrationTest : KoinTest {
         val segments = buildRailSegments(entries)
         val activeIndex = findActiveSegmentIndex(segments, section23!!.href)
         assertEquals("Chapter 2 section 3 (index 5) should be active when locator is in chapter 2 section 3", 5, activeIndex)
+    }
+
+    @Test
+    fun activeTocHrefHighlightsSubsectionAfterTocNavigation() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+        val chapter1 = entries.first()
+        val section11 = chapter1.children.firstOrNull { it.href.contains("#") }
+        assertNotNull("Expected a fragment-anchored subsection under chapter 1", section11)
+
+        // Simulate: locator is at the chapter1 resource (no fragment); the user last
+        // navigated via TOC to section11 (full href with fragment).
+        val locatorHref = section11!!.href.substringBefore("#")
+        val resolvedHref = activeTocHref(locatorHref, section11.href)
+
+        val active = findActiveEntry(entries, resolvedHref!!)
+        assertNotNull("activeTocHref + findActiveEntry should resolve the subsection", active)
+        assertEquals(
+            "Active entry should be the subsection, not the parent chapter",
+            section11.href,
+            active!!.href,
+        )
     }
 
     private suspend fun openTestEpub() = run {

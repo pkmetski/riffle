@@ -96,4 +96,42 @@ class TocActiveEntryTest {
     fun `top-level index resolves fragment-anchored entry from fragment-less href`() {
         assertEquals(1, findActiveTopLevelIndex(eoToc, "xhtml/chapter1.xhtml"))
     }
+
+    // activeTocHref — combines the fragment-less Readium locator with the last
+    // explicitly-navigated TOC entry to restore the subchapter fragment.
+
+    @Test
+    fun `activeTocHref returns locatorHref when lastTocNavigatedHref is null`() {
+        assertEquals("chapter1.xhtml", activeTocHref("chapter1.xhtml", null))
+    }
+
+    @Test
+    fun `activeTocHref returns null when both are null`() {
+        assertNull(activeTocHref(null, null))
+    }
+
+    @Test
+    fun `activeTocHref returns null when locatorHref is null`() {
+        assertNull(activeTocHref(null, "chapter1.xhtml#s2"))
+    }
+
+    @Test
+    fun `activeTocHref prefers lastTocNavigatedHref within same resource`() {
+        assertEquals("chapter1.xhtml#s2", activeTocHref("chapter1.xhtml", "chapter1.xhtml#s2"))
+    }
+
+    @Test
+    fun `activeTocHref drops stale lastTocNavigatedHref on cross-resource navigation`() {
+        assertEquals("chapter2.xhtml", activeTocHref("chapter2.xhtml", "chapter1.xhtml#s2"))
+    }
+
+    @Test
+    fun `activeTocHref uses plain locatorHref when lastTocNavigatedHref has no fragment`() {
+        assertEquals("chapter1.xhtml", activeTocHref("chapter1.xhtml", "chapter1.xhtml"))
+    }
+
+    @Test
+    fun `activeTocHref works when lastTocNavigatedHref also has no fragment`() {
+        assertEquals("chapter2.xhtml", activeTocHref("chapter2.xhtml", "chapter2.xhtml"))
+    }
 }

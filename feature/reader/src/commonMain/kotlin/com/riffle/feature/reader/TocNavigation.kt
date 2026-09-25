@@ -99,3 +99,22 @@ private fun collectHrefs(entries: List<TocEntry>): List<String> {
     walk(entries)
     return out
 }
+
+/**
+ * Resolves the best TOC href for highlighting given two signals:
+ *  - [locatorHref]: the bare resource path from Readium (never carries a fragment)
+ *  - [lastTocNavigatedHref]: the full href — possibly with `#fragment` — of the last TOC entry
+ *    the user explicitly tapped
+ *
+ * When both signals point to the same resource, the last-navigated href is preferred because it
+ * carries the subchapter fragment that [locatorHref] loses. When the locator has moved to a
+ * different resource (cross-chapter navigation), the last-navigated hint is stale and is dropped.
+ */
+fun activeTocHref(locatorHref: String?, lastTocNavigatedHref: String?): String? {
+    if (lastTocNavigatedHref == null || locatorHref == null) return locatorHref
+    return if (locatorHref.substringBefore('#') == lastTocNavigatedHref.substringBefore('#')) {
+        lastTocNavigatedHref
+    } else {
+        locatorHref
+    }
+}
