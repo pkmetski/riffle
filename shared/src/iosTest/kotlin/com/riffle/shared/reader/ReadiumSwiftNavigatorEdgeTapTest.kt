@@ -1,0 +1,156 @@
+package com.riffle.shared.reader
+
+import com.riffle.core.logging.RecordingLogger
+import com.riffle.feature.reader.NavigatorEvent
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
+import platform.UIKit.UIViewController
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+
+/**
+ * Pins the edge-tap page-turn logic in [ReadiumSwiftNavigator].
+ *
+ * Left/right edge taps inside the mid-vertical band of a paginated view call [bridge.goBackward] /
+ * [bridge.goForward] directly. All other taps (center, top/bottom band, scroll mode) emit
+ * [NavigatorEvent.BodyTap] instead.
+ *
+ * Each assertion here would flip red if the edge-zone check were removed or the directional
+ * mapping (left→Backward, right→Forward) were accidentally swapped.
+ */
+class ReadiumSwiftNavigatorEdgeTapTest {
+
+    private class RecordingBridge : IosEpubNavigatorBridge {
+        var tapCallback: ((TapCoords) -> Unit)? = null
+        var goForwardCalls = 0
+        var goBackwardCalls = 0
+
+        override fun setTapCallback(callback: ((TapCoords) -> Unit)?) {
+            tapCallback = callback
+        }
+        override fun goForward() { goForwardCalls++ }
+        override fun goBackward() { goBackwardCalls++ }
+
+        override fun viewController(): UIViewController = UIViewController()
+        override fun openEpub(filePath: String, locatorJson: String?) = Unit
+        override fun goToLocator(locatorJson: String) = Unit
+        override fun snapshotLocatorJson(): String? = null
+        override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit
+        override fun setPageLoadCallback(callback: (() -> Unit)?) = Unit
+        override fun setErrorCallback(callback: ((message: String) -> Unit)?) = Unit
+        override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) = Unit
+        override fun clearSelection() = Unit
+        override fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?) = Unit
+        override fun observeDecorationGroup(group: String) = Unit
+        override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
+        override fun readResource(href: String, onResult: (String?) -> Unit) = onResult(null)
+        override fun evaluateJavaScript(script: String, onResult: (String?) -> Unit) = onResult(null)
+        override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun disposeNavigator() = Unit
+        override fun applyDecorations(decorationsJson: String, group: String) = Unit
+        override fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher) = Unit
+        override fun applyReaderPreferences(preferences: IosReaderPreferences) = Unit
+        override fun getTocJson(): String = "[]"
+        override fun getSpineJson(): String = """{"hrefs":[],"positionCounts":[]}"""
+        override fun scrollByPx(pixels: Int, onResult: (Boolean) -> Unit) = onResult(true)
+        override fun startSearch(query: String, onBatch: ((String) -> Unit)?, onDone: (() -> Unit)?) = Unit
+        override fun cancelSearch() = Unit
+    }
+
+    private fun navigator(
+        bridge: RecordingBridge = RecordingBridge(),
+        scrollMode: Boolean? = null,
+    ): ReadiumSwiftNavigator {
+        val nav = ReadiumSwiftNavigator(bridge, RecordingLogger())
+        if (scrollMode != null) {
+            nav.applyReaderPreferences(
+                fontSizePercent = 100f,
+                scrollMode = scrollMode,
+                theme = "light",
+                fontFamilyCss = "",
+                lineHeightMultiplier = 0f,
+                pageMargins = 1.0,
+                justifyText = false,
+                textColorArgb = 0L,
+                publisherStyles = false,
+                columnCount = 0,
+            )
+        }
+        return nav
+    }
+
+    @Test
+    fun leftEdgeMidBand_callsGoBackward() {
+        val bridge = RecordingBridge()
+        navigator(bridge, scrollMode = false)
+        // x=50/360=0.139 < 0.20 edge fraction, y=400/800=0.50 inside mid band
+        bridge.tapCallback?.invoke(TapCoords(50.0, 400.0, 360.0, 800.0))
+        assertEquals(1, bridge.goBackwardCalls)
+        assertEquals(0, bridge.goForwardCalls)
+    }
+
+    @Test
+    fun rightEdgeMidBand_callsGoForward() {
+        val bridge = RecordingBridge()
+        navigator(bridge, scrollMode = false)
+        // x=310/360=0.861 > 0.80, y=400/800=0.50 inside mid band
+        bridge.tapCallback?.invoke(TapCoords(310.0, 400.0, 360.0, 800.0))
+        assertEquals(1, bridge.goForwardCalls)
+        assertEquals(0, bridge.goBackwardCalls)
+    }
+
+    @Test
+    fun centerTap_emitsBodyTap() = runTest {
+        val bridge = RecordingBridge()
+        val nav = navigator(bridge, scrollMode = false)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
+        bridge.tapCallback?.invoke(TapCoords(180.0, 400.0, 360.0, 800.0))
+        val event = eventDeferred.await()
+        assertEquals(NavigatorEvent.BodyTap, event)
+        assertEquals(0, bridge.goForwardCalls)
+        assertEquals(0, bridge.goBackwardCalls)
+    }
+
+    @Test
+    fun leftEdgeTopBand_emitsBodyTap() = runTest {
+        val bridge = RecordingBridge()
+        val nav = navigator(bridge, scrollMode = false)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
+        // y=60/800=0.075 < 0.15 vertical guard — excluded from edge navigation
+        bridge.tapCallback?.invoke(TapCoords(50.0, 60.0, 360.0, 800.0))
+        val event = eventDeferred.await()
+        assertEquals(NavigatorEvent.BodyTap, event)
+        assertEquals(0, bridge.goBackwardCalls)
+    }
+
+    @Test
+    fun beforeFirstApplyReaderPreferences_leftEdge_emitsBodyTap() = runTest {
+        // isPaginatedMode is null until applyReaderPreferences fires; a premature tap must not
+        // navigate pages — it should fall through to BodyTap.
+        val bridge = RecordingBridge()
+        val nav = navigator(bridge)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
+        bridge.tapCallback?.invoke(TapCoords(50.0, 400.0, 360.0, 800.0))
+        val event = eventDeferred.await()
+        assertEquals(NavigatorEvent.BodyTap, event)
+        assertEquals(0, bridge.goBackwardCalls)
+    }
+
+    @Test
+    fun scrollMode_leftEdge_emitsBodyTapInsteadOfNavigating() = runTest {
+        val bridge = RecordingBridge()
+        val nav = navigator(bridge, scrollMode = true)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
+        bridge.tapCallback?.invoke(TapCoords(50.0, 400.0, 360.0, 800.0))
+        val event = eventDeferred.await()
+        assertEquals(NavigatorEvent.BodyTap, event)
+        assertEquals(0, bridge.goBackwardCalls)
+    }
+}

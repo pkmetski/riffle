@@ -38,6 +38,7 @@
 		B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008021 /* AudiobookPlayerViewModelTests.swift */; };
 		B1008012 /* AutoFollowJsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008022 /* AutoFollowJsTests.swift */; };
 		B1008013 /* EpubReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008023 /* EpubReaderTests.swift */; };
+		B100801C /* PageEdgeTapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100801B /* PageEdgeTapTests.swift */; };
 		B1008014 /* LibraryCoverGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008024 /* LibraryCoverGridTests.swift */; };
 		B1008015 /* OfflineAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008025 /* OfflineAvailabilityTests.swift */; };
 		B1008016 /* ReaderHighlightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008026 /* ReaderHighlightsTests.swift */; };
@@ -106,6 +107,7 @@
 		B1008021 /* AudiobookPlayerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerViewModelTests.swift; sourceTree = "<group>"; };
 		B1008022 /* AutoFollowJsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowJsTests.swift; sourceTree = "<group>"; };
 		B1008023 /* EpubReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubReaderTests.swift; sourceTree = "<group>"; };
+		B100801B /* PageEdgeTapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageEdgeTapTests.swift; sourceTree = "<group>"; };
 		B1008024 /* LibraryCoverGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCoverGridTests.swift; sourceTree = "<group>"; };
 		B1008025 /* OfflineAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineAvailabilityTests.swift; sourceTree = "<group>"; };
 		B1008026 /* ReaderHighlightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlightsTests.swift; sourceTree = "<group>"; };
@@ -226,6 +228,7 @@
 				B1008021 /* AudiobookPlayerViewModelTests.swift */,
 				B1008022 /* AutoFollowJsTests.swift */,
 				B1008023 /* EpubReaderTests.swift */,
+				B100801B /* PageEdgeTapTests.swift */,
 				B1008024 /* LibraryCoverGridTests.swift */,
 				B1008025 /* OfflineAvailabilityTests.swift */,
 				B1008026 /* ReaderHighlightsTests.swift */,
@@ -479,6 +482,7 @@
 				B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */,
 				B1008012 /* AutoFollowJsTests.swift in Sources */,
 				B1008013 /* EpubReaderTests.swift in Sources */,
+				B100801C /* PageEdgeTapTests.swift in Sources */,
 				B1008014 /* LibraryCoverGridTests.swift in Sources */,
 				B1008015 /* OfflineAvailabilityTests.swift in Sources */,
 				B1008016 /* ReaderHighlightsTests.swift in Sources */,

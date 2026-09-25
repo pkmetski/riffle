@@ -3,6 +3,15 @@ package com.riffle.shared.reader
 import platform.UIKit.UIViewController
 
 /**
+ * Tap coordinates forwarded by the Swift bridge to [IosEpubNavigatorBridge.setTapCallback].
+ *
+ * Using a Kotlin class (reference type) as the lambda parameter avoids the Kotlin/Native
+ * boxing that wraps primitive types (Float, Double) as KotlinFloat/KotlinDouble in Obj-C
+ * blocks, which would cause a Swift protocol-conformance mismatch.
+ */
+class TapCoords(val x: Double, val y: Double, val viewWidth: Double, val viewHeight: Double)
+
+/**
  * Obj-C-compatible seam between iosMain and the Swift-side Readium Swift wrapper.
  *
  * Swift implementation: ReadiumEpubNavigatorBridge (in iosApp/iosApp/).
@@ -35,8 +44,15 @@ interface IosEpubNavigatorBridge {
     /** Called once after each chapter finishes loading and layout has settled. */
     fun setPageLoadCallback(callback: (() -> Unit)?)
 
-    /** Called when the user taps on the book body (not a link). */
-    fun setTapCallback(callback: (() -> Unit)?)
+    /**
+     * Called when the user taps on the book body (not a link).
+     *
+     * [x] and [y] are the tap coordinates in the navigator view's coordinate space (points on iOS,
+     * same scale as [viewWidth]/[viewHeight]). [viewWidth] and [viewHeight] are the navigator
+     * view's current size. All four values are passed so the Kotlin layer can compute edge-zone
+     * membership without an extra bridge round-trip.
+     */
+    fun setTapCallback(callback: ((coords: TapCoords) -> Unit)?)
 
     /**
      * Register a callback for figure-tap events posted by `figure-tap.js`.

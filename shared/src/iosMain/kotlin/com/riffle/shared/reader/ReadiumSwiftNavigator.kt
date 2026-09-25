@@ -76,6 +76,11 @@ class ReadiumSwiftNavigator(
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
 
+    // Tracks whether the reader is in paginated (non-scroll) mode. Null until the first
+    // applyReaderPreferences call; edge-tap navigation is suppressed while null so an early tap
+    // before Compose's LaunchedEffect fires does not accidentally navigate in vertical/scroll mode.
+    private var isPaginatedMode: Boolean? = null
+
     /**
      * The live text selection, or null when there is none.
      *
@@ -109,13 +114,21 @@ class ReadiumSwiftNavigator(
             pageLoadGeneration++
             _pageLoadEvents.tryEmit(NavigatorPageLoad(pageLoadGeneration))
         }
-        // BodyTap has no collector on iOS yet (#1071 §17). It is not dead wiring that can be
-        // deleted: [eventFlow] is part of the EpubNavigatorInterface contract, and dropping the
-        // emission would leave it permanently empty rather than merely unread. Its consumer on
-        // Android is immersive mode (EpubReaderScreen's `onTap = immersiveState::toggle`), and
-        // iOS's reader renders permanently-visible chrome with no immersive state to toggle —
-        // that surface is #1072.
-        bridge.setTapCallback {
+        // In paginated mode, taps in the left/right edge mid-vertical band turn the page.
+        // All other taps emit BodyTap, which dismisses any open annotation sheet on iOS.
+        // (Android handles the same logic in EpubReaderScreen's InputListener.onTap, where
+        // Readium's TapEvent carries the coordinates directly.)
+        bridge.setTapCallback { coords ->
+            if (isPaginatedMode == true && coords.viewWidth > 0.0 && coords.viewHeight > 0.0) {
+                val xFrac = coords.x / coords.viewWidth
+                val yFrac = coords.y / coords.viewHeight
+                if (yFrac > PAGE_EDGE_TAP_VERTICAL_GUARD && yFrac < 1.0 - PAGE_EDGE_TAP_VERTICAL_GUARD) {
+                    when {
+                        xFrac < PAGE_EDGE_TAP_FRACTION -> { bridge.goBackward(); return@setTapCallback }
+                        xFrac > 1.0 - PAGE_EDGE_TAP_FRACTION -> { bridge.goForward(); return@setTapCallback }
+                    }
+                }
+            }
             _eventFlow.tryEmit(NavigatorEvent.BodyTap)
         }
         // #1071 §17: Readium's presentError was an empty Swift stub, so a navigator failure left
@@ -496,6 +509,7 @@ class ReadiumSwiftNavigator(
         publisherStyles: Boolean,
         columnCount: Int,
     ) {
+        isPaginatedMode = !scrollMode
         bridge.applyReaderPreferences(
             IosReaderPreferences(
                 fontSizePercent = fontSizePercent,
@@ -608,5 +622,11 @@ class ReadiumSwiftNavigator(
             result += NavigatorSearchMatch(locatorJson = locatorJson, snippet = snippet)
         }
         return result
+    }
+
+    companion object {
+        // Mirror of EpubReaderScreen.PAGE_EDGE_TAP_FRACTION / PAGE_EDGE_TAP_VERTICAL_GUARD.
+        private const val PAGE_EDGE_TAP_FRACTION = 0.20
+        private const val PAGE_EDGE_TAP_VERTICAL_GUARD = 0.15
     }
 }

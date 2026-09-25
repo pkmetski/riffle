@@ -1821,11 +1821,28 @@ private fun EpubNavigatorView(
     // ConcurrentHashMap: writes happen on Dispatchers.IO from the locator
     // coroutine; reads happen on the JS binder thread inside resolveAnchorTap.
     val footnoteDocCache = remember { ConcurrentHashMap<String, Document>() }
+    val currentReaderPresenter = rememberUpdatedState(readerPresenter)
+    val currentEffectiveOrientation = rememberUpdatedState(effectiveOrientation)
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 if (consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)) return false
                 if (consumePopupDismissedTap(highlightPopupDismissedAtNs)) return false
+                if (currentEffectiveOrientation.value == ReaderOrientation.Horizontal) {
+                    val container = containerRef.value
+                    if (container != null) {
+                        val dir = pageEdgeTapDirection(
+                            x = event.point.x,
+                            y = event.point.y,
+                            viewWidth = container.width,
+                            viewHeight = container.height,
+                        )
+                        if (dir != null) {
+                            coroutineScope.launch { currentReaderPresenter.value.pageBy(dir) }
+                            return true
+                        }
+                    }
+                }
                 currentOnTap()
                 return false
             }
@@ -3361,6 +3378,40 @@ internal fun createPagedDirectionalNavigationAdapter(
         tapEdges = emptySet(),
         animatedTransition = true,
     )
+
+// Fraction of the view width that forms the left/right tap edge zones.
+internal const val PAGE_EDGE_TAP_FRACTION = 0.20f
+
+// Fraction of the view height excluded from the top and bottom — taps in those bands do not
+// navigate pages so they can still reach the top/bottom UI chrome.
+internal const val PAGE_EDGE_TAP_VERTICAL_GUARD = 0.15f
+
+/**
+ * Maps a raw tap point inside a paginated view to a page-turn direction, or null when the tap
+ * falls outside the edge zones.
+ *
+ * Left zone (x < [edgeFraction] of width) → [PageDirection.Backward].
+ * Right zone (x > 1 − [edgeFraction] of width) → [PageDirection.Forward].
+ * Both zones only apply inside the mid-vertical band (excluding the top and bottom
+ * [verticalGuard] fractions) so accidental brushes near the app-bar or bottom chrome are ignored.
+ */
+internal fun pageEdgeTapDirection(
+    x: Float,
+    y: Float,
+    viewWidth: Int,
+    viewHeight: Int,
+    edgeFraction: Float = PAGE_EDGE_TAP_FRACTION,
+    verticalGuard: Float = PAGE_EDGE_TAP_VERTICAL_GUARD,
+): PageDirection? {
+    if (viewWidth <= 0 || viewHeight <= 0) return null
+    val yFrac = y / viewHeight
+    if (yFrac < verticalGuard || yFrac > 1f - verticalGuard) return null
+    return when {
+        x / viewWidth < edgeFraction -> PageDirection.Backward
+        x / viewWidth > 1f - edgeFraction -> PageDirection.Forward
+        else -> null
+    }
+}
 
 // Named class (not anonymous) so Android's addJavascriptInterface reflection can discover the
 // @JavascriptInterface-annotated methods reliably across all API levels and R8 configurations.
