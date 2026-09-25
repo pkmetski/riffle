@@ -75,8 +75,16 @@ object OReillyEpub {
 
     /**
      * Assembles the final XHTML for a lazy-loaded chapter. Rewrites absolute and path-based URL
-     * prefixes to relative form and injects stylesheet `<link>` tags. Shared by Android's
+     * prefixes to relative form. Shared by Android's
      * [com.riffle.app.feature.source.oreilly.OReillyLazyContainer] and iOS's `IosLazyChapterFetcherImpl`.
+     *
+     * O'Reilly's CSS stylesheets are intentionally NOT injected here. Those files are authored for
+     * O'Reilly's own scrollable web reader and override the height/overflow properties that Readium's
+     * CSS multicol layout depends on. When they are present, `document.scrollingElement.scrollHeight`
+     * remains larger than `window.innerHeight` after Readium applies multicol, which means the column
+     * grid never forms and the chapter renders as a single tall scrollable page — producing visible
+     * vertical scrolling in paginated mode. Readium's ReadiumCSS provides all the layout primitives
+     * needed for correct EPUB pagination.
      */
     fun buildChapterXhtml(
         pub: com.riffle.core.catalog.LazyPublicationShape,
@@ -86,8 +94,7 @@ object OReillyEpub {
         val rewritten = rawHtml
             .replace(pub.absoluteFilesPrefix, relPrefixFor(item.fullPath))
             .replace(pub.pathFilesPrefix, relPrefixFor(item.fullPath))
-        val cssHrefs = pub.cssFullPaths.map { relativeTo(item.fullPath, it) }
-        return wrapChapter(item.title, rewritten, cssHrefs)
+        return wrapChapter(item.title, rewritten, emptyList())
     }
 
     private fun String.xmlText(): String =
