@@ -37,7 +37,7 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun snapshotLocatorJson(): String? = null
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit
         override fun setPageLoadCallback(callback: (() -> Unit)?) = Unit
-        override fun setTapCallback(callback: ((Double, Double, Double, Double) -> Unit)?) = Unit
+        override fun setTapCallback(callback: ((TapCoords) -> Unit)?) = Unit
         override fun disposeNavigator() = Unit
         override fun applyDecorations(decorationsJson: String, group: String) = Unit
         override fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher) = Unit

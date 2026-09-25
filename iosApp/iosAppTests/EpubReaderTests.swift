@@ -72,7 +72,7 @@ final class EpubReaderTests: XCTestCase {
     func testTapCallbackIsInvoked() {
         let bridge = ReadiumEpubNavigatorBridge()
         var tapped = false
-        bridge.setTapCallback { _, _, _, _ in tapped = true }
+        bridge.setTapCallback { _ in tapped = true }
         bridge.simulateTap()
         XCTAssertTrue(tapped)
     }
@@ -81,9 +81,9 @@ final class EpubReaderTests: XCTestCase {
         let bridge = ReadiumEpubNavigatorBridge()
         var receivedX: Double = 0
         var receivedViewWidth: Double = 0
-        bridge.setTapCallback { x, _, viewWidth, _ in
-            receivedX = x
-            receivedViewWidth = viewWidth
+        bridge.setTapCallback { coords in
+            receivedX = coords.x
+            receivedViewWidth = coords.viewWidth
         }
         bridge.simulateTapAt(tapX: 42, tapY: 200, viewWidth: 375, viewHeight: 812)
         XCTAssertEqual(receivedX, 42)

@@ -29,7 +29,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     // Callbacks registered by ReadiumSwiftNavigator
     private var locatorCallback: ((String) -> Void)?
     private var pageLoadCallback: (() -> Void)?
-    private var tapCallback: ((Double, Double, Double, Double) -> Void)?
+    private var tapCallback: ((TapCoords) -> Void)?
     private var errorCallback: ((String) -> Void)?
     private var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
@@ -147,7 +147,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         pageLoadCallback = callback
     }
 
-    func setTapCallback(callback: ((Double, Double, Double, Double) -> Void)?) {
+    func setTapCallback(callback: ((TapCoords) -> Void)?) {
         tapCallback = callback
     }
 
@@ -427,7 +427,7 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
         emitSelectionIfCleared()
         let size = navigator.view.bounds.size
-        tapCallback?(Double(point.x), Double(point.y), Double(size.width), Double(size.height))
+        tapCallback?(TapCoords(x: Double(point.x), y: Double(point.y), viewWidth: Double(size.width), viewHeight: Double(size.height)))
     }
 
     /// Called by Readium for each spread's WKWebView before its page content loads.
@@ -529,9 +529,9 @@ extension ReadiumEpubNavigatorBridge {
     @objc func simulatePageLoad() { pageLoadCallback?() }
     /// Simulate a center tap (x=50%, y=50%) with a 360×800 view — lands in the immersive-toggle
     /// zone, not an edge zone. Pass explicit values via [simulateTapAt] for edge-zone tests.
-    @objc func simulateTap() { tapCallback?(180, 400, 360, 800) }
+    @objc func simulateTap() { tapCallback?(TapCoords(x: 180, y: 400, viewWidth: 360, viewHeight: 800)) }
     func simulateTapAt(tapX: Double, tapY: Double, viewWidth: Double, viewHeight: Double) {
-        tapCallback?(tapX, tapY, viewWidth, viewHeight)
+        tapCallback?(TapCoords(x: tapX, y: tapY, viewWidth: viewWidth, viewHeight: viewHeight))
     }
     @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }

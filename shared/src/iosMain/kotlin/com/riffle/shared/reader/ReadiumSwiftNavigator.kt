@@ -118,10 +118,10 @@ class ReadiumSwiftNavigator(
         // All other taps emit BodyTap, which dismisses any open annotation sheet on iOS.
         // (Android handles the same logic in EpubReaderScreen's InputListener.onTap, where
         // Readium's TapEvent carries the coordinates directly.)
-        bridge.setTapCallback { x, y, viewWidth, viewHeight ->
-            if (isPaginatedMode == true && viewWidth > 0.0 && viewHeight > 0.0) {
-                val xFrac = x / viewWidth
-                val yFrac = y / viewHeight
+        bridge.setTapCallback { coords ->
+            if (isPaginatedMode == true && coords.viewWidth > 0.0 && coords.viewHeight > 0.0) {
+                val xFrac = coords.x / coords.viewWidth
+                val yFrac = coords.y / coords.viewHeight
                 if (yFrac > PAGE_EDGE_TAP_VERTICAL_GUARD && yFrac < 1.0 - PAGE_EDGE_TAP_VERTICAL_GUARD) {
                     when {
                         xFrac < PAGE_EDGE_TAP_FRACTION -> { bridge.goBackward(); return@setTapCallback }
