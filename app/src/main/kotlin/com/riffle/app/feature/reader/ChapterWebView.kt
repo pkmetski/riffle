@@ -684,9 +684,11 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * selection's bounding rect in device pixels relative to this WebView, and ~60 chars of
      * document-text on each side of the selection, then run [block].
      *
-     * progression = selectionTop / documentHeight — correct in Continuous mode because the WebView
-     * never scrolls (pageYOffset=0), so getBoundingClientRect().top equals the absolute document
-     * position. The rect is CSS px × devicePixelRatio so it composes with [getLocationOnScreen].
+     * progression = (selectionTop + pageYOffset) / documentHeight. In Continuous mode this WebView
+     * is a sliding window with a non-zero internal scroll ([windowOffsetPx]), so the viewport-
+     * relative getBoundingClientRect().top must be made document-relative before dividing. The
+     * rect stays viewport-relative (CSS px × devicePixelRatio) so it composes with
+     * [getLocationOnScreen], which already includes the window's translation.
      *
      * The before/after context strings come from Range.toString() bracketing the selection — same
      * representation as TreeWalker.nodeValue concatenation, so render-time disambiguation can

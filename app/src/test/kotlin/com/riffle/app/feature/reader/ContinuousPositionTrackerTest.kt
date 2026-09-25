@@ -1238,10 +1238,11 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
-    fun `an unmanaged internal scroll is restored`() {
-        // A selection-handle drag past the edge scrolled the WebView 400 px on its own.
+    fun `an unmanaged internal scroll is folded into the outer scroll`() {
+        // A selection-handle drag past the edge scrolled the WebView 400 px on its own. Snapping
+        // it back would fight Chromium every frame; the outer view scrolls by 400 px instead.
         assertEquals(
-            ContinuousPositionTracker.InternalScrollCorrection.RESTORE,
+            ContinuousPositionTracker.InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL,
             ContinuousPositionTracker.internalScrollCorrection(
                 reportedPx = 48_000, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
             ),

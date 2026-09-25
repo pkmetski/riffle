@@ -336,6 +336,33 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
                 "reveal fires before Chrome has rasterised tiles at the reading position",
             gated,
         )
+
+        // The actual fix: the tallest loaded chapter's WebView must be capped to a renderable
+        // window while its slot carries the full content height. Reverting applyChapterHeight to
+        // `wv.layoutParams.height = measuredPx` makes the WebView as tall as the slot and the
+        // first assertion fails (the fixture has chapters taller than three viewports — see the
+        // `> reader.height * 3` measurement in the backward-fling test).
+        var tallestWebViewH = -1
+        var tallestSlotH = -1
+        var viewportH = 0
+        composeTestRule.activityRule.scenario.onActivity {
+            val tallest = loadedWebViews(reader).maxByOrNull { it.slot.height }
+            tallestWebViewH = tallest?.height ?: -1
+            tallestSlotH = tallest?.slot?.height ?: -1
+            viewportH = reader.height
+        }
+        assertTrue(
+            "the tallest loaded chapter must be taller than the WebView window " +
+                "(slot=$tallestSlotH, viewport=$viewportH) for this assertion to be meaningful",
+            tallestSlotH > viewportH * ContinuousPositionTracker.WEBVIEW_WINDOW_VIEWPORTS,
+        )
+        assertTrue(
+            "a chapter WebView must be capped to at most WEBVIEW_WINDOW_VIEWPORTS viewports " +
+                "(wv=$tallestWebViewH, slot=$tallestSlotH, viewport=$viewportH); a WebView laid " +
+                "out at full content height cannot be drawn past the GPU max texture height and " +
+                "the reading position renders blank",
+            tallestWebViewH in 1..(viewportH * ContinuousPositionTracker.WEBVIEW_WINDOW_VIEWPORTS),
+        )
     }
 
     @Test

@@ -95,13 +95,6 @@ internal class ContinuousWindowController(
          */
         private const val PAINTED_FALLBACK_MS = 2000L
 
-        /**
-         * Delay before the smooth-tail (TOC navigation) reveal animation starts. Gives the
-         * NestedScrollView a frame to settle at the pre-scroll position before [smoothScrollTo]
-         * kicks in, so the tween starts from a stable origin.
-         */
-        private const val PRE_RASTER_ANIM_MS = 700L
-
 
         /**
          * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
@@ -445,11 +438,24 @@ internal class ContinuousWindowController(
      * from the first hardware canvas. Bounds [ContinuousPositionTracker.chapterWebViewHeight].
      */
     internal var maxRenderableHeightPx: Int = ContinuousPositionTracker.DEFAULT_MAX_RENDERABLE_HEIGHT_PX
+        set(value) {
+            if (value == field) return
+            field = value
+            // Chapters measured before the first hardware draw were capped with the conservative
+            // default; re-cap them with the real maximum. Posted: this is learned inside a draw.
+            if (webViews.isNotEmpty()) {
+                port.post {
+                    webViews.forEachIndexed { i, wv ->
+                        measuredHeights.getOrNull(i)?.let { applyChapterHeight(wv, it) }
+                    }
+                }
+            }
+        }
 
     /** Re-entrancy guard: [syncChapterWindows] scrolls WebViews, which fires [onWebViewInternalScroll]. */
     private var syncingWindows = false
 
-    private var restoringInternalScroll = false
+    private var foldingInternalScroll = false
 
     /** The full-content-height slot hosting [wv] in [container]. */
     private fun slotOf(wv: ChapterWebView): android.view.ViewGroup = wv.parent as android.view.ViewGroup
@@ -516,11 +522,11 @@ internal class ContinuousWindowController(
 
     /**
      * Chromium moved a chapter WebView's own scroll offset. Applies
-     * [ContinuousPositionTracker.internalScrollCorrection]: adopt sub-CSS-px rounding, restore the
-     * managed offset after an unmanaged scroll, or leave a mid-reflow clamp alone.
+     * [ContinuousPositionTracker.internalScrollCorrection]: adopt sub-CSS-px rounding, fold an
+     * unmanaged scroll into the outer scroll, or leave a mid-reflow clamp alone.
      */
     private fun onWebViewInternalScroll(wv: ChapterWebView, scrollY: Int) {
-        if (syncingWindows || restoringInternalScroll) return
+        if (syncingWindows || foldingInternalScroll) return
         val wanted = wv.windowOffsetPx
         val decision = ContinuousPositionTracker.internalScrollCorrection(
             reportedPx = scrollY,
@@ -534,12 +540,18 @@ internal class ContinuousWindowController(
                 wv.windowOffsetPx = scrollY
                 wv.translationY = scrollY.toFloat()
             }
-            ContinuousPositionTracker.InternalScrollCorrection.RESTORE -> {
-                restoringInternalScroll = true
+            ContinuousPositionTracker.InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL -> {
+                // Adopt the new offset (translation follows, so the content stays where Chromium
+                // put it) and move the outer scroll by the same amount: the user sees the page
+                // scroll, exactly as if the gesture had been the reader's own. The scroll
+                // listener then re-slides every window for the new position.
+                foldingInternalScroll = true
                 try {
-                    wv.scrollTo(0, wanted)
+                    wv.windowOffsetPx = scrollY
+                    wv.translationY = scrollY.toFloat()
+                    port.scrollBy(scrollY - wanted)
                 } finally {
-                    restoringInternalScroll = false
+                    foldingInternalScroll = false
                 }
             }
         }
@@ -742,23 +754,25 @@ internal class ContinuousWindowController(
                         landingHoldTargetY = -1
                         landingHoldUntilUptimeMs = 0L
                         val wvSmooth = webViews.getOrNull(i)
-                        val densitySmooth = wvSmooth?.resources?.displayMetrics?.density ?: 1f
-                        val cssYSmooth = ((y - slot.top) / densitySmooth).toInt()
-                        if (wvSmooth != null && cssYSmooth > 0) {
-                            // Same tile-memory-budget fix as the non-smooth path: shrink the
-                            // WebView height temporarily so Chrome can rasterise tiles at cssY
-                            // without hitting its tile memory limit.
-                            val viewportHSmooth = port.viewportHeightPx.coerceAtLeast(1)
+                        if (wvSmooth != null) {
+                            // Same paint gate as the non-smooth path: the pre-scroll above slid
+                            // the target's rendering window under the viewport, so make the
+                            // container visible (still under the nav cover, which waits for
+                            // isFirstLoadComplete) and start the tail once Chromium has drawn
+                            // those rows — never before, or the tween starts on white.
                             var smoothRevealed = false
                             fun revealSmooth() {
                                 if (!smoothRevealed) {
                                     smoothRevealed = true
-                                    container.visibility = android.view.View.VISIBLE
                                     notifyFirstLoadCompleteOnce()
                                     port.smoothScrollTo(y)
                                 }
                             }
-                            container.postDelayed({ revealSmooth() }, PRE_RASTER_ANIM_MS)
+                            syncChapterWindows()
+                            container.visibility = android.view.View.VISIBLE
+                            port.postOnAnimation {
+                                wvSmooth.onCurrentContentPainted { revealSmooth() }
+                            }
                             container.postDelayed({ revealSmooth() }, PAINTED_FALLBACK_MS)
                         } else {
                             // wvSmooth == null (WebView not yet attached): reveal and start the
@@ -804,9 +818,6 @@ internal class ContinuousWindowController(
                                 notifyFirstLoadCompleteOnce()
                             }
                         } else {
-                            port.scrollTo(y)
-                            landingHoldTargetY = y
-                            landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                             port.postOnAnimation {
                                 container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()

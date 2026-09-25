@@ -392,7 +392,7 @@ internal object ContinuousPositionTracker {
     }
 
     /** What to do when Chromium reports a chapter WebView's internal scroll offset. */
-    enum class InternalScrollCorrection { NONE, ADOPT, RESTORE }
+    enum class InternalScrollCorrection { NONE, ADOPT, FOLD_INTO_OUTER_SCROLL }
 
     /**
      * Decide how [ContinuousWindowController] reacts to Chromium moving a chapter WebView's own
@@ -405,16 +405,19 @@ internal object ContinuousPositionTracker {
      *    px, rounded up). Chromium positions in CSS px and reports the container offset back
      *    rounded, so the controller moves the translation with it rather than re-asserting its own
      *    value on every frame.
-     *  - [InternalScrollCorrection.RESTORE]: an unmanaged scroll (selection auto-scroll past an
-     *    edge, focus scroll, stray `window.find`); continuous mode owns all scroll positioning, so
-     *    the managed offset is put back.
+     *  - [InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL]: an unmanaged scroll — Chromium's
+     *    selection auto-scroll when a handle is dragged past the window's edge, a focus scroll, a
+     *    stray `window.find`. The content is taller than the view now, so Chromium CAN scroll it;
+     *    snapping the offset back would fight it every frame (jitter, selection stuck at the
+     *    band's edge). Instead the controller adopts the new offset and scrolls the outer view by
+     *    the same delta, so the gesture becomes an ordinary page scroll.
      */
     fun internalScrollCorrection(reportedPx: Int, wantedPx: Int, density: Float, maxScrollPx: Int): InternalScrollCorrection {
         if (reportedPx == wantedPx) return InternalScrollCorrection.NONE
         val tolerance = kotlin.math.ceil(density.toDouble()).toInt()
         if (kotlin.math.abs(reportedPx - wantedPx) <= tolerance) return InternalScrollCorrection.ADOPT
         if (wantedPx > maxScrollPx) return InternalScrollCorrection.NONE
-        return InternalScrollCorrection.RESTORE
+        return InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL
     }
 
     /**
