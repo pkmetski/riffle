@@ -255,7 +255,7 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
                 document.documentElement ? document.documentElement.offsetHeight : 0,
                 document.body ? document.body.offsetHeight : 0, 1
             );
-            prog = Math.max(0, Math.min(1, rect.top / docH));
+            prog = Math.max(0, Math.min(1, (rect.top + (window.pageYOffset || 0)) / docH));
             l = rect.left; t = rect.top; r = rect.right; b = rect.bottom;
             var body = document.body;
             if (body) {
@@ -606,7 +606,7 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             } catch (e) { snippetHtml = ''; }
             window.__riffleSelData = {
               text: text,
-              p: Math.max(0, Math.min(1, br2.top / docH)),
+              p: Math.max(0, Math.min(1, (br2.top + (window.pageYOffset || 0)) / docH)),
               l: br2.left, t: br2.top, r: br2.right, b: br2.bottom,
               bef: bef, aft: aft,
               figures: figures,

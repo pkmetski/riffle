@@ -143,9 +143,9 @@ define run_harness_tests
 	adb -s $$SERIAL shell wm dismiss-keyguard; \
 	adb -s $$SERIAL shell svc power stayon true; \
 	echo "Running harness tests on $$SERIAL..."; \
-	adb -s $$SERIAL shell pm clear com.riffle.app 2>/dev/null || true; \
-	adb -s $$SERIAL uninstall com.riffle.app > /dev/null 2>&1 || true; \
-	adb -s $$SERIAL uninstall com.riffle.app.test > /dev/null 2>&1 || true; \
+	adb -s $$SERIAL shell pm clear com.riffle.app.debug 2>/dev/null || true; \
+	adb -s $$SERIAL uninstall com.riffle.app.debug > /dev/null 2>&1 || true; \
+	adb -s $$SERIAL uninstall com.riffle.app.debug.test > /dev/null 2>&1 || true; \
 	rm -rf app/build/outputs/androidTest-results/connected; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest $(2); \
 	TEST_EXIT=$$?; \

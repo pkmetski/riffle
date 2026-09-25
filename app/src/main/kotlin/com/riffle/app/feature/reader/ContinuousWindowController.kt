@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.content.Context
+
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
@@ -94,6 +95,7 @@ internal class ContinuousWindowController(
          */
         private const val PAINTED_FALLBACK_MS = 2000L
 
+
         /**
          * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
          * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
@@ -130,27 +132,6 @@ internal class ContinuousWindowController(
          */
         private const val PREPEND_PAINT_TIMEOUT_MS = 5_000L
 
-        /**
-         * JS that temporarily makes the document scrollable and moves Chrome's internal viewport
-         * to [cssY] CSS pixels from the chapter top. This primes the tile rasteriser at the
-         * reading position before the container is revealed, eliminating the blank-gap that
-         * otherwise appears because Chrome rasterises from y=0 regardless of NestedScrollView
-         * scroll. Must be paired with [preRasterRestoreJs] after the reveal.
-         *
-         * `window.scrollTo()` is a no-op in ReadiumCSS pages (the document is non-scrollable via
-         * that API); `documentElement.scrollTop` correctly moves `window.scrollY` and directs
-         * Chrome's rasteriser.
-         */
-        internal fun preRasterScrollJs(cssY: Int): String =
-            "document.documentElement.style.overflowY='scroll';" +
-            "document.body.style.overflowY='scroll';" +
-            "document.documentElement.scrollTop=$cssY;true;"
-
-        /** JS that undoes the temporary scroll applied by [preRasterScrollJs]. */
-        internal fun preRasterRestoreJs(): String =
-            "document.documentElement.scrollTop=0;" +
-            "document.documentElement.style.overflowY='';" +
-            "document.body.style.overflowY='';true;"
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -205,7 +186,11 @@ internal class ContinuousWindowController(
     var topIndex: Int = 0
         private set
 
-    /** Parallel list to the loaded WebViews; index i matches container.getChildAt(i). */
+    /**
+     * Parallel list to the loaded WebViews; index i matches container.getChildAt(i), which is the
+     * chapter's full-content-height slot ([android.widget.FrameLayout]) hosting the WebView — see
+     * [syncChapterWindows] for why the WebView itself is not the slot.
+     */
     private val webViews = mutableListOf<ChapterWebView>()
 
     /**
@@ -324,14 +309,33 @@ internal class ContinuousWindowController(
         get() = boundaryDetentArmed
 
     /**
-     * Test seam: true once the first-land reveal was gated on [ChapterWebView.onCurrentContentPainted]
-     * rather than firing on the next animation frame. The regression assertion is that this is true
-     * after any initial open: if the fix is reverted (postOnAnimation replaces the paint-callback
-     * gate), this stays false and the test fails.
+     * Test seam: true once the first-land reveal was deliberately delayed (via postDelayed or
+     * [ChapterWebView.onCurrentContentPainted]) rather than firing on the next animation frame.
+     * The regression assertion is that this is true after any initial open: if the fix is reverted
+     * (postOnAnimation replaces the delayed reveal), this stays false and the test fails.
      */
     @androidx.annotation.VisibleForTesting
     internal var firstRevealGatedOnPaint: Boolean = false
         private set
+
+    /**
+     * Test entry point for triggering a non-smooth initial open at [progression] inside [href].
+     * Simulates reopening a book at a saved mid-chapter reading position without using smooth-tail
+     * (TOC navigation) semantics. Used by [ContinuousChapterBoundaryHarnessTest] to exercise the
+     * timed-reveal code path without requiring a stubbed reading position.
+     *
+     * Resets [firstLoadComplete] and notifies [onFirstLoadRestart] before the open so that the
+     * test's `waitUntil { isFirstLoadComplete.value }` gates on the NEW landing, not on the
+     * already-completed initial open (non-smooth opens don't reset firstLoadComplete in production
+     * because there is no user-visible spinner between navigations, but in tests we need the wait).
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun openWindowAtNonSmoothForTest(href: String, progression: Float) {
+        firstLoadComplete = false
+        onFirstLoadRestart()
+        firstRevealGatedOnPaint = false
+        openWindowAt(href, progression, smoothTail = false)
+    }
 
     /**
      * True while the current touch gesture has already been consumed by a backward prepend.
@@ -429,6 +433,130 @@ internal class ContinuousWindowController(
     private var landingHoldUntilUptimeMs: Long = 0L
 
     /** Disarm the landing hold so a deliberate programmatic scroll isn't reverted. */
+    /**
+     * GPU maximum renderable height (device px), learned by [ContinuousReaderView.dispatchDraw]
+     * from the first hardware canvas. Bounds [ContinuousPositionTracker.chapterWebViewHeight].
+     */
+    internal var maxRenderableHeightPx: Int = ContinuousPositionTracker.DEFAULT_MAX_RENDERABLE_HEIGHT_PX
+        set(value) {
+            if (value == field) return
+            field = value
+            // Chapters measured before the first hardware draw were capped with the conservative
+            // default; re-cap them with the real maximum. Posted: this is learned inside a draw.
+            if (webViews.isNotEmpty()) {
+                port.post {
+                    webViews.forEachIndexed { i, wv ->
+                        measuredHeights.getOrNull(i)?.let { applyChapterHeight(wv, it) }
+                    }
+                }
+            }
+        }
+
+    /** Re-entrancy guard: [syncChapterWindows] scrolls WebViews, which fires [onWebViewInternalScroll]. */
+    private var syncingWindows = false
+
+    private var foldingInternalScroll = false
+
+    /** The full-content-height slot hosting [wv] in [container]. */
+    private fun slotOf(wv: ChapterWebView): android.view.ViewGroup = wv.parent as android.view.ViewGroup
+
+    /** Wrap a fresh [wv] in its slot; both start at [placeholder] height until the chapter measures. */
+    private fun newSlot(wv: ChapterWebView, placeholder: Int): android.widget.FrameLayout =
+        android.widget.FrameLayout(context).apply {
+            addView(wv, android.widget.FrameLayout.LayoutParams(MATCH_PARENT, placeholder))
+        }
+
+    /**
+     * Apply a measured chapter height: the slot grows to the full [contentPx] so the outer scroll
+     * geometry ([buildWindow], [ContinuousPositionTracker]) sees the whole chapter, while the
+     * WebView itself is capped to a renderable window ([ContinuousPositionTracker.chapterWebViewHeight]).
+     */
+    private fun applyChapterHeight(wv: ChapterWebView, contentPx: Int) {
+        slotOf(wv).layoutParams = slotOf(wv).layoutParams.also { it.height = contentPx }
+        val wvHeight = ContinuousPositionTracker.chapterWebViewHeight(
+            contentHeightPx = contentPx,
+            viewportHeightPx = port.viewportHeightPx.takeIf { it > 0 } ?: placeholderHeight,
+            maxRenderableHeightPx = maxRenderableHeightPx,
+        )
+        wv.layoutParams = wv.layoutParams.also { it.height = wvHeight }
+        syncChapterWindows()
+    }
+
+    /**
+     * Slide every chapter WebView's rendering window to the band of its slot that is under (or
+     * nearest to) the viewport. The WebView is translated down by the offset inside its slot and
+     * scrolled internally by the same amount, so content stays put on screen while the rows
+     * Chromium actually rasterises follow the reader. Pure arithmetic plus a translation and a
+     * WebView scroll (no layout), so it runs on every outer scroll change and height change.
+     */
+    private fun syncChapterWindows() {
+        if (syncingWindows) return
+        syncingWindows = true
+        try {
+            val scrollY = port.currentScrollY
+            val vh = port.viewportHeightPx
+            var top = 0
+            for (i in webViews.indices) {
+                val wv = webViews[i]
+                val contentH = measuredHeights.getOrElse(i) { 0 }
+                val wvH = wv.layoutParams?.height?.takeIf { it > 0 } ?: contentH
+                val offset = ContinuousPositionTracker.chapterWebViewWindowOffset(
+                    slotTop = top,
+                    contentHeightPx = contentH,
+                    webViewHeightPx = wvH,
+                    currentOffsetPx = wv.windowOffsetPx,
+                    scrollY = scrollY,
+                    viewportHeightPx = vh,
+                )
+                if (offset != null) {
+                    wv.windowOffsetPx = offset
+                    wv.translationY = offset.toFloat()
+                    wv.scrollTo(0, offset)
+                }
+                top += contentH
+            }
+        } finally {
+            syncingWindows = false
+        }
+    }
+
+    /**
+     * Chromium moved a chapter WebView's own scroll offset. Applies
+     * [ContinuousPositionTracker.internalScrollCorrection]: adopt sub-CSS-px rounding, fold an
+     * unmanaged scroll into the outer scroll, or leave a mid-reflow clamp alone.
+     */
+    private fun onWebViewInternalScroll(wv: ChapterWebView, scrollY: Int) {
+        if (syncingWindows || foldingInternalScroll) return
+        val wanted = wv.windowOffsetPx
+        val decision = ContinuousPositionTracker.internalScrollCorrection(
+            reportedPx = scrollY,
+            wantedPx = wanted,
+            density = wv.resources.displayMetrics.density,
+            maxScrollPx = wv.internalMaxScrollY(),
+        )
+        when (decision) {
+            ContinuousPositionTracker.InternalScrollCorrection.NONE -> Unit
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT -> {
+                wv.windowOffsetPx = scrollY
+                wv.translationY = scrollY.toFloat()
+            }
+            ContinuousPositionTracker.InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL -> {
+                // Adopt the new offset (translation follows, so the content stays where Chromium
+                // put it) and move the outer scroll by the same amount: the user sees the page
+                // scroll, exactly as if the gesture had been the reader's own. The scroll
+                // listener then re-slides every window for the new position.
+                foldingInternalScroll = true
+                try {
+                    wv.windowOffsetPx = scrollY
+                    wv.translationY = scrollY.toFloat()
+                    port.scrollBy(scrollY - wanted)
+                } finally {
+                    foldingInternalScroll = false
+                }
+            }
+        }
+    }
+
     private fun clearLandingHold() {
         landingHoldTargetY = -1
         landingHoldUntilUptimeMs = 0L
@@ -471,6 +599,10 @@ internal class ContinuousWindowController(
         wv.onFootnoteContent = null
         wv.onCrossReferenceTap = null
         wv.onSelectionActiveChanged = null
+        wv.onInternalScroll = null
+        wv.windowOffsetPx = 0
+        wv.translationY = 0f
+        wv.scrollTo(0, 0)
         // Release the WebView's DOM + rasterized tiles before pooling. Without this, a pooled view
         // keeps its previous chapter's full-height tile pyramid resident (setOffscreenPreRaster is
         // true) until obtainWebView() eventually replaces it — hundreds of MB across the whole pool
@@ -622,45 +754,33 @@ internal class ContinuousWindowController(
                         landingHoldTargetY = -1
                         landingHoldUntilUptimeMs = 0L
                         val wvSmooth = webViews.getOrNull(i)
-                        val densitySmooth = wvSmooth?.resources?.displayMetrics?.density ?: 1f
-                        val cssYSmooth = ((y - slot.top) / densitySmooth).toInt()
-                        if (wvSmooth != null && cssYSmooth > 0) {
-                            // JS viewport trick: temporarily make the document scrollable and set
-                            // documentElement.scrollTop = cssY so Chrome's tile-rasteriser
-                            // prioritises the reading position. window.scrollTo() is a no-op in
-                            // ReadiumCSS pages; scrollTop on the root element moves window.scrollY.
-                            // Wait for the paint callback (Chrome committed a frame at cssY), then
-                            // reveal and start the smooth-scroll animation. Both Chrome's internal
-                            // viewport and NestedScrollView point at the same content, so tiles are
-                            // already rasterized on reveal. Restore after animation starts to avoid
-                            // evicting the tile cache before the animation completes.
+                        if (wvSmooth != null) {
+                            // Same paint gate as the non-smooth path: the pre-scroll above slid
+                            // the target's rendering window under the viewport, so make the
+                            // container visible (still under the nav cover, which waits for
+                            // isFirstLoadComplete) and start the tail once Chromium has drawn
+                            // those rows — never before, or the tween starts on white.
                             var smoothRevealed = false
                             fun revealSmooth() {
                                 if (!smoothRevealed) {
                                     smoothRevealed = true
-                                    container.visibility = android.view.View.VISIBLE
                                     notifyFirstLoadCompleteOnce()
                                     port.smoothScrollTo(y)
                                 }
                             }
-                            wvSmooth.evaluateJavascript(preRasterScrollJs(cssYSmooth)) { _ ->
-                                wvSmooth.onCurrentContentPainted {
-                                    revealSmooth()
-                                    container.postDelayed({
-                                        wvSmooth.evaluateJavascript(
-                                            preRasterRestoreJs(),
-                                            null as ((String?) -> Unit)?,
-                                        )
-                                    }, 200L)
-                                }
+                            syncChapterWindows()
+                            container.visibility = android.view.View.VISIBLE
+                            port.postOnAnimation {
+                                wvSmooth.onCurrentContentPainted { revealSmooth() }
                             }
                             container.postDelayed({ revealSmooth() }, PAINTED_FALLBACK_MS)
                         } else {
-                            // Reveal and start the tween on the SAME animation frame. Previously
-                            // the reveal used `postOnAnimation` (next vsync) and smoothScrollTo
-                            // used `port.post` (next Handler drain — typically fires FIRST); the
-                            // tween began ~1 frame before the container became VISIBLE, so the
-                            // user saw a partial animation from wherever the scroll had advanced.
+                            // wvSmooth == null (WebView not yet attached): reveal and start the
+                            // tween on the SAME animation frame. Previously the reveal used
+                            // `postOnAnimation` (next vsync) and smoothScrollTo used `port.post`
+                            // (next Handler drain — typically fires FIRST); the tween began ~1 frame
+                            // before the container became VISIBLE, so the user saw a partial
+                            // animation from wherever the scroll had advanced.
                             port.postOnAnimation {
                                 container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
@@ -672,12 +792,9 @@ internal class ContinuousWindowController(
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                         if (isFirstLand) {
-                            container.visibility = android.view.View.VISIBLE
                             val wv = webViews.getOrNull(i)
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
-                                val density = wv.resources.displayMetrics.density
-                                val cssY = ((y - slot.top) / density).toInt()
                                 var spinnerDismissed = false
                                 fun dismissSpinner() {
                                     if (!spinnerDismissed) {
@@ -685,32 +802,19 @@ internal class ContinuousWindowController(
                                         notifyFirstLoadCompleteOnce()
                                     }
                                 }
-                                if (cssY > 0) {
-                                    // JS viewport trick: temporarily make the document scrollable
-                                    // and set documentElement.scrollTop = cssY so Chrome's tile-
-                                    // rasteriser prioritises the reading position before reveal.
-                                    // window.scrollTo() is a no-op in ReadiumCSS pages; scrollTop
-                                    // on the root element correctly moves window.scrollY.
-                                    wv.evaluateJavascript(preRasterScrollJs(cssY)) { _ ->
-                                        wv.onCurrentContentPainted {
-                                            dismissSpinner()
-                                            container.postDelayed({
-                                                wv.evaluateJavascript(
-                                                    preRasterRestoreJs(),
-                                                    null as ((String?) -> Unit)?,
-                                                )
-                                            }, 200L)
-                                        }
-                                    }
-                                } else {
-                                    port.postOnAnimation {
-                                        wv.onCurrentContentPainted { dismissSpinner() }
-                                    }
+                                // port.scrollTo(y) above already slid every chapter's rendering
+                                // window under the viewport (handleScrollChange →
+                                // syncChapterWindows), so Chromium is rasterising exactly the
+                                // rows about to be shown. Reveal, then lift the spinner once the
+                                // target chapter reports its first paint of that content.
+                                syncChapterWindows()
+                                container.visibility = android.view.View.VISIBLE
+                                port.postOnAnimation {
+                                    wv.onCurrentContentPainted { dismissSpinner() }
                                 }
-                                container.postDelayed({
-                                    dismissSpinner()
-                                }, PAINTED_FALLBACK_MS)
+                                container.postDelayed({ dismissSpinner() }, PAINTED_FALLBACK_MS)
                             } else {
+                                container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
                             }
                         } else {
@@ -951,13 +1055,17 @@ internal class ContinuousWindowController(
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
         clearLandingHold()
-        fun go(y: Int) {
-            val clamped = y.coerceAtLeast(0)
-            if (smooth) port.smoothScrollTo(clamped) else port.scrollTo(clamped)
-        }
         val wvIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
         if (wvIndex < 0) return
         val wv = webViews[wvIndex]
+        fun go(y: Int) {
+            val clamped = y.coerceAtLeast(0)
+            if (smooth) {
+                port.smoothScrollTo(clamped)
+            } else {
+                port.scrollTo(clamped)
+            }
+        }
 
         fun landOnAnchorOrProgression() {
             if (fragment.isNotEmpty()) {
@@ -1121,7 +1229,7 @@ internal class ContinuousWindowController(
                     measuredHeights[i] = measuredPx
                 }
                 publishViewportFraction(wv, measuredPx)
-                wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
+                applyChapterHeight(wv, measuredPx)
                 if (pendingInitialScroll == null && i == 0 && delta != 0 && (delta < 0 || port.currentScrollY >= oldHeight)) {
                     port.scrollBy(delta)
                 }
@@ -1188,9 +1296,10 @@ internal class ContinuousWindowController(
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
+        wv.onInternalScroll = { y -> onWebViewInternalScroll(wv, y) }
         webViews.add(wv)
         measuredHeights.add(placeholder)
-        container.addView(wv, LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
+        container.addView(newSlot(wv, placeholder), LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
 
@@ -1336,7 +1445,7 @@ internal class ContinuousWindowController(
                 // scrollY=42 704, got 2793 because content height was still 2337 px in layout).
                 prependAwaitingLayout = true
                 val myGeneration = ++prependLayoutGeneration
-                wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
+                applyChapterHeight(wv, measuredPx)
                 wv.doOnNextLayout {
                     // Stale-callback guard: if removeTop() evicted this wv and a new prependChapter
                     // reused it, the generation will have advanced past myGeneration. Abort so the
@@ -1362,9 +1471,10 @@ internal class ContinuousWindowController(
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
+        wv.onInternalScroll = { y -> onWebViewInternalScroll(wv, y) }
         webViews.add(0, wv)
         measuredHeights.add(0, placeholder)
-        container.addView(wv, 0, LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
+        container.addView(newSlot(wv, placeholder), 0, LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
         port.scrollBy(placeholder)
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
@@ -1381,17 +1491,24 @@ internal class ContinuousWindowController(
         releasePaintGate()
         val h = measuredHeights.removeAt(0)
         val wv = webViews.removeAt(0)
-        container.removeView(wv)
+        detachFromSlot(wv)
         recycle(wv)
         port.scrollBy(-h)
         topIndex++
+    }
+
+    /** Remove [wv]'s slot from [container] and free [wv] from the slot so it can be pooled. */
+    private fun detachFromSlot(wv: ChapterWebView) {
+        val slot = slotOf(wv)
+        container.removeView(slot)
+        slot.removeView(wv)
     }
 
     private fun removeBottom() {
         if (webViews.isEmpty()) return
         measuredHeights.removeAt(measuredHeights.lastIndex)
         val wv = webViews.removeAt(webViews.lastIndex)
-        container.removeView(wv)
+        detachFromSlot(wv)
         recycle(wv)
     }
 
@@ -1401,6 +1518,7 @@ internal class ContinuousWindowController(
      * re-entrantly inside [android.widget.OverScroller]'s computeScroll.
      */
     fun handleScrollChange(scrollY: Int) {
+        syncChapterWindows()
         if (shiftInProgress) return
         val window = buildWindow()
         if (window.isEmpty()) return

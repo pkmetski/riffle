@@ -136,6 +136,31 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      */
     override var onSelectionActiveChanged: ((active: Boolean) -> Unit)? = null
 
+    /**
+     * Offset (device px) of this WebView's rendering window inside its chapter's content, owned by
+     * [ContinuousWindowController]. The view is laid out at most a couple of viewports tall (see
+     * [ContinuousPositionTracker.chapterWebViewHeight]), translated down by this amount inside a
+     * full-content-height slot, and scrolled internally to the same value, so the slice of the
+     * chapter it renders is exactly the slice under the reader's viewport.
+     */
+    internal var windowOffsetPx: Int = 0
+
+    /**
+     * Fired from [onScrollChanged] with the new internal scroll Y whenever Chromium moves this
+     * WebView's own scroll offset — a selection-handle drag past the edge, a focus scroll, a
+     * `window.find` the injector failed to undo. The controller folds such unmanaged moves into
+     * the outer scroll so the window stays coherent with the slot.
+     */
+    internal var onInternalScroll: ((scrollY: Int) -> Unit)? = null
+
+    override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
+        super.onScrollChanged(l, t, oldl, oldt)
+        if (t != oldt) onInternalScroll?.invoke(t)
+    }
+
+    /** Chromium's current maximum internal scroll Y (content height minus view height, floor 0). */
+    internal fun internalMaxScrollY(): Int = (computeVerticalScrollRange() - height).coerceAtLeast(0)
+
     /** When true, the text-selection menu offers "Highlight" (books with annotations UI). */
     override var annotationsAvailable: Boolean = false
 
@@ -659,9 +684,11 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * selection's bounding rect in device pixels relative to this WebView, and ~60 chars of
      * document-text on each side of the selection, then run [block].
      *
-     * progression = selectionTop / documentHeight — correct in Continuous mode because the WebView
-     * never scrolls (pageYOffset=0), so getBoundingClientRect().top equals the absolute document
-     * position. The rect is CSS px × devicePixelRatio so it composes with [getLocationOnScreen].
+     * progression = (selectionTop + pageYOffset) / documentHeight. In Continuous mode this WebView
+     * is a sliding window with a non-zero internal scroll ([windowOffsetPx]), so the viewport-
+     * relative getBoundingClientRect().top must be made document-relative before dividing. The
+     * rect stays viewport-relative (CSS px × devicePixelRatio) so it composes with
+     * [getLocationOnScreen], which already includes the window's translation.
      *
      * The before/after context strings come from Range.toString() bracketing the selection — same
      * representation as TreeWalker.nodeValue concatenation, so render-time disambiguation can

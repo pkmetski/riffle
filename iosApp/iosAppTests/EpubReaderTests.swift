@@ -147,14 +147,21 @@ final class EpubReaderTests: XCTestCase {
 
     // MARK: - Continuous mode mid-chapter landing (iOS parity for Android blank-area fix)
     //
-    // Android's ContinuousWindowController gates `container.visibility = VISIBLE` on
-    // `ChapterWebView.onCurrentContentPainted` (Chromium's visual-state callback) to prevent a
-    // blank white gap when the initial scroll lands mid-chapter before tiles are rasterized.
+    // Android's Continuous mode stacks one WebView per chapter inside a scroll container. Laid
+    // out at full content height those views could not be drawn past the GPU's maximum texture
+    // height (16 384 px), so a saved position deep in a long chapter opened onto a blank screen.
+    // Android pins the fix with `ContinuousPositionTrackerTest` (chapterWebViewHeight cap,
+    // chapterWebViewWindowOffset slide/park rules, internalScrollCorrection) and the harness
+    // tests `firstRevealGatedOnPaintCallbackNotAnimationFrame` /
+    // `timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY` (paint-gated reveal, capped WebView
+    // inside a full-height slot).
     //
-    // iOS uses Readium's own WKWebView scroll navigator — there is no stacked-WebView
-    // architecture and no Chromium tile rasterization step. The functional guarantee on iOS is
-    // that the bridge correctly records the mid-chapter locator so the screen can show the
-    // right position after loading. This test pins that guarantee.
+    // Verified absent on iOS (2026-09-25): Continuous mode here is Readium-Swift's single,
+    // viewport-sized WKWebView with internal scrolling (see `IosEpubReaderScreen` and
+    // `ReadiumSwiftNavigator`) — no stacked full-height WebView exists, so neither the raster cap
+    // nor the window-sync logic has an iOS analogue. The functional guarantee on iOS is that the
+    // bridge correctly records the mid-chapter locator so the screen can show the right position
+    // after loading. This test pins that guarantee as the iOS counterpart.
 
     func testBridgeRetainsMidChapterProgressionLocator() {
         // Simulate the locator update Readium emits when the navigator lands mid-chapter

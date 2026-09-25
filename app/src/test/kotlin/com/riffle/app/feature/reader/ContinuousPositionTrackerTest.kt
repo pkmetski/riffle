@@ -1049,4 +1049,215 @@ class ContinuousPositionTrackerTest {
             ),
         )
     }
+
+    // ---- chapter WebView window (raster cap) ---------------------------------------------------
+    // Regression for the 2026-09-25 blank-screen-on-open bug: a chapter WebView laid out at its
+    // full 148 529 px content height renders only its first 16 384 rows (GPU max texture height),
+    // so a saved position at 97 % of the chapter showed solid white. If the cap is reverted
+    // (height == content height) every assertion in this block fails.
+
+    @Test
+    fun `chapterWebViewHeight caps a tall chapter at three viewports`() {
+        assertEquals(
+            7200,
+            ContinuousPositionTracker.chapterWebViewHeight(
+                contentHeightPx = 148_529, viewportHeightPx = 2400, maxRenderableHeightPx = 16_384,
+            ),
+        )
+    }
+
+    @Test
+    fun `chapterWebViewHeight never exceeds the GPU renderable maximum`() {
+        // 3.5x-density phone: three viewports (7 500 px) would exceed a 4 096 px texture limit.
+        assertEquals(
+            4096,
+            ContinuousPositionTracker.chapterWebViewHeight(
+                contentHeightPx = 500_000, viewportHeightPx = 2500, maxRenderableHeightPx = 4096,
+            ),
+        )
+    }
+
+    @Test
+    fun `chapterWebViewHeight keeps short chapters at their exact content height`() {
+        assertEquals(
+            1313,
+            ContinuousPositionTracker.chapterWebViewHeight(
+                contentHeightPx = 1313, viewportHeightPx = 2400, maxRenderableHeightPx = 16_384,
+            ),
+        )
+    }
+
+    @Test
+    fun `chapterWebViewHeight is at least one viewport even when the GPU maximum is smaller`() {
+        assertEquals(
+            2400,
+            ContinuousPositionTracker.chapterWebViewHeight(
+                contentHeightPx = 50_000, viewportHeightPx = 2400, maxRenderableHeightPx = 2048,
+            ),
+        )
+    }
+
+    @Test
+    fun `window offset centres the window on a mid-chapter landing`() {
+        // ch01 slot at 38 444, content 148 529, window 7 200; the reader lands at 97 % (viewport
+        // top 145 298 px into the chapter). The window parked at 0 renders nothing there.
+        val offset = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 38_444, contentHeightPx = 148_529, webViewHeightPx = 7200,
+            currentOffsetPx = 0, scrollY = 183_742, viewportHeightPx = 2400,
+        )
+        // band = [145 298, 147 698]; centred window would start at 145 298 − 2 400 = 142 898,
+        // clamped to the last window that still ends inside the content: 148 529 − 7 200 = 141 329.
+        assertEquals(141_329, offset)
+    }
+
+    @Test
+    fun `window slides with the outer scroll frame by frame instead of stepping`() {
+        // Regression for the 2026-09-25 jitter: a window that only moved once the band left it
+        // stepped by ~600 px, and because the View translation lands a frame before Chromium's
+        // internal scroll, every step showed the content displaced by that much for one frame.
+        // Sliding keeps the displacement equal to one frame's scroll delta on every frame.
+        val base = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 0, contentHeightPx = 100_000, webViewHeightPx = 7200,
+            currentOffsetPx = 0, scrollY = 50_000, viewportHeightPx = 2400,
+        )
+        assertEquals(50_000 - 2400, base)
+        val next = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 0, contentHeightPx = 100_000, webViewHeightPx = 7200,
+            currentOffsetPx = base!!, scrollY = 50_028, viewportHeightPx = 2400,
+        )
+        assertEquals(base + 28, next)
+    }
+
+    @Test
+    fun `window offset is null when the outer scroll did not move`() {
+        assertNull(
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 0, contentHeightPx = 100_000, webViewHeightPx = 7200,
+                currentOffsetPx = 47_600, scrollY = 50_000, viewportHeightPx = 2400,
+            ),
+        )
+    }
+
+    @Test
+    fun `window offset clamps to the start and end of the content`() {
+        // Near the chapter start the window parks at 0 (no lag exactly where the previous chapter
+        // is on screen next to it)…
+        assertEquals(
+            0,
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 10_000, contentHeightPx = 100_000, webViewHeightPx = 7200,
+                currentOffsetPx = 500, scrollY = 11_000, viewportHeightPx = 2400,
+            ),
+        )
+        // …and near the chapter end it parks at content − window.
+        assertEquals(
+            5200,
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 0, contentHeightPx = 10_000, webViewHeightPx = 4800,
+                currentOffsetPx = 0, scrollY = 7_000, viewportHeightPx = 2400,
+            ),
+        )
+    }
+
+    @Test
+    fun `a chapter below the viewport parks its window at its top`() {
+        // Slot starts 30 000 px below the current viewport; a stale mid-chapter offset must reset
+        // so the first screen of the chapter is rasterised before the reader scrolls into it.
+        assertEquals(
+            0,
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 40_000, contentHeightPx = 60_000, webViewHeightPx = 4800,
+                currentOffsetPx = 20_000, scrollY = 7_600, viewportHeightPx = 2400,
+            ),
+        )
+        assertNull(
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 40_000, contentHeightPx = 60_000, webViewHeightPx = 4800,
+                currentOffsetPx = 0, scrollY = 7_600, viewportHeightPx = 2400,
+            ),
+        )
+    }
+
+    @Test
+    fun `a chapter above the viewport parks its window at its bottom`() {
+        assertEquals(
+            55_200,
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 0, contentHeightPx = 60_000, webViewHeightPx = 4800,
+                currentOffsetPx = 0, scrollY = 70_000, viewportHeightPx = 2400,
+            ),
+        )
+    }
+
+    @Test
+    fun `a chapter shorter than its window never needs an offset`() {
+        assertNull(
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 0, contentHeightPx = 1313, webViewHeightPx = 1313,
+                currentOffsetPx = 0, scrollY = 500, viewportHeightPx = 2400,
+            ),
+        )
+        // …and a stale offset on a recycled view is reset to 0.
+        assertEquals(
+            0,
+            ContinuousPositionTracker.chapterWebViewWindowOffset(
+                slotTop = 0, contentHeightPx = 1313, webViewHeightPx = 1313,
+                currentOffsetPx = 900, scrollY = 500, viewportHeightPx = 2400,
+            ),
+        )
+    }
+
+    // ---- internal scroll correction -----------------------------------------------------------
+
+    @Test
+    fun `internal scroll in sync needs no correction`() {
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_600, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+    }
+
+    @Test
+    fun `sub-CSS-px rounding from Chromium is adopted not fought`() {
+        // Chromium reports 47 598 for a wanted 47 600 (one CSS px at 2.625 dpr rounds to 3 px).
+        // Re-asserting 47 600 every frame would ping-pong; the translation follows instead.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_598, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_603, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+    }
+
+    @Test
+    fun `an unmanaged internal scroll is folded into the outer scroll`() {
+        // A selection-handle drag past the edge scrolled the WebView 400 px on its own. Snapping
+        // it back would fight Chromium every frame; the outer view scrolls by 400 px instead.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 48_000, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+    }
+
+    @Test
+    fun `a clamp caused by content too short for the managed offset is left alone`() {
+        // Mid-reflow (font size change) the renderer can only scroll to 30 000; asserting 47 600
+        // would be clamped again every frame. Leave it — the height re-measure re-syncs.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 30_000, wantedPx = 47_600, density = 2.625f, maxScrollPx = 30_000,
+            ),
+        )
+    }
 }

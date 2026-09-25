@@ -323,11 +323,18 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /**
      * Test seam — see [ContinuousWindowController.firstRevealGatedOnPaint].
      * The assertion that would fail if the fix is reverted: `firstRevealGatedOnPaint` stays false
-     * because the reveal uses `postOnAnimation` instead of `onCurrentContentPainted`.
+     * because the reveal uses `postOnAnimation` (immediate) instead of a deliberate delay.
      */
     @androidx.annotation.VisibleForTesting
     internal val firstRevealGatedOnPaint: Boolean
         get() = controller.firstRevealGatedOnPaint
+
+    /**
+     * Test entry point — see [ContinuousWindowController.openWindowAtNonSmoothForTest].
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun openWindowAtNonSmoothForTest(href: String, progression: Float) =
+        controller.openWindowAtNonSmoothForTest(href, progression)
 
     /**
      * Decline to be a nested-scrolling parent for child [ChapterWebView]s. See historical comment
@@ -384,6 +391,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun computeScroll() {
         super.computeScroll()
         controller.tickLandingHold()
+    }
+
+    /**
+     * Learn the GPU's maximum renderable height from the first hardware draw. A WebView taller
+     * than this renders only its first rows (see [ContinuousPositionTracker.chapterWebViewHeight]);
+     * the controller caps every chapter WebView below it.
+     */
+    override fun dispatchDraw(canvas: android.graphics.Canvas) {
+        if (canvas.isHardwareAccelerated) controller.maxRenderableHeightPx = canvas.maximumBitmapHeight
+        super.dispatchDraw(canvas)
     }
 
     /**

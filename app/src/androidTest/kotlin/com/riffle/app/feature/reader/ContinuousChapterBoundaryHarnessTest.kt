@@ -233,10 +233,12 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
      * position inside a long chapter, Chromium has not yet rasterized tiles at that position.
      * Making the container visible before rasterization completes causes a blank white gap.
      *
-     * The fix gates `container.visibility = VISIBLE` on [ChapterWebView.onCurrentContentPainted]
-     * (Chromium's visual-state callback) instead of on the next animation frame. The specific
-     * assertion that fails if the fix is reverted: `firstRevealGatedOnPaint` stays false because
-     * the old `postOnAnimation { container.visibility = VISIBLE }` path never sets the flag.
+     * The fix gates the container reveal on the target chapter's first paint (with a
+     * [PAINTED_FALLBACK_MS] safety net). The specific assertion that fails if the fix is reverted:
+     * `firstRevealGatedOnPaint` stays false because the old immediate-reveal path never sets it.
+     *
+     * See also [timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY] which pins the same
+     * timed-reveal guarantee for the non-smooth (saved-position) open path.
      */
     @Test
     fun firstRevealGatedOnPaintCallbackNotAnimationFrame() {
@@ -271,11 +273,95 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         var gated = false
         composeTestRule.activityRule.scenario.onActivity { gated = reader.firstRevealGatedOnPaint }
         assertTrue(
-            "container reveal must be gated on Chromium's visual-state callback " +
-                "(onCurrentContentPainted), not on the next animation frame; if false, the " +
-                "reader would appear before tiles at the scroll position are rasterized, " +
-                "producing the blank white gap reported in the field",
+            "spinner removal must be gated on the target chapter's first paint, " +
+                "not fired on the next animation frame; if false, the reader would appear before " +
+                "Chrome has rasterized tiles at the scroll position, producing the blank white gap",
             gated,
+        )
+    }
+
+    /**
+     * Regression for the blank-screen-on-open bug: when the initial non-smooth landing lands at
+     * cssY > 0 (a book opened at a saved mid-chapter reading position), the spinner overlay must
+     * stay up until the target chapter reports its first paint of the landing rows (or the
+     * [ContinuousWindowController.PAINTED_FALLBACK_MS] safety net fires). The
+     * [ContinuousWindowController.firstRevealGatedOnPaint] flag is the assertion handle — it is
+     * set to true whenever the paint-gated reveal path is taken, regardless of cssY.
+     *
+     * Assertion that fails if the fix is reverted (immediate reveal replaces the gated path):
+     * `firstRevealGatedOnPaint` stays false because the gated branch is never entered.
+     *
+     * (Earlier versions of this test asserted a View.GONE strategy for non-target WebViews. That
+     * strategy addressed a symptom: the real cause of the blank landing was the chapter WebView
+     * being laid out at its full content height, which the GPU cannot render past its maximum
+     * texture height — see [ContinuousPositionTracker.chapterWebViewHeight].)
+     */
+    @Test
+    fun timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY() {
+        addServerAndBrowseLibrary()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.assertNoErrorState()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            findContinuousReader()?.isFirstLoadComplete?.value == true
+        }
+        val reader = requireNotNull(findContinuousReader()) { "continuous reader view was not mounted" }
+
+        // Simulate reopening at a mid-chapter saved position (non-smooth, cssY > 0). This is
+        // exactly the path taken when a book is opened from the library with saved reading progress.
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.openWindowAtNonSmoothForTest("OEBPS/ch06.html", progression = 0.5f)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
+
+        var gated = false
+        composeTestRule.activityRule.scenario.onActivity {
+            gated = reader.firstRevealGatedOnPaint
+        }
+        assertTrue(
+            "spinner removal must wait for the target chapter's first paint (or the " +
+                "PAINTED_FALLBACK_MS safety net) for cssY > 0 landings; if false, the container " +
+                "reveal fires before Chrome has rasterised tiles at the reading position",
+            gated,
+        )
+
+        // The actual fix: the tallest loaded chapter's WebView must be capped to a renderable
+        // window while its slot carries the full content height. Reverting applyChapterHeight to
+        // `wv.layoutParams.height = measuredPx` makes the WebView as tall as the slot and the
+        // first assertion fails (the fixture has chapters taller than three viewports — see the
+        // `> reader.height * 3` measurement in the backward-fling test).
+        var tallestWebViewH = -1
+        var tallestSlotH = -1
+        var viewportH = 0
+        composeTestRule.activityRule.scenario.onActivity {
+            val tallest = loadedWebViews(reader).maxByOrNull { it.slot.height }
+            tallestWebViewH = tallest?.height ?: -1
+            tallestSlotH = tallest?.slot?.height ?: -1
+            viewportH = reader.height
+        }
+        assertTrue(
+            "the tallest loaded chapter must be taller than the WebView window " +
+                "(slot=$tallestSlotH, viewport=$viewportH) for this assertion to be meaningful",
+            tallestSlotH > viewportH * ContinuousPositionTracker.WEBVIEW_WINDOW_VIEWPORTS,
+        )
+        assertTrue(
+            "a chapter WebView must be capped to at most WEBVIEW_WINDOW_VIEWPORTS viewports " +
+                "(wv=$tallestWebViewH, slot=$tallestSlotH, viewport=$viewportH); a WebView laid " +
+                "out at full content height cannot be drawn past the GPU max texture height and " +
+                "the reading position renders blank",
+            tallestWebViewH in 1..(viewportH * ContinuousPositionTracker.WEBVIEW_WINDOW_VIEWPORTS),
         )
     }
 
@@ -349,7 +435,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         var ch10Height = 0
         composeTestRule.activityRule.scenario.onActivity {
             ch10Height = loadedWebViews(reader)
-                .firstOrNull { it.url?.endsWith("ch10.html") == true }?.height ?: 0
+                .firstOrNull { it.url?.endsWith("ch10.html") == true }?.slot?.height ?: 0
         }
         assertTrue("premise broken: ch10 not loaded/measured before the fling", ch10Height > 10_000)
         dispatchFlingSwipeBackward(reader)
@@ -360,7 +446,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         var viewportH = 0
         composeTestRule.activityRule.scenario.onActivity {
             boundaryTop = loadedWebViews(reader)
-                .firstOrNull { it.url?.endsWith("pt03.html") == true }?.top ?: -1
+                .firstOrNull { it.url?.endsWith("pt03.html") == true }?.slot?.top ?: -1
             scrollYNow = reader.scrollY
             viewportH = reader.height
         }
@@ -390,8 +476,18 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
 
     private fun loadedWebViews(reader: ContinuousReaderView): List<WebView> {
         val container = reader.getChildAt(0) as? ViewGroup ?: return emptyList()
-        return (0 until container.childCount).mapNotNull { container.getChildAt(it) as? WebView }
+        // Each container child is a chapter SLOT (full content height) hosting the capped WebView.
+        return (0 until container.childCount).mapNotNull { i ->
+            val child = container.getChildAt(i)
+            child as? WebView ?: (child as? ViewGroup)?.let { slot ->
+                (0 until slot.childCount).map(slot::getChildAt).firstOrNull { it is WebView } as? WebView
+            }
+        }
     }
+
+    /** The chapter slot that positions [wv] in the container: chapter-level top/height live here,
+     *  not on the WebView, which is capped to a renderable window inside it. */
+    private val WebView.slot: android.view.View get() = parent as android.view.View
 
     private fun loadedChapterHrefs(reader: ContinuousReaderView): List<String> {
         var result = emptyList<String>()
@@ -435,7 +531,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
             var diag = ""
             composeTestRule.activityRule.scenario.onActivity {
                 diag = loadedWebViews(reader).joinToString(prefix = "[", postfix = "]") {
-                    "${it.url?.substringAfterLast('/')}:h=${it.height}:top=${it.top}"
+                    "${it.url?.substringAfterLast('/')}:h=${it.slot.height}:top=${it.slot.top}"
                 } + " scrollY=${reader.scrollY} vh=${reader.height} firstLoad=${reader.isFirstLoadComplete.value}"
             }
             throw AssertionError("swipeFromNearEndInto: nav to $fromHref@0.9 never landed; $diag")
@@ -457,7 +553,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
             var diag = ""
             composeTestRule.activityRule.scenario.onActivity {
                 diag = loadedWebViews(reader).joinToString(prefix = "[", postfix = "]") {
-                    "${it.url?.substringAfterLast('/')}:h=${it.height}:top=${it.top}"
+                    "${it.url?.substringAfterLast('/')}:h=${it.slot.height}:top=${it.slot.top}"
                 } + " scrollY=${reader.scrollY} vh=${reader.height}"
             }
             org.junit.Assert.fail("expected $toHref to remain reachable; window=$diag")
@@ -596,8 +692,10 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         while (!prevMeasured && android.os.SystemClock.uptimeMillis() < measureDeadline) {
             composeTestRule.waitForIdle()
             composeTestRule.activityRule.scenario.onActivity {
+                // The WebView itself is capped to a renderable window; its parent slot carries the
+                // chapter's full measured height (see ContinuousPositionTracker.chapterWebViewHeight).
                 prevMeasured = loadedWebViews(reader).any { wv ->
-                    wv.url?.endsWith(prevHref) == true && wv.height > reader.height * 3
+                    wv.url?.endsWith(prevHref) == true && wv.slot.height > reader.height * 3
                 }
             }
             if (!prevMeasured) Thread.sleep(200)
@@ -606,7 +704,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
             var diag = ""
             composeTestRule.activityRule.scenario.onActivity {
                 diag = loadedWebViews(reader).joinToString(prefix = "[", postfix = "]") {
-                    "${it.url?.substringAfterLast('/')}:h=${it.height}:top=${it.top}"
+                    "${it.url?.substringAfterLast('/')}:h=${it.slot.height}:top=${it.slot.top}"
                 } + " scrollY=${reader.scrollY} vh=${reader.height} " +
                     "intent=${reader.hasPendingBackwardNavigationIntent}"
             }
@@ -619,7 +717,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         var viewportH = 0
         composeTestRule.activityRule.scenario.onActivity {
             boundaryTop = loadedWebViews(reader)
-                .firstOrNull { it.url?.endsWith(boundaryHref) == true }?.top ?: -1
+                .firstOrNull { it.url?.endsWith(boundaryHref) == true }?.slot?.top ?: -1
             scrollYNow = reader.scrollY
             viewportH = reader.height
         }
@@ -639,7 +737,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         composeTestRule.activityRule.scenario.onActivity {
             val midpoint = reader.scrollY + reader.height / 2
             currentHref = loadedWebViews(reader)
-                .firstOrNull { midpoint >= it.top && midpoint < it.bottom }
+                .firstOrNull { midpoint >= it.slot.top && midpoint < it.slot.bottom }
                 ?.url
                 ?.substringAfter("https://readium_package/")
         }

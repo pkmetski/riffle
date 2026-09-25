@@ -385,6 +385,11 @@ internal object ContinuousStyleInjector {
                         r0.collapse(true);
                         if (sel) { sel.removeAllRanges(); sel.addRange(r0); }
                     } catch(e) { return; }
+                    // window.find scrolls each hit into view. The chapter WebView is a
+                    // viewport-sized window that ContinuousWindowController keeps in sync with
+                    // the outer scroll (its internal scroll is NOT 0), so restore the offset
+                    // after the sweep or the reader would jump to the last match.
+                    var savedScrollY = window.pageYOffset || 0;
                     var limit = 500;
                     // Track the previous match's flat-text position. window.find resumes from the
                     // current selection, but if the skip-advance somehow leaves the selection on the
@@ -426,6 +431,7 @@ internal object ContinuousStyleInjector {
                         advance.setStartAfter(mark); advance.collapse(true);
                         sel.removeAllRanges(); sel.addRange(advance);
                     }
+                    window.scrollTo(0, savedScrollY);
                 });
                 if (activeT && activeProg >= 0) {
                     var docH = Math.max(
@@ -811,7 +817,12 @@ internal object ContinuousStyleInjector {
                     } catch(e) {}
                     sentinel.parentNode.removeChild(sentinel);
                 }
-                if (!window.find('$safe', false, false, false, false, false, false)) return;
+                // window.find scrolls the hit into view; the continuous chapter WebView keeps a
+                // managed internal scroll offset, so put it back once the range is captured.
+                var savedScrollY = window.pageYOffset || 0;
+                var found = window.find('$safe', false, false, false, false, false, false);
+                window.scrollTo(0, savedScrollY);
+                if (!found) return;
                 sel = window.getSelection();
                 if (!sel || sel.rangeCount === 0) return;
                 var range = sel.getRangeAt(0);

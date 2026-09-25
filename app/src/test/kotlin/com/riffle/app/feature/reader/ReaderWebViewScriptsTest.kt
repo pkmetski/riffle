@@ -412,7 +412,12 @@ class ReaderWebViewScriptsTest {
         assertTrue("writes __riffleSelData", js.contains("window.__riffleSelData ="))
         // Every field CONTINUOUS_SELECTION_READ_JS reads from the stash must be written here.
         assertTrue("stashes selected text", js.contains("text: text"))
-        assertTrue("stashes within-chapter progression as `p`", js.contains("p: Math.max(0, Math.min(1, br2.top / docH))"))
+        // Document-relative: the continuous ChapterWebView is a sliding window with a non-zero
+        // internal scroll, so a viewport-relative rect.top alone would under-report the position.
+        assertTrue(
+            "stashes within-chapter progression as `p` from the document-relative rect top",
+            js.contains("p: Math.max(0, Math.min(1, (br2.top + (window.pageYOffset || 0)) / docH))"),
+        )
         assertTrue("stashes range rect (l/t/r/b)", js.contains("l: br2.left, t: br2.top, r: br2.right, b: br2.bottom"))
         assertTrue("stashes before/after context (bef/aft)", js.contains("bef: bef, aft: aft"))
     }
@@ -806,34 +811,4 @@ class ReaderWebViewScriptsTest {
         )
     }
 
-    // preRasterScrollJs must use documentElement.scrollTop to move Chrome's internal viewport,
-    // NOT window.scrollTo(). window.scrollTo() is a no-op in ReadiumCSS pages (confirmed on
-    // Android 17 / Chrome 137): window.scrollY stays 0 after the call. documentElement.scrollTop
-    // correctly moves window.scrollY to the target cssY and directs Chrome's tile rasteriser to
-    // the reading position before the container is revealed.
-    @Test
-    fun `preRasterScrollJs uses scrollTop assignment not window scrollTo`() {
-        val js = ContinuousWindowController.preRasterScrollJs(50859)
-        assertTrue("sets scrollTop on documentElement", js.contains("documentElement.scrollTop=50859"))
-        assertFalse("must not use window.scrollTo (no-op in ReadiumCSS pages)", js.contains("window.scrollTo"))
-    }
-
-    @Test
-    fun `preRasterScrollJs embeds the cssY value verbatim`() {
-        assertEquals(
-            ContinuousWindowController.preRasterScrollJs(1234).contains("scrollTop=1234"),
-            true,
-        )
-    }
-
-    // preRasterRestoreJs must reset scrollTop to 0 so Chrome's layout returns to normal after
-    // the reveal animation completes. Forgetting the reset leaves Chrome's internal viewport
-    // offset from the NestedScrollView's coordinate system.
-    @Test
-    fun `preRasterRestoreJs resets scrollTop to zero`() {
-        val js = ContinuousWindowController.preRasterRestoreJs()
-        assertTrue("resets documentElement.scrollTop", js.contains("documentElement.scrollTop=0"))
-        assertTrue("restores overflowY on documentElement", js.contains("documentElement.style.overflowY=''"))
-        assertTrue("restores overflowY on body", js.contains("body.style.overflowY=''"))
-    }
 }

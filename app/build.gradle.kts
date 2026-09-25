@@ -88,6 +88,7 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             buildConfigField("String", "DEV_SERVER_URL", "\"${localProps.getProperty("dev.serverUrl", "")}\"")
             buildConfigField("String", "DEV_USERNAME",   "\"${localProps.getProperty("dev.username", "")}\"")
             buildConfigField("String", "DEV_PASSWORD",   "\"${localProps.getProperty("dev.password", "")}\"")
