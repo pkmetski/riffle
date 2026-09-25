@@ -85,7 +85,7 @@ final class EpubReaderTests: XCTestCase {
             receivedX = x
             receivedViewWidth = viewWidth
         }
-        bridge.simulateTapAt(x: 42, y: 200, viewWidth: 375, viewHeight: 812)
+        bridge.simulateTapAt(tapX: 42, tapY: 200, viewWidth: 375, viewHeight: 812)
         XCTAssertEqual(receivedX, 42)
         XCTAssertEqual(receivedViewWidth, 375)
     }

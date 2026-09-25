@@ -530,8 +530,8 @@ extension ReadiumEpubNavigatorBridge {
     /// Simulate a center tap (x=50%, y=50%) with a 360×800 view — lands in the immersive-toggle
     /// zone, not an edge zone. Pass explicit values via [simulateTapAt] for edge-zone tests.
     @objc func simulateTap() { tapCallback?(180, 400, 360, 800) }
-    func simulateTapAt(x: Float, y: Float, viewWidth: Float, viewHeight: Float) {
-        tapCallback?(x, y, viewWidth, viewHeight)
+    func simulateTapAt(tapX: Float, tapY: Float, viewWidth: Float, viewHeight: Float) {
+        tapCallback?(tapX, tapY, viewWidth, viewHeight)
     }
     @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
