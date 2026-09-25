@@ -60,6 +60,7 @@ import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.ui.ChapterNavigationRail
 import com.riffle.feature.reader.ui.chapterRailProgressPercent
@@ -176,7 +177,7 @@ fun PdfReaderScreen(
                     CircularProgressIndicator(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .testTag("reader_loading"),
+                            .testTag(TestTags.READER_LOADING),
                     )
                 }
                 // Prefs haven't propagated to effectiveFormattingPreferences yet — keep the
@@ -186,7 +187,7 @@ fun PdfReaderScreen(
                     CircularProgressIndicator(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .testTag("reader_loading"),
+                            .testTag(TestTags.READER_LOADING),
                     )
                 } else {
                     PdfNavigatorView(
@@ -202,7 +203,7 @@ fun PdfReaderScreen(
                         latestLocator = { viewModel.latestLocator },
                         modifier = Modifier
                             .fillMaxSize()
-                            .testTag("reader_ready")
+                            .testTag(TestTags.READER_READY)
                             .semantics {
                                 contentDescription = buildString {
                                     append(currentPage?.let { "page:$it" } ?: "")
@@ -253,7 +254,7 @@ fun PdfReaderScreen(
                         s.message,
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .testTag("reader_error_state"),
+                            .testTag(TestTags.READER_ERROR_STATE),
                     )
                 }
             }
@@ -268,7 +269,10 @@ fun PdfReaderScreen(
             TopAppBar(
                 title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.PDF_READER_BACK),
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
@@ -276,19 +280,19 @@ fun PdfReaderScreen(
                     if (state is ReaderState.Ready) {
                         IconButton(
                             onClick = viewModel::openToc,
-                            modifier = Modifier.testTag("pdf_open_toc"),
+                            modifier = Modifier.testTag(TestTags.PDF_READER_TOC),
                         ) {
                             Icon(Icons.AutoMirrored.Filled.List, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents))
                         }
                         IconButton(
                             onClick = viewModel::openAnnotationsPanel,
-                            modifier = Modifier.testTag("pdf_open_annotations"),
+                            modifier = Modifier.testTag(TestTags.PDF_READER_ANNOTATIONS),
                         ) {
                             Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations))
                         }
                         IconButton(
                             onClick = { showFormattingPanel = true },
-                            modifier = Modifier.testTag("pdf_open_formatting"),
+                            modifier = Modifier.testTag(TestTags.PDF_READER_SETTINGS),
                         ) {
                             Text(
                                 "Aa",

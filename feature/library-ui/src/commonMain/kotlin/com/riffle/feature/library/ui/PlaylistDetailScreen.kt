@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.PlaylistDetailViewModel
 
 /**
@@ -104,7 +105,7 @@ fun PlaylistDetailScreen(
             item(key = "__play_header") {
                 Button(
                     onClick = { state.items.firstOrNull()?.let(onPlayItem) },
-                    modifier = Modifier.fillMaxWidth().testTag("playlist-play"),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.PLAYLIST_PLAY),
                 ) {
                     Icon(LibraryUiGlyphs.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
@@ -122,7 +123,7 @@ fun PlaylistDetailScreen(
                     }
                     IconButton(
                         onClick = { viewModel.removeItem(item.id) },
-                        modifier = Modifier.testTag("playlist-remove-${item.id}"),
+                        modifier = Modifier.testTag(TestTags.playlistRemove(item.id)),
                     ) {
                         Icon(
                             LibraryUiGlyphs.RemoveCircleOutline,
@@ -148,7 +149,7 @@ fun PlaylistItemRow(item: LibraryItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("playlist-item-${item.id}")
+            .testTag(TestTags.playlistItem(item.id))
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

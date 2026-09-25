@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.player.PlaybackSpeed
 import kotlin.math.abs
@@ -106,7 +107,7 @@ private fun SpeedSheet(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(48.dp).testTag("${tagPrefix}_speed_minus"),
+                    modifier = Modifier.size(48.dp).testTag(TestTags.playerSpeedMinus(tagPrefix)),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text("−", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Light)
@@ -117,14 +118,14 @@ private fun SpeedSheet(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.testTag("${tagPrefix}_speed_display"),
+                    modifier = Modifier.testTag(TestTags.playerSpeedDisplay(tagPrefix)),
                 )
                 Surface(
                     onClick = { onSpeedChange(PlaybackSpeed.snap(speed + PlaybackSpeed.STEP)) },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(48.dp).testTag("${tagPrefix}_speed_plus"),
+                    modifier = Modifier.size(48.dp).testTag(TestTags.playerSpeedPlus(tagPrefix)),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text("+", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Light)
@@ -178,7 +179,7 @@ private fun SpeedPresetButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.testTag("${tagPrefix}_speed_preset_$label"),
+        modifier = modifier.testTag(TestTags.playerSpeedPreset(tagPrefix, label)),
         shape = RoundedCornerShape(50),
         border = if (selected) {
             BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)

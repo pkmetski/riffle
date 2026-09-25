@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AudiobookChapter
@@ -82,7 +83,7 @@ fun PlayerListSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                .testTag("player_list_sheet_title"),
+                .testTag(TestTags.PLAYER_LIST_SHEET_TITLE),
         )
 
         when (content) {

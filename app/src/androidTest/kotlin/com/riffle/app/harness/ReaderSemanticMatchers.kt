@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Domain-specific semantic assertion helpers for the EPUB reader screen.
@@ -21,10 +22,10 @@ import androidx.compose.ui.test.performScrollTo
  */
 object ReaderSemanticMatchers {
 
-    const val TAG_ERROR_STATE = "reader_error_state"
-    const val TAG_READER_READY = "reader_ready"
-    const val TAG_LOADING = "reader_loading"
-    const val TAG_TOC_PANEL = "toc_panel"
+    val TAG_ERROR_STATE get() = TestTags.READER_ERROR_STATE
+    val TAG_READER_READY get() = TestTags.READER_READY
+    val TAG_LOADING get() = TestTags.READER_LOADING
+    val TAG_TOC_PANEL get() = TestTags.READER_TOC_PANEL
 
     /**
      * Waits for the Library Item Detail Screen's Read button to appear, then taps it.
@@ -136,7 +137,7 @@ object ReaderSemanticMatchers {
         }
     }
 
-    const val TAG_RAIL = "chapter_navigation_rail"
+    val TAG_RAIL get() = TestTags.READER_NAV_RAIL
 
     /**
      * Asserts the navigation rail has an active segment whose title contains [titleSubstring].

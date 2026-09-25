@@ -124,14 +124,14 @@ fun ReadingProgressLabels(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 2.dp)
-            .testTag("reading_progress_labels"),
+            .testTag(TestTags.READING_PROGRESS_LABELS),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showLeftColumn) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("reading_progress_chapter"),
+                    .testTag(TestTags.READING_PROGRESS_CHAPTER),
             ) {
                 if (showCountAndPercent) {
                     val readingProgressContentDescription =
@@ -154,7 +154,7 @@ fun ReadingProgressLabels(
                         color = timeColor,
                         textAlign = TextAlign.Start,
                         maxLines = 1,
-                        modifier = Modifier.testTag("reading_progress_chapter_time"),
+                        modifier = Modifier.testTag(TestTags.READING_PROGRESS_CHAPTER_TIME),
                     )
                 }
             }
@@ -172,7 +172,7 @@ fun ReadingProgressLabels(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(2f)
-                    .testTag("reading_progress_chapter_name")
+                    .testTag(TestTags.READING_PROGRESS_CHAPTER_NAME)
                     .semantics { contentDescription = currentChapterContentDescription },
             )
         }
@@ -181,7 +181,7 @@ fun ReadingProgressLabels(
                 horizontalAlignment = Alignment.End,
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("reading_progress_percent"),
+                    .testTag(TestTags.READING_PROGRESS_PERCENT),
             ) {
                 if (showCountAndPercent) {
                     val totalProgressContentDescription =
@@ -204,7 +204,7 @@ fun ReadingProgressLabels(
                         color = timeColor,
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.testTag("reading_progress_book_time"),
+                        modifier = Modifier.testTag(TestTags.READING_PROGRESS_BOOK_TIME),
                     )
                 }
             }

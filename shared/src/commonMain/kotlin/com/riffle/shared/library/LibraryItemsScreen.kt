@@ -64,6 +64,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.BookGrid
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
 import com.riffle.feature.designsystem.LocalCoversAreSquare
@@ -321,7 +322,10 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
     TopAppBar(
         title = { Text(title) },
         navigationIcon = {
-            IconButton(onClick = onMenuClick) {
+            IconButton(
+                onClick = onMenuClick,
+                modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
+            ) {
                 Icon(RiffleIcons.Menu, contentDescription = "Open menu")
             }
         },
@@ -542,7 +546,7 @@ private fun AnnotationSearchField(onSearch: (String) -> Unit) {
                 onClick = { if (query.isNotBlank()) onSearch(query) },
                 modifier = Modifier
                     .semantics { contentDescription = ANNOTATION_SEARCH_PLACEHOLDER }
-                    .testTag("annotation-search-submit"),
+                    .testTag(TestTags.ANNOTATION_SEARCH_SUBMIT),
             ) {
                 Text(ANNOTATION_SEARCH_ACTION)
             }
@@ -552,7 +556,7 @@ private fun AnnotationSearchField(onSearch: (String) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("annotation-search-field"),
+            .testTag(TestTags.ANNOTATIONS_SEARCH_FIELD),
     )
 }
 

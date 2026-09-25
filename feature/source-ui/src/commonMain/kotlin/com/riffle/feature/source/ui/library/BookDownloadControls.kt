@@ -33,6 +33,7 @@ import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ic_readaloud
 import com.riffle.feature.source.ui.generated.resources.ui_download
 import com.riffle.feature.source.ui.generated.resources.ui_download_cached_item
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.ui_download_readaloud
 import com.riffle.feature.source.ui.generated.resources.ui_remove_download
 import com.riffle.feature.source.ui.generated.resources.ui_remove_readaloud_download
@@ -75,7 +76,7 @@ fun BookDownloadControls(
     )
     if (!affordances.any) return
     Row(
-        modifier = modifier.testTag("BookDownloadControls"),
+        modifier = modifier.testTag(TestTags.BOOK_DOWNLOAD_CONTROLS),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -85,7 +86,7 @@ fun BookDownloadControls(
                 onDownload = onDownloadEbook,
                 onRemove = onRemoveEbook,
                 enabled = affordances.ebookEnabled,
-                testTag = "BookDownloadControls.Ebook",
+                testTag = TestTags.BOOK_DOWNLOAD_CONTROLS_EBOOK,
             )
         }
         if (affordances.showAudiobook && audiobookDownloadState != null) {
@@ -94,7 +95,7 @@ fun BookDownloadControls(
                 onDownload = onDownloadAudiobook,
                 onRemove = onRemoveAudiobook,
                 enabled = affordances.audiobookEnabled,
-                testTag = "BookDownloadControls.Audiobook",
+                testTag = TestTags.BOOK_DOWNLOAD_CONTROLS_AUDIOBOOK,
             )
         }
         if (affordances.showReadaloud && readaloudDownloadState != null) {
@@ -251,7 +252,7 @@ fun ReadaloudDownloadButton(
         is DownloadState.InProgress -> {
             Box(
                 modifier = modifier
-                    .testTag("BookDownloadControls.Readaloud")
+                    .testTag(TestTags.BOOK_DOWNLOAD_CONTROLS_READALOUD)
                     .size(ReadaloudOuterSize),
                 contentAlignment = Alignment.Center,
             ) {
@@ -303,7 +304,7 @@ private fun BadgedDownloadCircle(
 ) {
     Box(
         modifier = modifier
-            .testTag("BookDownloadControls.Readaloud")
+            .testTag(TestTags.BOOK_DOWNLOAD_CONTROLS_READALOUD)
             .size(ReadaloudOuterSize),
         contentAlignment = Alignment.Center,
     ) {

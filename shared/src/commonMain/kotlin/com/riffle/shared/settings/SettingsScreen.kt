@@ -61,6 +61,7 @@ import com.riffle.feature.settings.comicDisplaySummary
 import com.riffle.feature.settings.label
 import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.source.ui.settings.SourcesSection
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
 import kotlinx.coroutines.launch
@@ -684,7 +685,7 @@ private fun SettingsRow(
                 trailing,
                 style = TextStyle(fontSize = 13.sp, color = Color(0xFF1565C0)),
                 modifier = Modifier
-                    .testTag("settings-trailing-$trailing")
+                    .testTag(TestTags.settingsTrailing(trailing))
                     .clickable { onTrailingClick?.invoke() }
                     .padding(start = 8.dp),
             )
@@ -745,7 +746,7 @@ private fun PanelToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("panel-toggle-$label")
+            .testTag(TestTags.settingsPanelToggle(label))
             .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

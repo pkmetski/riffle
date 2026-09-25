@@ -15,7 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
@@ -108,7 +110,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         ) {
             BasicText(
                 text = "← Back",
-                modifier = Modifier.clickable(onClick = onBack),
+                modifier = Modifier.testTag(TestTags.IOS_PDF_READER_BACK).clickable(onClick = onBack),
             )
         }
     }

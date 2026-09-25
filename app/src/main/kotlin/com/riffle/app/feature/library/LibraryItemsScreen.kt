@@ -104,6 +104,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -134,6 +135,7 @@ import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.LocalCoverGridScale
 import com.riffle.feature.designsystem.LocalCoversAreSquare
 import com.riffle.feature.designsystem.RiffleIcons
@@ -1387,6 +1389,7 @@ private fun AllBooksTabContent(
                             )
                         }
                     } else null,
+                    modifier = Modifier.testTag(TestTags.LIBRARY_FILTER),
                 )
             }
             item {
@@ -1453,6 +1456,7 @@ private fun SortModeChip(
                     modifier = Modifier.size(FilterChipDefaults.IconSize),
                 )
             },
+            modifier = Modifier.testTag(TestTags.LIBRARY_SORT),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             LibrarySortMode.entries.forEach { mode ->

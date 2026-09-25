@@ -26,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
@@ -35,6 +36,7 @@ import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibrarySectionType
@@ -76,7 +78,10 @@ fun RiffleScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onOpenDrawer) {
+                    IconButton(
+                        onClick = onOpenDrawer,
+                        modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
+                    ) {
                         Icon(Icons.Default.Menu, contentDescription = null)
                     }
                 },
@@ -88,16 +93,19 @@ fun RiffleScreen(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Filled.Home, contentDescription = stringResource(R.string.ui_section_in_progress)) },
+                    modifier = Modifier.testTag(TestTags.NAV_TAB_IN_PROGRESS),
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = stringResource(R.string.ui_to_read)) },
+                    modifier = Modifier.testTag(TestTags.NAV_TAB_TO_READ),
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     icon = { Icon(RiffleIcons.Annotations, contentDescription = stringResource(R.string.ui_annotations)) },
+                    modifier = Modifier.testTag(TestTags.NAV_TAB_ANNOTATIONS),
                 )
             }
         },

@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.StubAbsServer
 import com.riffle.core.database.RiffleDatabaseAccess
@@ -524,11 +525,11 @@ class AnnotationFocusHarnessTest : KoinTest {
         }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag(SearchTopBarTags.FIELD).performTextReplacement(phrase)
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_FIELD).performTextReplacement(phrase)
         composeTestRule.waitUntil(timeoutMillis = 30_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.COUNT).fetchSemanticsNodes()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_COUNT).fetchSemanticsNodes()
                 .any { node ->
                     runCatching { node.config[SemanticsProperties.Text] }.getOrElse { emptyList() }
                         .any { it.text.contains(" of ") }
@@ -539,7 +540,7 @@ class AnnotationFocusHarnessTest : KoinTest {
     private fun closeSearch() {
         composeTestRule.onNodeWithContentDescription("Close search").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isEmpty()
         }
     }
 

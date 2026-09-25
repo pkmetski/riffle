@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -49,6 +50,7 @@ import com.riffle.core.domain.withResolvedTheme
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.source.ui.AddSourceBackend
 import org.koin.androidx.compose.koinViewModel
@@ -94,7 +96,7 @@ fun ReadaloudSettingsScreen(
             TopAppBar(
                 title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SETTINGS_BACK)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },

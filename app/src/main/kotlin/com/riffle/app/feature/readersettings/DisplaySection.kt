@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -148,7 +149,7 @@ fun DisplaySection(
             checked = prefs.coloredChapterMap,
             enabled = ReaderSettingsSections.coloredChapterMapEnabled(prefs.showChapterMap),
             modifier = Modifier.padding(start = 16.dp),
-            testTag = "colored_chapter_map_toggle",
+            testTag = TestTags.READER_SETTINGS_COLORED_CHAPTER_MAP,
             onChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
         )
         if (capabilities.supportsPositionOverlays) {

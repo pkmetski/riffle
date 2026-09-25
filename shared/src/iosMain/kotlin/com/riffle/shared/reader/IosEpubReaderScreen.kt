@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
@@ -101,6 +102,7 @@ import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.SpeedHudLabels
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -766,7 +768,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 .fillMaxWidth()
                 .align(Alignment.TopStart),
         ) {
-            BasicText(text = "← Back", modifier = Modifier.clickable(onClick = onBack))
+            BasicText(text = "← Back", modifier = Modifier.testTag(TestTags.IOS_READER_BACK).clickable(onClick = onBack))
             Spacer(modifier = Modifier.weight(1f))
             if (localPath != null) {
                 // Auto-scroll only makes sense where the document scrolls. Android gates its
@@ -779,6 +781,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 ) {
                     AutoScrollToggleIcon(
                         isRunning = autoScrollState is AutoScrollState.Running,
+                        modifier = Modifier.testTag(TestTags.IOS_READER_AUTOSCROLL),
                         onClick = {
                             if (autoScrollState is AutoScrollState.Running) {
                                 autoScroll.dispatch(AutoScrollEvent.Stop)
@@ -809,6 +812,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     val cadenceRunning = cadenceState is CadenceState.Running
                     CadenceToggleIcon(
                         isRunning = cadenceRunning,
+                        modifier = Modifier.testTag(TestTags.IOS_READER_CADENCE),
                         onClick = {
                             if (cadenceRunning) {
                                 cadence.stop()
@@ -832,6 +836,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     text = "✎",
                     modifier = Modifier
                         .padding(horizontal = 8.dp)
+                        .testTag(TestTags.IOS_READER_ANNOTATIONS)
                         .clickable {
                             annotationsPanelOpen = !annotationsPanelOpen
                             tocOpen = false
@@ -843,6 +848,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         text = "TOC",
                         modifier = Modifier
                             .padding(horizontal = 8.dp)
+                            .testTag(TestTags.IOS_READER_TOC)
                             .clickable { tocOpen = !tocOpen; searchOpen = false; annotationsPanelOpen = false },
                     )
                 }
@@ -850,6 +856,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     text = if (searchOpen) "✕" else "⌕",
                     modifier = Modifier
                         .padding(horizontal = 8.dp)
+                        .testTag(TestTags.IOS_READER_SEARCH)
                         .clickable { searchOpen = !searchOpen; tocOpen = false; searchQuery = ""; searchResults = emptyList() },
                 )
             }
@@ -867,7 +874,8 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .systemBarsPadding()
-                    .padding(top = 40.dp, end = 8.dp),
+                    .padding(top = 40.dp, end = 8.dp)
+                    .testTag(TestTags.IOS_READER_BOOKMARK),
             )
         }
 
@@ -1146,7 +1154,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag(TestTags.IOS_READER_SEARCH_FIELD),
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 LazyColumn(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

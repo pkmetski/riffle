@@ -112,7 +112,7 @@ fun HighlightSwatchRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .testTag("annotation_swatch_none")
+                .testTag(TestTags.ANNOTATION_SWATCH_NONE)
                 .clickable { onPickNone() }
                 .then(
                     if (noneSelected) {
@@ -143,7 +143,7 @@ fun HighlightSwatchRow(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .testTag("annotation_swatch_${color.token}")
+                    .testTag(TestTags.annotationSwatch(color.token))
                     .clickable { onPick(color) }
                     .then(
                         if (isSelected) {
@@ -217,7 +217,7 @@ fun EmphasisChipRow(
                     .size(width = 40.dp, height = 34.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(bg)
-                    .testTag("annotation_chip_${style.token}")
+                    .testTag(TestTags.annotationChip(style.token))
                     .clickable { onToggle(style) }
                     .semantics {
                         contentDescription = labels.emphasis + style.token +
@@ -289,7 +289,7 @@ fun AnnotationActionsSheet(
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier
-                            .testTag("annotation_delete")
+                            .testTag(TestTags.ANNOTATION_DELETE)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable(onClick = onDelete)
                             .padding(horizontal = 10.dp, vertical = 4.dp)
@@ -301,7 +301,7 @@ fun AnnotationActionsSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("annotation_note_row")
+                    .testTag(TestTags.ANNOTATION_NOTE_ROW)
                     .clickable(onClick = onOpenNoteEditor)
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -362,7 +362,7 @@ fun NoteEditorSheet(
                 placeholder = { Text(labels.addNote) },
                 minLines = 3,
                 maxLines = 6,
-                modifier = Modifier.fillMaxWidth().testTag("note_editor_field"),
+                modifier = Modifier.fillMaxWidth().testTag(TestTags.NOTE_EDITOR_FIELD),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -371,19 +371,19 @@ fun NoteEditorSheet(
                 if (initialNote.isNotBlank()) {
                     TextButton(
                         onClick = { onConfirm("") },
-                        modifier = Modifier.testTag("note_editor_remove"),
+                        modifier = Modifier.testTag(TestTags.NOTE_EDITOR_REMOVE),
                     ) {
                         Text(labels.remove, color = MaterialTheme.colorScheme.error)
                     }
                 } else {
                     TextButton(
                         onClick = onDismiss,
-                        modifier = Modifier.testTag("note_editor_cancel"),
+                        modifier = Modifier.testTag(TestTags.NOTE_EDITOR_CANCEL),
                     ) { Text(labels.cancel) }
                 }
                 TextButton(
                     onClick = { onConfirm(text) },
-                    modifier = Modifier.testTag("note_editor_save"),
+                    modifier = Modifier.testTag(TestTags.NOTE_EDITOR_SAVE),
                 ) { Text(labels.save) }
             }
         }

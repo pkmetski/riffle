@@ -35,6 +35,7 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
@@ -99,7 +100,7 @@ fun SourceTypePickerScreen(
             TopAppBar(
                 title = { Text(stringResource(Res.string.ui_add_source)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
                         Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },

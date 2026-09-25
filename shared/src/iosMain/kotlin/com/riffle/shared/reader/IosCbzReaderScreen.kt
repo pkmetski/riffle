@@ -21,6 +21,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.core.domain.comic.ComicImageSource
@@ -89,6 +91,7 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 text = "← Back",
                 modifier = Modifier
                     .padding(8.dp)
+                    .testTag(TestTags.IOS_CBZ_READER_BACK)
                     .clickable(onClick = onBack),
             )
         }

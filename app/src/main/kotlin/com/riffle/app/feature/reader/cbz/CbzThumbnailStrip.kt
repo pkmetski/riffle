@@ -34,6 +34,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.size.Size as CoilSize
 import com.riffle.core.domain.comic.ComicPageSource
+import com.riffle.feature.designsystem.TestTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -72,7 +73,7 @@ internal fun CbzThumbnailStrip(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
-                .testTag("cbz_thumbnail_strip"),
+                .testTag(TestTags.CBZ_THUMBNAIL_STRIP),
             contentPadding = PaddingValues(horizontal = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -120,7 +121,7 @@ private fun CbzThumbnail(
             .background(Color(0xFF1A1A1A), RoundedCornerShape(2.dp))
             .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(2.dp))
             .clickable { onClick() }
-            .testTag("cbz_thumb_$pageIndex"),
+            .testTag(TestTags.cbzThumb(pageIndex)),
     ) {
         val currentBitmap = bitmap
         if (currentBitmap != null) {

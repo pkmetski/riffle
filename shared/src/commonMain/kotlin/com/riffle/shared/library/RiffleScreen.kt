@@ -25,9 +25,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
@@ -106,6 +108,7 @@ fun RiffleScreen(
             BasicText(
                 text = "☰",
                 modifier = Modifier
+                    .testTag(TestTags.NAV_DRAWER_TOGGLE)
                     .clickable { onOpenDrawer() }
                     .padding(end = 16.dp),
                 style = TextStyle(fontSize = 18.sp),
@@ -118,9 +121,15 @@ fun RiffleScreen(
         }
         Row(modifier = Modifier.fillMaxWidth()) {
             tabs.forEachIndexed { index, title ->
+                val tabTag = when (index) {
+                    0 -> TestTags.NAV_TAB_IN_PROGRESS
+                    1 -> TestTags.NAV_TAB_TO_READ
+                    else -> TestTags.NAV_TAB_ANNOTATIONS
+                }
                 Box(
                     modifier = Modifier
                         .weight(1f)
+                        .testTag(tabTag)
                         .background(if (selectedTab == index) Color(0xFFE0E0E0) else Color.Transparent)
                         .clickable { selectedTab = index }
                         .padding(vertical = 12.dp, horizontal = 4.dp),

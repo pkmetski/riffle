@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -239,7 +240,7 @@ private fun PlayerCover(state: PlayerSurfaceState, modifier: Modifier) {
                 .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().testTag("player_cover"),
+            modifier = Modifier.fillMaxSize().testTag(TestTags.PLAYER_COVER),
         )
     }
 }
@@ -279,7 +280,7 @@ private fun PlayerDetails(state: PlayerSurfaceState) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.testTag("player_facts"),
+                modifier = Modifier.testTag(TestTags.PLAYER_FACTS),
             )
         }
         formattedBlurb?.let {
@@ -339,7 +340,7 @@ private fun PlayerControls(
                 FilledTonalButton(
                     onClick = onClick,
                     shape = RoundedCornerShape(50),
-                    modifier = Modifier.testTag("audiobook_speed_pill"),
+                    modifier = Modifier.testTag(TestTags.AUDIOBOOK_SPEED_PILL),
                 ) {
                     Icon(PlayerGlyphs.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(6.dp))
@@ -351,7 +352,7 @@ private fun PlayerControls(
             FilledTonalButton(
                 onClick = { sleepSheetOpen = true },
                 shape = RoundedCornerShape(50),
-                modifier = Modifier.testTag("audiobook_sleep_pill"),
+                modifier = Modifier.testTag(TestTags.AUDIOBOOK_SLEEP_PILL),
                 colors = if (timerActive) {
                     ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -397,7 +398,7 @@ private fun TransportRow(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton).testTag("audiobook-rewind")) {
+        IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton).testTag(TestTags.AUDIOBOOK_REWIND)) {
             SkipIcon(
                 seconds = state.rewindIntervalSeconds,
                 forward = false,
@@ -405,7 +406,7 @@ private fun TransportRow(
             )
         }
         Spacer(Modifier.size(10.dp))
-        IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {
+        IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton).testTag(TestTags.PLAYER_PREV_CHAPTER)) {
             Icon(PlayerGlyphs.SkipPrevious, contentDescription = labels.previousChapter, modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
@@ -414,7 +415,7 @@ private fun TransportRow(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(60.dp),
         ) {
-            IconButton(onClick = actions.onTogglePlayPause) {
+            IconButton(onClick = actions.onTogglePlayPause, modifier = Modifier.testTag(TestTags.PLAYER_PLAY_PAUSE)) {
                 Icon(
                     if (state.isPlaying) PlayerGlyphs.Pause else PlayerGlyphs.PlayArrow,
                     contentDescription = if (state.isPlaying) labels.pause else labels.play,
@@ -424,11 +425,11 @@ private fun TransportRow(
             }
         }
         Spacer(Modifier.size(10.dp))
-        IconButton(onClick = actions.onNextChapter, enabled = state.canNextChapter, modifier = Modifier.size(secondaryButton)) {
+        IconButton(onClick = actions.onNextChapter, enabled = state.canNextChapter, modifier = Modifier.size(secondaryButton).testTag(TestTags.PLAYER_NEXT_CHAPTER)) {
             Icon(PlayerGlyphs.SkipNext, contentDescription = labels.nextChapter, modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
-        IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton).testTag("audiobook-forward")) {
+        IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton).testTag(TestTags.AUDIOBOOK_FORWARD)) {
             SkipIcon(
                 seconds = state.skipIntervalSeconds,
                 forward = true,
@@ -480,13 +481,13 @@ private fun DualTime(state: PlayerSurfaceState) {
             formatHms(state.positionSec),
             style = MaterialTheme.typography.bodySmall,
             color = muted,
-            modifier = Modifier.testTag("player_elapsed"),
+            modifier = Modifier.testTag(TestTags.PLAYER_ELAPSED),
         )
         Text(
             remainingTimeLabel(state.positionSec, state.durationSec),
             style = MaterialTheme.typography.bodySmall,
             color = muted,
-            modifier = Modifier.testTag("player_remaining"),
+            modifier = Modifier.testTag(TestTags.PLAYER_REMAINING),
         )
     }
 }
@@ -525,7 +526,7 @@ private fun ChapterSeekBar(
     Box(
         modifier = modifier
             .height(24.dp)
-            .testTag("player_scrubber")
+            .testTag(TestTags.PLAYER_SCRUBBER)
             .pointerInput(durationSec) {
                 detectTapGestures { offset -> if (durationSec > 0) onSeek(durationSec * (offset.x / size.width).coerceIn(0f, 1f)) }
             }

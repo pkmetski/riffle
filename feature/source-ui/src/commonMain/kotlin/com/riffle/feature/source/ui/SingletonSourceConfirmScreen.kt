@@ -27,10 +27,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
@@ -78,7 +80,7 @@ fun SingletonSourceConfirmScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
                         Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
@@ -124,7 +126,7 @@ fun SingletonSourceConfirmScreen(
                 if (isInstalling) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                 } else if (error != null) {
-                    TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth().testTag(TestTags.SOURCE_TYPE_PICKER_CANCEL)) {
                         Text(stringResource(Res.string.ui_back))
                     }
                     Button(
@@ -137,7 +139,7 @@ fun SingletonSourceConfirmScreen(
                                 isInstalling = false
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag(TestTags.SOURCE_TYPE_PICKER_CONFIRM),
                     ) {
                         Text(stringResource(Res.string.ui_try_again))
                     }
@@ -151,7 +153,7 @@ fun SingletonSourceConfirmScreen(
                                 isInstalling = false
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag(TestTags.SOURCE_TYPE_PICKER_CONFIRM),
                     ) {
                         Text(stringResource(Res.string.ui_add_source))
                     }

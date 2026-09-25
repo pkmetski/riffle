@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.SleepTimerMode
 
 internal val SLEEP_PRESETS_MINUTES = listOf(5, 15, 30, 45, 60, 90)
@@ -46,7 +47,7 @@ fun SleepTimerControl(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp)
-                .testTag("sleep_timer_sheet"),
+                .testTag(TestTags.SLEEP_TIMER_SHEET),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -84,7 +85,7 @@ fun SleepTimerControl(
                     onSetTimer(SleepTimerMode.EndOfChapter)
                     onDismiss()
                 },
-                modifier = Modifier.fillMaxWidth().testTag("sleep_end_of_chapter"),
+                modifier = Modifier.fillMaxWidth().testTag(TestTags.SLEEP_END_OF_CHAPTER),
                 shape = RoundedCornerShape(50),
             ) {
                 Icon(PlayerGlyphs.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -142,7 +143,7 @@ private fun PresetButton(
             onSetTimer(sleepPresetMode(minutes))
             onDismiss()
         },
-        modifier = modifier.testTag("sleep_preset_$minutes"),
+        modifier = modifier.testTag(TestTags.sleepPreset(minutes)),
         shape = RoundedCornerShape(50),
     ) {
         Text(sleepPresetLabel(minutes, labels), style = MaterialTheme.typography.labelLarge)

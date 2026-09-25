@@ -144,7 +144,7 @@ private fun SuccessView(added: Int, failures: Int, onDone: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Button(onClick = onDone, modifier = Modifier.testTag("AddLocalFiles.Done")) {
+        Button(onClick = onDone, modifier = Modifier.testTag(TestTags.ADD_LOCAL_FILES_DONE)) {
             Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_done))
         }
     }
@@ -157,7 +157,7 @@ private fun CancelledView(onPickAgain: () -> Unit, onNavigateBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_folder_picked), style = MaterialTheme.typography.titleMedium)
-        Button(onClick = onPickAgain, modifier = Modifier.testTag("AddLocalFiles.PickAgain")) {
+        Button(onClick = onPickAgain, modifier = Modifier.testTag(TestTags.ADD_LOCAL_FILES_PICK_AGAIN)) {
             Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_pick_a_folder))
         }
         Button(onClick = onNavigateBack) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel)) }

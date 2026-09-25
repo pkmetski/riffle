@@ -30,7 +30,7 @@ fun AutoScrollToggleIcon(
     IconButton(
         onClick = onClick,
         modifier = modifier
-            .testTag("auto_scroll_toggle")
+            .testTag(TestTags.AUTO_SCROLL_TOGGLE)
             .semantics {
                 contentDescription = if (isRunning) "Stop auto-scroll" else "Start auto-scroll"
             },

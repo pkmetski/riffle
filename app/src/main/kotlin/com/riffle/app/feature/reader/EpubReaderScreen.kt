@@ -123,6 +123,7 @@ import com.riffle.core.domain.effectiveOrientation
 import com.riffle.core.models.HighlightColor
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.RiffleTheme
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.RailSegment
@@ -433,7 +434,7 @@ fun EpubReaderScreen(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.testTag("reader_loading"))
+                        CircularProgressIndicator(modifier = Modifier.testTag(TestTags.READER_LOADING))
                         bookPreparation?.let { p ->
                             Text(
                                 text = stringResource(R.string.ui_preparing_book_progress, p.done, p.total),
@@ -453,7 +454,7 @@ fun EpubReaderScreen(
                     CircularProgressIndicator(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .testTag("reader_loading"),
+                            .testTag(TestTags.READER_LOADING),
                     )
                 } else {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
@@ -688,7 +689,7 @@ fun EpubReaderScreen(
                         onRendererBridgeCreated = { rendererBridgeRef.value = it },
                         modifier = Modifier
                             .fillMaxSize()
-                            .testTag("reader_ready")
+                            .testTag(TestTags.READER_READY)
                             .semantics {
                                 contentDescription = buildString {
                                     append(locatorHref ?: "")
@@ -765,7 +766,7 @@ fun EpubReaderScreen(
                         s.message,
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .testTag("reader_error_state"),
+                            .testTag(TestTags.READER_ERROR_STATE),
                     )
                 }
             }
@@ -877,22 +878,37 @@ fun EpubReaderScreen(
                 TopAppBar(
                     title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.testTag(TestTags.READER_BACK),
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                         }
                     },
                     actions = {
                         if (state is ReaderState.Ready) {
-                            IconButton(onClick = viewModel::openSearch) {
+                            IconButton(
+                                onClick = viewModel::openSearch,
+                                modifier = Modifier.testTag(TestTags.READER_SEARCH),
+                            ) {
                                 Icon(Icons.Default.Search, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search))
                             }
-                            IconButton(onClick = viewModel::openToc) {
+                            IconButton(
+                                onClick = viewModel::openToc,
+                                modifier = Modifier.testTag(TestTags.READER_TOC),
+                            ) {
                                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents))
                             }
-                            IconButton(onClick = viewModel::openAnnotationsPanel) {
+                            IconButton(
+                                onClick = viewModel::openAnnotationsPanel,
+                                modifier = Modifier.testTag(TestTags.READER_ANNOTATIONS),
+                            ) {
                                 Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations))
                             }
-                            IconButton(onClick = { showFormattingPanel = true }) {
+                            IconButton(
+                                onClick = { showFormattingPanel = true },
+                                modifier = Modifier.testTag(TestTags.READER_SETTINGS),
+                            ) {
                                 Text(
                                     "Aa",
                                     style = MaterialTheme.typography.titleMedium,
@@ -931,7 +947,7 @@ fun EpubReaderScreen(
                                 IconButton(
                                     onClick = viewModel::openReadaloud,
                                     enabled = readaloudAvailable,
-                                    modifier = Modifier.testTag("readaloud_open"),
+                                    modifier = Modifier.testTag(TestTags.READER_READALOUD),
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_readaloud),
@@ -2941,7 +2957,7 @@ private fun EpubNavigatorView(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
-                        .testTag("reader_loading"),
+                        .testTag(TestTags.READER_LOADING),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator()
@@ -3071,7 +3087,7 @@ private fun EpubNavigatorView(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(formattingPrefs.theme.palette.background)
-                    .testTag("reader_nav_cover")
+                    .testTag(TestTags.READER_NAV_COVER)
                     .semantics { contentDescription = loadingContentDescription },
             )
         }

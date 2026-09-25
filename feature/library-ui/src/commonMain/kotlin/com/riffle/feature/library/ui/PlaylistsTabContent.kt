@@ -68,7 +68,7 @@ internal fun PlaylistRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("playlist-row-${playlist.id}")
+            .testTag(TestTags.playlistRow(playlist.id))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

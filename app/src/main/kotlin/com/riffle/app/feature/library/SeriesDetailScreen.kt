@@ -21,10 +21,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.SeriesDetailViewModel
@@ -47,7 +49,10 @@ fun SeriesDetailScreen(
             TopAppBar(
                 title = { Text(seriesName) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.NAV_BACK),
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },

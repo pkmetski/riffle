@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
@@ -175,7 +176,7 @@ fun SourcesSection(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("SourcesSection.AddSource"),
+            .testTag(TestTags.SOURCES_ADD_SOURCE),
     ) {
         Text(stringResource(Res.string.ui_add_source))
     }
@@ -300,7 +301,7 @@ fun SourceSettingsExpansion(
                     colors = transparentColors,
                     modifier = Modifier
                         .padding(start = 24.dp)
-                        .testTag("SourceSettingsExpansion.ReadaloudMatches")
+                        .testTag(TestTags.SOURCE_SETTINGS_READALOUD_MATCHES)
                         .clickable { onOpenReadaloudMatches() },
                     headlineContent = { Text(stringResource(Res.string.ui_review_and_match_readalouds)) },
                     supportingContent = {
@@ -393,7 +394,7 @@ fun LocalFilesSourceRow(
         ListItem(
             modifier = Modifier
                 .clickable(onClick = onAddFolder)
-                .testTag("LocalFilesSourceRow.AddFolder"),
+                .testTag(TestTags.LOCAL_FILES_ADD_FOLDER),
             leadingContent = {
                 Icon(
                     MaterialGlyphs.Add,
@@ -435,7 +436,7 @@ fun LocalFilesSourceRow(
             confirmLabel = stringResource(Res.string.ui_remove_folder_3),
             onConfirm = { onRemoveFolder(folder.treeUri) },
             onDismiss = { pendingFolderRemoval = null },
-            testTag = "LocalFilesSourceRow.ConfirmRemoveFolder",
+            testTag = TestTags.LOCAL_FILES_CONFIRM_REMOVE_FOLDER,
         )
     }
 }
@@ -493,7 +494,7 @@ private fun LocalFilesFolderRow(
     val folder = row.folder
     val item = row.libraryItem
     ListItem(
-        modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
+        modifier = Modifier.testTag(TestTags.localFilesFolder(folder.treeUri)),
         leadingContent = {
             if (!isHealthy) {
                 Icon(
@@ -547,7 +548,7 @@ private fun LocalFilesFolderRow(
                 IconButton(
                     onClick = onRequestRemove,
                     enabled = canRemove,
-                    modifier = Modifier.testTag("LocalFilesFolder.Remove.${folder.treeUri}"),
+                    modifier = Modifier.testTag(TestTags.localFilesFolderRemove(folder.treeUri)),
                 ) {
                     Icon(MaterialGlyphs.Delete, contentDescription = stringResource(Res.string.ui_remove_folder_3))
                 }
@@ -623,7 +624,7 @@ fun ReorderableLibraryList(
                         IconButton(
                             onClick = { onReorder(items.idsWithSwap(index, index - 1)) },
                             enabled = index > 0,
-                            modifier = Modifier.testTag("ReorderableLibrary.Up.${item.library.id}"),
+                            modifier = Modifier.testTag(TestTags.reorderableLibraryUp(item.library.id)),
                         ) {
                             Icon(
                                 MaterialGlyphs.KeyboardArrowUp,
@@ -636,7 +637,7 @@ fun ReorderableLibraryList(
                         IconButton(
                             onClick = { onReorder(items.idsWithSwap(index, index + 1)) },
                             enabled = index < items.lastIndex,
-                            modifier = Modifier.testTag("ReorderableLibrary.Down.${item.library.id}"),
+                            modifier = Modifier.testTag(TestTags.reorderableLibraryDown(item.library.id)),
                         ) {
                             Icon(
                                 MaterialGlyphs.KeyboardArrowDown,

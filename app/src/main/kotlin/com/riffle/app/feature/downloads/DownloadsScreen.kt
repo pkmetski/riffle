@@ -41,12 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
 import com.riffle.feature.downloads.LocalMediaType
@@ -98,7 +100,10 @@ fun DownloadsScreen(
             TopAppBar(
                 title = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_downloads)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.DOWNLOADS_BACK),
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },

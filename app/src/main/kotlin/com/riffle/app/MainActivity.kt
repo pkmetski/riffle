@@ -17,6 +17,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.CompositionLocalProvider
@@ -159,7 +161,7 @@ class MainActivity : FragmentActivity() {
                     val coverLogger = koinInject<Logger>()
                     val coverReporter = remember(coverLogger) { LoggingCoverLoadReporter(coverLogger) }
                     CompositionLocalProvider(LocalCoverLoadReporter provides coverReporter) {
-                        Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
                             MainScreen(windowSizeClass = windowSizeClass)
                             BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
                             RiffleSnackbarHost(importMessages)

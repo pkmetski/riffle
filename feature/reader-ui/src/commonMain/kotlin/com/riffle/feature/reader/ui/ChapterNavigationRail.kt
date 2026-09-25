@@ -111,7 +111,7 @@ fun ChapterNavigationRail(
         modifier = modifier
             .fillMaxWidth()
             .height(effectiveRailHeight)
-            .testTag("chapter_navigation_rail")
+            .testTag(TestTags.READER_NAV_RAIL)
             .semantics {
                 contentDescription = railContentDescription
             }
