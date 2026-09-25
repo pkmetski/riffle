@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.railSegmentBounds
 import com.riffle.feature.reader.railSegmentIndexAt
