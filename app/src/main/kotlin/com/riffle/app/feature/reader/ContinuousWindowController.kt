@@ -48,10 +48,12 @@ internal class ContinuousWindowController(
         // Continuous mode could hold up to 14 stacked ChapterWebViews with fully rasterized tiles
         // (setOffscreenPreRaster=true). On a 1 GB Android 7.1 tablet that is enough to trip the
         // renderer heap and get the app killed with no crash trace. Cut first to 2+2, then to 1+1
-        // — the initial-land gate now waits for EVERY window chapter to measure, so each extra
-        // buffer chapter directly extends the cold-open spinner time (5 chapters at 1+1 → 3);
-        // one behind / one ahead is enough to hide the next chapter boundary from a scroll fling
-        // without paying for chapters two removed from the viewport.
+        // (the initial-land gate used to wait for EVERY window chapter to measure, so each extra
+        // buffer chapter directly extended the cold-open spinner time; it now waits for the
+        // target only and loads the neighbours after the reveal — see
+        // ContinuousPositionTracker.InitialWindow.pendingMeasureIndices). One behind / one ahead
+        // is enough to hide the next chapter boundary from a scroll fling without paying the
+        // renderer memory for chapters two removed from the viewport.
         /** Default number of chapters kept behind the viewport midpoint. Full-book continuous
          *  mode uses this; the elided (Highlights-mode) reader raises it — see
          *  [chaptersBehind]. Capped at 1 by memory constraints on Android 7.1 tablets: bigger
@@ -72,8 +74,15 @@ internal class ContinuousWindowController(
         internal const val DEFAULT_RECYCLE_POOL_MAX = 2
 
         /**
+         * Upper bound on how long a deferred neighbour load may go without reporting
+         * `onPageFinished` before the next deferred load is started anyway, so a stalled or
+         * renderer-killed load can't leave the rest of the window unloaded.
+         */
+        private const val DEFERRED_LOAD_TIMEOUT_MS = 6_000L
+
+        /**
          * Grace period after a window (re)build before the initial scroll is forced to fire even if
-         * not every required chapter has measured — so a slow/failed measurement can't strand the
+         * the target chapter has not measured — so a slow/failed measurement can't strand the
          * reader on a blank position. Sized to cover cold-open of the whole 3-chapter window on a
          * low-memory Android 7.1 tablet, where 700 ms routinely elapsed before even the target
          * chapter reported its real height. When the fallback wins, the initial land happens on
@@ -208,8 +217,17 @@ internal class ContinuousWindowController(
     private var firstLoadComplete: Boolean = false
 
     private fun notifyFirstLoadCompleteOnce() {
+        // Every reveal path funnels through here, so this is where the neighbours' loads begin —
+        // after the target is on screen, never competing with its parse or first raster. Runs
+        // ahead of the once-guard because a cross-window nav rebuild reveals without cycling
+        // `firstLoadComplete` when the nav cover isn't involved.
+        startNextDeferredLoad()
         if (firstLoadComplete) return
         firstLoadComplete = true
+        logger.d(LogChannel.Reader) {
+            "continuous open: revealed ${nowMs() - windowBuiltAtMs}ms after window build " +
+                "(${deferredInitialLoads.size} neighbour chapters still deferred)"
+        }
         onFirstLoadComplete()
     }
 
@@ -378,6 +396,59 @@ internal class ContinuousWindowController(
      * initial scroll fires. Populated in [openWindowAt]; cleared as each chapter measures.
      */
     private val pendingInitialMeasureIndices = mutableSetOf<Int>()
+
+    /**
+     * Initial-window chapters whose [ChapterWebView.loadChapter] is held back until the target
+     * chapter has been revealed (see [ContinuousPositionTracker.InitialWindow.deferredLoadOrder]).
+     * Drained one at a time by [startNextDeferredLoad]; flushed wholesale by an in-window
+     * [navigateTo] so a TOC/bookmark jump to a neighbour never waits on the chain.
+     */
+    private val deferredInitialLoads = ArrayDeque<ChapterWebView>()
+
+    /** The deferred chapter currently loading; the next one starts when it reports page-finished. */
+    private var deferredLoadInFlight: ChapterWebView? = null
+    private var deferredLoadTimeout: Runnable? = null
+
+    /** Uptime at the last [openWindowAt], for the reveal-latency log line. */
+    private var windowBuiltAtMs = 0L
+
+    /**
+     * True while window slot 0 is a deferred, still-unmeasured behind-neighbour of the target.
+     * Feeds the same backward scroll floor / shift hold as an unmeasured backward prepend
+     * ([backwardPrependScrollFloorY], [maybeShift]): scrolling up into the blank placeholder would
+     * otherwise map blank-dragged pixels onto content the user never saw once the real height
+     * lands (the prepend "teleport" of 2026-08-05).
+     */
+    private var initialTopAwaitingMeasure = false
+
+    /**
+     * Deferred initial-window slots ABOVE the target that have not measured yet (the elided
+     * reader opens with `chaptersBehind = 3`, so this can be more than slot 0). Their first
+     * measurement is compensated after layout so the revealed text never moves, and the
+     * backward scroll floor ([deferredAboveFloorY]) covers all of them, not just slot 0.
+     */
+    private val deferredAboveUnmeasured = mutableSetOf<ChapterWebView>()
+
+    /**
+     * Lowest scrollY allowed while any above-target deferred slot is still an unmeasured
+     * placeholder: the bottom edge of the lowest such slot. Same rationale as
+     * [backwardPrependScrollFloorY] — blank-dragged placeholder pixels would otherwise resolve
+     * to content the user never saw once the real height lands.
+     */
+    private val deferredAboveFloorY: Int
+        get() {
+            val lowest = deferredAboveUnmeasured.maxOfOrNull { webViews.indexOf(it) } ?: return 0
+            if (lowest < 0) return 0
+            return measuredHeights.take(lowest + 1).sum()
+        }
+
+    /**
+     * An in-window [navigateTo] whose target slot was still a deferred, unmeasured placeholder
+     * when requested. Landing on placeholder geometry would put the reader at the wrong offset
+     * (and, for an above-target slot, be shifted again by the measure compensation), so the
+     * landing waits for that slot's first measurement.
+     */
+    private var pendingInWindowNav: Pair<ChapterWebView, () -> Unit>? = null
 
     /**
      * Closure that performs the initial [android.view.View.scrollTo] once all chapters in
@@ -588,6 +659,7 @@ internal class ContinuousWindowController(
     private fun recycle(wv: ChapterWebView) {
         wv.onHeightMeasured = null
         wv.onPageFinished = null
+        wv.onDomReady = null
         wv.onTap = null
         wv.onRenderGone = null
         wv.onInternalLink = null
@@ -710,6 +782,9 @@ internal class ContinuousWindowController(
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
+        clearDeferredLoads()
+        pendingInWindowNav = null
+        windowBuiltAtMs = nowMs()
         val targetHref = initialHref
         // Only the FIRST invocation of the pending-initial-scroll closure runs the smooth-tail
         // dance. Subsequent invocations from [reapplyLandingAfterFallback] on target-chapter
@@ -849,11 +924,21 @@ internal class ContinuousWindowController(
             }
         }
 
-        repeat(totalChapters) { i -> appendChapter(topIndex + i) }
+        // Only the target chapter loads now; its neighbours are appended as placeholder slots
+        // (so the scroll geometry is complete from the first frame) and load one at a time once
+        // the target has been revealed — see notifyFirstLoadCompleteOnce / startNextDeferredLoad.
+        repeat(totalChapters) { i -> appendChapter(topIndex + i, deferLoad = i != targetWindowIndex) }
+        initial.deferredLoadOrder().forEach { i -> deferredInitialLoads.addLast(webViews[i]) }
+        initialTopAwaitingMeasure = targetWindowIndex > 0
+        for (i in 0 until targetWindowIndex) deferredAboveUnmeasured.add(webViews[i])
 
         val fallback = Runnable {
             pendingFallbackRunnable = null
             if (pendingInitialScroll != null) {
+                logger.w(LogChannel.Reader) {
+                    "continuous open: target chapter $initialHref did not measure within " +
+                        "${INITIAL_SCROLL_FALLBACK_MS}ms — landing on placeholder height"
+                }
                 val scroll = pendingInitialScroll
                 pendingInitialScroll = null
                 pendingInitialMeasureIndices.clear()
@@ -958,18 +1043,31 @@ internal class ContinuousWindowController(
         gestureStartFlingFloorY = 0
         boundaryDetentArmed = false
         if (inWindow) {
+            val targetWv = webViews.getOrNull(targetIndex - topIndex)
+            val targetUnmeasured = targetWv != null &&
+                (targetWv in deferredInitialLoads || deferredLoadInFlight === targetWv)
+            flushDeferredLoads()
             // The posted landing can execute SECONDS later when the main thread is busy with
             // WebView measure storms (observed 1.8 s on an emulator). If the user has touched
             // the reader in the meantime, they've superseded the navigation — landing anyway
             // yanks the viewport back to a stale target from under their scroll.
             inWindowNavSupersededByTouch = false
-            port.post {
-                if (inWindowNavSupersededByTouch) return@post
-                scrollToLoadedChapter(
-                    target, progression, fragment,
-                    smooth = true, alignToTop = alignToTop,
-                    focusAnnotationId = focusAnnotationId,
-                )
+            val land = {
+                if (!inWindowNavSupersededByTouch) {
+                    scrollToLoadedChapter(
+                        target, progression, fragment,
+                        smooth = true, alignToTop = alignToTop,
+                        focusAnnotationId = focusAnnotationId,
+                    )
+                }
+            }
+            if (targetUnmeasured && targetWv != null) {
+                // Deferred slot still at placeholder height: land once it has measured (and,
+                // for an above-target slot, once the measure compensation has run), otherwise
+                // the landing resolves against placeholder geometry.
+                pendingInWindowNav = targetWv to land
+            } else {
+                port.post { land() }
             }
         } else {
             webViews.forEach { it.destroy() }
@@ -1204,7 +1302,7 @@ internal class ContinuousWindowController(
         }
     }
 
-    private fun appendChapter(index: Int) {
+    private fun appendChapter(index: Int, deferLoad: Boolean = false) {
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
@@ -1213,11 +1311,61 @@ internal class ContinuousWindowController(
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
-            if (i >= 0) {
+            if (i >= 0) run measured@{
                 val wasPlaceholder = measuredHeights[i] == placeholder
                 val oldHeight = measuredHeights[i]
                 val delta = measuredPx - oldHeight
 
+                // Slot [i]'s bottom edge in scroll coordinates, at its still-placeholder height.
+                val slotBottomBefore = measuredHeights.take(i + 1).sum()
+                if (wasPlaceholder && i == 0) initialTopAwaitingMeasure = false
+                if (wasPlaceholder && pendingInitialScroll == null && delta > 0 && webViews.size > 1 &&
+                    wv.chapterHref != pendingTargetHref && slotBottomBefore <= port.currentScrollY
+                ) {
+                    // First real measurement of a placeholder slot ENTIRELY ABOVE already-revealed
+                    // content: a deferred behind-neighbour (slot 0, or slots 0..2 in the elided
+                    // reader) or a top chapter that the initial-scroll fallback gave up waiting
+                    // for. Same shape as prependChapter: apply the height, then compensate the
+                    // scroll on the NEXT layout — NestedScrollView clips scrollBy to the max-scroll
+                    // of the still-placeholder-sized child, so an immediate scrollBy of a
+                    // 150 000 px delta lands the reader mid-chapter.
+                    publishViewportFraction(wv, measuredPx)
+                    applyChapterHeight(wv, measuredPx)
+                    wv.doOnNextLayout {
+                        val j = webViews.indexOf(wv)
+                        if (j < 0) return@doOnNextLayout
+                        val d = measuredPx - measuredHeights[j]
+                        measuredHeights[j] = measuredPx
+                        deferredAboveUnmeasured.remove(wv)
+                        if (d != 0) {
+                            port.scrollBy(d)
+                            // Keep the landing hold pinned to the same content, not the same
+                            // scrollY, or tickLandingHold reverts the compensation.
+                            if (landingHoldTargetY >= 0) landingHoldTargetY += d
+                        }
+                        syncChapterWindows()
+                        runPendingInWindowNavFor(wv)
+                        // Same post-measure shift check as the generic placeholder path below:
+                        // the window may now fit differently (AppendOnly front-matter case).
+                        if (!shiftPending) {
+                            shiftPending = true
+                            port.post {
+                                shiftPending = false
+                                maybeShift()
+                            }
+                        }
+                    }
+                    if (deferredLoadInFlight === wv) {
+                        // Late measure with no page-finished (shouldn't happen, but never wedge
+                        // the chain on it).
+                        onDeferredLoadSettled(wv)
+                    }
+                    return@measured
+                }
+                if (wasPlaceholder) {
+                    deferredAboveUnmeasured.remove(wv)
+                    runPendingInWindowNavFor(wv)
+                }
                 if (wasPlaceholder && i != 0 && delta < 0) {
                     measuredHeights[i] = measuredPx
                     val newMaxScroll = (measuredHeights.sum() - port.viewportHeightPx).coerceAtLeast(0)
@@ -1289,18 +1437,104 @@ internal class ContinuousWindowController(
             }
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
+        // DOM-ready path: when the chapter's images all declare their size (see
+        // ContinuousStyleInjector.domReadyScript) the layout height is final at DOMContentLoaded,
+        // so style + measure there and let the images decode behind the revealed text. The load
+        // event then only asks for a re-measure — the installer (tap / anchor listeners) must not
+        // run twice on one page.
+        var styledAtDomReady = false
+        wv.onDomReady = {
+            if (!styledAtDomReady) {
+                styledAtDomReady = true
+                wv.injectStylesAndMeasure(
+                    ContinuousStyleInjector.buildStyleSetJs(formattingPrefs),
+                    domReadyMeasure = true,
+                )
+            }
+        }
         wv.onPageFinished = {
             // buildStyleSetJs: no visibility toggle at load time — see the doc on that function.
             val styleJs = ContinuousStyleInjector.buildStyleSetJs(formattingPrefs)
-            wv.injectStylesAndMeasure(styleJs)
+            if (styledAtDomReady) wv.remeasure() else wv.injectStylesAndMeasure(styleJs)
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
+            onDeferredLoadSettled(wv)
         }
         wv.onInternalScroll = { y -> onWebViewInternalScroll(wv, y) }
         webViews.add(wv)
         measuredHeights.add(placeholder)
         container.addView(newSlot(wv, placeholder), LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
+        if (deferLoad) {
+            // Slot exists (geometry), page does not: loaded later by startNextDeferredLoad.
+            // chapterHref is stamped now so href lookups (webViewIndexFor, isTargetInWindow,
+            // decoration routing) see the slot before its page arrives.
+            wv.chapterHref = entry.link.href.toString()
+            return
+        }
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
+    }
+
+    // ── Deferred initial-window loads ───────────────────────────────────────
+
+    private fun clearDeferredLoads() {
+        deferredInitialLoads.clear()
+        deferredLoadInFlight = null
+        deferredLoadTimeout?.let { port.removeCallbacks(it) }
+        deferredLoadTimeout = null
+        initialTopAwaitingMeasure = false
+        deferredAboveUnmeasured.clear()
+    }
+
+    /** Run a landing that was waiting on [wv]'s first measurement, if any. */
+    private fun runPendingInWindowNavFor(wv: ChapterWebView) {
+        val (target, land) = pendingInWindowNav ?: return
+        if (target !== wv) return
+        pendingInWindowNav = null
+        port.post { land() }
+    }
+
+    /**
+     * Start the next deferred neighbour load, if any and none is in flight. Slots evicted by a
+     * window shift in the meantime (no longer in [webViews]) are skipped.
+     */
+    private fun startNextDeferredLoad() {
+        if (deferredLoadInFlight != null) return
+        while (true) {
+            val wv = deferredInitialLoads.removeFirstOrNull() ?: return
+            val i = webViews.indexOf(wv)
+            if (i < 0) continue
+            val entry = allChapters.getOrNull(topIndex + i) ?: continue
+            deferredLoadInFlight = wv
+            val timeout = Runnable { onDeferredLoadSettled(wv) }
+            deferredLoadTimeout = timeout
+            port.postDelayed(timeout, DEFERRED_LOAD_TIMEOUT_MS)
+            wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
+            return
+        }
+    }
+
+    /** [wv] finished loading (or timed out / was evicted): advance the chain. */
+    private fun onDeferredLoadSettled(wv: ChapterWebView) {
+        if (deferredLoadInFlight !== wv) return
+        deferredLoadInFlight = null
+        deferredLoadTimeout?.let { port.removeCallbacks(it) }
+        deferredLoadTimeout = null
+        startNextDeferredLoad()
+    }
+
+    /**
+     * Load every still-deferred neighbour right away. Used by in-window [navigateTo]: the user
+     * asked for a chapter that may be one of the deferred slots, so waiting on the one-at-a-time
+     * chain would only delay the landing.
+     */
+    private fun flushDeferredLoads() {
+        while (deferredInitialLoads.isNotEmpty()) {
+            val wv = deferredInitialLoads.removeFirst()
+            val i = webViews.indexOf(wv)
+            if (i < 0) continue
+            val entry = allChapters.getOrNull(topIndex + i) ?: continue
+            wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
+        }
     }
 
     /**
@@ -1416,9 +1650,11 @@ internal class ContinuousWindowController(
         get() = maxOf(
             ContinuousPositionTracker.backwardPrependScrollFloor(
                 topSlotStillPlaceholder =
-                    prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint || boundaryDetentArmed,
+                    prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint || boundaryDetentArmed ||
+                        initialTopAwaitingMeasure,
                 topSlotHeightPx = measuredHeights.firstOrNull() ?: 0,
             ),
+            deferredAboveFloorY,
             backwardFlingFloorY,
         )
 
@@ -1464,10 +1700,25 @@ internal class ContinuousWindowController(
             }
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
+        // DOM-ready path: when the chapter's images all declare their size (see
+        // ContinuousStyleInjector.domReadyScript) the layout height is final at DOMContentLoaded,
+        // so style + measure there and let the images decode behind the revealed text. The load
+        // event then only asks for a re-measure — the installer (tap / anchor listeners) must not
+        // run twice on one page.
+        var styledAtDomReady = false
+        wv.onDomReady = {
+            if (!styledAtDomReady) {
+                styledAtDomReady = true
+                wv.injectStylesAndMeasure(
+                    ContinuousStyleInjector.buildStyleSetJs(formattingPrefs),
+                    domReadyMeasure = true,
+                )
+            }
+        }
         wv.onPageFinished = {
             // buildStyleSetJs: no visibility toggle at load time — see the doc on that function.
             val styleJs = ContinuousStyleInjector.buildStyleSetJs(formattingPrefs)
-            wv.injectStylesAndMeasure(styleJs)
+            if (styledAtDomReady) wv.remeasure() else wv.injectStylesAndMeasure(styleJs)
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
@@ -1488,9 +1739,14 @@ internal class ContinuousWindowController(
         prependLayoutGeneration++ // invalidate any still-registered doOnNextLayout for the evicted wv
         prependAwaitingLayout = false
         boundaryDetentArmed = false
+        initialTopAwaitingMeasure = false
         releasePaintGate()
         val h = measuredHeights.removeAt(0)
         val wv = webViews.removeAt(0)
+        deferredInitialLoads.remove(wv)
+        deferredAboveUnmeasured.remove(wv)
+        if (pendingInWindowNav?.first === wv) pendingInWindowNav = null
+        if (deferredLoadInFlight === wv) onDeferredLoadSettled(wv)
         detachFromSlot(wv)
         recycle(wv)
         port.scrollBy(-h)
@@ -1508,6 +1764,10 @@ internal class ContinuousWindowController(
         if (webViews.isEmpty()) return
         measuredHeights.removeAt(measuredHeights.lastIndex)
         val wv = webViews.removeAt(webViews.lastIndex)
+        deferredInitialLoads.remove(wv)
+        deferredAboveUnmeasured.remove(wv)
+        if (pendingInWindowNav?.first === wv) pendingInWindowNav = null
+        if (deferredLoadInFlight === wv) onDeferredLoadSettled(wv)
         detachFromSlot(wv)
         recycle(wv)
     }
@@ -1546,7 +1806,8 @@ internal class ContinuousWindowController(
             sY, viewportMidIndex, window, topIndex, allChapters.size, vh,
             appendOnlyMaxWindow = APPEND_ONLY_MAX_WINDOW,
             backwardNavigationIntent = backwardNavigationIntent,
-            topChapterStillPlaceholder = prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint,
+            topChapterStillPlaceholder = prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint ||
+                initialTopAwaitingMeasure,
         )
         when (decision) {
             ChapterWindowManager.Decision.ShiftBackward -> {
@@ -1633,6 +1894,7 @@ internal class ContinuousWindowController(
      */
     fun onTouchDown() {
         inWindowNavSupersededByTouch = true
+        pendingInWindowNav = null
         // A user gesture supersedes any pending programmatic landing: without this, navigating
         // (TOC/chapter map) and scrolling away within the fallback window (2.5 s) let the
         // fallback fire later and yank the reader back to the stale navigation target —

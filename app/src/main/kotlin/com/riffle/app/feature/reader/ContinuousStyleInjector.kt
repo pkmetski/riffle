@@ -43,6 +43,37 @@ internal object ContinuousStyleInjector {
     private val REGEX_STYLE_TAG = Regex("<style", RegexOption.IGNORE_CASE)
     private val REGEX_HEAD_OPEN = Regex("<head[^>]*>", RegexOption.IGNORE_CASE)
     private val REGEX_HTML_OPEN = Regex("<html[^>]*", RegexOption.IGNORE_CASE)
+    private val REGEX_IMG_TAG = Regex("<img\\b[^>]*>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    // Numeric pixel values only: `width="100%"` / `height="auto"` give the browser no aspect
+    // ratio and the reservation script no size, so such images must keep the load-event path.
+    private val REGEX_IMG_WIDTH = Regex("\\swidth\\s*=\\s*[\"']?\\s*\\d+\\s*(px)?\\s*[\"']?(?=[\\s/>])", RegexOption.IGNORE_CASE)
+    private val REGEX_IMG_HEIGHT = Regex("\\sheight\\s*=\\s*[\"']?\\s*\\d+\\s*(px)?\\s*[\"']?(?=[\\s/>])", RegexOption.IGNORE_CASE)
+
+    /**
+     * True when every `<img>` in [html] declares numeric `width` and `height` attributes. Chromium
+     * maps those to an intrinsic aspect ratio, so the layout height is final at DOMContentLoaded
+     * and does not change as the images decode. Only then is it safe for the parent to measure
+     * and reveal the chapter before the `load` event (see [DOM_READY_SCRIPT]); a chapter with an
+     * unsized image keeps the load-event path so image decode can't reflow a revealed viewport.
+     */
+    internal fun allImagesSized(html: String): Boolean =
+        REGEX_IMG_TAG.findAll(html).all { m ->
+            REGEX_IMG_WIDTH.containsMatchIn(m.value) && REGEX_IMG_HEIGHT.containsMatchIn(m.value)
+        }
+
+    /**
+     * Inline script that calls `window.RiffleChapter.onDomReady()` at DOMContentLoaded when
+     * [sized] is true. Cold-open latency on image-heavy chapters is dominated by image decode
+     * between DOMContentLoaded and `load` (measured 0.1–0.6 s to DOM-ready vs 0.5–1.3 s to load
+     * on a 16–26-image O'Reilly chapter); the parent can style, measure and reveal at DOM-ready
+     * and let the images stream in behind the already-visible text. CDATA-wrapped so the strict
+     * XHTML parser accepts it.
+     */
+    internal fun domReadyScript(sized: Boolean): String =
+        "<script type=\"text/javascript\">//<![CDATA[\n" +
+            "(function(){var s=$sized;document.addEventListener('DOMContentLoaded',function(){" +
+            "if(s&&window.RiffleChapter&&window.RiffleChapter.onDomReady){window.RiffleChapter.onDomReady();}});})();\n" +
+            "//]]></script>\n"
 
     /**
      * Builds the value of the `style` attribute injected onto `<html>` — the `--USER__*` CSS
@@ -189,6 +220,7 @@ internal object ContinuousStyleInjector {
             append("<style type=\"text/css\" id=\"riffle-typography-override\">\n")
             append(TYPOGRAPHY_OVERRIDE_CSS)
             append("</style>\n")
+            append(domReadyScript(sized = allImagesSized(html)))
         }
         val headCloseIdx = out.indexOf("</head>", ignoreCase = true)
         out = if (headCloseIdx >= 0) {

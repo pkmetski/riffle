@@ -77,7 +77,12 @@ internal object ContinuousScriptInjector {
                 return Math.ceil(cssH * (window.devicePixelRatio || 1));
             }
             var last = -1;
+            // DOM-ready mode holds EVERY report (the ResizeObserver's initial notification and
+            // the safety timers included) until the bundled fonts have loaded, so the gating
+            // height is never taken with fallback-font metrics.
+            var reportsHeld = false;
             function report() {
+                if (reportsHeld) return;
                 var h = currentHeight();
                 if (h > 0 && h !== last) {
                     last = h;
@@ -86,7 +91,72 @@ internal object ContinuousScriptInjector {
                     window.RiffleChapter.onHeightMeasured(h, (window.__riffleToken | 0));
                 }
             }
-            report();
+            // Exposed so the parent can ask for a re-measure (e.g. at the load event after a
+            // DOM-ready measurement) without re-running this installer.
+            window.__riffleReport = report;
+            if (window.__riffleDomReadyMeasure) {
+                // DOM-ready measurement: images have not decoded yet. ReadiumCSS sizes images
+                // with `width: auto; height: auto`, which discards the <img width/height>
+                // presentational size, so an undecoded image occupies the 300 px default box
+                // and the chapter grows as each image lands (measured +4% on a 16-image
+                // chapter — re-landing the viewport on every step). Reserve each sized,
+                // not-yet-complete image's box at its expected final size (attribute width
+                // clamped to its container, attribute aspect ratio) and drop the inline size
+                // once it loads, so the final layout is exactly the author's.
+                try {
+                    var imgs = document.images;
+                    for (var k = 0; k < imgs.length; k++) {
+                        var im = imgs[k];
+                        if (im.complete) continue;
+                        var wa = im.getAttribute('width'), ha = im.getAttribute('height');
+                        if (!/^\s*\d+\s*(px)?\s*$/.test(wa || '') || !/^\s*\d+\s*(px)?\s*$/.test(ha || '')) continue;
+                        var aw = parseInt(wa, 10), ah = parseInt(ha, 10);
+                        if (!(aw > 0 && ah > 0)) continue;
+                        if (im.style.width || im.style.height) continue;
+                        // An undecoded image with `width: auto` (ReadiumCSS) sits in the 300 px
+                        // default object box. If the used width is exactly that default, no
+                        // author rule sets a width: give it the attribute width in CSS px, which
+                        // the author's / ReadiumCSS max-width rules then clamp exactly as they
+                        // will clamp the decoded image's intrinsic width. Any other used width
+                        // comes from an author rule (`img { width: 90% }`) — keep it. Height:
+                        // derived from the RESOLVED width and the attribute aspect ratio,
+                        // unrounded, so it matches the final `height: auto` value.
+                        var rw = im.getBoundingClientRect().width;
+                        if (Math.round(rw) === 300) {
+                            im.style.width = aw + 'px';
+                            rw = im.getBoundingClientRect().width;
+                        }
+                        if (!(rw > 0)) rw = aw;
+                        im.style.height = (rw * ah / aw) + 'px';
+                        var release = function(e) {
+                            var t = e.target;
+                            t.style.width = '';
+                            t.style.height = '';
+                        };
+                        im.addEventListener('load', release, { once: true });
+                        im.addEventListener('error', release, { once: true });
+                    }
+                } catch (e) {}
+            }
+            // Force a layout before consulting document.fonts: at DOMContentLoaded no layout has
+            // run yet, so no @font-face load has been requested and fonts.status still reads
+            // 'loaded' — the wait below would be skipped and the first report taken with
+            // fallback metrics.
+            void (document.documentElement && document.documentElement.offsetHeight);
+            if (window.__riffleDomReadyMeasure && document.fonts && document.fonts.ready &&
+                document.fonts.status !== 'loaded') {
+                // DOM-ready measurement: the bundled @font-face files are still loading, and a
+                // height taken with fallback metrics would be corrected a few frames later —
+                // a visible jump on an already-revealed page. Fonts come from local assets,
+                // so this wait is short; the ResizeObserver below still covers later reflow.
+                reportsHeld = true;
+                document.fonts.ready.then(function() {
+                    reportsHeld = false;
+                    requestAnimationFrame(report);
+                });
+            } else {
+                report();
+            }
             if (window.ResizeObserver) {
                 var ro = new ResizeObserver(function() { report(); });
                 ro.observe(document.documentElement);

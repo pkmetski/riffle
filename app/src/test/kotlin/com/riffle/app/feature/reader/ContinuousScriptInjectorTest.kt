@@ -103,4 +103,36 @@ class ContinuousScriptInjectorTest {
         // Injected on every page load; guards keep it from stacking multiple handlers.
         assertTrue(js.contains("__riffleSameDocAnchorWired"))
     }
+
+    // ── DOM-ready measurement support (cold-open latency, 2026-09-25) ───────
+
+    @Test
+    fun `height script exports report so the load event can remeasure without reinstalling`() {
+        assertTrue(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS.contains("window.__riffleReport = report;"))
+    }
+
+    @Test
+    fun `height script delays its first report until fonts are ready in DOM-ready mode`() {
+        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(js.contains("window.__riffleDomReadyMeasure"))
+        assertTrue(js.contains("document.fonts.status !== 'loaded'"))
+        // Every report path (initial, ResizeObserver, safety timers) is held until fonts.ready.
+        assertTrue(js.contains("if (reportsHeld) return;"))
+        assertTrue(js.contains("reportsHeld = true;"))
+    }
+
+    @Test
+    fun `image reservation keeps author-set widths and ignores non-numeric attributes`() {
+        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(js.contains("if (Math.round(rw) === 300) {"))
+        assertTrue(js.contains("/^\\s*\\d+\\s*(px)?\\s*$/.test(wa || '')"))
+    }
+
+    @Test
+    fun `height script reserves sized image boxes in DOM-ready mode and releases them on load`() {
+        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(js.contains("im.getAttribute('width')"))
+        assertTrue(js.contains("im.style.height = (rw * ah / aw) + 'px';"))
+        assertTrue(js.contains("im.addEventListener('load', release, { once: true });"))
+    }
 }

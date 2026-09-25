@@ -252,13 +252,32 @@ internal object ContinuousPositionTracker {
     data class InitialWindow(val topIndex: Int, val totalChapters: Int, val targetWindowIndex: Int) {
         /**
          * Window indices whose real height must be measured before the initial scroll is allowed
-         * to fire. Must cover EVERY chapter in the initial window, not just the target and the
-         * chapters above it: chapters below the target start at a full-screen placeholder height
-         * and collapse when they measure, which — if it happens after container reveal — shifts
-         * on-screen siblings under the user's eye (LinearLayout reflow inside a visible viewport
-         * with no scroll compensation for indices past 0). See ContinuousWindowController.openWindowAt.
+         * to fire: the target chapter ONLY.
+         *
+         * Cold-open latency is dominated by Chromium parsing + laying out the window's chapters,
+         * and with every window chapter loading at once the three (or five) WebViews share one
+         * renderer — the target chapter routinely finishes LAST (measured 4.3 s to first paint on
+         * a 200 KB chapter book, with the 2.5 s fallback firing before the target had even
+         * parsed). Gating on the target alone and loading the neighbours only after the reveal
+         * ([deferredLoadOrder]) brings first paint down to a single chapter's load time.
+         *
+         * Neighbours stay at placeholder height until they load. A chapter BELOW the target
+         * collapsing later only moves content below the viewport anchor; the chapter ABOVE
+         * (window index 0) is compensated by the layout-synchronous scrollBy in
+         * ContinuousWindowController's height handler, and the backward scroll floor holds the
+         * reader at the boundary until it measures, exactly like a backward prepend.
          */
-        fun pendingMeasureIndices(): Set<Int> = (0 until totalChapters).toSet()
+        fun pendingMeasureIndices(): Set<Int> = setOf(targetWindowIndex)
+
+        /**
+         * Window indices whose chapter load is deferred until the target chapter has been
+         * revealed, in the order they should be loaded: the chapters AHEAD of the target first
+         * (nearest first — the likeliest scroll direction), then the chapters BEHIND it (nearest
+         * first). Loaded one at a time so a neighbour never competes with the visible chapter's
+         * rasterisation or with another neighbour's parse.
+         */
+        fun deferredLoadOrder(): List<Int> =
+            (targetWindowIndex + 1 until totalChapters).toList() + (targetWindowIndex - 1 downTo 0).toList()
     }
 
     /**
