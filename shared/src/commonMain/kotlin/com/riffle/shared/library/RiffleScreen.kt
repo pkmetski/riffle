@@ -29,11 +29,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.shared.FilteredBooksHost

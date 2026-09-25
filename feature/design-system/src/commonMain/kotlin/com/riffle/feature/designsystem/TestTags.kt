@@ -87,6 +87,7 @@ object TestTags {
     const val IOS_READER_CADENCE = "ios_reader_cadence"
     const val IOS_READER_BOOKMARK = "ios_reader_bookmark"
     const val IOS_READER_AUTOSCROLL_PAUSE = "ios_reader_autoscroll_pause"
+
     // These match the existing pre-tagged string values in AutoScrollUi / CadenceUi.
     const val READER_AUTOSCROLL_SLOWER = "auto_scroll_slower"
     const val READER_AUTOSCROLL_FASTER = "auto_scroll_faster"
@@ -115,6 +116,7 @@ object TestTags {
     const val PLAYER_PREV_CHAPTER = "player_prev_chapter"
     const val PLAYER_NEXT_CHAPTER = "player_next_chapter"
     const val PLAYER_PLAY_PAUSE = "player_play_pause"
+
     // Preserve existing kebab-case strings so XCUITests keep passing.
     const val AUDIOBOOK_REWIND = "audiobook-rewind"
     const val AUDIOBOOK_FORWARD = "audiobook-forward"
@@ -211,6 +213,7 @@ object TestTags {
 
     // ── Reader settings ───────────────────────────────────────────────────────
     const val READER_SETTINGS_COLORED_CHAPTER_MAP = "colored_chapter_map_toggle"
+
     // Formatting section — sliders (outer row tag + decrement/increment buttons)
     const val READER_SETTINGS_FONT_SIZE = "reader_settings_font_size"
     const val READER_SETTINGS_FONT_SIZE_DEC = "reader_settings_font_size_dec"
@@ -223,11 +226,13 @@ object TestTags {
     const val READER_SETTINGS_MARGINS_INC = "reader_settings_margins_inc"
     const val READER_SETTINGS_JUSTIFY_TEXT = "reader_settings_justify_text"
     fun readerSettingsFont(family: String) = "reader_settings_font_$family"
+
     // Display section
     fun readerSettingsTheme(theme: String) = "reader_settings_theme_$theme"
     fun readerSettingsOrientation(orientation: String) = "reader_settings_orientation_$orientation"
     const val READER_SETTINGS_FORCE_PAGINATED_LANDSCAPE = "reader_settings_force_paginated_landscape"
     const val READER_SETTINGS_DOUBLE_PAGE = "reader_settings_double_page"
+
     // Behavior section
     const val READER_SETTINGS_KEEP_SCREEN_ON = "reader_settings_keep_screen_on"
     const val READER_SETTINGS_VOLUME_KEY_NAV = "reader_settings_volume_key_nav"

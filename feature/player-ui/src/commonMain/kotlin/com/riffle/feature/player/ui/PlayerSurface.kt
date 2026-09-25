@@ -45,7 +45,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -56,6 +55,7 @@ import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SleepTimerMode
@@ -406,7 +406,11 @@ private fun TransportRow(
             )
         }
         Spacer(Modifier.size(10.dp))
-        IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton).testTag(TestTags.PLAYER_PREV_CHAPTER)) {
+        IconButton(
+            onClick = actions.onPreviousChapter,
+            enabled = state.canPreviousChapter,
+            modifier = Modifier.size(secondaryButton).testTag(TestTags.PLAYER_PREV_CHAPTER),
+        ) {
             Icon(PlayerGlyphs.SkipPrevious, contentDescription = labels.previousChapter, modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))
@@ -425,7 +429,11 @@ private fun TransportRow(
             }
         }
         Spacer(Modifier.size(10.dp))
-        IconButton(onClick = actions.onNextChapter, enabled = state.canNextChapter, modifier = Modifier.size(secondaryButton).testTag(TestTags.PLAYER_NEXT_CHAPTER)) {
+        IconButton(
+            onClick = actions.onNextChapter,
+            enabled = state.canNextChapter,
+            modifier = Modifier.size(secondaryButton).testTag(TestTags.PLAYER_NEXT_CHAPTER),
+        ) {
             Icon(PlayerGlyphs.SkipNext, contentDescription = labels.nextChapter, modifier = Modifier.size(secondaryIcon))
         }
         Spacer(Modifier.size(10.dp))

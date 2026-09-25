@@ -64,12 +64,12 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.BookGrid
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
 import com.riffle.feature.designsystem.LocalCoversAreSquare
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_see_all

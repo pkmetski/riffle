@@ -49,6 +49,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.settings.AppUpdateStatus
@@ -61,7 +62,6 @@ import com.riffle.feature.settings.comicDisplaySummary
 import com.riffle.feature.settings.label
 import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.source.ui.settings.SourcesSection
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
 import kotlinx.coroutines.launch

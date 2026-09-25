@@ -26,8 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.PlaybackSpeed
 import kotlin.math.abs
 

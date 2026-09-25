@@ -62,6 +62,7 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -102,7 +103,6 @@ import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.SpeedHudLabels
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
