@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Copy shown when a scan completes but no files were classifiable. Deliberately format-agnostic
