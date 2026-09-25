@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.content.Context
+
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
@@ -95,6 +96,41 @@ internal class ContinuousWindowController(
         private const val PAINTED_FALLBACK_MS = 2000L
 
         /**
+         * Phase-1 duration of the two-phase GONE strategy for mid-chapter initial landings
+         * (cssY > 0). Non-target chapter WebViews are set to [android.view.View.GONE] so
+         * Chrome's tile memory budget is spent exclusively on the target chapter. After this
+         * delay the target chapter viewport tiles are rasterised and we enter phase 2.
+         *
+         * The three stacked WebViews together total ~300–380 K physical px on a high-density
+         * screen. Chrome's tile budget (typically 64–96 MB) cannot cover that area; it logs
+         * "tile memory limits exceeded" and skips tiles at the reading position. GONE removes
+         * the non-target views from layout entirely (0×0), giving Chrome the full budget for
+         * the target chapter's ~10 K-px interest rect.
+         */
+        private const val RASTER_TARGET_MS = 300L
+
+        /**
+         * Phase-2 duration: after non-target chapters are restored from GONE, Chrome must
+         * rasterise their interest-rect tiles before the spinner is dismissed. The preceding
+         * chapter (just above the reading position) is the priority; it fits entirely within
+         * Chrome's viewport interest rect and is typically rasterised well within this window.
+         * The spinner overlay covers the screen during this phase so the user never sees
+         * partially-rasterised neighbours.
+         *
+         * Total spinner time = [RASTER_TARGET_MS] + [RASTER_NEIGHBORS_MS] = 1 500 ms, which
+         * is well within the [PAINTED_FALLBACK_MS] safety net.
+         */
+        private const val RASTER_NEIGHBORS_MS = 1200L
+
+        /**
+         * Delay before the smooth-tail (TOC navigation) reveal animation starts. Gives the
+         * NestedScrollView a frame to settle at the pre-scroll position before [smoothScrollTo]
+         * kicks in, so the tween starts from a stable origin.
+         */
+        private const val PRE_RASTER_ANIM_MS = 700L
+
+
+        /**
          * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
          * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
          * closely enough that rapid presses feel the same in both modes. Also the validity window for
@@ -131,20 +167,17 @@ internal class ContinuousWindowController(
         private const val PREPEND_PAINT_TIMEOUT_MS = 5_000L
 
         /**
-         * JS that temporarily makes the document scrollable and moves Chrome's internal viewport
-         * to [cssY] CSS pixels from the chapter top. This primes the tile rasteriser at the
-         * reading position before the container is revealed, eliminating the blank-gap that
-         * otherwise appears because Chrome rasterises from y=0 regardless of NestedScrollView
-         * scroll. Must be paired with [preRasterRestoreJs] after the reveal.
-         *
-         * `window.scrollTo()` is a no-op in ReadiumCSS pages (the document is non-scrollable via
-         * that API); `documentElement.scrollTop` correctly moves `window.scrollY` and directs
-         * Chrome's rasteriser.
+         * JS that sets `documentElement.scrollTop` to [cssY] as a hint to Chrome's tile rasteriser
+         * during a smooth-scroll TOC navigation. Fired while the smooth animation is in flight to
+         * give Chrome a head start rasterising tiles at the destination before the viewport arrives.
+         * Must be paired with [preRasterRestoreJs] to clear the temporary override.
          */
         internal fun preRasterScrollJs(cssY: Int): String =
-            "document.documentElement.style.overflowY='scroll';" +
-            "document.body.style.overflowY='scroll';" +
-            "document.documentElement.scrollTop=$cssY;true;"
+            "(function(){" +
+            "var t=document.documentElement,b=document.body;" +
+            "t.style.overflowY='scroll';b.style.overflowY='scroll';" +
+            "t.scrollTop=$cssY;" +
+            "})();true;"
 
         /** JS that undoes the temporary scroll applied by [preRasterScrollJs]. */
         internal fun preRasterRestoreJs(): String =
@@ -324,14 +357,48 @@ internal class ContinuousWindowController(
         get() = boundaryDetentArmed
 
     /**
-     * Test seam: true once the first-land reveal was gated on [ChapterWebView.onCurrentContentPainted]
-     * rather than firing on the next animation frame. The regression assertion is that this is true
-     * after any initial open: if the fix is reverted (postOnAnimation replaces the paint-callback
-     * gate), this stays false and the test fails.
+     * Test seam: true once the first-land reveal was deliberately delayed (via postDelayed or
+     * [ChapterWebView.onCurrentContentPainted]) rather than firing on the next animation frame.
+     * The regression assertion is that this is true after any initial open: if the fix is reverted
+     * (postOnAnimation replaces the delayed reveal), this stays false and the test fails.
      */
     @androidx.annotation.VisibleForTesting
     internal var firstRevealGatedOnPaint: Boolean = false
         private set
+
+    /**
+     * Test seam: true if the initial non-smooth open landed at cssY > 0 and applied the two-phase
+     * GONE strategy. Non-target WebViews are set to [android.view.View.GONE] in phase 1 so Chrome
+     * allocates its full tile budget to the target chapter; they are restored in phase 2 while the
+     * spinner is still up so Chrome can rasterise them before the user sees the screen.
+     *
+     * Regression assertion: if this is false the tile budget is exceeded by three simultaneous
+     * tall chapters and the reading position appears blank. Reverts to INVISIBLE (or removes the
+     * GONE block) would leave this false and fail the test.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal var goneStrategyAppliedForNonZeroCssY: Boolean = false
+        private set
+
+    /**
+     * Test entry point for triggering a non-smooth initial open at [progression] inside [href].
+     * Simulates reopening a book at a saved mid-chapter reading position without using smooth-tail
+     * (TOC navigation) semantics. Used by [ContinuousChapterBoundaryHarnessTest] to exercise the
+     * timed-reveal code path without requiring a stubbed reading position.
+     *
+     * Resets [firstLoadComplete] and notifies [onFirstLoadRestart] before the open so that the
+     * test's `waitUntil { isFirstLoadComplete.value }` gates on the NEW landing, not on the
+     * already-completed initial open (non-smooth opens don't reset firstLoadComplete in production
+     * because there is no user-visible spinner between navigations, but in tests we need the wait).
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun openWindowAtNonSmoothForTest(href: String, progression: Float) {
+        firstLoadComplete = false
+        onFirstLoadRestart()
+        goneStrategyAppliedForNonZeroCssY = false
+        firstRevealGatedOnPaint = false
+        openWindowAt(href, progression, smoothTail = false)
+    }
 
     /**
      * True while the current touch gesture has already been consumed by a backward prepend.
@@ -625,15 +692,10 @@ internal class ContinuousWindowController(
                         val densitySmooth = wvSmooth?.resources?.displayMetrics?.density ?: 1f
                         val cssYSmooth = ((y - slot.top) / densitySmooth).toInt()
                         if (wvSmooth != null && cssYSmooth > 0) {
-                            // JS viewport trick: temporarily make the document scrollable and set
-                            // documentElement.scrollTop = cssY so Chrome's tile-rasteriser
-                            // prioritises the reading position. window.scrollTo() is a no-op in
-                            // ReadiumCSS pages; scrollTop on the root element moves window.scrollY.
-                            // Wait for the paint callback (Chrome committed a frame at cssY), then
-                            // reveal and start the smooth-scroll animation. Both Chrome's internal
-                            // viewport and NestedScrollView point at the same content, so tiles are
-                            // already rasterized on reveal. Restore after animation starts to avoid
-                            // evicting the tile cache before the animation completes.
+                            // Same tile-memory-budget fix as the non-smooth path: shrink the
+                            // WebView height temporarily so Chrome can rasterise tiles at cssY
+                            // without hitting its tile memory limit.
+                            val viewportHSmooth = port.viewportHeightPx.coerceAtLeast(1)
                             var smoothRevealed = false
                             fun revealSmooth() {
                                 if (!smoothRevealed) {
@@ -643,24 +705,15 @@ internal class ContinuousWindowController(
                                     port.smoothScrollTo(y)
                                 }
                             }
-                            wvSmooth.evaluateJavascript(preRasterScrollJs(cssYSmooth)) { _ ->
-                                wvSmooth.onCurrentContentPainted {
-                                    revealSmooth()
-                                    container.postDelayed({
-                                        wvSmooth.evaluateJavascript(
-                                            preRasterRestoreJs(),
-                                            null as ((String?) -> Unit)?,
-                                        )
-                                    }, 200L)
-                                }
-                            }
+                            container.postDelayed({ revealSmooth() }, PRE_RASTER_ANIM_MS)
                             container.postDelayed({ revealSmooth() }, PAINTED_FALLBACK_MS)
                         } else {
-                            // Reveal and start the tween on the SAME animation frame. Previously
-                            // the reveal used `postOnAnimation` (next vsync) and smoothScrollTo
-                            // used `port.post` (next Handler drain — typically fires FIRST); the
-                            // tween began ~1 frame before the container became VISIBLE, so the
-                            // user saw a partial animation from wherever the scroll had advanced.
+                            // wvSmooth == null (WebView not yet attached): reveal and start the
+                            // tween on the SAME animation frame. Previously the reveal used
+                            // `postOnAnimation` (next vsync) and smoothScrollTo used `port.post`
+                            // (next Handler drain — typically fires FIRST); the tween began ~1 frame
+                            // before the container became VISIBLE, so the user saw a partial
+                            // animation from wherever the scroll had advanced.
                             port.postOnAnimation {
                                 container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
@@ -672,7 +725,6 @@ internal class ContinuousWindowController(
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                         if (isFirstLand) {
-                            container.visibility = android.view.View.VISIBLE
                             val wv = webViews.getOrNull(i)
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
@@ -686,34 +738,60 @@ internal class ContinuousWindowController(
                                     }
                                 }
                                 if (cssY > 0) {
-                                    // JS viewport trick: temporarily make the document scrollable
-                                    // and set documentElement.scrollTop = cssY so Chrome's tile-
-                                    // rasteriser prioritises the reading position before reveal.
-                                    // window.scrollTo() is a no-op in ReadiumCSS pages; scrollTop
-                                    // on the root element correctly moves window.scrollY.
-                                    wv.evaluateJavascript(preRasterScrollJs(cssY)) { _ ->
-                                        wv.onCurrentContentPainted {
-                                            dismissSpinner()
-                                            container.postDelayed({
-                                                wv.evaluateJavascript(
-                                                    preRasterRestoreJs(),
-                                                    null as ((String?) -> Unit)?,
-                                                )
-                                            }, 200L)
-                                        }
+                                    // Phase 1: set non-target chapters to GONE so Chrome's tile
+                                    // budget is spent entirely on the target chapter.
+                                    // INVISIBLE is not enough — Chrome still allocates tile
+                                    // descriptors based on layout height even for invisible views,
+                                    // exceeding the budget for three stacked tall chapters.
+                                    val precedingWvs = webViews.take(i)
+                                    val followingWvs = webViews.drop(i + 1)
+                                    (precedingWvs + followingWvs).forEach {
+                                        it.visibility = android.view.View.GONE
                                     }
+                                    goneStrategyAppliedForNonZeroCssY = true
+                                    val precedingPhysH = precedingWvs
+                                        .sumOf { wv2 -> wv2.layoutParams?.height ?: 0 }
+                                    // With ch1 GONE its layout height is 0, so the correct NSV
+                                    // scroll is the chapter-relative offset rather than the full y.
+                                    val adjustedScrollY = (cssY * density).toInt()
+                                    port.scrollTo(adjustedScrollY)
+                                    landingHoldTargetY = adjustedScrollY
+                                    container.visibility = android.view.View.VISIBLE
+                                    container.postDelayed({
+                                        // Phase 2: restore preceding chapters while spinner is
+                                        // still up. Chrome rasterises them (they are within the
+                                        // viewport interest rect) before the overlay lifts.
+                                        precedingWvs.forEach {
+                                            it.visibility = android.view.View.VISIBLE
+                                        }
+                                        port.scrollBy(precedingPhysH)
+                                        landingHoldTargetY = adjustedScrollY + precedingPhysH
+                                        landingHoldUntilUptimeMs =
+                                            android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
+                                        // Restore following chapters and reveal only after the
+                                        // preceding chapter has had time to rasterise.
+                                        container.postDelayed({
+                                            followingWvs.forEach {
+                                                it.visibility = android.view.View.VISIBLE
+                                            }
+                                            dismissSpinner()
+                                        }, RASTER_NEIGHBORS_MS)
+                                    }, RASTER_TARGET_MS)
                                 } else {
+                                    container.visibility = android.view.View.VISIBLE
                                     port.postOnAnimation {
                                         wv.onCurrentContentPainted { dismissSpinner() }
                                     }
                                 }
-                                container.postDelayed({
-                                    dismissSpinner()
-                                }, PAINTED_FALLBACK_MS)
+                                container.postDelayed({ dismissSpinner() }, PAINTED_FALLBACK_MS)
                             } else {
+                                container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
                             }
                         } else {
+                            port.scrollTo(y)
+                            landingHoldTargetY = y
+                            landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                             port.postOnAnimation {
                                 container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
@@ -951,13 +1029,27 @@ internal class ContinuousWindowController(
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
         clearLandingHold()
-        fun go(y: Int) {
-            val clamped = y.coerceAtLeast(0)
-            if (smooth) port.smoothScrollTo(clamped) else port.scrollTo(clamped)
-        }
         val wvIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
         if (wvIndex < 0) return
         val wv = webViews[wvIndex]
+        fun go(y: Int) {
+            val clamped = y.coerceAtLeast(0)
+            if (smooth) {
+                // Pre-raster trick: set documentElement.scrollTop = cssY so Chrome's tile
+                // rasterizer prioritises the target tiles BEFORE the smooth animation reaches
+                // them. The animation gives Chrome ~300 ms to rasterize; fire-and-forget suffices.
+                val density = wv.resources.displayMetrics.density
+                val cssY = ((clamped - slot.top) / density).toInt().coerceAtLeast(1)
+
+                wv.evaluateJavascript(preRasterScrollJs(cssY)) {}
+                wv.postDelayed({
+                    wv.evaluateJavascript(preRasterRestoreJs()) {}
+                }, 300L)
+                port.smoothScrollTo(clamped)
+            } else {
+                port.scrollTo(clamped)
+            }
+        }
 
         fun landOnAnchorOrProgression() {
             if (fragment.isNotEmpty()) {

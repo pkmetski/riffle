@@ -323,11 +323,25 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /**
      * Test seam — see [ContinuousWindowController.firstRevealGatedOnPaint].
      * The assertion that would fail if the fix is reverted: `firstRevealGatedOnPaint` stays false
-     * because the reveal uses `postOnAnimation` instead of `onCurrentContentPainted`.
+     * because the reveal uses `postOnAnimation` (immediate) instead of a deliberate delay.
      */
     @androidx.annotation.VisibleForTesting
     internal val firstRevealGatedOnPaint: Boolean
         get() = controller.firstRevealGatedOnPaint
+
+    /**
+     * Test seam — see [ContinuousWindowController.goneStrategyAppliedForNonZeroCssY].
+     */
+    @androidx.annotation.VisibleForTesting
+    internal val goneStrategyAppliedForNonZeroCssY: Boolean
+        get() = controller.goneStrategyAppliedForNonZeroCssY
+
+    /**
+     * Test entry point — see [ContinuousWindowController.openWindowAtNonSmoothForTest].
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun openWindowAtNonSmoothForTest(href: String, progression: Float) =
+        controller.openWindowAtNonSmoothForTest(href, progression)
 
     /**
      * Decline to be a nested-scrolling parent for child [ChapterWebView]s. See historical comment

@@ -233,10 +233,13 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
      * position inside a long chapter, Chromium has not yet rasterized tiles at that position.
      * Making the container visible before rasterization completes causes a blank white gap.
      *
-     * The fix gates `container.visibility = VISIBLE` on [ChapterWebView.onCurrentContentPainted]
-     * (Chromium's visual-state callback) instead of on the next animation frame. The specific
-     * assertion that fails if the fix is reverted: `firstRevealGatedOnPaint` stays false because
-     * the old `postOnAnimation { container.visibility = VISIBLE }` path never sets the flag.
+     * The fix delays the container reveal (via postDelayed with [PRE_RASTER_ANIM_MS]) after
+     * injecting [preRasterScrollJs], giving Chrome time to mark cssY tiles as high-priority before
+     * first paint. The specific assertion that fails if the fix is reverted: `firstRevealGatedOnPaint`
+     * stays false because the old immediate-reveal path never sets it.
+     *
+     * See also [timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY] which pins the same
+     * timed-reveal guarantee for the non-smooth (saved-position) open path.
      */
     @Test
     fun firstRevealGatedOnPaintCallbackNotAnimationFrame() {
@@ -271,11 +274,76 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         var gated = false
         composeTestRule.activityRule.scenario.onActivity { gated = reader.firstRevealGatedOnPaint }
         assertTrue(
-            "container reveal must be gated on Chromium's visual-state callback " +
-                "(onCurrentContentPainted), not on the next animation frame; if false, the " +
-                "reader would appear before tiles at the scroll position are rasterized, " +
-                "producing the blank white gap reported in the field",
+            "spinner removal must be deliberately delayed (postDelayed with RASTER_SETTLE_MS), " +
+                "not fired on the next animation frame; if false, the reader would appear before " +
+                "Chrome has rasterized tiles at the scroll position, producing the blank white gap",
             gated,
+        )
+    }
+
+    /**
+     * Regression for the tile-memory blank-screen bug: when the initial non-smooth landing lands at
+     * cssY > 0 (a book opened at a saved mid-chapter reading position), the spinner overlay must
+     * stay up until a fixed delay ([ContinuousWindowController.RASTER_FILL_WAIT_MS]) elapses,
+     * giving Chrome's raster threads time to fill tiles at the reading position before the content
+     * is revealed. The [ContinuousWindowController.firstRevealGatedOnPaint] flag is the assertion
+     * handle — it is set to true whenever the timed-reveal path is taken, regardless of cssY.
+     *
+     * Assertion that fails if the fix is reverted (immediate reveal replaces the timed-reveal path):
+     * `firstRevealGatedOnPaint` stays false because the delayed branch is never entered.
+     *
+     * (The prior version of this test asserted a View.GONE strategy for non-target WebViews.
+     * That strategy was retired because setting sibling WebViews to GONE caused Chrome to evict
+     * their tile descriptors over the 1 500 ms wait, producing blank tiles for chapter 1 when the
+     * user scrolled back up. The timed-reveal approach without GONE is simpler and correct.)
+     */
+    @Test
+    fun timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY() {
+        addServerAndBrowseLibrary()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.assertNoErrorState()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            findContinuousReader()?.isFirstLoadComplete?.value == true
+        }
+        val reader = requireNotNull(findContinuousReader()) { "continuous reader view was not mounted" }
+
+        // Simulate reopening at a mid-chapter saved position (non-smooth, cssY > 0). This is
+        // exactly the path taken when a book is opened from the library with saved reading progress.
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.openWindowAtNonSmoothForTest("OEBPS/ch06.html", progression = 0.5f)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
+
+        var gated = false
+        var goneApplied = false
+        composeTestRule.activityRule.scenario.onActivity {
+            gated = reader.firstRevealGatedOnPaint
+            goneApplied = reader.goneStrategyAppliedForNonZeroCssY
+        }
+        assertTrue(
+            "spinner removal must be deliberately delayed (postDelayed with RASTER_TARGET_MS + " +
+                "RASTER_NEIGHBORS_MS) for cssY > 0 landings; if false, the container reveal " +
+                "fires before Chrome has rasterised tiles at the reading position",
+            gated,
+        )
+        assertTrue(
+            "non-target chapter WebViews must be set to View.GONE in phase 1 so Chrome's tile " +
+                "budget is allocated entirely to the target chapter; without GONE the three " +
+                "stacked tall chapters exceed the budget and the reading position is blank",
+            goneApplied,
         )
     }
 
