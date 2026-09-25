@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.feature.source.ui.fadingScrollbar
 import com.riffle.feature.reader.findActiveEntry
 import com.riffle.feature.reader.findActiveFlatIndex
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.flattenToc
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,7 +56,7 @@ fun TocPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .fadingScrollbar(listState)
-                .testTag("toc_panel"),
+                .testTag(TestTags.READER_TOC_PANEL),
         ) {
             items(
                 items = flat,

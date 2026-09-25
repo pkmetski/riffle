@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import androidx.compose.ui.graphics.asImageBitmap
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
@@ -203,13 +204,19 @@ fun CbzReaderScreen(
                     Text(title, maxLines = 1)
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.CBZ_READER_BACK),
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                     }
                 },
                 actions = {
                     if (state is CbzReaderState.Ready) {
-                        IconButton(onClick = { formattingSheetOpen = true }) {
+                        IconButton(
+                            onClick = { formattingSheetOpen = true },
+                            modifier = Modifier.testTag(TestTags.CBZ_READER_SETTINGS),
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.Tune,
                                 contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_formatting),
@@ -433,7 +440,7 @@ private fun CbzPager(
 
     HorizontalPager(
         state = pagerState,
-        modifier = Modifier.fillMaxSize().testTag("cbz_pager"),
+        modifier = Modifier.fillMaxSize().testTag(TestTags.CBZ_PAGER),
     ) { pageIndex ->
         CbzPage(
             source = state.imageSource,
@@ -661,7 +668,7 @@ private fun CbzPanelViewer(
                     }
                 }
             }
-            .testTag("cbz_panel_viewer"),
+            .testTag(TestTags.CBZ_PANEL_VIEWER),
         contentAlignment = Alignment.Center,
     ) {
         val panels = pagePanels?.panels
@@ -780,14 +787,14 @@ private fun CbzPanelPeekOverlay(
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { onDismiss() })
             }
-            .testTag("cbz_panel_peek"),
+            .testTag(TestTags.CBZ_PANEL_PEEK),
         contentAlignment = Alignment.BottomCenter,
     ) {
         Button(
             onClick = onSkip,
             modifier = Modifier
                 .padding(24.dp)
-                .testTag("cbz_panel_peek_skip"),
+                .testTag(TestTags.CBZ_PANEL_PEEK_SKIP),
         ) {
             Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_skip_guided_panels_on_this_page))
         }

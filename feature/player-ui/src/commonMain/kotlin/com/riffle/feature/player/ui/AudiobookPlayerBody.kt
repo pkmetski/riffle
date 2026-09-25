@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.AudiobookBookmark
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.AudiobookPlayerUiState
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.buildAudiobookFacts
@@ -189,7 +190,7 @@ fun AudiobookPlayerBody(
                         Text(
                             labels.cannotPlay,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.testTag("player_failed"),
+                            modifier = Modifier.testTag(TestTags.PLAYER_FAILED),
                         )
                     }
                     // navigationBarsPadding so the pills row at the bottom clears the system nav bar
@@ -263,7 +264,7 @@ fun AudiobookPlayerBody(
                     .align(Alignment.TopStart)
                     .safeDrawingPadding()
                     .padding(4.dp)
-                    .testTag("player_back"),
+                    .testTag(TestTags.PLAYER_BACK),
             ) {
                 Icon(PlayerGlyphs.ArrowBack, contentDescription = labels.back)
             }
@@ -291,7 +292,7 @@ fun AudiobookPlayerBody(
                     .align(Alignment.TopEnd)
                     .safeDrawingPadding()
                     .padding(end = 12.dp)
-                    .testTag("player_bookmark_ribbon"),
+                    .testTag(TestTags.PLAYER_BOOKMARK_RIBBON),
             )
         }
     }
@@ -391,7 +392,7 @@ private fun PlayerListPills(
     ) {
         AssistChip(
             onClick = onOpenChapters,
-            modifier = Modifier.testTag("player_chapters_pill"),
+            modifier = Modifier.testTag(TestTags.PLAYER_CHAPTERS_PILL),
             label = { Text(labels.chapters) },
             leadingIcon = {
                 Icon(PlayerGlyphs.MenuBook, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
@@ -399,7 +400,7 @@ private fun PlayerListPills(
         )
         AssistChip(
             onClick = onOpenBookmarks,
-            modifier = Modifier.testTag("player_bookmarks_pill"),
+            modifier = Modifier.testTag(TestTags.PLAYER_BOOKMARKS_PILL),
             label = { Text(bookmarkCountLabel(bookmarkCount, labels)) },
             leadingIcon = {
                 Icon(PlayerGlyphs.Bookmark, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.autoscroll.isHudPillVisible
 import com.riffle.core.domain.autoscroll.speedOrNull
+import com.riffle.feature.designsystem.TestTags
 
 // The HUD pill anchors to BottomEnd inside the system-bar insets, but the reader still paints its
 // chapter rail / reading-status overlay above the nav bar. The pill's bottom padding must clear
@@ -66,7 +67,7 @@ fun AutoScrollHudPill(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = HUD_PILL_BOTTOM_DP.dp)
-                .testTag("auto_scroll_hud_pill")
+                .testTag(TestTags.AUTO_SCROLL_HUD_PILL)
                 .background(Color(0x66_1F_1B_17), CircleShape)
                 .padding(horizontal = 4.dp, vertical = 2.dp)
                 .heightIn(min = 28.dp),
@@ -76,6 +77,7 @@ fun AutoScrollHudPill(
                 onClick = if (running) onPause else onResume,
                 modifier = Modifier
                     .size(28.dp)
+                    .testTag(TestTags.IOS_READER_AUTOSCROLL_PAUSE)
                     .semantics { contentDescription = playPauseDescription },
             ) {
                 if (running) PauseGlyph(Color.White) else PlayGlyph(Color.White)
@@ -85,7 +87,7 @@ fun AutoScrollHudPill(
                 onClick = onSlower,
                 modifier = Modifier
                     .size(28.dp)
-                    .testTag("auto_scroll_slower")
+                    .testTag(TestTags.READER_AUTOSCROLL_SLOWER)
                     .semantics { contentDescription = labels.slower },
             ) {
                 MinusGlyph(Color.White)
@@ -101,7 +103,7 @@ fun AutoScrollHudPill(
                 onClick = onFaster,
                 modifier = Modifier
                     .size(28.dp)
-                    .testTag("auto_scroll_faster")
+                    .testTag(TestTags.READER_AUTOSCROLL_FASTER)
                     .semantics { contentDescription = labels.faster },
             ) {
                 PlusGlyph(Color.White)

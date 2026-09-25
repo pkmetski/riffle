@@ -28,13 +28,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 
-object SearchTopBarTags {
-    const val FIELD = "search_field"
-    const val COUNT = "search_result_count"
-    const val PREV = "search_prev"
-    const val NEXT = "search_next"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +56,10 @@ fun SearchTopBar(
         windowInsets = TopAppBarDefaults.windowInsets,
         colors = readerTopAppBarColors(),
         navigationIcon = {
-            IconButton(onClick = onNavigateBack) {
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier.testTag(TestTags.READER_BACK),
+            ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
             }
         },
@@ -85,7 +83,7 @@ fun SearchTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
-                    .testTag(SearchTopBarTags.FIELD),
+                    .testTag(TestTags.READER_SEARCH_FIELD),
             )
         },
         actions = {
@@ -95,23 +93,26 @@ fun SearchTopBar(
                 color = Color.White.copy(alpha = 0.7f),
                 modifier = Modifier
                     .padding(end = 4.dp)
-                    .testTag(SearchTopBarTags.COUNT),
+                    .testTag(TestTags.READER_SEARCH_COUNT),
             )
             IconButton(
                 onClick = onPrev,
                 enabled = currentIndex > 0,
-                modifier = Modifier.testTag(SearchTopBarTags.PREV),
+                modifier = Modifier.testTag(TestTags.READER_SEARCH_PREV),
             ) {
                 Icon(Icons.Default.KeyboardArrowUp, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_previous_result))
             }
             IconButton(
                 onClick = onNext,
                 enabled = currentIndex < resultCount - 1,
-                modifier = Modifier.testTag(SearchTopBarTags.NEXT),
+                modifier = Modifier.testTag(TestTags.READER_SEARCH_NEXT),
             ) {
                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_next_result))
             }
-            IconButton(onClick = onClose) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.testTag(TestTags.READER_SEARCH_CLOSE),
+            ) {
                 Icon(Icons.Default.Close, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_close_search))
             }
         },

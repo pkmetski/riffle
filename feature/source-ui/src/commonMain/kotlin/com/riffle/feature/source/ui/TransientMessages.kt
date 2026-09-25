@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.TestTags
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -97,7 +98,7 @@ fun BoxScope.RiffleSnackbarHost(
         hostState = hostState,
         modifier = modifier
             .align(Alignment.BottomCenter)
-            .testTag("RiffleSnackbarHost"),
+            .testTag(TestTags.SNACKBAR_HOST),
         snackbar = { data -> Snackbar(snackbarData = data) },
     )
 }

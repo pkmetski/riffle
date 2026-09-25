@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.ui.PlaybackSpeedControl
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.ui.SKIP_NUMBER_DOWN_FRACTION
 
 /**
@@ -70,7 +71,7 @@ private fun SpeedControl(
             shape = RoundedCornerShape(10.dp),
             color = contentColor.copy(alpha = 0.08f),
             contentColor = contentColor,
-            modifier = Modifier.testTag("readaloud_speed"),
+            modifier = Modifier.testTag(TestTags.READALOUD_SPEED),
         ) {
             Text(
                 PlaybackSpeed.label(speed),
@@ -147,7 +148,7 @@ fun ReadaloudMiniPlayer(
         contentColor = contentColor,
         modifier = modifier
             .fillMaxWidth()
-            .testTag("readaloud_mini_player"),
+            .testTag(TestTags.READALOUD_MINI_PLAYER),
     ) {
         Row(
             modifier = Modifier
@@ -162,7 +163,7 @@ fun ReadaloudMiniPlayer(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp)
-                        .testTag("readaloud_offline_message"),
+                        .testTag(TestTags.READALOUD_OFFLINE_MESSAGE),
                 )
             } else if (downloadProgress != null) {
                 Text(
@@ -174,22 +175,22 @@ fun ReadaloudMiniPlayer(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp)
-                        .testTag("readaloud_downloading"),
+                        .testTag(TestTags.READALOUD_DOWNLOADING),
                 )
             } else {
                 SpeedControl(speed = speed, contentColor = contentColor, onSpeedChange = onSpeedChange)
                 Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = onRewind, modifier = Modifier.testTag("readaloud_rewind")) {
+                IconButton(onClick = onRewind, modifier = Modifier.testTag(TestTags.READALOUD_REWIND)) {
                     SkipIcon(seconds = rewindIntervalSeconds, forward = false, tint = contentColor)
                 }
                 IconButton(
                     onClick = onPreviousChapter,
                     enabled = canPreviousChapter,
-                    modifier = Modifier.testTag("readaloud_prev_chapter"),
+                    modifier = Modifier.testTag(TestTags.READALOUD_PREV_CHAPTER),
                 ) {
                     Icon(Icons.Filled.SkipPrevious, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_previous_chapter))
                 }
-                IconButton(onClick = onPlayPause, modifier = Modifier.testTag("readaloud_play_pause")) {
+                IconButton(onClick = onPlayPause, modifier = Modifier.testTag(TestTags.READALOUD_PLAY_PAUSE)) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
@@ -198,16 +199,16 @@ fun ReadaloudMiniPlayer(
                 IconButton(
                     onClick = onNextChapter,
                     enabled = canNextChapter,
-                    modifier = Modifier.testTag("readaloud_next_chapter"),
+                    modifier = Modifier.testTag(TestTags.READALOUD_NEXT_CHAPTER),
                 ) {
                     Icon(Icons.Filled.SkipNext, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_next_chapter))
                 }
-                IconButton(onClick = onForward, modifier = Modifier.testTag("readaloud_forward")) {
+                IconButton(onClick = onForward, modifier = Modifier.testTag(TestTags.READALOUD_FORWARD)) {
                     SkipIcon(seconds = skipIntervalSeconds, forward = true, tint = contentColor)
                 }
                 Spacer(modifier = Modifier.weight(1f))
             }
-            IconButton(onClick = onClose, modifier = Modifier.testTag("readaloud_close")) {
+            IconButton(onClick = onClose, modifier = Modifier.testTag(TestTags.READALOUD_CLOSE)) {
                 Icon(Icons.Default.Close, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_close_readaloud))
             }
         }
@@ -225,7 +226,7 @@ fun ReadaloudDownloadDialog(
     val sizeLabel = formatBytesOrUnknown(sizeBytes)
     AlertDialog(
         onDismissRequest = onDismiss,
-        modifier = Modifier.testTag("readaloud_download_dialog"),
+        modifier = Modifier.testTag(TestTags.READALOUD_DOWNLOAD_DIALOG),
         title = {
             Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_download_readaloud_audio_size, sizeLabel))
         },
@@ -235,7 +236,7 @@ fun ReadaloudDownloadDialog(
                 Switch(
                     checked = wifiOnly,
                     onCheckedChange = { wifiOnly = it },
-                    modifier = Modifier.testTag("readaloud_wifi_only"),
+                    modifier = Modifier.testTag(TestTags.READALOUD_WIFI_ONLY),
                 )
             }
         },

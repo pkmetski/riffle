@@ -45,6 +45,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.library.AnnotationSearchResult
 import com.riffle.feature.library.AnnotationSearchViewModel
@@ -76,7 +77,10 @@ fun AnnotationSearchResultsScreen(
             TopAppBar(
                 title = { Text(formatTemplate(labels.titleTemplate, viewModel.query)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.NAV_BACK),
+                    ) {
                         Icon(LibraryUiGlyphs.ArrowBack, contentDescription = labels.back)
                     }
                 },
@@ -96,7 +100,7 @@ fun AnnotationSearchResultsScreen(
             return@Scaffold
         }
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).testTag("annotation-search-results"),
+            modifier = Modifier.fillMaxSize().padding(padding).testTag(TestTags.ANNOTATION_SEARCH_RESULTS),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
@@ -134,7 +138,7 @@ fun AnnotationResultRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("annotation-result-${annotation.id}")
+            .testTag(TestTags.annotationResult(annotation.id))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -198,7 +202,7 @@ fun AudiobookBookmarkResultRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("audiobook-bookmark-result-${result.bookmark.id}")
+            .testTag(TestTags.audiobookBookmarkResult(result.bookmark.id))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

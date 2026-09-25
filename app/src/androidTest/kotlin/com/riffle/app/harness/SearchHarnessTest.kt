@@ -21,7 +21,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
-import com.riffle.app.feature.reader.SearchTopBarTags
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.core.database.RiffleDatabaseAccess
@@ -80,16 +80,16 @@ class SearchHarnessTest : KoinTest {
 
         // Search field must appear
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag(SearchTopBarTags.FIELD).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_FIELD).assertIsDisplayed()
 
         // Type a term that appears multiple times across all chapters ("Section" → 9 occurrences)
-        composeTestRule.onNodeWithTag(SearchTopBarTags.FIELD).performTextInput("Section")
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_FIELD).performTextInput("Section")
 
         // Wait until results appear — count text changes from "" to "1 of N"
         composeTestRule.waitUntil(timeoutMillis = 30_000) {
-            val nodes = composeTestRule.onAllNodesWithTag(SearchTopBarTags.COUNT).fetchSemanticsNodes()
+            val nodes = composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_COUNT).fetchSemanticsNodes()
             nodes.isNotEmpty() && nodes.any { node ->
                 runCatching { node.config[SemanticsProperties.Text] }.getOrElse { emptyList() }
                     .any { it.text.contains(" of ") }
@@ -97,15 +97,15 @@ class SearchHarnessTest : KoinTest {
         }
 
         // At the first result: prev is disabled, next is enabled
-        composeTestRule.onNodeWithTag(SearchTopBarTags.PREV).assertIsNotEnabled()
-        composeTestRule.onNodeWithTag(SearchTopBarTags.NEXT).assertIsEnabled()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_PREV).assertIsNotEnabled()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_NEXT).assertIsEnabled()
 
         // Navigate to the next result
-        composeTestRule.onNodeWithTag(SearchTopBarTags.NEXT).performClick()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_NEXT).performClick()
 
         // Count must now show "2 of N"
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.COUNT).fetchSemanticsNodes()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_COUNT).fetchSemanticsNodes()
                 .any { node ->
                     runCatching { node.config[SemanticsProperties.Text] }.getOrElse { emptyList() }
                         .any { it.text.startsWith("2 of ") }
@@ -113,14 +113,14 @@ class SearchHarnessTest : KoinTest {
         }
 
         // Both prev and next are now enabled
-        composeTestRule.onNodeWithTag(SearchTopBarTags.PREV).assertIsEnabled()
-        composeTestRule.onNodeWithTag(SearchTopBarTags.NEXT).assertIsEnabled()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_PREV).assertIsEnabled()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_NEXT).assertIsEnabled()
 
         // Navigate back to the first result
-        composeTestRule.onNodeWithTag(SearchTopBarTags.PREV).performClick()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_PREV).performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.COUNT).fetchSemanticsNodes()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_COUNT).fetchSemanticsNodes()
                 .any { node ->
                     runCatching { node.config[SemanticsProperties.Text] }.getOrElse { emptyList() }
                         .any { it.text.startsWith("1 of ") }
@@ -144,14 +144,14 @@ class SearchHarnessTest : KoinTest {
         composeTestRule.onNodeWithContentDescription("Search").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }
 
         composeTestRule.onNodeWithContentDescription("Close search").performClick()
 
         // SearchTopBar field disappears, normal Back button returns
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isEmpty()
         }
         composeTestRule.assertNoErrorState()
     }
@@ -170,14 +170,14 @@ class SearchHarnessTest : KoinTest {
         composeTestRule.onNodeWithContentDescription("Search").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }
 
-        composeTestRule.onNodeWithTag(SearchTopBarTags.FIELD).performTextInput("xyzzy_no_match_term")
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_FIELD).performTextInput("xyzzy_no_match_term")
 
         // Wait for search to complete — count must say "No results"
         composeTestRule.waitUntil(timeoutMillis = 30_000) {
-            composeTestRule.onAllNodesWithTag(SearchTopBarTags.COUNT).fetchSemanticsNodes()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_COUNT).fetchSemanticsNodes()
                 .any { node ->
                     runCatching { node.config[SemanticsProperties.Text] }.getOrElse { emptyList() }
                         .any { it.text == "No results" }
@@ -185,8 +185,8 @@ class SearchHarnessTest : KoinTest {
         }
 
         // Both prev and next are disabled when there are no results
-        composeTestRule.onNodeWithTag(SearchTopBarTags.PREV).assertIsNotEnabled()
-        composeTestRule.onNodeWithTag(SearchTopBarTags.NEXT).assertIsNotEnabled()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_PREV).assertIsNotEnabled()
+        composeTestRule.onNodeWithTag(TestTags.READER_SEARCH_NEXT).assertIsNotEnabled()
         composeTestRule.assertNoErrorState()
     }
 

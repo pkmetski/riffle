@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.models.AudiobookBookmark
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.formatHms
 
 /**
@@ -82,7 +83,7 @@ fun PlayerListSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                .testTag("player_list_sheet_title"),
+                .testTag(TestTags.PLAYER_LIST_SHEET_TITLE),
         )
 
         when (content) {

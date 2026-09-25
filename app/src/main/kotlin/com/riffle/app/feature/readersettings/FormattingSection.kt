@@ -16,9 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.settings.ReaderSettingsSummaries
@@ -57,12 +59,15 @@ fun FormattingSection(
                 edgeRight = { Text("A", style = MaterialTheme.typography.titleLarge) },
                 bubbleLabel = ::fontSizeBubble,
                 contentDescription = stringResource(R.string.ui_font_size),
+                modifier = Modifier.testTag(TestTags.READER_SETTINGS_FONT_SIZE),
                 onDecrement = {
                     onPrefsChange(prefs.copy(fontSize = steppedTypographyValue(prefs.fontSize, -fontSizeStep, fontSizeRange)))
                 },
                 onIncrement = {
                     onPrefsChange(prefs.copy(fontSize = steppedTypographyValue(prefs.fontSize, fontSizeStep, fontSizeRange)))
                 },
+                decrementTestTag = TestTags.READER_SETTINGS_FONT_SIZE_DEC,
+                incrementTestTag = TestTags.READER_SETTINGS_FONT_SIZE_INC,
             )
             Spacer(Modifier.height(16.dp))
         }
@@ -80,7 +85,7 @@ fun FormattingSection(
         if (capabilities.supportsTextTypography) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_justify_text), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Switch(checked = prefs.justifyText, onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) })
+                Switch(checked = prefs.justifyText, onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) }, modifier = Modifier.testTag(TestTags.READER_SETTINGS_JUSTIFY_TEXT))
             }
             Spacer(Modifier.height(16.dp))
 
@@ -98,12 +103,15 @@ fun FormattingSection(
                 edgeRight = { LooseLinesIcon() },
                 bubbleLabel = ::lineSpacingBubble,
                 contentDescription = stringResource(R.string.ui_line_spacing),
+                modifier = Modifier.testTag(TestTags.READER_SETTINGS_LINE_SPACING),
                 onDecrement = {
                     onPrefsChange(prefs.copy(lineSpacing = steppedTypographyValue(prefs.lineSpacing, -lineSpacingStep, lineSpacingRange)))
                 },
                 onIncrement = {
                     onPrefsChange(prefs.copy(lineSpacing = steppedTypographyValue(prefs.lineSpacing, lineSpacingStep, lineSpacingRange)))
                 },
+                decrementTestTag = TestTags.READER_SETTINGS_LINE_SPACING_DEC,
+                incrementTestTag = TestTags.READER_SETTINGS_LINE_SPACING_INC,
             )
             Spacer(Modifier.height(20.dp))
         }
@@ -128,12 +136,15 @@ fun FormattingSection(
             edgeRight = { WideMarginsIcon() },
             bubbleLabel = ::marginsBubble,
             contentDescription = stringResource(R.string.ui_margins),
+            modifier = Modifier.testTag(TestTags.READER_SETTINGS_MARGINS),
             onDecrement = {
                 onPrefsChange(prefs.copy(margins = steppedTypographyValue(prefs.margins, -marginsStep, marginsRange)))
             },
             onIncrement = {
                 onPrefsChange(prefs.copy(margins = steppedTypographyValue(prefs.margins, marginsStep, marginsRange)))
             },
+            decrementTestTag = TestTags.READER_SETTINGS_MARGINS_DEC,
+            incrementTestTag = TestTags.READER_SETTINGS_MARGINS_INC,
         )
     }
 }

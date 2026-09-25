@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.downloads.DownloadsUiState
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
@@ -88,7 +89,7 @@ internal fun DownloadsContent(
             confirmLabel = stringResource(Res.string.ui_remove_all),
             onConfirm = onRemoveAllDownloads,
             onDismiss = { showRemoveAllDownloadsDialog = false },
-            testTag = "DownloadsScreen.ConfirmRemoveAllDownloads",
+            testTag = TestTags.DOWNLOADS_CONFIRM_REMOVE_ALL,
         )
     }
 
@@ -99,7 +100,7 @@ internal fun DownloadsContent(
             confirmLabel = stringResource(Res.string.ui_clear_all),
             onConfirm = onClearAllCached,
             onDismiss = { showClearAllCachedDialog = false },
-            testTag = "DownloadsScreen.ConfirmClearAllCached",
+            testTag = TestTags.DOWNLOADS_CONFIRM_CLEAR_CACHED,
         )
     }
 
@@ -122,6 +123,7 @@ internal fun DownloadsContent(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
+                .testTag(TestTags.DOWNLOADS_BACK)
                 .clickable { onBack() }
                 .padding(bottom = 12.dp),
         )
@@ -164,7 +166,7 @@ internal fun DownloadsContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier
-                    .testTag("DownloadsScreen.RemoveAllDownloads")
+                    .testTag(TestTags.DOWNLOADS_REMOVE_ALL)
                     .clickable { showRemoveAllDownloadsDialog = true }
                     .padding(vertical = 8.dp),
             )
@@ -184,7 +186,7 @@ internal fun DownloadsContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier
-                    .testTag("DownloadsScreen.ClearAllCached")
+                    .testTag(TestTags.DOWNLOADS_CLEAR_CACHED)
                     .clickable { showClearAllCachedDialog = true }
                     .padding(vertical = 8.dp),
             )

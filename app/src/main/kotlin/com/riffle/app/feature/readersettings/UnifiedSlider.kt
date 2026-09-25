@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -110,6 +111,8 @@ internal fun UnifiedSliderRow(
     enabled: Boolean = true,
     onDecrement: (() -> Unit)? = null,
     onIncrement: (() -> Unit)? = null,
+    decrementTestTag: String? = null,
+    incrementTestTag: String? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f)) {
         Row(
@@ -144,6 +147,7 @@ internal fun UnifiedSliderRow(
                             Modifier
                                 .clickable(onClickLabel = decreaseContentDescription) { onDecrement() }
                                 .semantics { this.contentDescription = decreaseContentDescription }
+                                .then(if (decrementTestTag != null) Modifier.testTag(decrementTestTag) else Modifier)
                         } else Modifier,
                     ),
                 contentAlignment = Alignment.Center,
@@ -169,6 +173,7 @@ internal fun UnifiedSliderRow(
                             Modifier
                                 .clickable(onClickLabel = increaseContentDescription) { onIncrement() }
                                 .semantics { this.contentDescription = increaseContentDescription }
+                                .then(if (incrementTestTag != null) Modifier.testTag(incrementTestTag) else Modifier)
                         } else Modifier,
                     ),
                 contentAlignment = Alignment.Center,

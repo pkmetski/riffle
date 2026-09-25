@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.facetTitle
 import com.riffle.feature.source.ui.OfflineBanner
@@ -56,7 +57,10 @@ fun FilteredBooksScreen(
             TopAppBar(
                 title = { Text(facetTitle(viewModel.facetType, viewModel.facetValue), maxLines = 1) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.NAV_BACK),
+                    ) {
                         Icon(LibraryUiGlyphs.ArrowBack, contentDescription = labels.back)
                     }
                 },
@@ -80,7 +84,7 @@ fun FilteredBooksScreen(
                         top = 8.dp,
                         bottom = padding.calculateBottomPadding() + 16.dp,
                     ),
-                    modifier = Modifier.fillMaxSize().testTag("filtered-books-grid"),
+                    modifier = Modifier.fillMaxSize().testTag(TestTags.FILTERED_BOOKS_GRID),
                 ) {
                     items(items, key = { it.id }) { item ->
                         Box(modifier = Modifier.padding(4.dp)) {

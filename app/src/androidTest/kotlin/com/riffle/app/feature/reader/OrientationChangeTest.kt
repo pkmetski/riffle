@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import com.riffle.app.MainActivity
+import com.riffle.feature.designsystem.TestTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,8 +27,8 @@ class OrientationChangeTest {
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.O)
     @Test
     fun readerScreenSurvivesActivityRecreation() {
-        val loadingMatcher = hasTestTag("reader_loading")
-        val readyMatcher = hasTestTag("reader_ready")
+        val loadingMatcher = hasTestTag(TestTags.READER_LOADING)
+        val readyMatcher = hasTestTag(TestTags.READER_READY)
 
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodes(loadingMatcher).fetchSemanticsNodes().isNotEmpty() ||

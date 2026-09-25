@@ -16,12 +16,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookGrid
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.CollectionDetailViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -63,6 +65,7 @@ fun CollectionDetailScreen(
             BasicText(
                 text = "←",
                 modifier = Modifier
+                    .testTag(TestTags.NAV_BACK)
                     .padding(end = 12.dp)
                     .clickable(onClick = onNavigateBack),
                 style = TextStyle(fontSize = 20.sp),

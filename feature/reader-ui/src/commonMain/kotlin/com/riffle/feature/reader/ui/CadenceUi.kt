@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.cadence.CadenceState
 import com.riffle.core.domain.cadence.speedOrNull
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Cadence's two reader surfaces — the top-bar toggle and the HUD pill — rendered by both hosts.
@@ -54,7 +55,7 @@ fun CadenceToggleIcon(
     IconButton(
         onClick = onClick,
         modifier = modifier
-            .testTag("cadence_toggle")
+            .testTag(TestTags.CADENCE_TOGGLE)
             .semantics {
                 contentDescription = if (isRunning) "Stop cadence" else "Start cadence"
             },
@@ -134,7 +135,7 @@ fun CadenceHudPill(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = HUD_PILL_BOTTOM_DP.dp)
-                .testTag("cadence_hud_pill")
+                .testTag(TestTags.CADENCE_HUD_PILL)
                 .background(Color(0x66_1F_1B_17), CircleShape)
                 .padding(horizontal = 4.dp, vertical = 2.dp)
                 .heightIn(min = 28.dp),
@@ -144,6 +145,7 @@ fun CadenceHudPill(
                 onClick = if (running) onPause else onResume,
                 modifier = Modifier
                     .size(28.dp)
+                    .testTag(TestTags.IOS_READER_CADENCE_PAUSE)
                     .semantics { contentDescription = playPauseDescription },
             ) {
                 if (running) PauseGlyph(Color.White) else PlayGlyph(Color.White)
@@ -153,7 +155,7 @@ fun CadenceHudPill(
                 onClick = onSlower,
                 modifier = Modifier
                     .size(28.dp)
-                    .testTag("cadence_slower")
+                    .testTag(TestTags.READER_CADENCE_SLOWER)
                     .semantics { contentDescription = labels.slower },
             ) {
                 MinusGlyph(Color.White)
@@ -169,7 +171,7 @@ fun CadenceHudPill(
                 onClick = onFaster,
                 modifier = Modifier
                     .size(28.dp)
-                    .testTag("cadence_faster")
+                    .testTag(TestTags.READER_CADENCE_FASTER)
                     .semantics { contentDescription = labels.faster },
             ) {
                 PlusGlyph(Color.White)

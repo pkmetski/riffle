@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.CatalogPlaylist
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Playlists tab body, rendered by both hosts. Shown only on ABS audiobook roots (gated by
@@ -68,7 +69,7 @@ internal fun PlaylistRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("playlist-row-${playlist.id}")
+            .testTag(TestTags.playlistRow(playlist.id))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

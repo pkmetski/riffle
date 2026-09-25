@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.BookDownloadOutcome
 import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.FacetType
@@ -158,7 +159,7 @@ private fun FacetRow(
                 text = value,
                 style = style,
                 modifier = Modifier
-                    .testTag("facet-$value")
+                    .testTag(TestTags.facet(value))
                     .clickable { onClick(value) },
             )
         }
@@ -265,7 +266,9 @@ private fun ReadyBody(
                     color = Color(0xFF6650A4),
                     fontWeight = FontWeight.SemiBold,
                 ),
-                modifier = Modifier.clickable(onClick = onBack),
+                modifier = Modifier
+                    .testTag(TestTags.BOOK_DETAIL_BACK)
+                    .clickable(onClick = onBack),
             )
         }
 
@@ -341,6 +344,7 @@ private fun ReadyBody(
                     .height(48.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFF6650A4))
+                    .testTag(TestTags.BOOK_DETAIL_OPEN)
                     .clickable(onClick = onRead),
                 contentAlignment = Alignment.Center,
             ) {
@@ -373,7 +377,7 @@ private fun ReadyBody(
                     .height(48.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFFEAE0F8))
-                    .testTag("detail-add-to-playlist")
+                    .testTag(TestTags.DETAIL_ADD_TO_PLAYLIST)
                     .clickable(onClick = onAddToPlaylist),
                 contentAlignment = Alignment.Center,
             ) {

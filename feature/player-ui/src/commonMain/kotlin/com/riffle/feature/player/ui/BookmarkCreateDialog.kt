@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Stateless dialog for naming a new bookmark (also reused for Rename via [title]).
@@ -40,7 +41,7 @@ fun BookmarkCreateDialog(
 ) {
     var text by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     AlertDialog(
-        modifier = Modifier.testTag("bookmark_dialog"),
+        modifier = Modifier.testTag(TestTags.BOOKMARK_DIALOG),
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -51,7 +52,7 @@ fun BookmarkCreateDialog(
                     value = text,
                     onValueChange = { text = it },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("bookmark_title_field"),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.BOOKMARK_TITLE_FIELD),
                 )
                 val distinctSuggestions = suggestions.distinct()
                 if (distinctSuggestions.isNotEmpty()) {
@@ -75,7 +76,7 @@ fun BookmarkCreateDialog(
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(text.trim().ifEmpty { initialTitle }) },
-                modifier = Modifier.testTag("bookmark_save"),
+                modifier = Modifier.testTag(TestTags.BOOKMARK_SAVE),
             ) {
                 Text(labels.save)
             }

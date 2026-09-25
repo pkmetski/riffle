@@ -15,12 +15,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
+import com.riffle.feature.designsystem.TestTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -108,7 +110,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         ) {
             BasicText(
                 text = "← Back",
-                modifier = Modifier.clickable(onClick = onBack),
+                modifier = Modifier.testTag(TestTags.IOS_PDF_READER_BACK).clickable(onClick = onBack),
             )
         }
     }

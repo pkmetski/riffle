@@ -11,6 +11,7 @@ import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibraryProjection
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
@@ -146,7 +147,7 @@ class LibraryTabContentTest {
             )
         }
 
-        onNodeWithTag("annotation-search-field").performTextInput("margin")
+        onNodeWithTag(TestTags.ANNOTATIONS_SEARCH_FIELD).performTextInput("margin")
         onNodeWithTag("annotation-search-submit").performClick()
 
         assertEquals("margin", searched)

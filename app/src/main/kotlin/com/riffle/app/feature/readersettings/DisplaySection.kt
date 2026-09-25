@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -104,7 +105,9 @@ fun DisplaySection(
                         onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },
                         label = { Text(label) },
                         leadingIcon = { OrientationIcon(orientation) },
-                        modifier = Modifier.semantics { contentDescription = orientationContentDescription },
+                        modifier = Modifier
+                            .testTag(TestTags.readerSettingsOrientation(orientation.name))
+                            .semantics { contentDescription = orientationContentDescription },
                     )
                 }
             }
@@ -117,6 +120,7 @@ fun DisplaySection(
                 Switch(
                     checked = prefs.forcePaginatedInLandscape,
                     onCheckedChange = { onPrefsChange(prefs.copy(forcePaginatedInLandscape = it)) },
+                    modifier = Modifier.testTag(TestTags.READER_SETTINGS_FORCE_PAGINATED_LANDSCAPE),
                 )
             }
             Spacer(Modifier.height(12.dp))
@@ -134,6 +138,7 @@ fun DisplaySection(
                     checked = prefs.doublePageSpread,
                     onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
                     enabled = doublePageEnabled,
+                    modifier = Modifier.testTag(TestTags.READER_SETTINGS_DOUBLE_PAGE),
                 )
             }
             Spacer(Modifier.height(20.dp))
@@ -148,7 +153,7 @@ fun DisplaySection(
             checked = prefs.coloredChapterMap,
             enabled = ReaderSettingsSections.coloredChapterMapEnabled(prefs.showChapterMap),
             modifier = Modifier.padding(start = 16.dp),
-            testTag = "colored_chapter_map_toggle",
+            testTag = TestTags.READER_SETTINGS_COLORED_CHAPTER_MAP,
             onChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
         )
         if (capabilities.supportsPositionOverlays) {

@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.CatalogPlaylist
+import com.riffle.feature.designsystem.TestTags
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -73,7 +74,7 @@ fun AddToPlaylistSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("playlist-new")
+                    .testTag(TestTags.PLAYLIST_NEW)
                     .clickable { showCreateDialog = true }
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -124,7 +125,7 @@ private fun PickerRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("playlist-pick-${playlist.id}")
+            .testTag(TestTags.playlistPick(playlist.id))
             .clickable(onClick = onToggle)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -181,7 +182,7 @@ private fun NewPlaylistDialog(
                     singleLine = true,
                     enabled = !isCreating,
                     isError = error != null,
-                    modifier = Modifier.fillMaxWidth().testTag("playlist-name-field"),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.PLAYLIST_NAME_FIELD),
                 )
                 val currentError = error
                 if (currentError != null) {

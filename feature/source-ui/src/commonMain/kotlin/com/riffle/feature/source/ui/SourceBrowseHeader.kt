@@ -32,9 +32,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_clear_search
 import com.riffle.feature.source.ui.generated.resources.ui_open_menu
@@ -82,7 +84,10 @@ fun SourceBrowseHeader(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),
         ) {
-            IconButton(onClick = onOpenDrawer, modifier = drawerButtonModifier) {
+            IconButton(
+                onClick = onOpenDrawer,
+                modifier = drawerButtonModifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
+            ) {
                 Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
             }
             if (sourceIcon != null) {
@@ -128,7 +133,8 @@ fun SourceBrowseHeader(
                             end = Offset(size.width, size.height),
                             strokeWidth = 1.5.dp.toPx(),
                         )
-                    },
+                    }
+                    .testTag(TestTags.LIBRARY_SEARCH),
                 decorationBox = { inner ->
                     Box {
                         if (searchQuery.isEmpty()) {

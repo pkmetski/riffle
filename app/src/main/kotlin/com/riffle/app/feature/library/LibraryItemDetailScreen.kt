@@ -100,6 +100,7 @@ import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.ChaptersState
@@ -308,7 +309,10 @@ fun LibraryItemDetailScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.testTag(TestTags.BOOK_DETAIL_BACK),
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
                         }
                     },
@@ -317,7 +321,10 @@ fun LibraryItemDetailScreen(
                         readyState?.capabilities?.canUploadToConfiguredSource == true
                     ) {
                         Box {
-                            IconButton(onClick = { showMetadataOverflowMenu = true }) {
+                            IconButton(
+                                onClick = { showMetadataOverflowMenu = true },
+                                modifier = Modifier.testTag(TestTags.BOOK_DETAIL_OVERFLOW),
+                            ) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_more_options))
                             }
                             DropdownMenu(
@@ -1522,7 +1529,7 @@ private fun ActionRow(
                 Button(
                     onClick = { onReadItem(item) },
                     enabled = downloadState !is DownloadState.InProgress,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(TestTags.BOOK_DETAIL_OPEN),
                 ) {
                     Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_read))
                 }
@@ -1565,6 +1572,7 @@ private fun ActionRow(
                 isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
+                modifier = Modifier.testTag(TestTags.BOOK_DETAIL_MARK_READ),
             )
         }
         if (capabilities.hasPlaylists) {

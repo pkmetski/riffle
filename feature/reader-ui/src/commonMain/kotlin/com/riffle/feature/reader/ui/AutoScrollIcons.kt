@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * The top-bar toggle icon for Auto-Scroll. When idle, draws the "Play↓ under even text" glyph
@@ -30,7 +31,7 @@ fun AutoScrollToggleIcon(
     IconButton(
         onClick = onClick,
         modifier = modifier
-            .testTag("auto_scroll_toggle")
+            .testTag(TestTags.AUTO_SCROLL_TOGGLE)
             .semantics {
                 contentDescription = if (isRunning) "Stop auto-scroll" else "Start auto-scroll"
             },
