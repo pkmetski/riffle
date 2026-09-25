@@ -136,6 +136,47 @@ class ContinuousStyleInjectorTest {
     private val sampleHtml =
         "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>t</title></head><body><p>hi</p></body></html>"
 
+    // ── DOM-ready reveal (cold-open latency, 2026-09-25) ────────────────────
+    //
+    // Chapter load time is dominated by image decode between DOMContentLoaded and `load`. The
+    // injected script lets the parent measure + reveal at DOM-ready — but ONLY when every image
+    // declares width/height, otherwise decode would reflow an already-revealed viewport.
+
+    @Test
+    fun `allImagesSized true when every img declares width and height`() {
+        val html = "<html><body><p>x</p><img src=\"a.png\" width=\"10\" height=\"2\"/>" +
+            "<IMG SRC=\"b.png\"\n  HEIGHT=\"3\" WIDTH=\"4\" /></body></html>"
+        assertTrue(ContinuousStyleInjector.allImagesSized(html))
+    }
+
+    @Test
+    fun `allImagesSized false when any img lacks a dimension`() {
+        val html = "<html><body><img src=\"a.png\" width=\"10\" height=\"2\"/>" +
+            "<img src=\"b.png\" width=\"10\"/></body></html>"
+        assertFalse(ContinuousStyleInjector.allImagesSized(html))
+    }
+
+    @Test
+    fun `allImagesSized true for a chapter without images`() {
+        assertTrue(ContinuousStyleInjector.allImagesSized("<html><body><p>text only</p></body></html>"))
+    }
+
+    @Test
+    fun `injectInto emits the DOM-ready bridge script armed when images are sized`() {
+        val html = "<html><head><title>t</title></head><body><img src=\"a.png\" width=\"1\" height=\"1\"/></body></html>"
+        val out = ContinuousStyleInjector.injectInto(html, FormattingPreferences())
+        assertTrue(out.contains("var s=true;"))
+        assertTrue(out.contains("window.RiffleChapter.onDomReady()"))
+        assertTrue(out.indexOf("var s=true;") < out.indexOf("</head>"))
+    }
+
+    @Test
+    fun `injectInto emits the DOM-ready bridge script disarmed when an image is unsized`() {
+        val html = "<html><head></head><body><img src=\"a.png\"/></body></html>"
+        val out = ContinuousStyleInjector.injectInto(html, FormattingPreferences())
+        assertTrue(out.contains("var s=false;"))
+    }
+
     @Test
     fun `injectInto adds before and after ReadiumCSS links`() {
         val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())

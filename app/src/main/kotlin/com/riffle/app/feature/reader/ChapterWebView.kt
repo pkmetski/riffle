@@ -47,6 +47,14 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     var onPageFinished: (() -> Unit)? = null
 
     /**
+     * Fired (on the main thread) when the chapter document reaches DOMContentLoaded AND every
+     * image in it declares its size, so the layout height is already final — see
+     * [ContinuousStyleInjector.domReadyScript]. Lets the parent style + measure the chapter
+     * before the `load` event instead of waiting for every image to decode.
+     */
+    var onDomReady: (() -> Unit)? = null
+
+    /**
      * Fires once per chapter page load with the source book's computed body `font-family`.
      * Continuous-mode counterpart to [RiffleSelectionRectBridge.onBookBodyFont] — populates
      * `window.__riffleBookBodyFont` from `SELECTION_SPAN_TRACKER_JS`'s install branch, then a
@@ -195,7 +203,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
 
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
     override var chapterHref: String = ""
-        private set
+        internal set
 
     /**
      * Explicit override to disambiguate [ChapterWebViewLike.evaluateJavascript]'s Kotlin-lambda
@@ -498,12 +506,13 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      *
      * @param styleJs output of [ContinuousStyleInjector.buildStyleInjectionJs]
      */
-    fun injectStylesAndMeasure(styleJs: String) {
+    fun injectStylesAndMeasure(styleJs: String, domReadyMeasure: Boolean = false) {
         evalJs(styleJs)
         // Stamp this page with the current load token BEFORE wiring measurement, so every height
         // report (including late ResizeObserver / timeout fires) carries it and the bridge can
         // reject reports from a recycled WebView's previous page.
         evalJs("window.__riffleToken=$loadToken;")
+        evalJs("window.__riffleDomReadyMeasure=$domReadyMeasure;")
         evalJs(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS)
         evalJs(ContinuousScriptInjector.TAP_LISTENER_JS)
         evalJs(ContinuousScriptInjector.SAME_DOC_ANCHOR_LISTENER_JS)
@@ -516,6 +525,13 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
 
     /** Re-inject user styles and re-measure after a preference change. */
     fun reinjectAndRemeasure(styleJs: String) = injectStylesAndMeasure(styleJs)
+
+    /**
+     * Ask the already-installed measurement script for a fresh height report (no-op if
+     * [injectStylesAndMeasure] has not run on this page). Used at the `load` event after a
+     * DOM-ready measurement, so the installer's tap/anchor listeners are not wired twice.
+     */
+    fun remeasure() = evalJs("if(window.__riffleReport){window.__riffleReport();}")
 
     /**
      * Resolve [fragment] (an element id / name from a TOC or cross-reference link) to its top offset
@@ -788,6 +804,11 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     }
 
     private inner class HeightBridge {
+        @JavascriptInterface
+        fun onDomReady() {
+            post { if (expectedChapterUrl != null) this@ChapterWebView.onDomReady?.invoke() }
+        }
+
         @JavascriptInterface
         fun onHeightMeasured(height: Int, token: Int) {
             // Drop reports from a previous chapter still settling in this (recycled) WebView.

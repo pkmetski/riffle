@@ -620,6 +620,69 @@ class ContinuousPositionTrackerTest {
         )
     }
 
+    // ── initial-window load gating / deferred neighbour loads ────────────────
+    //
+    // Cold-open regression (2026-09-25): with every window chapter loading at once, the three
+    // WebViews shared one renderer and the TARGET chapter routinely parsed last — 4.3 s to first
+    // paint on a 150–200 KB-per-chapter book, with the 2.5 s initial-scroll fallback firing
+    // before the target had even reported page-finished. The gate must wait for the target only;
+    // neighbours load one at a time after the reveal.
+
+    @Test
+    fun `initial measure gate waits for the target chapter only`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 6, allChaptersSize = 20, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(1, w.targetWindowIndex)
+        assertEquals(setOf(1), w.pendingMeasureIndices())
+    }
+
+    @Test
+    fun `initial measure gate at chapter 0 waits for slot 0 only`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 0, allChaptersSize = 20, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(setOf(0), w.pendingMeasureIndices())
+    }
+
+    @Test
+    fun `deferred loads run ahead-first then behind, nearest first, never the target`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 6, allChaptersSize = 20, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(listOf(2, 0), w.deferredLoadOrder())
+    }
+
+    @Test
+    fun `deferred loads for the elided window cover every non-target slot`() {
+        // chaptersBehind = 3 (elided view), window 5, target at slot 3.
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 10, allChaptersSize = 20, chaptersBehind = 3, windowSize = 5,
+        )
+        assertEquals(3, w.targetWindowIndex)
+        assertEquals(listOf(4, 2, 1, 0), w.deferredLoadOrder())
+        assertEquals(setOf(3), w.pendingMeasureIndices())
+        assertEquals((0 until 5).toSet(), w.deferredLoadOrder().toSet() + w.pendingMeasureIndices())
+    }
+
+    @Test
+    fun `deferred loads at book start are all ahead`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 0, allChaptersSize = 20, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(listOf(1, 2), w.deferredLoadOrder())
+    }
+
+    @Test
+    fun `deferred loads near book end are all behind`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 19, allChaptersSize = 20, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(2, w.totalChapters)
+        assertEquals(1, w.targetWindowIndex)
+        assertEquals(listOf(0), w.deferredLoadOrder())
+    }
+
     // ── initialWindow ────────────────────────────────────────────────────────
     //
     // Regression coverage for "stuck at chapter N" when opening near the start of the book.
@@ -865,45 +928,6 @@ class ContinuousPositionTrackerTest {
     @Test
     fun `preLandY — clamps at zero when target is within half a viewport of the top`() {
         assertEquals(0, ContinuousPositionTracker.preLandY(targetY = 200, viewportHeight = 1200))
-    }
-
-    // ── pendingMeasureIndices ─────────────────────────────────────────────────
-    //
-    // Regression gate for the continuous-open reshuffle: the initial scroll must wait for every
-    // chapter in the window to measure, not just the target and above. If someone flips this back
-    // to `0..targetWindowIndex`, chapters below the target reveal at their full-screen placeholder
-    // height and then collapse inside a visible viewport, shifting on-screen siblings.
-
-    @Test
-    fun `pendingMeasureIndices — covers every window chapter, not just target and above`() {
-        // Mid-book open at index 10 with a 3-chapter window (1 behind + target + 1 ahead).
-        val initial = ContinuousPositionTracker.initialWindow(
-            targetIndex = 10, allChaptersSize = 100, chaptersBehind = 1, windowSize = 3,
-        )
-        // Sanity: 1 behind + target + 1 ahead — target sits at window index 1, below-target at 2.
-        assertEquals(1, initial.targetWindowIndex)
-        assertEquals(3, initial.totalChapters)
-        // Below-target index (2) MUST be in the pending set — that's the whole point of the fix.
-        assertEquals(setOf(0, 1, 2), initial.pendingMeasureIndices())
-    }
-
-    @Test
-    fun `pendingMeasureIndices — includes below-target chapters on cold open near start`() {
-        // Open at index 0: no behind buffer, all ahead. Below-target reflow still applies.
-        val initial = ContinuousPositionTracker.initialWindow(
-            targetIndex = 0, allChaptersSize = 100, chaptersBehind = 1, windowSize = 3,
-        )
-        assertEquals(setOf(0, 1, 2), initial.pendingMeasureIndices())
-    }
-
-    @Test
-    fun `pendingMeasureIndices — clamps to available chapters near end of book`() {
-        // Only 2 chapters left from topIndex — window truncates to totalChapters=2.
-        val initial = ContinuousPositionTracker.initialWindow(
-            targetIndex = 8, allChaptersSize = 9, chaptersBehind = 1, windowSize = 3,
-        )
-        assertEquals(2, initial.totalChapters)
-        assertEquals(setOf(0, 1), initial.pendingMeasureIndices())
     }
 
     @Test

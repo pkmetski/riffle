@@ -86,7 +86,61 @@ internal object ContinuousScriptInjector {
                     window.RiffleChapter.onHeightMeasured(h, (window.__riffleToken | 0));
                 }
             }
-            report();
+            // Exposed so the parent can ask for a re-measure (e.g. at the load event after a
+            // DOM-ready measurement) without re-running this installer.
+            window.__riffleReport = report;
+            if (window.__riffleDomReadyMeasure) {
+                // DOM-ready measurement: images have not decoded yet. ReadiumCSS sizes images
+                // with `width: auto; height: auto`, which discards the <img width/height>
+                // presentational size, so an undecoded image occupies the 300 px default box
+                // and the chapter grows as each image lands (measured +4% on a 16-image
+                // chapter — re-landing the viewport on every step). Reserve each sized,
+                // not-yet-complete image's box at its expected final size (attribute width
+                // clamped to its container, attribute aspect ratio) and drop the inline size
+                // once it loads, so the final layout is exactly the author's.
+                try {
+                    var imgs = document.images;
+                    for (var k = 0; k < imgs.length; k++) {
+                        var im = imgs[k];
+                        if (im.complete) continue;
+                        var aw = parseInt(im.getAttribute('width'), 10);
+                        var ah = parseInt(im.getAttribute('height'), 10);
+                        if (!(aw > 0 && ah > 0)) continue;
+                        if (im.style.width || im.style.height) continue;
+                        // Width: the attribute width in CSS px, which the author's / ReadiumCSS
+                        // max-width rules then clamp exactly as they will clamp the decoded
+                        // image's intrinsic width. Height: derived from the RESOLVED width and
+                        // the attribute aspect ratio, unrounded, so it matches the final
+                        // `height: auto` value to the layout's own sub-pixel snapping.
+                        im.style.width = aw + 'px';
+                        var rw = im.getBoundingClientRect().width;
+                        if (!(rw > 0)) rw = aw;
+                        im.style.height = (rw * ah / aw) + 'px';
+                        var release = function(e) {
+                            var t = e.target;
+                            t.style.width = '';
+                            t.style.height = '';
+                        };
+                        im.addEventListener('load', release, { once: true });
+                        im.addEventListener('error', release, { once: true });
+                    }
+                } catch (e) {}
+            }
+            // Force a layout before consulting document.fonts: at DOMContentLoaded no layout has
+            // run yet, so no @font-face load has been requested and fonts.status still reads
+            // 'loaded' — the wait below would be skipped and the first report taken with
+            // fallback metrics.
+            void (document.documentElement && document.documentElement.offsetHeight);
+            if (window.__riffleDomReadyMeasure && document.fonts && document.fonts.ready &&
+                document.fonts.status !== 'loaded') {
+                // DOM-ready measurement: the bundled @font-face files are still loading, and a
+                // height taken with fallback metrics would be corrected a few frames later —
+                // a visible jump on an already-revealed page. Fonts come from local assets,
+                // so this wait is short; the ResizeObserver below still covers later reflow.
+                document.fonts.ready.then(function() { requestAnimationFrame(report); });
+            } else {
+                report();
+            }
             if (window.ResizeObserver) {
                 var ro = new ResizeObserver(function() { report(); });
                 ro.observe(document.documentElement);
