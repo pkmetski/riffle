@@ -106,12 +106,12 @@ class TocActiveEntryTest {
     }
 
     @Test
-    fun `activeTocHref returns null when locatorHref is null`() {
+    fun `activeTocHref returns null when both are null`() {
         assertNull(activeTocHref(null, null))
     }
 
     @Test
-    fun `activeTocHref returns null when both are null`() {
+    fun `activeTocHref returns null when locatorHref is null`() {
         assertNull(activeTocHref(null, "chapter1.xhtml#s2"))
     }
 

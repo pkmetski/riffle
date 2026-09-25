@@ -1051,7 +1051,8 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         .fillMaxWidth(0.75f)
                         .padding(8.dp),
                 ) {
-                    items(flattenToc(tocEntries)) { row ->
+                    val flatTocRows = remember(tocEntries) { flattenToc(tocEntries) }
+                    items(flatTocRows) { row ->
                         val isActive = row.entry === activeEntry
                         BasicText(
                             text = "  ".repeat(row.depth) + row.entry.title,

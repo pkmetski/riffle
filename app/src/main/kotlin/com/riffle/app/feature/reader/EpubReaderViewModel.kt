@@ -602,8 +602,7 @@ class EpubReaderViewModel constructor(
     // The full href — possibly including a #fragment — of the last TOC entry the user
     // explicitly tapped. Readium's locator never carries fragments, so the TOC panel would
     // otherwise only highlight the parent chapter, never a subchapter anchored within the same
-    // resource. Reset to null when the locator moves to a different resource so stale hints
-    // don't bleed across chapters.
+    // resource. Stale cross-resource hints are suppressed inside activeTocHref(), not here.
     private val _lastTocNavigatedHref = MutableStateFlow<String?>(null)
 
     // Best TOC href for the current position: prefers the fragment-carrying last-navigated hint
