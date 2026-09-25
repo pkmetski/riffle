@@ -1038,6 +1038,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             val activeEntry = remember(tocEntries, tocActiveHref) {
                 tocActiveHref?.let { findActiveEntry(tocEntries, it) }
             }
+            val flatTocRows = remember(tocEntries) { flattenToc(tocEntries) }
             val activePrimary = MaterialTheme.colorScheme.primary
             val defaultColor = MaterialTheme.colorScheme.onSurface
             Box(
@@ -1051,7 +1052,6 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         .fillMaxWidth(0.75f)
                         .padding(8.dp),
                 ) {
-                    val flatTocRows = remember(tocEntries) { flattenToc(tocEntries) }
                     items(flatTocRows) { row ->
                         val isActive = row.entry === activeEntry
                         BasicText(
