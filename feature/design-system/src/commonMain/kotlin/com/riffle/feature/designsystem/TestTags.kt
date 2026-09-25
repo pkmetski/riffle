@@ -153,6 +153,10 @@ object TestTags {
     fun sourceTypeItem(type: String) = "source_type_item_$type"
     const val ADD_LOCAL_FILES_DONE = "AddLocalFiles.Done"
     const val ADD_LOCAL_FILES_PICK_AGAIN = "AddLocalFiles.PickAgain"
+    const val SELECT_LIBRARIES_BACK = "select_libraries_back"
+    const val SELECT_LIBRARIES_CONTINUE = "select_libraries_continue"
+    const val SELECT_LIBRARIES_GO_BACK = "select_libraries_go_back"
+    fun selectLibraryToggle(libraryId: String) = "select_library_toggle_$libraryId"
 
     // ── Snackbar / global UI ─────────────────────────────────────────────────
     const val SNACKBAR_HOST = "RiffleSnackbarHost"
@@ -207,6 +211,27 @@ object TestTags {
 
     // ── Reader settings ───────────────────────────────────────────────────────
     const val READER_SETTINGS_COLORED_CHAPTER_MAP = "colored_chapter_map_toggle"
+    // Formatting section — sliders (outer row tag + decrement/increment buttons)
+    const val READER_SETTINGS_FONT_SIZE = "reader_settings_font_size"
+    const val READER_SETTINGS_FONT_SIZE_DEC = "reader_settings_font_size_dec"
+    const val READER_SETTINGS_FONT_SIZE_INC = "reader_settings_font_size_inc"
+    const val READER_SETTINGS_LINE_SPACING = "reader_settings_line_spacing"
+    const val READER_SETTINGS_LINE_SPACING_DEC = "reader_settings_line_spacing_dec"
+    const val READER_SETTINGS_LINE_SPACING_INC = "reader_settings_line_spacing_inc"
+    const val READER_SETTINGS_MARGINS = "reader_settings_margins"
+    const val READER_SETTINGS_MARGINS_DEC = "reader_settings_margins_dec"
+    const val READER_SETTINGS_MARGINS_INC = "reader_settings_margins_inc"
+    const val READER_SETTINGS_JUSTIFY_TEXT = "reader_settings_justify_text"
+    fun readerSettingsFont(family: String) = "reader_settings_font_$family"
+    // Display section
+    fun readerSettingsTheme(theme: String) = "reader_settings_theme_$theme"
+    fun readerSettingsOrientation(orientation: String) = "reader_settings_orientation_$orientation"
+    const val READER_SETTINGS_FORCE_PAGINATED_LANDSCAPE = "reader_settings_force_paginated_landscape"
+    const val READER_SETTINGS_DOUBLE_PAGE = "reader_settings_double_page"
+    // Behavior section
+    const val READER_SETTINGS_KEEP_SCREEN_ON = "reader_settings_keep_screen_on"
+    const val READER_SETTINGS_VOLUME_KEY_NAV = "reader_settings_volume_key_nav"
+    const val READER_SETTINGS_INVERT_VOLUME_KEYS = "reader_settings_invert_volume_keys"
 
     // ── Chapter map overlay ───────────────────────────────────────────────────
     const val READING_PROGRESS_LABELS = "reading_progress_labels"

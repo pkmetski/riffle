@@ -25,9 +25,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.PendingSource
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_back
@@ -61,7 +63,7 @@ fun SelectLibrariesScreen(
             TopAppBar(
                 title = { Text(stringResource(Res.string.ui_select_libraries)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SELECT_LIBRARIES_BACK)) {
                         Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
@@ -83,7 +85,7 @@ fun SelectLibrariesScreen(
                         stringResource(Res.string.ui_this_source_doesn_t_expose_any_book_libraries),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Button(onClick = onNavigateBack) { Text(stringResource(Res.string.ui_go_back)) }
+                    Button(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SELECT_LIBRARIES_GO_BACK)) { Text(stringResource(Res.string.ui_go_back)) }
                 }
             } else {
                 Column(
@@ -105,6 +107,7 @@ fun SelectLibrariesScreen(
                                     Switch(
                                         checked = lib.id in viewModel.selectedIds,
                                         onCheckedChange = { viewModel.toggle(lib.id) },
+                                        modifier = Modifier.testTag(TestTags.selectLibraryToggle(lib.id)),
                                     )
                                 },
                             )
@@ -126,7 +129,7 @@ fun SelectLibrariesScreen(
                         Button(
                             onClick = viewModel::onContinue,
                             enabled = viewModel.canContinue,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().testTag(TestTags.SELECT_LIBRARIES_CONTINUE),
                         ) { Text(stringResource(Res.string.ui_continue)) }
                     }
                 }

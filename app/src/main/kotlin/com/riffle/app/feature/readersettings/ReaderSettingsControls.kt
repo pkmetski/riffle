@@ -48,6 +48,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -62,6 +63,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.label
 import kotlin.math.roundToInt
@@ -201,7 +203,9 @@ internal fun FontChipRow(
                         fontFamily = family.previewFontFamily(),
                     )
                 },
-                modifier = Modifier.semantics { contentDescription = fontContentDescription },
+                modifier = Modifier
+                    .testTag(TestTags.readerSettingsFont(family.name))
+                    .semantics { contentDescription = fontContentDescription },
             )
         }
     }
@@ -283,7 +287,9 @@ private fun ThemeChip(
                 style = swatchStyle,
             )
         },
-        modifier = Modifier.semantics { this.contentDescription = contentDescription },
+        modifier = Modifier
+            .testTag(TestTags.readerSettingsTheme(theme.name))
+            .semantics { this.contentDescription = contentDescription },
     )
 }
 

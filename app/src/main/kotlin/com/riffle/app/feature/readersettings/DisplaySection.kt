@@ -105,7 +105,9 @@ fun DisplaySection(
                         onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },
                         label = { Text(label) },
                         leadingIcon = { OrientationIcon(orientation) },
-                        modifier = Modifier.semantics { contentDescription = orientationContentDescription },
+                        modifier = Modifier
+                            .testTag(TestTags.readerSettingsOrientation(orientation.name))
+                            .semantics { contentDescription = orientationContentDescription },
                     )
                 }
             }
@@ -118,6 +120,7 @@ fun DisplaySection(
                 Switch(
                     checked = prefs.forcePaginatedInLandscape,
                     onCheckedChange = { onPrefsChange(prefs.copy(forcePaginatedInLandscape = it)) },
+                    modifier = Modifier.testTag(TestTags.READER_SETTINGS_FORCE_PAGINATED_LANDSCAPE),
                 )
             }
             Spacer(Modifier.height(12.dp))
@@ -135,6 +138,7 @@ fun DisplaySection(
                     checked = prefs.doublePageSpread,
                     onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
                     enabled = doublePageEnabled,
+                    modifier = Modifier.testTag(TestTags.READER_SETTINGS_DOUBLE_PAGE),
                 )
             }
             Spacer(Modifier.height(20.dp))

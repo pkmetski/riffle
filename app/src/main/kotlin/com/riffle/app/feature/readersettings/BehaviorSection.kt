@@ -13,10 +13,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Device-behavior toggles that apply to all books. Global in both hosts (reader sheet Behavior tab
@@ -38,14 +40,15 @@ fun BehaviorSection(
     onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
     Column {
-        ToggleRow(stringResource(R.string.ui_keep_screen_on_while_reading), keepScreenOn, onKeepScreenOnChange)
-        ToggleRow(stringResource(R.string.ui_volume_key_navigation), volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange)
+        ToggleRow(stringResource(R.string.ui_keep_screen_on_while_reading), keepScreenOn, onKeepScreenOnChange, testTag = TestTags.READER_SETTINGS_KEEP_SCREEN_ON)
+        ToggleRow(stringResource(R.string.ui_volume_key_navigation), volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange, testTag = TestTags.READER_SETTINGS_VOLUME_KEY_NAV)
         ToggleRow(
             label = stringResource(R.string.ui_invert_volume_keys),
             checked = invertVolumeKeys,
             onChange = onInvertVolumeKeysChange,
             enabled = volumeKeyNavigationEnabled,
             modifier = Modifier.padding(start = 16.dp),
+            testTag = TestTags.READER_SETTINGS_INVERT_VOLUME_KEYS,
         )
     }
 }
@@ -57,12 +60,14 @@ private fun ToggleRow(
     onChange: (Boolean) -> Unit,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    testTag: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
             .alpha(if (enabled) 1f else 0.38f),
     ) {
