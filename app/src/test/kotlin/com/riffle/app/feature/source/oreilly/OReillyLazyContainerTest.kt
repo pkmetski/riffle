@@ -117,17 +117,12 @@ class OReillyLazyContainerTest {
         assertTrue(xhtml.contains("../images/x.jpg"))
     }
 
-    // Regression: O'Reilly's CSS files override Readium's multicol height/overflow CSS and cause
-    // vertical scrolling in paginated mode. buildChapterXhtml must omit stylesheet <link> tags.
     @Test
-    fun `buildChapterXhtml omits stylesheet links for Readium pagination compatibility`() {
+    fun `buildChapterXhtml injects stylesheet link`() {
         val pub = makePub("xhtml/ch01.xhtml")
         val item = pub.spine[0]
         val xhtml = OReillyLazyContainer.buildChapterXhtml(pub, item, "<p>body</p>")
-        assertFalse(
-            "Must not inject O'Reilly CSS: it overrides Readium's multicol layout and causes vertical scrolling",
-            xhtml.contains("<link rel=\"stylesheet\""),
-        )
+        assertTrue(xhtml.contains("styles/main.css") || xhtml.contains("../styles/main.css"))
     }
 
     @Test
