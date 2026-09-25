@@ -44,11 +44,13 @@ internal object ContinuousStyleInjector {
     private val REGEX_HEAD_OPEN = Regex("<head[^>]*>", RegexOption.IGNORE_CASE)
     private val REGEX_HTML_OPEN = Regex("<html[^>]*", RegexOption.IGNORE_CASE)
     private val REGEX_IMG_TAG = Regex("<img\\b[^>]*>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-    private val REGEX_IMG_WIDTH = Regex("\\swidth\\s*=", RegexOption.IGNORE_CASE)
-    private val REGEX_IMG_HEIGHT = Regex("\\sheight\\s*=", RegexOption.IGNORE_CASE)
+    // Numeric pixel values only: `width="100%"` / `height="auto"` give the browser no aspect
+    // ratio and the reservation script no size, so such images must keep the load-event path.
+    private val REGEX_IMG_WIDTH = Regex("\\swidth\\s*=\\s*[\"']?\\s*\\d+\\s*(px)?\\s*[\"']?(?=[\\s/>])", RegexOption.IGNORE_CASE)
+    private val REGEX_IMG_HEIGHT = Regex("\\sheight\\s*=\\s*[\"']?\\s*\\d+\\s*(px)?\\s*[\"']?(?=[\\s/>])", RegexOption.IGNORE_CASE)
 
     /**
-     * True when every `<img>` in [html] declares both `width` and `height` attributes. Chromium
+     * True when every `<img>` in [html] declares numeric `width` and `height` attributes. Chromium
      * maps those to an intrinsic aspect ratio, so the layout height is final at DOMContentLoaded
      * and does not change as the images decode. Only then is it safe for the parent to measure
      * and reveal the chapter before the `load` event (see [DOM_READY_SCRIPT]); a chapter with an

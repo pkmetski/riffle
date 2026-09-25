@@ -116,6 +116,16 @@ class ContinuousScriptInjectorTest {
         val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
         assertTrue(js.contains("window.__riffleDomReadyMeasure"))
         assertTrue(js.contains("document.fonts.status !== 'loaded'"))
+        // Every report path (initial, ResizeObserver, safety timers) is held until fonts.ready.
+        assertTrue(js.contains("if (reportsHeld) return;"))
+        assertTrue(js.contains("reportsHeld = true;"))
+    }
+
+    @Test
+    fun `image reservation keeps author-set widths and ignores non-numeric attributes`() {
+        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(js.contains("if (Math.round(rw) === 300) {"))
+        assertTrue(js.contains("/^\\s*\\d+\\s*(px)?\\s*$/.test(wa || '')"))
     }
 
     @Test

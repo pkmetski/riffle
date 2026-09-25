@@ -157,6 +157,17 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `allImagesSized false for percentage or auto dimensions`() {
+        assertFalse(ContinuousStyleInjector.allImagesSized("<img src=\"a.png\" width=\"100%\" height=\"auto\"/>"))
+        assertFalse(ContinuousStyleInjector.allImagesSized("<img src=\"a.png\" width=\"50%\" height=\"20\"/>"))
+    }
+
+    @Test
+    fun `allImagesSized accepts px-suffixed numeric dimensions`() {
+        assertTrue(ContinuousStyleInjector.allImagesSized("<img src=\"a.png\" width=\"120px\" height=\"40px\"/>"))
+    }
+
+    @Test
     fun `allImagesSized true for a chapter without images`() {
         assertTrue(ContinuousStyleInjector.allImagesSized("<html><body><p>text only</p></body></html>"))
     }

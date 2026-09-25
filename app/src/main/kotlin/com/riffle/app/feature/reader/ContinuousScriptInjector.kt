@@ -77,7 +77,12 @@ internal object ContinuousScriptInjector {
                 return Math.ceil(cssH * (window.devicePixelRatio || 1));
             }
             var last = -1;
+            // DOM-ready mode holds EVERY report (the ResizeObserver's initial notification and
+            // the safety timers included) until the bundled fonts have loaded, so the gating
+            // height is never taken with fallback-font metrics.
+            var reportsHeld = false;
             function report() {
+                if (reportsHeld) return;
                 var h = currentHeight();
                 if (h > 0 && h !== last) {
                     last = h;
@@ -103,17 +108,24 @@ internal object ContinuousScriptInjector {
                     for (var k = 0; k < imgs.length; k++) {
                         var im = imgs[k];
                         if (im.complete) continue;
-                        var aw = parseInt(im.getAttribute('width'), 10);
-                        var ah = parseInt(im.getAttribute('height'), 10);
+                        var wa = im.getAttribute('width'), ha = im.getAttribute('height');
+                        if (!/^\s*\d+\s*(px)?\s*$/.test(wa || '') || !/^\s*\d+\s*(px)?\s*$/.test(ha || '')) continue;
+                        var aw = parseInt(wa, 10), ah = parseInt(ha, 10);
                         if (!(aw > 0 && ah > 0)) continue;
                         if (im.style.width || im.style.height) continue;
-                        // Width: the attribute width in CSS px, which the author's / ReadiumCSS
-                        // max-width rules then clamp exactly as they will clamp the decoded
-                        // image's intrinsic width. Height: derived from the RESOLVED width and
-                        // the attribute aspect ratio, unrounded, so it matches the final
-                        // `height: auto` value to the layout's own sub-pixel snapping.
-                        im.style.width = aw + 'px';
+                        // An undecoded image with `width: auto` (ReadiumCSS) sits in the 300 px
+                        // default object box. If the used width is exactly that default, no
+                        // author rule sets a width: give it the attribute width in CSS px, which
+                        // the author's / ReadiumCSS max-width rules then clamp exactly as they
+                        // will clamp the decoded image's intrinsic width. Any other used width
+                        // comes from an author rule (`img { width: 90% }`) — keep it. Height:
+                        // derived from the RESOLVED width and the attribute aspect ratio,
+                        // unrounded, so it matches the final `height: auto` value.
                         var rw = im.getBoundingClientRect().width;
+                        if (Math.round(rw) === 300) {
+                            im.style.width = aw + 'px';
+                            rw = im.getBoundingClientRect().width;
+                        }
                         if (!(rw > 0)) rw = aw;
                         im.style.height = (rw * ah / aw) + 'px';
                         var release = function(e) {
@@ -137,7 +149,11 @@ internal object ContinuousScriptInjector {
                 // height taken with fallback metrics would be corrected a few frames later —
                 // a visible jump on an already-revealed page. Fonts come from local assets,
                 // so this wait is short; the ResizeObserver below still covers later reflow.
-                document.fonts.ready.then(function() { requestAnimationFrame(report); });
+                reportsHeld = true;
+                document.fonts.ready.then(function() {
+                    reportsHeld = false;
+                    requestAnimationFrame(report);
+                });
             } else {
                 report();
             }
