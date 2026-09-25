@@ -2,8 +2,10 @@ package com.riffle.shared.reader
 
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.feature.reader.NavigatorEvent
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import platform.UIKit.UIViewController
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -104,8 +106,10 @@ class ReadiumSwiftNavigatorEdgeTapTest {
     fun centerTap_emitsBodyTap() = runTest {
         val bridge = RecordingBridge()
         val nav = navigator(bridge, scrollMode = false)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
         bridge.tapCallback?.invoke(TapCoords(180.0, 400.0, 360.0, 800.0))
-        val event = nav.eventFlow.first()
+        val event = eventDeferred.await()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goForwardCalls)
         assertEquals(0, bridge.goBackwardCalls)
@@ -115,9 +119,11 @@ class ReadiumSwiftNavigatorEdgeTapTest {
     fun leftEdgeTopBand_emitsBodyTap() = runTest {
         val bridge = RecordingBridge()
         val nav = navigator(bridge, scrollMode = false)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
         // y=60/800=0.075 < 0.15 vertical guard — excluded from edge navigation
         bridge.tapCallback?.invoke(TapCoords(50.0, 60.0, 360.0, 800.0))
-        val event = nav.eventFlow.first()
+        val event = eventDeferred.await()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goBackwardCalls)
     }
@@ -128,8 +134,10 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         // navigate pages — it should fall through to BodyTap.
         val bridge = RecordingBridge()
         val nav = navigator(bridge)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
         bridge.tapCallback?.invoke(TapCoords(50.0, 400.0, 360.0, 800.0))
-        val event = nav.eventFlow.first()
+        val event = eventDeferred.await()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goBackwardCalls)
     }
@@ -138,8 +146,10 @@ class ReadiumSwiftNavigatorEdgeTapTest {
     fun scrollMode_leftEdge_emitsBodyTapInsteadOfNavigating() = runTest {
         val bridge = RecordingBridge()
         val nav = navigator(bridge, scrollMode = true)
+        val eventDeferred = async { nav.eventFlow.first() }
+        yield() // allow the async collection to subscribe before emitting
         bridge.tapCallback?.invoke(TapCoords(50.0, 400.0, 360.0, 800.0))
-        val event = nav.eventFlow.first()
+        val event = eventDeferred.await()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goBackwardCalls)
     }
