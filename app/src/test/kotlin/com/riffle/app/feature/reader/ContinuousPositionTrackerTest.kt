@@ -1206,4 +1206,57 @@ class ContinuousPositionTrackerTest {
             ),
         )
     }
+
+    // ---- internal scroll correction -----------------------------------------------------------
+
+    @Test
+    fun `internal scroll in sync needs no correction`() {
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_600, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+    }
+
+    @Test
+    fun `sub-CSS-px rounding from Chromium is adopted not fought`() {
+        // Chromium reports 47 598 for a wanted 47 600 (one CSS px at 2.625 dpr rounds to 3 px).
+        // Re-asserting 47 600 every frame would ping-pong; the translation follows instead.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_598, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_603, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+    }
+
+    @Test
+    fun `an unmanaged internal scroll is restored`() {
+        // A selection-handle drag past the edge scrolled the WebView 400 px on its own.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.RESTORE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 48_000, wantedPx = 47_600, density = 2.625f, maxScrollPx = 141_329,
+            ),
+        )
+    }
+
+    @Test
+    fun `a clamp caused by content too short for the managed offset is left alone`() {
+        // Mid-reflow (font size change) the renderer can only scroll to 30 000; asserting 47 600
+        // would be clamped again every frame. Leave it — the height re-measure re-syncs.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 30_000, wantedPx = 47_600, density = 2.625f, maxScrollPx = 30_000,
+            ),
+        )
+    }
 }

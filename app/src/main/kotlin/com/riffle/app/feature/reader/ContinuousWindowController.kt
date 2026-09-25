@@ -515,30 +515,33 @@ internal class ContinuousWindowController(
     }
 
     /**
-     * Chromium moved a chapter WebView's own scroll offset (selection auto-scroll past an edge,
-     * focus scroll, a stray `window.find`). Continuous mode owns all scroll positioning, so put
-     * the managed offset back — unless the content is genuinely too short for it (mid-reflow),
-     * where fighting Chromium's clamp would loop; the next height measurement re-syncs instead.
+     * Chromium moved a chapter WebView's own scroll offset. Applies
+     * [ContinuousPositionTracker.internalScrollCorrection]: adopt sub-CSS-px rounding, restore the
+     * managed offset after an unmanaged scroll, or leave a mid-reflow clamp alone.
      */
     private fun onWebViewInternalScroll(wv: ChapterWebView, scrollY: Int) {
         if (syncingWindows || restoringInternalScroll) return
         val wanted = wv.windowOffsetPx
-        if (scrollY == wanted) return
-        // Chromium positions in CSS px and reports the container offset back rounded to whole
-        // device px of a whole CSS px; adopt such sub-CSS-px corrections (moving the translation
-        // with them keeps content pinned) instead of re-asserting ours every frame.
-        val density = wv.resources.displayMetrics.density
-        if (kotlin.math.abs(scrollY - wanted) <= kotlin.math.ceil(density).toInt()) {
-            wv.windowOffsetPx = scrollY
-            wv.translationY = scrollY.toFloat()
-            return
-        }
-        if (wanted > wv.internalMaxScrollY()) return
-        restoringInternalScroll = true
-        try {
-            wv.scrollTo(0, wanted)
-        } finally {
-            restoringInternalScroll = false
+        val decision = ContinuousPositionTracker.internalScrollCorrection(
+            reportedPx = scrollY,
+            wantedPx = wanted,
+            density = wv.resources.displayMetrics.density,
+            maxScrollPx = wv.internalMaxScrollY(),
+        )
+        when (decision) {
+            ContinuousPositionTracker.InternalScrollCorrection.NONE -> Unit
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT -> {
+                wv.windowOffsetPx = scrollY
+                wv.translationY = scrollY.toFloat()
+            }
+            ContinuousPositionTracker.InternalScrollCorrection.RESTORE -> {
+                restoringInternalScroll = true
+                try {
+                    wv.scrollTo(0, wanted)
+                } finally {
+                    restoringInternalScroll = false
+                }
+            }
         }
     }
 

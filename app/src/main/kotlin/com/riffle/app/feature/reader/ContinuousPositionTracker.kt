@@ -391,6 +391,32 @@ internal object ContinuousPositionTracker {
         return if (desired == currentOffsetPx) null else desired
     }
 
+    /** What to do when Chromium reports a chapter WebView's internal scroll offset. */
+    enum class InternalScrollCorrection { NONE, ADOPT, RESTORE }
+
+    /**
+     * Decide how [ContinuousWindowController] reacts to Chromium moving a chapter WebView's own
+     * scroll offset to [reportedPx] while the managed window offset is [wantedPx].
+     *
+     *  - [InternalScrollCorrection.NONE]: already in sync, or [wantedPx] is beyond what the
+     *    renderer can currently scroll to ([maxScrollPx], e.g. mid-reflow) — fighting that clamp
+     *    would loop every frame; the next height measurement re-syncs instead.
+     *  - [InternalScrollCorrection.ADOPT]: the deviation is at most one CSS px ([density] device
+     *    px, rounded up). Chromium positions in CSS px and reports the container offset back
+     *    rounded, so the controller moves the translation with it rather than re-asserting its own
+     *    value on every frame.
+     *  - [InternalScrollCorrection.RESTORE]: an unmanaged scroll (selection auto-scroll past an
+     *    edge, focus scroll, stray `window.find`); continuous mode owns all scroll positioning, so
+     *    the managed offset is put back.
+     */
+    fun internalScrollCorrection(reportedPx: Int, wantedPx: Int, density: Float, maxScrollPx: Int): InternalScrollCorrection {
+        if (reportedPx == wantedPx) return InternalScrollCorrection.NONE
+        val tolerance = kotlin.math.ceil(density.toDouble()).toInt()
+        if (kotlin.math.abs(reportedPx - wantedPx) <= tolerance) return InternalScrollCorrection.ADOPT
+        if (wantedPx > maxScrollPx) return InternalScrollCorrection.NONE
+        return InternalScrollCorrection.RESTORE
+    }
+
     /**
      * Scroll floor while a backward prepend is still an unmeasured placeholder: the placeholder's
      * bottom edge (its height, since the prepend always occupies slot 0 at top=0). Scrolling into
