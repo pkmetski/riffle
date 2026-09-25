@@ -43,7 +43,7 @@ interface IosEpubNavigatorBridge {
      * view's current size. All four values are passed so the Kotlin layer can compute edge-zone
      * membership without an extra bridge round-trip.
      */
-    fun setTapCallback(callback: ((x: Float, y: Float, viewWidth: Float, viewHeight: Float) -> Unit)?)
+    fun setTapCallback(callback: ((x: Double, y: Double, viewWidth: Double, viewHeight: Double) -> Unit)?)
 
     /**
      * Register a callback for figure-tap events posted by `figure-tap.js`.

@@ -119,13 +119,13 @@ class ReadiumSwiftNavigator(
         // (Android handles the same logic in EpubReaderScreen's InputListener.onTap, where
         // Readium's TapEvent carries the coordinates directly.)
         bridge.setTapCallback { x, y, viewWidth, viewHeight ->
-            if (isPaginatedMode == true && viewWidth > 0 && viewHeight > 0) {
+            if (isPaginatedMode == true && viewWidth > 0.0 && viewHeight > 0.0) {
                 val xFrac = x / viewWidth
                 val yFrac = y / viewHeight
-                if (yFrac > PAGE_EDGE_TAP_VERTICAL_GUARD && yFrac < 1f - PAGE_EDGE_TAP_VERTICAL_GUARD) {
+                if (yFrac > PAGE_EDGE_TAP_VERTICAL_GUARD && yFrac < 1.0 - PAGE_EDGE_TAP_VERTICAL_GUARD) {
                     when {
                         xFrac < PAGE_EDGE_TAP_FRACTION -> { bridge.goBackward(); return@setTapCallback }
-                        xFrac > 1f - PAGE_EDGE_TAP_FRACTION -> { bridge.goForward(); return@setTapCallback }
+                        xFrac > 1.0 - PAGE_EDGE_TAP_FRACTION -> { bridge.goForward(); return@setTapCallback }
                     }
                 }
             }
@@ -626,7 +626,7 @@ class ReadiumSwiftNavigator(
 
     companion object {
         // Mirror of EpubReaderScreen.PAGE_EDGE_TAP_FRACTION / PAGE_EDGE_TAP_VERTICAL_GUARD.
-        private const val PAGE_EDGE_TAP_FRACTION = 0.20f
-        private const val PAGE_EDGE_TAP_VERTICAL_GUARD = 0.15f
+        private const val PAGE_EDGE_TAP_FRACTION = 0.20
+        private const val PAGE_EDGE_TAP_VERTICAL_GUARD = 0.15
     }
 }

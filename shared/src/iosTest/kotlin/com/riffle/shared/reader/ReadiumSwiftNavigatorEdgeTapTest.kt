@@ -22,11 +22,11 @@ import kotlin.test.assertNull
 class ReadiumSwiftNavigatorEdgeTapTest {
 
     private class RecordingBridge : IosEpubNavigatorBridge {
-        var tapCallback: ((Float, Float, Float, Float) -> Unit)? = null
+        var tapCallback: ((Double, Double, Double, Double) -> Unit)? = null
         var goForwardCalls = 0
         var goBackwardCalls = 0
 
-        override fun setTapCallback(callback: ((Float, Float, Float, Float) -> Unit)?) {
+        override fun setTapCallback(callback: ((Double, Double, Double, Double) -> Unit)?) {
             tapCallback = callback
         }
         override fun goForward() { goForwardCalls++ }
@@ -85,7 +85,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         val bridge = RecordingBridge()
         navigator(bridge, scrollMode = false)
         // x=50/360=0.139 < 0.20 edge fraction, y=400/800=0.50 inside mid band
-        bridge.tapCallback?.invoke(50f, 400f, 360f, 800f)
+        bridge.tapCallback?.invoke(50.0, 400.0, 360.0, 800.0)
         assertEquals(1, bridge.goBackwardCalls)
         assertEquals(0, bridge.goForwardCalls)
     }
@@ -95,7 +95,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         val bridge = RecordingBridge()
         navigator(bridge, scrollMode = false)
         // x=310/360=0.861 > 0.80, y=400/800=0.50 inside mid band
-        bridge.tapCallback?.invoke(310f, 400f, 360f, 800f)
+        bridge.tapCallback?.invoke(310.0, 400.0, 360.0, 800.0)
         assertEquals(1, bridge.goForwardCalls)
         assertEquals(0, bridge.goBackwardCalls)
     }
@@ -104,7 +104,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
     fun centerTap_emitsBodyTap() = runTest {
         val bridge = RecordingBridge()
         val nav = navigator(bridge, scrollMode = false)
-        bridge.tapCallback?.invoke(180f, 400f, 360f, 800f)
+        bridge.tapCallback?.invoke(180.0, 400.0, 360.0, 800.0)
         val event = nav.eventFlow.first()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goForwardCalls)
@@ -116,7 +116,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         val bridge = RecordingBridge()
         val nav = navigator(bridge, scrollMode = false)
         // y=60/800=0.075 < 0.15 vertical guard — excluded from edge navigation
-        bridge.tapCallback?.invoke(50f, 60f, 360f, 800f)
+        bridge.tapCallback?.invoke(50.0, 60.0, 360.0, 800.0)
         val event = nav.eventFlow.first()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goBackwardCalls)
@@ -128,7 +128,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         // navigate pages — it should fall through to BodyTap.
         val bridge = RecordingBridge()
         val nav = navigator(bridge)
-        bridge.tapCallback?.invoke(50f, 400f, 360f, 800f)
+        bridge.tapCallback?.invoke(50.0, 400.0, 360.0, 800.0)
         val event = nav.eventFlow.first()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goBackwardCalls)
@@ -138,7 +138,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
     fun scrollMode_leftEdge_emitsBodyTapInsteadOfNavigating() = runTest {
         val bridge = RecordingBridge()
         val nav = navigator(bridge, scrollMode = true)
-        bridge.tapCallback?.invoke(50f, 400f, 360f, 800f)
+        bridge.tapCallback?.invoke(50.0, 400.0, 360.0, 800.0)
         val event = nav.eventFlow.first()
         assertEquals(NavigatorEvent.BodyTap, event)
         assertEquals(0, bridge.goBackwardCalls)

@@ -14,10 +14,10 @@ final class PageEdgeTapTests: XCTestCase {
 
     func testLeftEdgeCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var receivedX: Float = -1
-        var receivedY: Float = -1
-        var receivedWidth: Float = -1
-        var receivedHeight: Float = -1
+        var receivedX: Double = -1
+        var receivedY: Double = -1
+        var receivedWidth: Double = -1
+        var receivedHeight: Double = -1
         bridge.setTapCallback { tapX, tapY, tapW, tapH in
             receivedX = tapX; receivedY = tapY; receivedWidth = tapW; receivedHeight = tapH
         }
@@ -31,7 +31,7 @@ final class PageEdgeTapTests: XCTestCase {
 
     func testRightEdgeCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var receivedX: Float = -1
+        var receivedX: Double = -1
         bridge.setTapCallback { tapX, _, _, _ in receivedX = tapX }
         // tapX/width = 310/360 = 0.861 — inside right edge zone (> 0.80)
         bridge.simulateTapAt(tapX: 310, tapY: 400, viewWidth: 360, viewHeight: 800)
@@ -40,7 +40,7 @@ final class PageEdgeTapTests: XCTestCase {
 
     func testCenterCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var receivedX: Float = -1
+        var receivedX: Double = -1
         bridge.setTapCallback { tapX, _, _, _ in receivedX = tapX }
         // tapX/width = 180/360 = 0.50 — center, not in any edge zone
         bridge.simulateTapAt(tapX: 180, tapY: 400, viewWidth: 360, viewHeight: 800)
@@ -49,7 +49,7 @@ final class PageEdgeTapTests: XCTestCase {
 
     func testTopBandCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var receivedY: Float = -1
+        var receivedY: Double = -1
         bridge.setTapCallback { _, tapY, _, _ in receivedY = tapY }
         // tapY/height = 60/800 = 0.075 — inside top guard band (< 0.15), excluded from edge nav
         bridge.simulateTapAt(tapX: 50, tapY: 60, viewWidth: 360, viewHeight: 800)
@@ -58,7 +58,7 @@ final class PageEdgeTapTests: XCTestCase {
 
     func testBottomBandCoordinatesReachTapCallback() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var receivedY: Float = -1
+        var receivedY: Double = -1
         bridge.setTapCallback { _, tapY, _, _ in receivedY = tapY }
         // tapY/height = 740/800 = 0.925 — inside bottom guard band (> 0.85), excluded from edge nav
         bridge.simulateTapAt(tapX: 310, tapY: 740, viewWidth: 360, viewHeight: 800)

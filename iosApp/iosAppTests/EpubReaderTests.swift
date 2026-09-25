@@ -79,8 +79,8 @@ final class EpubReaderTests: XCTestCase {
 
     func testTapCallbackReceivesCoordinates() {
         let bridge = ReadiumEpubNavigatorBridge()
-        var receivedX: Float = 0
-        var receivedViewWidth: Float = 0
+        var receivedX: Double = 0
+        var receivedViewWidth: Double = 0
         bridge.setTapCallback { x, _, viewWidth, _ in
             receivedX = x
             receivedViewWidth = viewWidth
