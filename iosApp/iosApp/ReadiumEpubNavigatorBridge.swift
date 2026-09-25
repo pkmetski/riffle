@@ -29,7 +29,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     // Callbacks registered by ReadiumSwiftNavigator
     private var locatorCallback: ((String) -> Void)?
     private var pageLoadCallback: (() -> Void)?
-    private var tapCallback: (() -> Void)?
+    private var tapCallback: ((Float, Float, Float, Float) -> Void)?
     private var errorCallback: ((String) -> Void)?
     private var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
@@ -147,7 +147,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         pageLoadCallback = callback
     }
 
-    func setTapCallback(callback: (() -> Void)?) {
+    func setTapCallback(callback: ((Float, Float, Float, Float) -> Void)?) {
         tapCallback = callback
     }
 
@@ -426,7 +426,8 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
         emitSelectionIfCleared()
-        tapCallback?()
+        let size = navigator.view.bounds.size
+        tapCallback?(Float(point.x), Float(point.y), Float(size.width), Float(size.height))
     }
 
     /// Called by Readium for each spread's WKWebView before its page content loads.
@@ -526,7 +527,12 @@ extension ReadiumEpubNavigatorBridge {
         pageLoadCallback?()
     }
     @objc func simulatePageLoad() { pageLoadCallback?() }
-    @objc func simulateTap() { tapCallback?() }
+    /// Simulate a center tap (x=50%, y=50%) with a 360×800 view — lands in the immersive-toggle
+    /// zone, not an edge zone. Pass explicit values via [simulateTapAt] for edge-zone tests.
+    @objc func simulateTap() { tapCallback?(180, 400, 360, 800) }
+    func simulateTapAt(x: Float, y: Float, viewWidth: Float, viewHeight: Float) {
+        tapCallback?(x, y, viewWidth, viewHeight)
+    }
     @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
     @objc func simulateSelection(_ json: String?) { selectionCallback?(json) }
