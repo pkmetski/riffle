@@ -1,5 +1,46 @@
 # Riffle — Agent Instructions
 
+## Locating UI elements — use testTag, not coordinates
+
+**Never tap or interact with a UI element by screen coordinate.** Every interactive control in Riffle is tagged with a stable `testTag` that surfaces as `resource-id` in `adb shell uiautomator dump` (Android) and as `accessibilityIdentifier` in the XCUITest tree (iOS). Use these names to find elements before interacting.
+
+### Finding an element
+
+On Android (uiautomator):
+
+```bash
+adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml /tmp/ui.xml
+grep 'resource-id' /tmp/ui.xml | grep riffle   # find by resource-id
+```
+
+On Android (Compose semantics — preferred in harness tests):
+
+```kotlin
+composeRule.onNodeWithTag(TestTags.READER_BACK).performClick()
+```
+
+On iOS (XCUITest):
+
+```swift
+app.buttons[TestTags.IOS_READER_BACK].tap()
+// or by accessibilityIdentifier
+app.buttons.matching(identifier: "ios_reader_back").firstMatch.tap()
+```
+
+### Tag catalogue
+
+All tag constants live in `feature/design-system/src/commonMain/kotlin/com/riffle/feature/designsystem/TestTags.kt`. Before searching for an element by coordinate or label text, **look up its constant** there. The file is organised by screen area — reader, library, player, settings, downloads, etc.
+
+### Adding tags to new or untagged controls
+
+**Every interactive control must carry a `testTag`.** This is not optional.
+
+- **New controls**: add `.testTag(TestTags.YOUR_CONSTANT)` at the time you write the control. Add the constant to `TestTags.kt` first, following the naming convention of the surrounding section (`SCREEN_CONTROL`, e.g. `READER_BACK`, `LIBRARY_FILTER`).
+- **Existing controls you encounter without a tag**: add the tag in the same PR, even if the control is not the primary subject of your change. An untagged control you touch is an untagged control you own.
+- **Dynamic/per-item controls**: use the `fun` helpers already defined in `TestTags` (e.g. `TestTags.playlistRow(id)`, `TestTags.cbzThumb(pageIndex)`). Never interpolate the string directly at the call site.
+- **Never use a raw string literal** as a `testTag` argument — always reference a `TestTags` constant. The `checkRiffleLogTags` analogy: a typo'd literal silently never matches. The constant is the single source of truth.
+- **iOS**: Compose `Modifier.testTag(…)` maps to `accessibilityIdentifier` automatically in the CMP bridge. No extra iOS-side work is needed for shared Compose screens. iOS-only UIKit or SwiftUI surfaces must set `.accessibilityIdentifier(TestTags.IOS_*)` manually.
+
 ## GitHub issue/PR operations
 
 Use the `gh` CLI for all GitHub write operations (creating issues, PRs, comments). The GitHub MCP server (`mcp__github__issue_write`, `mcp__github__create_pull_request`, etc.) does not have write access to this repo and will return 403 — do not retry with it.
