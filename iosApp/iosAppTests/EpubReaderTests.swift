@@ -90,6 +90,37 @@ final class EpubReaderTests: XCTestCase {
     // (EbookFormat is a sealed class; the gate logic lives in commonMain and is covered by
     //  JVM-level unit tests.  The iOS XCTest suite focuses on the native bridge layer.)
 
+    // MARK: - TOC active entry highlighting
+
+    // activeTocHref: prefers the fragment-carrying last-navigated hint within the same resource.
+    // Mirrors TocActiveEntryTest.activeTocHrefPrefers… in commonTest (Kotlin/Native path).
+
+    func testActiveTocHrefPrefersLastNavigatedFragmentWithinSameResource() {
+        let result = TocNavigationKt.activeTocHref(
+            locatorHref: "chapter1.xhtml",
+            lastTocNavigatedHref: "chapter1.xhtml#s2"
+        )
+        XCTAssertEqual(result, "chapter1.xhtml#s2",
+            "Should prefer the fragment-anchored last-navigated href when within same resource")
+    }
+
+    func testActiveTocHrefDropsStaleHintOnCrossResourceNavigation() {
+        let result = TocNavigationKt.activeTocHref(
+            locatorHref: "chapter2.xhtml",
+            lastTocNavigatedHref: "chapter1.xhtml#s2"
+        )
+        XCTAssertEqual(result, "chapter2.xhtml",
+            "Should fall back to bare locatorHref after cross-resource navigation")
+    }
+
+    func testActiveTocHrefReturnsLocatorHrefWhenNoLastNavigatedHint() {
+        let result = TocNavigationKt.activeTocHref(
+            locatorHref: "chapter1.xhtml",
+            lastTocNavigatedHref: nil
+        )
+        XCTAssertEqual(result, "chapter1.xhtml")
+    }
+
     // MARK: - Scenario 03-G: TOC bridge (no open publication)
 
     // getTocJson() must return a valid JSON empty array when no EPUB is open so callers can

@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +90,8 @@ import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
+import com.riffle.feature.reader.activeTocHref
+import com.riffle.feature.reader.findActiveEntry
 import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.spineIndexOfHref
@@ -144,6 +148,10 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var isLazyPublication by remember { mutableStateOf(false) }
     var tocOpen by remember { mutableStateOf(false) }
     var tocEntries by remember { mutableStateOf<List<TocEntry>>(emptyList()) }
+    // Current locator href (no fragment) — updated from the navigator position flow.
+    var locatorHref by remember { mutableStateOf<String?>(null) }
+    // Full href of the last TOC entry the user explicitly tapped (may include #fragment).
+    var lastTocNavigatedHref by remember { mutableStateOf<String?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<NavigatorSearchMatch>>(emptyList()) }
@@ -432,6 +440,11 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 pendingStyles = emptySet()
             }
         }
+    }
+
+    // Track the current spine-item href so the TOC can highlight the active entry.
+    LaunchedEffect(navigator) {
+        navigator.positionFlow.collect { position -> locatorHref = position.href }
     }
 
     // Keep the corner ribbon in step with the page. Recomputed on every position change and
@@ -1021,6 +1034,12 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
         // TOC sheet
         if (tocOpen && tocEntries.isNotEmpty()) {
+            val tocActiveHref = activeTocHref(locatorHref, lastTocNavigatedHref)
+            val activeEntry = remember(tocEntries, tocActiveHref) {
+                tocActiveHref?.let { findActiveEntry(tocEntries, it) }
+            }
+            val activePrimary = MaterialTheme.colorScheme.primary
+            val defaultColor = MaterialTheme.colorScheme.onSurface
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1033,12 +1052,15 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         .padding(8.dp),
                 ) {
                     items(flattenToc(tocEntries)) { row ->
+                        val isActive = row.entry === activeEntry
                         BasicText(
                             text = "  ".repeat(row.depth) + row.entry.title,
+                            style = TextStyle(color = if (isActive) activePrimary else defaultColor),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp)
                                 .clickable {
+                                    lastTocNavigatedHref = row.entry.href
                                     tocOpen = false
                                     scope.launch {
                                         goTo(

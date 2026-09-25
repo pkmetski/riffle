@@ -599,6 +599,23 @@ class EpubReaderViewModel constructor(
     val currentLocatorTotalProgression: StateFlow<Float?> = position.currentLocatorTotalProgression
     val latestLocator: Locator? get() = position.snapshotLastLocator()
 
+    // The full href — possibly including a #fragment — of the last TOC entry the user
+    // explicitly tapped. Readium's locator never carries fragments, so the TOC panel would
+    // otherwise only highlight the parent chapter, never a subchapter anchored within the same
+    // resource. Reset to null when the locator moves to a different resource so stale hints
+    // don't bleed across chapters.
+    private val _lastTocNavigatedHref = MutableStateFlow<String?>(null)
+
+    // Best TOC href for the current position: prefers the fragment-carrying last-navigated hint
+    // while the reader stays within the same resource; falls back to the bare locator href once
+    // the user moves to a different spine item.
+    val currentTocHref: StateFlow<String?> = combine(
+        position.currentLocatorHref,
+        _lastTocNavigatedHref,
+    ) { locatorHref, lastTocHref ->
+        com.riffle.feature.reader.activeTocHref(locatorHref, lastTocHref)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     // -----------------------------------------------------------------------------------------
 
     // publication, epubFile, epubZip, closeSyncDone, readerSync, audiobookFollow, readerSyncServerId
@@ -3812,6 +3829,9 @@ class EpubReaderViewModel constructor(
     fun navigateToEntry(entry: TocEntry) {
         val pub = (state.value as? ReaderState.Ready)?.publication ?: return
         val link = pub.tableOfContents.findLinkByHref(entry.href) ?: return
+        // Remember the full href (including any #fragment) so currentTocHref can highlight
+        // the specific subchapter rather than just the parent chapter resource.
+        _lastTocNavigatedHref.value = entry.href
         // A deliberate TOC jump is a "go somewhere new" gesture, not a link tap — drop any pending
         // return card so it can't linger pointing back to a pre-jump position.
         returnNavigator.dismiss()
