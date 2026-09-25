@@ -75,6 +75,7 @@ class ReadiumSwiftNavigator(
     private val _figureTapPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
+
     // Tracks whether the reader is in paginated (non-scroll) mode. Null until the first
     // applyReaderPreferences call; edge-tap navigation is suppressed while null so an early tap
     // before Compose's LaunchedEffect fires does not accidentally navigate in vertical/scroll mode.
