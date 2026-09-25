@@ -136,7 +136,7 @@ object TestTags {
 
     // ── Annotations list ──────────────────────────────────────────────────────
     const val ANNOTATIONS_BACK = "annotations_back"
-    const val ANNOTATIONS_SEARCH_FIELD = "annotations_search_field"
+    const val ANNOTATIONS_SEARCH_FIELD = "annotation-search-field"
     fun annotationsItem(index: Int) = "annotations_item_$index"
 
     // ── Downloads ─────────────────────────────────────────────────────────────
