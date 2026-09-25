@@ -300,6 +300,98 @@ internal object ContinuousPositionTracker {
     }
 
     /**
+     * How many viewports tall a chapter WebView's *view* is allowed to be. The chapter's slot in
+     * the scroll container still spans the full content height; the WebView itself is a window
+     * of this size that slides through the slot (see [chapterWebViewWindowOffset]).
+     *
+     * Three viewports keeps a full screen of pre-rasterised content on each side of the visible
+     * band as the window slides ([chapterWebViewWindowOffset]), so Chromium's raster keeps up
+     * with a fling without visible checkerboarding, while the per-chapter tile footprint
+     * (~3 screens × 4 bytes/px, ≈30 MB on a 1080 px phone) keeps three stacked chapters inside
+     * Chromium's tile budget on 1 GB Android 7.1 tablets.
+     */
+    const val WEBVIEW_WINDOW_VIEWPORTS = 3
+
+    /**
+     * Fallback for the GPU's maximum renderable height when the hosting view has not yet drawn
+     * with a hardware canvas ([android.graphics.Canvas.getMaximumBitmapHeight] is the authority
+     * once available). 4096 is the smallest `GL_MAX_TEXTURE_SIZE` on any GPU Riffle ships to.
+     */
+    const val DEFAULT_MAX_RENDERABLE_HEIGHT_PX = 4096
+
+
+    /**
+     * Layout height for a chapter WebView whose content measures [contentHeightPx].
+     *
+     * A WebView laid out at its full content height cannot be drawn past the GPU's maximum
+     * texture/viewport dimension (16 384 px on most GPUs, 4 096 on old ones): the hardware
+     * compositor renders only the first [maxRenderableHeightPx] rows and everything below is
+     * solid white (field repro 2026-09-25: a 148 529 px chapter opened at 97 % showed a blank
+     * screen, with the raster cutting off at exactly 16 384 px into every chapter WebView).
+     * Chromium also allocates tile memory proportionally to the view, so multi-hundred-thousand-
+     * px views trip "tile memory limits exceeded" long before that.
+     *
+     * The WebView is therefore capped at [WEBVIEW_WINDOW_VIEWPORTS] viewports, never above the
+     * renderable maximum, and never below one viewport (so the visible band always fits).
+     * Chapters shorter than the cap keep their exact content height.
+     */
+    fun chapterWebViewHeight(contentHeightPx: Int, viewportHeightPx: Int, maxRenderableHeightPx: Int): Int {
+        val viewport = viewportHeightPx.coerceAtLeast(1)
+        val cap = minOf(viewport * WEBVIEW_WINDOW_VIEWPORTS, maxRenderableHeightPx).coerceAtLeast(viewport)
+        return contentHeightPx.coerceIn(0, cap)
+    }
+
+    /**
+     * Where a chapter WebView's window should start inside its slot's content for the given outer
+     * scroll position, or `null` if it is already at [currentOffsetPx].
+     *
+     * The WebView is translated down by the returned offset inside its full-height slot and its
+     * internal scroll is set to the same value, so content point `c` lands on screen at
+     * `slotTop + c − scrollY` regardless of the offset — only which rows are *rendered* changes.
+     *
+     * Policy:
+     *  - Slot entirely below the viewport: park the window at the chapter's top (offset 0).
+     *  - Slot entirely above the viewport: park it at the chapter's bottom.
+     *  - Otherwise keep the window centred on the visible band, clamped to the content, so it
+     *    SLIDES with the outer scroll frame by frame.
+     *
+     * The window must slide continuously rather than jump in steps: the translation is applied
+     * by the View system in the current frame but Chromium applies the internal scroll one frame
+     * later, so a step of Δ px shows the content displaced by Δ for one frame (field repro
+     * 2026-09-25: a 600 px backward jump on every re-centre during a fling). With a per-frame
+     * slide the displacement equals one frame's scroll delta on every frame — uniform, so it
+     * reads as smooth motion — and it vanishes at the chapter edges, where the clamp parks the
+     * window and a neighbouring chapter (which has no lag) is on screen next to it.
+     *
+     * Parking neighbours at the edge that faces the viewport means the next chapter's first
+     * screen is already rasterised when the reader scrolls across the boundary.
+     */
+    fun chapterWebViewWindowOffset(
+        slotTop: Int,
+        contentHeightPx: Int,
+        webViewHeightPx: Int,
+        currentOffsetPx: Int,
+        scrollY: Int,
+        viewportHeightPx: Int,
+    ): Int? {
+        val maxOffset = (contentHeightPx - webViewHeightPx).coerceAtLeast(0)
+        if (maxOffset == 0) return if (currentOffsetPx != 0) 0 else null
+        val bandTop = scrollY - slotTop
+        val bandBottom = bandTop + viewportHeightPx
+        val desired = when {
+            bandBottom <= 0 -> 0
+            bandTop >= contentHeightPx -> maxOffset
+            else -> {
+                val visTop = bandTop.coerceAtLeast(0)
+                val visBottom = bandBottom.coerceAtMost(contentHeightPx)
+                val spare = (webViewHeightPx - (visBottom - visTop)).coerceAtLeast(0)
+                (visTop - spare / 2).coerceIn(0, maxOffset)
+            }
+        }
+        return if (desired == currentOffsetPx) null else desired
+    }
+
+    /**
      * Scroll floor while a backward prepend is still an unmeasured placeholder: the placeholder's
      * bottom edge (its height, since the prepend always occupies slot 0 at top=0). Scrolling into
      * the blank placeholder maps those pixels to unseen content once the real height lands —

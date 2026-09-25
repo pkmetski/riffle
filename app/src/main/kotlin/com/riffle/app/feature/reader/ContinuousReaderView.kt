@@ -330,13 +330,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         get() = controller.firstRevealGatedOnPaint
 
     /**
-     * Test seam — see [ContinuousWindowController.goneStrategyAppliedForNonZeroCssY].
-     */
-    @androidx.annotation.VisibleForTesting
-    internal val goneStrategyAppliedForNonZeroCssY: Boolean
-        get() = controller.goneStrategyAppliedForNonZeroCssY
-
-    /**
      * Test entry point — see [ContinuousWindowController.openWindowAtNonSmoothForTest].
      */
     @androidx.annotation.VisibleForTesting
@@ -398,6 +391,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun computeScroll() {
         super.computeScroll()
         controller.tickLandingHold()
+    }
+
+    /**
+     * Learn the GPU's maximum renderable height from the first hardware draw. A WebView taller
+     * than this renders only its first rows (see [ContinuousPositionTracker.chapterWebViewHeight]);
+     * the controller caps every chapter WebView below it.
+     */
+    override fun dispatchDraw(canvas: android.graphics.Canvas) {
+        if (canvas.isHardwareAccelerated) controller.maxRenderableHeightPx = canvas.maximumBitmapHeight
+        super.dispatchDraw(canvas)
     }
 
     /**
