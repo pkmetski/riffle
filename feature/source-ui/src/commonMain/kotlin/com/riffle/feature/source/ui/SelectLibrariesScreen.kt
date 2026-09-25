@@ -29,8 +29,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.PendingSource
 import com.riffle.feature.designsystem.RiffleIcons
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.TabletContentWidthContainer
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings
@@ -85,7 +85,12 @@ fun SelectLibrariesScreen(
                         stringResource(Res.string.ui_this_source_doesn_t_expose_any_book_libraries),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Button(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SELECT_LIBRARIES_GO_BACK)) { Text(stringResource(Res.string.ui_go_back)) }
+                    Button(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag(TestTags.SELECT_LIBRARIES_GO_BACK),
+                    ) {
+                        Text(stringResource(Res.string.ui_go_back))
+                    }
                 }
             } else {
                 Column(

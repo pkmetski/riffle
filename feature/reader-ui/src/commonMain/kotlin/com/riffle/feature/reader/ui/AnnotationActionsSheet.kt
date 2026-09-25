@@ -33,13 +33,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
-import com.riffle.feature.designsystem.TestTags
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.designsystem.TestTags
 
 /**
  * Every user-visible string the annotation sheets need, supplied by the host.

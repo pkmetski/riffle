@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.bookDownloadAffordances
@@ -33,7 +34,6 @@ import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ic_readaloud
 import com.riffle.feature.source.ui.generated.resources.ui_download
 import com.riffle.feature.source.ui.generated.resources.ui_download_cached_item
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.ui_download_readaloud
 import com.riffle.feature.source.ui.generated.resources.ui_remove_download
 import com.riffle.feature.source.ui.generated.resources.ui_remove_readaloud_download

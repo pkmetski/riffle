@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
@@ -32,6 +31,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.LibraryUiItem
 import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.feature.settings.idsWithSwap

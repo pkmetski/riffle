@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,10 +50,9 @@ import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.InsecureConnectionType
-import androidx.compose.ui.platform.testTag
 import com.riffle.feature.designsystem.RiffleIcons
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.TabletContentWidthContainer
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_webdav
 import com.riffle.feature.source.ui.generated.resources.ui_back
