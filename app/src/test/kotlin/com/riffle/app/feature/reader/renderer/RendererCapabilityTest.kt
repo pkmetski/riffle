@@ -157,6 +157,31 @@ class RendererCapabilityTest {
         assertTrue(reserveCap.installScript().contains("setProperty"))
     }
 
+    /**
+     * Regression test for the O'Reilly EPUB3 vertical-scroll bug: publisher CSS used
+     * `height: auto !important` which beat ReadiumCSS-after.css's non-!important `height: 100vh`,
+     * collapsing the multicol container and letting pages scroll vertically in paginated mode.
+     * The PaginatedLayoutLock capability must be registered AND its CSS must use !important so a
+     * revert of this fix would flip this test red.
+     */
+    @Test fun `paginated layout lock is registered and uses important on height and overflow`() {
+        val lockCap = installOrder.firstOrNull { it.id == CapabilityId.PaginatedLayoutLock }
+        assertTrue("PaginatedLayoutLock capability must be registered", lockCap != null)
+        val script = lockCap!!.installScript()
+        assertTrue(
+            "lock must enforce height: 100vh !important to beat hostile publisher CSS",
+            script.contains("height: 100vh !important"),
+        )
+        assertTrue(
+            "lock must enforce overflow: hidden !important to prevent vertical scrolling",
+            script.contains("overflow: hidden !important"),
+        )
+        assertTrue(
+            "lock must be scoped to paginated mode via :not([style*=readium-scroll-on])",
+            script.contains(":not([style*=\"readium-scroll-on\"])"),
+        )
+    }
+
     @Test fun `topo sort rejects a cycle`() {
         val a = RendererCapability(
             id = CapabilityId.RectToJsonPolyfill,
