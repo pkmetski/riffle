@@ -1,7 +1,6 @@
 package com.riffle.app.feature.reader
 
 import android.content.Context
-
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
@@ -10,6 +9,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
+import com.riffle.feature.reader.AboveSlotCompensationGate
 import org.readium.r2.shared.publication.Publication
 
 /**

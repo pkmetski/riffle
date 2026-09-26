@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 /**
  * Sequences programmatic landings against the deferred scroll compensation of a chapter slot
@@ -11,14 +11,15 @@ package com.riffle.app.feature.reader
  * stale by the not-yet-applied delta. A landing whose target Y was computed in that window and
  * executed after the compensation lands short by exactly that delta — the annotated phrase ends
  * up thousands of px below the viewport, which is what the CI phone harness reported for
- * continuous-mode annotation focus.
+ * continuous-mode annotation focus. Pure sequencing, shared so an iOS continuous reader with
+ * the same deferred-neighbour layout can reuse it.
  *
  * [begin] / [end] bracket one pending compensation per slot key; [runWhenSettled] runs [block]
  * right away when nothing is pending and otherwise holds the LATEST request until the last
  * pending compensation has been applied (or its slot evicted). Older held requests are dropped:
  * they were computed for geometry that no longer exists, and the newest one supersedes them.
  */
-internal class AboveSlotCompensationGate {
+class AboveSlotCompensationGate {
     private val pendingKeys = mutableSetOf<Any>()
     private var deferred: (() -> Unit)? = null
 

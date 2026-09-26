@@ -1,7 +1,7 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * The sequencing behind #1109: an annotation landing requested while an above slot's scroll
@@ -30,7 +30,7 @@ class AboveSlotCompensationGateTest {
 
         gate.begin(slot)
         gate.runWhenSettled { runs += "land" }
-        assertEquals("must not scroll against stale slot tops", emptyList<String>(), runs)
+        assertEquals(emptyList<String>(), runs, "must not scroll against stale slot tops")
 
         gate.end(slot)
         assertEquals(listOf("land"), runs)
@@ -48,10 +48,10 @@ class AboveSlotCompensationGateTest {
         gate.runWhenSettled { runs += "stale" }
         gate.runWhenSettled { runs += "latest" }
         gate.end(a)
-        assertEquals("one slot still pending", emptyList<String>(), runs)
+        assertEquals(emptyList<String>(), runs, "one slot still pending")
 
         gate.end(b)
-        assertEquals("older request was superseded", listOf("latest"), runs)
+        assertEquals(listOf("latest"), runs, "older request was superseded")
     }
 
     @Test
@@ -81,7 +81,7 @@ class AboveSlotCompensationGateTest {
         gate.cancelDeferred()
         gate.end(slot)
 
-        assertEquals("user took over: the stale landing must not fire later", emptyList<String>(), runs)
+        assertEquals(emptyList<String>(), runs, "user took over: the stale landing must not fire later")
     }
 
     @Test
