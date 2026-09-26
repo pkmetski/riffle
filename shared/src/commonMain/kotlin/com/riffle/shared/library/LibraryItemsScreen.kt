@@ -114,6 +114,7 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
     onSearchAnnotations: (String) -> Unit,
+    showRecentlyAdded: Boolean = true,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
@@ -190,6 +191,7 @@ fun LibraryItemsScreen(
                     annotationsState = annotationsState,
                     coversAreSquare = coversAreSquare,
                     linkedItemIds = linkedItemIds,
+                    showRecentlyAdded = showRecentlyAdded,
                     onItemSelected = onItemSelected,
                     onAnnotatedBookSelected = onAnnotatedBookSelected,
                     onSeriesSelected = onSeriesSelected,
@@ -224,6 +226,7 @@ internal fun LibraryTabContent(
     // Defaulted so the tab-content tests can stay focused on the projection they exercise.
     token: String = "",
     linkedItemIds: Set<String>,
+    showRecentlyAdded: Boolean = true,
     onItemSelected: (LibraryItem) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
     onSeriesSelected: (Series) -> Unit,
@@ -233,7 +236,7 @@ internal fun LibraryTabContent(
     onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
         1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
@@ -257,7 +260,7 @@ internal fun LibraryTabContent(
             labels = PlaylistLabels.English,
             onPlaylistSelected = onPlaylistSelected,
         )
-        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
     }
 }
 
@@ -338,6 +341,7 @@ private fun HomeTabContent(
     token: String,
     coversAreSquare: Boolean,
     linkedItemIds: Set<String>,
+    showRecentlyAdded: Boolean,
     onItemSelected: (LibraryItem) -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
@@ -372,7 +376,7 @@ private fun HomeTabContent(
                     HorizontalBookRow(items = projection.continueSeries.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected)
                 }
             }
-            if (projection.recentlyAdded.isNotEmpty()) {
+            if (showRecentlyAdded && projection.recentlyAdded.isNotEmpty()) {
                 item {
                     SectionHeader(
                         title = "Recently Added",
