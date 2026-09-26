@@ -85,7 +85,7 @@ import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
-import com.riffle.core.data.RoomDirtyAnnotationLedger
+import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.SourceFilesCleanerImpl
@@ -295,7 +295,6 @@ import org.koin.dsl.module
 // map of SourceAdapters and crashed with ClassCastException). Every generic binding
 // must carry a qualifier; consumers resolve with get(named(...)).
 const val CATALOG_FACTORIES_BY_SOURCE_TYPE = "catalogFactoriesBySourceType"
-const val REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE = "remoteUserIdResolversBySourceType"
 const val SOURCE_ADAPTERS_BY_SOURCE_TYPE = "sourceAdaptersBySourceType"
 
 // Named qualifier strings for File instances
@@ -952,7 +951,7 @@ private val coreDataStreamingAudioModule = module {
 private val coreDataSyncModule = module {
     single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
     single<DirtyProgressLedger> { DaoDirtyProgressLedger(get(), get()) }
-    single<SyncDirtyAnnotationLedger> { RoomDirtyAnnotationLedger(get()) }
+    single<SyncDirtyAnnotationLedger> { DaoDirtyAnnotationLedger(get()) }
     single<ProgressRemoteFactory> {
         CatalogProgressRemoteFactory(
             catalogRegistry = get(),

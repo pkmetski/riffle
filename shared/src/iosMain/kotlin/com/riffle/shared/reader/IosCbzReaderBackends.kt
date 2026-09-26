@@ -1,9 +1,17 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosItemFiles
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactKind
+import com.riffle.core.domain.ContentCacheKey
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -11,11 +19,12 @@ import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.KomgaCbzApi
+import kotlinx.coroutines.CancellationException
 
 /**
  * iOS Koin backends for the shared [com.riffle.feature.reader.CbzReaderViewModel].
  * [IosCbzRepository] is a real implementation lifted from the logic that previously lived inline
- * in [CbzReaderScreen]; CBZ offline download remains unsupported on iOS (see downloadCbz).
+ * in [CbzReaderScreen]; since #1101 it also owns the on-disk download/cache stores.
  */
 
 /** Wraps a plain [ComicImageSource] as a [ComicPageSource] (close is a no-op; nothing to release). */
@@ -26,9 +35,15 @@ internal fun comicPageSourceOf(src: ComicImageSource): ComicPageSource = object 
 }
 
 /**
- * Opens CBZ books on iOS: resolves the source + token, then either downloads the full archive
- * (ABS ebook file) or streams pages on demand (Komga-style catalogs). Progress persistence and
- * background caching are out of scope for the iOS v1 reader, so those methods are no-ops.
+ * Opens CBZ books on iOS. Resolution order mirrors Android's `CbzRepositoryImpl`: a user-pinned
+ * download, then the background cache, then the network — either a full-archive download (ABS
+ * ebook file, or any catalog that can stream the whole file) or per-page streaming (Komga-style
+ * catalogs). A streaming session's background [awaitCachedSource] fills the cache so the reader
+ * can swap to the local archive and later opens work offline (#1101 — this used to return null,
+ * which left the CBZ reader streaming forever and offline reading impossible).
+ *
+ * Archives are held in memory once opened ([IosCbzArchive]); the on-disk copy is the offline
+ * source of truth.
  */
 internal class IosCbzRepository(
     private val sourceRepository: SourceRepository,
@@ -36,9 +51,26 @@ internal class IosCbzRepository(
     private val cbzApi: KomgaCbzApi,
     private val downloader: IosCbzDownloader,
     private val positionStore: ReadingPositionStore,
+    fileStore: FileStore,
+    private val catalogRegistry: CatalogRegistry,
+    private val contentCacheAccessStore: ContentCacheAccessStore,
+    private val localAvailabilityEvents: LocalAvailabilityEvents,
 ) : CbzRepository {
 
+    private val files = IosCbzFiles(fileStore)
+
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
+        val lastPosition = positionStore.load(item.sourceId, item.id)
+
+        resolveLocal(item)?.let { archive ->
+            return CbzOpenResult.Success(
+                imageSource = comicPageSourceOf(archive),
+                pageCount = archive.pageCount,
+                lastPosition = lastPosition,
+                bookmarks = emptyList(),
+            )
+        }
+
         // No getActive() fallback: an item belongs to exactly one source, and falling back
         // fetches from a host that does not hold it, with the wrong token (#1071 §11).
         val source = sourceRepository.getById(item.sourceId)
@@ -46,12 +78,11 @@ internal class IosCbzRepository(
         val token = tokenStorage.getToken(source.id)
             ?: return CbzOpenResult.NetworkError(IllegalStateException("No credentials"))
 
-        val lastPosition = positionStore.load(item.sourceId, item.id)
-
         return if (item.ebookFileIno != null) {
-            val bytes = downloader.downloadBytes(item)
+            // Whole-file sources (ABS) fill the cache on first open, exactly as Android's
+            // CatalogFileTransfer.acquire does, so the second open is offline.
+            val archive = fetchIntoCache(item)
                 ?: return CbzOpenResult.NetworkError(IllegalStateException("Download failed"))
-            val archive = IosCbzArchive(bytes)
             CbzOpenResult.Success(
                 imageSource = comicPageSourceOf(archive),
                 pageCount = archive.pageCount,
@@ -86,13 +117,37 @@ internal class IosCbzRepository(
     override suspend fun downloadCbz(
         item: LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit,
-    ): CbzDownloadResult = CbzDownloadResult.NetworkError(UnsupportedOperationException("CBZ offline download is not supported on iOS"))
+    ): CbzDownloadResult {
+        val downloadPath = files.downloadPath(item.sourceId, item.id)
+        if (files.exists(downloadPath)) return CbzDownloadResult.AlreadyDownloaded
+        val cachePath = files.cachePath(item.sourceId, item.id)
+        // Promote a cached copy instead of fetching it again, as Android's CatalogFileTransfer.promote does.
+        if (files.exists(cachePath) && files.move(cachePath, downloadPath)) {
+            val size = IosItemFiles.size(downloadPath)
+            onProgress(size, size)
+            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+            return CbzDownloadResult.Success
+        }
+        val written = fetchArchiveTo(item, downloadPath, onProgress)
+        if (!written) {
+            files.delete(downloadPath)
+            return CbzDownloadResult.NetworkError(IllegalStateException("Download failed"))
+        }
+        localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+        return CbzDownloadResult.Success
+    }
 
-    override suspend fun removeDownload(sourceId: String, itemId: String) {}
+    override suspend fun removeDownload(sourceId: String, itemId: String) {
+        files.delete(files.downloadPath(sourceId, itemId))
+        files.delete(files.cachePath(sourceId, itemId))
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
+    }
 
-    override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+    override fun isDownloaded(sourceId: String, itemId: String): Boolean =
+        files.exists(files.downloadPath(sourceId, itemId))
 
-    override fun isCached(sourceId: String, itemId: String): Boolean = false
+    override fun isCached(sourceId: String, itemId: String): Boolean =
+        files.exists(files.cachePath(sourceId, itemId))
 
     override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {
         positionStore.save(sourceId, itemId, locatorJson)
@@ -120,7 +175,89 @@ internal class IosCbzRepository(
         )
     }
 
-    override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? = null
+    override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? {
+        val archive = resolveLocal(item) ?: fetchIntoCache(item) ?: return null
+        return CbzLocalSource(
+            imageSource = comicPageSourceOf(archive),
+            pageCount = archive.pageCount,
+            bookmarks = emptyList(),
+        )
+    }
+
+    /**
+     * The best valid local copy, preferring the user-pinned download over the cache, parsed once
+     * and handed to the caller. A file that exists but does not parse as a ZIP is deleted so a
+     * truncated download cannot wedge the item — the network path is tried instead, exactly as
+     * on Android.
+     */
+    private suspend fun resolveLocal(item: LibraryItem): IosCbzArchive? {
+        val download = files.downloadPath(item.sourceId, item.id)
+        if (files.exists(download)) {
+            openValid(download)?.let { return it }
+            files.delete(download)
+        }
+        val cache = files.cachePath(item.sourceId, item.id)
+        if (files.exists(cache)) {
+            openValid(cache)?.let {
+                contentCacheAccessStore.markAccessed(contentCacheKey(item))
+                return it
+            }
+            files.delete(cache)
+        }
+        return null
+    }
+
+    private fun openValid(path: String): IosCbzArchive? {
+        val bytes = files.readBytes(path) ?: return null
+        return runCatching { IosCbzArchive(bytes) }.getOrNull()?.takeIf { it.pageCount > 0 }
+    }
+
+    /** Streams the archive into the cache tier and opens it. Null (and no file) on any failure. */
+    private suspend fun fetchIntoCache(item: LibraryItem): IosCbzArchive? {
+        val cachePath = files.cachePath(item.sourceId, item.id)
+        if (!fetchArchiveTo(item, cachePath) { _, _ -> }) {
+            files.delete(cachePath)
+            return null
+        }
+        val archive = openValid(cachePath)
+        if (archive == null) {
+            files.delete(cachePath)
+            return null
+        }
+        contentCacheAccessStore.markAccessed(contentCacheKey(item))
+        localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+        return archive
+    }
+
+    /**
+     * Streams the whole archive to [path] with progress: ABS items through the ebook-file
+     * endpoint, everything else through the item's catalog file stream (Komga serves
+     * `books/{id}/file`). False on any failure.
+     */
+    private suspend fun fetchArchiveTo(
+        item: LibraryItem,
+        path: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): Boolean {
+        if (item.ebookFileIno != null) {
+            return downloader.withStream(item) { channel, length ->
+                files.writeChannel(path, channel, length, onProgress)
+            } ?: false
+        }
+        val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return false
+        return try {
+            catalog.withFileStream(item.id, BookFormat.Cbz) { stream ->
+                files.writeChannel(path, stream.channel, stream.contentLength, onProgress)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun contentCacheKey(item: LibraryItem): ContentCacheKey =
+        ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Cbz)
 }
 
 // IosNoOpPanelMaskService / IosNoOpPanelViewPreferencesStore / IosNoOpAppearanceCoordinator /

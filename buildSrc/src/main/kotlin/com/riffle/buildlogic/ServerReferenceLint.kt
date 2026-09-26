@@ -71,6 +71,11 @@ object ServerReferenceLint {
         // Data layer: Source repo carries the serverType field; Storyteller +
         // WebDAV internals + reading-session repo pass `serverType` through.
         "core/data/src/androidMain/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
+        // #1101: the entity→domain projection and the version probe moved out of
+        // SourceRepositoryImpl into commonMain so iOS runs the same code. Both branch on the
+        // legitimate `serverType: ServerType` field (Storyteller peers have no version endpoint).
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/sources/SourceEntityMapping.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/sources/SourceVersionResolver.kt",
         // Moved androidMain -> commonMain for iOS parity (issue #1065); same grandfathered
         // ServerType usage, just a new path.
         "core/data/src/commonMain/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",
@@ -81,9 +86,9 @@ object ServerReferenceLint {
         "core/data/src/androidMain/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",
         // Existing ABS bookmark synchronization sites branch on the grandfathered
         // ServerType/NetworkResult.ServerError names.
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
         // Network clients — ABS and Storyteller HTTP surfaces carry `serverType`.
         "core/net/src/commonMain/kotlin/com/riffle/core/network/AbsApiClient.kt",
         "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApi.kt",

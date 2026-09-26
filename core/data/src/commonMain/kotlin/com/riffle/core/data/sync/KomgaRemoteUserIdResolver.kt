@@ -5,7 +5,7 @@ import com.riffle.core.catalog.komga.probeKomgaUserId
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.models.Source
 import io.ktor.client.HttpClient
-import java.io.IOException
+import kotlinx.io.IOException
 
 /**
  * [RemoteUserIdResolver] for [com.riffle.core.models.SourceType.KOMGA]. `token` is the pre-built

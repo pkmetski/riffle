@@ -41,11 +41,10 @@ internal class IosFileArtifactStore(
             }
     }
 
-    override fun sizeOf(sourceId: String, itemId: String): Long =
-        IosFileEnumeration.fileSize(pathFor(sourceId, itemId))
+    override fun sizeOf(sourceId: String, itemId: String): Long = IosItemFiles.size(pathFor(sourceId, itemId))
 
     override fun delete(sourceId: String, itemId: String) {
-        NSFileManager.defaultManager.removeItemAtPath(pathFor(sourceId, itemId), error = null)
+        IosItemFiles.delete(pathFor(sourceId, itemId))
     }
 
     override fun clear() {
@@ -58,7 +57,7 @@ internal class IosFileArtifactStore(
     }
 
     private fun pathFor(sourceId: String, itemId: String): String =
-        fileStore.resolve(namespace, "$sourceId/$itemId$extension")
+        IosItemFiles.path(fileStore, namespace, sourceId, itemId, extension)
 }
 
 /**

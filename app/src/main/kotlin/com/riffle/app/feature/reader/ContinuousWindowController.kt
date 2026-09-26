@@ -1,7 +1,6 @@
 package com.riffle.app.feature.reader
 
 import android.content.Context
-
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
@@ -10,6 +9,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
+import com.riffle.feature.reader.AboveSlotCompensationGate
 import org.readium.r2.shared.publication.Publication
 
 /**
@@ -428,6 +428,12 @@ internal class ContinuousWindowController(
      * backward scroll floor ([deferredAboveFloorY]) covers all of them, not just slot 0.
      */
     private val deferredAboveUnmeasured = mutableSetOf<ChapterWebView>()
+
+    /**
+     * Landings requested while an above slot's scroll compensation is still waiting for layout
+     * are held until it has been applied — see [AboveSlotCompensationGate] (#1109).
+     */
+    private val aboveCompensation = AboveSlotCompensationGate()
 
     /**
      * Lowest scrollY allowed while any above-target deferred slot is still an unmeasured
@@ -1294,11 +1300,31 @@ internal class ContinuousWindowController(
         val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
         wv.annotationOffsetTopDevicePx(id) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
-            val i = webViewIndexFor(href) ?: return@annotationOffsetTopDevicePx
-            val slot = buildWindow().getOrNull(i) ?: return@annotationOffsetTopDevicePx
-            val y = (slot.top + annOffset).coerceAtLeast(0)
             clearLandingHold()
-            port.post { port.scrollTo(y) }
+            landOnAnnotationOffset(href, annOffset)
+        }
+    }
+
+    /**
+     * Land [annOffset] device px into [href]'s chapter. The slot top is read when the scroll
+     * actually executes, never when the landing was requested, and the whole thing waits behind
+     * [aboveCompensation]: a deferred behind-neighbour that measured in between shifts every slot
+     * below it by its height delta, and a target Y computed against the pre-shift slot tops but
+     * executed after the shift lands exactly that far short of the annotation (#1109).
+     */
+    private fun landOnAnnotationOffset(href: String, annOffset: Int) {
+        aboveCompensation.runWhenSettled {
+            port.post {
+                // A compensation may have started between the request and this post — re-queue
+                // behind it rather than scroll against stale slot tops.
+                if (aboveCompensation.pending > 0) {
+                    landOnAnnotationOffset(href, annOffset)
+                    return@post
+                }
+                val i = webViewIndexFor(href) ?: return@post
+                val slot = buildWindow().getOrNull(i) ?: return@post
+                port.scrollTo((slot.top + annOffset).coerceAtLeast(0))
+            }
         }
     }
 
@@ -1331,9 +1357,13 @@ internal class ContinuousWindowController(
                     // 150 000 px delta lands the reader mid-chapter.
                     publishViewportFraction(wv, measuredPx)
                     applyChapterHeight(wv, measuredPx)
+                    aboveCompensation.begin(wv)
                     wv.doOnNextLayout {
                         val j = webViews.indexOf(wv)
-                        if (j < 0) return@doOnNextLayout
+                        if (j < 0) {
+                            aboveCompensation.end(wv)
+                            return@doOnNextLayout
+                        }
                         val d = measuredPx - measuredHeights[j]
                         measuredHeights[j] = measuredPx
                         deferredAboveUnmeasured.remove(wv)
@@ -1344,6 +1374,8 @@ internal class ContinuousWindowController(
                             if (landingHoldTargetY >= 0) landingHoldTargetY += d
                         }
                         syncChapterWindows()
+                        // Slot tops are consistent again: release any landing that was waiting.
+                        aboveCompensation.end(wv)
                         runPendingInWindowNavFor(wv)
                         // Same post-measure shift check as the generic placeholder path below:
                         // the window may now fit differently (AppendOnly front-matter case).
@@ -1483,6 +1515,7 @@ internal class ContinuousWindowController(
         deferredLoadTimeout = null
         initialTopAwaitingMeasure = false
         deferredAboveUnmeasured.clear()
+        aboveCompensation.reset()
     }
 
     /** Run a landing that was waiting on [wv]'s first measurement, if any. */
@@ -1745,6 +1778,9 @@ internal class ContinuousWindowController(
         val wv = webViews.removeAt(0)
         deferredInitialLoads.remove(wv)
         deferredAboveUnmeasured.remove(wv)
+        // A detached view may never lay out again, so its doOnNextLayout cannot be relied on
+        // to release the gate.
+        aboveCompensation.end(wv)
         if (pendingInWindowNav?.first === wv) pendingInWindowNav = null
         if (deferredLoadInFlight === wv) onDeferredLoadSettled(wv)
         detachFromSlot(wv)
@@ -1766,6 +1802,9 @@ internal class ContinuousWindowController(
         val wv = webViews.removeAt(webViews.lastIndex)
         deferredInitialLoads.remove(wv)
         deferredAboveUnmeasured.remove(wv)
+        // A detached view may never lay out again, so its doOnNextLayout cannot be relied on
+        // to release the gate.
+        aboveCompensation.end(wv)
         if (pendingInWindowNav?.first === wv) pendingInWindowNav = null
         if (deferredLoadInFlight === wv) onDeferredLoadSettled(wv)
         detachFromSlot(wv)
@@ -1919,6 +1958,7 @@ internal class ContinuousWindowController(
         reapplyLandingAfterFallback = null
         reapplyLandingSuperseded = true
         pendingFocusAnnotationId = null
+        aboveCompensation.cancelDeferred()
         landingHoldTargetY = -1
         landingHoldUntilUptimeMs = 0L
         smoothTailInProgress = false

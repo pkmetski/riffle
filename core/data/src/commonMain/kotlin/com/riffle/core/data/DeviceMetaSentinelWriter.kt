@@ -1,11 +1,12 @@
 package com.riffle.core.data
 
-import com.riffle.core.models.AnnotationDeviceMeta
+import com.riffle.core.common.formatIso8601
+import com.riffle.core.common.platformSystemClock
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.SourceRepository
-import java.time.Instant
+import com.riffle.core.models.AnnotationDeviceMeta
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -22,10 +23,10 @@ class DeviceMetaSentinelWriter(
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelResolver: DeviceLabelResolver,
     private val usernameProvider: suspend (sourceId: String) -> String?,
-    private val nowIso: () -> String = { Instant.now().toString() },
+    private val nowIso: () -> String = { formatIso8601(platformSystemClock.nowMs()) },
 ) {
     /**
-     * Hilt-injected constructor: resolves username through [SourceRepository.getById]. Tests use
+     * DI constructor: resolves username through [SourceRepository.getById]. Tests use
      * the primary constructor with a deterministic `usernameProvider` lambda.
      */
     constructor(

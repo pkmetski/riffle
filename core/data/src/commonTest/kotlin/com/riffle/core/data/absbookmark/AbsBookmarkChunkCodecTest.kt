@@ -1,12 +1,11 @@
 package com.riffle.core.data.absbookmark
 
 import com.riffle.core.data.absbookmark.AbsBookmarkChunkCodec.ReadBookmark
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AbsBookmarkChunkCodecTest {
 
@@ -108,7 +107,7 @@ class AbsBookmarkChunkCodecTest {
         }
         val payload = """[{"id":"urn:x:1","body":"$entropy"}]"""
         val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
-        assertTrue("expected multiple chunks, got ${wire.size}", wire.size > 3)
+        assertTrue(wire.size > 3, "expected multiple chunks, got ${wire.size}")
         val reads = wire.map { ReadBookmark(it.time, it.title) }
         val decoded = AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceA), reads)!!
         assertEquals(payload, decoded.payload)
@@ -119,7 +118,7 @@ class AbsBookmarkChunkCodecTest {
         // High-entropy payload that gzip can't collapse — forces multi-chunk output.
         val payload = highEntropyPayload(400_000)
         val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
-        assertTrue("expected multi-chunk, got ${wire.size}", wire.size >= 3)
+        assertTrue(wire.size >= 3, "expected multi-chunk, got ${wire.size}")
         // Manifest is LAST; drop the first entry (a payload chunk) but keep the manifest — the
         // manifest advertises N payload chunks but only N-1 are present, so decode should fail.
         val truncated = wire.drop(1).map { ReadBookmark(it.time, it.title) }
@@ -189,8 +188,8 @@ class AbsBookmarkChunkCodecTest {
         val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         for (c in wire) {
             assertTrue(
-                "title bytes=${c.title.length} exceeds ${AbsBookmarkChunkCodec.MAX_TITLE_BYTES}",
                 c.title.length <= AbsBookmarkChunkCodec.MAX_TITLE_BYTES,
+                "title bytes=${c.title.length} exceeds ${AbsBookmarkChunkCodec.MAX_TITLE_BYTES}",
             )
         }
     }
@@ -203,13 +202,13 @@ class AbsBookmarkChunkCodecTest {
         // break torn-write safety.
         val payload = highEntropyPayload(200_000)
         val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
-        assertTrue("expected multi-chunk output", wire.size >= 3)
+        assertTrue(wire.size >= 3, "expected multi-chunk output")
         val last = AbsBookmarkChunkCodec.parseTitle(wire.last().title)!!
         assertEquals(AbsBookmarkChunkCodec.MANIFEST_CHUNK_IDX, last.chunkIdx)
         // And every non-last chunk must be a payload chunk (chunkIdx >= 1).
         for (c in wire.dropLast(1)) {
             val p = AbsBookmarkChunkCodec.parseTitle(c.title)!!
-            assertTrue("non-last chunks must be payload chunks", p.chunkIdx >= 1)
+            assertTrue(p.chunkIdx >= 1, "non-last chunks must be payload chunks")
         }
     }
 
@@ -230,7 +229,7 @@ class AbsBookmarkChunkCodecTest {
         val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         val slots = wire.map { AbsBookmarkChunkCodec.parseTimeSlot(it.time)!! }
         val idxs = slots.map { it.deviceIdx }.toSet()
-        assertEquals("all chunks share one deviceIdx", 1, idxs.size)
+        assertEquals(1, idxs.size, "all chunks share one deviceIdx")
         val chunkIndexes = slots.map { it.chunkIdx }.sorted()
         assertEquals((0 until chunkIndexes.size).toList(), chunkIndexes)
     }

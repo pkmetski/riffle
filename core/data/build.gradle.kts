@@ -18,8 +18,11 @@ kotlin {
         }
     }
     jvm()
-    iosArm64()
-    iosSimulatorArm64()
+    // IosSourceRepositoryImplTest (#1101) drives the repository over the real NativeSqliteDriver
+    // database, so the Kotlin/Native test executables need the system SQLite symbols — the same
+    // `-lsqlite3` core:database and shared declare for their test binaries.
+    iosArm64 { binaries.all { linkerOpts("-lsqlite3") } }
+    iosSimulatorArm64 { binaries.all { linkerOpts("-lsqlite3") } }
 
     sourceSets {
         commonTest.dependencies {
@@ -45,6 +48,11 @@ kotlin {
             // androidMain once core:sources' webdav package became multiplatform (#1072), which
             // is what gives iOS the clean-row branch of cross-device progress at all.
             implementation(project(":core:sources"))
+            // SourceVersionResolver / AbsRemoteUserIdResolver / KomgaRemoteUserIdResolver (#1101) —
+            // the server-info and Komga /users/me clients are commonMain in core:net and
+            // core:catalog-komga, so the version and sync-namespace lookups are shared with iOS.
+            implementation(project(":core:net"))
+            implementation(project(":core:catalog-komga"))
         }
         androidMain.dependencies {
             implementation(project(":core:dictionary"))

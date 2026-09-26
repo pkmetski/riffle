@@ -1,18 +1,19 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.formatIso8601
+import com.riffle.core.common.platformSystemClock
+import com.riffle.core.data.toFailedCycleOutcome
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.AnnotationSyncTarget
+import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SyncNamespace
+import com.riffle.core.models.AnnotationFileHeader
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.sync.DirtyAnnotationLedger
 import com.riffle.core.sync.ReconcileLocks
-import com.riffle.core.data.toFailedCycleOutcome
-import com.riffle.core.domain.DeviceIdStore
-import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.models.AnnotationFileHeader
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SyncNamespace
-import java.time.Instant
 
 /**
  * Push-only sweep over annotation rows whose `updatedAt > lastSyncedAt`. Companion to the live
@@ -39,11 +40,11 @@ class AnnotationSweep(
      * when the catalog hasn't cached the title yet — header renderer falls back to the id.
      */
     private val bookTitleProvider: suspend (sourceId: String, itemId: String) -> String? = { _, _ -> null },
-    private val nowIso: () -> String = { Instant.now().toString() },
-    private val clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long = platformSystemClock::nowMs,
+    private val nowIso: () -> String = { formatIso8601(clock()) },
     /**
      * Enumerates the dirty (sourceId, itemId) pairs to push (#321). Defaults to a thin wrapper
-     * over [annotationDao]; production wiring (DI) supplies the [RoomDirtyAnnotationLedger]
+     * over [annotationDao]; production wiring (DI) supplies the [DaoDirtyAnnotationLedger]
      * binding explicitly.
      */
     private val dirtyLedger: DirtyAnnotationLedger =
@@ -71,7 +72,7 @@ class AnnotationSweep(
     /**
      * Runs one push cycle. Returns the [CycleOutcome] reported to the status store, or `null` when
      * the sync target is unconfigured (silent no-op — see class kdoc). The worker maps the outcome
-     * to a [androidx.work.ListenableWorker.Result] so transient failures get WorkManager's
+     * to a `ListenableWorker.Result` so transient failures get WorkManager's
      * exponential-backoff retry, which is also what re-fires the work the moment connectivity
      * returns (CONNECTED constraint on the retried JobInfo).
      */
