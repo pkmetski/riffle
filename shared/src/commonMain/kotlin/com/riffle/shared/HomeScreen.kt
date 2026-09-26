@@ -339,6 +339,7 @@ private fun LibraryHost(
                 libraryId = libraryId,
                 libraryName = libraryName,
                 onOpenDrawer = onOpenDrawer,
+                showRecentlyAdded = sourceType?.isWebSource != true,
                 onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
                 onAnnotatedBookSelected = { sourceId, itemId ->
                     nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })

@@ -9,9 +9,12 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
@@ -245,6 +248,39 @@ class LibraryTabContentTest {
         // Android's copy, for the same reason as the count line above: one empty state for both
         // hosts rather than two wordings.
         onNodeWithText("No playlists yet. Create one from any item.").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun homeTabHidesRecentlyAddedSectionWhenShowRecentlyAddedIsFalse() = runComposeUiTest {
+        // Web sources (O'Reilly, etc.) set showRecentlyAdded = false. Items arrive in
+        // library_items only when the user opens them, so the section would reflect open
+        // history rather than anything the source published — misleading.
+        val recentlyAddedItem = LibraryItem(
+            id = "ra-1", libraryId = "lib", title = "New Book", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = LibraryProjection.Empty.copy(recentlyAdded = listOf(recentlyAddedItem)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                showRecentlyAdded = false,
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED)).assertDoesNotExist()
     }
 
     /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */
