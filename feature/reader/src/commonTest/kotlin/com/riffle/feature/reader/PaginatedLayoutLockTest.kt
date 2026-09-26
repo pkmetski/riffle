@@ -31,6 +31,17 @@ class PaginatedLayoutLockTest {
     }
 
     @Test
+    fun installScriptEnforcesOverflowYHiddenWithImportant() {
+        // overflow-y: hidden !important blocks the publisher-CSS vertical-scroll bypass
+        // (e.g. `overflow-y: scroll !important` on :root) without touching overflow-x —
+        // Readium navigates columns by changing scrollLeft on the horizontal axis.
+        assertTrue(
+            PaginatedLayoutLock.INSTALL_SCRIPT.contains("overflow-y: hidden !important"),
+            "overflow-y must be hidden with !important to prevent vertical scrolling without clipping horizontal column navigation",
+        )
+    }
+
+    @Test
     fun installScriptScopedToPaginatedModeOnly() {
         assertTrue(
             PaginatedLayoutLock.INSTALL_SCRIPT.contains(":not([style*=\"readium-scroll-on\"])"),
