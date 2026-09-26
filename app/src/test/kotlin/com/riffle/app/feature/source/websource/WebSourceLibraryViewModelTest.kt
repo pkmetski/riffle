@@ -15,10 +15,21 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.reflect.full.memberProperties
 
 class WebSourceLibraryViewModelTest {
+
+    @Test
+    fun `WebSourceLibraryViewModel does not expose a recentlyAdded shelf`() {
+        // Web sources don't have a full catalog sync: library_items rows are upserted only when the
+        // user opens an item. A "Recently Added" section on these sources would just reflect open
+        // history rather than anything the source added, which is misleading.
+        val propertyNames = WebSourceLibraryViewModel::class.memberProperties.map { it.name }
+        assertFalse("recentlyAdded must not be exposed by WebSourceLibraryViewModel", "recentlyAdded" in propertyNames)
+    }
 
     @Test
     fun `to-read items joins saved ids with acquired library rows`() = runTest {

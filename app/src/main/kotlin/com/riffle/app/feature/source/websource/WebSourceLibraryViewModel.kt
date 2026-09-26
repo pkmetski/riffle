@@ -55,11 +55,6 @@ class WebSourceLibraryViewModel constructor(
             if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val recentlyAdded: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeRecentlyAddedItems(libraryId), isOffline) { items, offline ->
-            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     val finished: StateFlow<List<LibraryItem>> =
         combine(libraryObserver.observeFinishedItems(libraryId), isOffline) { items, offline ->
             if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
@@ -121,14 +116,13 @@ fun WebSourceHomeTab(
     viewModel: WebSourceLibraryViewModel = koinViewModel(),
 ) {
     val inProgress by viewModel.inProgress.collectAsState()
-    val recentlyAdded by viewModel.recentlyAdded.collectAsState()
     val finished by viewModel.finished.collectAsState()
     val continueSeries by viewModel.continueSeries.collectAsState()
 
     HomeTabContent(
         inProgress = inProgress,
         continueSeries = continueSeries,
-        recentlyAdded = recentlyAdded,
+        recentlyAdded = emptyList(),
         finished = finished,
         isLoading = false,
         token = "",
