@@ -2009,7 +2009,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(73, cursor.getInt(0))
+            assertEquals(75, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
@@ -3363,8 +3363,9 @@ class MigrationTest {
                     "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
             )
             db.execSQL(
-                "INSERT INTO library_items (sourceId, id, libraryId, title, author, readingProgress, addedAt) " +
-                    "VALUES ('src1', 'item1', 'lib1', 'Book', 'Author', 0.42, 1000)"
+                "INSERT INTO library_items " +
+                    "(sourceId, id, libraryId, title, author, readingProgress, ebookFormat, hasAudio, audioDurationSec, genres, addedAt) " +
+                    "VALUES ('src1', 'item1', 'lib1', 'Book', 'Author', 0.42, 'EPUB', 0, 0.0, '', 1000)"
             )
         }
 

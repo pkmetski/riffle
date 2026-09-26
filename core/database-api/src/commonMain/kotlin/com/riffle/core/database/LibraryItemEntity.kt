@@ -1,5 +1,6 @@
 package com.riffle.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -59,5 +60,8 @@ data class LibraryItemEntity(
     // the two writers ping-pong the same book's bar between two values (library vs detail
     // disagreement). Local reader-close / mark writes stamp this with the device clock so a stale
     // in-flight pull can't clobber a just-read value.
-    val progressServerUpdatedAt: Long = 0L,
+    // SQL DEFAULT 0 matches MIGRATION_74_75's `ADD COLUMN ... DEFAULT 0` so the fresh Room schema
+    // and the migrated schema agree, and raw-SQL inserts (older rows, tests) that omit the column
+    // still satisfy the NOT NULL constraint.
+    @ColumnInfo(defaultValue = "0") val progressServerUpdatedAt: Long = 0L,
 )
