@@ -420,20 +420,32 @@ jobs:
           # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
           # assertion. Keep this list narrow so real failures are never retried away.
           CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test'
+          # Contention signature (failure mode 2, see the block comment above): a parallel clone that
+          # never died but ran so CPU-starved that even the harness's generous per-wait timeouts were
+          # exceeded. The tell is a single test that took absurdly long — healthy tests finish in
+          # well under 90 s, so any run of 180 s+ means the box was starved, not that a test is
+          # genuinely broken. This is infra-driven and hits a different random test every run
+          # (observed on main across PdfReader/ProgressPipeline/NavDrawer/AddKomga), so it is safe to
+          # retry on a fresh simulator. A genuine regression produces no such 180 s+ run and still
+          # fails fast below.
+          SLOW_RE='\((1[89][0-9]|[2-9][0-9]{2}|[0-9]{4,})\.[0-9]+ seconds\)'
           if run_harness; then
             exit 0
           fi
           if grep -qE "$CRASH_RE" xcodebuild-harness.log; then
             echo "::warning::Simulator infrastructure failure detected — retrying once on a clean simulator."
-            xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
-            xcrun simctl erase "$SIMULATOR_UDID" || true
-            xcrun simctl boot "$SIMULATOR_UDID" || true
-            xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
-            xcrun simctl shutdown "$SIMULATOR_UDID" || true
-            if run_harness; then exit 0; else exit 1; fi
+          elif grep -qE "$SLOW_RE" xcodebuild-harness.log; then
+            echo "::warning::Simulator CPU-contention detected (a test ran 180 s+) — retrying once on a clean simulator."
+          else
+            echo "Harness failed with genuine test failures (no simulator-infrastructure signature) — not retrying."
+            exit 1
           fi
-          echo "Harness failed with genuine test failures (no simulator-infrastructure signature) — not retrying."
-          exit 1
+          xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
+          xcrun simctl erase "$SIMULATOR_UDID" || true
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
+          xcrun simctl shutdown "$SIMULATOR_UDID" || true
+          if run_harness; then exit 0; else exit 1; fi
 
       - name: Upload harness log
         if: always()
