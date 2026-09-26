@@ -4,7 +4,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.sync.DirtyAnnotationLedger
 
 /** [DirtyAnnotationLedger] backed by the annotation DAO's `dirtySourceItems` query. */
-class RoomDirtyAnnotationLedger constructor(
+class DaoDirtyAnnotationLedger constructor(
     private val annotationDao: AnnotationDao,
 ) : DirtyAnnotationLedger {
     override suspend fun dirtySourceItems(): List<DirtyAnnotationLedger.DirtySourceItem> =

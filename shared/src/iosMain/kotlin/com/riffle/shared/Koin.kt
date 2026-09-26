@@ -13,6 +13,7 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
+import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AppearanceCoordinatorImpl
@@ -23,6 +24,8 @@ import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.CrossEpubIndexStoreImpl
+import com.riffle.core.data.DaoDirtyAnnotationLedger
+import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
@@ -61,6 +64,7 @@ import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
+import com.riffle.core.data.di.REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE
 import com.riffle.core.data.di.RIFFLE_DATABASE_FILE
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
@@ -69,6 +73,8 @@ import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
+import com.riffle.core.data.sync.AbsRemoteUserIdResolver
+import com.riffle.core.data.sync.KomgaRemoteUserIdResolver
 import com.riffle.core.data.websource.RemoteItemFreshness
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.data.websource.WebSourceItemGate
@@ -121,6 +127,7 @@ import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.SystemTimeProvider
@@ -155,6 +162,8 @@ import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
+import com.riffle.core.network.KomgaServerInfoApi
+import com.riffle.core.network.KomgaServerInfoApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.createDefaultHttpClient
@@ -164,9 +173,12 @@ import com.riffle.core.sources.komga.KomgaSourceAdapter
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.sources.webdav.WebDavProgressEnumerator
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
+import com.riffle.core.sync.AnnotationLockPort
+import com.riffle.core.sync.DirtyAnnotationLedger
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressSweep
+import com.riffle.core.sync.ReconcileLocks
 import com.riffle.core.sync.RemoteProgressIndex
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
@@ -243,6 +255,8 @@ import com.riffle.shared.reader.IosEpubTocExtractor
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
+import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
+import com.riffle.shared.sync.IosAnnotationSyncTargetProvider
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -273,7 +287,27 @@ private fun iosLibraryModule(
     single<KomgaCbzApi> { get<KomgaLibraryApiClient>() }
 
     single<DispatcherProvider> { IosDispatcherProvider }
-    single<SourceRepository> { IosSourceRepositoryImpl(get(), get(), get()) }
+    // The Komga version probe and the per-source-type remote-id resolvers are the same
+    // commonMain classes Android binds (#1101): iOS used to answer `null` for every version and
+    // `LocalOnly` for every sync namespace.
+    single<KomgaServerInfoApi> { KomgaServerInfoApiClient(get()) }
+    single<Map<SourceType, RemoteUserIdResolver>>(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)) {
+        mapOf(
+            SourceType.ABS to AbsRemoteUserIdResolver(get()),
+            SourceType.KOMGA to KomgaRemoteUserIdResolver(get()),
+        )
+    }
+    single<SourceRepository> {
+        IosSourceRepositoryImpl(
+            dao = get(),
+            libraryDao = get(),
+            tokenStorage = get(),
+            absServerInfoApi = get(),
+            komgaServerInfoApi = get(),
+            remoteUserIdResolvers = get(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)),
+            dispatchers = get(),
+        )
+    }
     single<LibraryObserver> { IosLibraryObserverImpl(get(), get(), get(), get(), get()) }
     single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
@@ -339,11 +373,43 @@ private fun iosLibraryModule(
             clock = get(),
         )
     }
-    // Annotation sync has no iOS engine at all: AnnotationSyncController/AnnotationSweep are
-    // androidMain and the only sync target (WebDAV) is jvmMain. This is a missing surface (#1072),
-    // not dead wiring — there is nothing for the enqueuer to enqueue, so it stays a no-op until
-    // the engine is ported. The progress half is real (see ProgressSyncTrigger below).
-    single<AnnotationSweepEnqueuer> { AnnotationSweepEnqueuer { } }
+    // The durable push-only annotation sweep of ADR 0043 — the same commonMain `AnnotationSweep`
+    // Android runs from its WorkManager worker (#1101; it was androidMain until then, and the
+    // enqueuer here was `AnnotationSweepEnqueuer { }`). Its target is WebDAV, resolved from the
+    // saved config by IosAnnotationSyncTargetProvider; it runs at app start / foreground /
+    // reconnect through ForegroundSyncDriver below, and on demand through the enqueuer, which
+    // AddSourceViewModel fires the moment a sync config is saved.
+    single { IosAnnotationSyncTargetProvider(configStore = get(), webDavFactory = get()) }
+    single<AnnotationLockPort> { get<ReconcileLocks>() }
+    single<DirtyAnnotationLedger> { DaoDirtyAnnotationLedger(get()) }
+    single {
+        DeviceMetaSentinelWriter(
+            deviceIdStore = get(),
+            deviceLabelResolver = get(),
+            usernameProvider = { sid -> get<SourceRepository>().getById(sid)?.username },
+        )
+    }
+    single {
+        val targets = get<IosAnnotationSyncTargetProvider>()
+        AnnotationSweep(
+            targetProvider = { targets.current() },
+            annotationDao = get(),
+            deviceIdStore = get(),
+            deviceLabelResolver = get(),
+            sourceRepository = get(),
+            statusStore = get(),
+            bookTitleProvider = { sid, itemId ->
+                get<LibraryItemDao>().getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
+            },
+            dirtyLedger = get(),
+            locks = get(),
+            sentinelWriter = get(),
+        )
+    }
+    single<AnnotationSweepEnqueuer> {
+        val sweep = get<AnnotationSweep>()
+        IosAnnotationSweepEnqueuer(scope = get<ApplicationScope>(), runSweep = { sweep.run() })
+    }
     // Runs the real ProgressSweep the moment a source's sync config is saved, so anything that
     // went dirty while the source was misconfigured is pushed without waiting for the next
     // launch. Android's equivalent enqueues ProgressSyncScheduler.sweepNow (#1071 §14).
@@ -401,7 +467,19 @@ private fun iosLibraryModule(
 
     // CBZ reader
     single { IosCbzDownloader(get(), get(), get()) }
-    single<CbzRepository> { IosCbzRepository(get(), get(), get(), get(), get()) }
+    single<CbzRepository> {
+        IosCbzRepository(
+            sourceRepository = get(),
+            tokenStorage = get(),
+            cbzApi = get(),
+            downloader = get(),
+            positionStore = get(),
+            fileStore = get(),
+            catalogRegistry = get(),
+            contentCacheAccessStore = get(),
+            localAvailabilityEvents = get(),
+        )
+    }
     single<ReadingSessionRepository> {
         ReadingSessionRepositoryImpl(
             catalogRegistry = get(),
@@ -662,15 +740,16 @@ private fun iosLibraryModule(
     // driver sweeps at app start, on every UIApplicationDidBecomeActive, and on the validated
     // offline→online edge. RiffleAppRoot calls `drive(...)`.
     //
-    // `runAnnotationSweep` stays at its no-op default: AnnotationSyncController/AnnotationSweep
-    // are androidMain and the only sync target (WebDAV) is jvmMain, so there is no iOS annotation
-    // engine to sweep — a missing surface (#1072), not a wiring gap.
+    // Both sweeps are real: ProgressSweep (ADR 0036) and, since #1101, the commonMain
+    // AnnotationSweep (ADR 0043) against the WebDAV target.
     single { IosAppActiveEvents() }
     single<Flow<Unit>>(named(ForegroundSyncDriver.APP_BECAME_ACTIVE)) { get<IosAppActiveEvents>().becameActive }
     single {
         val sweep = get<ProgressSweep>()
+        val annotationSweep = get<AnnotationSweep>()
         ForegroundSyncDriver(
             runProgressSweep = { sweep.run() },
+            runAnnotationSweep = { annotationSweep.run() },
             nowMs = get<Clock>()::nowMs,
         )
     }

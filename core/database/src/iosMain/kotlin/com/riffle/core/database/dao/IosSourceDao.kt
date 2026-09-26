@@ -96,7 +96,9 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
         invalidator.invalidate()
     }
 
-    // deleteSourceGraph calls these; tables that don't exist on iOS are no-ops.
+    // deleteSourceGraph calls these. Every table it touches exists on iOS (IosRiffleDatabaseSchema);
+    // the driver does not enable `PRAGMA foreign_keys`, so each child table is cleared explicitly —
+    // relying on `ON DELETE CASCADE` here would silently orphan the rows (#1101).
 
     override suspend fun deleteReadaloudLinksForSource(id: String) {
         driver.execute(null, "DELETE FROM readaloud_links WHERE storytellerSourceId = ? OR absSourceId = ?", 2) {
@@ -138,8 +140,13 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
         driver.execute(null, "DELETE FROM playlists WHERE sourceId = ?", 1) { bindString(0, id) }
     }
 
-    override suspend fun deleteReadingPositionsForSource(id: String) = Unit
-    override suspend fun deleteBookFormattingPreferencesForSource(id: String) = Unit
+    override suspend fun deleteReadingPositionsForSource(id: String) {
+        driver.execute(null, "DELETE FROM reading_positions WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
+    override suspend fun deleteBookFormattingPreferencesForSource(id: String) {
+        driver.execute(null, "DELETE FROM book_formatting_preferences WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
 
     override suspend fun deleteAnnotationsForSource(id: String) {
         driver.execute(null, "DELETE FROM annotations WHERE sourceId = ?", 1) { bindString(0, id) }
@@ -153,7 +160,9 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
         driver.execute(null, "DELETE FROM audio_playback_preferences WHERE sourceId = ?", 1) { bindString(0, id) }
     }
 
-    override suspend fun deleteAudiobookPositionsForSource(id: String) = Unit
+    override suspend fun deleteAudiobookPositionsForSource(id: String) {
+        driver.execute(null, "DELETE FROM audiobook_positions WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
 
     override suspend fun deleteAudiobookBookmarksForSource(id: String) {
         driver.execute(null, "DELETE FROM audiobook_bookmarks WHERE sourceId = ?", 1) { bindString(0, id) }
@@ -167,9 +176,17 @@ internal class IosSourceDao(private val driver: SqlDriver, private val invalidat
         driver.execute(null, "DELETE FROM audiobook_chapter_cache WHERE sourceId = ?", 1) { bindString(0, id) }
     }
 
-    override suspend fun deleteLocalFilesFileFoldersForSource(id: String) = Unit
-    override suspend fun deleteLocalFilesFilesForSource(id: String) = Unit
-    override suspend fun deleteLocalFilesFoldersForSource(id: String) = Unit
+    override suspend fun deleteLocalFilesFileFoldersForSource(id: String) {
+        driver.execute(null, "DELETE FROM local_files_file_folders WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
+    override suspend fun deleteLocalFilesFilesForSource(id: String) {
+        driver.execute(null, "DELETE FROM local_files_files WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
+
+    override suspend fun deleteLocalFilesFoldersForSource(id: String) {
+        driver.execute(null, "DELETE FROM local_files_folders WHERE sourceId = ?", 1) { bindString(0, id) }
+    }
 
     override suspend fun deleteLocalFileMetadataOverridesForSource(id: String) {
         driver.execute(null, "DELETE FROM local_file_metadata_overrides WHERE sourceId = ?", 1) { bindString(0, id) }

@@ -1,26 +1,27 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.formatIso8601
+import com.riffle.core.common.parseIso8601ToEpochMillis
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.W3CAnnotation
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.add
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
-import java.time.Instant
 
 private val embeddedFiguresSerializer = ListSerializer(EmbeddedFigure.serializer())
 private val embeddedFiguresJson = Json { ignoreUnknownKeys = true }
@@ -88,18 +89,14 @@ object AnnotationW3CCodec {
      * Converts milliseconds since epoch to ISO 8601 string.
      */
     private fun Long.toIso8601(): String {
-        return Instant.ofEpochMilli(this).toString()
+        return formatIso8601(this)
     }
 
     /**
      * Parses ISO 8601 string to milliseconds since epoch.
      */
     private fun String.fromIso8601(): Long {
-        return try {
-            Instant.parse(this).toEpochMilli()
-        } catch (e: Exception) {
-            0L
-        }
+        return parseIso8601ToEpochMillis(this) ?: 0L
     }
 
     /**

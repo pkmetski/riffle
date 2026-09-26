@@ -71,6 +71,11 @@ object ServerReferenceLint {
         // Data layer: Source repo carries the serverType field; Storyteller +
         // WebDAV internals + reading-session repo pass `serverType` through.
         "core/data/src/androidMain/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
+        // #1101: the entity→domain projection and the version probe moved out of
+        // SourceRepositoryImpl into commonMain so iOS runs the same code. Both branch on the
+        // legitimate `serverType: ServerType` field (Storyteller peers have no version endpoint).
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/sources/SourceEntityMapping.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/sources/SourceVersionResolver.kt",
         // Moved androidMain -> commonMain for iOS parity (issue #1065); same grandfathered
         // ServerType usage, just a new path.
         "core/data/src/commonMain/kotlin/com/riffle/core/data/StorytellerReadaloudSyncer.kt",

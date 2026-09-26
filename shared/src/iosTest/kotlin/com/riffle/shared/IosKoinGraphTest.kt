@@ -5,7 +5,11 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.common.RandomProvider
+import com.riffle.core.data.AnnotationSweep
+import com.riffle.core.data.DeviceMetaSentinelWriter
+import com.riffle.core.data.di.REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE
 import com.riffle.core.data.websource.WebSourceItemGate
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ApplicationScope
@@ -26,10 +30,14 @@ import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
+import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.models.SourceType
+import com.riffle.core.network.KomgaServerInfoApi
+import com.riffle.core.sync.AnnotationLockPort
+import com.riffle.core.sync.DirtyAnnotationLedger
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.core.sync.ProgressSweep
@@ -57,6 +65,8 @@ import com.riffle.shared.reader.IosPdfNavigatorBridge
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.source.unboundedBrowseSourceTypes
+import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
+import com.riffle.shared.sync.IosAnnotationSyncTargetProvider
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf
@@ -65,6 +75,7 @@ import org.koin.mp.KoinPlatform
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -385,5 +396,34 @@ class IosKoinGraphTest {
         assertNotNull(koin.get<RandomProvider>())
         // Saving a source's sync config must kick a real sweep, not the old `ProgressSyncTrigger { }`.
         assertNotNull(koin.get<ProgressSyncTrigger>())
+    }
+
+    /**
+     * #1101 — the annotation half of the same story. `AnnotationSweepEnqueuer { }` was a no-op
+     * because `AnnotationSweep` was androidMain; it is commonMain now and iOS binds the real
+     * sweep, the WebDAV target provider it reads, and an enqueuer that actually runs it.
+     * Reverting the enqueuer binding to the empty lambda fails the `assertIs`.
+     */
+    @Test
+    fun `the production graph runs a real annotation sweep`() {
+        startKoinWithDatabase(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+            databaseFile = uniqueDatabaseFile(),
+        )
+        val koin = KoinPlatform.getKoin()
+
+        assertNotNull(koin.get<AnnotationSweep>())
+        assertNotNull(koin.get<IosAnnotationSyncTargetProvider>())
+        assertNotNull(koin.get<DirtyAnnotationLedger>())
+        assertNotNull(koin.get<AnnotationLockPort>())
+        assertNotNull(koin.get<DeviceMetaSentinelWriter>())
+        assertIs<IosAnnotationSweepEnqueuer>(koin.get<AnnotationSweepEnqueuer>())
+        // The version probe and remote-id resolvers the shared SourceRepository lookups need.
+        assertNotNull(koin.get<KomgaServerInfoApi>())
+        val resolvers = koin.get<Map<SourceType, RemoteUserIdResolver>>(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE))
+        assertEquals(setOf(SourceType.ABS, SourceType.KOMGA), resolvers.keys)
     }
 }

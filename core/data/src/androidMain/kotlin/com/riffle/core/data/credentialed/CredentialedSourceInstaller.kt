@@ -1,5 +1,6 @@
 package com.riffle.core.data.credentialed
 
+import com.riffle.core.data.sources.toDomain
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
@@ -7,12 +8,9 @@ import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.READALOUD_MEDIA_TYPE
 import com.riffle.core.models.ServerType
-import com.riffle.core.models.Source
-import com.riffle.core.models.SourceType
-import com.riffle.core.models.SourceUrl
-import com.riffle.core.domain.TokenStorage
 import java.util.UUID
 
 /**
@@ -118,19 +116,4 @@ class CredentialedSourceInstaller constructor(
         fun readaloudLibraryId(sourceId: String): String =
             com.riffle.core.data.readaloudLibraryId(sourceId)
     }
-}
-
-// package-private so both the installer and SourceRepositoryImpl can share the entity→domain map.
-internal fun SourceEntity.toDomain(): Source {
-    val parsedUrl = SourceUrl.parse(url) ?: SourceUrl.parse("https://invalid.example.com")!!
-    return Source(
-        id = id,
-        url = parsedUrl,
-        isActive = isActive,
-        insecureConnectionAllowed = insecureConnectionAllowed,
-        username = username,
-        type = runCatching { SourceType.valueOf(type) }.getOrDefault(SourceType.ABS),
-        serverType = ServerType.fromStorageString(serverType),
-        absUserId = absUserId,
-    )
 }
