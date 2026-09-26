@@ -178,7 +178,20 @@ class AbsCommonCatalog(
                     ebookProgress = p.ebookProgress ?: 0f,
                     audioCurrentTime = p.currentTime,
                     audioDuration = p.duration,
-                    isFinished = p.isFinished || p.finishedAt != null,
+                    // Derive isFinished from position data via the shared helper, identical to
+                    // pullProgress / toCatalogProgress: ABS's isFinished/finishedAt are sticky flags
+                    // that are NOT auto-cleared when another device advances the reading position, so
+                    // trusting them would pin unifiedLibraryFraction() to 1f even when ebookProgress =
+                    // 0.6. The helper consults the sticky flags only when there is no position data at
+                    // all. Deriving differently here from toCatalogProgress is exactly what made the
+                    // library card and detail screen disagree on Finished state.
+                    isFinished = CatalogProgress.deriveIsFinished(
+                        ebookProgress = p.ebookProgress ?: 0f,
+                        audioCurrentTime = p.currentTime,
+                        audioDuration = p.duration,
+                        stickyFinished = p.isFinished,
+                        stickyFinishedAt = p.finishedAt,
+                    ),
                     finishedAt = p.finishedAt,
                     lastUpdate = p.lastUpdate ?: 0L,
                 )

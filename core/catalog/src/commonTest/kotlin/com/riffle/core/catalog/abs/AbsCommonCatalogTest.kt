@@ -27,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -257,6 +258,100 @@ class AbsCommonCatalogTest {
         assertEquals(60.0, all.getValue("a").audioDuration)
         assertTrue(all.getValue("b").isFinished)
         assertEquals(0f, all.getValue("b").ebookProgress)
+    }
+
+    @Test
+    fun pullAllProgressDerivesIsFinishedFromPositionNotStickyFlag() = runTest {
+        // Regression: ABS's isFinished/finishedAt are sticky and are NOT cleared when another
+        // device advances the reading position. pullAllProgress must derive isFinished from
+        // position data so unifiedLibraryFraction() returns the actual progress, not 1f.
+        val c = catalog(
+            libraryApi = FakeLibraryApi(
+                userProgress = mapOf(
+                    // Ebook at 60%: sticky isFinished=true should NOT override the real position.
+                    "ebook-in-progress" to NetworkUserMediaProgress(
+                        ebookProgress = 0.6f,
+                        lastUpdate = 100L,
+                        isFinished = true,
+                        finishedAt = 50L,
+                    ),
+                    // Audio at 60%: same — sticky flag must not pin fraction to 1f.
+                    "audio-in-progress" to NetworkUserMediaProgress(
+                        ebookProgress = null,
+                        lastUpdate = 200L,
+                        currentTime = 36.0,
+                        duration = 60.0,
+                        isFinished = true,
+                        finishedAt = 50L,
+                    ),
+                    // Book at 100%: genuinely finished — isFinished should remain true.
+                    "ebook-done" to NetworkUserMediaProgress(
+                        ebookProgress = 1.0f,
+                        lastUpdate = 300L,
+                        isFinished = true,
+                        finishedAt = 300L,
+                    ),
+                    // Book marked finished with no position data: trust the explicit flag.
+                    "marked-no-position" to NetworkUserMediaProgress(
+                        ebookProgress = null,
+                        lastUpdate = 400L,
+                        isFinished = true,
+                        finishedAt = 400L,
+                    ),
+                ),
+            ),
+        )
+        val all = c.pullAllProgress().associateBy { it.itemId }
+
+        val ebookInProgress = all.getValue("ebook-in-progress")
+        assertFalse(ebookInProgress.isFinished)
+        assertEquals(0.6f, ebookInProgress.unifiedLibraryFraction())
+
+        val audioInProgress = all.getValue("audio-in-progress")
+        assertFalse(audioInProgress.isFinished)
+        assertEquals(0.6f, audioInProgress.unifiedLibraryFraction())
+
+        assertTrue(all.getValue("ebook-done").isFinished)
+        assertEquals(1f, all.getValue("ebook-done").unifiedLibraryFraction())
+
+        assertTrue(all.getValue("marked-no-position").isFinished)
+        assertEquals(1f, all.getValue("marked-no-position").unifiedLibraryFraction())
+    }
+
+    @Test
+    fun perItemAndBulkPullsAgreeOnFinishedForAMatchedBookReadPartlyButListenedToTheEnd() = runTest {
+        // Regression (library-vs-detail disagreement): a matched book read to 60% but listened to the
+        // end. The per-item pull (toCatalogProgress, OR-logic) reported finished while the old bulk
+        // pull used ebook-priority — "ebookProgress > 0 → only ebook decides" — and reported NOT
+        // finished. The two screens then disagreed on Finished state and, via unifiedLibraryFraction
+        // pinning finished to 1f, on the progress bar. Both must now derive identically.
+        val session = RecordingSessionApi().apply {
+            progress = NetworkServerProgress(
+                ebookLocation = "epubcfi(/6/2)",
+                ebookProgress = 0.6f,
+                currentTime = 60.0,
+                duration = 60.0,
+                lastUpdate = 100L,
+            )
+        }
+        val c = catalog(
+            sessionApi = session,
+            libraryApi = FakeLibraryApi(
+                userProgress = mapOf(
+                    "matched" to NetworkUserMediaProgress(
+                        ebookProgress = 0.6f,
+                        currentTime = 60.0,
+                        duration = 60.0,
+                        lastUpdate = 100L,
+                    ),
+                ),
+            ),
+        )
+        val perItem = c.pullProgress("matched")!!
+        val bulk = c.pullAllProgress().single()
+        assertEquals(perItem.isFinished, bulk.isFinished, "per-item and bulk pulls must agree on Finished")
+        assertTrue(perItem.isFinished, "audio listened to the end means finished")
+        assertEquals(perItem.unifiedLibraryFraction(), bulk.unifiedLibraryFraction())
     }
 
     @Test

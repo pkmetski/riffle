@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
@@ -23,6 +24,7 @@ import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.NetworkResult
+import com.riffle.core.sync.DirtyProgressLedger
 import platform.Foundation.NSDate
 import platform.Foundation.timeIntervalSince1970
 
@@ -36,6 +38,7 @@ class IosLibraryRefresherImpl(
     private val collectionDao: CollectionDao,
     private val libraryItemDao: LibraryItemDao,
     private val catalogRegistry: CatalogRegistry,
+    private val dirtyProgressLedger: DirtyProgressLedger,
 ) : LibraryRefresher {
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
@@ -196,9 +199,26 @@ class IosLibraryRefresherImpl(
                         addedAt = item.addedAt ?: nowMs,
                         isbn = item.isbn,
                         asin = item.asin,
+                        progressServerUpdatedAt = item.progressUpdatedAt ?: 0L,
                     )
                 }
                 libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
+                // replaceAllForLibrary's updateMetadata intentionally preserves readingProgress on
+                // existing rows so a pending local edit is not overwritten. Mirror the just-fetched
+                // server value for all clean rows so a book advanced on another device appears
+                // correctly in Continue Reading without requiring the user to open it first.
+                val dirtyIds = (dirtyProgressLedger.dirtyEbookItems(source.id) +
+                    dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
+                for (item in result.value) {
+                    if (item.id in dirtyIds) continue
+                    val progress = item.readingProgress ?: continue
+                    // Last-update-wins: the library-list endpoint lags the per-item endpoint, so
+                    // only adopt when its stamp is not older than what we stored — otherwise it
+                    // overwrites a fresher per-item/detail value and the bars disagree.
+                    libraryItemDao.updateReadingProgressFromServer(
+                        source.id, item.id, progress, item.progressUpdatedAt ?: 0L,
+                    )
+                }
                 LibraryRefreshResult.Success
             }
             is NetworkResult.Offline -> LibraryRefreshResult.NetworkError(result.cause)
@@ -356,8 +376,28 @@ class IosLibraryRefresherImpl(
         }
     }
 
-    override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult =
-        LibraryRefreshResult.Success
+    override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult {
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        if (source.id != sourceId) return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
+        val progressPeer = catalog as? ProgressPeerCapability ?: return LibraryRefreshResult.Success
+        val dirty = (dirtyProgressLedger.dirtyEbookItems(source.id) +
+            dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
+        if (itemId in dirty) return LibraryRefreshResult.Success
+        val sp = try {
+            progressPeer.pullProgress(itemId)
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        } ?: return LibraryRefreshResult.Success
+        val fraction = sp.unifiedLibraryFraction() ?: return LibraryRefreshResult.Success
+        val finishedAt = sp.finishedAt ?: sp.lastUpdate.takeIf { sp.isFinished }
+        // Last-update-wins so a lagging library-list bulk value can't overwrite this fresher
+        // per-item value (library-vs-detail bar disagreement).
+        libraryItemDao.updateReadingProgressFromServer(sourceId, itemId, fraction, sp.lastUpdate)
+        libraryItemDao.updateFinishedAt(sourceId, itemId, finishedAt)
+        return LibraryRefreshResult.Success
+    }
 
     private fun com.riffle.core.catalog.BookFormat.toEbookFormat(): EbookFormat = when (this) {
         com.riffle.core.catalog.BookFormat.Epub -> EbookFormat.Epub

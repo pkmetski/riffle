@@ -1921,7 +1921,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 73, true,
+            TEST_DB, 75, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1995,6 +1995,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_71_72,
             RiffleDatabase.MIGRATION_72_73,
             RiffleDatabase.MIGRATION_73_74,
+            RiffleDatabase.MIGRATION_74_75,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3350,6 +3351,30 @@ class MigrationTest {
                 assertTrue(cursor.moveToFirst())
                 val cfi = cursor.getString(0)
                 assertTrue("position 1 must not be decremented", cfi.contains("\"position\":1"))
+            }
+        }
+    }
+
+    @Test
+    fun migration74To75_addsProgressServerUpdatedAtDefaultingToZero() {
+        helper.createDatabase(TEST_DB, 74).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO library_items (sourceId, id, libraryId, title, author, readingProgress, addedAt) " +
+                    "VALUES ('src1', 'item1', 'lib1', 'Book', 'Author', 0.42, 1000)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 75, true, RiffleDatabase.MIGRATION_74_75
+        ).use { db ->
+            db.query("SELECT readingProgress, progressServerUpdatedAt FROM library_items WHERE id = 'item1'").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals(0.42f, c.getFloat(0), 0.0001f)
+                assertEquals("new column defaults to 0", 0L, c.getLong(1))
             }
         }
     }

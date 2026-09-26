@@ -548,13 +548,19 @@ class PdfReaderViewModel constructor(
         // onPageChanged save coroutine can execute.
         val locatorJson = locator.toJSON().toString()
         val capturedNavSourceId = navSourceId
+        // PDF's book-wide fraction is the locator's progression (page / pageCount).
+        val closeFraction = locator.locations.progression?.toFloat() ?: 0f
         progressFlushScope.flush {
             val sid = capturedNavSourceId ?: sourceRepository.getActive()?.id ?: return@flush
             pdfRepository.saveReadingPosition(sid, itemId, locatorJson)
+            // Persist readingProgress on the SAME survivable scope as the position — previously the
+            // onClose fraction write ran on viewModelScope and was dropped when back navigation
+            // cancelled the scope, leaving a marked-read PDF read past the cover pinned at 100%
+            // (the offline sweep then re-pushed 1.0). ADR 0036.
+            positionSaveCoordinator.onClose(closeFraction)
         }
         viewModelScope.launch {
             val payload = locator.toPayload()
-            positionSaveCoordinator.onClose(payload.ebookProgress)
             syncSession.sync(payload)
         }
     }

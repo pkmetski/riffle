@@ -1963,9 +1963,21 @@ class EpubReaderViewModel constructor(
         // instead of the page the user was actually on. ADR 0036 / ProgressFlushScope.
         val locatorJson = locator.toJSON().toString()
         val capturedNavServerId = navServerId
+        // The close fraction (book-wide totalProgression) drives library_items.readingProgress.
+        // Computed here — identical to Locator.toPayload()'s ebookProgress — so it can be persisted
+        // on the survivable scope below without the heavier CFI translation toPayload() also does.
+        val closeFraction = locator.locations.totalProgression?.toFloat()
+            ?: locator.locations.progression?.toFloat() ?: 0f
         progressFlushScope.flush {
             val sid = capturedNavServerId ?: sourceRepository.getActive()?.id ?: return@flush
             epubRepository.saveReadingPosition(sid, itemId, locatorJson)
+            // Persist the readingProgress fraction on the SAME survivable scope as the position.
+            // Previously this ran on viewModelScope (via onClose below) and was silently dropped
+            // when back navigation cancelled the scope before it executed: the position landed but
+            // the fraction did not, so a book marked-read then read past the cover stayed at 100%
+            // (readingProgress never dropped from 1.0), and the offline sweep then re-pushed 1.0 to
+            // the source — the "progress stuck at 100 after reading a finished book" bug. ADR 0036.
+            positionSaveCoordinator.onClose(closeFraction)
         }
         // Stays on viewModelScope: runReaderSyncCycle mutates reader state (lastLocator,
         // pendingServerJumpStamp, …) and posts the inbound-jump channel, which must run on the main
@@ -1973,7 +1985,6 @@ class EpubReaderViewModel constructor(
         // The durable reading-position write survives a reopen/the offline sweep (ADR 0036).
         viewModelScope.launch {
             val payload = locator.toPayload()
-            positionSaveCoordinator.onClose(payload.ebookProgress)
             if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
             else syncSession.sync(payload)
         }
@@ -2048,7 +2059,10 @@ class EpubReaderViewModel constructor(
     private suspend fun serverProgressToLocator(serverProgress: ServerProgress): Locator? {
         val pub = lifecycle.publication.value ?: return null
         cfiStringToLocator(serverProgress.ebookLocation)?.let { return it }
-        // Fallback: no usable CFI — navigate via book-wide progress float
+        // Fallback: no usable CFI — navigate via book-wide progress float. A finished record with
+        // no CFI is a mark-as-read reset (location="", ebookProgress=1.0), not a request to open
+        // at the back cover.
+        if (com.riffle.core.domain.isFinishedReadingProgress(serverProgress.ebookProgress)) return null
         val progress = serverProgress.ebookProgress.toDouble().coerceIn(0.0, 1.0)
         return if (progress > 0.0) pub.locateProgression(progress) else null
     }

@@ -52,4 +52,12 @@ data class LibraryItemEntity(
     // populate it in future). Displayed on the Detail Screen and used as the Progress-Sync
     // denominator for comics.
     val pageCount: Int? = null,
+    // ABS `lastUpdate` (epoch ms) of the progress value currently in [readingProgress]. Used for
+    // last-update-wins: a server pull (per-item detail refresh vs bulk library sweep) must not
+    // overwrite [readingProgress] with a value whose stamp is older than this, because ABS's bulk
+    // `/api/me` endpoint lags its per-item `/api/me/progress/:id` endpoint, and without the gate
+    // the two writers ping-pong the same book's bar between two values (library vs detail
+    // disagreement). Local reader-close / mark writes stamp this with the device clock so a stale
+    // in-flight pull can't clobber a just-read value.
+    val progressServerUpdatedAt: Long = 0L,
 )

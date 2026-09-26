@@ -60,10 +60,12 @@ internal fun NetworkServerProgress.toCatalogProgress(itemId: String): CatalogPro
     ebookProgress = ebookProgress,
     audioCurrentTime = currentTime,
     audioDuration = duration,
-    // NetworkServerProgress lacks an explicit `finishedAt`, so derive the same way ABS does
-    // server-side: ebook 100% OR audio at/past duration. Matches pullAllProgress, which reads
-    // ABS's user-level `finishedAt` — either path answers the same question for the same item.
-    isFinished = ebookProgress >= 1f || (duration > 0.0 && currentTime >= duration),
+    // Derive from position data via the shared helper, not ABS's sticky isFinished/finishedAt
+    // flags: ABS does not auto-clear those when another device advances the position, so trusting
+    // them would pin unifiedLibraryFraction() to 1f even when ebookProgress = 0.6. NetworkServerProgress
+    // carries no flags, so the sticky fallback is unused here — but sharing the derivation with
+    // pullAllProgress guarantees the per-item and bulk pulls always agree on Finished state.
+    isFinished = CatalogProgress.deriveIsFinished(ebookProgress, currentTime, duration),
     lastUpdate = lastUpdate,
 )
 

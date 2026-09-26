@@ -312,7 +312,7 @@ private fun iosLibraryModule(
         )
     }
     single<LibraryObserver> { IosLibraryObserverImpl(get(), get(), get(), get(), get()) }
-    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }

@@ -402,6 +402,8 @@ class CatalogProgressRemoteFactoryTest {
             override suspend fun idsForLibrary(sourceId: String, libraryId: String) = emptyList<String>()
             override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
             override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+            override suspend fun updateReadingProgressStamped(sourceId: String, itemId: String, progress: Float, updatedAt: Long) = Unit
+            override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) = Unit
             override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
             override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
             override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()

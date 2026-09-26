@@ -83,6 +83,12 @@ interface LibraryMutator {
     /** Bumps lastOpenedAt for the active server's item. No network push. */
     suspend fun markItemOpened(itemId: String)
 
+    /** Returns the persisted readingProgress for the active server's item, or null if not found. */
+    suspend fun currentReadingProgress(itemId: String): Float?
+
+    /** Returns the persisted readingProgress for a specific server's item, or null if not found. */
+    suspend fun currentReadingProgress(sourceId: String, itemId: String): Float?
+
     /** Writes the new readingProgress to the active server's local row. No network push. */
     suspend fun updateReadingProgress(itemId: String, progress: Float)
 

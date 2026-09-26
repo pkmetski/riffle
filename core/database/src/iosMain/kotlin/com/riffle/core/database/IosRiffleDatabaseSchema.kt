@@ -8,7 +8,7 @@ import app.cash.sqldelight.db.SqlSchema
 internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
     // Tracks the iOS schema version independently of the Android Room schema version.
     // Bumped only when the iOS-side DDL changes; Android Room migrations are irrelevant here.
-    override val version: Long = 5L
+    override val version: Long = 6L
 
     override fun create(driver: SqlDriver): QueryResult.Value<Unit> {
         (DDL + LOCAL_FILES_DDL + POSITION_AND_PREFS_DDL + FORMERLY_NOOP_DAO_DDL).forEach { driver.execute(null, it, 0) }
@@ -41,6 +41,16 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
             // cache, local-file metadata overrides, remote freshness, publication metrics,
             // dictionary packs, lookup history, and cover-grid scale.
             FORMERLY_NOOP_DAO_DDL.forEach { driver.execute(null, it, 0) }
+        }
+        if (oldVersion < 6L && newVersion >= 6L) {
+            // Adds library_items.progressServerUpdatedAt for last-update-wins so a lagging bulk
+            // /api/me pull can't overwrite a fresher per-item value (library-vs-detail bar
+            // disagreement). Mirrors Room MIGRATION_74_75.
+            driver.execute(
+                null,
+                "ALTER TABLE library_items ADD COLUMN progressServerUpdatedAt INTEGER NOT NULL DEFAULT 0",
+                0,
+            )
         }
         return QueryResult.Value(Unit)
     }
@@ -93,6 +103,7 @@ internal object IosRiffleDatabaseSchema : SqlSchema<QueryResult.Value<Unit>> {
             asin TEXT,
             finishedAt INTEGER,
             pageCount INTEGER,
+            progressServerUpdatedAt INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (sourceId, id),
             FOREIGN KEY (sourceId) REFERENCES sources(id) ON DELETE CASCADE
         )""",

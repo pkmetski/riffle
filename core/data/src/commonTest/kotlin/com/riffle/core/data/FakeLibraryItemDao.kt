@@ -162,6 +162,30 @@ internal class FakeLibraryItemDao : LibraryItemDao {
             }
         }
     }
+
+    override suspend fun updateReadingProgressStamped(sourceId: String, itemId: String, progress: Float, updatedAt: Long) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                if (it.sourceId == sourceId && it.id == itemId) {
+                    it.copy(readingProgress = progress, progressServerUpdatedAt = updatedAt)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
+    override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                if (it.sourceId == sourceId && it.id == itemId && serverUpdatedAt >= it.progressServerUpdatedAt) {
+                    it.copy(readingProgress = progress, progressServerUpdatedAt = serverUpdatedAt)
+                } else {
+                    it
+                }
+            }
+        }
+    }
     override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {
         val entry = roomData.entries.firstOrNull { e ->
             e.value.value.any { it.sourceId == sourceId && it.id == itemId }
