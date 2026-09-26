@@ -1,17 +1,15 @@
 package com.riffle.core.data.absbookmark
 
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.security.MessageDigest
-import java.util.Base64
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
+import com.riffle.core.common.gunzip
+import com.riffle.core.common.gzip
+import com.riffle.core.common.sha256
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlin.io.encoding.Base64
 
 /**
  * Encodes / decodes Riffle's ABS-bookmark annotation shards. See
@@ -23,8 +21,9 @@ import kotlinx.serialization.json.put
  * payload. Manifest holds the chunk count, encoding, and a content hash so torn writes are
  * detectable and readers can reject partial shards cleanly.
  *
- * Pure JVM: no Android, no coroutines, no network. Suitable for `core:annotations` when that
- * module lands (ADR 0049 platform-agnostic-core rule).
+ * Pure Kotlin: no platform APIs beyond the core:common sha256/gzip seams, no coroutines, no
+ * network — shared by Android and iOS (#1101). Suitable for `core:annotations` when that module
+ * lands (ADR 0049 platform-agnostic-core rule).
  */
 object AbsBookmarkChunkCodec {
 
@@ -199,18 +198,17 @@ object AbsBookmarkChunkCodec {
         }
         val manifestPart = ours.firstOrNull { it.chunkIdx == MANIFEST_CHUNK_IDX } ?: return null
         val manifest = try {
-            ManifestPayload.fromJson(gunzip(Base64.getDecoder().decode(manifestPart.payloadB64)).decodeToString())
+            ManifestPayload.fromJson(gunzip(WIRE_BASE64.decode(manifestPart.payloadB64)).decodeToString())
         } catch (_: Exception) {
             return null
         } ?: return null
         val payloadParts = ours.filter { it.chunkIdx in 1..manifest.chunks }.sortedBy { it.chunkIdx }
         if (payloadParts.size != manifest.chunks) return null
         // Reassemble gzipped bytes and validate hash.
-        val assembled = ByteArrayOutputStream()
+        var bytes = ByteArray(0)
         for (p in payloadParts) {
-            assembled.write(Base64.getDecoder().decode(p.payloadB64))
+            bytes += WIRE_BASE64.decode(p.payloadB64)
         }
-        val bytes = assembled.toByteArray()
         if (sha256(bytes).toHex() != manifest.fullHash) return null
         val json = try {
             gunzip(bytes).decodeToString()
@@ -234,7 +232,7 @@ object AbsBookmarkChunkCodec {
         gzipContent: Boolean,
     ): WireChunk {
         val stored = if (gzipContent) gzip(rawContent) else rawContent
-        val b64 = Base64.getEncoder().withoutPadding().encodeToString(stored)
+        val b64 = WIRE_BASE64.encode(stored)
         val hash = sha256(stored).toHex().take(HASH_PREFIX_LEN)
         val title = formatTitle(ParsedTitle(deviceShort, chunkIdx, hash, b64))
         require(title.length <= MAX_TITLE_BYTES) {
@@ -260,8 +258,11 @@ object AbsBookmarkChunkCodec {
         return (remaining / 4) * 3
     }
 
-    private fun sha256(bytes: ByteArray): ByteArray =
-        MessageDigest.getInstance("SHA-256").digest(bytes)
+    /**
+     * Titles are written without padding (the original JVM implementation used the JDK encoder's
+     * `withoutPadding()`); decoding accepts both shapes so shards written either way stay readable.
+     */
+    private val WIRE_BASE64 = Base64.Default.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
 
     private fun ByteArray.toHex(): String {
         val sb = StringBuilder(size * 2)
@@ -274,15 +275,6 @@ object AbsBookmarkChunkCodec {
     }
 
     private val HEX = "0123456789abcdef".toCharArray()
-
-    private fun gzip(bytes: ByteArray): ByteArray {
-        val out = ByteArrayOutputStream()
-        GZIPOutputStream(out).use { it.write(bytes) }
-        return out.toByteArray()
-    }
-
-    private fun gunzip(bytes: ByteArray): ByteArray =
-        GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readBytes() }
 
     private fun Char.isHexDigit(): Boolean =
         this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'

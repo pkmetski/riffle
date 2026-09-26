@@ -86,9 +86,9 @@ object ServerReferenceLint {
         "core/data/src/androidMain/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",
         // Existing ABS bookmark synchronization sites branch on the grandfathered
         // ServerType/NetworkResult.ServerError names.
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
-        "core/data/src/androidMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
+        "core/data/src/commonMain/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
         // Network clients — ABS and Storyteller HTTP surfaces carry `serverType`.
         "core/net/src/commonMain/kotlin/com/riffle/core/network/AbsApiClient.kt",
         "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApi.kt",

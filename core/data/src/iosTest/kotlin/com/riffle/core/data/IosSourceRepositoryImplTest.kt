@@ -2,11 +2,13 @@ package com.riffle.core.data
 
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.database.deleteRiffleDatabase
 import com.riffle.core.database.openRiffleDatabase
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.RemoteUserIdResolver
+import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.ServerType
@@ -30,16 +32,28 @@ import kotlin.test.assertNull
 class IosSourceRepositoryImplTest {
 
     private lateinit var db: RiffleDatabaseAccess
+    private lateinit var databaseName: String
 
     @BeforeTest
     fun open() {
-        db = openRiffleDatabase("riffle-source-repo-test-${NSUUID().UUIDString}.db")
+        databaseName = "riffle-source-repo-test-${NSUUID().UUIDString}.db"
+        db = openRiffleDatabase(databaseName)
     }
 
     @AfterTest
     fun close() {
         db.close()
+        deleteRiffleDatabase(databaseName)
     }
+
+    private class RecordingFilesCleaner : SourceFilesCleaner {
+        val purged = mutableListOf<String>()
+        override suspend fun deleteAllForSource(sourceId: String) {
+            purged += sourceId
+        }
+    }
+
+    private val filesCleaner = RecordingFilesCleaner()
 
     private val tokens = object : TokenStorage {
         val store = mutableMapOf<String, String>()
@@ -86,6 +100,7 @@ class IosSourceRepositoryImplTest {
             },
         ),
         dispatchers = dispatchers,
+        filesCleaner = filesCleaner,
     )
 
     private suspend fun seed(id: String, type: SourceType = SourceType.ABS, serverType: ServerType = ServerType.AUDIOBOOKSHELF) {
@@ -140,6 +155,18 @@ class IosSourceRepositoryImplTest {
         assertEquals("user-42", db.sourceDao().getById("abs-1")?.absUserId, "remote id is persisted on the row")
         // A second call is a pure DB lookup: even an API that now fails answers Configured.
         assertEquals(first, repo(FakeAbs(version = null, userId = null)).ensureSyncNamespace("abs-1"))
+    }
+
+    @Test
+    fun removePurgesTheSourcesFilesAlongWithItsRows() = runTest {
+        seed("abs-1")
+        tokens.saveToken("abs-1", "tok")
+
+        repo(FakeAbs(null, null)).remove("abs-1")
+
+        assertNull(db.sourceDao().getById("abs-1"))
+        assertNull(tokens.getToken("abs-1"))
+        assertEquals(listOf("abs-1"), filesCleaner.purged, "on-disk downloads/caches are purged with the source")
     }
 
     @Test

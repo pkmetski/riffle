@@ -3,6 +3,7 @@ package com.riffle.shared.reader
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosItemFiles
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
@@ -18,7 +19,6 @@ import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.KomgaCbzApi
-import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -62,8 +62,7 @@ internal class IosCbzRepository(
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
         val lastPosition = positionStore.load(item.sourceId, item.id)
 
-        resolveLocal(item)?.let { local ->
-            val archive = IosCbzArchive(local.bytes)
+        resolveLocal(item)?.let { archive ->
             return CbzOpenResult.Success(
                 imageSource = comicPageSourceOf(archive),
                 pageCount = archive.pageCount,
@@ -80,14 +79,10 @@ internal class IosCbzRepository(
             ?: return CbzOpenResult.NetworkError(IllegalStateException("No credentials"))
 
         return if (item.ebookFileIno != null) {
-            val bytes = downloader.downloadBytes(item)
+            // Whole-file sources (ABS) fill the cache on first open, exactly as Android's
+            // CatalogFileTransfer.acquire does, so the second open is offline.
+            val archive = fetchIntoCache(item)
                 ?: return CbzOpenResult.NetworkError(IllegalStateException("Download failed"))
-            // Best effort: a failed cache write must not block reading what we just fetched.
-            if (files.writeBytes(files.cachePath(item.sourceId, item.id), bytes)) {
-                contentCacheAccessStore.markAccessed(contentCacheKey(item))
-                localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
-            }
-            val archive = IosCbzArchive(bytes)
             CbzOpenResult.Success(
                 imageSource = comicPageSourceOf(archive),
                 pageCount = archive.pageCount,
@@ -128,16 +123,16 @@ internal class IosCbzRepository(
         val cachePath = files.cachePath(item.sourceId, item.id)
         // Promote a cached copy instead of fetching it again, as Android's CatalogFileTransfer.promote does.
         if (files.exists(cachePath) && files.move(cachePath, downloadPath)) {
+            val size = IosItemFiles.size(downloadPath)
+            onProgress(size, size)
             localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             return CbzDownloadResult.Success
         }
-        val bytes = fetchArchiveBytes(item)
-            ?: return CbzDownloadResult.NetworkError(IllegalStateException("Download failed"))
-        if (!files.writeBytes(downloadPath, bytes)) {
+        val written = fetchArchiveTo(item, downloadPath, onProgress)
+        if (!written) {
             files.delete(downloadPath)
-            return CbzDownloadResult.NetworkError(IllegalStateException("Could not write $downloadPath"))
+            return CbzDownloadResult.NetworkError(IllegalStateException("Download failed"))
         }
-        onProgress(bytes.size.toLong(), bytes.size.toLong())
         localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
         return CbzDownloadResult.Success
     }
@@ -181,72 +176,83 @@ internal class IosCbzRepository(
     }
 
     override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? {
-        val bytes = resolveLocal(item)?.bytes ?: run {
-            val fetched = fetchArchiveBytes(item) ?: return null
-            val cachePath = files.cachePath(item.sourceId, item.id)
-            if (!files.writeBytes(cachePath, fetched)) {
-                files.delete(cachePath)
-                return null
-            }
-            contentCacheAccessStore.markAccessed(contentCacheKey(item))
-            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
-            fetched
-        }
-        return try {
-            val archive = IosCbzArchive(bytes)
-            CbzLocalSource(
-                imageSource = comicPageSourceOf(archive),
-                pageCount = archive.pageCount,
-                bookmarks = emptyList(),
-            )
-        } catch (_: Throwable) {
-            null
-        }
+        val archive = resolveLocal(item) ?: fetchIntoCache(item) ?: return null
+        return CbzLocalSource(
+            imageSource = comicPageSourceOf(archive),
+            pageCount = archive.pageCount,
+            bookmarks = emptyList(),
+        )
     }
 
-    private class LocalArchive(val bytes: ByteArray)
-
     /**
-     * The best valid local copy, preferring the user-pinned download over the cache. A file that
-     * exists but does not parse as a ZIP is deleted so a truncated download cannot wedge the item
-     * — the network path is tried instead, exactly as on Android.
+     * The best valid local copy, preferring the user-pinned download over the cache, parsed once
+     * and handed to the caller. A file that exists but does not parse as a ZIP is deleted so a
+     * truncated download cannot wedge the item — the network path is tried instead, exactly as
+     * on Android.
      */
-    private suspend fun resolveLocal(item: LibraryItem): LocalArchive? {
+    private suspend fun resolveLocal(item: LibraryItem): IosCbzArchive? {
         val download = files.downloadPath(item.sourceId, item.id)
         if (files.exists(download)) {
-            val bytes = files.readBytes(download)
-            if (bytes != null && isValidCbz(bytes)) return LocalArchive(bytes)
+            openValid(download)?.let { return it }
             files.delete(download)
         }
         val cache = files.cachePath(item.sourceId, item.id)
         if (files.exists(cache)) {
-            val bytes = files.readBytes(cache)
-            if (bytes != null && isValidCbz(bytes)) {
+            openValid(cache)?.let {
                 contentCacheAccessStore.markAccessed(contentCacheKey(item))
-                return LocalArchive(bytes)
+                return it
             }
             files.delete(cache)
         }
         return null
     }
 
-    private fun isValidCbz(bytes: ByteArray): Boolean =
-        runCatching { IosCbzArchive(bytes).pageCount > 0 }.getOrDefault(false)
+    private fun openValid(path: String): IosCbzArchive? {
+        val bytes = files.readBytes(path) ?: return null
+        return runCatching { IosCbzArchive(bytes) }.getOrNull()?.takeIf { it.pageCount > 0 }
+    }
+
+    /** Streams the archive into the cache tier and opens it. Null (and no file) on any failure. */
+    private suspend fun fetchIntoCache(item: LibraryItem): IosCbzArchive? {
+        val cachePath = files.cachePath(item.sourceId, item.id)
+        if (!fetchArchiveTo(item, cachePath) { _, _ -> }) {
+            files.delete(cachePath)
+            return null
+        }
+        val archive = openValid(cachePath)
+        if (archive == null) {
+            files.delete(cachePath)
+            return null
+        }
+        contentCacheAccessStore.markAccessed(contentCacheKey(item))
+        localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+        return archive
+    }
 
     /**
-     * The whole archive: ABS items through the ebook-file endpoint, everything else through the
-     * item's catalog file stream (Komga serves `books/{id}/file`). Null on any failure.
+     * Streams the whole archive to [path] with progress: ABS items through the ebook-file
+     * endpoint, everything else through the item's catalog file stream (Komga serves
+     * `books/{id}/file`). False on any failure.
      */
-    private suspend fun fetchArchiveBytes(item: LibraryItem): ByteArray? {
-        if (item.ebookFileIno != null) return downloader.downloadBytes(item)
-        val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
+    private suspend fun fetchArchiveTo(
+        item: LibraryItem,
+        path: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): Boolean {
+        if (item.ebookFileIno != null) {
+            return downloader.withStream(item) { channel, length ->
+                files.writeChannel(path, channel, length, onProgress)
+            } ?: false
+        }
+        val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return false
         return try {
-            catalog.withFileStream(item.id, BookFormat.Cbz) { stream -> stream.channel.toByteArray() }
-                .takeIf { it.isNotEmpty() }
+            catalog.withFileStream(item.id, BookFormat.Cbz) { stream ->
+                files.writeChannel(path, stream.channel, stream.contentLength, onProgress)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            null
+            false
         }
     }
 

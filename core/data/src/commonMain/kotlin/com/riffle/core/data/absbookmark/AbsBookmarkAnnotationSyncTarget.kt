@@ -1,5 +1,6 @@
 package com.riffle.core.data.absbookmark
 
+import com.riffle.core.common.platformSystemClock
 import com.riffle.core.data.AnnotationFilenames
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -9,6 +10,7 @@ import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkResult
+import kotlin.concurrent.Volatile
 
 /**
  * ABS-bookmark-backed [AnnotationSyncTarget].
@@ -46,7 +48,7 @@ class AbsBookmarkAnnotationSyncTarget(
      * long.
      */
     private val listingCacheTtlMs: Long = 3_000L,
-    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val clock: () -> Long = platformSystemClock::nowMs,
 ) : AnnotationSyncTarget {
 
     @Volatile

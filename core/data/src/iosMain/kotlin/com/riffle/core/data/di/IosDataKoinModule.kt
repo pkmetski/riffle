@@ -25,6 +25,7 @@ import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosReadaloudPreferencesStoreImpl
+import com.riffle.core.data.IosSourceFilesCleaner
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.ItemProgressPuller
@@ -75,6 +76,7 @@ import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
+import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
@@ -106,6 +108,7 @@ val iosDataModule = module {
     single<ConnectivityObserver> { IosConnectivityObserver() }
     single<TokenStorage> { IosTokenStorage() }
     single<FileStore> { IosFileStore() }
+    single<SourceFilesCleaner> { IosSourceFilesCleaner(get(), get()) }
     single<DeviceLabelResolver> { IosDeviceLabelResolver() }
 
     single<FolderPickerInterface> { IosFolderPicker() }

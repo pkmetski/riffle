@@ -1,6 +1,7 @@
 package com.riffle.shared.library
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_PDF_CACHE
 import com.riffle.core.data.NS_PDF_DOWNLOADS
 import com.riffle.core.domain.PdfDownloadResult
@@ -23,8 +24,8 @@ import platform.Foundation.appendBytes
 
 /** Path scheme for locally stored PDFs, mirroring [IosEpubPaths]. */
 internal object IosPdfPaths {
-    fun downloadRelativePath(sourceId: String, itemId: String) = "$sourceId/$itemId.pdf"
-    fun cacheRelativePath(sourceId: String, itemId: String) = "$sourceId/$itemId.pdf"
+    fun downloadRelativePath(sourceId: String, itemId: String) = IosItemFiles.relativePath(sourceId, itemId, ".pdf")
+    fun cacheRelativePath(sourceId: String, itemId: String) = IosItemFiles.relativePath(sourceId, itemId, ".pdf")
 }
 
 /**

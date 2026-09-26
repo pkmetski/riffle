@@ -11,6 +11,7 @@ import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.RemoteUserIdResolver
+import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.TokenStorage
@@ -31,6 +32,7 @@ class IosSourceRepositoryImpl(
     komgaServerInfoApi: KomgaServerInfoApi,
     remoteUserIdResolvers: Map<SourceType, RemoteUserIdResolver>,
     private val dispatchers: DispatcherProvider,
+    private val filesCleaner: SourceFilesCleaner,
 ) : SourceRepository {
 
     // The same commonMain lookups Android's SourceRepositoryImpl runs (#1101): the version used
@@ -97,6 +99,9 @@ class IosSourceRepositoryImpl(
         dao.deleteSourceGraph(sourceId)
         tokenStorage.deleteToken(sourceId)
         tokenStorage.deletePassword(sourceId)
+        // The file stores live outside the database, so the graph delete above doesn't touch
+        // them — purge the source's downloaded/cached files so they don't leak on disk (#1101).
+        filesCleaner.deleteAllForSource(sourceId)
     }
 
     override suspend fun getSourceVersion(sourceId: String): String? {

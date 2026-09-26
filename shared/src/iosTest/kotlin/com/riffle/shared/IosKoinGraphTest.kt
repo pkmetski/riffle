@@ -6,7 +6,9 @@ import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.common.RandomProvider
 import com.riffle.core.data.AnnotationSweep
+import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.DeviceMetaSentinelWriter
+import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
 import com.riffle.core.data.di.REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.domain.AnnotationSweepEnqueuer
@@ -66,7 +68,6 @@ import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.source.unboundedBrowseSourceTypes
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
-import com.riffle.shared.sync.IosAnnotationSyncTargetProvider
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf
@@ -401,7 +402,7 @@ class IosKoinGraphTest {
     /**
      * #1101 — the annotation half of the same story. `AnnotationSweepEnqueuer { }` was a no-op
      * because `AnnotationSweep` was androidMain; it is commonMain now and iOS binds the real
-     * sweep, the WebDAV target provider it reads, and an enqueuer that actually runs it.
+     * sweep, the target holder it reads, and an enqueuer that actually runs it.
      * Reverting the enqueuer binding to the empty lambda fails the `assertIs`.
      */
     @Test
@@ -416,7 +417,9 @@ class IosKoinGraphTest {
         val koin = KoinPlatform.getKoin()
 
         assertNotNull(koin.get<AnnotationSweep>())
-        assertNotNull(koin.get<IosAnnotationSyncTargetProvider>())
+        // The same ADR 0057 holder Android binds: WebDAV + ABS-bookmark children (#1101).
+        assertNotNull(koin.get<AnnotationSyncTargetHolder>())
+        assertNotNull(koin.get<AbsBookmarkAnnotationSyncTargetFactory>())
         assertNotNull(koin.get<DirtyAnnotationLedger>())
         assertNotNull(koin.get<AnnotationLockPort>())
         assertNotNull(koin.get<DeviceMetaSentinelWriter>())

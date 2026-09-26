@@ -116,7 +116,7 @@ class CompositeAnnotationSyncTarget(
         for (child in children) {
             val list = runCatching { child.target.enumerateNamespaces() }.getOrNull() ?: continue
             for (ns in list) {
-                counts.merge(ns.namespace, ns.annotationFileCount) { a, b -> a + b }
+                counts[ns.namespace] = (counts[ns.namespace] ?: 0) + ns.annotationFileCount
             }
         }
         return counts.entries.map { (ns, c) -> NamespaceSummary(namespace = ns, annotationFileCount = c) }
