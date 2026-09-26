@@ -75,6 +75,26 @@ class LibraryItemDaoTest {
         assertEquals("in-progress", result[0].id)
     }
 
+    // Last-update-wins: a server pull must not overwrite a value stamped with a newer lastUpdate.
+    // Regression for the library-vs-detail progress-bar disagreement (ABS bulk /api/me lagging the
+    // per-item endpoint).
+    @Test
+    fun updateReadingProgressFromServer_rejectsOlderStampButAcceptsNewer() = runTest {
+        dao.upsertAll(listOf(item("b", readingProgress = 0.2f)))
+
+        // Adopt a fresh per-item value stamped at 200.
+        dao.updateReadingProgressFromServer("s1", "b", 0.6f, 200L)
+        assertEquals(0.6f, dao.getById("s1", "b")!!.readingProgress)
+
+        // A lagging bulk pull stamped at 100 must be rejected — the bar stays at the fresher value.
+        dao.updateReadingProgressFromServer("s1", "b", 0.1f, 100L)
+        assertEquals(0.6f, dao.getById("s1", "b")!!.readingProgress)
+
+        // A genuinely newer value stamped at 300 wins.
+        dao.updateReadingProgressFromServer("s1", "b", 0.9f, 300L)
+        assertEquals(0.9f, dao.getById("s1", "b")!!.readingProgress)
+    }
+
     // A2 — observeInProgress sorts by lastOpenedAt descending, nulls last
     @Test
     fun observeInProgress_sortsByLastOpenedAtDescNullsLast() = runTest {

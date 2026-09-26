@@ -140,6 +140,8 @@ private class FakeItemOfflineAvailability(private val availableIds: Set<String>)
 private open class RecordingLibraryMutator : LibraryMutator {
     val deleted = mutableListOf<Pair<String, String>>()
     override suspend fun markItemOpened(itemId: String) = Unit
+    override suspend fun currentReadingProgress(itemId: String): Float? = null
+    override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
     override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
     override suspend fun deleteItem(sourceId: String, itemId: String) { deleted += sourceId to itemId }

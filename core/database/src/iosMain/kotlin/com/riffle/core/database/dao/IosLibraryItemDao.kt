@@ -263,6 +263,25 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
         invalidator.invalidate()
     }
 
+    override suspend fun updateReadingProgressStamped(sourceId: String, itemId: String, progress: Float, updatedAt: Long) {
+        driver.execute(null,
+            "UPDATE library_items SET readingProgress = ?, progressServerUpdatedAt = ? WHERE sourceId = ? AND id = ?", 4) {
+            bindDouble(0, progress.toDouble()); bindLong(1, updatedAt)
+            bindString(2, sourceId); bindString(3, itemId)
+        }
+        invalidator.invalidate()
+    }
+
+    override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) {
+        driver.execute(null,
+            "UPDATE library_items SET readingProgress = ?, progressServerUpdatedAt = ? " +
+                "WHERE sourceId = ? AND id = ? AND ? >= progressServerUpdatedAt", 5) {
+            bindDouble(0, progress.toDouble()); bindLong(1, serverUpdatedAt)
+            bindString(2, sourceId); bindString(3, itemId); bindLong(4, serverUpdatedAt)
+        }
+        invalidator.invalidate()
+    }
+
     override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {
         driver.execute(null,
             "UPDATE library_items SET libraryId = ? WHERE sourceId = ? AND id = ?", 3) {
@@ -336,7 +355,7 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
         ) { bindString(0, sourceId); bindString(1, libraryId) }.value
 
     private fun insertOrReplaceItem(item: LibraryItemEntity) {
-        driver.execute(null, "INSERT OR REPLACE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 24) {
+        driver.execute(null, "INSERT OR REPLACE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 25) {
             bindItem(item)
         }
     }
@@ -366,6 +385,7 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
         bindString(21, item.asin)
         bindLong(22, item.finishedAt)
         bindLong(23, item.pageCount?.toLong())
+        bindLong(24, item.progressServerUpdatedAt)
     }
 
     private fun mapRows(cursor: SqlCursor): QueryResult.Value<List<LibraryItemEntity>> {
@@ -399,12 +419,14 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
         asin = getString(21),
         finishedAt = getLong(22),
         pageCount = getLong(23)?.toInt(),
+        progressServerUpdatedAt = getLong(24) ?: 0L,
     )
 
     companion object {
         private const val ALL_COLS = "sourceId, id, libraryId, title, author, coverUrl, readingProgress, " +
             "ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, seriesSequence, " +
-            "publishedYear, genres, publisher, language, lastOpenedAt, addedAt, isbn, asin, finishedAt, pageCount"
-        private const val PLACEHOLDERS = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+            "publishedYear, genres, publisher, language, lastOpenedAt, addedAt, isbn, asin, finishedAt, pageCount, " +
+            "progressServerUpdatedAt"
+        private const val PLACEHOLDERS = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
     }
 }

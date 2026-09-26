@@ -87,9 +87,9 @@ class GitHubPanelReportRepositoryTest {
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val maskBytes = ByteArray(5) { it.toByte() }
-        repo().submit(fakeReport, maskBytes)
+        repo().submit(fakeReport, maskBytes).getOrThrow()
 
-        val gistRequest = server.takeRequest()
+        val gistRequest = requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" }
         val gistBody = Json { ignoreUnknownKeys = true }
             .parseToJsonElement(gistRequest.body.readUtf8()).jsonObject
         val expectedBase64 = java.util.Base64.getEncoder().encodeToString(maskBytes)
@@ -112,10 +112,10 @@ class GitHubPanelReportRepositoryTest {
         ).setResponseCode(201))
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
-        repo().submit(fakeReport, ByteArray(0))
+        repo().submit(fakeReport, ByteArray(0)).getOrThrow()
 
-        server.takeRequest() // consume gist
-        val issueRequest = server.takeRequest()
+        requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" } // consume gist
+        val issueRequest = requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" }
         val parsedBody = Json { ignoreUnknownKeys = true }
             .parseToJsonElement(issueRequest.body.readUtf8()).jsonObject["body"]?.jsonPrimitive?.content ?: ""
         assertTrue("body contains gist URL", parsedBody.contains(gistHtmlUrl))
@@ -135,10 +135,10 @@ class GitHubPanelReportRepositoryTest {
             failureType = PanelDetectionFailureType.WrongPanelOrder,
             expectedPanelOrder = listOf(1, 0),
         )
-        repo().submit(reportWithOrder, ByteArray(0))
+        repo().submit(reportWithOrder, ByteArray(0)).getOrThrow()
 
-        server.takeRequest() // consume gist
-        val issueRequest = server.takeRequest()
+        requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" } // consume gist
+        val issueRequest = requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" }
         val parsedBody = Json { ignoreUnknownKeys = true }
             .parseToJsonElement(issueRequest.body.readUtf8()).jsonObject["body"]?.jsonPrimitive?.content ?: ""
         assertTrue("body contains expected order", parsedBody.contains("[1, 0]"))
@@ -155,9 +155,9 @@ class GitHubPanelReportRepositoryTest {
             failureType = PanelDetectionFailureType.FalsePanel,
             falsePanelIndices = listOf(0, 2),
         )
-        repo().submit(reportWithFalsePanels, ByteArray(0))
+        repo().submit(reportWithFalsePanels, ByteArray(0)).getOrThrow()
 
-        val gistRequest = server.takeRequest()
+        val gistRequest = requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" }
         val gistBody = Json { ignoreUnknownKeys = true }
             .parseToJsonElement(gistRequest.body.readUtf8()).jsonObject
         val metadata = gistBody["files"]!!.jsonObject["metadata.json"]!!
@@ -178,10 +178,10 @@ class GitHubPanelReportRepositoryTest {
             failureType = PanelDetectionFailureType.FalsePanel,
             falsePanelIndices = listOf(0, 2),
         )
-        repo().submit(reportWithFalsePanels, ByteArray(0))
+        repo().submit(reportWithFalsePanels, ByteArray(0)).getOrThrow()
 
-        server.takeRequest() // consume gist
-        val issueRequest = server.takeRequest()
+        requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" } // consume gist
+        val issueRequest = requireNotNull(server.takeRequest(10, java.util.concurrent.TimeUnit.SECONDS)) { "expected request never reached the mock server" }
         val parsedBody = Json { ignoreUnknownKeys = true }
             .parseToJsonElement(issueRequest.body.readUtf8()).jsonObject["body"]?.jsonPrimitive?.content ?: ""
         assertTrue("body contains false panel indices", parsedBody.contains("[0, 2]"))

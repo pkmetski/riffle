@@ -159,6 +159,8 @@ internal object FakeReadaloudSidecarPrefetcher : ReadaloudSidecarPrefetcher {
 
 private object FakeLibraryMutator : LibraryMutator {
     override suspend fun markItemOpened(itemId: String) {}
+    override suspend fun currentReadingProgress(itemId: String): Float? = null
+    override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
     override suspend fun deleteItem(sourceId: String, itemId: String) {}

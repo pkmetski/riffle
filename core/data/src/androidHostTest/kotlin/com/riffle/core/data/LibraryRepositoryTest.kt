@@ -1491,6 +1491,93 @@ class LibraryRepositoryTest {
         assertEquals(0.25f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
+    @Test
+    fun `refreshLibraryItems derives readingProgress from ebookProgress not sticky isFinished flag`() = runTest {
+        // Regression: ABS's isFinished/finishedAt are sticky and are NOT cleared automatically
+        // when another device advances the reading position past a previously-finished book.
+        // pullAllProgress was trusting those flags, so unifiedLibraryFraction() returned 1f even
+        // when ebookProgress = 0.6. The book vanished from "Continue Reading" and the grid still
+        // showed 100%. The fix: derive isFinished from position data — if ebookProgress > 0, use
+        // ebookProgress >= 1f; only fall back to the explicit flags when there is no position data.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        // Pre-existing row: book was previously fully read (readingProgress = 1.0).
+        dao.upsertAll(listOf(
+            LibraryItemEntity(
+                "s1", "item-1", "lib-1", "Book", "A", null, 1.0f,
+                lastOpenedAt = 10_000L, addedAt = 0L,
+            ),
+        ))
+        val api = object : AbsLibraryApi {
+            // ABS returns ebookProgress=0.6 (user resumed on another device) but isFinished/finishedAt
+            // are still sticky from the previous completion — they were never cleared by ABS.
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                        ebookProgress = 0.6f,
+                        lastUpdate = 15_000L,
+                        isFinished = true,
+                        finishedAt = 5_000L,
+                    ))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.6f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        // 0.6 — not 1.0 (sticky flag) and not 0 (uninitialised)
+        assertEquals(0.6f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems derives audio readingProgress from position not sticky isFinished flag`() = runTest {
+        // Same invariant, audio dimension: currentTime=36/duration=60 → fraction=0.6 even when
+        // ABS's sticky isFinished=true would otherwise cause unifiedLibraryFraction() to return 1f.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity(
+                "s1", "item-1", "lib-1", "Audio Book", "A", null, 1.0f,
+                lastOpenedAt = 10_000L, addedAt = 0L,
+            ),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                        ebookProgress = null,
+                        lastUpdate = 15_000L,
+                        currentTime = 36.0,
+                        duration = 60.0,
+                        isFinished = true,
+                        finishedAt = 5_000L,
+                    ))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Audio Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        // 36/60 = 0.6 — not 1.0 from the sticky isFinished flag
+        assertEquals(0.6f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
     // ── Storyteller refresh ───────────────────────────────────────────────────
 
     private fun storytellerServer() = Source(

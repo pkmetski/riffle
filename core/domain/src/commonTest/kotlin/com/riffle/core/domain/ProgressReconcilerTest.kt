@@ -357,12 +357,15 @@ class ProgressReconcilerTest {
             ),
         )
         val sinkCalls = mutableListOf<Quad<String, String, Float, Long?>>()
-        val sink = UiProgressSink { s, i, p, f -> sinkCalls += Quad(s, i, p, f) }
+        var sinkServerUpdatedAt = -1L
+        val sink = UiProgressSink { s, i, p, f, u -> sinkCalls += Quad(s, i, p, f); sinkServerUpdatedAt = u }
 
         val outcome = ProgressReconciler(store, sink).reconcile(SERVER, ITEM, remote)
 
         assertEquals(ReconcileOutcome.ServerWon("server-cfi", 200L), outcome)
         assertEquals(listOf(Quad(SERVER, ITEM, 0.42f, 200L as Long?)), sinkCalls)
+        // The sink must carry the server stamp so its readingProgress write is last-update-wins.
+        assertEquals(200L, sinkServerUpdatedAt)
     }
 
     /**
@@ -378,7 +381,7 @@ class ProgressReconcilerTest {
             onGet = { store.localUpdatedAt = 150L },
         )
         var sinkCalls = 0
-        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+        val sink = UiProgressSink { _, _, _, _, _ -> sinkCalls++ }
 
         val outcome = ProgressReconciler(store, sink).reconcile(SERVER, ITEM, remote)
 
@@ -393,7 +396,7 @@ class ProgressReconcilerTest {
     @Test
     fun `LocalPushed InSync Offline PushFailed all skip the UI sink`() = runTest {
         var sinkCalls = 0
-        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+        val sink = UiProgressSink { _, _, _, _, _ -> sinkCalls++ }
 
         // LocalPushed
         ProgressReconciler(
@@ -428,7 +431,7 @@ class ProgressReconcilerTest {
     fun `ServerWon with deleted=true marks local row deleted and skips uiSink`() = runTest {
         var sinkCalls = 0
         val store = FakeSyncStore(position = "cfi", localUpdatedAt = 100L, lastSyncedAt = 100L)
-        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+        val sink = UiProgressSink { _, _, _, _, _ -> sinkCalls++ }
 
         val outcome = ProgressReconciler(store, sink).reconcile(
             SERVER, ITEM,
@@ -444,7 +447,7 @@ class ProgressReconcilerTest {
     fun `ServerWon with deleted=false resets local deleted flag and calls uiSink`() = runTest {
         var sinkCalls = 0
         val store = FakeSyncStore(position = "cfi", localUpdatedAt = 100L, lastSyncedAt = 100L).also { it.deleted = true }
-        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+        val sink = UiProgressSink { _, _, _, _, _ -> sinkCalls++ }
 
         val outcome = ProgressReconciler(store, sink).reconcile(
             SERVER, ITEM,

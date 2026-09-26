@@ -45,7 +45,7 @@ import androidx.sqlite.execSQL
         LookupHistoryEntity::class,
         CoverGridScaleEntity::class,
     ],
-    version = 74,
+    version = 75,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1933,6 +1933,17 @@ abstract class RiffleDatabase : RoomDatabase() {
                 val position = match.groupValues[1].toLongOrNull() ?: return null
                 if (position <= 1L) return null
                 return json.replaceFirst(match.value, """"position": ${position - 1}""")
+            }
+        }
+
+        // Adds library_items.progressServerUpdatedAt (ABS lastUpdate of the stored readingProgress)
+        // for last-update-wins so a lagging bulk /api/me pull can't overwrite a fresher per-item
+        // value and make the library and detail progress bars disagree.
+        val MIGRATION_74_75 = object : Migration(74, 75) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "ALTER TABLE library_items ADD COLUMN progressServerUpdatedAt INTEGER NOT NULL DEFAULT 0"
+                )
             }
         }
     }

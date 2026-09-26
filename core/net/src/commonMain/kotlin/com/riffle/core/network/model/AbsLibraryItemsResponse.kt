@@ -56,5 +56,7 @@ internal data class AbsLibraryItemsResponse(val results: List<AbsLibraryItemDto>
     data class AbsProgressDto(
         val progress: Float = 0f,
         val ebookProgress: Float? = null,
+        // ABS media-progress record's last-update time (epoch ms), used for last-update-wins.
+        val lastUpdate: Long? = null,
     )
 }
