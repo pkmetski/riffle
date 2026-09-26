@@ -41,6 +41,13 @@ internal enum class CapabilityId {
      * the payload's natural-size fields when the element has no intrinsic width/height.
      */
     FigureTapBridge,
+
+    /**
+     * Locks paginated-mode layout properties with `!important` so hostile publisher CSS (e.g.
+     * O'Reilly EPUB3 `height: auto !important`) cannot collapse Readium's column grid and allow
+     * vertical scrolling in a mode that should only turn pages horizontally.
+     */
+    PaginatedLayoutLock,
 }
 
 /** Where in the renderer's lifetime a capability is meant to be (re)installed. */

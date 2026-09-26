@@ -399,6 +399,18 @@ class ReadiumSwiftNavigator(
         ))
     }
 
+    /**
+     * Inject the paginated-layout lock CSS into the current page.
+     *
+     * Mirrors Android's [com.riffle.feature.reader.PaginatedLayoutLock] capability in
+     * [DefaultRendererBridge]. The CSS uses `:root:not([style*="readium-scroll-on"])` so it is
+     * a no-op in scroll/continuous mode; it only enforces `height: 100vh !important` etc. when
+     * Readium is driving the page in column-paginated mode.
+     */
+    internal suspend fun injectPaginatedLayoutLockScript() {
+        evaluateJs(com.riffle.feature.reader.PaginatedLayoutLock.INSTALL_SCRIPT)
+    }
+
     private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
         bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
     }

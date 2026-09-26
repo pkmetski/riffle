@@ -641,6 +641,17 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             navigator.injectFigureTapScript()
         }
     }
+
+    // Paginated layout lock: prevent hostile publisher CSS (e.g. O'Reilly EPUB3 `height: auto
+    // !important`) from collapsing Readium's column grid and allowing vertical scrolling. The
+    // injected CSS is gated on `:root:not([style*="readium-scroll-on"])` so it is a no-op in
+    // scroll/continuous mode. Mirrors Android's PaginatedLayoutLock RendererCapability.
+    LaunchedEffect(navigator, localPath) {
+        if (localPath == null) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            navigator.injectPaginatedLayoutLockScript()
+        }
+    }
     LaunchedEffect(navigator) {
         navigator.figureTapPayloads.collect { payload ->
             figureZoomState = FigureTapMessageParser.parse(payload)
