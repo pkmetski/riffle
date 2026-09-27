@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
@@ -41,7 +40,6 @@ class RiffleViewModel constructor(
     private val toReadRepository: ToReadRepository,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
     private val connectivityObserver: ConnectivityObserver,
-    private val offlineAvailability: LibraryItemOfflineAvailability,
 ) : ViewModel() {
 
     // Tracks which sourceIds currently have a failing To Read refresh. A Set (rather than a single
@@ -61,14 +59,12 @@ class RiffleViewModel constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val inProgress: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeInProgressItemsAllSources(), connectivityObserver.isOnline) { items, online ->
-            if (!online) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        libraryObserver.observeInProgressItemsAllSources()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val continueSeries: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeContinueSeriesItemsAllSources(), connectivityObserver.isOnline) { items, online ->
-            if (!online) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        libraryObserver.observeContinueSeriesItemsAllSources()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Aggregated To Read items across all sources and their libraries. */
     val toRead: StateFlow<List<LibraryItem>> =

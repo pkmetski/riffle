@@ -11,7 +11,6 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.DefaultApplicationScope
-import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
@@ -200,7 +199,6 @@ class RiffleScreenReadRouteTest {
                             toReadRepository = toReadRepository,
                             annotationsLibraryRepository = annotationsRepository,
                             connectivityObserver = connectivityObserver,
-                            offlineAvailability = AlwaysAvailableOfflineAvailability,
                         )
                     }
                     factory { params -> detailViewModel(params.get(), params.getOrNull()) }
@@ -253,9 +251,5 @@ class RiffleScreenReadRouteTest {
 
         onNodeWithText("Read").assertIsDisplayed()
     }
-}
-
-private object AlwaysAvailableOfflineAvailability : LibraryItemOfflineAvailability {
-    override fun isAvailableOffline(item: LibraryItem): Boolean = true
 }
 
