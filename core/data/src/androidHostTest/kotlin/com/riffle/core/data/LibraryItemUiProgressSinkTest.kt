@@ -91,9 +91,9 @@ class LibraryItemUiProgressSinkTest {
         val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
 
         makeSink(libraryItemDao = dao, catalogRegistry = catalog, upserter = upserter)
-            .apply(chitankaSourceId, itemId, 0.5f, null)
+            .apply(chitankaSourceId, itemId, 0.5f, null, Long.MAX_VALUE)
 
-        coVerify { dao.updateReadingProgress(chitankaSourceId, itemId, 0.5f) }
+        coVerify { dao.updateReadingProgressFromServer(chitankaSourceId, itemId, 0.5f, Long.MAX_VALUE) }
         coVerify { dao.updateFinishedAt(chitankaSourceId, itemId, null) }
         coVerify(exactly = 0) { catalog.forSourceId(any()) }
         coVerify(exactly = 0) { upserter.upsert(any(), any()) }
@@ -110,11 +110,11 @@ class LibraryItemUiProgressSinkTest {
         val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
 
         makeSink(libraryItemDao = dao, catalogRegistry = registry, upserter = upserter)
-            .apply(chitankaSourceId, itemId, 0.3f, null)
+            .apply(chitankaSourceId, itemId, 0.3f, null, Long.MAX_VALUE)
 
         coVerify { catalog.getItem(itemId) }
         coVerify { upserter.upsert(chitankaSourceId, fakeCatalogItem) }
-        coVerify { dao.updateReadingProgress(chitankaSourceId, itemId, 0.3f) }
+        coVerify { dao.updateReadingProgressFromServer(chitankaSourceId, itemId, 0.3f, Long.MAX_VALUE) }
     }
 
     @Test
@@ -129,11 +129,11 @@ class LibraryItemUiProgressSinkTest {
             sourceRepository = sourceRepo(absSource),
             catalogRegistry = registry,
             upserter = upserter,
-        ).apply(absSourceId, itemId, 0.3f, null)
+        ).apply(absSourceId, itemId, 0.3f, null, Long.MAX_VALUE)
 
         coVerify(exactly = 0) { registry.forSourceId(any()) }
         coVerify(exactly = 0) { upserter.upsert(any(), any()) }
-        coVerify { dao.updateReadingProgress(absSourceId, itemId, 0.3f) }
+        coVerify { dao.updateReadingProgressFromServer(absSourceId, itemId, 0.3f, Long.MAX_VALUE) }
     }
 
     @Test
@@ -146,9 +146,9 @@ class LibraryItemUiProgressSinkTest {
         coEvery { registry.forSourceId(chitankaSourceId) } returns catalog
 
         makeSink(libraryItemDao = dao, catalogRegistry = registry)
-            .apply(chitankaSourceId, itemId, 0.3f, null)
+            .apply(chitankaSourceId, itemId, 0.3f, null, Long.MAX_VALUE)
 
-        coVerify { dao.updateReadingProgress(chitankaSourceId, itemId, 0.3f) }
+        coVerify { dao.updateReadingProgressFromServer(chitankaSourceId, itemId, 0.3f, Long.MAX_VALUE) }
     }
 
     @Test
@@ -161,9 +161,9 @@ class LibraryItemUiProgressSinkTest {
         coEvery { registry.forSourceId(chitankaSourceId) } returns catalog
 
         makeSink(libraryItemDao = dao, catalogRegistry = registry)
-            .apply(chitankaSourceId, itemId, 0.3f, null)
+            .apply(chitankaSourceId, itemId, 0.3f, null, Long.MAX_VALUE)
 
-        coVerify { dao.updateReadingProgress(chitankaSourceId, itemId, 0.3f) }
+        coVerify { dao.updateReadingProgressFromServer(chitankaSourceId, itemId, 0.3f, Long.MAX_VALUE) }
     }
 
 }

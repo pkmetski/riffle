@@ -45,7 +45,7 @@ class CbzRepositoryImpl(
         val local = resolveLocalFile(item.sourceId, item.id)
         if (local != null) {
             if (local.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))
-            val lastPosition = loadLastPosition(item.sourceId, item.id)
+            val lastPosition = loadLastPosition(item)
             return openLocal(local.file, lastPosition)
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
@@ -60,7 +60,7 @@ class CbzRepositoryImpl(
             if (pageCount <= 0) return CbzOpenResult.NetworkError(
                 IllegalStateException("Server returned zero page count for ${item.id}")
             )
-            val lastPosition = loadLastPosition(item.sourceId, item.id)
+            val lastPosition = loadLastPosition(item)
             return CbzOpenResult.Streaming(
                 imageSource = NetworkComicPageSource(
                     sourceId = item.sourceId, itemId = item.id, count = pageCount,
@@ -81,14 +81,14 @@ class CbzRepositoryImpl(
             )
             contentCacheAccessStore.markAccessed(contentCacheKey(item))
             localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
-            openLocal(cbzFile, loadLastPosition(item.sourceId, item.id))
+            openLocal(cbzFile, loadLastPosition(item))
         } catch (t: Throwable) {
             CbzOpenResult.NetworkError(t)
         }
     }
 
-    private suspend fun loadLastPosition(sourceId: String, itemId: String): String? =
-        positionStore.load(sourceId, itemId)
+    private suspend fun loadLastPosition(item: LibraryItem): String? =
+        positionStore.load(item.sourceId, item.id)
 
     /** Opens [file] as a local archive on the IO dispatcher, reading its ComicInfo bookmarks. */
     private suspend fun openLocal(file: File, lastPosition: String?): CbzOpenResult =

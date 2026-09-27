@@ -167,7 +167,14 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30 min (matching harness-test-tablet): this job runs the LARGER subset (everything NOT
+    # annotated @TabletLayout) yet previously had a tighter 20 min budget than the tablet job's 30.
+    # That budget has to cover the APK build + emulator boot (which itself occasionally burns ~5 min
+    # retrying past a transient "device offline") + the whole suite, so a slow-but-healthy run was
+    # being cancelled mid-test at exactly 20:00 while a fast run finishes in ~12 min. The extra
+    # headroom absorbs emulator-boot variance without masking anything — a hung test still trips the
+    # per-test instrumentation timeout long before 30 min.
+    timeout-minutes: 30
     concurrency:
       group: android-harness-phone-${{ github.ref }}
       cancel-in-progress: true

@@ -16,13 +16,22 @@ internal class IosLibraryMutatorImpl(
         libraryItemDao.updateLastOpenedAt(sourceId, itemId, clock.nowMs())
     }
 
+    override suspend fun currentReadingProgress(itemId: String): Float? {
+        val sourceId = sourceRepository.getActive()?.id ?: return null
+        return libraryItemDao.getById(sourceId, itemId)?.readingProgress
+    }
+
+    override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? =
+        libraryItemDao.getById(sourceId, itemId)?.readingProgress
+
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {
         val sourceId = sourceRepository.getActive()?.id ?: return
-        libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
+        // Local reader-close write: stamp with the device clock so it wins over stale server pulls.
+        libraryItemDao.updateReadingProgressStamped(sourceId, itemId, progress, clock.nowMs())
     }
 
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
-        libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
+        libraryItemDao.updateReadingProgressStamped(sourceId, itemId, progress, clock.nowMs())
     }
 
     override suspend fun deleteItem(sourceId: String, itemId: String) {

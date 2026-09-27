@@ -28,6 +28,8 @@ import com.riffle.core.domain.usecase.UpdateReadingProgress
 
 object NoopLibraryMutator : LibraryMutator {
     override suspend fun markItemOpened(itemId: String) = Unit
+    override suspend fun currentReadingProgress(itemId: String): Float? = null
+    override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
     override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
     override suspend fun deleteItem(sourceId: String, itemId: String) = Unit

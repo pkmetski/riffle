@@ -102,6 +102,13 @@ class CatalogAudioProgressRemote(
         // fraction=0, clobbering the ebook reconciler's just-written readingProgress. isFinished
         // is a separate signal — treat it as a real audio "done" event even without duration.
         if (!r.isFinished && r.audioDuration <= 0.0 && r.audioCurrentTime <= 0.0) return null
+        // currentTime=0 with a known duration means the position was reset (e.g. after
+        // mark-as-unread pushes currentTime=0). Treat this as "no meaningful audio progress" —
+        // returning a RemoteProgress with readingProgress=0f here would let the audio reconciler
+        // write 0% via uiSink on a ServerWon even if a concurrent or prior refreshItemProgress
+        // had just written a higher value. By returning null (Offline), the row stays dirty for
+        // the next sweep and the audio reset is correctly ordered relative to the ebook reconciler.
+        if (!r.isFinished && r.audioDuration > 0.0 && r.audioCurrentTime <= 0.0) return null
         // ABS pullProgress leaves `ebookProgress` at 0 for audio-only items; derive from
         // currentTime/duration here so an audio-only book's library-grid % reflects the
         // just-pulled listen fraction (ADR 0035). `isFinished` overrides to 1f in case

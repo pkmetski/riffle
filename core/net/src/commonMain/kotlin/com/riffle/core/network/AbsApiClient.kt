@@ -274,6 +274,7 @@ class AbsApiClient(
             title = media.metadata.title,
             author = media.metadata.authorName,
             readingProgress = progress,
+            progressUpdatedAt = userMediaProgress?.lastUpdate,
             ebookFormat = EbookFormat.from(media.ebookFormat),
             ebookFileIno = media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
             hasAudio = media.hasAudio,

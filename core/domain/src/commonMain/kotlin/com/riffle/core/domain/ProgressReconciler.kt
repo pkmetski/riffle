@@ -24,7 +24,7 @@ sealed interface ReconcileOutcome<out P> {
  * interface so the domain layer stays pure — Room-backed impl lives in `core/data`.
  */
 fun interface UiProgressSink {
-    suspend fun apply(sourceId: String, itemId: String, readingProgress: Float, finishedAt: Long?)
+    suspend fun apply(sourceId: String, itemId: String, readingProgress: Float, finishedAt: Long?, serverUpdatedAt: Long)
 }
 
 /**
@@ -41,7 +41,7 @@ fun interface UiProgressSink {
  */
 class ProgressReconciler<P>(
     private val store: SyncPositionStore<P>,
-    private val uiSink: UiProgressSink = UiProgressSink { _, _, _, _ -> },
+    private val uiSink: UiProgressSink = UiProgressSink { _, _, _, _, _ -> },
 ) {
 
     suspend fun reconcile(sourceId: String, itemId: String, remote: ProgressRemote<P>): ReconcileOutcome<P> {
@@ -88,7 +88,7 @@ class ProgressReconciler<P>(
                     // Mirror the fresh server state into the UI-facing columns so the library
                     // grid / detail view re-emit; a Superseded (local edit raced in) skips this,
                     // since the local edit is now authoritative for both position and fraction.
-                    uiSink.apply(sourceId, itemId, read.readingProgress, read.finishedAt)
+                    uiSink.apply(sourceId, itemId, read.readingProgress, read.finishedAt, read.lastUpdate)
                     ReconcileOutcome.ServerWon(read.position, read.lastUpdate)
                 } else ReconcileOutcome.Superseded
             }

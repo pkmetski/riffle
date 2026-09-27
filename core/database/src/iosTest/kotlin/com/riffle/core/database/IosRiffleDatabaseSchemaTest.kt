@@ -127,6 +127,7 @@ class IosRiffleDatabaseSchemaTest {
                 ColumnSpec("asin", "TEXT", false),
                 ColumnSpec("finishedAt", "INTEGER", false),
                 ColumnSpec("pageCount", "INTEGER", false),
+                ColumnSpec("progressServerUpdatedAt", "INTEGER", true),
             ),
             tableColumnSpecs("library_items"),
         )
@@ -779,6 +780,44 @@ class IosRiffleDatabaseSchemaTest {
         }
     }
 
+    @Test
+    fun migrateV5ToV6AddsProgressServerUpdatedAtColumn() {
+        // Put library_items into the pre-v6 shape (no progressServerUpdatedAt column).
+        driver.execute(null, "DROP TABLE IF EXISTS library_items", 0)
+        driver.execute(
+            null,
+            """CREATE TABLE library_items (
+                sourceId TEXT NOT NULL, id TEXT NOT NULL, libraryId TEXT NOT NULL, title TEXT NOT NULL,
+                author TEXT NOT NULL, coverUrl TEXT, readingProgress REAL NOT NULL DEFAULT 0.0,
+                ebookFileIno TEXT, ebookFormat TEXT NOT NULL DEFAULT 'unsupported', hasAudio INTEGER NOT NULL DEFAULT 0,
+                audioDurationSec REAL NOT NULL DEFAULT 0.0, description TEXT, seriesName TEXT, seriesSequence TEXT,
+                publishedYear TEXT, genres TEXT NOT NULL DEFAULT '', publisher TEXT, language TEXT,
+                lastOpenedAt INTEGER, addedAt INTEGER NOT NULL, isbn TEXT, asin TEXT, finishedAt INTEGER,
+                pageCount INTEGER, PRIMARY KEY (sourceId, id))""",
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT INTO library_items (sourceId, id, libraryId, title, author, readingProgress, addedAt) " +
+                "VALUES ('s1', 'i1', 'lib1', 'Book', 'Author', 0.42, 1000)",
+            0,
+        )
+
+        IosRiffleDatabaseSchema.migrate(driver, 5L, 6L)
+
+        driver.executeQuery(
+            null,
+            "SELECT readingProgress, progressServerUpdatedAt FROM library_items WHERE id = 'i1'",
+            { cursor ->
+                assertTrue(cursor.next().value)
+                assertEquals(0.42, cursor.getDouble(0)!!, 0.0001)
+                assertEquals(0L, cursor.getLong(1))
+                app.cash.sqldelight.db.QueryResult.Unit
+            },
+            0,
+        )
+    }
+
     // ── Full migration chain ──────────────────────────────────────────────────
 
     @Test
@@ -809,7 +848,23 @@ class IosRiffleDatabaseSchemaTest {
         driver.execute(null, "CREATE TABLE IF NOT EXISTS series_entities (id TEXT NOT NULL, sourceId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (id, sourceId))", 0)
         driver.execute(null, "CREATE TABLE IF NOT EXISTS collection_entities (id TEXT NOT NULL, sourceId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (id, sourceId))", 0)
 
-        IosRiffleDatabaseSchema.migrate(driver, 1L, 5L)
+        // Rebuild library_items in the pre-v6 shape (no progressServerUpdatedAt) so the v5→v6
+        // ALTER ADD COLUMN runs cleanly instead of hitting a duplicate column.
+        driver.execute(null, "DROP TABLE IF EXISTS library_items", 0)
+        driver.execute(
+            null,
+            """CREATE TABLE library_items (
+                sourceId TEXT NOT NULL, id TEXT NOT NULL, libraryId TEXT NOT NULL, title TEXT NOT NULL,
+                author TEXT NOT NULL, coverUrl TEXT, readingProgress REAL NOT NULL DEFAULT 0.0,
+                ebookFileIno TEXT, ebookFormat TEXT NOT NULL DEFAULT 'unsupported', hasAudio INTEGER NOT NULL DEFAULT 0,
+                audioDurationSec REAL NOT NULL DEFAULT 0.0, description TEXT, seriesName TEXT, seriesSequence TEXT,
+                publishedYear TEXT, genres TEXT NOT NULL DEFAULT '', publisher TEXT, language TEXT,
+                lastOpenedAt INTEGER, addedAt INTEGER NOT NULL, isbn TEXT, asin TEXT, finishedAt INTEGER,
+                pageCount INTEGER, PRIMARY KEY (sourceId, id))""",
+            0,
+        )
+
+        IosRiffleDatabaseSchema.migrate(driver, 1L, 6L)
 
         val tables = allTableNames()
         // Spot-check one representative table from each migration step.
@@ -1175,5 +1230,28 @@ class IosRiffleDatabaseSchemaTest {
             "INSERT OR IGNORE INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, type) VALUES (?, '', 0, 0, '', 'AUDIOBOOKSHELF', 'ABS')",
             1,
         ) { bindString(0, id) }
+    }
+
+    // Mirrors the Android LibraryItemDaoTest last-update-wins gate on the real iOS DAO SQL.
+    @Test
+    fun libraryItemUpdateReadingProgressFromServerRespectsStamp() = runTest {
+        insertSource("s1")
+        val dao = com.riffle.core.database.dao.IosLibraryItemDao(driver, IosInvalidator())
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    sourceId = "s1", id = "b", libraryId = "lib1", title = "Book", author = "Author",
+                    coverUrl = null, readingProgress = 0.2f, addedAt = 0L,
+                ),
+            ),
+        )
+        dao.updateReadingProgressFromServer("s1", "b", 0.6f, 200L)
+        assertEquals(0.6f, dao.getById("s1", "b")!!.readingProgress)
+        // Lagging bulk pull (older stamp) rejected.
+        dao.updateReadingProgressFromServer("s1", "b", 0.1f, 100L)
+        assertEquals(0.6f, dao.getById("s1", "b")!!.readingProgress)
+        // Newer stamp wins.
+        dao.updateReadingProgressFromServer("s1", "b", 0.9f, 300L)
+        assertEquals(0.9f, dao.getById("s1", "b")!!.readingProgress)
     }
 }

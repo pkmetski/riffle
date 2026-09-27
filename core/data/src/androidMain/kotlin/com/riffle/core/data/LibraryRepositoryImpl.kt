@@ -168,13 +168,23 @@ class LibraryRepositoryImpl constructor(
         libraryItemDao.updateLastOpenedAt(sourceId, itemId, clock.nowMs())
     }
 
+    override suspend fun currentReadingProgress(itemId: String): Float? {
+        val sourceId = sourceRepository.getActive()?.id ?: return null
+        return libraryItemDao.getById(sourceId, itemId)?.readingProgress
+    }
+
+    override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? =
+        libraryItemDao.getById(sourceId, itemId)?.readingProgress
+
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {
         val sourceId = sourceRepository.getActive()?.id ?: return
-        libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
+        // Local reader-close write: stamp with the device clock so it wins over any stale in-flight
+        // server pull (last-update-wins). The push to the source refreshes the server stamp too.
+        libraryItemDao.updateReadingProgressStamped(sourceId, itemId, progress, clock.nowMs())
     }
 
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
-        libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
+        libraryItemDao.updateReadingProgressStamped(sourceId, itemId, progress, clock.nowMs())
     }
 
     override suspend fun deleteItem(sourceId: String, itemId: String) {
@@ -310,7 +320,16 @@ class LibraryRepositoryImpl constructor(
                 // pulls hit different endpoints, and deriving differently here is exactly what
                 // made the library card ping-pong against the detail screen's per-item pull.
                 val fraction = sp.unifiedLibraryFraction() ?: continue
-                libraryItemDao.updateReadingProgress(source.id, item.id, fraction)
+                // Last-update-wins: the bulk /api/me endpoint lags the per-item endpoint, so only
+                // adopt this value if its stamp is not older than what we last stored — otherwise a
+                // lagging bulk pull overwrites a fresher per-item/detail value and the library and
+                // detail bars disagree.
+                libraryItemDao.updateReadingProgressFromServer(source.id, item.id, fraction, sp.lastUpdate)
+                // finishedAt is intentionally NOT written here. The bulk /api/me pull lags the
+                // per-item endpoint, and updateFinishedAt has no last-update-wins gate — clearing
+                // it from a stale in-flight bulk pull would clobber a finishedAt a fresher local
+                // mark-as-read had just written. The per-item pull (refreshItemProgress) is the
+                // authoritative writer of finishedAt; the iOS bulk path likewise leaves it alone.
             }
             val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
             libraryDao.setUnsupported(source.id, libraryId, isUnsupported)
@@ -343,7 +362,9 @@ class LibraryRepositoryImpl constructor(
         // clobber a previously-adopted non-zero value in library_items.readingProgress.
         val fraction = sp.unifiedLibraryFraction() ?: return LibraryRefreshResult.Success
         val finishedAt = sp.finishedAt ?: sp.lastUpdate.takeIf { sp.isFinished }
-        libraryItemDao.updateReadingProgress(source.id, itemId, fraction)
+        // Last-update-wins (see updateReadingProgressFromServer): keeps the detail's per-item pull
+        // and the library's bulk pull from ping-ponging the same book's bar.
+        libraryItemDao.updateReadingProgressFromServer(source.id, itemId, fraction, sp.lastUpdate)
         libraryItemDao.updateFinishedAt(source.id, itemId, finishedAt)
         return LibraryRefreshResult.Success
     }

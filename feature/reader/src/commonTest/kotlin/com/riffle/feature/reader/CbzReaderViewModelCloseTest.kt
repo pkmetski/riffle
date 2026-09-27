@@ -1,6 +1,7 @@
 package com.riffle.feature.reader
 
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.COVER_PROGRESS_EPSILON
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryObserver
@@ -57,6 +58,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Regression test: [CbzReaderViewModel.onReaderClosed] must flush the current reading position
@@ -79,16 +81,30 @@ class CbzReaderViewModelCloseTest {
     @Test
     fun `onReaderClosed flushes position via applicationScope`() = runTest(testDispatcher) {
         var appScopeLaunches = 0
+        var inSurvivable = false
 
         val fakeAppScope = object : ApplicationScope {
             private val inner = CoroutineScope(testDispatcher + SupervisorJob())
             override val coroutineScope: CoroutineScope = inner
             override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job {
                 appScopeLaunches++
-                return inner.launch(block = block)
+                return inner.launch {
+                    inSurvivable = true
+                    try {
+                        block()
+                    } finally {
+                        inSurvivable = false
+                    }
+                }
             }
             override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T = block(inner)
         }
+
+        // Records the scope from which each readingProgress write originated: true = the survivable
+        // applicationScope, false = the cancellable viewModelScope. The close fraction write MUST
+        // come from the survivable scope, else a quick back-out cancels it and a marked-read comic
+        // read past the cover stays pinned at 100%.
+        val progressWritesInSurvivable = mutableListOf<Boolean>()
 
         val savedPositions = mutableListOf<Triple<String, String, String>>()
         val fakeCbzRepo = object : FakeNullCbzRepository() {
@@ -120,8 +136,14 @@ class CbzReaderViewModelCloseTest {
             readingSessionRepository = FakeReadingSessionRepository(),
             updateReadingProgressUseCase = object : UpdateReadingProgress(object : LibraryMutator {
                 override suspend fun markItemOpened(itemId: String) {}
-                override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-                override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+                override suspend fun currentReadingProgress(itemId: String): Float? = null
+                override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
+                override suspend fun updateReadingProgress(itemId: String, progress: Float) {
+                    progressWritesInSurvivable += inSurvivable
+                }
+                override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
+                    progressWritesInSurvivable += inSurvivable
+                }
                 override suspend fun deleteItem(sourceId: String, itemId: String) {}
             }) {},
             wakeLockPreferencesStore = FakeWakeLockStore(),
@@ -155,6 +177,84 @@ class CbzReaderViewModelCloseTest {
         assertEquals(1, savedPositions.size, "saveReadingPosition must be called once")
         assertEquals("src1", savedPositions.first().first)
         assertEquals("item1", savedPositions.first().second)
+        assertTrue(
+            progressWritesInSurvivable.any { it },
+            "onReaderClosed must write readingProgress on the survivable applicationScope so it is " +
+                "not dropped when back navigation cancels viewModelScope",
+        )
+    }
+
+    @Test
+    fun `onReaderClosed on the cover pushes a zero fraction so a finished comic is not un-finished`() = runTest(testDispatcher) {
+        val fakeAppScope = object : ApplicationScope {
+            private val inner = CoroutineScope(testDispatcher + SupervisorJob())
+            override val coroutineScope: CoroutineScope = inner
+            override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job = inner.launch { block() }
+            override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T = block(inner)
+        }
+        val fakeRepo = FakeReadingSessionRepository()
+        val fakeCbzRepo = object : FakeNullCbzRepository() {
+            override suspend fun openCbz(item: LibraryItem): CbzOpenResult = CbzOpenResult.Success(
+                imageSource = object : ComicPageSource {
+                    override val pageCount = 50
+                    override fun imageBytes(pageIndex: Int) = ByteArray(0)
+                    override fun mediaType(pageIndex: Int) = "image/jpeg"
+                },
+                pageCount = 50,
+                lastPosition = null,
+            )
+        }
+        val fakeItem = LibraryItem(
+            id = "item1", libraryId = "lib1", title = "Comic", author = "Author",
+            coverUrl = null, readingProgress = 1f, isCached = true, isDownloaded = true,
+            ebookFormat = EbookFormat.Cbz, sourceId = "src1", pageCount = 50,
+        )
+        val vm = CbzReaderViewModel(
+            itemId = "item1",
+            sourceId = "src1",
+            libraryObserver = FakeLibraryObserver(fakeItem),
+            cbzRepository = fakeCbzRepo,
+            readingSessionRepository = fakeRepo,
+            updateReadingProgressUseCase = object : UpdateReadingProgress(object : LibraryMutator {
+                override suspend fun markItemOpened(itemId: String) {}
+                override suspend fun currentReadingProgress(itemId: String): Float? = null
+                override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
+                override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+                override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+                override suspend fun deleteItem(sourceId: String, itemId: String) {}
+            }) {},
+            wakeLockPreferencesStore = FakeWakeLockStore(),
+            volumeNavigationController = VolumeNavigationController(),
+            volumeKeyDispatcher = VolumeKeyDispatcher(FakeVolumeKeyPreferencesStore(), VolumeNavigationController()),
+            readerStateHolder = ReaderStateHolder(),
+            panelEngine = FakePanelEngine(),
+            panelMaskService = FakePanelMaskService(),
+            panelViewPreferencesStore = FakePanelViewPreferencesStore(),
+            comicFormattingPreferencesStore = FakeComicFormattingStore(),
+            bookComicFormattingPreferencesStore = FakeBookComicFormattingStore(),
+            developerOptionsRepository = FakeDeveloperOptionsRepository(),
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+            colorPageDecoder = FakeColorPageDecoder(),
+            dispatchers = FakeDispatcherProvider(testDispatcher),
+            panelReportRepository = FakePanelReportRepository(),
+            applicationScope = fakeAppScope,
+        )
+        runCurrent()
+
+        // The reader is on the cover (page 0) of a 50-page comic and the user backs out.
+        vm.onReaderClosed()
+        runCurrent()
+
+        // The pushed ebookProgress must be the 0-indexed position fraction (0/49 = 0), NOT the
+        // 1-indexed page/pageCount value (1/50 = 0.02) which would exceed COVER_PROGRESS_EPSILON and
+        // slip past keepsFinishedState, un-finishing the comic on the source while the library stays 100%.
+        assertTrue(fakeRepo.syncedPayloads.isNotEmpty(), "onReaderClosed must sync")
+        val pushed = fakeRepo.syncedPayloads.last().ebookProgress
+        assertTrue(
+            pushed <= COVER_PROGRESS_EPSILON,
+            "cover close must push a fraction within the cover epsilon so keepsFinishedState holds, was $pushed",
+        )
+        assertEquals(0f, pushed, 0.0001f)
     }
 }
 
@@ -194,8 +294,12 @@ private class FakeLibraryObserver(private val item: LibraryItem) : LibraryObserv
 }
 
 private class FakeReadingSessionRepository : ReadingSessionRepository {
+    val syncedPayloads = mutableListOf<SessionPayload>()
     override suspend fun syncProgress(itemId: String, payload: SessionPayload) = SyncSessionResult.Success
-    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload) = ProgressSyncCycleResult.InSync
+    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult {
+        syncedPayloads += payload
+        return ProgressSyncCycleResult.InSync
+    }
     override suspend fun markFinished(itemId: String, finished: Boolean) {}
     override suspend fun touchOpenTimestamp(itemId: String) {}
 }

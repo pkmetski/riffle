@@ -31,6 +31,8 @@ class MarkReadAcrossDimensionsTest {
     private class RecordingMutator : LibraryMutator {
         val progressCalls = mutableListOf<Pair<String, Float>>()
         override suspend fun markItemOpened(itemId: String) = Unit
+        override suspend fun currentReadingProgress(itemId: String): Float? = null
+        override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {
             progressCalls += itemId to progress
         }

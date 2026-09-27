@@ -159,6 +159,32 @@ interface LibraryItemDao {
     suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float)
 
     /**
+     * Write [progress] and stamp it with [updatedAt] (ABS `lastUpdate` for server pulls, or the
+     * device clock for local reader-close / mark writes). Last-update-wins: callers that adopt a
+     * *server* value must first check the incoming stamp against the row's existing
+     * `progressServerUpdatedAt` so a lagging bulk `/api/me` pull cannot overwrite a fresher
+     * per-item value (the library-vs-detail bar disagreement). Local writes pass a fresh device
+     * stamp and always win.
+     */
+    @Query(
+        "UPDATE library_items SET readingProgress = :progress, progressServerUpdatedAt = :updatedAt " +
+            "WHERE sourceId = :sourceId AND id = :itemId"
+    )
+    suspend fun updateReadingProgressStamped(sourceId: String, itemId: String, progress: Float, updatedAt: Long)
+
+    /**
+     * Last-update-wins server adoption: writes [progress] only when [serverUpdatedAt] is at least
+     * the row's current `progressServerUpdatedAt`. This stops ABS's lagging bulk `/api/me` pull
+     * from overwriting a fresher value already adopted from the per-item `/api/me/progress/:id`
+     * endpoint (the library-vs-detail progress-bar disagreement).
+     */
+    @Query(
+        "UPDATE library_items SET readingProgress = :progress, progressServerUpdatedAt = :serverUpdatedAt " +
+            "WHERE sourceId = :sourceId AND id = :itemId AND :serverUpdatedAt >= progressServerUpdatedAt"
+    )
+    suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long)
+
+    /**
      * Retag a library item's [libraryId]. Used by the LocalFiles scanner so a book's compatibility
      * hint stays pointed at some *currently-configured* folder library — otherwise removing that
      * folder leaves the row naming a deleted [LibraryEntity]. Catalog queries for LocalFiles go

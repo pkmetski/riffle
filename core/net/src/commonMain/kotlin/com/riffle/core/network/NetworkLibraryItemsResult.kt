@@ -25,6 +25,9 @@ data class NetworkLibraryItem(
     /** ABS's stable on-disk item path, when the endpoint includes it. */
     val path: String? = null,
     val relPath: String? = null,
+    // ABS `lastUpdate` of this item's media-progress record (epoch ms), for last-update-wins so a
+    // lagging library-list value can't overwrite a fresher per-item pull. Null when no record.
+    val progressUpdatedAt: Long? = null,
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }

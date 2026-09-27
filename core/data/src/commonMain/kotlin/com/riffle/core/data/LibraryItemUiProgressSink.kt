@@ -28,7 +28,7 @@ class LibraryItemUiProgressSink constructor(
     private val catalogRegistry: CatalogRegistry,
     private val upserter: WebSourceLibraryItemUpserter,
 ) : UiProgressSink {
-    override suspend fun apply(sourceId: String, itemId: String, readingProgress: Float, finishedAt: Long?) {
+    override suspend fun apply(sourceId: String, itemId: String, readingProgress: Float, finishedAt: Long?, serverUpdatedAt: Long) {
         if (libraryItemDao.getById(sourceId, itemId) == null) {
             runCatching {
                 val source = sourceRepository.getById(sourceId) ?: return@runCatching
@@ -38,7 +38,9 @@ class LibraryItemUiProgressSink constructor(
                 upserter.upsert(sourceId, item)
             }
         }
-        libraryItemDao.updateReadingProgress(sourceId, itemId, readingProgress)
+        // Last-update-wins: this ServerWon value already beat the local position stamp, but gate the
+        // readingProgress write on the same stamp so it can't clobber a fresher per-item value.
+        libraryItemDao.updateReadingProgressFromServer(sourceId, itemId, readingProgress, serverUpdatedAt)
         libraryItemDao.updateFinishedAt(sourceId, itemId, finishedAt)
     }
 }

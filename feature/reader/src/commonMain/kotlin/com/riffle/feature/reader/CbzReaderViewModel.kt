@@ -684,14 +684,30 @@ class CbzReaderViewModel constructor(
         val page = _currentPage.value + 1
         val progression = if (ready.pageCount > 0) page.toDouble() / ready.pageCount.toDouble() else 0.0
         val locatorJson = buildLocatorJson(page, progression)
-        // Persist position on survivable scope — same race as EpubReaderViewModel: onCleared()
-        // calls super.onCleared() first, cancelling viewModelScope before the in-flight
-        // savePosition coroutine can execute.
+        // Persist position AND readingProgress on the survivable scope — same race as
+        // EpubReaderViewModel: onCleared() calls super.onCleared() first, cancelling viewModelScope
+        // before the in-flight savePosition coroutine can execute. savePosition() above runs the
+        // readingProgress write on viewModelScope, so on a quick back-out it is dropped and a
+        // marked-read comic read past the cover stays pinned at 100% (the offline sweep then
+        // re-pushes 1.0). Mirror the fraction here on the durable scope so it always lands.
         val sid = resolvedSourceId
-        if (sid != null) {
-            applicationScope.launchSurvivable { cbzRepository.saveReadingPosition(sid, itemId, locatorJson) }
+        val closeFraction = if (ready.pageCount > 1) {
+            _currentPage.value.toFloat() / (ready.pageCount - 1).toFloat()
+        } else {
+            1f
         }
-        syncSession.sync(SessionPayload(ebookLocation = locatorJson, ebookProgress = progression.toFloat()))
+        if (sid != null) {
+            applicationScope.launchSurvivable {
+                cbzRepository.saveReadingPosition(sid, itemId, locatorJson)
+                updateReadingProgressUseCase(sid, itemId, closeFraction)
+            }
+        }
+        // Push the SAME 0-indexed position fraction the local write uses, not the 1-indexed
+        // page/pageCount `progression`. On the cover of a short comic the 1-indexed value is
+        // 1/pageCount (e.g. 0.02 for 50 pages), which exceeds COVER_PROGRESS_EPSILON and defeats
+        // keepsFinishedState — so reopening a finished comic and closing on the cover would push a
+        // ~2% fraction that un-finishes it on the source while the library stays at 100%.
+        syncSession.sync(SessionPayload(ebookLocation = locatorJson, ebookProgress = closeFraction))
     }
 
     private fun buildLocatorJson(position: Int, progression: Double): String =

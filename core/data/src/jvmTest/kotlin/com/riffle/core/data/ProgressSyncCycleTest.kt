@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -96,7 +97,11 @@ class ProgressSyncCycleTest {
     private class FakeAudiobookPositionStore : com.riffle.core.domain.AudiobookPositionStore {
         var savedPayload: Double? = null
         var saveCalled = false
+        // Set only by updateLocalTimestamp — a "dirty bump" that leaves localUpdatedAt > lastSyncedAt.
         var updatedTimestamp: Long? = null
+        // Set only by markSyncedAt — a "mark clean" that sets localUpdatedAt == lastSyncedAt so the
+        // sweep won't push the row. Kept distinct from updatedTimestamp so a test can tell the two apart.
+        var syncedStamp: Long? = null
         override suspend fun save(sourceId: String, itemId: String, payload: Double) {
             saveCalled = true
             savedPayload = payload
@@ -105,7 +110,7 @@ class ProgressSyncCycleTest {
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
-        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { updatedTimestamp = stamp }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { syncedStamp = stamp }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             updatedTimestamp = millis
         }
@@ -342,9 +347,10 @@ class ProgressSyncCycleTest {
     }
 
     @Test
-    fun `markFinished true PATCHes ebookProgress 1 and isFinished true, keeps saved position`() = runTest {
+    fun `markFinished true PATCHes ebookProgress 1 and isFinished true, clears saved position`() = runTest {
         // Read = mark complete on BOTH dimensions. isFinished=true is what flips the audio
         // `progress` to 100% (bug 1: "marking read doesn't mark the related audiobook").
+        // Location is always empty on mark-as-read so the reader opens from the start.
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
         val api = FakeSessionApi(
             getResult = NetworkResult.Offline(IOException("unused")),
@@ -357,9 +363,11 @@ class ProgressSyncCycleTest {
         assertEquals(1, api.patchCallCount)
         assertEquals(1.0f, api.lastEbookPayload?.ebookProgress)
         assertEquals(true, api.lastEbookPayload?.isFinished)
-        // Read keeps the page the user reached.
-        assertEquals("epubcfi(/6/8!/4/1:0)", api.lastEbookPayload?.ebookLocation)
-        assertFalse(positionStore.saveCalled)
+        // Mark-as-read sends empty location so ABS resets the page reference and the reader
+        // opens from the beginning on the next open.
+        assertEquals("", api.lastEbookPayload?.ebookLocation)
+        assertTrue(positionStore.saveCalled)
+        assertEquals("", positionStore.savedPayload)
         assertNotNull(positionStore.updatedTimestamp)
         assertTrue(positionStore.updatedTimestamp!! > 0L)
     }
@@ -397,7 +405,11 @@ class ProgressSyncCycleTest {
     }
 
     @Test
-    fun `markFinished true does not wipe audiobook or readaloud-resume stores`() = runTest {
+    fun `markFinished true wipes audiobook and readaloud-resume stores so reader reopens at start`() = runTest {
+        // Regression: mark-as-read previously preserved the audio position and readaloud-resume
+        // store. On the next open the book would resume from the old position (e.g. 47%) rather
+        // than from the beginning, and the detail screen showed the stale audio position instead
+        // of the server's finished state.
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
         val audiobookStore = FakeAudiobookPositionStore()
         val resumeStore = FakeReadaloudResumeStore()
@@ -409,8 +421,17 @@ class ProgressSyncCycleTest {
 
         repo.markFinished("item-1", finished = true)
 
-        assertFalse(audiobookStore.saveCalled)
-        assertFalse(resumeStore.clearCalled)
+        assertTrue(audiobookStore.saveCalled)
+        assertEquals(0.0, audiobookStore.savedPayload)
+        // The audio row must NOT be dirty-bumped for mark-as-read (no updateLocalTimestamp):
+        // pushEbookProgress(isFinished=true) already conveys finished state to the server.
+        assertNull(audiobookStore.updatedTimestamp)
+        // But the unconditional save(0.0) above marks the row dirty whenever the prior position was
+        // non-zero, so mark-as-read must mark the audio row CLEAN at the ebook push stamp. Without
+        // this, the durable sweep would see a dirty currentTime=0 row and push it with
+        // isFinished=false, un-finishing the book the user just marked read.
+        assertNotNull(audiobookStore.syncedStamp)
+        assertTrue(resumeStore.clearCalled)
     }
 
     // --- 404-equivalent (source has no progress record) ---

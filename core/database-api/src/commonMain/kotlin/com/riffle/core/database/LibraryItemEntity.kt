@@ -1,5 +1,6 @@
 package com.riffle.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -52,4 +53,15 @@ data class LibraryItemEntity(
     // populate it in future). Displayed on the Detail Screen and used as the Progress-Sync
     // denominator for comics.
     val pageCount: Int? = null,
+    // ABS `lastUpdate` (epoch ms) of the progress value currently in [readingProgress]. Used for
+    // last-update-wins: a server pull (per-item detail refresh vs bulk library sweep) must not
+    // overwrite [readingProgress] with a value whose stamp is older than this, because ABS's bulk
+    // `/api/me` endpoint lags its per-item `/api/me/progress/:id` endpoint, and without the gate
+    // the two writers ping-pong the same book's bar between two values (library vs detail
+    // disagreement). Local reader-close / mark writes stamp this with the device clock so a stale
+    // in-flight pull can't clobber a just-read value.
+    // SQL DEFAULT 0 matches MIGRATION_74_75's `ADD COLUMN ... DEFAULT 0` so the fresh Room schema
+    // and the migrated schema agree, and raw-SQL inserts (older rows, tests) that omit the column
+    // still satisfy the NOT NULL constraint.
+    @ColumnInfo(defaultValue = "0") val progressServerUpdatedAt: Long = 0L,
 )
