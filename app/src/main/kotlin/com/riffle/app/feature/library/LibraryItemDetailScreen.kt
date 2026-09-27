@@ -1511,60 +1511,23 @@ private fun ActionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (item.isReadable) {
-            // Offline with no local copy: the book can't be fetched, so disable Read with a hint
-            // rather than letting the tap fall through to an error screen.
-            val readDisabledByOffline = isOffline && !isCachedOrDownloaded
-            if (readDisabledByOffline) {
-                TooltipBox(
-                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                    tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_download_book)) } },
-                    state = rememberTooltipState(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_read))
-                    }
-                }
-            } else {
-                Button(
-                    onClick = { onReadItem(item) },
-                    enabled = downloadState !is DownloadState.InProgress,
-                    modifier = Modifier.weight(1f).testTag(TestTags.BOOK_DETAIL_OPEN),
-                ) {
-                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_read))
-                }
+            Button(
+                onClick = { onReadItem(item) },
+                enabled = downloadState !is DownloadState.InProgress,
+                modifier = Modifier.weight(1f).testTag(TestTags.BOOK_DETAIL_OPEN),
+            ) {
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_read))
             }
         }
         if (item.isListenable && capabilities.hasAudiobookMedia) {
-            // The audiobook player resolves download > bundle > ABS stream (ADR 0035), so Listen needs
-            // connectivity only when neither a dedicated audiobook download nor a readaloud bundle is
-            // present locally — either local source plays offline.
-            val audiobookAvailableOffline = audiobookDownloadState == DownloadState.Downloaded ||
-                audiobookDownloadState == DownloadState.Cached
-            val listenBlockedOffline = isOffline &&
-                !audiobookAvailableOffline &&
-                readaloudDownloadState != DownloadState.Downloaded
-            if (listenBlockedOffline) {
-                TooltipBox(
-                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                    tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_connect_to_stream_audio)) } },
-                    state = rememberTooltipState(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_listen))
-                    }
-                }
-            } else {
-                Button(
-                    onClick = {
-                        val restartSec = listenStartAtSecForFinished(item.readingProgress)
-                        if (restartSec != null) onListenItemAtSec(item, restartSec) else onListenItem(item)
-                    },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_listen))
-                }
+            Button(
+                onClick = {
+                    val restartSec = listenStartAtSecForFinished(item.readingProgress)
+                    if (restartSec != null) onListenItemAtSec(item, restartSec) else onListenItem(item)
+                },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_listen))
             }
         }
         if (capabilities.hasMarkRead) {
