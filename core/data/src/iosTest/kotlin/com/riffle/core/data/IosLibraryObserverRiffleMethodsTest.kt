@@ -38,14 +38,17 @@ class IosLibraryObserverRiffleMethodsTest {
     private val continueSeriesItem = libraryItemEntity("src-1", "item-continue", 0.0f)
     private val libraryItem = libraryItemEntity("src-2", "item-lib", 0.0f)
 
+    private val allSourcesItem = libraryItemEntity("src-3", "item-all", 0.0f)
+
     private fun observer(
         inProgressItems: List<LibraryItemEntity> = emptyList(),
         continueSeriesItems: List<LibraryItemEntity> = emptyList(),
         itemsBySourceLibrary: Map<Pair<String, String>, List<LibraryItemEntity>> = emptyMap(),
+        allSourcesItems: List<LibraryItemEntity> = emptyList(),
     ) = IosLibraryObserverImpl(
         libraryDao = ThrowingLibraryDao,
         sourceRepository = NoSources,
-        libraryItemDao = stubItemDao(inProgressItems, itemsBySourceLibrary),
+        libraryItemDao = stubItemDao(inProgressItems, itemsBySourceLibrary, allSourcesItems),
         seriesDao = stubSeriesDao(continueSeriesItems),
         collectionDao = EmptyCollectionDao,
     )
@@ -77,6 +80,13 @@ class IosLibraryObserverRiffleMethodsTest {
             .observeLibraryItemsForSource("src-1", "unknown-lib").first()
         assertEquals(emptyList(), result.map { it.id })
     }
+
+    @Test
+    fun observeAllLibraryItemsAllSourcesDelegatesToDao() = runTest {
+        val result = observer(allSourcesItems = listOf(allSourcesItem))
+            .observeAllLibraryItemsAllSources().first()
+        assertEquals(listOf("item-all"), result.map { it.id })
+    }
 }
 
 private object NoSources : SourceRepository {
@@ -101,10 +111,12 @@ private object EmptyCollectionDao : CollectionDao {
 private fun stubItemDao(
     inProgressItems: List<LibraryItemEntity>,
     itemsBySourceLibrary: Map<Pair<String, String>, List<LibraryItemEntity>>,
+    allSourcesItems: List<LibraryItemEntity> = emptyList(),
 ): LibraryItemDao = object : LibraryItemDao {
     override fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
         flowOf(itemsBySourceLibrary[sourceId to libraryId] ?: emptyList())
     override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = flowOf(inProgressItems)
+    override fun observeAllSources(): Flow<List<LibraryItemEntity>> = flowOf(allSourcesItems)
     override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())

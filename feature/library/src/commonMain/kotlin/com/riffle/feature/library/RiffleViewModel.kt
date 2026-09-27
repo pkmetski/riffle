@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
@@ -40,6 +41,7 @@ class RiffleViewModel constructor(
     private val toReadRepository: ToReadRepository,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
     private val connectivityObserver: ConnectivityObserver,
+    private val offlineAvailability: LibraryItemOfflineAvailability,
 ) : ViewModel() {
 
     // Tracks which sourceIds currently have a failing To Read refresh. A Set (rather than a single
@@ -58,13 +60,27 @@ class RiffleViewModel constructor(
         !online || failedIds.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    // When the device is truly offline (no network), surface ALL locally-available items so the
+    // user can read anything they've downloaded regardless of whether they've started it before.
+    // When online (even with a failing server refresh), show the standard in-progress list only.
     val inProgress: StateFlow<List<LibraryItem>> =
-        libraryObserver.observeInProgressItemsAllSources()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        connectivityObserver.isOnline.flatMapLatest { online ->
+            if (online) {
+                libraryObserver.observeInProgressItemsAllSources()
+            } else {
+                libraryObserver.observeAllLibraryItemsAllSources()
+                    .map { items -> items.filter { offlineAvailability.isAvailableOffline(it) } }
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val continueSeries: StateFlow<List<LibraryItem>> =
-        libraryObserver.observeContinueSeriesItemsAllSources()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        connectivityObserver.isOnline.flatMapLatest { online ->
+            if (online) {
+                libraryObserver.observeContinueSeriesItemsAllSources()
+            } else {
+                flowOf(emptyList())
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Aggregated To Read items across all sources and their libraries. */
     val toRead: StateFlow<List<LibraryItem>> =

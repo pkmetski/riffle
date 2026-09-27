@@ -208,6 +208,18 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
             }
         }
 
+    override fun observeAllSources(): Flow<List<LibraryItemEntity>> =
+        invalidator.version.flatMapLatest {
+            flow {
+                emit(driver.executeQuery(
+                    null,
+                    """SELECT $ALL_COLS FROM library_items
+                       ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC""",
+                    ::mapRows, 0,
+                ) {}.value)
+            }
+        }
+
     override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
         invalidator.version.flatMapLatest {
             flow {

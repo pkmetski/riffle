@@ -314,5 +314,6 @@ class WebSourceLibraryItemUpserterTest {
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()
         override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeAllSources(): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     }
 }

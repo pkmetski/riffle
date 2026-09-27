@@ -213,6 +213,7 @@ class ReadingSessionRepositoryImplTest {
         override suspend fun deleteById(sourceId: String, itemId: String) {}
         override fun observeInProgress(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()
         override fun observeInProgressAllSources() = emptyFlow<List<LibraryItemEntity>>()
+        override fun observeAllSources() = emptyFlow<List<LibraryItemEntity>>()
         override fun observeFinished(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()
         override fun observeRecentlyAdded(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()
         override fun observeAllBooks(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()

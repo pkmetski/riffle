@@ -113,6 +113,9 @@ class IosLibraryObserverImpl(
     override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> =
         libraryItemDao.observeInProgressAllSources().map { list -> list.map { it.toDomainLibraryItem() } }
 
+    override fun observeAllLibraryItemsAllSources(): Flow<List<LibraryItem>> =
+        libraryItemDao.observeAllSources().map { list -> list.map { it.toDomainLibraryItem() } }
+
     override fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> =
         seriesDao.observeContinueSeriesAllSources().map { list -> list.map { it.toDomainLibraryItem() } }
 

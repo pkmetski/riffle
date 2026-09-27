@@ -11,6 +11,7 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.DefaultApplicationScope
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
@@ -24,6 +25,7 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
@@ -92,6 +94,7 @@ class RiffleScreenReadRouteTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> = flowOf(listOf(hubItem))
+        override fun observeAllLibraryItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
@@ -199,6 +202,9 @@ class RiffleScreenReadRouteTest {
                             toReadRepository = toReadRepository,
                             annotationsLibraryRepository = annotationsRepository,
                             connectivityObserver = connectivityObserver,
+                            offlineAvailability = object : LibraryItemOfflineAvailability {
+                                override fun isAvailableOffline(item: LibraryItem): Boolean = false
+                            },
                         )
                     }
                     factory { params -> detailViewModel(params.get(), params.getOrNull()) }

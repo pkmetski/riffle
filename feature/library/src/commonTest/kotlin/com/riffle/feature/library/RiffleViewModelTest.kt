@@ -4,6 +4,7 @@ import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
@@ -148,18 +149,40 @@ class RiffleViewModelTest {
     }
 
     @Test
-    fun inProgressShowsAllItemsWhenOffline() = runTest(dispatcher) {
-        // All items show in Riffle home even when offline — the home is an overview of all sources
-        // and must show at least the same items each source's own library view shows offline.
-        // The offline gate is at the action level (Read/Listen button), not item visibility.
-        val items = listOf(libraryItem("available", "src1"), libraryItem("unavailable", "src2"))
-        val observer = fakeObserver(inProgressAllSources = MutableStateFlow(items))
+    fun inProgressShowsOnlyLocallyAvailableItemsWhenOffline() = runTest(dispatcher) {
+        // Regression: when offline, Riffle hub must show locally-cached items regardless of
+        // readingProgress. Previously the hub showed in-progress items (0 < progress < 0.99),
+        // causing cached items with readingProgress=0.0 to be invisible even though they could
+        // be read. The offline switch now uses observeAllLibraryItemsAllSources() filtered by
+        // offlineAvailability.isAvailableOffline(), so only truly local items appear.
+        val available = libraryItem("available", "src1")
+        val unavailable = libraryItem("unavailable", "src2")
+        val allItems = listOf(available, unavailable)
+        val observer = fakeObserver(allItemsAllSources = MutableStateFlow(allItems))
         val vm = makeViewModel(
             libraryObserver = observer,
             connectivity = FakeConnectivityObserver(online = false),
+            offlineAvailability = SelectiveOfflineAvailability(setOf("available")),
         )
         advanceUntilIdle()
-        assertEquals(listOf("available", "unavailable"), vm.inProgress.first().map { it.id })
+        assertEquals(listOf("available"), vm.inProgress.first().map { it.id })
+    }
+
+    @Test
+    fun inProgressShowsCachedItemWithZeroProgressWhenOffline() = runTest(dispatcher) {
+        // Regression (#source-offline-display-bug): an EPUB cached locally but never opened has
+        // readingProgress=0.0 and was excluded by the in-progress SQL filter (> 0.0 AND < 0.99).
+        // When offline the hub must surface it because the user CAN read it.
+        val cached = libraryItem("cached-unread", "src1", readingProgress = 0.0f)
+        val uncached = libraryItem("uncached", "src1", readingProgress = 0.3f)
+        val observer = fakeObserver(allItemsAllSources = MutableStateFlow(listOf(cached, uncached)))
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            connectivity = FakeConnectivityObserver(online = false),
+            offlineAvailability = SelectiveOfflineAvailability(setOf("cached-unread")),
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("cached-unread"), vm.inProgress.first().map { it.id })
     }
 
     @Test
@@ -175,8 +198,8 @@ class RiffleViewModelTest {
     }
 
     @Test
-    fun continueSeriesShowsAllItemsWhenOffline() = runTest(dispatcher) {
-        // Same policy as inProgressShowsAllItemsWhenOffline.
+    fun continueSeriesIsEmptyWhenOffline() = runTest(dispatcher) {
+        // Continue Series requires network to be actionable; when offline, the section is hidden.
         val items = listOf(libraryItem("kept", "src1"), libraryItem("dropped", "src2"))
         val observer = fakeObserver(continueSeriesAllSources = MutableStateFlow(items))
         val vm = makeViewModel(
@@ -184,7 +207,7 @@ class RiffleViewModelTest {
             connectivity = FakeConnectivityObserver(online = false),
         )
         advanceUntilIdle()
-        assertEquals(listOf("kept", "dropped"), vm.continueSeries.first().map { it.id })
+        assertTrue(vm.continueSeries.first().isEmpty())
     }
 
     @Test
@@ -357,6 +380,7 @@ class RiffleViewModelTest {
         toReadRepository: ToReadRepository = FakeToReadRepository(),
         annotationsRepo: AnnotationsLibraryRepository = FakeAllSourcesAnnotationsRepo(emptyList()),
         connectivity: ConnectivityObserver = FakeConnectivityObserver(online = true),
+        offlineAvailability: LibraryItemOfflineAvailability = AlwaysUnavailableOfflineAvailability,
     ) = RiffleViewModel(
         libraryObserver = libraryObserver,
         sourceRepository = sourceRepository,
@@ -364,11 +388,13 @@ class RiffleViewModelTest {
         toReadRepository = toReadRepository,
         annotationsLibraryRepository = annotationsRepo,
         connectivityObserver = connectivity,
+        offlineAvailability = offlineAvailability,
     )
 
     private fun fakeObserver(
         inProgressAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
         continueSeriesAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
+        allItemsAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),
         librariesBySourceId: Map<String, List<Library>> = emptyMap(),
         librariesFlowBySourceId: Map<String, Flow<List<Library>>> = emptyMap(),
     ): LibraryObserver = object : LibraryObserver {
@@ -392,17 +418,18 @@ class RiffleViewModelTest {
         override suspend fun getLibrary(libraryId: String): Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
         override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> = inProgressAllSources
+        override fun observeAllLibraryItemsAllSources(): Flow<List<LibraryItem>> = allItemsAllSources
         override fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> = continueSeriesAllSources
     }
 
-    private fun libraryItem(id: String, sourceId: String) = LibraryItem(
+    private fun libraryItem(id: String, sourceId: String, readingProgress: Float = 0.5f) = LibraryItem(
         id = id,
         sourceId = sourceId,
         libraryId = "lib-1",
         title = "Title $id",
         author = "Author",
         coverUrl = null,
-        readingProgress = 0.5f,
+        readingProgress = readingProgress,
         isCached = false,
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
@@ -504,6 +531,15 @@ private class FakeAllSourcesAnnotationsRepo(
     override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
     override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
     override fun observeAnnotatedBooksAllSources(): Flow<List<AnnotatedBook>> = flowOf(allBooks)
+}
+
+private object AlwaysUnavailableOfflineAvailability : LibraryItemOfflineAvailability {
+    override fun isAvailableOffline(item: LibraryItem): Boolean = false
+}
+
+private class SelectiveOfflineAvailability(availableIds: Set<String>) : LibraryItemOfflineAvailability {
+    private val ids: Set<String> = availableIds
+    override fun isAvailableOffline(item: LibraryItem): Boolean = item.id in ids
 }
 
 
