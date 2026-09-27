@@ -149,16 +149,16 @@ class RiffleViewModelTest {
 
     @Test
     fun inProgressShowsAllItemsWhenOffline() = runTest(dispatcher) {
-        // When the device is offline, Riffle still shows all cached in-progress items regardless
-        // of download status. The offline banner already communicates the state to the user.
-        val items = listOf(libraryItem("streaming-only", "src1"), libraryItem("downloaded", "src2"))
+        // All items show in Riffle home even when offline — the home is an overview of all sources.
+        // The offline gate is at the action level (Read/Listen button greyed out), not item visibility.
+        val items = listOf(libraryItem("available", "src1"), libraryItem("unavailable", "src2"))
         val observer = fakeObserver(inProgressAllSources = MutableStateFlow(items))
         val vm = makeViewModel(
             libraryObserver = observer,
             connectivity = FakeConnectivityObserver(online = false),
         )
         advanceUntilIdle()
-        assertEquals(listOf("streaming-only", "downloaded"), vm.inProgress.first().map { it.id })
+        assertEquals(listOf("available", "unavailable"), vm.inProgress.first().map { it.id })
     }
 
     @Test
@@ -175,15 +175,15 @@ class RiffleViewModelTest {
 
     @Test
     fun continueSeriesShowsAllItemsWhenOffline() = runTest(dispatcher) {
-        // Same as inProgress: show all cached DB items when offline, not just downloaded ones.
-        val items = listOf(libraryItem("streaming", "src1"), libraryItem("downloaded", "src2"))
+        // All items show even when offline — same policy as inProgressShowsAllItemsWhenOffline.
+        val items = listOf(libraryItem("kept", "src1"), libraryItem("dropped", "src2"))
         val observer = fakeObserver(continueSeriesAllSources = MutableStateFlow(items))
         val vm = makeViewModel(
             libraryObserver = observer,
             connectivity = FakeConnectivityObserver(online = false),
         )
         advanceUntilIdle()
-        assertEquals(listOf("streaming", "downloaded"), vm.continueSeries.first().map { it.id })
+        assertEquals(listOf("kept", "dropped"), vm.continueSeries.first().map { it.id })
     }
 
     @Test
@@ -504,3 +504,4 @@ private class FakeAllSourcesAnnotationsRepo(
     override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
     override fun observeAnnotatedBooksAllSources(): Flow<List<AnnotatedBook>> = flowOf(allBooks)
 }
+
