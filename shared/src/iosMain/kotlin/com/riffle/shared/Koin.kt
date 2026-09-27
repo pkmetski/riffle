@@ -326,6 +326,7 @@ private fun iosLibraryModule(
             toReadRepository = get(),
             annotationsLibraryRepository = get(),
             connectivityObserver = get(),
+            offlineAvailability = get(),
         )
     }
 

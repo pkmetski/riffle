@@ -4,6 +4,7 @@ import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
@@ -148,17 +149,18 @@ class RiffleViewModelTest {
     }
 
     @Test
-    fun inProgressShowsAllItemsWhenOffline() = runTest(dispatcher) {
-        // All items show in Riffle home even when offline — the home is an overview of all sources.
-        // The offline gate is at the action level (Read/Listen button greyed out), not item visibility.
+    fun inProgressFiltersUnavailableItemsWhenOffline() = runTest(dispatcher) {
+        // When the device is offline (no network), only locally-available items are shown so the
+        // user isn't presented with items they cannot open.
         val items = listOf(libraryItem("available", "src1"), libraryItem("unavailable", "src2"))
         val observer = fakeObserver(inProgressAllSources = MutableStateFlow(items))
         val vm = makeViewModel(
             libraryObserver = observer,
             connectivity = FakeConnectivityObserver(online = false),
+            offlineAvailability = FakeItemOfflineAvailability(availableIds = setOf("available")),
         )
         advanceUntilIdle()
-        assertEquals(listOf("available", "unavailable"), vm.inProgress.first().map { it.id })
+        assertEquals(listOf("available"), vm.inProgress.first().map { it.id })
     }
 
     @Test
@@ -174,16 +176,17 @@ class RiffleViewModelTest {
     }
 
     @Test
-    fun continueSeriesShowsAllItemsWhenOffline() = runTest(dispatcher) {
-        // All items show even when offline — same policy as inProgressShowsAllItemsWhenOffline.
+    fun continueSeriesFiltersUnavailableItemsWhenOffline() = runTest(dispatcher) {
+        // Same offline-filter policy as inProgressFiltersUnavailableItemsWhenOffline.
         val items = listOf(libraryItem("kept", "src1"), libraryItem("dropped", "src2"))
         val observer = fakeObserver(continueSeriesAllSources = MutableStateFlow(items))
         val vm = makeViewModel(
             libraryObserver = observer,
             connectivity = FakeConnectivityObserver(online = false),
+            offlineAvailability = FakeItemOfflineAvailability(availableIds = setOf("kept")),
         )
         advanceUntilIdle()
-        assertEquals(listOf("kept", "dropped"), vm.continueSeries.first().map { it.id })
+        assertEquals(listOf("kept"), vm.continueSeries.first().map { it.id })
     }
 
     @Test
@@ -356,6 +359,7 @@ class RiffleViewModelTest {
         toReadRepository: ToReadRepository = FakeToReadRepository(),
         annotationsRepo: AnnotationsLibraryRepository = FakeAllSourcesAnnotationsRepo(emptyList()),
         connectivity: ConnectivityObserver = FakeConnectivityObserver(online = true),
+        offlineAvailability: LibraryItemOfflineAvailability = AlwaysAvailableOffline,
     ) = RiffleViewModel(
         libraryObserver = libraryObserver,
         sourceRepository = sourceRepository,
@@ -363,6 +367,7 @@ class RiffleViewModelTest {
         toReadRepository = toReadRepository,
         annotationsLibraryRepository = annotationsRepo,
         connectivityObserver = connectivity,
+        offlineAvailability = offlineAvailability,
     )
 
     private fun fakeObserver(
@@ -503,5 +508,15 @@ private class FakeAllSourcesAnnotationsRepo(
     override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
     override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
     override fun observeAnnotatedBooksAllSources(): Flow<List<AnnotatedBook>> = flowOf(allBooks)
+}
+
+private object AlwaysAvailableOffline : LibraryItemOfflineAvailability {
+    override fun isAvailableOffline(item: LibraryItem): Boolean = true
+}
+
+private class FakeItemOfflineAvailability(
+    private val availableIds: Set<String>,
+) : LibraryItemOfflineAvailability {
+    override fun isAvailableOffline(item: LibraryItem): Boolean = item.id in availableIds
 }
 
