@@ -11,7 +11,6 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.DefaultApplicationScope
-import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
@@ -146,10 +145,6 @@ class RiffleScreenReadRouteTest {
         override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
     }
 
-    private val offlineAvailability = object : LibraryItemOfflineAvailability {
-        override fun isAvailableOffline(item: LibraryItem): Boolean = true
-    }
-
     private fun detailViewModel(itemId: String, sourceId: String?) = LibraryItemDetailViewModel(
         itemId = itemId,
         sourceId = sourceId,
@@ -204,7 +199,6 @@ class RiffleScreenReadRouteTest {
                             toReadRepository = toReadRepository,
                             annotationsLibraryRepository = annotationsRepository,
                             connectivityObserver = connectivityObserver,
-                            offlineAvailability = offlineAvailability,
                         )
                     }
                     factory { params -> detailViewModel(params.get(), params.getOrNull()) }

@@ -294,7 +294,6 @@ private val navigationViewModelModule = module {
             toReadRepository = get(),
             annotationsLibraryRepository = get(),
             connectivityObserver = get(),
-            offlineAvailability = get(),
         )
     }
     viewModel {
