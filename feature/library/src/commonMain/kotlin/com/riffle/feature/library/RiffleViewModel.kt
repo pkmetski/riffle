@@ -13,15 +13,18 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.collectReconnects
 import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -57,13 +60,21 @@ class RiffleViewModel constructor(
         !online || failedIds.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    // Used only for item filtering. Intentionally does NOT include _failedSourceIds: a server
+    // refresh failure while the device has network connectivity does not make items unplayable —
+    // the server may come back any moment. Only true network loss makes items unplayable.
+    private val isNetworkOffline: StateFlow<Boolean> =
+        connectivityObserver.isOnline
+            .map { !it }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val inProgress: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeInProgressItemsAllSources(), isOffline) { items, offline ->
+        combine(libraryObserver.observeInProgressItemsAllSources(), isNetworkOffline) { items, offline ->
             if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val continueSeries: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeContinueSeriesItemsAllSources(), isOffline) { items, offline ->
+        combine(libraryObserver.observeContinueSeriesItemsAllSources(), isNetworkOffline) { items, offline ->
             if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -91,7 +102,7 @@ class RiffleViewModel constructor(
                         combine(perLibrary) { arrays -> arrays.flatMap { it } }
                     }
             },
-            isOffline,
+            isNetworkOffline,
         ) { items, offline ->
             if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -149,5 +160,55 @@ class RiffleViewModel constructor(
                 }
             }
         }
+        // Re-attempt failed source refreshes on every offline→online transition so the offline
+        // banner self-heals when connectivity is restored, without waiting for a source DB change.
+        viewModelScope.launch {
+            connectivityObserver.isOnline.collectReconnects {
+                retryFailedSources()
+            }
+        }
+        // Continuously poll while any source is failing and the device is online — mirrors the
+        // LibraryItemsViewModel pattern so the banner eventually clears without user interaction.
+        viewModelScope.launch {
+            combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
+                failed.isNotEmpty() && online
+            }.collectLatest { shouldPoll ->
+                if (shouldPoll) {
+                    retryFailedSources()
+                    while (true) {
+                        delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
+                        retryFailedSources()
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun retryFailedSources() {
+        val failedIds = _failedSourceIds.value
+        if (failedIds.isEmpty()) return
+        val sources = sourceRepository.observeAll().first().filter { it.id in failedIds }
+        supervisorScope {
+            sources.forEach { source ->
+                launch {
+                    val libraries = libraryObserver.observeLibraries(source.id).first()
+                    _failedSourceIds.update { it - source.id }
+                    coroutineScope {
+                        libraries.forEach { library ->
+                            launch {
+                                val success = runCatching {
+                                    toReadRepository.refreshForSource(source.id, library.id)
+                                }.getOrDefault(false)
+                                if (!success) _failedSourceIds.update { it + source.id }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        internal const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
     }
 }

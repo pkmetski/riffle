@@ -107,6 +107,15 @@ class IosLibraryObserverImpl(
             }
         }
 
+    override fun observeLibraryItemsForSource(sourceId: String, libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeByLibraryId(sourceId, libraryId).map { list -> list.map { it.toDomainLibraryItem() } }
+
+    override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> =
+        libraryItemDao.observeInProgressAllSources().map { list -> list.map { it.toDomainLibraryItem() } }
+
+    override fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> =
+        seriesDao.observeContinueSeriesAllSources().map { list -> list.map { it.toDomainLibraryItem() } }
+
     override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? =
         libraryItemDao.getById(sourceId, itemId)?.toDomainLibraryItem()
 

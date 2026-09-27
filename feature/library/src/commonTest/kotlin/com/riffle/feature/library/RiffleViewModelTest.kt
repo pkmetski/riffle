@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -205,12 +206,14 @@ class RiffleViewModelTest {
     }
 
     @Test
-    fun inProgressFiltersUnavailableItemsWhenRefreshFails() = runTest(dispatcher) {
-        // Regression: items that require network must be hidden when the server is unreachable,
-        // even if the device still has connectivity.
+    fun inProgressShowsAllItemsWhenRefreshFails() = runTest(dispatcher) {
+        // When refresh fails but the device still has network connectivity, the filter must NOT
+        // kick in. The item filter is gated on true network loss (!online) only — a server
+        // failure with an online device does not make items unplayable; the server may recover.
+        // The banner still shows (isOffline=true from _failedSourceIds), but items are unfiltered.
         val absSource = source("abs-1", type = SourceType.ABS)
         val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
-        val items = listOf(libraryItem("cached", "abs-1"), libraryItem("remote-only", "abs-1"))
+        val items = listOf(libraryItem("item1", "abs-1"), libraryItem("item2", "abs-1"))
         val observer = fakeObserver(
             librariesBySourceId = mapOf("abs-1" to listOf(library)),
             inProgressAllSources = MutableStateFlow(items),
@@ -220,13 +223,14 @@ class RiffleViewModelTest {
             sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = FailingToReadRepository(),
-            offlineAvailability = FakeItemOfflineAvailability(setOf("cached")),
+            offlineAvailability = FakeItemOfflineAvailability(setOf("item1")),
         )
         advanceUntilIdle()
+        assertTrue(vm.isOffline.first(), "banner must show when refresh fails")
         assertEquals(
-            listOf("cached"),
+            listOf("item1", "item2"),
             vm.inProgress.first().map { it.id },
-            "inProgress must exclude non-offline-available items when refresh fails",
+            "all items must show when refresh fails but network is up",
         )
     }
 
@@ -244,6 +248,57 @@ class RiffleViewModelTest {
         )
         advanceUntilIdle()
         assertFalse(vm.isOffline.first(), "isOffline must remain false when connected and refresh succeeds")
+    }
+
+    @Test
+    fun isOfflineClearsOnReconnect() = runTest(dispatcher) {
+        // Regression: RiffleViewModel had no retry on reconnect, so once _failedSourceIds was set
+        // it only cleared on a source DB change (rare). On offline→online transition the banner
+        // must self-heal by retrying refreshForSource for every previously-failing source.
+        val absSource = source("abs-1", type = SourceType.ABS)
+        val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
+        val observer = fakeObserver(librariesBySourceId = mapOf("abs-1" to listOf(library)))
+        val toReadRepo = ToggleableToReadRepository(initialSuccess = false)
+        val connectivity = MutableFakeConnectivityObserver(initial = false)
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
+            connectivity = connectivity,
+            toReadRepository = toReadRepo,
+        )
+        advanceUntilIdle()
+        assertTrue(vm.isOffline.first(), "isOffline must be true when offline and refresh fails")
+
+        toReadRepo.succeeds = true
+        connectivity.setOnline(true)
+        advanceUntilIdle()
+
+        assertFalse(vm.isOffline.first(), "isOffline must clear when connectivity is restored and retry succeeds")
+    }
+
+    @Test
+    fun isOfflinePollRetryClearsFailureWhenRefreshEventuallySucceeds() = runTest(dispatcher) {
+        // Regression: without the polling retry loop, a failed refresh while online would leave the
+        // banner permanently until a source DB change. The polling loop must retry every 10s and
+        // clear _failedSourceIds when the server becomes reachable again.
+        val absSource = source("abs-1", type = SourceType.ABS)
+        val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
+        val observer = fakeObserver(librariesBySourceId = mapOf("abs-1" to listOf(library)))
+        val toReadRepo = ToggleableToReadRepository(initialSuccess = false)
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
+            connectivity = FakeConnectivityObserver(online = true),
+            toReadRepository = toReadRepo,
+        )
+        advanceUntilIdle()
+        assertTrue(vm.isOffline.first(), "isOffline must be true after initial failing refresh")
+
+        toReadRepo.succeeds = true
+        advanceTimeBy(RiffleViewModel.FAILED_REFRESH_RETRY_INTERVAL_MS + 1)
+        advanceUntilIdle()
+
+        assertFalse(vm.isOffline.first(), "isOffline must clear after poll retry succeeds")
     }
 
     @Test
@@ -386,6 +441,12 @@ class RiffleViewModelTest {
 
 private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
     override val isOnline: StateFlow<Boolean> = MutableStateFlow(online)
+}
+
+private class MutableFakeConnectivityObserver(initial: Boolean) : ConnectivityObserver {
+    private val _isOnline = MutableStateFlow(initial)
+    override val isOnline: StateFlow<Boolean> = _isOnline
+    fun setOnline(value: Boolean) { _isOnline.value = value }
 }
 
 private class FakeItemOfflineAvailability(private val availableIds: Set<String>) : LibraryItemOfflineAvailability {
