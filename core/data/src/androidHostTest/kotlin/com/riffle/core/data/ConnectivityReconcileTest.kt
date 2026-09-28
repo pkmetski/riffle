@@ -70,23 +70,14 @@ class ConnectivityReconcileTest {
     }
 
     @Test
-    fun `foreground poll rescues stuck-online tracker on Android 13 dropped onLost`() {
-        // The regression the user reported on an Android 13 device: airplane mode ON while the
-        // library screen is in the foreground. The OS drops the `onLost` for the single
-        // qualifying network entirely — not just one-of-two, the only one — so the tracker
-        // remains non-empty and the banner never appears until the user navigates to a
-        // different library and forces a fresh refresh in a new ViewModel.
+    fun `foreground poll rescues stuck-online tracker via null activeNetwork`() {
+        // The dropped-onLost scenario: airplane mode ON while the library screen is in the
+        // foreground. The OS drops the `onLost` for the single qualifying network, so the tracker
+        // remains non-empty and thinks we're online. On AOSP Android 13+, `activeNetwork` becomes
+        // null quickly after going offline, so the poll's `reconcileOnline(trackerStillOnline,
+        // hasActiveNetwork = false)` correctly vetoes and emits offline.
         //
-        // Neither the callback-driven path nor the ON_START sweep can rescue this: no callback
-        // fires (dropped), and ON_START only fires on background→foreground transitions
-        // (irrelevant while the user is sitting on the screen).
-        //
-        // The foreground poll inside `ConnectivityObserverImpl` closes this gap: every
-        // POLL_INTERVAL_MS it calls `emitReconciled(tracker.isOnline())`, which threads through
-        // this predicate with a FRESH `activeNetwork` read. Airplane on → `activeNetwork == null`
-        // → veto fires → offline. This test captures the exact tracker+activeNetwork state that
-        // the poll observes at that moment. Do not delete it if the poll is refactored — rewire
-        // the assertion to the new mechanism.
+        // Do not delete if the poll is refactored — rewire to the new mechanism.
         val tracker = ValidatedNetworkTracker<String>()
         tracker.onAvailable("wifi")
         val trackerStillOnline = tracker.isOnline()
@@ -95,6 +86,32 @@ class ConnectivityReconcileTest {
         assertFalse(
             "The poll's fresh activeNetwork read (null after airplane on) must veto to offline",
             reconcileOnline(trackerStillOnline, hasActiveNetwork = false),
+        )
+    }
+
+    @Test
+    fun `foreground poll rescues stuck-online tracker via capability check on Samsung`() {
+        // The Samsung One UI / Android 17 variant: the OS keeps the `activeNetwork` handle alive
+        // (non-null) long after going offline, AND drops onLost — so `tracker.isOnline()` is true
+        // AND `activeNetwork != null` is true. The `reconcileOnline` veto alone can't fire.
+        //
+        // The poll now also calls `currentOnline()` (which re-checks capabilities on the active
+        // network handle). When the OS removes NET_CAPABILITY_INTERNET from the stale handle —
+        // even without nulling the handle — `currentOnline()` returns false, and the poll
+        // clears the tracker and emits offline regardless of `reconcileOnline`.
+        //
+        // This test pins the correct tracker state after that clear.
+        val tracker = ValidatedNetworkTracker<String>()
+        tracker.onAvailable("wifi")
+        assertTrue("Tracker still thinks online before clear", tracker.isOnline())
+
+        // currentOnline() returned false → poll calls tracker.clear()
+        val afterClear = tracker.clear()
+
+        assertFalse("Tracker must be empty after clear", afterClear)
+        assertFalse(
+            "reconcileOnline with cleared tracker and any activeNetwork value must be offline",
+            reconcileOnline(afterClear, hasActiveNetwork = true),
         )
     }
 

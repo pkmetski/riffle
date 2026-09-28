@@ -143,7 +143,16 @@ class ConnectivityObserverImpl constructor(
                     pollJob = launch {
                         while (isActive) {
                             delay(POLL_INTERVAL_MS)
-                            emitReconciled(tracker.isOnline())
+                            // `tracker.isOnline()` can be stale when onLost is dropped (Android
+                            // 13+ / Samsung One UI). Cross-check against the active network's own
+                            // capabilities: when the OS removes NET_CAPABILITY_INTERNET from the
+                            // handle (even if the handle itself persists), currentOnline() returns
+                            // false and we authoritatively clear the tracker.
+                            if (!currentOnline()) {
+                                emitReconciled(tracker.clear())
+                            } else {
+                                emitReconciled(tracker.isOnline())
+                            }
                         }
                     }
                 }
@@ -183,10 +192,11 @@ class ConnectivityObserverImpl constructor(
     override fun isMetered(): Boolean = connectivityManager.isActiveNetworkMetered
 
     private companion object {
-        // 15s is a compromise between "banner appears reasonably soon after airplane on" and
-        // "we don't pay noticeable cost polling `activeNetwork` all day." The Android 13 dropped-
-        // `onLost` case is the whole reason this exists — see the callbackFlow block comment.
-        const val POLL_INTERVAL_MS = 15_000L
+        // 5s balances "banner appears quickly after going offline" and "low foreground cost."
+        // The poll runs only while the app is in the foreground (ON_START/ON_STOP gated).
+        // Reduced from 15s: on Samsung One UI (Android 17) and other OEM variants, both onLost
+        // and activeNetwork cleanup can be delayed far beyond 15s, leaving isOnline stuck at true.
+        const val POLL_INTERVAL_MS = 5_000L
     }
 }
 
