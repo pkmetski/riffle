@@ -17,10 +17,11 @@ import com.riffle.core.logging.NoopLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * Covers [SingletonWebSourceInstaller] end-to-end for every singleton descriptor. Replaces the
@@ -46,7 +47,7 @@ class SingletonWebSourceInstallerTest {
         val id = installer(sourceDao, libraryDao).install(SourceType.CHITANKA)
 
         val row = sourceDao.getById(id)
-        assertNotNull("Chitanka source row missing", row)
+        assertNotNull(row, "Chitanka source row missing")
         assertEquals(SourceType.CHITANKA.name, row!!.type)
         assertEquals(ChitankaWebSourceDescriptor.urlPlaceholder, row.url)
         assertEquals("", row.username)
@@ -54,8 +55,8 @@ class SingletonWebSourceInstallerTest {
         assertTrue(row.isActive)
 
         val libraries = libraryDao.forSource(id).map { it.id to it.name }
-        assertTrue("Chitanka Books library missing", libraries.any { it.first == "books" && it.second == "Chitanka" })
-        assertTrue("Gramofonche library missing", libraries.any { it.first == "audiobooks" && it.second == "Gramofonche" })
+        assertTrue(libraries.any { it.first == "books" && it.second == "Chitanka" }, "Chitanka Books library missing")
+        assertTrue(libraries.any { it.first == "audiobooks" && it.second == "Gramofonche" }, "Gramofonche library missing")
     }
 
     @Test
@@ -65,13 +66,13 @@ class SingletonWebSourceInstallerTest {
         val id = installer(sourceDao, libraryDao).install(SourceType.GUTENBERG)
 
         val row = sourceDao.getById(id)
-        assertNotNull("Gutenberg source row missing", row)
+        assertNotNull(row, "Gutenberg source row missing")
         assertEquals(SourceType.GUTENBERG.name, row!!.type)
         assertEquals(GutenbergWebSourceDescriptor.urlPlaceholder, row.url)
 
         val libraries = libraryDao.forSource(id).map { it.id to it.name }
         assertEquals(1, libraries.size)
-        assertTrue("Gutenberg Books library missing", libraries.any { it.first == "books" && it.second == "Books" })
+        assertTrue(libraries.any { it.first == "books" && it.second == "Books" }, "Gutenberg Books library missing")
     }
 
     @Test
@@ -84,7 +85,7 @@ class SingletonWebSourceInstallerTest {
         val second = svc.install(SourceType.CHITANKA)
 
         assertEquals(first, second)
-        assertEquals("only one CHITANKA row must exist", 1, sourceDao.rowsOfType(SourceType.CHITANKA.name))
+        assertEquals(1, sourceDao.rowsOfType(SourceType.CHITANKA.name), "only one CHITANKA row must exist")
     }
 
     @Test
@@ -106,7 +107,7 @@ class SingletonWebSourceInstallerTest {
     fun `install refuses non-singleton descriptor`() = runTest {
         try {
             installer(InMemorySourceDao(), InMemoryLibraryDao()).install(SourceType.ABS)
-            assert(false) { "expected require() failure — ABS is not a singleton" }
+            fail("expected require() failure — ABS is not a singleton")
         } catch (e: IllegalArgumentException) {
             assertTrue(e.message?.contains("isSingleton") == true)
         }

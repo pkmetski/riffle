@@ -28,6 +28,10 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            // Tests that verify descriptor-to-catalog-ROOT alignment (e.g. SingletonWebSourceInstallerTest).
+            implementation(project(":core:catalog-chitanka"))
+            implementation(project(":core:catalog-gutenberg"))
+            implementation(project(":core:catalog-radio-es"))
         }
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)

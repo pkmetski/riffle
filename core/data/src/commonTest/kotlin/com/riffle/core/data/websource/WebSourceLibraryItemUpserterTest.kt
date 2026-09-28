@@ -13,10 +13,10 @@ import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 /**
  * Pins the contract for on-demand insertion of a browsed web-source [CatalogItem] into
@@ -66,14 +66,14 @@ class WebSourceLibraryItemUpserterTest {
         upserter.upsert(sourceId = "src-1", item = catalogEpub())
 
         val row = dao.getById("src-1", "text/12345-x")
-        assertNotNull("row must exist", row)
+        assertNotNull(row, "row must exist")
         assertEquals("src-1", row!!.sourceId)
         assertEquals("text/12345-x", row.id)
         assertEquals(ChitankaCatalog.ROOT_BOOKS, row.libraryId)
         assertEquals("Под игото", row.title)
         assertEquals("Иван Вазов", row.author)
         assertEquals("https://example.info/cover.jpg", row.coverUrl)
-        assertEquals(0f, row.readingProgress, 0.0001f)
+        assertEquals(0f, row.readingProgress)
         assertEquals(EbookFormat.Epub.toStorageString(), row.ebookFormat)
         assertEquals(false, row.hasAudio)
         assertEquals("роман,класика", row.genres)
@@ -125,7 +125,7 @@ class WebSourceLibraryItemUpserterTest {
         upserter.upsert("src-1", item)
 
         val row = dao.getById("src-1", item.id)!!
-        assertEquals("second upsert must not overwrite locally-tracked progress", 0.42f, row.readingProgress, 0.0001f)
+        assertEquals(0.42f, row.readingProgress, "second upsert must not overwrite locally-tracked progress")
     }
 
     @Test
@@ -178,9 +178,9 @@ class WebSourceLibraryItemUpserterTest {
         upserter.upsert("src-1", item)
 
         assertEquals(
-            "re-tap must not demote the promoted addedAt back to sentinel",
             9_000L,
             dao.getById("src-1", item.id)!!.addedAt,
+            "re-tap must not demote the promoted addedAt back to sentinel",
         )
     }
 
@@ -207,12 +207,12 @@ class WebSourceLibraryItemUpserterTest {
         upserter.upsert("src-1", item)
 
         val row = dao.getById("src-1", item.id)!!
-        assertEquals("re-tap must not null the promoted lastOpenedAt", 12_345L, row.lastOpenedAt)
-        assertEquals("re-tap must not undo the finished stamp", 34_567L, row.finishedAt)
+        assertEquals(12_345L, row.lastOpenedAt, "re-tap must not null the promoted lastOpenedAt")
+        assertEquals(34_567L, row.finishedAt, "re-tap must not undo the finished stamp")
     }
 
     @Test
-    fun `null description and coverUrl are handled (null cover coerced to empty)`() = runTest {
+    fun nullDescriptionAndCoverUrlAreHandled() = runTest {
         val dao = InMemoryLibraryItemDao()
         val upserter = WebSourceLibraryItemUpserter(dao)
 
@@ -241,7 +241,7 @@ class WebSourceLibraryItemUpserterTest {
         }
 
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
-            items.forEach { rows.putIfAbsent(it.sourceId to it.id, it) }
+            items.forEach { if ((it.sourceId to it.id) !in rows) rows[it.sourceId to it.id] = it }
         }
 
         override suspend fun updateMetadata(metadata: LibraryItemMetadata) {

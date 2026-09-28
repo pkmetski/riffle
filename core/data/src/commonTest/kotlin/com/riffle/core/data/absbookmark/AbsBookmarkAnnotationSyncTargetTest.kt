@@ -5,12 +5,12 @@ import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 private const val BASE = "http://abs.local"
 private const val TOKEN = "token-123"
@@ -51,7 +51,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
         t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), payload)
         // Only the extra list() call — no create/update/delete when content is unchanged.
         val delta = api.callLog.drop(callsBefore).filter { it !is FakeAbsBookmarkApi.Call.List }
-        assertTrue("expected no mutating calls when content unchanged, got: $delta", delta.isEmpty())
+        assertTrue(delta.isEmpty(), "expected no mutating calls when content unchanged, got: $delta")
     }
 
     @Test
@@ -61,7 +61,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
         val big = highEntropyPayload(500_000)
         t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), big)
         val chunksBefore = api.bookmarksFor(ITEM).size
-        assertTrue("expected multi-chunk shard", chunksBefore >= 3)
+        assertTrue(chunksBefore >= 3, "expected multi-chunk shard")
 
         val small = """[{"id":"urn:a:1"}]"""
         t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), small)
@@ -153,7 +153,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
         t.write(NS, "book-2", AnnotationFilenames.forDevice(deviceB), """[{"id":"b"}]""")
 
         val deleted = t.forgetNamespace(NS)
-        assertTrue("expected at least 4 deletions (2 books × [manifest + 1 chunk]), got $deleted", deleted >= 4)
+        assertTrue(deleted >= 4, "expected at least 4 deletions (2 books × [manifest + 1 chunk]), got $deleted")
         // Foreign bookmarks preserved.
         assertTrue(api.state.any { it.timeSec == -1 })
         assertTrue(api.state.any { it.timeSec == 500 })
@@ -166,7 +166,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
     fun `foreign namespace is rejected`() = runTest {
         val api = FakeAbsBookmarkApi()
         val t = target(api)
-        assertThrows(IllegalArgumentException::class.java) {
+        assertFailsWith<IllegalArgumentException> {
             kotlinx.coroutines.runBlocking {
                 t.list("some_other_ns", ITEM)
             }
@@ -204,7 +204,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
         t.write(NS, "book-2", AnnotationFilenames.forDevice(deviceA), bigPayload)
 
         val actualBookmarkRows = api.state.count { AbsBookmarkChunkCodec.parseTitle(it.title) != null }
-        assertTrue("precondition — expected chunked shards", actualBookmarkRows > 3)
+        assertTrue(actualBookmarkRows > 3, "precondition — expected chunked shards")
 
         val listing = t.enumerateNamespaces()
         assertEquals(1, listing.size)
@@ -257,7 +257,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
         t.read(NS, ITEM, AnnotationFilenames.forDevice(deviceA))
         t.read(NS, ITEM, AnnotationFilenames.forDevice(deviceA))
         val listsAfter = api.callLog.count { it is FakeAbsBookmarkApi.Call.List }
-        assertEquals("two back-to-back reads should share one listing fetch", 1, listsAfter - listsBefore)
+        assertEquals(1, listsAfter - listsBefore, "two back-to-back reads should share one listing fetch")
     }
 
     @Test

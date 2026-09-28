@@ -6,11 +6,11 @@ import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class CompositeAnnotationSyncTargetTest {
 
@@ -41,7 +41,7 @@ class CompositeAnnotationSyncTargetTest {
         )
         target.write("komga_x", "book-2", "annotations-devA.jsonld", "kv")
         assertEquals("kv", webdav.state["komga_x|book-2|annotations-devA.jsonld"])
-        assertTrue("ABS should be untouched for komga namespace", abs.state.isEmpty())
+        assertTrue(abs.state.isEmpty(), "ABS should be untouched for komga namespace")
     }
 
     @Test
@@ -75,7 +75,7 @@ class CompositeAnnotationSyncTargetTest {
         )
         target.write("abs_test", "book-1", "annotations-devA.jsonld", "p")
         assertEquals("p", webdav.state["abs_test|book-1|annotations-devA.jsonld"])
-        assertTrue("ABS should have failed", abs.state.isEmpty())
+        assertTrue(abs.state.isEmpty(), "ABS should have failed")
     }
 
     @Test
@@ -88,7 +88,7 @@ class CompositeAnnotationSyncTargetTest {
                 CompositeAnnotationSyncTarget.Child(abs, { it.startsWith("abs_") }, "abs"),
             ),
         )
-        assertThrows(RuntimeException::class.java) {
+        assertFailsWith<RuntimeException> {
             kotlinx.coroutines.runBlocking {
                 target.write("abs_test", "book-1", "annotations-devA.jsonld", "p")
             }
