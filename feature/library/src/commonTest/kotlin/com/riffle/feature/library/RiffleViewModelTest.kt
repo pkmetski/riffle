@@ -211,6 +211,39 @@ class RiffleViewModelTest {
     }
 
     @Test
+    fun toReadShowsItemsWhenOffline() = runTest(dispatcher) {
+        // toRead is not gated on connectivity: the to-read list is stored locally and should
+        // always be visible so the user knows what to queue for download, even without network.
+        // This pins the intentional removal of the offline filter from the toRead section —
+        // items must appear even when offline=true regardless of offlineAvailability.
+        val absSource = source("s1", type = SourceType.ABS)
+        val library = Library(id = "lib-s1", name = "Library", mediaType = "book", isUnsupported = false)
+        val item = libraryItem("book1", "s1")
+        val baseObserver = fakeObserver(librariesBySourceId = mapOf("s1" to listOf(library)))
+        val observer = object : LibraryObserver by baseObserver {
+            override fun observeLibraryItemsForSource(sourceId: String, libraryId: String): Flow<List<LibraryItem>> =
+                flowOf(listOf(item))
+        }
+        val toReadRepo = object : ToReadRepository {
+            override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(setOf("book1"))
+            override suspend fun refresh(libraryId: String): Boolean = true
+            override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean = true
+            override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
+            override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
+            override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
+        }
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
+            connectivity = FakeConnectivityObserver(online = false),
+            toReadRepository = toReadRepo,
+            offlineAvailability = AlwaysUnavailableOfflineAvailability,
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("book1"), vm.toRead.first().map { it.id }, "toRead must show items when offline")
+    }
+
+    @Test
     fun isOfflineTrueWhenRefreshFails() = runTest(dispatcher) {
         // Regression: RiffleViewModel was connectivity-only; a server failure while connected
         // (refreshForSource returns false) must also set isOffline = true.

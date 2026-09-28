@@ -13,7 +13,6 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.domain.collectReconnects
 import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -159,15 +158,9 @@ class RiffleViewModel constructor(
                 }
             }
         }
-        // Re-attempt failed source refreshes on every offline→online transition so the offline
-        // banner self-heals when connectivity is restored, without waiting for a source DB change.
-        viewModelScope.launch {
-            connectivityObserver.isOnline.collectReconnects {
-                retryFailedSources()
-            }
-        }
-        // Continuously poll while any source is failing and the device is online — mirrors the
-        // LibraryItemsViewModel pattern so the banner eventually clears without user interaction.
+        // Continuously poll while any source is failing and the device is online. On
+        // offline→online transition shouldPoll flips to true and retryFailedSources() fires
+        // immediately (no separate collectReconnects block needed — collectLatest handles it).
         viewModelScope.launch {
             combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
                 failed.isNotEmpty() && online
@@ -191,17 +184,16 @@ class RiffleViewModel constructor(
             sources.forEach { source ->
                 launch {
                     val libraries = libraryObserver.observeLibraries(source.id).first()
-                    _failedSourceIds.update { it - source.id }
-                    coroutineScope {
-                        libraries.forEach { library ->
-                            launch {
-                                val success = runCatching {
-                                    toReadRepository.refreshForSource(source.id, library.id)
-                                }.getOrDefault(false)
-                                if (!success) _failedSourceIds.update { it + source.id }
-                            }
+                    // Only clear the source from the failed set once ALL libraries succeed —
+                    // pre-clearing causes a brief banner disappearance on every 10s poll tick.
+                    val results = libraries.map { library ->
+                        async {
+                            runCatching {
+                                toReadRepository.refreshForSource(source.id, library.id)
+                            }.getOrDefault(false)
                         }
-                    }
+                    }.map { it.await() }
+                    if (results.all { it }) _failedSourceIds.update { it - source.id }
                 }
             }
         }
