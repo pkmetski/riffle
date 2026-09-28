@@ -25,6 +25,7 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
@@ -93,6 +94,7 @@ class RiffleScreenReadRouteTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> = flowOf(listOf(hubItem))
+        override fun observeAllLibraryItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
@@ -144,10 +146,6 @@ class RiffleScreenReadRouteTest {
 
     private val connectivityObserver = object : ConnectivityObserver {
         override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
-    }
-
-    private val offlineAvailability = object : LibraryItemOfflineAvailability {
-        override fun isAvailableOffline(item: LibraryItem): Boolean = true
     }
 
     private fun detailViewModel(itemId: String, sourceId: String?) = LibraryItemDetailViewModel(
@@ -204,7 +202,9 @@ class RiffleScreenReadRouteTest {
                             toReadRepository = toReadRepository,
                             annotationsLibraryRepository = annotationsRepository,
                             connectivityObserver = connectivityObserver,
-                            offlineAvailability = offlineAvailability,
+                            offlineAvailability = object : LibraryItemOfflineAvailability {
+                                override fun isAvailableOffline(item: LibraryItem): Boolean = false
+                            },
                         )
                     }
                     factory { params -> detailViewModel(params.get(), params.getOrNull()) }
@@ -258,3 +258,4 @@ class RiffleScreenReadRouteTest {
         onNodeWithText("Read").assertIsDisplayed()
     }
 }
+

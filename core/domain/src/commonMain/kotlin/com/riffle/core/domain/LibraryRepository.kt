@@ -44,6 +44,10 @@ interface LibraryObserver {
     /** In-progress items across ALL configured Sources and libraries. Drives the [Riffle] screen. */
     fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
 
+    /** ALL items across every Source and library, with no readingProgress filter.
+     *  Used by the Riffle hub offline path to surface locally-cached items regardless of progress. */
+    fun observeAllLibraryItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
+
     /** Continue-series items across ALL configured Sources and libraries. Drives the [Riffle] screen. */
     fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> = flowOf(emptyList())
 

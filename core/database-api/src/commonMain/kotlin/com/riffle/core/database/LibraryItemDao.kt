@@ -132,6 +132,14 @@ interface LibraryItemDao {
     """)
     fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>>
 
+    /** All items across every source and library, with no readingProgress filter.
+     *  Used by the Riffle hub offline path to surface locally-cached items regardless of progress. */
+    @Query("""
+        SELECT * FROM library_items
+        ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
+    """)
+    fun observeAllSources(): Flow<List<LibraryItemEntity>>
+
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
     fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 

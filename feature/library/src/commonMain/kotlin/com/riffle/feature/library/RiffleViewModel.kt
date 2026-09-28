@@ -17,11 +17,13 @@ import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -57,43 +59,50 @@ class RiffleViewModel constructor(
         !online || failedIds.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    // When the device is truly offline (no network), surface ALL locally-available items so the
+    // user can read anything they've downloaded regardless of whether they've started it before.
+    // When online (even with a failing server refresh), show the standard in-progress list only.
     val inProgress: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeInProgressItemsAllSources(), isOffline) { items, offline ->
-            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        connectivityObserver.isOnline.flatMapLatest { online ->
+            if (online) {
+                libraryObserver.observeInProgressItemsAllSources()
+            } else {
+                libraryObserver.observeAllLibraryItemsAllSources()
+                    .map { items -> items.filter { offlineAvailability.isAvailableOffline(it) } }
+            }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val continueSeries: StateFlow<List<LibraryItem>> =
-        combine(libraryObserver.observeContinueSeriesItemsAllSources(), isOffline) { items, offline ->
-            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        connectivityObserver.isOnline.flatMapLatest { online ->
+            if (online) {
+                libraryObserver.observeContinueSeriesItemsAllSources()
+            } else {
+                flowOf(emptyList())
+            }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Aggregated To Read items across all sources and their libraries. */
     val toRead: StateFlow<List<LibraryItem>> =
-        combine(
-            sourceRepository.observeAll().flatMapLatest { sources ->
-                if (sources.isEmpty()) return@flatMapLatest flowOf(emptyList())
-                // Preserve (sourceId, library) pairs so items are queried against their own source's
-                // DB rows, not the active source's rows. observeLibraryItems() always scopes to the
-                // active source and returns nothing for non-active-source libraries.
-                val perSourceLibs = sources.map { source ->
-                    libraryObserver.observeLibraries(source.id)
-                        .map { libs -> libs.map { source.id to it } }
-                }
-                combine(perSourceLibs) { arrays -> arrays.flatMap { it } }
-                    .flatMapLatest { sourceLibraryPairs ->
-                        if (sourceLibraryPairs.isEmpty()) return@flatMapLatest flowOf(emptyList())
-                        val perLibrary = sourceLibraryPairs.map { (sourceId, library) ->
-                            combine(
-                                toReadRepository.observeToReadItemIds(library.id),
-                                libraryObserver.observeLibraryItemsForSource(sourceId, library.id),
-                            ) { ids, items -> items.filter { it.id in ids } }
-                        }
-                        combine(perLibrary) { arrays -> arrays.flatMap { it } }
+        sourceRepository.observeAll().flatMapLatest { sources ->
+            if (sources.isEmpty()) return@flatMapLatest flowOf(emptyList())
+            // Preserve (sourceId, library) pairs so items are queried against their own source's
+            // DB rows, not the active source's rows. observeLibraryItems() always scopes to the
+            // active source and returns nothing for non-active-source libraries.
+            val perSourceLibs = sources.map { source ->
+                libraryObserver.observeLibraries(source.id)
+                    .map { libs -> libs.map { source.id to it } }
+            }
+            combine(perSourceLibs) { arrays -> arrays.flatMap { it } }
+                .flatMapLatest { sourceLibraryPairs ->
+                    if (sourceLibraryPairs.isEmpty()) return@flatMapLatest flowOf(emptyList())
+                    val perLibrary = sourceLibraryPairs.map { (sourceId, library) ->
+                        combine(
+                            toReadRepository.observeToReadItemIds(library.id),
+                            libraryObserver.observeLibraryItemsForSource(sourceId, library.id),
+                        ) { ids, items -> items.filter { it.id in ids } }
                     }
-            },
-            isOffline,
-        ) { items, offline ->
-            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+                    combine(perLibrary) { arrays -> arrays.flatMap { it } }
+                }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val annotations: StateFlow<List<AnnotatedBook>> =
@@ -149,5 +158,48 @@ class RiffleViewModel constructor(
                 }
             }
         }
+        // Continuously poll while any source is failing and the device is online. On
+        // offline→online transition shouldPoll flips to true and retryFailedSources() fires
+        // immediately (no separate collectReconnects block needed — collectLatest handles it).
+        viewModelScope.launch {
+            combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
+                failed.isNotEmpty() && online
+            }.collectLatest { shouldPoll ->
+                if (shouldPoll) {
+                    retryFailedSources()
+                    while (true) {
+                        delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
+                        retryFailedSources()
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun retryFailedSources() {
+        val failedIds = _failedSourceIds.value
+        if (failedIds.isEmpty()) return
+        val sources = sourceRepository.observeAll().first().filter { it.id in failedIds }
+        supervisorScope {
+            sources.forEach { source ->
+                launch {
+                    val libraries = libraryObserver.observeLibraries(source.id).first()
+                    // Only clear the source from the failed set once ALL libraries succeed —
+                    // pre-clearing causes a brief banner disappearance on every 10s poll tick.
+                    val results = libraries.map { library ->
+                        async {
+                            runCatching {
+                                toReadRepository.refreshForSource(source.id, library.id)
+                            }.getOrDefault(false)
+                        }
+                    }.map { it.await() }
+                    if (results.all { it }) _failedSourceIds.update { it - source.id }
+                }
+            }
+        }
+    }
+
+    companion object {
+        internal const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
     }
 }

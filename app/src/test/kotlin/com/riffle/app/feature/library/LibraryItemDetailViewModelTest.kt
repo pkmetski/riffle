@@ -1800,6 +1800,7 @@ class LibraryItemDetailViewModelTest {
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
         override fun observeInProgressAllSources() = flowOf(emptyList<LibraryItemEntity>())
+        override fun observeAllSources() = flowOf(emptyList<LibraryItemEntity>())
     }
 
     private class RecordingLibraryItemDao : LibraryItemDao by NoopLibraryItemDao {

@@ -139,6 +139,7 @@ class SeriesIntegrationTest {
         override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
         override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
         override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+        override fun observeAllSources(): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     private class FakeCollectionDao : CollectionDao {

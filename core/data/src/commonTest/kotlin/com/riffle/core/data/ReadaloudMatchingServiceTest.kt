@@ -508,6 +508,7 @@ class ReadaloudMatchingServiceTest {
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
         override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeAllSources(): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     }
 
     @Test

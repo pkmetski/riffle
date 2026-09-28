@@ -42,6 +42,7 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()
     override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+    override fun observeAllSources(): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
 }
 
 /** Empty [LibraryDao] for tests that never resolve library names. */

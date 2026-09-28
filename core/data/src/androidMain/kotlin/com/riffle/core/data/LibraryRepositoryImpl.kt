@@ -124,6 +124,9 @@ class LibraryRepositoryImpl constructor(
     override fun observeInProgressItemsAllSources(): Flow<List<LibraryItem>> =
         libraryItemDao.observeInProgressAllSources().map { list -> list.map { it.toDomain() } }
 
+    override fun observeAllLibraryItemsAllSources(): Flow<List<LibraryItem>> =
+        libraryItemDao.observeAllSources().map { list -> list.map { it.toDomain() } }
+
     override fun observeContinueSeriesItemsAllSources(): Flow<List<LibraryItem>> =
         seriesDao.observeContinueSeriesAllSources().map { list -> list.map { it.toDomain() } }
 
