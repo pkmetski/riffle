@@ -18,8 +18,10 @@ import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -262,6 +264,7 @@ class RiffleViewModelTest {
         // polling loop schedules an infinite sequence of delay(10s)+retryFail tasks.
         advanceTimeBy(1)
         assertTrue(vm.isOffline.first(), "isOffline must be true when a source refresh fails")
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -291,6 +294,7 @@ class RiffleViewModelTest {
             vm.inProgress.first().map { it.id },
             "all items must show when refresh fails but network is up",
         )
+        vm.viewModelScope.cancel()
     }
 
     @Test
