@@ -1,12 +1,14 @@
 package com.riffle.app
 
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Context
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
+import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.riffle.app.di.riffleViewModelKoinModules
 import com.riffle.core.data.di.coreDataKoinModules
@@ -138,6 +140,12 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         logger.d(com.riffle.core.logging.LogChannel.Oom) {
             "[DEBUG-OOM] app.onTrimMemory level=$level heap=${usedMb}MB/${maxMb}MB"
         }
+        // With largeHeap=true the default Coil memory cache can reach 128 MB before the system
+        // fires any pressure signal. Evict it as soon as the system asks us to release memory
+        // so that the heap is available for active WebView tile rasters in the reader.
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
+            SingletonImageLoader.get(this).memoryCache?.clear()
+        }
     }
 
     override fun onLowMemory() {
@@ -148,12 +156,22 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         logger.d(com.riffle.core.logging.LogChannel.Oom) {
             "[DEBUG-OOM] app.onLowMemory heap=${usedMb}MB/${maxMb}MB"
         }
+        SingletonImageLoader.get(this).memoryCache?.clear()
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { createImageLoaderOkHttpClient() }))
+            }
+            .memoryCache {
+                // Coil defaults to 25% of maxMemory(). With largeHeap=true that reaches 128 MB
+                // on high-RAM devices, crowding out WebView tile rasters in the reader and
+                // causing OOM (seen as a 64-byte allocation failure in InsetsController on
+                // SM-F776B / Android 17). 10% (~51 MB) is ample for cover images.
+                MemoryCache.Builder()
+                    .maxSizeBytes((Runtime.getRuntime().maxMemory() * IMAGE_MEMORY_CACHE_PERCENT).toLong())
+                    .build()
             }
             .diskCache {
                 DiskCache.Builder()
@@ -178,3 +196,6 @@ internal fun riffleKoinModules(): List<org.koin.core.module.Module> =
 
 /** 100 MB cap for the on-disk cover cache. */
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024
+
+/** 10% of maxMemory() for the in-memory cover cache (~51 MB with largeHeap=true / 512 MB max). */
+internal const val IMAGE_MEMORY_CACHE_PERCENT = 0.10
