@@ -550,9 +550,10 @@ internal class ContinuousWindowController(
      */
     private fun applyChapterHeight(wv: ChapterWebView, contentPx: Int) {
         slotOf(wv).layoutParams = slotOf(wv).layoutParams.also { it.height = contentPx }
+        val vh = port.viewportHeightPx.takeIf { it > 0 } ?: placeholderHeight
         val wvHeight = ContinuousPositionTracker.chapterWebViewHeight(
             contentHeightPx = contentPx,
-            viewportHeightPx = port.viewportHeightPx.takeIf { it > 0 } ?: placeholderHeight,
+            viewportHeightPx = vh,
             maxRenderableHeightPx = maxRenderableHeightPx,
         )
         wv.layoutParams = wv.layoutParams.also { it.height = wvHeight }
@@ -576,7 +577,14 @@ internal class ContinuousWindowController(
             for (i in webViews.indices) {
                 val wv = webViews[i]
                 val contentH = measuredHeights.getOrElse(i) { 0 }
-                val wvH = wv.layoutParams?.height?.takeIf { it > 0 } ?: contentH
+                // Use the WebView's actual measured height, not its layoutParams.height.
+                // applyChapterHeight may have just updated layoutParams before the layout pass
+                // runs (e.g. when the GPU max is learned on first hardware draw and the cap
+                // widens from 4096 to 8400 px). Using layoutParams.height here would translate
+                // the WebView assuming the larger height, but the view still renders at the old
+                // smaller height — shifting the window up and leaving a blank gap at the chapter's
+                // bottom until the next layout + scroll update.
+                val wvH = wv.height.takeIf { it > 0 } ?: (wv.layoutParams?.height?.takeIf { it > 0 } ?: contentH)
                 val offset = ContinuousPositionTracker.chapterWebViewWindowOffset(
                     slotTop = top,
                     contentHeightPx = contentH,

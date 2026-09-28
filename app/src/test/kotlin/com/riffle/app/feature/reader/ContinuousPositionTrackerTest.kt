@@ -1231,6 +1231,60 @@ class ContinuousPositionTrackerTest {
         )
     }
 
+    @Test
+    fun `window offset with old WebView height keeps chapter end in view during GPU-max transition`() {
+        // Regression for the ch1-end cutoff: when the GPU-renderable cap widens (default 4096 →
+        // real 8400 on first hardware draw), applyChapterHeight updates layoutParams.height before
+        // the layout pass runs. syncChapterWindows must use the WebView's *actual* measured height
+        // (still 4096) — not layoutParams.height (already 8400) — so the window isn't translated
+        // past the bottom of the old rendered area, leaving the user looking at a blank gap.
+        //
+        // Scenario: contentH=50000, viewport=2800, user at the last page (scrollY=47200).
+        //   wvH=4096 (old actual) → offset=45904 → renders [45904,50000] → covers [47200,50000] ✓
+        //   wvH=8400 (new layoutParams) → offset=41600 → renders [41600,45696] → blank from 45696 ✗
+        //
+        // The bug: the new-height offset (41600) combined with the old rendering height (4096) puts
+        // the WebView's bottom at 45696, BELOW the viewport top at 47200 — zero viewport coverage.
+        // The fix: syncChapterWindows uses wv.height (4096, the actual measured height) so the
+        // offset stays at 45904, keeping the content visible until the layout pass finishes.
+        val viewportH = 2800
+        val contentH = 50_000
+        val scrollY = contentH - viewportH // 47200 — end of chapter
+
+        // With the actual (old) WebView height 4096 the offset parks at maxOffset=45904.
+        // The rendering window [45904, 50000] fully covers the viewport [47200, 50000].
+        val oldWvH = 4096
+        val oldMaxOffset = contentH - oldWvH // 45904
+        val offsetWithOldHeight = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 0, contentHeightPx = contentH, webViewHeightPx = oldWvH,
+            currentOffsetPx = 0, scrollY = scrollY, viewportHeightPx = viewportH,
+        )
+        assertEquals(oldMaxOffset, offsetWithOldHeight)
+        // window bottom = 45904 + 4096 = 50000 ≥ viewport bottom 50000 → content visible
+        assertTrue(
+            "window bottom ${offsetWithOldHeight!! + oldWvH} must reach viewport bottom ${scrollY + viewportH}",
+            (offsetWithOldHeight + oldWvH) >= scrollY + viewportH,
+        )
+
+        // With the new (inflated) layoutParams.height 8400 the offset is 41600.
+        // Combined with the old rendering height (4096), the WebView renders [41600, 45696].
+        // 45696 < 47200 (viewport top) → the viewport is completely blank: this is the bug.
+        val newWvH = 8400
+        val newMaxOffset = contentH - newWvH // 41600
+        val offsetWithNewHeight = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 0, contentHeightPx = contentH, webViewHeightPx = newWvH,
+            currentOffsetPx = 0, scrollY = scrollY, viewportHeightPx = viewportH,
+        )
+        assertEquals(newMaxOffset, offsetWithNewHeight)
+        // The rendering bottom when using the new offset but old (still-4096) rendering height:
+        // 41600 + 4096 = 45696, which is below the viewport top (47200) — no coverage.
+        assertTrue(
+            "sanity: new-height offset ${offsetWithNewHeight!!} + old render height $oldWvH = " +
+                "${offsetWithNewHeight + oldWvH} must be below viewport top $scrollY (blank viewport)",
+            (offsetWithNewHeight + oldWvH) < scrollY,
+        )
+    }
+
     // ---- internal scroll correction -----------------------------------------------------------
 
     @Test

@@ -187,12 +187,11 @@ internal object ContinuousStyleInjector {
             append("\n<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-before.css\"/>\n")
             // Match Readium's overflow fix so scroll layout behaves identically.
             // Also override --RS__maxMediaHeight to break the vh feedback loop that collapses
-            // images in continuous mode. Each ChapterWebView is sized to its full content height,
-            // so window.innerHeight = chapter height (not the visible screen), making 1vh
-            // proportional to the chapter. ReadiumCSS's max-height: 95vh !important then drives
-            // image height → chapter height → vh → image height in a converging cycle that
-            // shrinks tall images toward zero. Setting none removes the cap; images remain
-            // bounded by max-width: 100% from the same ReadiumCSS rule.
+            // images in continuous mode. The ChapterWebView is capped to 3× the viewport height
+            // (sliding renderable window), so window.innerHeight is at most 3× viewport, not the
+            // full chapter height. ReadiumCSS's max-height: 95vh !important would then constrain
+            // images to 2.85× viewport, shrinking tall images. Setting none removes the cap;
+            // images remain bounded by max-width: 100% from the same ReadiumCSS rule.
             append("<style>:root[style], :root { overflow: visible !important; }")
             append(":root[style] > body, :root > body { overflow: visible !important; }")
             append(":root { --RS__maxMediaHeight: none; }</style>\n")
