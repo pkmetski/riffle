@@ -143,23 +143,34 @@ fun figureBorderApplyJs(
           // Fallback for EPUBs that don't use semantic <figure>/<figcaption>: LaTeX/Kotobee/Vellum
           // exports typically wrap the image and its caption in generic <div>s with obfuscated
           // class names ("class_s4", "class_s5"), so we can't key off markup. The one deterministic
-          // signal is the caption's leading text: "Figure 5.1:", "Fig. 2", "Table 3", etc. Walk up
-          // to 3 ancestors and scan for the nearest block after the image whose text starts with
-          // that prefix. Bounded and content-anchored — won't grab body prose.
+          // signal is the caption's leading text: "Figure 5.1:", "Fig. 2", "Table 3", etc.
+          //
+          // Walk up to 5 ancestors and at each level scan up to 3 adjacent SIBLINGS of the
+          // current element (both preceding and following). Using siblings rather than
+          // querySelectorAll avoids false-positive matches on distant prose that happens to
+          // start with "Figure N" — e.g. "Figure 5-4 shows the result…" is a prose reference
+          // that would incorrectly match if scanned with querySelectorAll across the whole section.
           var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
+          function siblingCaption(el) {
+            var dirs = ['previousElementSibling', 'nextElementSibling'];
+            for (var d = 0; d < dirs.length; d++) {
+              var sib = el[dirs[d]];
+              for (var k = 0; sib && k < 3; k++) {
+                var tag = (sib.tagName || '').toLowerCase();
+                if (tag === 'figcaption') return sib;
+                if ((tag === 'p' || tag === 'div') && CAPTION_PREFIX_RX.test((sib.textContent || '').trim())) return sib;
+                sib = sib[dirs[d]];
+              }
+            }
+            return null;
+          }
           function nearestCaptionBlock(img) {
             var el = img;
-            for (var hops = 0; hops < 3; hops++) {
+            for (var hops = 0; hops < 5; hops++) {
               var parent = el.parentElement;
               if (!parent) return null;
-              var blocks = parent.querySelectorAll('p, div');
-              for (var i = 0; i < blocks.length; i++) {
-                var b = blocks[i];
-                if (b === img || b.contains(img)) continue;
-                var pos = img.compareDocumentPosition(b);
-                if (!(pos & 4)) continue;
-                if (CAPTION_PREFIX_RX.test(b.textContent || '')) return b;
-              }
+              var found = siblingCaption(el);
+              if (found) return found;
               el = parent;
             }
             return null;
@@ -168,11 +179,29 @@ fun figureBorderApplyJs(
             if (!el) return;
             var cap = null;
             var fig = el.closest && el.closest('figure, [role="figure"]');
-            // Unscoped 'figcaption' (any depth) mirrors FigureCaptionWalker.resolveCaption, so an
-            // annotation whose textSnippet captures a nested <figure><div><figcaption> also gets
-            // a matching tint. HTML5 restricts figcaption to first/last child of figure, but real
-            // EPUBs nest it inside wrappers.
-            if (fig) cap = fig.querySelector('figcaption');
+            if (fig) {
+              // Primary: semantic figcaption anywhere inside figure.
+              // getElementsByTagName is namespace-safe for XHTML EPUBs where querySelector may
+              // fail to match elements carrying the XHTML namespace on the root element.
+              cap = fig.querySelector('figcaption');
+              if (!cap) {
+                var fcs = fig.getElementsByTagName('figcaption');
+                if (fcs && fcs.length > 0) cap = fcs[0];
+              }
+              // Secondary: publishers (e.g. O'Reilly) use h6/h5/h4 inside the figure wrapper
+              // rather than a <figcaption> element (structure: <figure><div class="figure">
+              // <img/><h6>Figure N. caption text</h6></div></figure>). Check inside the figure
+              // for the lowest heading level before falling back to sibling scan, which can
+              // false-positive on the prose "Figure N shows…" reference paragraph preceding the
+              // figure in source order.
+              if (!cap) { var _h6 = fig.getElementsByTagName('h6'); if (_h6 && _h6.length > 0) cap = _h6[0]; }
+              if (!cap) { var _h5 = fig.getElementsByTagName('h5'); if (_h5 && _h5.length > 0) cap = _h5[0]; }
+              if (!cap) { var _h4 = fig.getElementsByTagName('h4'); if (_h4 && _h4.length > 0) cap = _h4[0]; }
+              if (!cap) { var _h3 = fig.getElementsByTagName('h3'); if (_h3 && _h3.length > 0) cap = _h3[0]; }
+              // Tertiary: sibling of <figure> (some publishers place caption outside the element).
+              if (!cap) cap = siblingCaption(fig);
+            }
+            // Final fallback: walk ancestor tree checking adjacent siblings at each level.
             if (!cap) cap = nearestCaptionBlock(el);
             if (!cap) return;
             // Use setProperty with 'important' so publisher CSS resets (Wiley et al.) don't win.
