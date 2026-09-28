@@ -8,6 +8,16 @@ import org.koin.dsl.koinApplication
 class RiffleApplicationTest {
 
     @Test
+    fun `IMAGE_MEMORY_CACHE_PERCENT is capped below Coil default of 25 percent`() {
+        // Regression: Coil's default 25% memory cache reaches ~128 MB with largeHeap=true,
+        // crowding out WebView tile rasters and causing OOM on foldables (SM-F776B, Android 17).
+        assertTrue(
+            "Memory cache percent $IMAGE_MEMORY_CACHE_PERCENT must be < 0.25 (Coil's uncapped default)",
+            IMAGE_MEMORY_CACHE_PERCENT < 0.25,
+        )
+    }
+
+    @Test
     fun `riffleKoinModules produce a loadable Koin graph`() {
         // Boots a Koin application with the exact module list RiffleApplication passes to
         // startKoin. Fails on any definition-level error (duplicate binding, invalid module),

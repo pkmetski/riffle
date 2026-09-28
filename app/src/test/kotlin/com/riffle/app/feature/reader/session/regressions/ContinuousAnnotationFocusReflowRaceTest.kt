@@ -156,6 +156,18 @@ class ContinuousAnnotationFocusReflowRaceTest {
             return false
         }
 
+        /**
+         * Mirrors the initial-measure arm in appendChapter.onHeightMeasured
+         * (ContinuousWindowController.kt line ~1446):
+         *   reapplyLandingAfterFallback = if (smoothTailInProgress) reapplyLandingAfterFallback else reapplyLandingAfterFallback ?: scroll
+         * Both branches must NOT overwrite a previously-promoted annotation reland; the
+         * smooth-tail branch additionally must NOT arm a progression-based scroll closure
+         * (which would chop the smooth animation via port.scrollTo mid-tween).
+         */
+        fun armInitialMeasure(scroll: () -> Unit, smoothTailInProgress: Boolean = false) {
+            reapplyLandingAfterFallback = if (smoothTailInProgress) reapplyLandingAfterFallback else reapplyLandingAfterFallback ?: scroll
+        }
+
         /** Mirrors onInterceptTouchEvent ACTION_DOWN that disarms auto-re-landing. */
         fun disarm() {
             reapplyLandingAfterFallback = null
@@ -342,6 +354,106 @@ class ContinuousAnnotationFocusReflowRaceTest {
             annotationLandings.size,
         )
         assertTrue(annotationLandings.all { it == "ch1.xhtml" to "ann-42" })
+    }
+
+    /**
+     * Regression for the JIT-warm re-open race (attempt 3 fail in harness):
+     *
+     * On fast iterations (JIT compiled), [onAnnotationHighlightsApplied] fires BEFORE the initial
+     * [pendingInitialMeasureIndices] set drains. The code that arms [reapplyLandingAfterFallback]
+     * after the initial scroll fires (ContinuousWindowController line ~1441) must NOT overwrite
+     * the annotation reland that [onAnnotationHighlightsApplied] already promoted.
+     *
+     * Before the fix the arm was unconditional: `reapplyLandingAfterFallback = scroll`. A
+     * subsequent target-height remeasure then called the progression-based closure instead of
+     * the annotation-mark one, landing the reader near the chapter top.
+     *
+     * Post-fix: `reapplyLandingAfterFallback = reapplyLandingAfterFallback ?: scroll` — the
+     * already-promoted annotation reland is preserved.
+     */
+    @Test
+    fun `initial-measure arm does not overwrite annotation reland already promoted by highlights`() {
+        val anchorLandings = mutableListOf<Int>()
+        val annotationLandings = mutableListOf<Pair<String, String>>()
+        val sm = ReapplyStateMachine(
+            targetHref = "ch1.xhtml",
+            initialHeightPx = 400,
+            onReland = { h -> anchorLandings.add(h) },
+        )
+
+        // Step 1: Highlights apply FIRST (fast JIT) — promote reland to annotation closure.
+        val annotationReland = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "ann-42",
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+        )!!
+        sm.reapplyLandingAfterFallback = annotationReland
+
+        // Step 2: Initial-measure arm fires via the state-machine method that mirrors
+        // the fixed line in ContinuousWindowController:
+        //   reapplyLandingAfterFallback = if (smoothTailInProgress) null else reapplyLandingAfterFallback ?: scroll
+        // If that line were reverted to the unconditional `= scroll`, armInitialMeasure would
+        // need the same revert, and this test would flip red.
+        val anchorScroll: () -> Unit = { anchorLandings.add(sm.reapplyTargetLastHeight) }
+        sm.armInitialMeasure(anchorScroll)
+
+        // Step 3: Target chapter reflows.
+        assertTrue(sm.onHeightMeasured("ch1.xhtml", 800))
+
+        assertEquals(
+            "Anchor closure must NOT fire after the annotation reland was already promoted",
+            0,
+            anchorLandings.size,
+        )
+        assertEquals(
+            "Annotation reland must fire on the target remeasure",
+            1,
+            annotationLandings.size,
+        )
+        assertEquals("ch1.xhtml" to "ann-42", annotationLandings[0])
+    }
+
+    @Test
+    fun `smooth-tail arm preserves existing annotation reland`() {
+        val annotationLandings = mutableListOf<Pair<String, String>>()
+        val anchorLandings = mutableListOf<Int>()
+        val sm = ReapplyStateMachine(
+            targetHref = "ch1.xhtml",
+            initialHeightPx = 400,
+            onReland = { h -> anchorLandings.add(h) },
+        )
+        val annotationReland = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "ann-99",
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+        )!!
+        sm.reapplyLandingAfterFallback = annotationReland
+
+        val anchorScroll: () -> Unit = { anchorLandings.add(sm.reapplyTargetLastHeight) }
+        sm.armInitialMeasure(anchorScroll, smoothTailInProgress = true)
+
+        assertTrue(sm.onHeightMeasured("ch1.xhtml", 800))
+        assertEquals("Anchor must NOT fire in smooth-tail with annotation reland", 0, anchorLandings.size)
+        assertEquals("Annotation reland must fire after smooth-tail reflow", 1, annotationLandings.size)
+        assertEquals("ch1.xhtml" to "ann-99", annotationLandings[0])
+    }
+
+    @Test
+    fun `smooth-tail arm does not arm progression closure when no annotation is pending`() {
+        val anchorLandings = mutableListOf<Int>()
+        val sm = ReapplyStateMachine(
+            targetHref = "ch1.xhtml",
+            initialHeightPx = 400,
+            onReland = { h -> anchorLandings.add(h) },
+        )
+        sm.reapplyLandingAfterFallback = null
+
+        val anchorScroll: () -> Unit = { anchorLandings.add(sm.reapplyTargetLastHeight) }
+        sm.armInitialMeasure(anchorScroll, smoothTailInProgress = true)
+
+        val fired = sm.onHeightMeasured("ch1.xhtml", 800)
+        assertEquals("Progression closure must NOT be armed in smooth-tail — would chop animation", false, fired)
+        assertEquals(0, anchorLandings.size)
     }
 
     @Test
