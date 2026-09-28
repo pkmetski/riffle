@@ -98,15 +98,11 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `TYPE_IMAGE marks request caption tint but TYPE_HIGHLIGHT marks do not`() {
-        // Post-2026-07-14 rule (caption-highlight upgrade): TYPE_HIGHLIGHT annotations whose
-        // range already covers the caption receive their tint from Readium's normal decoration
-        // pipeline. Firing the render-side tintCaptionFor pass for them again would double-paint.
-        // TYPE_IMAGE annotations still need the render-side tint because their caption isn't a
-        // real annotated span. Reverting the tintCaption plumbing flips this red.
+    fun `TYPE_IMAGE and TYPE_HIGHLIGHT with embedded figures both request CSS caption tint`() {
+        // The CSS tintCaptionFor pass always fires for any annotation that references a figure,
+        // regardless of whether the textSnippet includes the caption text. The legend element
+        // must appear highlighted as part of the annotation even when the caption is not selected.
         val legacyImage = imageAnnotation(id = "img", imageHref = "g.png", color = "yellow")
-        // Caption-highlight shape: textSnippet contains the figure's caption text → Readium's
-        // highlight decoration paints the caption span → skip the CSS tint (would double-paint).
         val captionHighlight = highlightAnnotation(
             id = "hl",
             color = "green",
@@ -116,7 +112,7 @@ class FigureBorderDecorationTest {
 
         val rasters = FigureBorderDecoration.buildRasterMarks(listOf(legacyImage, captionHighlight))
         assertTrue(rasters.single { it.filename == "g.png" }.tintCaption)
-        assertFalse(rasters.single { it.filename == "g2.png" }.tintCaption)
+        assertTrue(rasters.single { it.filename == "g2.png" }.tintCaption)
 
         val svgImage = imageAnnotation(id = "img2", imageSvg = "<svg id=\"i\"></svg>", color = "yellow")
         val svgHighlight = highlightAnnotation(
@@ -127,7 +123,7 @@ class FigureBorderDecorationTest {
         )
         val svgs = FigureBorderDecoration.buildSvgMatches(listOf(svgImage, svgHighlight))
         assertTrue(svgs.single { it.fingerprint.contains("id=\"i\"") }.tintCaption)
-        assertFalse(svgs.single { it.fingerprint.contains("id=\"h\"") }.tintCaption)
+        assertTrue(svgs.single { it.fingerprint.contains("id=\"h\"") }.tintCaption)
     }
 
     @Test
@@ -188,7 +184,10 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `separate caption and diagram annotations do not double tint the caption`() {
+    fun `caption highlight and diagram annotation on same figure both produce tintCaption true`() {
+        // Both a caption-text highlight and a figure (image) annotation reference the same figure.
+        // Both must request CSS caption tint so the legend is visually highlighted regardless of
+        // which annotation the newest-wins merge picks.
         val caption = "Figure 3.1: A tactical approach makes progress quickly."
         val captionHighlight = highlightAnnotation(
             id = "caption",
@@ -206,7 +205,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(captionHighlight, diagramHighlight)).single()
 
-        assertFalse(mark.tintCaption)
+        assertTrue(mark.tintCaption)
 
         val svg = "<svg id=\"diagram\"></svg>"
         val svgCaptionHighlight = highlightAnnotation(
@@ -225,7 +224,7 @@ class FigureBorderDecorationTest {
 
         val svgMark = FigureBorderDecoration.buildSvgMatches(listOf(svgCaptionHighlight, svgDiagramHighlight)).single()
 
-        assertFalse(svgMark.tintCaption)
+        assertTrue(svgMark.tintCaption)
     }
 
     @Test
@@ -353,14 +352,11 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `caption-highlight with blank figure caption still suppresses CSS tint`() {
-        // Regression pin for the "visually duplicated" bug (2026-07-14): the caption-highlight
-        // path in EpubReaderViewModel.onFigureLongPress writes EmbeddedFigure(caption="") to keep
-        // the elided-view renderer clean, so highlightCoversCaption must NOT fall back to
-        // tintCaption=true when the annotation's textSnippet is itself the caption. Otherwise
-        // Readium's highlight decoration and the CSS tint both paint the <figcaption>, stacking
-        // to ~2x opacity. Detects the caption-highlight shape via the same canonical caption
-        // prefix (Figure|Fig.|Table|Chart + digit) used by HighlightsPublicationFactory.
+    fun `any TYPE_HIGHLIGHT with embedded figure requests CSS caption tint regardless of textSnippet`() {
+        // The CSS tintCaptionFor pass must fire for all figure annotations — including
+        // caption-text selections (textSnippet IS the caption) and decorative figures
+        // (blank caption). The entire legend element must appear highlighted as part of the
+        // annotation; any slight double-paint with Readium's decoration is acceptable.
         val captionHighlightRaster = highlightAnnotation(
             id = "hl-raster",
             color = "yellow",
@@ -368,7 +364,7 @@ class FigureBorderDecorationTest {
             textSnippet = "Figure 20.2: The original code for allocating new space at the end of a Buffer.",
         )
         val rasters = FigureBorderDecoration.buildRasterMarks(listOf(captionHighlightRaster))
-        assertFalse(rasters.single().tintCaption, "caption-highlight with blank figure.caption must not request CSS tint (would double-paint)")
+        assertTrue(rasters.single().tintCaption, "caption-highlight with blank figure.caption must request CSS tint so the legend is highlighted")
 
         val captionHighlightSvg = highlightAnnotation(
             id = "hl-svg",
@@ -377,10 +373,8 @@ class FigureBorderDecorationTest {
             textSnippet = "Table 3: Comparative results across all six datasets.",
         )
         val svgs = FigureBorderDecoration.buildSvgMatches(listOf(captionHighlightSvg))
-        assertFalse(svgs.single().tintCaption, "SVG caption-highlight with blank figure.caption must not request CSS tint")
+        assertTrue(svgs.single().tintCaption, "SVG caption-highlight with blank figure.caption must request CSS tint")
 
-        // Legacy decorative-figure shape (blank caption, non-caption textSnippet) still keeps the
-        // CSS tint — the prefix check protects the pre-caption-highlight body-prose case.
         val legacyDecorative = highlightAnnotation(
             id = "hl-legacy",
             color = "yellow",
@@ -388,7 +382,7 @@ class FigureBorderDecorationTest {
             textSnippet = "This paragraph discusses the surrounding topic and the diagram is decorative.",
         )
         val legacyRasters = FigureBorderDecoration.buildRasterMarks(listOf(legacyDecorative))
-        assertTrue(legacyRasters.single().tintCaption, "legacy decorative-figure highlight (no caption prefix in snippet) still requests CSS tint")
+        assertTrue(legacyRasters.single().tintCaption, "decorative-figure highlight requests CSS tint")
     }
 
     @Test

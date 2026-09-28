@@ -81,10 +81,10 @@ class FigureBorderInjectionTest {
 
     @Test
     fun `apply js gates raster caption tint on the tintCap flag`() {
-        // TYPE_HIGHLIGHT annotations whose snippet contains the FULL caption already emit a real
-        // Readium highlight over the caption text; firing tintCaptionFor for them again would
-        // double-paint. buildRasterMarks flags those with tintCaption=false; the JS must respect
-        // it. Reverting the `if (rf.tintCap)` guard reintroduces the double-paint bug.
+        // The JS must respect the tintCap flag in the raster payload. Even though tintCap is
+        // currently always 1 for figure annotations, the gate must remain so future callers can
+        // set it to 0 if needed. Removing the `if (rf.tintCap)` guard would unconditionally
+        // call tintCaptionFor even for marks explicitly flagged to skip it.
         val marks = listOf(
             FigureBorderDecoration.RasterMark(
                 filename = "hl.png",
