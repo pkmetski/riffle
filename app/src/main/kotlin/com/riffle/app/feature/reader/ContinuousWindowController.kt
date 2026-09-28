@@ -1434,16 +1434,14 @@ internal class ContinuousWindowController(
                         }
                     }
                     // In smoothTail mode the closure launched a NestedScrollView smoothScrollTo;
-                    // arming the reapply here would let a late target-chapter remeasure fire the
-                    // closure again during the 250 ms tween, taking its ELSE branch (hard
-                    // port.scrollTo) and chopping the animation. Accept a small position offset
-                    // from late reflow rather than kill the visible motion.
-                    // Don't overwrite if onAnnotationHighlightsApplied already promoted this to an
-                    // annotation-mark reland: on JIT-warm re-opens the annotation closure can be set
-                    // before the initial measure completes; replacing it here with the
-                    // progression-based scroll causes subsequent reflows to land on the paragraph
-                    // anchor instead of the highlighted mark (seen as attempt 3 miss in harness).
-                    reapplyLandingAfterFallback = if (smoothTailInProgress) null else reapplyLandingAfterFallback ?: scroll
+                    // arming a PROGRESSION-based reapply here would let a late remeasure fire
+                    // port.scrollTo during the 250 ms tween and chop the animation. We leave the
+                    // slot null for the progression closure (so no reapply fires during the tween)
+                    // but preserve an annotation reland that onAnnotationHighlightsApplied may
+                    // have already promoted: typography reflow is async and typically arrives after
+                    // the animation completes, so the annotation reland does not chop it in
+                    // practice, and silently discarding it loses the annotation focus entirely.
+                    reapplyLandingAfterFallback = if (smoothTailInProgress) reapplyLandingAfterFallback else reapplyLandingAfterFallback ?: scroll
                     val targetIdx = pendingTargetHref?.let { webViewIndexFor(it) } ?: -1
                     reapplyTargetLastHeight = measuredHeights.getOrElse(targetIdx) { measuredPx }
                 } else if (webViews.getOrNull(i)?.chapterHref == pendingTargetHref &&
