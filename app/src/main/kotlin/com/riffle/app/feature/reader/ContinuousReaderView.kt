@@ -9,6 +9,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.OverScroller
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.view.doOnNextLayout
 import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.models.EmphasisStyle
@@ -81,6 +82,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             this@ContinuousReaderView.smoothScrollByDirect(dy, durationMs)
         override fun abortFling() = this@ContinuousReaderView.abortFling()
         override fun post(block: () -> Unit) { this@ContinuousReaderView.post(block) }
+        override fun postAfterLayout(block: () -> Unit) { this@ContinuousReaderView.doOnNextLayout { block() } }
         override fun postOnAnimation(block: () -> Unit) { this@ContinuousReaderView.postOnAnimation(block) }
         override fun postDelayed(r: Runnable, delayMs: Long) { this@ContinuousReaderView.postDelayed(r, delayMs) }
         override fun removeCallbacks(r: Runnable) { this@ContinuousReaderView.removeCallbacks(r) }
