@@ -87,22 +87,43 @@ class ContinuousViewDetachGuardTest {
     }
 
     @Test
-    fun `EpubReaderScreen calls coordinator detach in the ContinuousReaderView AndroidView onRelease`() {
-        // Find the ContinuousReaderView AndroidView block and verify its onRelease resets the
-        // coordinator. Without this wiring, detach() is never called and the stale-view bug
-        // reappears even if detach() itself is correct.
+    fun `EpubReaderScreen calls coordinator detach inside the onRelease block of the ContinuousReaderView AndroidView`() {
+        // Extract the onRelease = { … } block body and assert coordinator.detach() lives inside
+        // it. A co-existence check (two separate contains) would pass even if coordinator.detach()
+        // moved to a DisposableEffect, which looks like a natural alternative but would NOT clear
+        // the viewFlow at the right moment (DisposableEffect keys on isContinuous; its onDispose
+        // runs after recomposition, which may be after the next TOC navigation fires and picks up
+        // the stale view from viewFlow).
+        val marker = "onRelease = {"
+        val start = screenSource.indexOf(marker)
         assertTrue(
-            "EpubReaderScreen must call coordinator.detach() in the ContinuousReaderView " +
-                "AndroidView's onRelease callback. Without this the coordinator's viewFlow is " +
-                "never reset to null on mode switch, so the next TOC tap in continuous mode " +
-                "silently navigates on the destroyed view.",
-            screenSource.contains("coordinator.detach()"),
+            "onRelease = { not found in EpubReaderScreen — ContinuousReaderView AndroidView must " +
+                "have an onRelease callback that calls coordinator.detach()",
+            start >= 0,
         )
+        val braceStart = start + marker.length - 1  // the '{' is the last char of the marker
+        var depth = 0
+        var i = braceStart
+        val sb = StringBuilder()
+        while (i < screenSource.length) {
+            val c = screenSource[i]
+            sb.append(c)
+            when (c) {
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) break
+                }
+            }
+            i++
+        }
+        val onReleaseBody = sb.toString()
         assertTrue(
-            "coordinator.detach() must appear inside an onRelease callback in EpubReaderScreen. " +
-                "The onRelease runs when the AndroidView leaves composition (mode switch), which " +
-                "is the correct moment to reset the coordinator's stale view reference.",
-            screenSource.contains("onRelease"),
+            "coordinator.detach() must appear inside the onRelease = { … } block body. " +
+                "Moving it elsewhere (e.g. a DisposableEffect) leaves viewFlow non-null after " +
+                "mode switch and silently causes the next TOC tap to navigate on the stale view. " +
+                "onRelease body: `$onReleaseBody`",
+            onReleaseBody.contains("coordinator.detach()"),
         )
     }
 }

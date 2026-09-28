@@ -35,26 +35,28 @@ class TocNavigationPresenterCaptureTest {
         file!!.readText()
     }
 
-    /** Extracts the source text inside LaunchedEffect(onNavigationEvents) { … }. */
+    /**
+     * Returns the source lines between `LaunchedEffect(onNavigationEvents)` (inclusive) and the
+     * next top-level `LaunchedEffect(` call (exclusive).
+     *
+     * Line-range extraction avoids the brace-counter's weakness with `${ }` string templates: a
+     * template expression opens a nested `{` that the counter would count, potentially closing the
+     * balance early and returning a truncated body that no longer contains the navigation call.
+     * Since the navigation LaunchedEffects are separated by blank lines / comments, slicing to the
+     * next `LaunchedEffect(` gives a reliable body without parsing Kotlin syntax.
+     */
     private fun onNavigationEventsEffectBody(): String {
-        val marker = "LaunchedEffect(onNavigationEvents)"
-        val start = screenSource.indexOf(marker)
-        assertTrue("$marker not found in EpubReaderScreen", start >= 0)
-        val braceStart = screenSource.indexOf('{', start)
-        assertTrue("opening brace after $marker not found", braceStart >= 0)
-        var depth = 0
-        var i = braceStart
-        while (i < screenSource.length) {
-            when (screenSource[i]) {
-                '{' -> depth++
-                '}' -> {
-                    depth--
-                    if (depth == 0) return screenSource.substring(braceStart, i + 1)
-                }
-            }
-            i++
-        }
-        error("$marker brace block never closes — EpubReaderScreen may be malformed")
+        val lines = screenSource.lines()
+        val startIdx = lines.indexOfFirst { it.contains("LaunchedEffect(onNavigationEvents)") }
+        assertTrue(
+            "LaunchedEffect(onNavigationEvents) not found in EpubReaderScreen",
+            startIdx >= 0,
+        )
+        // Find the next LaunchedEffect( call after this one — that's where the body ends.
+        val endIdx = lines.drop(startIdx + 1).indexOfFirst {
+            it.trimStart().startsWith("LaunchedEffect(")
+        }.takeIf { it >= 0 }?.let { startIdx + 1 + it } ?: lines.size
+        return lines.subList(startIdx, endIdx).joinToString("\n")
     }
 
     @Test
