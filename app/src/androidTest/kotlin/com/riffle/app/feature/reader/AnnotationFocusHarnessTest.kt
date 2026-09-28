@@ -83,6 +83,11 @@ class AnnotationFocusHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
+        // Drain any in-flight recompositions before destroying the Activity. Without this,
+        // Compose's SlotTable gap-buffer can be in a partial state when performDestroy fires the
+        // lifecycle event, causing SlotWriter.moveSlotGapTo to compute a negative index and throw
+        // ArrayIndexOutOfBoundsException during composition disposal.
+        composeTestRule.waitForIdle()
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)
