@@ -257,6 +257,31 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `injectInto embeds table-fit CSS so publisher fixed-pixel-width tables reflow within the page`() {
+        // Regression: O'Reilly "AI Engineering" tables overflow horizontally. The root cause is
+        // that epub.css sets min-width: 96px on td/th (5 columns × 96px = 480px > ~368px page),
+        // so table-layout: fixed alone cannot squeeze below that floor. All three rules are needed:
+        // width: 100% !important, table-layout: fixed !important, min-width: 0 !important.
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())
+        assertTrue("riffle-table-fit style block present", out.contains("riffle-table-fit"))
+        assertTrue("table width 100% override present", out.contains("width: 100% !important"))
+        assertTrue(
+            "table-layout fixed must be present so column min-widths cannot push the table beyond 100%",
+            out.contains("table-layout: fixed !important"),
+        )
+        assertTrue(
+            "min-width: 0 !important must zero out publisher min-width on cells — O'Reilly epub.css sets min-width: 96px",
+            out.contains("min-width: 0 !important"),
+        )
+        // Must appear after ReadiumCSS-after.css so the !important overrides win in cascade order.
+        val afterCssIdx = out.indexOf("ReadiumCSS-after.css")
+        val tableFitIdx = out.indexOf("riffle-table-fit")
+        val headCloseIdx = out.indexOf("</head>")
+        assertTrue("table-fit after ReadiumCSS-after.css", tableFitIdx > afterCssIdx)
+        assertTrue("table-fit before </head>", tableFitIdx < headCloseIdx)
+    }
+
+    @Test
     fun `injectInto adds default-css only when chapter has no author styles`() {
         val withStyles = "<html><head><style>p{}</style></head><body></body></html>"
         val without = "<html><head><title>t</title></head><body></body></html>"

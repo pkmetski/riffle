@@ -48,6 +48,13 @@ internal enum class CapabilityId {
      * vertical scrolling in a mode that should only turn pages horizontally.
      */
     PaginatedLayoutLock,
+
+    /**
+     * Forces tables to fit within the page width. Publisher EPUBs often set explicit pixel
+     * widths on tables that exceed the reader's content area; this override prevents horizontal
+     * overflow so tables reflow proportionally rather than extending beyond the page.
+     */
+    TableFit,
 }
 
 /** Where in the renderer's lifetime a capability is meant to be (re)installed. */

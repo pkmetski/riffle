@@ -182,6 +182,36 @@ class RendererCapabilityTest {
         )
     }
 
+    /**
+     * Regression test for the O'Reilly "AI Engineering" table overflow bug: the EPUB's `epub.css`
+     * sets `min-width: 96px` on `td`/`th`, so 5 columns × 96px = 480px exceeds the ~368px page
+     * width. `table-layout: fixed` alone cannot squeeze below the CSS min-width; `min-width: 0`
+     * removes that floor so the fixed-layout algorithm can distribute columns within 100%.
+     * A revert of any of these three rules would flip this test red and overflow would return.
+     */
+    @Test fun `table fit capability is registered and forces width 100 percent with important`() {
+        val cap = installOrder.firstOrNull { it.id == CapabilityId.TableFit }
+        assertTrue("TableFit capability must be registered", cap != null)
+        val script = cap!!.installScript()
+        assertTrue(
+            "table-fit must force width: 100% !important to override publisher fixed pixel widths",
+            script.contains("width: 100% !important"),
+        )
+        assertTrue(
+            "table-fit must use table-layout: fixed !important so column min-widths cannot expand the table beyond 100%",
+            script.contains("table-layout: fixed !important"),
+        )
+        assertTrue(
+            "table-fit must zero out publisher min-width on cells — O'Reilly epub.css sets min-width: 96px on td/th, " +
+                "which forces 5 columns × 96px = 480px even under fixed layout; clearing it lets fixed layout fit within 100%",
+            script.contains("min-width: 0 !important"),
+        )
+        assertTrue(
+            "table-fit must be idempotent via stable style element id riffle-table-fit",
+            script.contains("riffle-table-fit"),
+        )
+    }
+
     @Test fun `topo sort rejects a cycle`() {
         val a = RendererCapability(
             id = CapabilityId.RectToJsonPolyfill,

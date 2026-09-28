@@ -411,6 +411,11 @@ class ReadiumSwiftNavigator(
         evaluateJs(com.riffle.feature.reader.PaginatedLayoutLock.INSTALL_SCRIPT)
     }
 
+    /** Injects table-fit CSS so publisher fixed-pixel-width tables reflow to fit the page. Mirrors Android's TableFit RendererCapability. */
+    internal suspend fun injectTableFitScript() {
+        evaluateJs(com.riffle.feature.reader.TableFit.INSTALL_SCRIPT)
+    }
+
     private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
         bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
     }

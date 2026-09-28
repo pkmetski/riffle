@@ -5,6 +5,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.app.feature.readersettings.DARK_DIM_TEXT
+import com.riffle.feature.reader.TableFit
 
 /**
  * Produces the CSS injection for Continuous-mode chapters.
@@ -219,6 +220,9 @@ internal object ContinuousStyleInjector {
             append("</style>\n")
             append("<style type=\"text/css\" id=\"riffle-typography-override\">\n")
             append(TYPOGRAPHY_OVERRIDE_CSS)
+            append("</style>\n")
+            append("<style type=\"text/css\" id=\"riffle-table-fit\">\n")
+            append(TableFit.CSS)
             append("</style>\n")
             append(domReadyScript(sized = allImagesSized(html)))
         }
