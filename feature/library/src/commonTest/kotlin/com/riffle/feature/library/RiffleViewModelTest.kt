@@ -268,31 +268,68 @@ class RiffleViewModelTest {
     }
 
     @Test
-    fun inProgressShowsAllItemsWhenRefreshFails() = runTest(dispatcher) {
-        // When refresh fails but the device still has network connectivity, the filter must NOT
-        // kick in. The item filter is gated on true network loss (!online) only — a server
-        // failure with an online device does not make items unplayable; the server may recover.
-        // The banner still shows (isOffline=true from _failedSourceIds), but items are unfiltered.
+    fun inProgressFiltersToOfflineAvailableWhenNetworkUnreachable() = runTest(dispatcher) {
+        // After the refreshForSource fix, refreshForSource returns false ONLY for genuine network
+        // failures (CatalogException.Offline / NetworkResult.Offline), not for 403 or parse errors.
+        // So _failedSourceIds being non-empty means the server is genuinely unreachable — items
+        // cannot be streamed — and inProgress must filter to locally available items, even if the
+        // connectivity observer is stuck at true (Android 13 dropped-onLost bug).
         val absSource = source("abs-1", type = SourceType.ABS)
         val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
-        val items = listOf(libraryItem("item1", "abs-1"), libraryItem("item2", "abs-1"))
+        val cached = libraryItem("cached", "abs-1")
+        val uncached = libraryItem("uncached", "abs-1")
+        val allItems = MutableStateFlow(listOf(cached, uncached))
         val observer = fakeObserver(
             librariesBySourceId = mapOf("abs-1" to listOf(library)),
-            inProgressAllSources = MutableStateFlow(items),
+            allItemsAllSources = allItems,
         )
         val vm = makeViewModel(
             libraryObserver = observer,
             sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = FailingToReadRepository(),
+            offlineAvailability = SelectiveOfflineAvailability(setOf("cached")),
         )
         // See isOfflineTrueWhenRefreshFails for why advanceTimeBy(1) not advanceUntilIdle().
         advanceTimeBy(1)
-        assertTrue(vm.isOffline.first(), "banner must show when refresh fails")
+        assertTrue(vm.isOffline.first(), "banner must show when network is unreachable")
         assertEquals(
-            listOf("item1", "item2"),
+            listOf("cached"),
             vm.inProgress.first().map { it.id },
-            "all items must show when refresh fails but network is up",
+            "inProgress must filter to offline-available items when server is unreachable",
+        )
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
+    fun inProgressSwitchesToOfflinePathViaFailedSourcesEvenWhenConnectivityObserverStuck() = runTest(dispatcher) {
+        // Regression: on Android 13+, the onLost callback can be dropped, leaving
+        // connectivityObserver.isOnline stuck at true. Before this fix, inProgress gated directly
+        // on isOnline, so it never switched to the offline path even after _failedSourceIds was
+        // populated (e.g., by switching sources). Now inProgress gates on the combined isOffline
+        // StateFlow — the offline path activates via either signal.
+        val absSource = source("abs-1", type = SourceType.ABS)
+        val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
+        val cached = libraryItem("cached", "abs-1")
+        val uncached = libraryItem("uncached", "abs-1")
+        val allItems = MutableStateFlow(listOf(cached, uncached))
+        val observer = fakeObserver(
+            librariesBySourceId = mapOf("abs-1" to listOf(library)),
+            allItemsAllSources = allItems,
+        )
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
+            connectivity = FakeConnectivityObserver(online = true),  // stuck at true (Android 13 bug)
+            toReadRepository = FailingToReadRepository(),             // network unreachable
+            offlineAvailability = SelectiveOfflineAvailability(setOf("cached")),
+        )
+        advanceTimeBy(1)
+        assertEquals(
+            listOf("cached"),
+            vm.inProgress.first().map { it.id },
+            "inProgress must show only offline-available items when network is unreachable, " +
+                "regardless of what connectivityObserver.isOnline reports",
         )
         vm.viewModelScope.cancel()
     }

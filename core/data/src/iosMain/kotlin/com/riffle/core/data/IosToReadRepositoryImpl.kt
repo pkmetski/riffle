@@ -60,9 +60,15 @@ class IosToReadRepositoryImpl(
                 cache.value = cache.value + (libraryId to snapshot)
                 true
             }
-            else -> {
-                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) failed: $result" }
+            is NetworkResult.Offline -> {
+                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) offline: $result" }
                 false
+            }
+            else -> {
+                // Server reachable but returned an error (e.g. ABS readlist permission not granted,
+                // 4xx/5xx, parse failure). Don't raise the offline banner for server-side errors.
+                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) server error (not offline): $result" }
+                true
             }
         }
     }

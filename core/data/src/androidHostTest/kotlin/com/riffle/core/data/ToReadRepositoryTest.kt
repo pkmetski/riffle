@@ -13,6 +13,7 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.logging.RecordingLogger
@@ -53,6 +54,36 @@ class ToReadRepositoryTest {
         val repo = makeRepo(cap)
         assertFalse(repo.refresh("lib-1"))
         assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
+    }
+
+    // ── refreshForSource ──────────────────────────────────────────────────────
+
+    @Test
+    fun `refreshForSource returns false only when server is genuinely offline`() = runTest {
+        // CatalogException.Offline = network unreachable → should propagate as false so the
+        // Riffle hub offline banner appears.
+        val cap = FakeCatalog(
+            findError = CatalogException.Offline(RuntimeException("connection refused")),
+        )
+        val repo = makeRepo(cap)
+        assertFalse(repo.refreshForSource("src-1", "lib-1"))
+    }
+
+    @Test
+    fun `refreshForSource returns true when server returns a non-network error`() = runTest {
+        // CatalogException.Auth (403 — readlist permission not granted) means the server IS
+        // reachable. The offline banner must not appear in this case.
+        val cap = FakeCatalog(findError = CatalogException.Auth())
+        val repo = makeRepo(cap)
+        assertTrue(repo.refreshForSource("src-1", "lib-1"))
+    }
+
+    @Test
+    fun `refreshForSource populates cache on success`() = runTest {
+        val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-A", "To Read", listOf("item-1")))))
+        val repo = makeRepo(cap)
+        assertTrue(repo.refreshForSource("src-1", "lib-1"))
+        assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
     @Test
@@ -250,6 +281,8 @@ class ToReadRepositoryTest {
     private class FakeCatalog(
         val playlistsByLibrary: Map<String, List<CatalogPlaylist>> = emptyMap(),
         val listFails: Boolean = false,
+        /** When non-null, [findPlaylist] throws this instead of [listFails]. */
+        val findError: Throwable? = null,
         val createFails: Boolean = false,
         val addFails: Boolean = false,
         val removeFails: Boolean = false,
@@ -274,6 +307,7 @@ class ToReadRepositoryTest {
         }
 
         override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? {
+            findError?.let { throw it }
             if (listFails) throw RuntimeException("boom")
             return playlistsByLibrary[rootId].orEmpty().firstOrNull { it.name == name }
         }

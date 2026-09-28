@@ -59,12 +59,14 @@ class RiffleViewModel constructor(
         !online || failedIds.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    // When the device is truly offline (no network), surface ALL locally-available items so the
-    // user can read anything they've downloaded regardless of whether they've started it before.
-    // When online (even with a failing server refresh), show the standard in-progress list only.
+    // Gate inProgress and continueSeries on the combined isOffline signal (connectivity observer
+    // AND _failedSourceIds) rather than directly on connectivityObserver.isOnline. On Android 13+
+    // the OS can silently drop the onLost callback, leaving isOnline stuck at true for up to 15s.
+    // After the refreshForSource fix, _failedSourceIds is non-empty only on genuine network
+    // failures — the same condition that makes items unplayable — so isOffline is the correct gate.
     val inProgress: StateFlow<List<LibraryItem>> =
-        connectivityObserver.isOnline.flatMapLatest { online ->
-            if (online) {
+        isOffline.flatMapLatest { offline ->
+            if (!offline) {
                 libraryObserver.observeInProgressItemsAllSources()
             } else {
                 libraryObserver.observeAllLibraryItemsAllSources()
@@ -73,8 +75,8 @@ class RiffleViewModel constructor(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val continueSeries: StateFlow<List<LibraryItem>> =
-        connectivityObserver.isOnline.flatMapLatest { online ->
-            if (online) {
+        isOffline.flatMapLatest { offline ->
+            if (!offline) {
                 libraryObserver.observeContinueSeriesItemsAllSources()
             } else {
                 flowOf(emptyList())

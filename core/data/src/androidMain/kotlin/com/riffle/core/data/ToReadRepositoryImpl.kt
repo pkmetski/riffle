@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
@@ -85,16 +86,20 @@ class ToReadRepositoryImpl constructor(
 
     override suspend fun refreshForSource(sourceId: String, libraryId: String): Boolean {
         val cap = (catalogRegistry.forSourceId(sourceId) as? PlaylistsCapability) ?: return true
-        val match = runCatching { cap.findPlaylist(libraryId, TO_READ_PLAYLIST_NAME) }
-            .getOrElse {
-                logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) findPlaylist failed: $it" }
-                return false
-            }
-        val snapshot = ToReadSnapshot(
+        val result = runCatching { cap.findPlaylist(libraryId, TO_READ_PLAYLIST_NAME) }
+        val error = result.exceptionOrNull()
+        if (error != null) {
+            logger.d(LogChannel.ToRead) { "refreshForSource($sourceId, $libraryId) findPlaylist failed: $error" }
+            // CatalogException.Offline means the server is genuinely unreachable — raise the
+            // offline banner. Any other exception (Auth/403, ServerError, Parse…) means the
+            // server IS reachable, just this API endpoint failed — don't raise the banner.
+            return error !is CatalogException.Offline
+        }
+        val match = result.getOrNull()
+        cache.value = cache.value + (libraryId to ToReadSnapshot(
             playlistId = match?.id,
             itemIds = match?.itemIds?.toSet() ?: emptySet(),
-        )
-        cache.value = cache.value + (libraryId to snapshot)
+        ))
         return true
     }
 
