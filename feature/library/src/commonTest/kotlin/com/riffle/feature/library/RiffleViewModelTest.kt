@@ -257,7 +257,10 @@ class RiffleViewModelTest {
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = FailingToReadRepository(),
         )
-        advanceUntilIdle()
+        // advanceTimeBy(1) runs all t=0 initial tasks (refresh chain, first retry) and stops
+        // before the t=10s polling delay. advanceUntilIdle() would spin forever here because the
+        // polling loop schedules an infinite sequence of delay(10s)+retryFail tasks.
+        advanceTimeBy(1)
         assertTrue(vm.isOffline.first(), "isOffline must be true when a source refresh fails")
     }
 
@@ -280,7 +283,8 @@ class RiffleViewModelTest {
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = FailingToReadRepository(),
         )
-        advanceUntilIdle()
+        // See isOfflineTrueWhenRefreshFails for why advanceTimeBy(1) not advanceUntilIdle().
+        advanceTimeBy(1)
         assertTrue(vm.isOffline.first(), "banner must show when refresh fails")
         assertEquals(
             listOf("item1", "item2"),
@@ -346,7 +350,8 @@ class RiffleViewModelTest {
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = toReadRepo,
         )
-        advanceUntilIdle()
+        // See isOfflineTrueWhenRefreshFails for why advanceTimeBy(1) not advanceUntilIdle().
+        advanceTimeBy(1)
         assertTrue(vm.isOffline.first(), "isOffline must be true after initial failing refresh")
 
         toReadRepo.succeeds = true
@@ -373,7 +378,8 @@ class RiffleViewModelTest {
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = toReadRepo,
         )
-        advanceUntilIdle()
+        // See isOfflineTrueWhenRefreshFails for why advanceTimeBy(1) not advanceUntilIdle().
+        advanceTimeBy(1)
         assertTrue(vm.isOffline.first(), "isOffline must be true after initial failing refresh")
 
         // Server comes back: flip the repo to succeed and re-emit a structurally different library
