@@ -528,7 +528,20 @@ class AnnotationFocusHarnessTest : KoinTest {
         composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription("Search").performClick()
+        // The Search icon can disappear between the waitUntil pass and performClick if the reader
+        // briefly re-enters a loading state (e.g. vertical mode slow chapter transition on CI).
+        // Retry once: re-show chrome and click again, matching the pattern used for the Annotations
+        // button below.
+        try {
+            composeTestRule.onNodeWithContentDescription("Search").performClick()
+        } catch (_: AssertionError) {
+            composeTestRule.waitForIdle()
+            showTopAppBar()
+            composeTestRule.waitUntil(timeoutMillis = 10_000) {
+                composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithContentDescription("Search").performClick()
+        }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }
