@@ -76,7 +76,7 @@ class SingletonWebSourceInstallerTest {
     }
 
     @Test
-    fun `install is idempotent second call returns the same id`() = runTest {
+    fun `install is idempotent — second call returns the same id`() = runTest {
         val sourceDao = InMemorySourceDao()
         val libraryDao = InMemoryLibraryDao()
         val svc = installer(sourceDao, libraryDao)

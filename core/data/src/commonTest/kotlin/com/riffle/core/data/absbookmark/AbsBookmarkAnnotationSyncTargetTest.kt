@@ -127,7 +127,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `ignores foreign bookmarks yaabsa and real audio`() = runTest {
+    fun `ignores foreign bookmarks — yaabsa and real audio`() = runTest {
         val api = FakeAbsBookmarkApi()
         // Pre-seed noise.
         api.state.add(NetworkAbsBookmark(ITEM, "[{\"cfi\":\"…\",\"type\":\"highlight\"}]", -1, 100L))
@@ -192,7 +192,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `enumerateNamespaces counts logical files not raw bookmark chunks`() = runTest {
+    fun `enumerateNamespaces counts logical files — not raw bookmark chunks`() = runTest {
         // Regression pin: was counting every chunk row, which inflated the number by
         // chunks-per-device × devices × items (WebDAV target returns one per (device, item)).
         val api = FakeAbsBookmarkApi()
@@ -213,7 +213,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `delete tolerates 404 on trailing-chunk GC port contract compliance`() = runTest {
+    fun `delete tolerates 404 on trailing-chunk GC — port contract compliance`() = runTest {
         // AnnotationSyncTarget.delete kdoc: "Implementations MUST NOT throw on a 404-equivalent."
         // Two devices racing forget-device: the second delete sees a slot the first already cleared.
         val api = FakeAbsBookmarkApi().apply { returnNotFoundOnDelete = true }
@@ -246,7 +246,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `listAllBookmarks fetches are coalesced within TTL efficiency guard`() = runTest {
+    fun `listAllBookmarks fetches are coalesced within TTL — efficiency guard`() = runTest {
         // Regression pin: every port method used to fire a fresh GET /api/me. A sweep across N
         // books shouldn't pull the whole account profile N times.
         val api = FakeAbsBookmarkApi()
@@ -261,7 +261,7 @@ class AbsBookmarkAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `readDeviceMeta returns null and writeDeviceMeta is a no-op v1 gap`() = runTest {
+    fun `readDeviceMeta returns null and writeDeviceMeta is a no-op — v1 gap`() = runTest {
         val api = FakeAbsBookmarkApi()
         val t = target(api)
         t.writeDeviceMeta(NS, deviceA, "{\"label\":\"Phone A\"}")
