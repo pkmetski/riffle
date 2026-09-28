@@ -43,10 +43,10 @@ object FigureBorderDecoration {
     /**
      * Per-figure raster match — filename suffix (for CSS `[src$=…]` matching), the annotation's
      * CSS-ready color, and whether the annotation carries a note (drives the note-glyph badge).
-     * [tintCaption] is true only for `TYPE_IMAGE` annotations whose caption isn't a real
-     * annotated span — those get the render-side CSS caption tint. `TYPE_HIGHLIGHT` annotations
-     * whose range already covers the caption receive their tint from Readium's normal decoration
-     * pipeline, so this stays false to avoid double-painting.
+     * [tintCaption] is true unless Readium's decoration fully covers the caption (i.e. the full
+     * caption text is in the selection) — that is the only case where the CSS `tintCaptionFor`
+     * call would be redundant. Partial coverage keeps [tintCaption] true so the entire caption
+     * element is visually styled (Readium only decorates the selected characters).
      */
     data class RasterMark(
         val filename: String,
@@ -112,70 +112,47 @@ object FigureBorderDecoration {
     private const val SVG_FINGERPRINT_PREFIX_LEN = 200
 
     /**
-     * True when the highlight's captured `textSnippet` overlaps the figure's caption text — the
-     * signal that Readium's highlight decoration is already painting the caption for us and the
-     * render-side CSS tint would double-paint. False when the highlight range excludes the
-     * caption (e.g. a pre-caption-highlight text-selection across body prose that happens to
-     * enclose a figure — the figcaption sits below the range and only the CSS tint can reach
-     * it). Normalizes whitespace on both sides so the check matches how the text-content walks
-     * on the two rendering paths collapse.
+     * True only when Readium's highlight decoration FULLY covers the figure's caption — meaning
+     * the CSS `tintCaptionFor` pass would be redundant for every character of the caption text.
+     * False for any partial overlap (selection enters but does not span the whole caption): in
+     * that case the CSS tint MUST fire so the entire caption element is visually styled, matching
+     * the reader's expectation that "the legend underneath" appears highlighted as part of the
+     * annotation.
      *
-     * Blank `figure.caption` is the shape written by the caption-highlight code paths
-     * (`EpubReaderViewModel.onFigureLongPress` and `CaptionHighlightUpgrader`), which deliberately
-     * store an empty string to avoid an unrelated elided-view double-render. In that case the
-     * highlight's own `textSnippet` IS the caption, so falling back to false would let the CSS
-     * tint stack on top of Readium's decoration (~2x opacity — the "duplicated" look). Detect the
-     * shape via the same canonical caption prefix used by
-     * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
+     * The two conditions that constitute full coverage:
+     *  1. Non-blank caption: `normalizedSnippet` contains the full caption string, OR the
+     *     post-figure text in the snippet starts with the full caption (selection extends past it).
+     *  2. Blank caption (the shape written by `EpubReaderViewModel.onFigureLongPress` /
+     *     `CaptionHighlightUpgrader` — no `<figcaption>` element): the snippet itself IS the
+     *     caption, detected by the canonical caption-label prefix (Figure/Table + digit).
+     *
+     * Partial overlaps (selection enters the caption mid-way, or only the first N characters of
+     * the caption are selected) return false so the CSS tint covers the full element.
      */
     private fun highlightOverlapsCaption(annotation: Annotation, figure: EmbeddedFigure): Boolean {
         val normalizedSnippet = normalizeCaptionText(annotation.textSnippet)
         if (figure.caption.isBlank()) {
-            if (CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)) return true
-            // Caption element is not a <figcaption> (e.g. <p class="caption">) — the JS stash
-            // stored caption="". When charOffset is known, check if the text from the figure's
-            // position contains a caption label ("Figure N:") — the colon discriminates a real
-            // caption label from prose references like "Figure 3.1 illustrates...".
-            val offset = figure.charOffset ?: return false
-            return CAPTION_LABEL_REGEX.containsMatchIn(snippetFromOffset(annotation.textSnippet, offset))
+            // Blank caption = caption-highlight shape: the textSnippet IS the caption starting
+            // at the figure label. The prefix check confirms this without a charOffset.
+            return CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)
         }
         val normalizedCaption = normalizeCaptionText(figure.caption)
+        // Full caption is contained in the snippet → Readium decoration covers it entirely.
         if (normalizedSnippet.contains(normalizedCaption)) return true
-        val figureOffset = figure.charOffset
-        if (figureOffset == null) {
-            // charOffset not captured (JS-stash-only figure or pre-offset legacy row). Fall back
-            // to a suffix/prefix overlap: if the snippet's tail matches a prefix of the caption,
-            // the selection entered the figcaption from above (prose → figure → partial caption).
-            val maxOverlap = minOf(normalizedCaption.length, normalizedSnippet.length)
-            return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
-                normalizedCaption.take(overlap) == normalizedSnippet.takeLast(overlap)
-            }
-        }
+        val figureOffset = figure.charOffset ?: return false
         val snippetFromFigure = snippetFromOffset(annotation.textSnippet, figureOffset)
         if (snippetFromFigure.isEmpty()) return false
-        if (normalizedCaption.startsWith(snippetFromFigure) || snippetFromFigure.startsWith(normalizedCaption)) return true
-        if (normalizedCaption.contains(snippetFromFigure)) return true
-        val maxOverlap = minOf(normalizedCaption.length, snippetFromFigure.length)
-        return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
-            normalizedCaption.takeLast(overlap) == snippetFromFigure.take(overlap)
-        }
+        // Post-figure text starts with the full caption → Readium covers the caption completely.
+        return snippetFromFigure.startsWith(normalizedCaption)
     }
 
     private fun snippetFromOffset(raw: String, offset: Long): String =
         normalizeCaptionText(raw.drop(offset.coerceAtMost(raw.length.toLong()).toInt()))
 
-    private const val MIN_CAPTION_BOUNDARY_OVERLAP = 8
-
     private const val CAPTION_KEYWORDS = "Figure|Fig\\.?|Table|Chart"
 
     private val CAPTION_HIGHLIGHT_PREFIX_REGEX =
         Regex("^\\s*($CAPTION_KEYWORDS)\\s+\\d", RegexOption.IGNORE_CASE)
-
-    // Matches a caption label "Figure N:" / "Table N:" anywhere in text — the colon after
-    // the number distinguishes a real figcaption label from a prose reference like
-    // "Figure 3.1 illustrates". Used when figure.caption is blank (no <figcaption> element).
-    private val CAPTION_LABEL_REGEX =
-        Regex("($CAPTION_KEYWORDS)\\s+\\d[^:]*:", RegexOption.IGNORE_CASE)
 
     /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when

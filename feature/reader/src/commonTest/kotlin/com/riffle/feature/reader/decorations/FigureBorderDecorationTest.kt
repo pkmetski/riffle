@@ -131,7 +131,12 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `TYPE_HIGHLIGHT ending inside figcaption suppresses duplicate CSS caption tint`() {
+    fun `TYPE_HIGHLIGHT ending inside figcaption keeps CSS caption tint for unselected tail`() {
+        // Regression: when a selection spans prose → figure → PARTIAL caption, the CSS tint must
+        // still fire so the ENTIRE caption element is visually styled. Before the regression,
+        // highlightOverlapsCaption returned true for partial overlaps, suppressing the tint and
+        // leaving the unselected tail of the caption un-highlighted. Readium only decorates the
+        // selected portion; CSS tint is the only mechanism that can style the rest of the element.
         val beforeCaption = "The surrounding selection includes the diagram. "
         val partialCaption = "Figure 3.1: At the beginning, a tactical approach"
         val caption = "$partialCaption to programming will make progress more quickly."
@@ -152,11 +157,14 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertFalse(mark.tintCaption)
+        assertTrue(mark.tintCaption, "partial-caption selection must keep CSS tint so the entire legend element appears highlighted")
     }
 
     @Test
-    fun `TYPE_HIGHLIGHT starting inside figcaption suppresses duplicate CSS caption tint`() {
+    fun `TYPE_HIGHLIGHT starting inside figcaption keeps CSS caption tint for unselected head`() {
+        // When a selection starts mid-caption, the CSS tint must still fire so the entire caption
+        // element is styled. The selected tail is covered by Readium's decoration; the unselected
+        // head ("Figure 3.1: At the beginning, a ") only gets colour from the CSS tint.
         val selectedCaptionTail = "tactical approach to programming will make progress more quickly."
         val caption = "Figure 3.1: At the beginning, a $selectedCaptionTail"
         val highlight = highlightAnnotation(
@@ -176,7 +184,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertFalse(mark.tintCaption)
+        assertTrue(mark.tintCaption, "mid-caption selection must keep CSS tint so the unselected head of the caption element is also highlighted")
     }
 
     @Test
@@ -221,13 +229,13 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `TYPE_HIGHLIGHT with blank caption and prose-before-figure snippet suppresses CSS caption tint via caption label`() {
+    fun `TYPE_HIGHLIGHT with blank caption and prose-before-figure snippet keeps CSS caption tint`() {
         // Real-world case: book uses <p class="caption"> instead of <figcaption>. The JS stash
-        // stores caption="" because there's no <figcaption> element. charOffset points to where
-        // the image sits in the snippet. Text after the image starts with "Figure N:" which is
-        // the canonical caption-label discriminator vs prose references like "Figure N illustrates".
-        // Old code: CAPTION_HIGHLIGHT_PREFIX_REGEX only checked snippet[0..], so prose-prefix
-        // snippets fell through → tintCaption=true → CSS double-painted the caption element.
+        // stores caption="" because there's no <figcaption> element. The selection spans prose →
+        // figure → partial caption ("Figure N:"). The CSS tint must fire because it is the only
+        // mechanism that styles the entire <p class="caption"> element. Readium's decoration only
+        // covers the selected portion; the CSS tint (with !important) ensures the whole legend
+        // element is visually associated with the annotation.
         val highlight = highlightAnnotation(
             id = "hl-blank-cap",
             color = "yellow",
@@ -245,7 +253,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertFalse(mark.tintCaption, "blank-caption figure whose snippet crosses into caption label must not request CSS tint")
+        assertTrue(mark.tintCaption, "blank-caption figure whose snippet crosses into caption label must keep CSS tint (legend must appear fully highlighted)")
     }
 
     @Test
@@ -273,10 +281,11 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `TYPE_HIGHLIGHT with null charOffset and snippet ending inside figcaption suppresses CSS caption tint`() {
-        // Regression: JS-stash-only figures arrive with charOffset=null. The old code returned
-        // false immediately via `?: return false`, so tintCaption stayed true and the CSS painted
-        // the whole figcaption even though Readium's decoration already covered the selected portion.
+    fun `TYPE_HIGHLIGHT with null charOffset and snippet ending inside figcaption keeps CSS caption tint`() {
+        // JS-stash-only figures arrive with charOffset=null. Without charOffset we cannot
+        // determine whether the full caption is covered, so we conservatively keep the CSS tint
+        // to ensure the entire figcaption element is visually styled. Readium covers the selected
+        // portion; the CSS tint (with !important) styles the un-selected tail.
         val beforeCaption = "You will quickly recover the cost of the initial investment. Figure 3.1 illustrates this phenomenon. "
         val partialCaption = "Figure 3.1: At the beginning, a tactical approach"
         val caption = "$partialCaption to programming will make progress more quickly. Note: this figure."
@@ -297,7 +306,7 @@ class FigureBorderDecorationTest {
 
         val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
 
-        assertFalse(mark.tintCaption, "null-charOffset snippet ending in figcaption must not request CSS tint (would double-paint)")
+        assertTrue(mark.tintCaption, "null-charOffset partial-caption snippet must keep CSS tint so the entire legend element is highlighted")
     }
 
     @Test
