@@ -1298,7 +1298,12 @@ internal class ContinuousWindowController(
             // the target chapter reflows.
             reapplyLandingAfterFallback = annotationReland
             annotationReland()
-            pendingFocusAnnotationId = null
+            // pendingFocusAnnotationId is consumed inside scrollToFocusAnnotation only when the
+            // annotation offset is actually found. If the chapter's DOM is not ready yet
+            // (chapterHref is set by loadChapter before onPageFinished, so forEachLoadedWebView
+            // can return chapters that are still loading), annotationOffsetTopDevicePx returns
+            // null and we leave pendingFocusAnnotationId set so the next onAnnotationHighlightsApplied
+            // from the actual onChapterLoaded can retry with the ID intact.
         } else {
             reapplyLandingAfterFallback?.invoke()
         }
@@ -1308,6 +1313,12 @@ internal class ContinuousWindowController(
         val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
         wv.annotationOffsetTopDevicePx(id) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
+            // Consume the pending id now that the annotation is actually positioned in the DOM.
+            // Deferring consumption here (rather than in onAnnotationHighlightsApplied) means a
+            // premature call arriving while the chapter is still loading (chapterHref is set by
+            // loadChapter before onPageFinished) will leave the id intact for the real call that
+            // arrives from onChapterLoaded once the page has finished.
+            pendingFocusAnnotationId = null
             clearLandingHold()
             landOnAnnotationOffset(href, annOffset)
         }

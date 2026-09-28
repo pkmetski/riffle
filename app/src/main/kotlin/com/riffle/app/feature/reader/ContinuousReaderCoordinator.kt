@@ -145,6 +145,18 @@ internal class ContinuousReaderCoordinator(
     }
 
     /**
+     * Clears the view reference. Call from [AndroidView]'s `onRelease` callback when the
+     * [ContinuousReaderView] leaves composition on a mode switch. Without this, [onTocNavigation]
+     * gets the stale destroyed view from [viewFlow] on the NEXT continuous-mode entry and calls
+     * [ContinuousReaderView.navigateTo] on it — a silent no-op that breaks TOC navigation until
+     * the book is closed and reopened.
+     */
+    fun detach() {
+        view = null
+        viewFlow.value = null
+    }
+
+    /**
      * Navigate to a TOC entry or chapter-map segment. Suspends until the view is initialized.
      *
      * Call from the TOC/chapter-map navigation LaunchedEffect when in continuous mode.

@@ -1598,6 +1598,11 @@ private fun EpubNavigatorView(
     // after publication load). The AndroidView factory captures this reference so the continuous
     // onPositionChanged lambda always reads the latest pair when building the locator.
     val currentSpinePositions by rememberUpdatedState(spinePositions)
+    // rememberUpdatedState: readiumPresenter is null when the book opens in Continuous mode and
+    // becomes non-null after an isContinuous flip. The onNavigationEvents collector is NOT keyed
+    // on readiumPresenter, so its closure would capture the null from launch time and silently
+    // drop paginated TOC navigation after a continuous→paginated mode switch.
+    val currentReadiumPresenter by rememberUpdatedState(readiumPresenter)
 
     // Coordinator created once; lambdas close over rememberUpdatedState delegates so each
     // invocation always reads the latest value, not the value at remember time.
@@ -2162,7 +2167,7 @@ private fun EpubNavigatorView(
             try {
                 // Navigate and snap onto the target's column, tracked through the new chapter's async
                 // typography reflow (ColumnSnap owns the grid math). The cover is just cosmetic now.
-                readiumPresenter?.navigateToLink(link)
+                currentReadiumPresenter?.navigateToLink(link)
                 if (cover) delay(NAV_COVER_SETTLE_MS)
             } finally {
                 navigating = false
@@ -2960,6 +2965,13 @@ private fun EpubNavigatorView(
                     it.annotationsAvailable = annotationsAvailable
                     it.readaloudAvailable = readaloudAvailable
                     it.onUserTouch = { onUserInteracted() }
+                },
+                // Reset the coordinator's viewFlow when the view leaves composition on a mode
+                // switch. Without this, the next continuous-mode entry gets the stale destroyed
+                // view from viewFlow immediately (non-null) and navigateTo is silently a no-op.
+                onRelease = {
+                    continuousViewRef.value = null
+                    coordinator.detach()
                 },
                 modifier = readerModifier,
             )
