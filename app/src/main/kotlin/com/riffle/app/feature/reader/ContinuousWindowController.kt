@@ -1438,7 +1438,12 @@ internal class ContinuousWindowController(
                     // closure again during the 250 ms tween, taking its ELSE branch (hard
                     // port.scrollTo) and chopping the animation. Accept a small position offset
                     // from late reflow rather than kill the visible motion.
-                    reapplyLandingAfterFallback = if (smoothTailInProgress) null else scroll
+                    // Don't overwrite if onAnnotationHighlightsApplied already promoted this to an
+                    // annotation-mark reland: on JIT-warm re-opens the annotation closure can be set
+                    // before the initial measure completes; replacing it here with the
+                    // progression-based scroll causes subsequent reflows to land on the paragraph
+                    // anchor instead of the highlighted mark (seen as attempt 3 miss in harness).
+                    reapplyLandingAfterFallback = if (smoothTailInProgress) null else reapplyLandingAfterFallback ?: scroll
                     val targetIdx = pendingTargetHref?.let { webViewIndexFor(it) } ?: -1
                     reapplyTargetLastHeight = measuredHeights.getOrElse(targetIdx) { measuredPx }
                 } else if (webViews.getOrNull(i)?.chapterHref == pendingTargetHref &&

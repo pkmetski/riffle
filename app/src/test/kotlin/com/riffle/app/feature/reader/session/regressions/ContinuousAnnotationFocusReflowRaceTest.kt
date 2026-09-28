@@ -344,6 +344,62 @@ class ContinuousAnnotationFocusReflowRaceTest {
         assertTrue(annotationLandings.all { it == "ch1.xhtml" to "ann-42" })
     }
 
+    /**
+     * Regression for the JIT-warm re-open race (attempt 3 fail in harness):
+     *
+     * On fast iterations (JIT compiled), [onAnnotationHighlightsApplied] fires BEFORE the initial
+     * [pendingInitialMeasureIndices] set drains. The code that arms [reapplyLandingAfterFallback]
+     * after the initial scroll fires (ContinuousWindowController line ~1441) must NOT overwrite
+     * the annotation reland that [onAnnotationHighlightsApplied] already promoted.
+     *
+     * Before the fix the arm was unconditional: `reapplyLandingAfterFallback = scroll`. A
+     * subsequent target-height remeasure then called the progression-based closure instead of
+     * the annotation-mark one, landing the reader near the chapter top.
+     *
+     * Post-fix: `reapplyLandingAfterFallback = reapplyLandingAfterFallback ?: scroll` — the
+     * already-promoted annotation reland is preserved.
+     */
+    @Test
+    fun `initial-measure arm does not overwrite annotation reland already promoted by highlights`() {
+        val anchorLandings = mutableListOf<Int>()
+        val annotationLandings = mutableListOf<Pair<String, String>>()
+        val sm = ReapplyStateMachine(
+            targetHref = "ch1.xhtml",
+            initialHeightPx = 400,
+            onReland = { h -> anchorLandings.add(h) },
+        )
+
+        // Step 1: Highlights apply FIRST (fast JIT) — promote reland to annotation closure.
+        val annotationReland = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "ann-42",
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+        )!!
+        sm.reapplyLandingAfterFallback = annotationReland
+
+        // Step 2: Initial-measure arm fires — must NOT overwrite the already-set annotation reland.
+        // This mirrors the fixed line in ContinuousWindowController:
+        //   reapplyLandingAfterFallback = reapplyLandingAfterFallback ?: scroll
+        // (old bug was the unconditional: reapplyLandingAfterFallback = scroll)
+        val anchorScroll: () -> Unit = { anchorLandings.add(sm.reapplyTargetLastHeight) }
+        sm.reapplyLandingAfterFallback = sm.reapplyLandingAfterFallback ?: anchorScroll
+
+        // Step 3: Target chapter reflows.
+        assertTrue(sm.onHeightMeasured("ch1.xhtml", 800))
+
+        assertEquals(
+            "Anchor closure must NOT fire after the annotation reland was already promoted",
+            0,
+            anchorLandings.size,
+        )
+        assertEquals(
+            "Annotation reland must fire on the target remeasure",
+            1,
+            annotationLandings.size,
+        )
+        assertEquals("ch1.xhtml" to "ann-42", annotationLandings[0])
+    }
+
     @Test
     fun `scrollOffsetFor returns null for unknown href`() {
         val window = listOf(
