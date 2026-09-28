@@ -156,6 +156,17 @@ class ContinuousAnnotationFocusReflowRaceTest {
             return false
         }
 
+        /**
+         * Mirrors the initial-measure arm in appendChapter.onHeightMeasured
+         * (ContinuousWindowController.kt line ~1446):
+         *   reapplyLandingAfterFallback = if (smoothTailInProgress) null else reapplyLandingAfterFallback ?: scroll
+         * The non-smooth-tail branch is tested here; the `?: scroll` must NOT overwrite a
+         * previously-promoted annotation reland.
+         */
+        fun armInitialMeasure(scroll: () -> Unit) {
+            reapplyLandingAfterFallback = reapplyLandingAfterFallback ?: scroll
+        }
+
         /** Mirrors onInterceptTouchEvent ACTION_DOWN that disarms auto-re-landing. */
         fun disarm() {
             reapplyLandingAfterFallback = null
@@ -377,12 +388,13 @@ class ContinuousAnnotationFocusReflowRaceTest {
         )!!
         sm.reapplyLandingAfterFallback = annotationReland
 
-        // Step 2: Initial-measure arm fires — must NOT overwrite the already-set annotation reland.
-        // This mirrors the fixed line in ContinuousWindowController:
-        //   reapplyLandingAfterFallback = reapplyLandingAfterFallback ?: scroll
-        // (old bug was the unconditional: reapplyLandingAfterFallback = scroll)
+        // Step 2: Initial-measure arm fires via the state-machine method that mirrors
+        // the fixed line in ContinuousWindowController:
+        //   reapplyLandingAfterFallback = if (smoothTailInProgress) null else reapplyLandingAfterFallback ?: scroll
+        // If that line were reverted to the unconditional `= scroll`, armInitialMeasure would
+        // need the same revert, and this test would flip red.
         val anchorScroll: () -> Unit = { anchorLandings.add(sm.reapplyTargetLastHeight) }
-        sm.reapplyLandingAfterFallback = sm.reapplyLandingAfterFallback ?: anchorScroll
+        sm.armInitialMeasure(anchorScroll)
 
         // Step 3: Target chapter reflows.
         assertTrue(sm.onHeightMeasured("ch1.xhtml", 800))

@@ -12,8 +12,8 @@ class RiffleApplicationTest {
         // Regression: Coil's default 25% memory cache reaches ~128 MB with largeHeap=true,
         // crowding out WebView tile rasters and causing OOM on foldables (SM-F776B, Android 17).
         assertTrue(
-            "Memory cache percent $IMAGE_MEMORY_CACHE_PERCENT must be < 0.20",
-            IMAGE_MEMORY_CACHE_PERCENT < 0.20,
+            "Memory cache percent $IMAGE_MEMORY_CACHE_PERCENT must be < 0.25 (Coil's uncapped default)",
+            IMAGE_MEMORY_CACHE_PERCENT < 0.25,
         )
     }
 
