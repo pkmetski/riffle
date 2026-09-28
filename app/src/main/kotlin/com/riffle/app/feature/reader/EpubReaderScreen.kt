@@ -2966,6 +2966,13 @@ private fun EpubNavigatorView(
                     it.readaloudAvailable = readaloudAvailable
                     it.onUserTouch = { onUserInteracted() }
                 },
+                // Reset the coordinator's viewFlow when the view leaves composition on a mode
+                // switch. Without this, the next continuous-mode entry gets the stale destroyed
+                // view from viewFlow immediately (non-null) and navigateTo is silently a no-op.
+                onRelease = {
+                    continuousViewRef.value = null
+                    coordinator.detach()
+                },
                 modifier = readerModifier,
             )
             // Cover the container with a full-screen opaque overlay while it is either still
