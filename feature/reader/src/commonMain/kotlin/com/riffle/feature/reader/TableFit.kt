@@ -42,6 +42,7 @@ object TableFit {
             .replace("$", "\\\$")
         """
             (function() {
+              if (!document.head) return;
               var id = 'riffle-table-fit';
               if (document.getElementById(id)) return;
               var style = document.createElement('style');
