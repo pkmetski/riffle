@@ -1314,15 +1314,20 @@ internal class ContinuousWindowController(
      */
     private fun landOnAnnotationOffset(href: String, annOffset: Int) {
         aboveCompensation.runWhenSettled {
-            port.post {
+            // postAfterLayout (not post) so the scroll fires after the NestedScrollView has
+            // processed the slot height set by applyChapterHeight in the same onHeightMeasured
+            // callback. A bare post runs before the layout pass, leaving maxScrollY based on
+            // the old (undersized) height; scrollTo then clamps and the annotated phrase stays
+            // below the viewport (#1109).
+            port.postAfterLayout {
                 // A compensation may have started between the request and this post — re-queue
                 // behind it rather than scroll against stale slot tops.
                 if (aboveCompensation.pending > 0) {
                     landOnAnnotationOffset(href, annOffset)
-                    return@post
+                    return@postAfterLayout
                 }
-                val i = webViewIndexFor(href) ?: return@post
-                val slot = buildWindow().getOrNull(i) ?: return@post
+                val i = webViewIndexFor(href) ?: return@postAfterLayout
+                val slot = buildWindow().getOrNull(i) ?: return@postAfterLayout
                 port.scrollTo((slot.top + annOffset).coerceAtLeast(0))
             }
         }
@@ -2139,6 +2144,11 @@ internal interface ContinuousScrollPort {
     fun smoothScrollBy(dy: Int, durationMs: Int)
     fun abortFling()
     fun post(block: () -> Unit)
+    /** Defers [block] until after the next layout pass. Use when [scrollTo] is called after an
+     *  [applyChapterHeight] in the same message: the NestedScrollView updates [maxScrollY] only on
+     *  the next layout, so a bare [post] fires the scroll against the stale [maxScrollY] and clamps
+     *  it short — the annotated phrase ends up below the viewport (#1109). */
+    fun postAfterLayout(block: () -> Unit)
     fun postOnAnimation(block: () -> Unit)
     fun postDelayed(r: Runnable, delayMs: Long)
     fun removeCallbacks(r: Runnable)

@@ -215,7 +215,7 @@ jobs:
           python3 - <<'EOF'
           import glob, xml.etree.ElementTree as ET
           found = False
-          for f in sorted(glob.glob('app/build/reports/androidTests/connected/debug/*.xml')):
+          for f in sorted(glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)):
               try:
                   tree = ET.parse(f)
               except ET.ParseError:
@@ -282,7 +282,7 @@ jobs:
           python3 - <<'EOF'
           import glob, xml.etree.ElementTree as ET
           found = False
-          for f in sorted(glob.glob('app/build/reports/androidTests/connected/debug/*.xml')):
+          for f in sorted(glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)):
               try:
                   tree = ET.parse(f)
               except ET.ParseError:
