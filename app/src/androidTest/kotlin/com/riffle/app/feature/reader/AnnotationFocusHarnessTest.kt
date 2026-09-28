@@ -83,6 +83,11 @@ class AnnotationFocusHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
+        // Drain any in-flight recompositions before destroying the Activity. Without this,
+        // Compose's SlotTable gap-buffer can be in a partial state when performDestroy fires the
+        // lifecycle event, causing SlotWriter.moveSlotGapTo to compute a negative index and throw
+        // ArrayIndexOutOfBoundsException during composition disposal.
+        composeTestRule.waitForIdle()
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)
@@ -523,7 +528,20 @@ class AnnotationFocusHarnessTest : KoinTest {
         composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription("Search").performClick()
+        // The Search icon can disappear between the waitUntil pass and performClick if the reader
+        // briefly re-enters a loading state (e.g. vertical mode slow chapter transition on CI).
+        // Retry once: re-show chrome and click again, matching the pattern used for the Annotations
+        // button below.
+        try {
+            composeTestRule.onNodeWithContentDescription("Search").performClick()
+        } catch (_: AssertionError) {
+            composeTestRule.waitForIdle()
+            showTopAppBar()
+            composeTestRule.waitUntil(timeoutMillis = 10_000) {
+                composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithContentDescription("Search").performClick()
+        }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }

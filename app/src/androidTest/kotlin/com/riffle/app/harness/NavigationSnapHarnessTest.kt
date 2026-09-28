@@ -72,6 +72,7 @@ class NavigationSnapHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
+        composeTestRule.waitForIdle()
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)

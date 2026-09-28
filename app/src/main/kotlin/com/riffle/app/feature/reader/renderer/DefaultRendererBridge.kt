@@ -4,6 +4,7 @@ import com.riffle.app.feature.reader.ColumnSnap
 import com.riffle.app.feature.reader.FigureTapBridge
 import com.riffle.feature.reader.FigureTapScript
 import com.riffle.feature.reader.PaginatedLayoutLock
+import com.riffle.feature.reader.TableFit
 import com.riffle.app.feature.reader.FootnoteAnchorBridge
 import com.riffle.app.feature.reader.RECT_TO_JSON_POLYFILL_JS
 import com.riffle.app.feature.reader.SELECTION_SPAN_TRACKER_JS
@@ -330,6 +331,10 @@ internal class DefaultRendererBridge(
             RendererCapability(
                 id = CapabilityId.PaginatedLayoutLock,
                 installScript = { PaginatedLayoutLock.INSTALL_SCRIPT },
+            ),
+            RendererCapability(
+                id = CapabilityId.TableFit,
+                installScript = { TableFit.INSTALL_SCRIPT },
             ),
         )
 

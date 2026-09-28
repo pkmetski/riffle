@@ -652,6 +652,15 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             navigator.injectPaginatedLayoutLockScript()
         }
     }
+    // Table fit: force publisher fixed-pixel-width tables to reflow within the page so they
+    // don't overflow horizontally. Applies in all three reading modes (paginated, vertical,
+    // continuous). Mirrors Android's TableFit RendererCapability.
+    LaunchedEffect(navigator, localPath) {
+        if (localPath == null) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            navigator.injectTableFitScript()
+        }
+    }
     LaunchedEffect(navigator) {
         navigator.figureTapPayloads.collect { payload ->
             figureZoomState = FigureTapMessageParser.parse(payload)
