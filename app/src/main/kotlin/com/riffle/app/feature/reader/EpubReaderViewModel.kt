@@ -1637,15 +1637,16 @@ class EpubReaderViewModel constructor(
             // the annotation Flow → session → decorations naturally.
             if (legacyImageUpgradeAttempted.compareAndSet(false, true)) {
                 viewModelScope.launch(dispatchers.io) {
-                    val legacy = runCatching {
-                        annotationStore.observeAnnotations(bookSourceId, itemId)
-                            .first()
-                            .filter { it.type == AnnotationEntity.TYPE_IMAGE }
-                    }.getOrDefault(emptyList())
-                    if (legacy.isEmpty()) return@launch
                     val allAnnotations = runCatching {
                         annotationStore.observeAnnotations(bookSourceId, itemId).first()
                     }.getOrDefault(emptyList())
+                    val legacy = allAnnotations.filter { it.type == AnnotationEntity.TYPE_IMAGE }
+                    // Caption highlights carrying a figure also need the sweep: the mispaired-
+                    // caption repair (phase 3) applies to them even when no legacy row is left.
+                    val hasCaptionHighlights = allAnnotations.any {
+                        it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.embeddedFigures.isNullOrEmpty()
+                    }
+                    if (legacy.isEmpty() && !hasCaptionHighlights) return@launch
                     val result = runCatching {
                         captionHighlightUpgrader.sweep(
                             annotations = allAnnotations,
@@ -1655,7 +1656,8 @@ class EpubReaderViewModel constructor(
                     if (result != null && result.total > 0) {
                         logger.d(LogChannel.HighlightMerge) {
                             "caption-highlight sweep sourceId=$bookSourceId itemId=$itemId " +
-                                "merged=${result.merged} upgraded=${result.upgraded} legacy=${legacy.size}"
+                                "merged=${result.merged} upgraded=${result.upgraded} " +
+                                "repaired=${result.repaired} legacy=${legacy.size}"
                         }
                         scheduleAnnotationSync()
                     }

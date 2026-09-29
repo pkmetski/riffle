@@ -15,9 +15,15 @@ internal interface ContinuousNavigationView {
      * Annotation-precise navigate: when [focusAnnotationId] is non-null the landing anchors on
      * the actual `<mark data-riffle-ann="…">` device-Y instead of the enclosing paragraph's top,
      * so a mid- or end-paragraph highlight lands visibly on-screen rather than pushed below.
+     *
+     * [imageSrc] is non-null for TYPE_IMAGE (figure) annotations. No `<mark>` is injected for
+     * figures (their decoration is a CSS outline via [FigureBorderDecoration]); the continuous
+     * controller falls back to `img[src$="filename"]` when [imageSrc] is provided and the mark
+     * lookup returns null.
+     *
      * Default forwards to the plain three-arg overload for callers that don't have an id.
      */
-    fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
+    fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?, imageSrc: String? = null) {
         navigateTo(href, progression, alignToTop)
     }
 

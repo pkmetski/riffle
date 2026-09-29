@@ -1298,6 +1298,44 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
+    fun `internal scroll reported right after a content height change is not folded`() {
+        // Field trace 2026-09-29: ch06 above the reader shrank by 8 584 px, the controller
+        // compensated with scrollBy(-8584) and re-slid ch06's window; Chromium then reported an
+        // offset 4 927 px above the wanted one — its own re-clamp against a renderer height still
+        // catching up. Folding it undid most of the compensation and jumped the reader two
+        // screens below the annotated figure it had just landed on.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 249_085, wantedPx = 244_158, density = 2.625f, maxScrollPx = 300_000,
+                msSinceContentHeightChange = 40L,
+            ),
+        )
+    }
+
+    @Test
+    fun `internal scroll long after the last height change is a real scroll and is folded`() {
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 249_085, wantedPx = 244_158, density = 2.625f, maxScrollPx = 300_000,
+                msSinceContentHeightChange = ContinuousPositionTracker.HEIGHT_CHANGE_SETTLE_MS + 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `sub-CSS-px rounding right after a height change is still adopted`() {
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 244_156, wantedPx = 244_158, density = 2.625f, maxScrollPx = 300_000,
+                msSinceContentHeightChange = 40L,
+            ),
+        )
+    }
+
+    @Test
     fun `sub-CSS-px rounding from Chromium is adopted not fought`() {
         // Chromium reports 47 598 for a wanted 47 600 (one CSS px at 2.625 dpr rounds to 3 px).
         // Re-asserting 47 600 every frame would ping-pong; the translation follows instead.

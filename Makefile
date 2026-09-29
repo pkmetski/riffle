@@ -149,8 +149,8 @@ define run_harness_tests
 	rm -rf app/build/outputs/androidTest-results/connected; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest $(2); \
 	TEST_EXIT=$$?; \
-	RAN=$$(find app/build/outputs/androidTest-results/connected -name '*.xml' 2>/dev/null \
-		| xargs -r sed -n 's/.*[^A-Za-z]tests="\([0-9]*\)".*/\1/p' \
+	RAN=$$(find app/build/outputs/androidTest-results/connected -name '*.xml' -print0 2>/dev/null \
+		| xargs -0 -r sed -n 's/.*[^A-Za-z]tests="\([0-9]*\)".*/\1/p' \
 		| awk '{n+=$$1} END {print n+0}'); \
 	if [ "$$TEST_EXIT" = "0" ] && [ "$$RAN" = "0" ]; then \
 		echo "ERROR: the harness reported success but executed 0 tests."; \

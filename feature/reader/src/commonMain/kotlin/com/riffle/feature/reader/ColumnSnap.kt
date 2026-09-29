@@ -494,13 +494,22 @@ object ColumnSnap {
             "se.scrollTop=startV;" +
             VERTICAL_SMOOTH_TAIL_JS +
             "return;}" +
+            // Scroll mode + annotation navigation: go(locator) has already placed the range; the
+            // column loop below is paginated logic whose per-frame scrollToLocator re-scrolls the
+            // page vertically for up to 72 frames and drifted a landed figure a screen away.
+            "if(_skipV && se && se.scrollHeight > window.innerHeight + 4){window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=null;return;}" +
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
             "var lastW=-1,stable=0,frames=0,rangeMatched=false,rangeStable=0;" +
             "function snap(){var iw=window.innerWidth;" +
             "if((focusAnnotationId||(loc&&loc.text&&loc.text.highlight))&&se.scrollWidth>iw+4&&" +
             "window.readium&&typeof window.readium.getDecorations==='function'){" +
-            "try{var notes=window.readium.getDecorations($noteGroupLiteral);" +
-            "var items=notes&&notes.items?notes.items:[];" +
+            // A highlight without a note has no glyph decoration, but its tint decoration in the
+            // "annotations" group carries the same id and is present from the first frame after
+            // go(). Without this second group the loop waited the full 600-frame cap on a
+            // scrollToLocator landing that is not column-aligned (see below).
+            "try{var groups=[$noteGroupLiteral];if(focusAnnotationId)groups.push('annotations');" +
+            "var items=[];for(var gi=0;gi<groups.length;gi++){" +
+            "var grp=window.readium.getDecorations(groups[gi]);if(grp&&grp.items)items=items.concat(grp.items);}" +
             "for(var ni=0;ni<items.length;ni++){" +
             "var item=items[ni],dl=item.decoration&&item.decoration.locator;" +
             "if(focusAnnotationId){" +
@@ -516,7 +525,12 @@ object ColumnSnap {
             "se.scrollLeft=noteColumn;rangeMatched=true;return;}" +
             "}}catch(e){}}" +
             "if(loc&&window.readium&&typeof window.readium.scrollToLocator==='function'){" +
-            "try{if(window.readium.scrollToLocator(loc))return;}catch(e){}}" +
+            // Readium aligns the range's left edge with the viewport edge and does not snap, so a
+            // highlight that starts on an indented element (a caption inside a figure wrapper)
+            // lands mid-turn; floor to the column that contains that edge. The +2 absorbs a
+            // fractional rect.left stored a pixel below a column boundary, which would otherwise
+            // floor to the previous column.
+            "try{if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor((se.scrollLeft+2)/iw)*iw;return;}}catch(e){}}" +
             "if(id){var el=document.getElementById(id);" +
             "if(el){se.scrollLeft=Math.floor((el.getBoundingClientRect().left+se.scrollLeft)/iw)*iw;}" +
             "else{se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;}}" +

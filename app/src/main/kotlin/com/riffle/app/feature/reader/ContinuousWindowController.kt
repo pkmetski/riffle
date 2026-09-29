@@ -504,6 +504,28 @@ internal class ContinuousWindowController(
     /** Annotation id to focus on initial open. See [ContinuousReaderView.pendingFocusAnnotationId]. */
     private var pendingFocusAnnotationId: String? = null
 
+    /** Fallback image src for figure annotations (TYPE_IMAGE) when no `<mark>` is in the DOM. */
+    private var pendingFocusImageSrc: String? = null
+
+    /**
+     * Set to true when [scrollToFocusAnnotation] successfully resolves an annotation offset and
+     * takes over the landing. Signals the pending [revealSmooth] closure (from the smooth-tail
+     * path in [openWindowAt]) to skip its stale [ContinuousScrollPort.smoothScrollTo] target: the
+     * fallback anchor-progression landing pre-computed before decorations were applied is now
+     * superseded by the pixel-accurate annotation offset.
+     *
+     * Without this guard the sequence is:
+     *  1. [pendingInitialScroll] fires at DOM-ready (before [onPageFinished]): annotation not in
+     *     DOM yet → fallback to CFI anchor → [revealSmooth] prepared for section-top Y.
+     *  2. [onAnnotationHighlightsApplied] fires after page-finish: annotation found →
+     *     [landOnAnnotationOffset] → correct scroll (user briefly sees the figure).
+     *  3. [revealSmooth] fires (onCurrentContentPainted or fallback timer) →
+     *     smoothScrollTo(section_top) → reader yanked away to wrong position.
+     *
+     * Reset to false in [openWindowAt].
+     */
+    private var smoothTailRevealSuppressed: Boolean = false
+
     /** The scrollY of the most recent initial land, and the deadline (uptime ms) until which any
      *  off-target scroll movement should be reverted. See [ContinuousReaderView.landingHoldTargetY]. */
     private var landingHoldTargetY: Int = -1
@@ -549,6 +571,9 @@ internal class ContinuousWindowController(
      * WebView itself is capped to a renderable window ([ContinuousPositionTracker.chapterWebViewHeight]).
      */
     private fun applyChapterHeight(wv: ChapterWebView, contentPx: Int) {
+        if (slotOf(wv).layoutParams.height != contentPx) {
+            wv.contentHeightChangedAtMs = android.os.SystemClock.uptimeMillis()
+        }
         slotOf(wv).layoutParams = slotOf(wv).layoutParams.also { it.height = contentPx }
         val vh = port.viewportHeightPx.takeIf { it > 0 } ?: placeholderHeight
         val wvHeight = ContinuousPositionTracker.chapterWebViewHeight(
@@ -618,6 +643,7 @@ internal class ContinuousWindowController(
             wantedPx = wanted,
             density = wv.resources.displayMetrics.density,
             maxScrollPx = wv.internalMaxScrollY(),
+            msSinceContentHeightChange = android.os.SystemClock.uptimeMillis() - wv.contentHeightChangedAtMs,
         )
         when (decision) {
             ContinuousPositionTracker.InternalScrollCorrection.NONE -> Unit
@@ -741,6 +767,8 @@ internal class ContinuousWindowController(
         anchorFragment: String = "",
         alignToTop: Boolean = false,
         focusAnnotationId: String? = null,
+        /** Non-null for TYPE_IMAGE annotations — see [AnnotationNavigationEvent.imageSrc]. */
+        imageSrc: String? = null,
         /**
          * When true the first initial land pre-scrolls half a viewport short of the target under
          * the still-showing nav-cover, then reveals the container and animates the remaining
@@ -793,6 +821,15 @@ internal class ContinuousWindowController(
         reapplyLandingAfterFallback = null
         reapplyTargetLastHeight = -1
         pendingFocusAnnotationId = focusAnnotationId
+        pendingFocusImageSrc = imageSrc
+        // Suppress the revealSmooth anchor-fallback scroll immediately when an annotation
+        // navigation is in flight. pendingInitialScroll fires at DOM-ready (before decorations
+        // are applied), falls back to the CFI anchor, and schedules smoothScrollTo via
+        // revealSmooth. By the time scrollToFocusAnnotation's JS callback returns, revealSmooth
+        // may already have fired — so the flag must be armed here, not inside the callback.
+        // For non-annotation navigations (focusAnnotationId == null) the flag stays false so
+        // revealSmooth runs normally and smooth-tails to the CFI anchor position.
+        smoothTailRevealSuppressed = focusAnnotationId != null
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
@@ -854,7 +891,13 @@ internal class ContinuousWindowController(
                                 if (!smoothRevealed) {
                                     smoothRevealed = true
                                     notifyFirstLoadCompleteOnce()
-                                    port.smoothScrollTo(y)
+                                    // Skip the stale anchor-fallback scroll if scrollToFocusAnnotation
+                                    // has already landed on the pixel-accurate annotation offset. The
+                                    // flag is set when annotations were applied after DOM-ready but
+                                    // before this revealSmooth fired, making the pre-computed y wrong.
+                                    if (!smoothTailRevealSuppressed) {
+                                        port.smoothScrollTo(y)
+                                    }
                                 }
                             }
                             syncChapterWindows()
@@ -873,7 +916,9 @@ internal class ContinuousWindowController(
                             port.postOnAnimation {
                                 container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
-                                port.smoothScrollTo(y)
+                                if (!smoothTailRevealSuppressed) {
+                                    port.smoothScrollTo(y)
+                                }
                             }
                         }
                     } else {
@@ -928,8 +973,9 @@ internal class ContinuousWindowController(
                 }
             }
             if (focusAnnotationId != null && targetWv != null) {
-                targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+                targetWv.annotationOffsetTopDevicePx(focusAnnotationId, imageSrc = imageSrc) { annOffset ->
                     val validated = targetWv.offsetIfStillTarget(annOffset)
+                    smoothTailRevealSuppressed = smoothTailRevealSuppressedAfterInitialLanding(validated != null)
                     if (validated != null) postLandAt(validated)
                     else resolveAnchorThenLand()
                 }
@@ -1026,11 +1072,11 @@ internal class ContinuousWindowController(
      * decorations not applied), we fall back to the paragraph-based landing — same shape as the
      * open-time `focusAnnotationId` path in [openWindowAt].
      */
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
-        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = false, focusAnnotationId = focusAnnotationId)
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?, imageSrc: String?) {
+        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = false, focusAnnotationId = focusAnnotationId, imageSrc = imageSrc)
     }
 
-    private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?) {
+    private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?, imageSrc: String? = null) {
         val target = href.substringBefore('#')
         val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
@@ -1068,10 +1114,19 @@ internal class ContinuousWindowController(
             inWindowNavSupersededByTouch = false
             val land = {
                 if (!inWindowNavSupersededByTouch) {
+                    // An intentional user navigation (annotation tap, TOC entry, bookmark) has
+                    // landed. Mark as superseded so any serverLocatorEvents (skipIfUserAlreadyInteracted
+                    // = true) whose land() was already posted — before a touch could set this flag
+                    // via onTouchDown — cannot jump the reader back to the stale server position.
+                    // Annotation panel taps arrive via Compose bottom sheet and never trigger
+                    // onTouchDown on ContinuousReaderView, so the flag may still be false even after
+                    // a deliberate cross-chapter navigation.
+                    if (!skipIfUserAlreadyInteracted) inWindowNavSupersededByTouch = true
                     scrollToLoadedChapter(
                         target, progression, fragment,
                         smooth = true, alignToTop = alignToTop,
                         focusAnnotationId = focusAnnotationId,
+                        imageSrc = imageSrc,
                     )
                 }
             }
@@ -1090,12 +1145,19 @@ internal class ContinuousWindowController(
             container.removeAllViews()
             recycledViews.forEach { it.destroy() }
             recycledViews.clear()
+            // Mark as user-initiated so any serverLocatorEvents (skipIfUserAlreadyInteracted=true)
+            // pending after this cross-chapter navigation cannot rebuild the window back to the
+            // stale server position. Annotation panel taps arrive via Compose bottom sheet and
+            // never call onTouchDown on ContinuousReaderView, leaving this flag false on a fresh
+            // open — the cross-window branch must set it explicitly.
+            inWindowNavSupersededByTouch = true
             openWindowAt(
                 initialHref = target,
                 initialProgression = progression,
                 anchorFragment = fragment,
                 alignToTop = alignToTop,
                 focusAnnotationId = focusAnnotationId,
+                imageSrc = imageSrc,
                 smoothTail = true,
             )
         }
@@ -1163,6 +1225,7 @@ internal class ContinuousWindowController(
         smooth: Boolean,
         alignToTop: Boolean = false,
         focusAnnotationId: String? = null,
+        imageSrc: String? = null,
     ) {
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
@@ -1197,8 +1260,10 @@ internal class ContinuousWindowController(
         // highlight in the middle of a long paragraph, landing the paragraph at midpoint puts the
         // highlighted text well below the viewport centre and often off-screen. Reading the mark's
         // rect directly makes the landing pixel-accurate to what the user tapped in the panel.
+        // For TYPE_IMAGE annotations imageSrc provides an img[src$="filename"] fallback because no
+        // <mark> is injected for figures.
         if (focusAnnotationId != null) {
-            wv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+            wv.annotationOffsetTopDevicePx(focusAnnotationId, imageSrc = imageSrc) { annOffset ->
                 if (annOffset != null) {
                     go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, annOffset, port.viewportHeightPx, alignToTop))
                 } else {
@@ -1286,6 +1351,7 @@ internal class ContinuousWindowController(
         if (!matches) return
         val annotationReland = annotationFocusRelandClosure(
             pendingFocusAnnotationId = pendingFocusAnnotationId,
+            pendingFocusImageSrc = pendingFocusImageSrc,
             chapterHref = wv.chapterHref,
             landOnAnnotation = ::scrollToFocusAnnotation,
         )
@@ -1309,9 +1375,9 @@ internal class ContinuousWindowController(
         }
     }
 
-    private fun scrollToFocusAnnotation(href: String, id: String) {
+    private fun scrollToFocusAnnotation(href: String, id: String, imageSrc: String?) {
         val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
-        wv.annotationOffsetTopDevicePx(id) { annOffset ->
+        wv.annotationOffsetTopDevicePx(id, imageSrc = imageSrc) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
             // Consume the pending id now that the annotation is actually positioned in the DOM.
             // Deferring consumption here (rather than in onAnnotationHighlightsApplied) means a
@@ -1319,6 +1385,15 @@ internal class ContinuousWindowController(
             // loadChapter before onPageFinished) will leave the id intact for the real call that
             // arrives from onChapterLoaded once the page has finished.
             pendingFocusAnnotationId = null
+            pendingFocusImageSrc = null
+            // Suppress the smooth-tail revealSmooth closure: when pendingInitialScroll fired at
+            // DOM-ready (before decorations were applied) it fell back to the CFI anchor and
+            // pre-programmed smoothScrollTo(section_top) via revealSmooth. Now that we have the
+            // pixel-accurate annotation offset, that stale smooth scroll must not override this
+            // landing. Setting the flag here and aborting any in-flight animation ensures that
+            // revealSmooth (when it fires) only lifts the nav cover without scrolling away.
+            smoothTailRevealSuppressed = true
+            port.abortFling()
             clearLandingHold()
             landOnAnnotationOffset(href, annOffset)
         }
@@ -1437,6 +1512,26 @@ internal class ContinuousWindowController(
                 if (pendingInitialScroll == null && i == 0 && delta != 0 && (delta < 0 || port.currentScrollY >= oldHeight)) {
                     port.scrollBy(delta)
                 }
+                // Compensate scroll when a non-target, non-top chapter re-measures (grows) after
+                // its initial measurement and its entire slot lies above the current scroll
+                // position. This happens when images within the chapter load late — the slot grows,
+                // pushing the target chapter (and any focused annotation within it) downward while
+                // the scroll position stays put. The viewer then shows content ABOVE the focused
+                // figure. Mirrors the i==0 path and the wasPlaceholder aboveCompensation path;
+                // uses direct scrollBy (no doOnNextLayout needed) because late-image deltas are
+                // small relative to the existing maxScrollY, so no NestedScrollView clipping occurs.
+                if (pendingInitialScroll == null && !wasPlaceholder && i != 0 && delta != 0 &&
+                    wv.chapterHref != pendingTargetHref && slotBottomBefore <= port.currentScrollY
+                ) {
+                    if (landingHoldTargetY >= 0) landingHoldTargetY += delta
+                    if (delta > 0) {
+                        // Growth: the NestedScrollView clamps against the still-old child height
+                        // until layout runs, so scroll on the next layout like the placeholder path.
+                        wv.doOnNextLayout { port.scrollBy(delta) }
+                    } else {
+                        port.scrollBy(delta)
+                    }
+                }
 
                 if (wasPlaceholder && pendingInitialMeasureIndices.remove(i) &&
                     pendingInitialMeasureIndices.isEmpty()
@@ -1465,7 +1560,17 @@ internal class ContinuousWindowController(
                     // have already promoted: typography reflow is async and typically arrives after
                     // the animation completes, so the annotation reland does not chop it in
                     // practice, and silently discarding it loses the annotation focus entirely.
-                    reapplyLandingAfterFallback = if (smoothTailInProgress) reapplyLandingAfterFallback else reapplyLandingAfterFallback ?: scroll
+                    reapplyLandingAfterFallback = relandClosureAfterInitialMeasure(
+                        existing = reapplyLandingAfterFallback,
+                        annotationReland = annotationFocusRelandClosure(
+                            pendingFocusAnnotationId = pendingFocusAnnotationId,
+                            pendingFocusImageSrc = pendingFocusImageSrc,
+                            chapterHref = pendingTargetHref ?: wv.chapterHref,
+                            landOnAnnotation = ::scrollToFocusAnnotation,
+                        ),
+                        smoothTail = smoothTailInProgress,
+                        progressionReland = scroll,
+                    )
                     val targetIdx = pendingTargetHref?.let { webViewIndexFor(it) } ?: -1
                     reapplyTargetLastHeight = measuredHeights.getOrElse(targetIdx) { measuredPx }
                 } else if (webViews.getOrNull(i)?.chapterHref == pendingTargetHref &&
@@ -2136,13 +2241,50 @@ internal class ContinuousWindowController(
  * Extracted as a top-level `internal` function so the decision is JVM-testable:
  * [ContinuousWindowController] requires an Android `Context` to construct.
  */
+/**
+ * Which closure re-lands the reader when the target chapter remeasures after the initial landing.
+ * An annotation focus always wins: its closure re-queries the annotation's offset in the reflowed
+ * DOM, so a chapter that shrinks at load (DOM-ready measure → load measure) cannot leave the
+ * reader on a stale pixel offset. It is installed here — not only from
+ * `onAnnotationHighlightsApplied` — because a chapter whose only annotation is a figure border
+ * never fires that hook. Without an annotation, smooth-tail navigations keep the slot empty (a
+ * progression re-land would chop the tween) and hard landings fall back to the progression closure.
+ */
+/**
+ * Whether the smooth-tail reveal must skip its pre-computed `smoothScrollTo(y)` after the initial
+ * landing. `openWindowAt` arms the suppression for every annotation navigation because the first
+ * pass usually cannot resolve the annotation yet and falls back to the CFI anchor — a tail to that
+ * anchor would later yank the reader off the precise landing. When the first pass DID resolve the
+ * annotation, `y` is the annotation itself and the tail must run, or the reader rests half a
+ * viewport short of it (the pre-land position) whenever no later remeasure re-lands.
+ */
+internal fun smoothTailRevealSuppressedAfterInitialLanding(annotationOffsetResolved: Boolean): Boolean =
+    !annotationOffsetResolved
+
+internal fun relandClosureAfterInitialMeasure(
+    existing: (() -> Unit)?,
+    annotationReland: (() -> Unit)?,
+    smoothTail: Boolean,
+    progressionReland: (() -> Unit)?,
+): (() -> Unit)? = existing ?: annotationReland ?: if (smoothTail) null else progressionReland
+
 internal fun annotationFocusRelandClosure(
     pendingFocusAnnotationId: String?,
+    pendingFocusImageSrc: String?,
     chapterHref: String,
-    landOnAnnotation: (href: String, id: String) -> Unit,
+    landOnAnnotation: (href: String, id: String, imageSrc: String?) -> Unit,
 ): (() -> Unit)? {
     val id = pendingFocusAnnotationId ?: return null
-    return { landOnAnnotation(chapterHref, id) }
+    // Capture imageSrc at closure-creation time so that re-fires from reapplyLandingAfterFallback
+    // (triggered by later height remeasures within the target chapter) can re-query the
+    // annotation's *current* pixel position — even after pendingFocusImageSrc has been cleared
+    // by the first successful scrollToFocusAnnotation call. Without capturing it here, re-fires
+    // for TYPE_IMAGE annotations pass imageSrc=null to annotationOffsetTopDevicePx, which returns
+    // null and leaves the scroll at the old position while content above the figure (other images
+    // in the same chapter) shifts Figure 1-2 downward, causing the reader to show content above
+    // the figure (e.g. "Who This Book Is For") instead of the figure itself.
+    val capturedImageSrc = pendingFocusImageSrc
+    return { landOnAnnotation(chapterHref, id, capturedImageSrc) }
 }
 
 /**

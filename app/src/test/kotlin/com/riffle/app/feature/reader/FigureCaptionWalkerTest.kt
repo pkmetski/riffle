@@ -126,6 +126,31 @@ class FigureCaptionWalkerTest {
     }
 
     @Test
+    fun `text-prefix fallback never borrows a caption from a different figure`() {
+        // O'Reilly ch09: an uncaptioned (or h6-captioned, pre-#1125) Figure 9-1's 3-hop walk
+        // reaches the section, where Figure 9-2's `<div class="figure">` starts with "Figure 9-2"
+        // — and was returned as 9-1's caption, so the long-press stored 9-2's caption + 9-1's
+        // image. Candidates inside a different figure wrapper must be skipped.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        val start = js.indexOf("function resolveTextPrefixElement(el)")
+        val end = js.indexOf("function resolveCaption(el)")
+        assertTrue("resolveTextPrefixElement/resolveCaption not found in order", start in 0 until end)
+        val body = js.substring(start, end)
+        assertTrue(
+            "must resolve the long-pressed element's own figure wrapper",
+            body.contains("el.closest('figure, [role=\"figure\"]')"),
+        )
+        assertTrue(
+            "must resolve each candidate block's figure wrapper",
+            body.contains("b.closest('figure, [role=\"figure\"]')"),
+        )
+        assertTrue(
+            "must skip candidates whose figure wrapper differs from the element's own",
+            body.contains("if (bFig && bFig !== ownFig) continue;"),
+        )
+    }
+
+    @Test
     fun `caption resolver falls back to empty string`() {
         val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
         assertTrue(js.contains("function resolveCaption(el)"))

@@ -38,4 +38,20 @@ class FigureCaptionWalkerTest {
         val altIdx = js.indexOf("'alt'")
         assertTrue(h6ScanIdx in 0 until altIdx, "h6 scan inside figure must precede the alt-attribute fallback in resolveCaption")
     }
+
+    @Test
+    fun textPrefixFallbackNeverBorrowsCaptionFromDifferentFigure() {
+        // O'Reilly ch09: Figure 9-1's 3-hop walk reaches the section, where Figure 9-2's
+        // `<div class="figure">` text starts with "Figure 9-2" — and was returned as 9-1's
+        // caption, so a long-press stored 9-2's caption with 9-1's image. Candidates inside a
+        // different figure wrapper must be skipped.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        val start = js.indexOf("function resolveTextPrefixElement(el)")
+        val end = js.indexOf("function resolveCaption(el)")
+        assertTrue(start in 0 until end, "resolveTextPrefixElement/resolveCaption not found in order")
+        val body = js.substring(start, end)
+        assertTrue(body.contains("el.closest('figure, [role=\"figure\"]')"), "must resolve the element's own figure wrapper")
+        assertTrue(body.contains("b.closest('figure, [role=\"figure\"]')"), "must resolve each candidate's figure wrapper")
+        assertTrue(body.contains("if (bFig && bFig !== ownFig) continue;"), "must skip candidates from a different figure")
+    }
 }

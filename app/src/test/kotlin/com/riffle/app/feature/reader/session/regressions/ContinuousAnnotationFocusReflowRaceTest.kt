@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader.session.regressions
 
 import com.riffle.app.feature.reader.ContinuousPositionTracker
 import com.riffle.app.feature.reader.annotationFocusRelandClosure
+import com.riffle.app.feature.reader.relandClosureAfterInitialMeasure
+import com.riffle.app.feature.reader.smoothTailRevealSuppressedAfterInitialLanding
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -266,36 +268,103 @@ class ContinuousAnnotationFocusReflowRaceTest {
     // ---------------------------------------------------------------------------
 
     @Test
+    fun `initial-measure reland prefers the annotation closure even for smooth-tail navigations`() {
+        // Field trace 2026-09-29: a cross-chapter jump to a figure annotation measured the
+        // chapter at DOM-ready, the chapter shrank 17 501 px at load, and the landing used the
+        // stale offset — two screens below the figure. Smooth-tail mode used to leave the
+        // re-land slot null (the chapter's only annotation was a figure border, so
+        // onAnnotationHighlightsApplied never installed one).
+        var annotationRelands = 0
+        var progressionRelands = 0
+        val chosen = relandClosureAfterInitialMeasure(
+            existing = null,
+            annotationReland = { annotationRelands++ },
+            smoothTail = true,
+            progressionReland = { progressionRelands++ },
+        )
+        assertNotNull(chosen)
+        chosen!!()
+        assertEquals(1, annotationRelands)
+        assertEquals(0, progressionRelands)
+    }
+
+    @Test
+    fun `smooth tail runs when the initial pass resolved the annotation and stays suppressed otherwise`() {
+        // Resolved: y IS the annotation, so the pre-land → smoothScrollTo(y) tail must complete;
+        // suppressing it left the reader half a viewport short whenever no remeasure re-landed.
+        assertEquals(false, smoothTailRevealSuppressedAfterInitialLanding(annotationOffsetResolved = true))
+        // Unresolved: y is the CFI-anchor fallback; a tail to it would yank the reader off the
+        // precise landing that scrollToFocusAnnotation performs later.
+        assertEquals(true, smoothTailRevealSuppressedAfterInitialLanding(annotationOffsetResolved = false))
+    }
+
+    @Test
+    fun `initial-measure reland keeps an already-installed closure`() {
+        var existingCalls = 0
+        val chosen = relandClosureAfterInitialMeasure(
+            existing = { existingCalls++ },
+            annotationReland = { error("must not replace the installed closure") },
+            smoothTail = false,
+            progressionReland = { error("must not replace the installed closure") },
+        )
+        chosen!!()
+        assertEquals(1, existingCalls)
+    }
+
+    @Test
+    fun `initial-measure reland stays empty for smooth-tail navigations without an annotation`() {
+        // A progression re-land during the 250 ms tween would chop the animation.
+        assertNull(
+            relandClosureAfterInitialMeasure(
+                existing = null, annotationReland = null, smoothTail = true, progressionReland = {},
+            ),
+        )
+    }
+
+    @Test
+    fun `initial-measure reland falls back to progression for hard landings`() {
+        var progressionRelands = 0
+        relandClosureAfterInitialMeasure(
+            existing = null, annotationReland = null, smoothTail = false,
+            progressionReland = { progressionRelands++ },
+        )!!()
+        assertEquals(1, progressionRelands)
+    }
+
+    @Test
     fun `annotationFocusRelandClosure returns null when no focus id is pending`() {
         val closure = annotationFocusRelandClosure(
             pendingFocusAnnotationId = null,
+            pendingFocusImageSrc = null,
             chapterHref = "ch1.xhtml",
-            landOnAnnotation = { _, _ -> },
+            landOnAnnotation = { _, _, _ -> },
         )
         assertNull("With no focus id the anchor reland must be left in place", closure)
     }
 
     @Test
     fun `annotationFocusRelandClosure returns a closure that lands on the annotation when a focus id is pending`() {
-        val calls = mutableListOf<Pair<String, String>>()
+        val calls = mutableListOf<Triple<String, String, String?>>()
         val closure = annotationFocusRelandClosure(
             pendingFocusAnnotationId = "ann-42",
+            pendingFocusImageSrc = "images/fig1-2.png",
             chapterHref = "ch1.xhtml",
-            landOnAnnotation = { href, id -> calls.add(href to id) },
+            landOnAnnotation = { href, id, src -> calls.add(Triple(href, id, src)) },
         )
         assertNotNull("With a focus id, must return a non-null reland closure", closure)
         closure!!.invoke()
         assertEquals(1, calls.size)
-        assertEquals("ch1.xhtml" to "ann-42", calls[0])
+        assertEquals(Triple("ch1.xhtml", "ann-42", "images/fig1-2.png"), calls[0])
     }
 
     @Test
     fun `annotationFocusRelandClosure is NOT one-shot — repeated invocations each land on the annotation`() {
-        val calls = mutableListOf<Pair<String, String>>()
+        val calls = mutableListOf<Triple<String, String, String?>>()
         val closure = annotationFocusRelandClosure(
             pendingFocusAnnotationId = "ann-42",
+            pendingFocusImageSrc = "images/fig1-2.png",
             chapterHref = "ch1.xhtml",
-            landOnAnnotation = { href, id -> calls.add(href to id) },
+            landOnAnnotation = { href, id, src -> calls.add(Triple(href, id, src)) },
         )!!
         // The remeasure loop invokes the closure on every target-height change. If the closure
         // is one-shot (the pre-fix bug) the loop stops re-landing on the annotation after the
@@ -305,8 +374,8 @@ class ContinuousAnnotationFocusReflowRaceTest {
         closure()
         assertEquals("Every remeasure must re-land on the annotation", 3, calls.size)
         assertTrue(
-            "Every invocation must land on the same annotation on the same chapter",
-            calls.all { it == "ch1.xhtml" to "ann-42" },
+            "Every invocation must land on the same annotation on the same chapter with the same imageSrc",
+            calls.all { it == Triple("ch1.xhtml", "ann-42", "images/fig1-2.png") },
         )
     }
 
@@ -333,8 +402,9 @@ class ContinuousAnnotationFocusReflowRaceTest {
         // closure and swap it into place (mirrors ContinuousWindowController lines 591-603).
         val annotationReland = annotationFocusRelandClosure(
             pendingFocusAnnotationId = "ann-42",
+            pendingFocusImageSrc = null,
             chapterHref = "ch1.xhtml",
-            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+            landOnAnnotation = { href, id, _ -> annotationLandings.add(href to id) },
         )!!
         sm.reapplyLandingAfterFallback = annotationReland
         annotationReland()  // initial invocation
@@ -384,8 +454,9 @@ class ContinuousAnnotationFocusReflowRaceTest {
         // Step 1: Highlights apply FIRST (fast JIT) — promote reland to annotation closure.
         val annotationReland = annotationFocusRelandClosure(
             pendingFocusAnnotationId = "ann-42",
+            pendingFocusImageSrc = null,
             chapterHref = "ch1.xhtml",
-            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+            landOnAnnotation = { href, id, _ -> annotationLandings.add(href to id) },
         )!!
         sm.reapplyLandingAfterFallback = annotationReland
 
@@ -424,8 +495,9 @@ class ContinuousAnnotationFocusReflowRaceTest {
         )
         val annotationReland = annotationFocusRelandClosure(
             pendingFocusAnnotationId = "ann-99",
+            pendingFocusImageSrc = null,
             chapterHref = "ch1.xhtml",
-            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+            landOnAnnotation = { href, id, _ -> annotationLandings.add(href to id) },
         )!!
         sm.reapplyLandingAfterFallback = annotationReland
 
@@ -436,6 +508,41 @@ class ContinuousAnnotationFocusReflowRaceTest {
         assertEquals("Anchor must NOT fire in smooth-tail with annotation reland", 0, anchorLandings.size)
         assertEquals("Annotation reland must fire after smooth-tail reflow", 1, annotationLandings.size)
         assertEquals("ch1.xhtml" to "ann-99", annotationLandings[0])
+    }
+
+    /**
+     * Regression for the TYPE_IMAGE annotation focus drift bug: after landing on Figure 1-2,
+     * images ABOVE the figure within the same chapter load and push it down. The height-change
+     * loop fires reapplyLandingAfterFallback, which must re-query the figure's *current* offset
+     * using the imageSrc captured at closure-creation time.
+     *
+     * Pre-fix: the closure called scrollToFocusAnnotation which read pendingFocusImageSrc from
+     * the controller field — already null by that point. annotationOffsetTopDevicePx returned null
+     * (no `<mark data-riffle-ann>` element for images) → no-op → the reader stayed at the old
+     * scroll position (now showing content above the shifted figure, e.g. "Who This Book Is For").
+     */
+    @Test
+    fun `annotationFocusRelandClosure passes captured imageSrc to every re-invocation`() {
+        val calls = mutableListOf<Triple<String, String, String?>>()
+        val closure = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "img-ann-7",
+            pendingFocusImageSrc = "images/figure1-2.png",
+            chapterHref = "ch01.xhtml",
+            landOnAnnotation = { href, id, src -> calls.add(Triple(href, id, src)) },
+        )!!
+
+        // Simulate 3 height remeasures after the first successful landing.
+        // Each must receive the imageSrc captured at closure-creation time, not the cleared field.
+        closure()
+        closure()
+        closure()
+
+        assertEquals(3, calls.size)
+        assertTrue(
+            "Every re-invocation must pass the captured imageSrc so annotationOffsetTopDevicePx " +
+            "can locate the image element even after pendingFocusImageSrc has been cleared",
+            calls.all { it == Triple("ch01.xhtml", "img-ann-7", "images/figure1-2.png") },
+        )
     }
 
     @Test

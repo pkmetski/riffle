@@ -75,7 +75,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         override val maxScrollY: Int get() =
             ((getChildAt(0)?.height ?: 0) - height).coerceAtLeast(0)
         override fun scrollTo(y: Int) = this@ContinuousReaderView.scrollTo(0, y)
-        override fun scrollBy(dy: Int) = this@ContinuousReaderView.scrollBy(0, dy)
+        // Not scrollBy(0, dy): that override is silenced during onLayout/requestChildFocus to block
+        // NestedScrollView's own scrollToChild, and the controller's height compensations run from a
+        // child's doOnNextLayout — inside this view's layout pass — so they would be swallowed too.
+        override fun scrollBy(dy: Int) = this@ContinuousReaderView.scrollTo(0, scrollY + dy)
         override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)
         override fun smoothScrollBy(dy: Int) = this@ContinuousReaderView.smoothScrollBy(0, dy)
         override fun smoothScrollBy(dy: Int, durationMs: Int) =
@@ -306,6 +309,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     @androidx.annotation.VisibleForTesting
     internal fun onSelectionActiveForTest(active: Boolean) = onChildSelectionActiveChanged(active)
 
+    /** The controller-facing scroll port, so tests can issue a compensation scroll mid-layout. */
+    @androidx.annotation.VisibleForTesting
+    internal val scrollPortForTest: ContinuousScrollPort get() = port
+
     /** Test seam for the one-shot backward gesture consumed by a window prepend. */
     @androidx.annotation.VisibleForTesting
     internal val hasPendingBackwardNavigationIntent: Boolean
@@ -527,8 +534,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean) =
         controller.navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted)
 
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) =
-        controller.navigateTo(href, progression, alignToTop, focusAnnotationId)
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?, imageSrc: String?) =
+        controller.navigateTo(href, progression, alignToTop, focusAnnotationId, imageSrc)
 
     override fun isTargetInWindow(href: String): Boolean = controller.isTargetInWindow(href)
 

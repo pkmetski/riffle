@@ -153,6 +153,10 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      */
     internal var windowOffsetPx: Int = 0
 
+    /** Uptime of the last managed content-height change; internal-scroll reports shortly after it
+     *  are Chromium re-clamping, not gestures (see [ContinuousPositionTracker.internalScrollCorrection]). */
+    internal var contentHeightChangedAtMs: Long = 0L
+
     /**
      * Fired from [onScrollChanged] with the new internal scroll Y whenever Chromium moves this
      * WebView's own scroll offset — a selection-handle drag past the edge, a focus scroll, a
@@ -565,15 +569,37 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * when found its rect already reflects the final post-reflow layout — the exact thing a
      * slot+progression landing keeps missing.
      *
-     * Returns null when the mark is not yet in the DOM (cold-start, before the annotation has
-     * been observed and applied). Callers fall back to the existing anchor/progression landing;
-     * the reflow-tracking re-land re-fires this query on every target remeasure so once the mark
-     * appears, the landing snaps onto it.
+     * When [imageSrc] is non-null and no `<mark>` is found, falls back to the figure element via
+     * one of two strategies depending on the shape of [imageSrc]:
+     * - Starts with `#`: element-ID fallback (`getElementById`) for TYPE_IMAGE annotations that
+     *   pre-date `imageHref` storage (pre-migration-46). The ID comes from `locations.fragments`
+     *   placed there by `cfiStringToLocator`.
+     * - Otherwise: filename fallback (`img[src$="…"]`) using the last path segment of [imageSrc].
+     *   For annotations with a stored `imageHref`, mirrors `FigureBorderDecoration.hrefFilename`.
+     *
+     * Returns null when neither mark nor figure element is in the DOM. Callers fall back to the
+     * existing anchor/progression landing; the reflow-tracking re-land re-fires this query on
+     * every target remeasure so once the element appears, the landing snaps onto it.
      */
-    fun annotationOffsetTopDevicePx(id: String, callback: (Int?) -> Unit) {
+    fun annotationOffsetTopDevicePx(id: String, imageSrc: String? = null, callback: (Int?) -> Unit) {
         val esc = id.replace("\\", "\\\\").replace("'", "\\'")
+        val imgFallback = if (imageSrc != null) {
+            if (imageSrc.startsWith("#")) {
+                // CFI element-ID fallback for old annotations without imageHref.
+                val elementId = imageSrc.drop(1).replace("\\", "\\\\").replace("'", "\\'")
+                "if(!e){e=document.getElementById('$elementId');}"
+            } else {
+                // Filename fallback — mirrors FigureBorderDecoration.hrefFilename.
+                val trimmed = imageSrc.substringBefore('?').substringBefore('#')
+                val slash = trimmed.lastIndexOf('/')
+                val filename = (if (slash >= 0) trimmed.substring(slash + 1) else trimmed)
+                    .replace("\\", "\\\\").replace("'", "\\'")
+                "if(!e){e=document.querySelector(\"img[src\$='$filename']\");}"
+            }
+        } else ""
         val js = """(function(){
             var e = document.querySelector("[data-riffle-ann='$esc']");
+            $imgFallback
             if (!e) return -1;
             var r = e.getBoundingClientRect();
             var y = r.top + (window.pageYOffset || document.documentElement.scrollTop || 0);

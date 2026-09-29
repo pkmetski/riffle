@@ -43,12 +43,17 @@ internal class CaptionHighlightUpgrader(
     /**
      * Sweep result — counts for logging.
      */
-    internal data class SweepResult(val merged: Int, val upgraded: Int) {
-        val total: Int get() = merged + upgraded
+    internal data class SweepResult(val merged: Int, val upgraded: Int, val repaired: Int = 0) {
+        val total: Int get() = merged + upgraded + repaired
     }
 
     /**
-     * Two phases, in order:
+     * Three phases, in order:
+     *
+     *  0. **Mispaired-caption repair.** See [repairMispairedCaptionHighlights]. Runs first so a
+     *     highlight wrongly carrying Figure N's image under Figure N+1's caption is re-anchored
+     *     BEFORE the duplicate merge can fold it into the genuine Figure N+1 highlight (which
+     *     would bake the wrong image in permanently).
      *
      *  1. **Duplicate-caption cleanup.** Group same-chapter `TYPE_HIGHLIGHT` rows by normalized
      *     `textSnippet`. For each group with more than one row, pick a canonical (highest
@@ -69,18 +74,69 @@ internal class CaptionHighlightUpgrader(
         annotations: List<Annotation>,
         readChapterHtml: suspend (spineIndex: Int) -> String?,
     ): SweepResult {
-        val merged = mergeDuplicateCaptionHighlights(annotations)
+        val repairedRows = repairMispairedCaptionHighlights(annotations, readChapterHtml)
+        val repairedById = repairedRows.associateBy { it.id }
+        val afterRepair = annotations.map { repairedById[it.id] ?: it }
+        val merged = mergeDuplicateCaptionHighlights(afterRepair)
         // Re-read the annotation set from the caller's snapshot; anything the merge phase
         // tombstoned needs to be dropped so the upgrade phase doesn't touch a deleted row.
-        val liveIdsAfterMerge = annotations
+        val liveIdsAfterMerge = afterRepair
             .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE }
             .filter { it.id !in tombstonedIds }
             .map { it.id }
             .toSet()
-        val liveAnnotations = annotations.filter { it.id in liveIdsAfterMerge }
+        val liveAnnotations = afterRepair.filter { it.id in liveIdsAfterMerge }
         val upgraded = upgradeLegacyImageAnnotations(liveAnnotations, readChapterHtml)
         tombstonedIds.clear()
-        return SweepResult(merged = merged, upgraded = upgraded)
+        return SweepResult(merged = merged, upgraded = upgraded, repaired = repairedRows.size)
+    }
+
+    /**
+     * Phase 0: re-anchor caption highlights whose single embedded figure was paired with a
+     * NEIGHBOURING figure's caption when they were created. The pre-#1125 resolver could not see
+     * O'Reilly `<h6>` captions and its forward hunt walked into the next `<figure>`, so a
+     * long-press on Figure 9-1 was stored as a highlight of "Figure 9-2. …" carrying 9-1's image
+     * — and navigating to it landed on the wrong figure. Only rows whose snippet is verifiably
+     * another figure's caption in the same chapter are touched; a prose highlight that happens to
+     * span a figure keeps its range.
+     */
+    suspend fun repairMispairedCaptionHighlights(
+        annotations: List<Annotation>,
+        readChapterHtml: suspend (spineIndex: Int) -> String?,
+    ): List<Annotation> {
+        val repaired = mutableListOf<Annotation>()
+        for (row in annotations) {
+            if (row.type != AnnotationEntity.TYPE_HIGHLIGHT || row.id in tombstonedIds) continue
+            val figure = row.embeddedFigures?.singleOrNull() ?: continue
+            if (!CAPTION_PREFIX_REGEX.containsMatchIn(row.textSnippet.trim())) continue
+            val html = readChapterHtml(row.spineIndex) ?: continue
+            val doc = runCatching { Jsoup.parse(html) }.getOrNull() ?: continue
+            val figureEl = findFigureElement(doc, figure.href, figure.svg) ?: continue
+            val ownCaptionEl = resolveCaptionElement(figureEl) ?: continue
+            val ownCaption = normalizeWhitespace(ownCaptionEl.text())
+            if (ownCaption.isBlank()) continue
+            val stored = normalizeCaptionText(row.textSnippet)
+            if (stored == normalizeCaptionText(ownCaption)) continue
+            val otherCaptions = doc.select("img, svg, picture")
+                .filter { it !== figureEl }
+                .mapNotNull { resolveCaptionElement(it) }
+                .map { normalizeCaptionText(normalizeWhitespace(it.text())) }
+                .toSet()
+            if (stored !in otherCaptions) continue
+            val textBefore = collectTextAround(doc.body(), ownCaptionEl, direction = -1, maxChars = 40)
+            val textAfter = collectTextAround(doc.body(), ownCaptionEl, direction = +1, maxChars = 40)
+            val startChar = locateSnippetInBody(html, ownCaption, textBefore) ?: continue
+            val cfi = buildHighlightCfiRange(
+                spineStep = (row.spineIndex + 1) * 2,
+                html = html,
+                startChar = startChar,
+                endChar = (startChar + ownCaption.length - 1L).coerceAtLeast(startChar),
+            ) ?: continue
+            runCatching {
+                annotationStore.reanchorCaptionHighlight(row.id, cfi, ownCaption, textBefore, textAfter)
+            }.getOrNull()?.let { repaired += it }
+        }
+        return repaired
     }
 
     private val tombstonedIds = mutableSetOf<String>()
@@ -198,7 +254,7 @@ internal class CaptionHighlightUpgrader(
 
     private fun planUpgrade(annotation: Annotation, html: String): UpgradePlan? {
         val doc = runCatching { Jsoup.parse(html) }.getOrNull() ?: return null
-        val figureEl = findFigureElement(doc, annotation) ?: return null
+        val figureEl = findFigureElement(doc, annotation.imageHref, annotation.imageSvg) ?: return null
         val captionEl = resolveCaptionElement(figureEl) ?: return null
         val captionText = normalizeWhitespace(captionEl.text())
         if (captionText.isBlank()) return null
@@ -232,8 +288,7 @@ internal class CaptionHighlightUpgrader(
         return UpgradePlan(cfiRange, captionText, textBefore, textAfter, figure)
     }
 
-    private fun findFigureElement(doc: org.jsoup.nodes.Document, annotation: Annotation): Element? {
-        val href = annotation.imageHref
+    private fun findFigureElement(doc: org.jsoup.nodes.Document, href: String?, svg: String?): Element? {
         if (href != null) {
             val filename = figureHrefFilename(href)
             // Escape filename for use inside a jsoup [attr$="…"] selector; wrap the value in
@@ -243,7 +298,6 @@ internal class CaptionHighlightUpgrader(
             doc.select("img[src\$='$safe']").firstOrNull()?.let { return it }
             doc.select("picture img[src\$='$safe']").firstOrNull()?.let { return it }
         }
-        val svg = annotation.imageSvg
         if (svg != null) {
             val prefix = svg.take(200)
             for (el in doc.select("svg")) {
@@ -260,15 +314,16 @@ internal class CaptionHighlightUpgrader(
      * within 3 ancestor hops.
      */
     internal fun resolveCaptionElement(figureEl: Element): Element? {
-        var scan: Element? = figureEl
-        while (scan != null) {
-            if (scan.tagName().equals("figure", ignoreCase = true) ||
-                scan.attr("role").equals("figure", ignoreCase = true)
-            ) {
-                scan.select("figcaption").firstOrNull { it.text().isNotBlank() }?.let { return it }
-                break
+        val ownFigure = figureWrapperOf(figureEl)
+        if (ownFigure != null) {
+            ownFigure.select("figcaption").firstOrNull { it.text().isNotBlank() }?.let { return it }
+            // O'Reilly-style caption: an h6/h5/h4/h3 inside the figure wrapper. Gated on the
+            // caption prefix so accessibility descriptions O'Reilly also puts in <h6> are skipped.
+            for (tag in listOf("h6", "h5", "h4", "h3")) {
+                ownFigure.select(tag)
+                    .firstOrNull { CAPTION_PREFIX_REGEX.containsMatchIn(it.text().trim()) }
+                    ?.let { return it }
             }
-            scan = scan.parent()
         }
         var cur: Element = figureEl
         for (hops in 0 until 3) {
@@ -276,9 +331,23 @@ internal class CaptionHighlightUpgrader(
             for (block in parent.select("p, div")) {
                 if (block === figureEl || block.contains(figureEl)) continue
                 if (documentOrderCompare(figureEl, block) >= 0) continue
+                // A block inside a different figure wrapper is that figure's caption, never ours.
+                val blockFigure = figureWrapperOf(block)
+                if (blockFigure != null && blockFigure !== ownFigure) continue
                 if (CAPTION_PREFIX_REGEX.containsMatchIn(block.text().trim())) return block
             }
             cur = parent
+        }
+        return null
+    }
+
+    private fun figureWrapperOf(el: Element): Element? {
+        var scan: Element? = el
+        while (scan != null) {
+            if (scan.tagName().equals("figure", ignoreCase = true) ||
+                scan.attr("role").equals("figure", ignoreCase = true)
+            ) return scan
+            scan = scan.parent()
         }
         return null
     }

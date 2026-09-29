@@ -242,6 +242,28 @@ class AnnotationStoreImpl(
         return upgraded.toDomain()
     }
 
+    override suspend fun reanchorCaptionHighlight(
+        id: String,
+        cfi: String,
+        textSnippet: String,
+        textBefore: String,
+        textAfter: String,
+    ): Annotation? {
+        val existing = dao.getById(id) ?: return null
+        if (existing.deleted || existing.type != AnnotationEntity.TYPE_HIGHLIGHT) return null
+        val updated = existing.copy(
+            cfi = cfi,
+            textSnippet = textSnippet,
+            textSnippetHtml = null,
+            textBefore = textBefore,
+            textAfter = textAfter,
+            updatedAt = clock(),
+            lastModifiedByDeviceId = deviceIdStore.getOrCreate(),
+        )
+        dao.upsert(updated)
+        return updated.toDomain()
+    }
+
     override suspend fun mergeFiguresIntoHighlight(
         id: String,
         newFigures: List<EmbeddedFigure>,

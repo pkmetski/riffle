@@ -431,13 +431,29 @@ internal object ContinuousPositionTracker {
      *    band's edge). Instead the controller adopts the new offset and scrolls the outer view by
      *    the same delta, so the gesture becomes an ordinary page scroll.
      */
-    fun internalScrollCorrection(reportedPx: Int, wantedPx: Int, density: Float, maxScrollPx: Int): InternalScrollCorrection {
+    fun internalScrollCorrection(
+        reportedPx: Int,
+        wantedPx: Int,
+        density: Float,
+        maxScrollPx: Int,
+        msSinceContentHeightChange: Long = Long.MAX_VALUE,
+    ): InternalScrollCorrection {
         if (reportedPx == wantedPx) return InternalScrollCorrection.NONE
         val tolerance = kotlin.math.ceil(density.toDouble()).toInt()
         if (kotlin.math.abs(reportedPx - wantedPx) <= tolerance) return InternalScrollCorrection.ADOPT
         if (wantedPx > maxScrollPx) return InternalScrollCorrection.NONE
+        // Right after this chapter's content height changed, Chromium re-clamps its own scroll
+        // against a renderer-side height that is still catching up and reports that value; it is
+        // not a gesture. Folding it moved the outer scroll by (part of) the compensation the
+        // controller had just applied for the chapter above the reader — the "lands, then jumps"
+        // after a cross-chapter annotation navigation. Gestures never coincide with a height
+        // change, so plain-scroll folding is unaffected; the next measurement re-syncs.
+        if (msSinceContentHeightChange <= HEIGHT_CHANGE_SETTLE_MS) return InternalScrollCorrection.NONE
         return InternalScrollCorrection.FOLD_INTO_OUTER_SCROLL
     }
+
+    /** How long after a chapter's content height changes its internal-scroll reports are ignored. */
+    const val HEIGHT_CHANGE_SETTLE_MS = 600L
 
     /**
      * Scroll floor while a backward prepend is still an unmeasured placeholder: the placeholder's
