@@ -193,6 +193,18 @@ interface LibraryItemDao {
     suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long)
 
     /**
+     * Batch variant of [updateReadingProgressFromServer]. On Android, Room wraps this default
+     * implementation in a single transaction via [Transaction]. On iOS, [IosLibraryItemDao]
+     * overrides this to issue all SQL inside one explicit BEGIN/COMMIT, avoiding O(N) fsyncs.
+     */
+    @Transaction
+    suspend fun batchUpdateReadingProgressFromServer(sourceId: String, updates: List<RemoteProgressUpdate>) {
+        updates.forEach { update ->
+            updateReadingProgressFromServer(sourceId, update.itemId, update.progress, update.serverUpdatedAt)
+        }
+    }
+
+    /**
      * Retag a library item's [libraryId]. Used by the LocalFiles scanner so a book's compatibility
      * hint stays pointed at some *currently-configured* folder library — otherwise removing that
      * folder leaves the row naming a deleted [LibraryEntity]. Catalog queries for LocalFiles go
@@ -290,6 +302,7 @@ data class LibraryItemMetadata(
 
 data class LastOpenedAtRow(val id: String, val lastOpenedAt: Long)
 data class ReadingProgressRow(val id: String, val readingProgress: Float)
+data class RemoteProgressUpdate(val itemId: String, val progress: Float, val serverUpdatedAt: Long)
 data class MatchableItemRow(
     val itemId: String,
     val sourceId: String,

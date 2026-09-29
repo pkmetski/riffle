@@ -8,6 +8,7 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
+import com.riffle.core.database.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -148,6 +149,40 @@ internal class IosSeriesDao(private val driver: SqlDriver, private val invalidat
             { cursor -> QueryResult.Value(if (cursor.next().value) cursor.getString(0) else null) },
             2,
         ) { bindString(0, sourceId); bindString(1, itemId) }.value
+
+    override suspend fun replaceAllForLibrary(libraryId: String, series: List<SeriesEntity>, seriesItems: List<SeriesItemEntity>) {
+        driver.withTransaction {
+            driver.execute(
+                null,
+                "DELETE FROM series_items WHERE seriesId IN (SELECT id FROM series WHERE libraryId = ?)",
+                1,
+            ) { bindString(0, libraryId) }
+            driver.execute(null, "DELETE FROM series WHERE libraryId = ?", 1) {
+                bindString(0, libraryId)
+            }
+            series.forEach { s ->
+                driver.execute(
+                    null,
+                    "INSERT OR REPLACE INTO series (id, libraryId, name, coverUrl, bookCount) VALUES (?, ?, ?, ?, ?)",
+                    5,
+                ) {
+                    bindString(0, s.id); bindString(1, s.libraryId); bindString(2, s.name)
+                    bindString(3, s.coverUrl); bindLong(4, s.bookCount.toLong())
+                }
+            }
+            seriesItems.forEach { item ->
+                driver.execute(
+                    null,
+                    "INSERT OR REPLACE INTO series_items (seriesId, sourceId, itemId, sequenceOrder) VALUES (?, ?, ?, ?)",
+                    4,
+                ) {
+                    bindString(0, item.seriesId); bindString(1, item.sourceId)
+                    bindString(2, item.itemId); bindDouble(3, item.sequenceOrder.toDouble())
+                }
+            }
+        }
+        if (series.isNotEmpty() || seriesItems.isNotEmpty()) invalidator.invalidate()
+    }
 
     override suspend fun upsertAll(series: List<SeriesEntity>) {
         series.forEach { s ->

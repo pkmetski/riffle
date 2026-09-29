@@ -14,6 +14,7 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
+import com.riffle.core.database.RemoteProgressUpdate
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.SourceRepository
@@ -209,16 +210,17 @@ class IosLibraryRefresherImpl(
                 // correctly in Continue Reading without requiring the user to open it first.
                 val dirtyIds = (dirtyProgressLedger.dirtyEbookItems(source.id) +
                     dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
-                for (item in result.value) {
-                    if (item.id in dirtyIds) continue
-                    val progress = item.readingProgress ?: continue
-                    // Last-update-wins: the library-list endpoint lags the per-item endpoint, so
-                    // only adopt when its stamp is not older than what we stored — otherwise it
-                    // overwrites a fresher per-item/detail value and the bars disagree.
-                    libraryItemDao.updateReadingProgressFromServer(
-                        source.id, item.id, progress, item.progressUpdatedAt ?: 0L,
-                    )
+                // Last-update-wins: the library-list endpoint lags the per-item endpoint, so
+                // only adopt when its stamp is not older than what we stored — otherwise it
+                // overwrites a fresher per-item/detail value and the bars disagree.
+                // Collected into a list first so the iOS DAO can wrap all updates in one transaction
+                // instead of O(N) implicit transactions (one fsync each).
+                val progressUpdates = result.value.mapNotNull { item ->
+                    if (item.id in dirtyIds) return@mapNotNull null
+                    val progress = item.readingProgress ?: return@mapNotNull null
+                    RemoteProgressUpdate(item.id, progress, item.progressUpdatedAt ?: 0L)
                 }
+                libraryItemDao.batchUpdateReadingProgressFromServer(source.id, progressUpdates)
                 LibraryRefreshResult.Success
             }
             is NetworkResult.Offline -> LibraryRefreshResult.NetworkError(result.cause)
