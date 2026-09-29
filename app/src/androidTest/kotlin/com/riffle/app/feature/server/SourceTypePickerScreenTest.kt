@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.riffle.feature.designsystem.TestTags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.SourceTypePickerScreen
@@ -67,9 +68,24 @@ class SourceTypePickerScreenTest {
         assertEquals(listOf(SourceType.CHITANKA), picked)
     }
 
+    @Test
+    fun backButton_shownByDefault() {
+        setContent()
+        composeRule.onNodeWithTag(TestTags.NAV_BACK).assertIsDisplayed()
+    }
+
+    @Test
+    fun backButton_hiddenWhenShowNavigationIconFalse() {
+        // Regression: during first-run onboarding there is no screen to navigate back to.
+        // showNavigationIcon=false must suppress the back arrow entirely.
+        setContent(showNavigationIcon = false)
+        composeRule.onNodeWithTag(TestTags.NAV_BACK).assertDoesNotExist()
+    }
+
     private fun setContent(
         onPick: (SourceType) -> Unit = {},
         installedTypes: Set<SourceType> = emptySet(),
+        showNavigationIcon: Boolean = true,
     ) {
         composeRule.setContent {
             SourceTypePickerScreen(
@@ -79,6 +95,7 @@ class SourceTypePickerScreenTest {
                 onNavigateBack = {},
                 onPick = onPick,
                 installedTypes = installedTypes,
+                showNavigationIcon = showNavigationIcon,
             )
         }
     }
