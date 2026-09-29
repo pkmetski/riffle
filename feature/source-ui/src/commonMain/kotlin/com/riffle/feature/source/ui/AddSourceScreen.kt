@@ -344,7 +344,14 @@ private fun InsecureConnectionDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },
-        confirmButton = { TextButton(onClick = onConfirm, modifier = Modifier.testTag(TestTags.ADD_SOURCE_INSECURE_CONFIRM)) { Text(stringResource(Res.string.ui_connect_anyway)) } },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag(TestTags.ADD_SOURCE_INSECURE_CONFIRM),
+            ) {
+                Text(stringResource(Res.string.ui_connect_anyway))
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } },
     )
 }
