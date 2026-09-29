@@ -407,7 +407,7 @@ jobs:
             # heavier case where a clone's runner dies outright and its tests can't run at all.
             xcodebuild test \
               -project iosApp/iosApp.xcodeproj \
-              -scheme iosApp \
+              -scheme Riffle \
               -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
               -clonedSourcePackagesDirPath "$HOME/spm-packages" \
               -derivedDataPath "$HOME/derived-data" \
