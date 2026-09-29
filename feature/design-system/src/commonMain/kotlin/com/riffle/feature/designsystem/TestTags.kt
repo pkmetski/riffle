@@ -159,6 +159,11 @@ object TestTags {
     const val SELECT_LIBRARIES_CONTINUE = "select_libraries_continue"
     const val SELECT_LIBRARIES_GO_BACK = "select_libraries_go_back"
     fun selectLibraryToggle(libraryId: String) = "select_library_toggle_$libraryId"
+    const val ADD_SOURCE_HOST_FIELD = "add_source_host_field"
+    const val ADD_SOURCE_USERNAME_FIELD = "add_source_username_field"
+    const val ADD_SOURCE_PASSWORD_FIELD = "add_source_password_field"
+    const val ADD_SOURCE_CONNECT_BUTTON = "add_source_connect_button"
+    const val ADD_SOURCE_INSECURE_CONFIRM = "add_source_insecure_confirm"
 
     // ── Snackbar / global UI ─────────────────────────────────────────────────
     const val SNACKBAR_HOST = "RiffleSnackbarHost"

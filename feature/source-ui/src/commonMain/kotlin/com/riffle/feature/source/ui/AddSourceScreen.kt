@@ -206,7 +206,7 @@ fun AddSourceScreen(
                             onValueChange = { viewModel.updateHost(it) },
                             label = { Text(urlLabel) },
                             placeholder = { Text(urlPlaceholder) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).testTag(TestTags.ADD_SOURCE_HOST_FIELD),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Uri,
                                 capitalization = KeyboardCapitalization.None,
@@ -220,21 +220,17 @@ fun AddSourceScreen(
                     value = viewModel.username,
                     onValueChange = { viewModel.username = it },
                     label = { Text(stringResource(Res.string.ui_username)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_USERNAME_FIELD),
                     // The iOS keyboard defaults to sentence capitalization + autocorrect, which
-                    // silently turns "test2" into "Test2" and makes valid credentials 401.
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrectEnabled = false,
-                    ),
+                    // silently turns "test" into "Test" and makes valid credentials 401.
+                    keyboardOptions = credentialKeyboardOptions,
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = viewModel.password,
                     onValueChange = { viewModel.password = it },
                     label = { Text(stringResource(Res.string.ui_password)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_PASSWORD_FIELD),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = passwordKeyboardOptions,
                     singleLine = true,
@@ -247,7 +243,7 @@ fun AddSourceScreen(
                 } else {
                     Button(
                         onClick = viewModel::onConnect,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_CONNECT_BUTTON),
                         enabled = (!showUrlField || viewModel.host.isNotBlank()) && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
                     ) {
                         Text(submitLabel)
@@ -348,7 +344,7 @@ private fun InsecureConnectionDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(Res.string.ui_connect_anyway)) } },
+        confirmButton = { TextButton(onClick = onConfirm, modifier = Modifier.testTag(TestTags.ADD_SOURCE_INSECURE_CONFIRM)) { Text(stringResource(Res.string.ui_connect_anyway)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } },
     )
 }
