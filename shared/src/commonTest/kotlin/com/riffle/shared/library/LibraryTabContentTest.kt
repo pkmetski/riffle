@@ -11,6 +11,7 @@ import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.Series
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibraryProjection
@@ -281,6 +282,121 @@ class LibraryTabContentTest {
         }
 
         onNodeWithTag(sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED)).assertDoesNotExist()
+    }
+
+    /**
+     * The home tab must only show reading-progress sections (In Progress, Continue Series,
+     * Recently Added, Completed). Series and All Books shelves were incorrectly appearing on iOS
+     * home tab while Android never showed them there — they belong on their dedicated tabs only.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun homeTabDoesNotShowSeriesShelf() = runComposeUiTest {
+        val series = Series(id = "s1", libraryId = "lib", name = "Dune", coverUrl = null, bookCount = 3)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = LibraryProjection.Empty.copy(series = listOf(series)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithTag("section-header-SERIES").assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun homeTabDoesNotShowAllBooksShelf() = runComposeUiTest {
+        val book = LibraryItem(
+            id = "b1", libraryId = "lib", title = "The Lord of the Rings", author = "Tolkien",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = LibraryProjection.Empty.copy(allBooks = listOf(book)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithTag("section-header-ALL_BOOKS").assertDoesNotExist()
+    }
+
+    /**
+     * The series tab must show series names in a grid (backed by covers), not a plain text list.
+     * The series name must be visible so the grid tile is meaningful even when a cover is absent.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun seriesTabShowsSeriesNameInGrid() = runComposeUiTest {
+        val series = Series(id = "s1", libraryId = "lib", name = "The Expanse", coverUrl = null, bookCount = 9)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 3,
+                projection = LibraryProjection.Empty.copy(series = listOf(series)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithText("The Expanse").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun tappingSeriesInGridNavigatesToThatSeries() = runComposeUiTest {
+        val series = Series(id = "s1", libraryId = "lib", name = "Foundation", coverUrl = null, bookCount = 5)
+        var selected: Series? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = 3,
+                projection = LibraryProjection.Empty.copy(series = listOf(series)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = { selected = it },
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithText("Foundation").performClick()
+        assertEquals(series, selected)
     }
 
     /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */

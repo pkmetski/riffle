@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
@@ -246,7 +247,7 @@ internal fun LibraryTabContent(
             AnnotationSearchField(onSearch = onSearchAnnotations)
             AnnotationsTabContent(annotationsState, { token }, onAnnotatedBookSelected)
         }
-        3 -> SeriesTabContent(projection.series, onSeriesSelected)
+        3 -> SeriesTabContent(projection.series, token, onSeriesSelected)
         4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
         5 -> AllBooksTabContent(projection.allBooks, token, coversAreSquare, linkedItemIds, onItemSelected)
         // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
@@ -399,31 +400,6 @@ private fun HomeTabContent(
                     )
                 }
                 item { HorizontalBookRow(items = projection.finished.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
-            }
-            if (projection.series.isNotEmpty()) {
-                item { SectionHeader(title = "Series", tag = "section-header-SERIES") }
-                item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
-            }
-            if (projection.collections.isNotEmpty()) {
-                item { SectionHeader(title = "Collections", tag = "section-header-COLLECTIONS") }
-                item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
-            }
-            if (projection.allBooks.isNotEmpty()) {
-                item { SectionHeader(title = "All Books", tag = "section-header-ALL_BOOKS") }
-                // A horizontal shelf like every other section, NOT the 600dp LazyVerticalGrid
-                // this used to nest here. A vertically scrolling grid inside a vertically
-                // scrolling column swallows the drag as soon as the finger lands on it, so the
-                // sections below it (Collections, and anything added later) became unreachable
-                // — #1072 flags the "fixed 600dp nested grid" for exactly this reason. The whole
-                // library is one tap away on the All Books tab.
-                item {
-                    HorizontalBookRow(
-                        items = projection.allBooks.take(10),
-                        token = token,
-                        linkedItemIds = linkedItemIds,
-                        onItemClick = onItemSelected,
-                    )
-                }
             }
         }
     }
@@ -607,22 +583,52 @@ internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -
 }
 
 @Composable
-private fun SeriesTabContent(series: List<Series>, onSeriesSelected: (Series) -> Unit) {
+private fun SeriesTabContent(series: List<Series>, token: String, onSeriesSelected: (Series) -> Unit) {
     if (series.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No series", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(coverGridMinCell()),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         items(series, key = { it.id }) { s ->
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onSeriesSelected(s) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(s.name, style = MaterialTheme.typography.bodyLarge)
-            }
+            SeriesGridTile(series = s, token = token, onClick = { onSeriesSelected(s) })
         }
+    }
+}
+
+@Composable
+private fun SeriesGridTile(series: Series, token: String, onClick: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            CoverImage(
+                url = series.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = false,
+                modifier = Modifier.fillMaxSize(),
+                instrumentationKind = "series",
+                instrumentationKey = series.id,
+            )
+        }
+        Text(
+            text = series.name,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

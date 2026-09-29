@@ -21,6 +21,7 @@ object TestTags {
     const val BOOK_DETAIL_OPEN = "book_detail_open"
     const val BOOK_DETAIL_DOWNLOAD = "book_detail_download"
     const val BOOK_DETAIL_MARK_READ = "book_detail_mark_read"
+    const val BOOK_DETAIL_PROGRESS = "book_detail_progress"
     const val BOOK_DETAIL_OVERFLOW = "book_detail_overflow"
 
     // ── EPUB reader (Android) ─────────────────────────────────────────────────

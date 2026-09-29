@@ -13,14 +13,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +57,8 @@ import com.riffle.feature.source.ui.rememberTransientMessages
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+
+private const val READ_PROGRESS_THRESHOLD = 0.99f
 
 private val TitleStyle = TextStyle(fontWeight = FontWeight.Bold, fontSize = 22.sp)
 private val AuthorStyle = TextStyle(fontSize = 16.sp, color = Color(0xFF666666))
@@ -110,6 +118,8 @@ fun LibraryItemDetailScreen(
                 onBack = onBack,
                 onRead = { onRead(state.item) },
                 onToggleToRead = { vm.toggleToRead() },
+                onMarkAsRead = { vm.markAsRead() },
+                onMarkAsUnread = { vm.markAsUnread() },
                 downloadControls = {
                     // One call into the shared control rather than a second iOS-only copy of the
                     // three buttons. A host that restructures this screen keeps calling this.
@@ -209,6 +219,8 @@ internal fun ReadyContent(
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
+    onMarkAsRead: () -> Unit = {},
+    onMarkAsUnread: () -> Unit = {},
     downloadControls: @Composable () -> Unit,
     downloadState: DownloadState,
     onAddToPlaylist: (() -> Unit)?,
@@ -236,6 +248,8 @@ internal fun ReadyContent(
             onBack = onBack,
             onRead = onRead,
             onToggleToRead = onToggleToRead,
+            onMarkAsRead = onMarkAsRead,
+            onMarkAsUnread = onMarkAsUnread,
             downloadControls = downloadControls,
             onAddToPlaylist = onAddToPlaylist,
             onFacet = onFacet,
@@ -250,11 +264,14 @@ private fun ReadyBody(
     onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
+    onMarkAsRead: () -> Unit = {},
+    onMarkAsUnread: () -> Unit = {},
     downloadControls: @Composable () -> Unit,
     onAddToPlaylist: (() -> Unit)?,
     onFacet: (FacetType, String) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    val scrollState = rememberScrollState()
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -312,6 +329,11 @@ private fun ReadyBody(
             onClick = { onFacet(FacetType.AUTHOR, it) },
         )
 
+        state.item.seriesName?.takeIf { it.isNotBlank() }?.let { seriesName ->
+            Spacer(modifier = Modifier.height(4.dp))
+            BasicText(text = seriesName, style = MetadataStyle)
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         // Genre / year / language chips — the same four facets Android's `MetadataLines` offers.
@@ -331,6 +353,16 @@ private fun ReadyBody(
             style = MetadataStyle,
             onClick = { onFacet(FacetType.LANGUAGE, it) },
         )
+
+        if (state.item.readingProgress > 0f) {
+            Spacer(modifier = Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { state.item.readingProgress.coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(TestTags.BOOK_DETAIL_PROGRESS),
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -388,8 +420,35 @@ private fun ReadyBody(
             }
         }
 
+        if (state.capabilities.hasMarkRead) {
+            val isRead = state.item.readingProgress >= READ_PROGRESS_THRESHOLD
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isRead) Color(0xFF6650A4) else Color(0xFFEAE0F8))
+                    .testTag(TestTags.BOOK_DETAIL_MARK_READ)
+                    .clickable(onClick = if (isRead) onMarkAsUnread else onMarkAsRead),
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(
+                    text = if (isRead) "Mark as unread" else "Mark as read",
+                    style = ButtonTextStyle.copy(
+                        color = if (isRead) Color.White else Color(0xFF6650A4),
+                    ),
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         downloadControls()
+
+        state.item.description?.takeIf { it.isNotBlank() }?.let { description ->
+            Spacer(modifier = Modifier.height(16.dp))
+            CollapsibleDescription(description)
+        }
 
         if (state.isOffline) {
             Spacer(modifier = Modifier.height(12.dp))
@@ -397,6 +456,30 @@ private fun ReadyBody(
                 text = "You are offline",
                 style = TextStyle(fontSize = 13.sp, color = Color(0xFFAA8800)),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CollapsibleDescription(description: String) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = if (expanded) Int.MAX_VALUE else 4,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (description.length > 200) {
+            Text(
+                text = if (expanded) "Show less" else "Show more",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFF6650A4),
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clickable { expanded = !expanded },
             )
         }
     }
