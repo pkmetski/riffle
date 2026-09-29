@@ -126,6 +126,8 @@ class AddSourceViewModelTest {
         // backend) and capture args for assertions.
         override val sourceType: com.riffle.core.models.SourceType =
             com.riffle.core.models.SourceType.ABS
+        var lastUsername: String? = null
+        var lastPassword: String? = null
         override suspend fun authenticate(
             url: SourceUrl,
             username: String,
@@ -135,6 +137,8 @@ class AddSourceViewModelTest {
         ): AuthenticateResult {
             lastInsecureAllowed = insecureAllowed
             lastServerType = serverType
+            lastUsername = username
+            lastPassword = password
             return authResult
         }
     }
@@ -823,5 +827,24 @@ class AddSourceViewModelTest {
 
         assertEquals(listOf("st-1"), repo.removedIds)
         vm.navigateHome.first()
+    }
+
+    @Test
+    fun `onConnect trims leading and trailing whitespace from username and password before authenticating`() = runTest {
+        // Regression: a physical keyboard on iOS can insert a trailing space into a text field
+        // (e.g. from autocorrect or a keyboard layout mismatch). The ViewModel must strip
+        // whitespace from both credentials before passing them to the authenticator so that
+        // "test " is treated identically to "test".
+        val repo = RecordingRepository(AuthenticateResult.Success(singleLibraryPending()))
+        val vm = makeVm(repo)
+        vm.updateScheme("https://")
+        vm.updateHost("abs.example.com")
+        vm.username = " admin "
+        vm.password = " pass "
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("admin", repo.lastUsername)
+        assertEquals("pass", repo.lastPassword)
     }
 }
