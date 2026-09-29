@@ -147,8 +147,7 @@ jobs:
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
-            :core:logging:iosSimulatorArm64Test \
-            :core:database-api:iosSimulatorArm64Test
+            :core:logging:iosSimulatorArm64Test
 
       - name: Upload iOS commonTest reports
         if: always()
@@ -170,7 +169,6 @@ jobs:
             core/catalog-radio-es/build/reports/tests/
             core/catalog-chitanka/build/reports/tests/
             core/logging/build/reports/tests/
-            core/database-api/build/reports/tests/
             shared/build/reports/tests/
             feature/library/build/reports/tests/
             feature/navigation/build/reports/tests/
