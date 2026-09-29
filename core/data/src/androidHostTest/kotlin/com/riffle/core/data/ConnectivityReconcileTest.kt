@@ -90,17 +90,14 @@ class ConnectivityReconcileTest {
     }
 
     @Test
-    fun `foreground poll rescues stuck-online tracker via capability check on Samsung`() {
-        // The Samsung One UI / Android 17 variant: the OS keeps the `activeNetwork` handle alive
-        // (non-null) long after going offline, AND drops onLost — so `tracker.isOnline()` is true
-        // AND `activeNetwork != null` is true. The `reconcileOnline` veto alone can't fire.
-        //
-        // The poll now also calls `currentOnline()` (which re-checks capabilities on the active
-        // network handle). When the OS removes NET_CAPABILITY_INTERNET from the stale handle —
-        // even without nulling the handle — `currentOnline()` returns false, and the poll
-        // clears the tracker and emits offline regardless of `reconcileOnline`.
-        //
-        // This test pins the correct tracker state after that clear.
+    fun `foreground poll rescues stuck-online tracker via currentOnline returning false`() {
+        // When the poll's `currentOnline()` scan finds NO qualifying physical network (all physical
+        // networks are gone, or the only network is a VPN the tracker never recorded), `currentOnline()`
+        // returns false and the poll calls `tracker.clear()`. This covers both:
+        //   - AOSP Android 13+: OS nulls `activeNetwork` → currentOnline() = false via null check
+        //   - Samsung / VPN split-tunnel: physical networks gone but VPN handle stays alive;
+        //     currentOnline() iterates allNetworks and finds no qualifying physical network → false
+        // Either way, poll clears the tracker → offline emitted despite `activeNetwork` being non-null.
         val tracker = ValidatedNetworkTracker<String>()
         tracker.onAvailable("wifi")
         assertTrue("Tracker still thinks online before clear", tracker.isOnline())
@@ -112,6 +109,52 @@ class ConnectivityReconcileTest {
         assertFalse(
             "reconcileOnline with cleared tracker and any activeNetwork value must be offline",
             reconcileOnline(afterClear, hasActiveNetwork = true),
+        )
+    }
+
+    @Test
+    fun `VPN network does not qualify and is excluded from tracker`() {
+        // Tailscale and other VPN tunnels (TRANSPORT_VPN) remain alive in airplane mode at the
+        // kernel level — their tun interface, link addresses, and capabilities are unchanged
+        // whether or not the VPN can relay traffic. They must never enter the tracker, so that
+        // a physical-network onLost (which Samsung DOES fire) empties the tracker correctly.
+        assertFalse(
+            "VPN network must not qualify even with INTERNET capability",
+            isQualifyingNetwork(hasInternet = true, hasValidated = true, isVpn = true),
+        )
+    }
+
+    @Test
+    fun `physical network qualifies when not VPN`() {
+        assertTrue(
+            "Physical network with INTERNET must qualify",
+            isQualifyingNetwork(hasInternet = true, hasValidated = false, isVpn = false),
+        )
+    }
+
+    @Test
+    fun `VPN airplane mode scenario end-to-end via tracker`() {
+        // Samsung + Tailscale regression reproduction:
+        // 1. Device is online; both a physical network (WiFi) and Tailscale VPN are present.
+        // 2. The VPN is EXCLUDED from the tracker (filtered in onAvailable by TRANSPORT_VPN check).
+        // 3. User enables airplane mode: physical onLost fires (Samsung DOES deliver this), VPN onLost
+        //    is dropped (Samsung doesn't fire it). Tracker removes only the physical network.
+        // 4. Tracker is now empty → offline correctly detected, regardless of VPN still being alive.
+        val tracker = ValidatedNetworkTracker<String>()
+
+        // VPN is never added (filtered out in onAvailable)
+        // Physical WiFi is added
+        tracker.onAvailable("wifi")
+        assertTrue("Online with wifi in tracker", tracker.isOnline())
+
+        // Airplane mode: Samsung delivers onLost for wifi but drops it for the VPN (which wasn't
+        // in the tracker anyway). Tracker removes wifi → empty.
+        val trackerAfterWifiLost = tracker.onLost("wifi")
+
+        assertFalse("Tracker must be empty after wifi lost", trackerAfterWifiLost)
+        assertFalse(
+            "Offline must be emitted even though VPN activeNetwork is still non-null",
+            reconcileOnline(trackerAfterWifiLost, hasActiveNetwork = true),
         )
     }
 

@@ -31,7 +31,7 @@ class QualifyingNetworkTest {
     @Test
     fun `internet plus validated is online`() {
         // Healthy state on a GMS-enabled Android device whose network passed the Google probe.
-        assertTrue(isQualifyingNetwork(hasInternet = true, hasValidated = true))
+        assertTrue(isQualifyingNetwork(hasInternet = true, hasValidated = true, isVpn = false))
     }
 
     @Test
@@ -42,7 +42,7 @@ class QualifyingNetworkTest {
         // Google — it talks to the user's ABS source, WebDAV, and Storyteller peer — so we must
         // treat these networks as online. Source-reachability is signalled separately via
         // `LibraryItemsViewModel._refreshFailed`.
-        assertTrue(isQualifyingNetwork(hasInternet = true, hasValidated = false))
+        assertTrue(isQualifyingNetwork(hasInternet = true, hasValidated = false, isVpn = false))
     }
 
     @Test
@@ -50,12 +50,25 @@ class QualifyingNetworkTest {
         // Defensive: a callback that reports VALIDATED without INTERNET is a system-invariant
         // violation we don't expect in practice, but if it ever happens we still treat it as
         // offline because the whole point of the check is "does this network route traffic."
-        assertFalse(isQualifyingNetwork(hasInternet = false, hasValidated = true))
+        assertFalse(isQualifyingNetwork(hasInternet = false, hasValidated = true, isVpn = false))
     }
 
     @Test
     fun `neither capability is offline`() {
         // Clean disconnect — nothing to route traffic through.
-        assertFalse(isQualifyingNetwork(hasInternet = false, hasValidated = false))
+        assertFalse(isQualifyingNetwork(hasInternet = false, hasValidated = false, isVpn = false))
+    }
+
+    @Test
+    fun `VPN with internet is offline — VPN tunnel survives airplane mode`() {
+        // The Tailscale regression: the VPN tun interface keeps INTERNET=true even in airplane
+        // mode. If VPN networks qualify, the tracker retains the VPN handle forever and offline
+        // is never emitted. This is the load-bearing assertion for the VPN filter.
+        assertFalse(isQualifyingNetwork(hasInternet = true, hasValidated = true, isVpn = true))
+    }
+
+    @Test
+    fun `VPN without internet does not qualify`() {
+        assertFalse(isQualifyingNetwork(hasInternet = false, hasValidated = false, isVpn = true))
     }
 }

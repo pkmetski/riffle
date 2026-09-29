@@ -85,10 +85,20 @@ class ConnectivityObserverImpl constructor(
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                // VPN networks (e.g. Tailscale) are excluded from the tracker because the OS
+                // keeps the VPN tunnel alive in airplane mode — the tun interface, link
+                // addresses, capabilities, and routes are identical whether or not the VPN can
+                // actually relay traffic. Including VPNs in the tracker means onLost never fires
+                // for them (Samsung/Android 13+ drops it), permanently blocking offline detection.
+                // Physical networks (WiFi, cellular) DO correctly fire onLost in airplane mode.
+                val caps = connectivityManager.getNetworkCapabilities(network)
+                if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) return
                 emitReconciled(tracker.onAvailable(network))
             }
 
             override fun onLost(network: Network) {
+                // Safe even if the network was never added (VPN filtered in onAvailable) — the
+                // tracker treats onLost for an unknown key as a no-op.
                 emitReconciled(tracker.onLost(network))
             }
 
@@ -96,10 +106,10 @@ class ConnectivityObserverImpl constructor(
                 network: Network,
                 capabilities: NetworkCapabilities,
             ) {
-                val qualifies = isQualifyingNetwork(
-                    hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
-                    hasValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
-                )
+                val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                val hasValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                val isVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                val qualifies = isQualifyingNetwork(hasInternet = hasInternet, hasValidated = hasValidated, isVpn = isVpn)
                 emitReconciled(tracker.onCapabilitiesChanged(network, qualifies))
             }
         }
@@ -120,6 +130,7 @@ class ConnectivityObserverImpl constructor(
                 if (isQualifyingNetwork(
                         hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
                         hasValidated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                        isVpn = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
                     )
                 ) {
                     fresh += network
@@ -180,14 +191,21 @@ class ConnectivityObserverImpl constructor(
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, currentOnline())
 
-    private fun currentOnline(): Boolean {
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return isQualifyingNetwork(
-            hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
-            hasValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
-        )
-    }
+    // Checks if ANY qualifying physical network currently exists. Using `allNetworks` (not just
+    // `activeNetwork`) handles the Tailscale / split-tunnel VPN case: on Samsung the `activeNetwork`
+    // is the VPN handle, which is a VPN and therefore excluded by `isQualifyingNetwork`. Iterating
+    // all networks finds the underlying WiFi or cellular network independently of which one the OS
+    // calls "active". Returns false if only VPN networks are present (e.g. airplane mode with
+    // Tailscale still running its tun interface).
+    private fun currentOnline(): Boolean =
+        connectivityManager.allNetworks.any { network ->
+            val caps = connectivityManager.getNetworkCapabilities(network) ?: return@any false
+            isQualifyingNetwork(
+                hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                hasValidated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                isVpn = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+            )
+        }
 
     override fun isMetered(): Boolean = connectivityManager.isActiveNetworkMetered
 
@@ -227,19 +245,25 @@ internal fun reconcileOnline(trackerOnline: Boolean, hasActiveNetwork: Boolean):
  * observer/tracker only counts networks that satisfy this predicate; the ON_START sweep only
  * merges networks that satisfy this predicate.
  *
- * The rule is: `NET_CAPABILITY_INTERNET` is required; `NET_CAPABILITY_VALIDATED` is deliberately
- * **not** required. VALIDATED is set by Android's `NetworkMonitor` after a successful probe to
- * `connectivitycheck.gstatic.com/generate_204`. That probe host is unreachable on Huawei devices
- * without GMS and on any network that firewalls Google endpoints, so the OS marks the WiFi as
- * `INTERNET` without `VALIDATED` and Riffle would report the user permanently offline. Riffle
- * only ever talks to the user's Audiobookshelf server, their WebDAV endpoint, and an optional
- * Storyteller peer — none of which route through Google. Server-reachability is separately
- * tracked by `LibraryItemsViewModel._refreshFailed`, which is the correct signal for "we can see
- * the LAN but not your server."
+ * Rules:
+ * - `NET_CAPABILITY_INTERNET` is required.
+ * - `NET_CAPABILITY_VALIDATED` is deliberately **not** required. VALIDATED is set by Android's
+ *   `NetworkMonitor` after a successful probe to `connectivitycheck.gstatic.com/generate_204`.
+ *   That probe host is unreachable on Huawei devices without GMS and on any network that firewalls
+ *   Google endpoints, so the OS marks the WiFi as `INTERNET` without `VALIDATED` and Riffle would
+ *   report the user permanently offline. Riffle only ever talks to the user's Audiobookshelf
+ *   server, their WebDAV endpoint, and an optional Storyteller peer — none of which route through
+ *   Google. Server-reachability is separately tracked by `LibraryItemsViewModel._refreshFailed`.
+ * - VPN networks (`TRANSPORT_VPN`) are excluded. VPN tunnels (e.g. Tailscale) remain active at
+ *   the kernel level even in airplane mode — the `tun` interface keeps its link addresses,
+ *   capabilities, and routes unchanged whether or not the VPN can actually relay traffic. Including
+ *   VPNs means `onLost` is never fired for the VPN handle (Samsung / Android 13+ drops it),
+ *   permanently blocking offline detection. Physical networks (WiFi, cellular) correctly fire
+ *   `onLost` in airplane mode, so they are the reliable signal.
  *
- * Pure so a JVM test can fence off the "someone re-adds && hasValidated" regression without
- * needing an Android instrumentation harness. Do not fold `hasValidated` back into the return
- * value.
+ * Pure so a JVM test can fence off regressions without needing an Android instrumentation harness.
+ * Do not fold `hasValidated` back into the return value.
  */
 @Suppress("UNUSED_PARAMETER")
-internal fun isQualifyingNetwork(hasInternet: Boolean, hasValidated: Boolean): Boolean = hasInternet
+internal fun isQualifyingNetwork(hasInternet: Boolean, hasValidated: Boolean, isVpn: Boolean): Boolean =
+    hasInternet && !isVpn
