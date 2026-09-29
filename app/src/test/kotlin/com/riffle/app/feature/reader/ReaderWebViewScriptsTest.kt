@@ -305,7 +305,7 @@ class ReaderWebViewScriptsTest {
         assertTrue("embeds the exact locator safely", js.contains("var loc=JSON.parse("))
         assertTrue(
             "asks Readium to resolve and scroll to the exact range",
-            js.contains("if(window.readium.scrollToLocator(loc))return;"),
+            js.contains("if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor(se.scrollLeft/iw)*iw;return;}"),
         )
         assertTrue(
             "keeps progression as the stale-quote fallback",
@@ -332,7 +332,7 @@ class ReaderWebViewScriptsTest {
             locatorJson = locatorJson,
         )
 
-        val rangeSnap = js.indexOf("notes.items")
+        val rangeSnap = js.indexOf("items=items.concat(grp.items)")
         val locatorSnap = js.indexOf("window.readium.scrollToLocator(loc)")
         assertTrue("looks up Readium's resolved note items", rangeSnap >= 0)
         assertTrue("reads the live decoration Range", js.contains("range.getBoundingClientRect()"))

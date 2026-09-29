@@ -221,6 +221,7 @@ class AnnotationFocusHarnessTest : KoinTest {
                 "$orientation attempt $attempt: annotated phrase not focused on screen. $result",
                 result.onScreen,
             )
+            if (orientation == ReaderOrientation.Horizontal) assertLandedOnColumnGrid(attempt)
             if (attempt < attempts) returnToLibrary()
         }
     }
@@ -371,6 +372,27 @@ class AnnotationFocusHarnessTest : KoinTest {
         }
         latch.await(5, TimeUnit.SECONDS)
         return res[0]
+    }
+
+    /**
+     * A paginated landing must rest on the column grid within a moment of the phrase appearing.
+     * Regression: for a highlight without a note the snap loop found no glyph decoration and held
+     * Readium's un-snapped scrollToLocator landing for its full 600-frame cap — the page sat
+     * "semi-turned" for ~10 s.
+     */
+    private fun assertLandedOnColumnGrid(attempt: Int, timeoutMs: Long = 3_000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var last = "unread"
+        while (System.currentTimeMillis() < deadline) {
+            val wv = visibleWebViews().firstOrNull() ?: break
+            last = evalJs(wv, "(function(){var e=document.scrollingElement;return e.scrollLeft+','+window.innerWidth;})()")
+            val parts = last.split(',')
+            val left = parts.getOrNull(0)?.toDoubleOrNull()
+            val iw = parts.getOrNull(1)?.toDoubleOrNull()
+            if (left != null && iw != null && iw > 0 && Math.abs(left - Math.round(left / iw) * iw) <= 2) return
+            Thread.sleep(100)
+        }
+        org.junit.Assert.fail("Horizontal attempt $attempt: page rests off the column grid (scrollLeft,innerWidth=$last)")
     }
 
     /** Evaluate [js] on [wv]; registers on the UI thread, awaits the callback OFF the UI thread. */

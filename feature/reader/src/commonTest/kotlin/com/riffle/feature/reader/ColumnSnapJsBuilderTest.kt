@@ -184,6 +184,31 @@ class ColumnSnapJsBuilderTest {
     }
 
     @Test
+    fun snapToTargetColumnJs_focusedAnnotationSnapsToItsHighlightDecorationColumn() {
+        // A highlight without a note has no "annotation-notes" glyph decoration; the loop used to
+        // wait the full 600-frame cap for one while scrollToLocator held the page mid-turn. The
+        // focused id must also be looked up in the "annotations" tint group, which is present
+        // from the first frame after go().
+        val js = ColumnSnap.snapToTargetColumnJs(
+            null, landAtStartWhenNoTarget = false, locatorProgression = 0.1,
+            locatorJson = """{"href":"ch09.html","text":{"highlight":"Figure 9-1."}}""",
+            focusAnnotationId = "ann-1",
+        )
+        assertTrue(js.contains("var groups=[\"$NOTE_GLYPH_DECORATION_GROUP\"];if(focusAnnotationId)groups.push('annotations');"))
+        assertTrue(js.contains("items=items.concat(grp.items)"))
+        assertTrue(js.contains("if(!item.decoration||item.decoration.id!==focusAnnotationId)continue;"))
+    }
+
+    @Test
+    fun snapToTargetColumnJs_floorsScrollLeftToColumnAfterScrollToLocator() {
+        // Readium's scrollToLocator aligns the range's left edge with the viewport edge without
+        // snapping; a caption indented inside a figure wrapper therefore landed 82 px off-grid
+        // ("semi-turned page"). The landing must be floored to the containing column.
+        val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false, locatorProgression = 0.1)
+        assertTrue(js.contains("if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor(se.scrollLeft/iw)*iw;return;}"))
+    }
+
+    @Test
     fun snapToTargetColumnJs_setsSkipV_false_for_tocNavigation() {
         val js = ColumnSnap.snapToTargetColumnJs("ch01", landAtStartWhenNoTarget = true, locatorProgression = null)
         assertTrue(js.contains("var _skipV=false;"))
