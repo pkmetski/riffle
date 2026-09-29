@@ -84,10 +84,11 @@ jobs:
     # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
     # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
     # well past that. 35 min was too tight (killed mid-run on a slow runner). When the GitHub Actions
-    # Gradle cache is cold (evicted between runs), the combined iosSimulatorArm64Test + framework link
-    # step can take up to ~45 min (28 K/N tasks × --max-workers 2), leaving ~15 min for XCTest.
-    # 65 min covers the worst case; warm-cache runs still finish in ~15 min.
-    timeout-minutes: 65
+    # Gradle cache is cold (evicted between runs, e.g. when cancel-in-progress kills a warming run),
+    # the combined iosSimulatorArm64Test + framework link step takes 60–70 min (28 K/N tasks ×
+    # --max-workers 2); XCTest adds ~15 min on top. 90 min covers the worst-case cold build (80 min)
+    # with a 10 min buffer; warm-cache runs still finish in ~15 min.
+    timeout-minutes: 90
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
