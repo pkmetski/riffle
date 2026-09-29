@@ -269,7 +269,7 @@ class AddSourceViewModel constructor(
     }
 
     private fun connectWebdav() {
-        val config = AnnotationSyncConfig(url.trim(), username, password)
+        val config = AnnotationSyncConfig(url.trim(), username.trim(), password.trim())
         viewModelScope.launch {
             isLoading = true
             when (val result = webdavConnectionTester.test(config)) {
@@ -308,7 +308,7 @@ class AddSourceViewModel constructor(
             ?: error("no CredentialedAuthenticator bound for $sourceType — check CredentialedAuthenticatorModule")
         viewModelScope.launch {
             isLoading = true
-            when (val result = authenticator.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
+            when (val result = authenticator.authenticate(serverUrl, username.trim(), password.trim(), insecureAllowed, serverType)) {
                 is AuthenticateResult.Success -> {
                     val pending = result.pending
                     if (pending.libraries.size <= 1) {

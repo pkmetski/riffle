@@ -10,6 +10,8 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
+import com.riffle.core.database.RemoteProgressUpdate
+import com.riffle.core.database.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -67,9 +69,57 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
         if (items.isNotEmpty()) invalidator.invalidate()
     }
 
+    /**
+     * Overrides the default implementation from [LibraryItemDao] to wrap the entire
+     * delete/insert/update sequence in a single SQLite transaction.
+     *
+     * Without this, every [driver.execute] call is its own implicit auto-commit transaction —
+     * each one triggers a WAL fsync (~5–15 ms on NAND). For a 500-book library that means
+     * 1000+ fsyncs (500 INSERT + 500 UPDATE) ≈ 20+ seconds. One transaction = one fsync ≈ <1 s.
+     *
+     * Invalidation is deferred to a single call after the transaction commits so observers
+     * see the final state, not 1000 intermediate states.
+     */
+    override suspend fun replaceAllForLibrary(sourceId: String, libraryId: String, items: List<LibraryItemEntity>) {
+        if (items.isEmpty()) {
+            deleteByLibraryId(sourceId, libraryId)
+            return
+        }
+        val serverIds = items.mapTo(HashSet(items.size)) { it.id }
+        driver.withTransaction {
+            val toDelete = idsForLibrary(sourceId, libraryId).filterNot { it in serverIds }
+            toDelete.chunked(SQLITE_MAX_BIND_ARGS).forEach { chunk -> deleteByIdsRaw(sourceId, chunk) }
+            insertOrIgnoreRaw(items)
+            items.forEach { updateMetadataRaw(LibraryItemMetadata.from(it)) }
+        }
+        invalidator.invalidate()
+    }
+
+    /**
+     * Overrides the default implementation from [LibraryItemDao] to batch all progress updates
+     * inside a single SQLite transaction, avoiding O(N) fsyncs.
+     */
+    override suspend fun batchUpdateReadingProgressFromServer(sourceId: String, updates: List<RemoteProgressUpdate>) {
+        if (updates.isEmpty()) return
+        driver.withTransaction {
+            updates.forEach { update ->
+                driver.execute(
+                    null,
+                    "UPDATE library_items SET readingProgress = ?, progressServerUpdatedAt = ? " +
+                        "WHERE sourceId = ? AND id = ? AND ? >= progressServerUpdatedAt",
+                    5,
+                ) {
+                    bindDouble(0, update.progress.toDouble()); bindLong(1, update.serverUpdatedAt)
+                    bindString(2, sourceId); bindString(3, update.itemId); bindLong(4, update.serverUpdatedAt)
+                }
+            }
+        }
+        invalidator.invalidate()
+    }
+
     override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
         items.forEach { item ->
-            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 24) {
+            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 25) {
                 bindItem(item)
             }
         }
@@ -366,6 +416,58 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
             2,
         ) { bindString(0, sourceId); bindString(1, libraryId) }.value
 
+    private fun insertOrIgnoreRaw(items: List<LibraryItemEntity>) {
+        items.forEach { item ->
+            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 25) {
+                bindItem(item)
+            }
+        }
+    }
+
+    private fun updateMetadataRaw(metadata: LibraryItemMetadata) {
+        driver.execute(null, """UPDATE library_items SET
+            libraryId = ?, title = ?, author = ?, coverUrl = ?,
+            ebookFileIno = ?, ebookFormat = ?, hasAudio = ?,
+            audioDurationSec = ?, description = ?, seriesName = ?,
+            publishedYear = ?, genres = ?, publisher = ?, language = ?,
+            lastOpenedAt = ?, addedAt = ?, isbn = ?, asin = ?,
+            finishedAt = ?, pageCount = ?
+            WHERE sourceId = ? AND id = ?""", 22) {
+            bindString(0, metadata.libraryId)
+            bindString(1, metadata.title)
+            bindString(2, metadata.author)
+            bindString(3, metadata.coverUrl)
+            bindString(4, metadata.ebookFileIno)
+            bindString(5, metadata.ebookFormat)
+            bindLong(6, if (metadata.hasAudio) 1L else 0L)
+            bindDouble(7, metadata.audioDurationSec)
+            bindString(8, metadata.description)
+            bindString(9, metadata.seriesName)
+            bindString(10, metadata.publishedYear)
+            bindString(11, metadata.genres)
+            bindString(12, metadata.publisher)
+            bindString(13, metadata.language)
+            bindLong(14, metadata.lastOpenedAt)
+            bindLong(15, metadata.addedAt)
+            bindString(16, metadata.isbn)
+            bindString(17, metadata.asin)
+            bindLong(18, metadata.finishedAt)
+            bindLong(19, metadata.pageCount?.toLong())
+            bindString(20, metadata.sourceId)
+            bindString(21, metadata.id)
+        }
+    }
+
+    private fun deleteByIdsRaw(sourceId: String, itemIds: List<String>) {
+        if (itemIds.isEmpty()) return
+        val placeholders = itemIds.joinToString(",") { "?" }
+        driver.execute(null, "DELETE FROM library_items WHERE sourceId = ? AND id IN ($placeholders)",
+            1 + itemIds.size) {
+            bindString(0, sourceId)
+            itemIds.forEachIndexed { i, id -> bindString(i + 1, id) }
+        }
+    }
+
     private fun insertOrReplaceItem(item: LibraryItemEntity) {
         driver.execute(null, "INSERT OR REPLACE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 25) {
             bindItem(item)
@@ -435,6 +537,7 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
     )
 
     companion object {
+        private const val SQLITE_MAX_BIND_ARGS = 900
         private const val ALL_COLS = "sourceId, id, libraryId, title, author, coverUrl, readingProgress, " +
             "ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, seriesSequence, " +
             "publishedYear, genres, publisher, language, lastOpenedAt, addedAt, isbn, asin, finishedAt, pageCount, " +

@@ -94,14 +94,17 @@ fun SourceTypePickerScreen(
     installedTypes: Set<SourceType> = emptySet(),
     developerModeEnabled: Boolean = false,
     enabledTypes: Set<SourceType>? = null,
+    showNavigationIcon: Boolean = true,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(Res.string.ui_add_source)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                    if (showNavigationIcon) {
+                        IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
+                            Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        }
                     }
                 },
             )

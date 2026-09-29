@@ -67,7 +67,7 @@ Use these local services when an investigation needs a live source backend:
 
 | Source | Endpoint | Username | Password |
 |--------|----------|----------|----------|
-| Audiobookshelf | `http://media-server:13378` | `test2` | `test` |
+| Audiobookshelf | `http://media-server:13378` | `test` | `test` |
 | Komga | `http://media-server:25600` | `test@test.test` | `test` |
 | Kavita | `http://media-server:5000` | `test` | `test12` |
 

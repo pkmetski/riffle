@@ -45,6 +45,7 @@ import org.koin.mp.KoinPlatform
 fun SourceOnboardingHost(
     onFinished: () -> Unit,
     onCancelled: () -> Unit,
+    canNavigateBack: Boolean = true,
 ) {
     val pickerViewModel = koinInject<SourceTypePickerViewModel>()
     val installedTypes by pickerViewModel.installedTypes.collectAsState()
@@ -64,6 +65,7 @@ fun SourceOnboardingHost(
     when (val current = step) {
         OnboardingStep.Picker -> SourceTypePickerScreen(
             isExpandedWidth = expandedWidth,
+            showNavigationIcon = canNavigateBack,
             onNavigateBack = onCancelled,
             onPick = { type ->
                 when {
@@ -92,6 +94,7 @@ fun SourceOnboardingHost(
             val viewModel = remember(current.type) { addSourceViewModel(current.type) }
             AddSourceScreen(
                 isExpandedWidth = expandedWidth,
+                showNavigationIcon = canNavigateBack,
                 onNavigateBack = { step = OnboardingStep.Picker },
                 onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending) },
                 onAutoCompleted = onFinished,

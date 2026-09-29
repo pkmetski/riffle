@@ -8,6 +8,7 @@ import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
 import com.riffle.core.database.IosInvalidator
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -32,6 +33,39 @@ internal class IosCollectionDao(private val driver: SqlDriver, private val inval
                 ) { bindString(0, sourceId); bindString(1, collectionId) }.value)
             }
         }
+
+    override suspend fun replaceAllForLibrary(libraryId: String, collections: List<CollectionEntity>, collectionItems: List<CollectionItemEntity>) {
+        driver.withTransaction {
+            driver.execute(
+                null,
+                "DELETE FROM collection_items WHERE collectionId IN (SELECT id FROM collections WHERE libraryId = ?)",
+                1,
+            ) { bindString(0, libraryId) }
+            driver.execute(null, "DELETE FROM collections WHERE libraryId = ?", 1) {
+                bindString(0, libraryId)
+            }
+            collections.forEach { c ->
+                driver.execute(
+                    null,
+                    "INSERT OR REPLACE INTO collections (id, libraryId, name, bookCount) VALUES (?, ?, ?, ?)",
+                    4,
+                ) {
+                    bindString(0, c.id); bindString(1, c.libraryId)
+                    bindString(2, c.name); bindLong(3, c.bookCount.toLong())
+                }
+            }
+            collectionItems.forEach { item ->
+                driver.execute(
+                    null,
+                    "INSERT OR REPLACE INTO collection_items (collectionId, sourceId, itemId) VALUES (?, ?, ?)",
+                    3,
+                ) {
+                    bindString(0, item.collectionId); bindString(1, item.sourceId); bindString(2, item.itemId)
+                }
+            }
+        }
+        invalidator.invalidate()
+    }
 
     override suspend fun upsertAll(collections: List<CollectionEntity>) {
         collections.forEach { c ->

@@ -60,6 +60,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
         val developerModeEnabled by pickerViewModel.developerModeEnabled.collectAsState()
         SourceTypePickerScreen(
             isExpandedWidth = isExpandedWidth,
+            showNavigationIcon = cameFromSettings,
             onNavigateBack = {
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
@@ -281,6 +282,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
                 ?.destination?.route in setOf(SETTINGS, READALOUD_SETTINGS, ANNOTATIONS_SYNC_SETTINGS, CHANGELOG)
             AddSourceScreen(
                 isExpandedWidth = isExpandedWidth,
+                showNavigationIcon = cameFromSettings,
                 viewModel = koinViewModel<AddSourceViewModel>(),
                 onNavigateBack = {
                     if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
