@@ -119,8 +119,11 @@ jobs:
       # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
       # verified on iOS, not just Android. core:database and core:data have their own jobs.
       - name: Run iOS commonTest (all iOS-targeted modules)
+        # --max-workers 2 caps concurrent K/N link steps. Without the cap, Gradle's default worker
+        # count (≈ CPU count) launches too many K/N daemons simultaneously on the 7 GB macos-15
+        # runner, exhausting RAM and causing link hangs that kill the 50-minute timeout.
         run: |
-          ./gradlew \
+          ./gradlew --max-workers 2 \
             :core:common:iosSimulatorArm64Test \
             :core:models:iosSimulatorArm64Test \
             :core:net:iosSimulatorArm64Test \
