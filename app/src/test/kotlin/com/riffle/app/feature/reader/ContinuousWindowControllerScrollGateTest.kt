@@ -182,6 +182,27 @@ class ContinuousWindowControllerScrollGateTest {
         )
     }
 
+    /**
+     * Regression guard for the non-target, non-top chapter late-image drift bug:
+     * when a chapter BETWEEN the top of the window and the target chapter grows after its initial
+     * measurement (e.g. ch08 images load while the reader is at an annotation in ch09), the
+     * annotated figure drifts downward while scroll stays put, causing the reader to show content
+     * above the figure. The fix adds a scrollBy(delta) compensation path for this case.
+     */
+    @Test
+    fun `non-top non-target non-placeholder chapter growth above viewport triggers scrollBy compensation`() {
+        val source = resolveSource("ContinuousWindowController.kt").readText()
+        // The compensation block must check: not wasPlaceholder, i != 0, delta > 0,
+        // not the target href, and the slot bottom is at or above current scroll.
+        assertTrue(
+            "onHeightMeasured must compensate scroll when a non-top, non-target, non-placeholder " +
+            "chapter grows and is entirely above the viewport — without this, the focused figure " +
+            "drifts downward while scroll stays put (two-step annotation nav repro)",
+            source.contains("!wasPlaceholder && i != 0 && delta > 0") &&
+            source.contains("wv.chapterHref != pendingTargetHref && slotBottomBefore <= port.currentScrollY"),
+        )
+    }
+
     private fun resolveSource(name: String): File {
         val relative = "src/main/kotlin/com/riffle/app/feature/reader/$name"
         val candidates = listOf(File(relative), File("app/$relative"))

@@ -1507,6 +1507,20 @@ internal class ContinuousWindowController(
                 if (pendingInitialScroll == null && i == 0 && delta != 0 && (delta < 0 || port.currentScrollY >= oldHeight)) {
                     port.scrollBy(delta)
                 }
+                // Compensate scroll when a non-target, non-top chapter re-measures (grows) after
+                // its initial measurement and its entire slot lies above the current scroll
+                // position. This happens when images within the chapter load late — the slot grows,
+                // pushing the target chapter (and any focused annotation within it) downward while
+                // the scroll position stays put. The viewer then shows content ABOVE the focused
+                // figure. Mirrors the i==0 path and the wasPlaceholder aboveCompensation path;
+                // uses direct scrollBy (no doOnNextLayout needed) because late-image deltas are
+                // small relative to the existing maxScrollY, so no NestedScrollView clipping occurs.
+                if (pendingInitialScroll == null && !wasPlaceholder && i != 0 && delta > 0 &&
+                    wv.chapterHref != pendingTargetHref && slotBottomBefore <= port.currentScrollY
+                ) {
+                    port.scrollBy(delta)
+                    if (landingHoldTargetY >= 0) landingHoldTargetY += delta
+                }
 
                 if (wasPlaceholder && pendingInitialMeasureIndices.remove(i) &&
                     pendingInitialMeasureIndices.isEmpty()
