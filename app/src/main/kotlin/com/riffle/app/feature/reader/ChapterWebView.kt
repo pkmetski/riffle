@@ -565,26 +565,33 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * when found its rect already reflects the final post-reflow layout — the exact thing a
      * slot+progression landing keeps missing.
      *
-     * When [imageSrc] is non-null and no `<mark>` is found, falls back to the `<img>` element
-     * matched by `img[src$="<filename>"]`. Used for TYPE_IMAGE (figure) annotations, which are
-     * decorated with a CSS outline rather than a `<mark>` wrapper, so no `data-riffle-ann`
-     * attribute exists in the DOM for them.
+     * When [imageSrc] is non-null and no `<mark>` is found, falls back to the figure element via
+     * one of two strategies depending on the shape of [imageSrc]:
+     * - Starts with `#`: element-ID fallback (`getElementById`) for TYPE_IMAGE annotations that
+     *   pre-date `imageHref` storage (pre-migration-46). The ID comes from `locations.fragments`
+     *   placed there by `cfiStringToLocator`.
+     * - Otherwise: filename fallback (`img[src$="…"]`) using the last path segment of [imageSrc].
+     *   For annotations with a stored `imageHref`, mirrors `FigureBorderDecoration.hrefFilename`.
      *
-     * Returns null when neither the mark nor the image element is in the DOM (cold-start, before
-     * the annotation has been observed and applied). Callers fall back to the existing
-     * anchor/progression landing; the reflow-tracking re-land re-fires this query on every target
-     * remeasure so once the element appears, the landing snaps onto it.
+     * Returns null when neither mark nor figure element is in the DOM. Callers fall back to the
+     * existing anchor/progression landing; the reflow-tracking re-land re-fires this query on
+     * every target remeasure so once the element appears, the landing snaps onto it.
      */
     fun annotationOffsetTopDevicePx(id: String, imageSrc: String? = null, callback: (Int?) -> Unit) {
         val esc = id.replace("\\", "\\\\").replace("'", "\\'")
         val imgFallback = if (imageSrc != null) {
-            // Extract filename suffix (last path segment, no query/fragment) for the
-            // `img[src$="…"]` selector — mirrors FigureBorderDecoration.hrefFilename.
-            val trimmed = imageSrc.substringBefore('?').substringBefore('#')
-            val slash = trimmed.lastIndexOf('/')
-            val filename = (if (slash >= 0) trimmed.substring(slash + 1) else trimmed)
-                .replace("\\", "\\\\").replace("'", "\\'")
-            "if(!e){e=document.querySelector(\"img[src\$='$filename']\");}"
+            if (imageSrc.startsWith("#")) {
+                // CFI element-ID fallback for old annotations without imageHref.
+                val elementId = imageSrc.drop(1).replace("\\", "\\\\").replace("'", "\\'")
+                "if(!e){e=document.getElementById('$elementId');}"
+            } else {
+                // Filename fallback — mirrors FigureBorderDecoration.hrefFilename.
+                val trimmed = imageSrc.substringBefore('?').substringBefore('#')
+                val slash = trimmed.lastIndexOf('/')
+                val filename = (if (slash >= 0) trimmed.substring(slash + 1) else trimmed)
+                    .replace("\\", "\\\\").replace("'", "\\'")
+                "if(!e){e=document.querySelector(\"img[src\$='$filename']\");}"
+            }
         } else ""
         val js = """(function(){
             var e = document.querySelector("[data-riffle-ann='$esc']");

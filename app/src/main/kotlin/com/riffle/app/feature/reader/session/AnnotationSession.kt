@@ -153,11 +153,15 @@ class AnnotationSession constructor(
         val isBookmark: Boolean,
         val annotationId: String? = null,
         /**
-         * Non-null for TYPE_IMAGE annotations: the stored `imageHref` (e.g.
-         * `EPUB/images/figure-1.png`). Continuous mode uses this to fall back to
-         * `img[src$="filename"]` when no `<mark data-riffle-ann>` has been injected
-         * for the figure. Paginated mode uses it to skip `focusAnnotationId` (there is
-         * no matching Readium decoration for a CSS-outline figure border).
+         * Non-null for TYPE_IMAGE annotations. Two shapes:
+         * - A relative file path (`EPUB/images/figure-1.png`): carries `imageHref` from the
+         *   annotation row (available on annotations created after migration 46→47). Continuous
+         *   mode falls back to `img[src$="filename"]`.
+         * - A `#`-prefixed element ID (`#fig_001`): derived from `locator.locations.fragments`
+         *   for older annotations that pre-date `imageHref` storage. Continuous mode falls back
+         *   to `getElementById("fig_001")`.
+         * In both cases paginated mode uses it to skip `focusAnnotationId` (no Readium
+         * decoration exists for CSS-outline figure borders).
          */
         val imageSrc: String? = null,
     )
@@ -726,10 +730,16 @@ class AnnotationSession constructor(
                     // Carry the id so continuous mode can centre the actual mark and paginated
                     // mode can snap to Readium's already-resolved decoration Range.
                     annotationId = id,
-                    // For figure annotations: pass the imageHref so continuous mode can fall
-                    // back to `img[src$="filename"]` (no <mark> is injected for figures) and
-                    // paginated mode can skip focusAnnotationId (no matching Readium decoration).
-                    imageSrc = if (annotation.type == AnnotationEntity.TYPE_IMAGE) annotation.imageHref else null,
+                    // For figure annotations: pass a JS-query hint so continuous mode can
+                    // land on the actual figure element (no <mark data-riffle-ann> is injected).
+                    // imageHref (added in migration 46→47) gives img[src$="filename"]. For older
+                    // annotations without imageHref, fall back to the CFI element id extracted by
+                    // cfiStringToLocator and stored in locations.fragments; prefix with '#' so the
+                    // caller can distinguish a fragment id from a file path.
+                    imageSrc = if (annotation.type == AnnotationEntity.TYPE_IMAGE) {
+                        annotation.imageHref
+                            ?: locator.locations.fragments.firstOrNull()?.let { "#$it" }
+                    } else null,
                 ),
             )
             _annotationsPanelVisible.value = false

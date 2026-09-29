@@ -186,7 +186,11 @@ class AnnotationSessionTest {
     } // companion object
 
     @Suppress("UNCHECKED_CAST")
-    private fun buildLocator(href: String = "chapter1.xhtml", progression: Double = 0.3): Locator {
+    private fun buildLocator(
+        href: String = "chapter1.xhtml",
+        progression: Double = 0.3,
+        fragments: List<String> = emptyList(),
+    ): Locator {
         val unsafe = Class.forName("sun.misc.Unsafe")
             .getDeclaredField("theUnsafe")
             .also { it.isAccessible = true }
@@ -198,7 +202,7 @@ class AnnotationSessionTest {
         return Locator(
             href = url,
             mediaType = MediaType.XHTML,
-            locations = Locator.Locations(progression = progression),
+            locations = Locator.Locations(progression = progression, fragments = fragments),
         )
     }
 
@@ -1331,10 +1335,11 @@ class AnnotationSessionTest {
     }
 
     @Test
-    fun `navigateToAnnotation emits null imageSrc for TYPE_IMAGE annotations without imageHref`() = runTest {
+    fun `navigateToAnnotation emits null imageSrc for TYPE_IMAGE annotations without imageHref and no CFI fragment`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
         val store = FakeAnnotationStore()
+        // Locator has no fragments: CFI resolver found no element id in the HTML.
         val targetLocator = buildLocator()
         val imageAnnotationNoHref = Annotation(
             id = "img2",
@@ -1373,8 +1378,62 @@ class AnnotationSessionTest {
 
         assertEquals(1, received.size)
         assertNull(
-            "TYPE_IMAGE with null imageHref (SVG-only figure) must emit null imageSrc since there " +
-                "is no img[src\$=…] selector to construct",
+            "TYPE_IMAGE with no imageHref and no CFI fragment must emit null imageSrc " +
+                "— no JS selector can be constructed",
+            received[0].imageSrc,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation uses CFI fragment as hash-prefixed imageSrc for pre-migration-46 TYPE_IMAGE annotations`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        // Locator carries a CFI element id in fragments (placed there by cfiStringToLocator).
+        val targetLocator = buildLocator(fragments = listOf("fig_001_09fig01"))
+        val oldImageAnnotation = Annotation(
+            id = "img3",
+            sourceId = "srv1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = "epubcfi(/6/4!/4/2/6[fig_001_09fig01])",
+            color = "yellow",
+            note = null,
+            textSnippet = "Figure 1",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "chapter1.xhtml",
+            spineIndex = 0,
+            progression = 0.3,
+            bookmarkTitle = "",
+            createdAt = 1000L,
+            updatedAt = 1001L,
+            imageHref = null,
+        )
+        store.allAnnotations.value = listOf(oldImageAnnotation)
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { _ -> targetLocator },
+        )
+
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+        session.navigateToAnnotation("img3")
+
+        assertEquals(1, received.size)
+        assertEquals(
+            "Pre-migration-46 TYPE_IMAGE annotations (null imageHref) must use the CFI element " +
+                "id from locations.fragments as a #-prefixed imageSrc so the JS falls back to " +
+                "getElementById instead of img[src\$=…]",
+            "#fig_001_09fig01",
             received[0].imageSrc,
         )
         collectJob.cancel()
