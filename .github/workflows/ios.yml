@@ -83,12 +83,9 @@ jobs:
     runs-on: macos-15
     # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
     # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
-    # well past that. 35 min was too tight (killed mid-run on a slow runner). When the GitHub Actions
-    # Gradle cache is cold (evicted between runs, e.g. when cancel-in-progress kills a warming run),
-    # the combined iosSimulatorArm64Test + framework link step takes 60–70 min (28 K/N tasks ×
-    # --max-workers 2); XCTest adds ~15 min on top. 90 min covers the worst-case cold build (80 min)
-    # with a 10 min buffer; warm-cache runs still finish in ~15 min.
-    timeout-minutes: 90
+    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 matches the harness
+    # job's ceiling and is a hard safety cap, not a per-test wait.
+    timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -121,17 +118,9 @@ jobs:
 
       # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
       # verified on iOS, not just Android. core:database and core:data have their own jobs.
-      # :shared:linkDebugFrameworkIosSimulatorArm64 is included here so Gradle can schedule it
-      # concurrently with the test tasks rather than running it serially in a separate step.
-      # This saves ~10 minutes on runs where source changes invalidate the framework cache
-      # (e.g. feature:library changes → shared framework cache miss → link must re-run).
       - name: Run iOS commonTest (all iOS-targeted modules)
-        # --max-workers 2 caps concurrent Kotlin/Native link steps. Each link spawns a JVM daemon
-        # with kotlin.native.jvmArgs=-Xmx6g; on a 7 GB macos-15 runner, more than 2 concurrent
-        # linkers OOM-kill each other and cause the 50-minute job timeout.
         run: |
-          ./gradlew --max-workers 2 \
-            :shared:linkDebugFrameworkIosSimulatorArm64 \
+          ./gradlew \
             :core:common:iosSimulatorArm64Test \
             :core:models:iosSimulatorArm64Test \
             :core:net:iosSimulatorArm64Test \
@@ -158,7 +147,8 @@ jobs:
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
-            :core:logging:iosSimulatorArm64Test
+            :core:logging:iosSimulatorArm64Test \
+            :core:database-api:iosSimulatorArm64Test
 
       - name: Upload iOS commonTest reports
         if: always()
@@ -180,6 +170,7 @@ jobs:
             core/catalog-radio-es/build/reports/tests/
             core/catalog-chitanka/build/reports/tests/
             core/logging/build/reports/tests/
+            core/database-api/build/reports/tests/
             shared/build/reports/tests/
             feature/library/build/reports/tests/
             feature/navigation/build/reports/tests/
@@ -194,6 +185,12 @@ jobs:
             feature/settings/build/reports/tests/
             feature/downloads/build/reports/tests/
           if-no-files-found: ignore
+
+      # Only the simulator slice is needed here: xcodebuild's embed phase links from
+      # shared/build/bin/iosSimulatorArm64/debugFramework. assembleRiffleDebugXCFramework also
+      # linked the arm64 device framework (~5 min) that nothing in this job uses.
+      - name: Link Riffle simulator framework
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Select and pre-boot simulator
         run: |
