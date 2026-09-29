@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -125,7 +126,10 @@ class RiffleViewModel constructor(
         // collectLatest cancels the previous block (and all its children) whenever a new emission
         // arrives, preventing coroutine accumulation across source-list changes.
         viewModelScope.launch {
-            sourceRepository.observeAll().collectLatest { sources ->
+            // distinctUntilChanged suppresses Room Flow re-emissions with identical source lists,
+            // preventing _failedSourceIds from being spuriously cleared when the DB table changes
+            // but the query result (the set of configured sources) stays the same.
+            sourceRepository.observeAll().distinctUntilChanged().collectLatest { sources ->
                 _failedSourceIds.value = emptySet()
                 authTokenMap = coroutineScope {
                     sources.associate { source ->
