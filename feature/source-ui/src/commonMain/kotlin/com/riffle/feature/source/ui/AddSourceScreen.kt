@@ -85,6 +85,7 @@ fun AddSourceScreen(
     onAuthenticated: (PendingSource) -> Unit,
     onAutoCompleted: () -> Unit,
     viewModel: AddSourceViewModel,
+    showNavigationIcon: Boolean = true,
 ) {
     LaunchedEffect(Unit) {
         viewModel.navigateToSelectLibraries.collect { onAuthenticated(it) }
@@ -143,8 +144,10 @@ fun AddSourceScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                    if (showNavigationIcon) {
+                        IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
+                            Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        }
                     }
                 },
             )

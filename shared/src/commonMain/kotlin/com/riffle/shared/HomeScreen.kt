@@ -173,6 +173,7 @@ fun HomeScreen() {
                         SourceOnboardingHost(
                             onFinished = { refreshKey++ },
                             onCancelled = { refreshKey++ },
+                            canNavigateBack = false,
                         )
                     is HomeViewModel.StartDestination.Riffle -> {
                         LaunchedEffect(Unit) { appSection = AppSection.Riffle }
