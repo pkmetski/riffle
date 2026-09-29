@@ -178,6 +178,86 @@ final class AddAbsSourceFlowTests: XCTestCase {
 
     // MARK: - Helpers
 
+    // Note: fill() uses typeText() which injects characters directly without going through the
+    // iOS software keyboard. This means keyboard-level auto-capitalization (the bug fixed by
+    // changing passwordKeyboardOptions from KeyboardType.Password to KeyboardType.Text) is not
+    // exercised here. The CredentialKeyboardOptionsTest pins that the keyboard type can never
+    // revert to Password; this test pins that the auth code path transmits credentials correctly.
+    private func fill(fieldLabeled label: String, with text: String) {
+        let fieldLabel = app.staticTexts[label]
+        XCTAssertTrue(fieldLabel.waitForExistence(timeout: 5), "\(label) field must exist")
+        fieldLabel.tap()
+        let focused = app.textFields.firstMatch.exists
+            ? app.textFields.firstMatch
+            : app.secureTextFields.firstMatch
+        if focused.exists {
+            focused.typeText(text)
+        } else {
+            app.typeText(text)
+        }
+    }
+}
+
+// Drives the add-ABS-source UI against the real developer ABS instance (http://media-server:13378).
+// This class exists specifically to verify that valid credentials authenticate successfully when
+// submitted through the UI — catching any auth regression that a stub server would mask.
+//
+// Requires Tailscale connectivity so the simulator can reach media-server. Runs in iosAppTests
+// (harness target) alongside the stub-server variant; both must stay green.
+final class AddAbsSourceRealServerTests: XCTestCase {
+
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments += ["--RIFFLE_RESET_FOR_TESTS"]
+        app.launch()
+    }
+
+    override func tearDownWithError() throws {
+        app.terminate()
+        app = nil
+    }
+
+    /// Verifies that the real ABS server at http://media-server:13378 accepts the developer
+    /// credentials (test/test) when submitted through the add-source UI.
+    func testAddAbsSourceWithRealServer() throws {
+        XCTAssertTrue(app.staticTexts["Add source"].waitForExistence(timeout: 200),
+                      "App must start on the source picker")
+
+        let absCard = app.staticTexts["Audiobookshelf"]
+        XCTAssertTrue(absCard.waitForExistence(timeout: 60), "Picker must show the Audiobookshelf card")
+        absCard.tap()
+
+        let schemeButton = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH 'https://'"))
+            .firstMatch
+        XCTAssertTrue(schemeButton.waitForExistence(timeout: 10), "Credential form must appear")
+
+        // Type http:// prefix so the ViewModel auto-selects http scheme (insecure dialog expected).
+        fill(fieldLabeled: "Source URL", with: "http://media-server:13378")
+        fill(fieldLabeled: "Username", with: "test")
+        fill(fieldLabeled: "Password", with: "test")
+
+        let connect = revealConnectButton(in: app)
+        XCTAssertTrue(connect.exists && connect.isEnabled, "Connect must be enabled")
+        connect.tap()
+
+        // Accept the insecure (http) connection dialog.
+        if app.buttons["Connect anyway"].waitForExistence(timeout: 10) {
+            app.buttons["Connect anyway"].tap()
+        }
+
+        // Real server round-trip: allow up to 30s for auth + library fetch.
+        let selectLibraries = app.staticTexts["Select libraries"]
+        if !selectLibraries.waitForExistence(timeout: 30) {
+            XCTFail("Auth against real ABS server failed — check credentials or Tailscale connectivity. UI: \(app.debugDescription)")
+        }
+        XCTAssertTrue(selectLibraries.exists,
+                      "Valid credentials (test/test) must authenticate against the real ABS server")
+    }
+
     private func fill(fieldLabeled label: String, with text: String) {
         let fieldLabel = app.staticTexts[label]
         XCTAssertTrue(fieldLabel.waitForExistence(timeout: 5), "\(label) field must exist")
