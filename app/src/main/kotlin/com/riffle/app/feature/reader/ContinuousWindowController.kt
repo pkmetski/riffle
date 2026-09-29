@@ -1346,6 +1346,7 @@ internal class ContinuousWindowController(
         if (!matches) return
         val annotationReland = annotationFocusRelandClosure(
             pendingFocusAnnotationId = pendingFocusAnnotationId,
+            pendingFocusImageSrc = pendingFocusImageSrc,
             chapterHref = wv.chapterHref,
             landOnAnnotation = ::scrollToFocusAnnotation,
         )
@@ -1369,9 +1370,9 @@ internal class ContinuousWindowController(
         }
     }
 
-    private fun scrollToFocusAnnotation(href: String, id: String) {
+    private fun scrollToFocusAnnotation(href: String, id: String, imageSrc: String?) {
         val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
-        wv.annotationOffsetTopDevicePx(id, imageSrc = pendingFocusImageSrc) { annOffset ->
+        wv.annotationOffsetTopDevicePx(id, imageSrc = imageSrc) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
             // Consume the pending id now that the annotation is actually positioned in the DOM.
             // Deferring consumption here (rather than in onAnnotationHighlightsApplied) means a
@@ -2207,11 +2208,21 @@ internal class ContinuousWindowController(
  */
 internal fun annotationFocusRelandClosure(
     pendingFocusAnnotationId: String?,
+    pendingFocusImageSrc: String?,
     chapterHref: String,
-    landOnAnnotation: (href: String, id: String) -> Unit,
+    landOnAnnotation: (href: String, id: String, imageSrc: String?) -> Unit,
 ): (() -> Unit)? {
     val id = pendingFocusAnnotationId ?: return null
-    return { landOnAnnotation(chapterHref, id) }
+    // Capture imageSrc at closure-creation time so that re-fires from reapplyLandingAfterFallback
+    // (triggered by later height remeasures within the target chapter) can re-query the
+    // annotation's *current* pixel position — even after pendingFocusImageSrc has been cleared
+    // by the first successful scrollToFocusAnnotation call. Without capturing it here, re-fires
+    // for TYPE_IMAGE annotations pass imageSrc=null to annotationOffsetTopDevicePx, which returns
+    // null and leaves the scroll at the old position while content above the figure (other images
+    // in the same chapter) shifts Figure 1-2 downward, causing the reader to show content above
+    // the figure (e.g. "Who This Book Is For") instead of the figure itself.
+    val capturedImageSrc = pendingFocusImageSrc
+    return { landOnAnnotation(chapterHref, id, capturedImageSrc) }
 }
 
 /**
