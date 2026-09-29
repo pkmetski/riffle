@@ -76,7 +76,7 @@ object FigureBorderDecoration {
         }
         return refs.groupBy { hrefFilename(it.href) }
             .mapValues { (_, group) ->
-                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.all { it.tintCaption })
+                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.any { it.tintCaption })
             }
             .values
             .map {
@@ -146,7 +146,7 @@ object FigureBorderDecoration {
 
         return refs.groupBy { it.fingerprint }
             .mapValues { (_, group) ->
-                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.all { it.tintCaption })
+                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.any { it.tintCaption })
             }
             .values
             .map {

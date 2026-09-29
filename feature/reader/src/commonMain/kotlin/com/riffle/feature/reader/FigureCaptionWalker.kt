@@ -10,10 +10,12 @@ package com.riffle.feature.reader
  * tags, and each constant is a self-contained `function` declaration (no trailing bare statements)
  * so callers can splice multiple of these together followed by their own call sites.
  *
- * Caption fallback order: `<figcaption>` (nearest ancestor `<figure>`) → `alt` attribute →
- * `aria-label` attribute → nearest following block whose text starts with "Figure N", "Fig. N",
- * "Table N", or "Chart N" (bounded 3-hop ancestor walk — covers LaTeX/Kotobee/Vellum exports
- * with obfuscated class names and no `<figure>` wrapper) → empty string.
+ * Caption fallback order: `<figcaption>` inside nearest `<figure>` → `h6`/`h5`/`h4`/`h3`
+ * inside nearest `<figure>` whose text begins with a caption prefix (O'Reilly style; gated on
+ * `CAPTION_PREFIX_RX` to exclude accessibility alt-descriptions placed in `<h6>`) → `alt`
+ * attribute → `aria-label` attribute → nearest following block whose text starts with "Figure N",
+ * "Fig. N", "Table N", or "Chart N" (bounded 3-hop ancestor walk — covers LaTeX/Kotobee/Vellum
+ * exports with obfuscated class names and no `<figure>` wrapper) → empty string.
  *
  * The text-prefix heuristic sits AFTER `alt`/`aria-label` because those attributes are per-image
  * (accurate), whereas the heuristic is proximity-based (can be fooled by a nearby "Table 3

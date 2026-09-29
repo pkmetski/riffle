@@ -166,6 +166,7 @@ class FigureBorderInjectionTest {
         assertTrue(js.contains("'h6'"), "tintCaptionFor must scan inside <figure> for h6 (O'Reilly caption style) before falling back to siblings")
         assertTrue(js.contains("'h5'"), "heading scan inside figure must include h5")
         assertTrue(js.contains("'h4'"), "heading scan inside figure must include h4")
+        assertTrue(js.contains("'h3'"), "heading scan inside figure must include h3")
         // Heading scan must be gated on CAPTION_PREFIX_RX to avoid tinting accessibility
         // alt-descriptions that O'Reilly places in <h6> for figures without formal captions.
         assertTrue(js.contains("CAPTION_PREFIX_RX.test"), "heading match inside figure must check CAPTION_PREFIX_RX to exclude alt-description h6 elements")
