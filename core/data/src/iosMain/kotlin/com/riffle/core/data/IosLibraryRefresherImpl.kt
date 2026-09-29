@@ -11,10 +11,10 @@ import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.RemoteProgressUpdate
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
-import com.riffle.core.database.RemoteProgressUpdate
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.SourceRepository
