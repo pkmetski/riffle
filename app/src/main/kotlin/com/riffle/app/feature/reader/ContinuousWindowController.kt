@@ -1102,6 +1102,14 @@ internal class ContinuousWindowController(
             inWindowNavSupersededByTouch = false
             val land = {
                 if (!inWindowNavSupersededByTouch) {
+                    // An intentional user navigation (annotation tap, TOC entry, bookmark) has
+                    // landed. Mark as superseded so any serverLocatorEvents (skipIfUserAlreadyInteracted
+                    // = true) whose land() was already posted — before a touch could set this flag
+                    // via onTouchDown — cannot jump the reader back to the stale server position.
+                    // Annotation panel taps arrive via Compose bottom sheet and never trigger
+                    // onTouchDown on ContinuousReaderView, so the flag may still be false even after
+                    // a deliberate cross-chapter navigation.
+                    inWindowNavSupersededByTouch = true
                     scrollToLoadedChapter(
                         target, progression, fragment,
                         smooth = true, alignToTop = alignToTop,
@@ -1125,6 +1133,12 @@ internal class ContinuousWindowController(
             container.removeAllViews()
             recycledViews.forEach { it.destroy() }
             recycledViews.clear()
+            // Mark as user-initiated so any serverLocatorEvents (skipIfUserAlreadyInteracted=true)
+            // pending after this cross-chapter navigation cannot rebuild the window back to the
+            // stale server position. Annotation panel taps arrive via Compose bottom sheet and
+            // never call onTouchDown on ContinuousReaderView, leaving this flag false on a fresh
+            // open — the cross-window branch must set it explicitly.
+            inWindowNavSupersededByTouch = true
             openWindowAt(
                 initialHref = target,
                 initialProgression = progression,

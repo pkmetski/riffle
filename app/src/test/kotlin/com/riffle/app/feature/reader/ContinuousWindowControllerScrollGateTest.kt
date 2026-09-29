@@ -117,6 +117,65 @@ class ContinuousWindowControllerScrollGateTest {
         )
     }
 
+    /**
+     * Regression guard for the second part of the cross-chapter annotation focus bug: even after
+     * [smoothTailRevealSuppressed] prevents the DOM-ready anchor fallback from overriding the
+     * figure, a concurrent [serverLocatorEvents] whose `land()` closure was posted before any user
+     * touch can still jump the reader back to the stale server position.
+     *
+     * Root cause: annotation panel taps arrive via Compose bottom sheet and never trigger
+     * [onTouchDown] on [ContinuousReaderView], so [inWindowNavSupersededByTouch] can be false even
+     * after a deliberate navigation. The in-window [land] closure and the cross-window branch must
+     * both set the flag so a concurrent server [land] that runs after sees it and bails.
+     */
+    @Test
+    fun `in-window land closure sets inWindowNavSupersededByTouch before scrollToLoadedChapter`() {
+        val source = resolveSource("ContinuousWindowController.kt").readText()
+        // Locate the land lambda inside the in-window branch of navigateTo.
+        // The lambda contains the guard `if (!inWindowNavSupersededByTouch)`.
+        val landGuardIdx = source.indexOf("if (!inWindowNavSupersededByTouch) {")
+        assertTrue("in-window land guard not found in ContinuousWindowController", landGuardIdx >= 0)
+        // Extract the body of the lambda — from the guard's opening { to the next balanced }.
+        val guardBodyStart = source.indexOf("{", landGuardIdx)
+        val guardBodyEnd = source.indexOf("}", guardBodyStart)
+        val guardBody = source.substring(guardBodyStart, guardBodyEnd + 1)
+
+        assertTrue(
+            "The in-window land() closure must set inWindowNavSupersededByTouch = true inside the " +
+            "guard so a server-resume land() posted concurrently (before any user touch) sees the " +
+            "flag and bails — annotation panel taps never trigger onTouchDown on the reader view",
+            guardBody.contains("inWindowNavSupersededByTouch = true"),
+        )
+        // The flag must be set BEFORE scrollToLoadedChapter to avoid the race where
+        // the server land() runs between the set and the actual scroll.
+        val setIdx = guardBody.indexOf("inWindowNavSupersededByTouch = true")
+        val scrollIdx = guardBody.indexOf("scrollToLoadedChapter(")
+        assertTrue(
+            "inWindowNavSupersededByTouch = true must precede scrollToLoadedChapter in the land() guard",
+            setIdx in 0 until scrollIdx,
+        )
+    }
+
+    @Test
+    fun `cross-window navigateTo branch sets inWindowNavSupersededByTouch before openWindowAt`() {
+        val source = resolveSource("ContinuousWindowController.kt").readText()
+        // The fix places "inWindowNavSupersededByTouch = true" immediately before the
+        // openWindowAt( call in navigateTo's cross-window else-branch. Verify that the exact
+        // sequence "inWindowNavSupersededByTouch = true\n…openWindowAt(" exists in the file —
+        // this pattern is unique: the in-window branch sets it inside land() (not adjacent to an
+        // openWindowAt call) and onTouchDown sets it in a completely different context.
+        val flagBeforeOpen = Regex(
+            """inWindowNavSupersededByTouch\s*=\s*true\s*\n\s*openWindowAt\(""",
+            RegexOption.MULTILINE,
+        )
+        assertTrue(
+            "Cross-window navigateTo branch must set inWindowNavSupersededByTouch = true " +
+            "immediately before openWindowAt so a serverLocatorEvents that fires after the window " +
+            "rebuild cannot tear down and reload the window to the stale server position",
+            flagBeforeOpen.containsMatchIn(source),
+        )
+    }
+
     private fun resolveSource(name: String): File {
         val relative = "src/main/kotlin/com/riffle/app/feature/reader/$name"
         val candidates = listOf(File(relative), File("app/$relative"))
