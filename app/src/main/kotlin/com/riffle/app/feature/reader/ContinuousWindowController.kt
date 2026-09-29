@@ -507,6 +507,25 @@ internal class ContinuousWindowController(
     /** Fallback image src for figure annotations (TYPE_IMAGE) when no `<mark>` is in the DOM. */
     private var pendingFocusImageSrc: String? = null
 
+    /**
+     * Set to true when [scrollToFocusAnnotation] successfully resolves an annotation offset and
+     * takes over the landing. Signals the pending [revealSmooth] closure (from the smooth-tail
+     * path in [openWindowAt]) to skip its stale [ContinuousScrollPort.smoothScrollTo] target: the
+     * fallback anchor-progression landing pre-computed before decorations were applied is now
+     * superseded by the pixel-accurate annotation offset.
+     *
+     * Without this guard the sequence is:
+     *  1. [pendingInitialScroll] fires at DOM-ready (before [onPageFinished]): annotation not in
+     *     DOM yet → fallback to CFI anchor → [revealSmooth] prepared for section-top Y.
+     *  2. [onAnnotationHighlightsApplied] fires after page-finish: annotation found →
+     *     [landOnAnnotationOffset] → correct scroll (user briefly sees the figure).
+     *  3. [revealSmooth] fires (onCurrentContentPainted or fallback timer) →
+     *     smoothScrollTo(section_top) → reader yanked away to wrong position.
+     *
+     * Reset to false in [openWindowAt].
+     */
+    private var smoothTailRevealSuppressed: Boolean = false
+
     /** The scrollY of the most recent initial land, and the deadline (uptime ms) until which any
      *  off-target scroll movement should be reverted. See [ContinuousReaderView.landingHoldTargetY]. */
     private var landingHoldTargetY: Int = -1
@@ -799,6 +818,7 @@ internal class ContinuousWindowController(
         reapplyTargetLastHeight = -1
         pendingFocusAnnotationId = focusAnnotationId
         pendingFocusImageSrc = imageSrc
+        smoothTailRevealSuppressed = false
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
@@ -860,7 +880,13 @@ internal class ContinuousWindowController(
                                 if (!smoothRevealed) {
                                     smoothRevealed = true
                                     notifyFirstLoadCompleteOnce()
-                                    port.smoothScrollTo(y)
+                                    // Skip the stale anchor-fallback scroll if scrollToFocusAnnotation
+                                    // has already landed on the pixel-accurate annotation offset. The
+                                    // flag is set when annotations were applied after DOM-ready but
+                                    // before this revealSmooth fired, making the pre-computed y wrong.
+                                    if (!smoothTailRevealSuppressed) {
+                                        port.smoothScrollTo(y)
+                                    }
                                 }
                             }
                             syncChapterWindows()
@@ -879,7 +905,9 @@ internal class ContinuousWindowController(
                             port.postOnAnimation {
                                 container.visibility = android.view.View.VISIBLE
                                 notifyFirstLoadCompleteOnce()
-                                port.smoothScrollTo(y)
+                                if (!smoothTailRevealSuppressed) {
+                                    port.smoothScrollTo(y)
+                                }
                             }
                         }
                     } else {
@@ -1331,6 +1359,14 @@ internal class ContinuousWindowController(
             // arrives from onChapterLoaded once the page has finished.
             pendingFocusAnnotationId = null
             pendingFocusImageSrc = null
+            // Suppress the smooth-tail revealSmooth closure: when pendingInitialScroll fired at
+            // DOM-ready (before decorations were applied) it fell back to the CFI anchor and
+            // pre-programmed smoothScrollTo(section_top) via revealSmooth. Now that we have the
+            // pixel-accurate annotation offset, that stale smooth scroll must not override this
+            // landing. Setting the flag here and aborting any in-flight animation ensures that
+            // revealSmooth (when it fires) only lifts the nav cover without scrolling away.
+            smoothTailRevealSuppressed = true
+            port.abortFling()
             clearLandingHold()
             landOnAnnotationOffset(href, annOffset)
         }
