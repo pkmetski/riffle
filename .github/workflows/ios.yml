@@ -119,8 +119,11 @@ jobs:
       # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
       # verified on iOS, not just Android. core:database and core:data have their own jobs.
       - name: Run iOS commonTest (all iOS-targeted modules)
+        # --max-workers 2 caps concurrent Kotlin/Native link steps. Each link spawns a JVM daemon
+        # with kotlin.native.jvmArgs=-Xmx6g; on a 7 GB macos-15 runner, more than 2 concurrent
+        # linkers OOM-kill each other and cause the 50-minute job timeout.
         run: |
-          ./gradlew \
+          ./gradlew --max-workers 2 \
             :core:common:iosSimulatorArm64Test \
             :core:models:iosSimulatorArm64Test \
             :core:net:iosSimulatorArm64Test \
