@@ -118,12 +118,17 @@ jobs:
 
       # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
       # verified on iOS, not just Android. core:database and core:data have their own jobs.
+      # :shared:linkDebugFrameworkIosSimulatorArm64 is included here so Gradle can schedule it
+      # concurrently with the test tasks rather than running it serially in a separate step.
+      # This saves ~10 minutes on runs where source changes invalidate the framework cache
+      # (e.g. feature:library changes → shared framework cache miss → link must re-run).
       - name: Run iOS commonTest (all iOS-targeted modules)
         # --max-workers 2 caps concurrent Kotlin/Native link steps. Each link spawns a JVM daemon
         # with kotlin.native.jvmArgs=-Xmx6g; on a 7 GB macos-15 runner, more than 2 concurrent
         # linkers OOM-kill each other and cause the 50-minute job timeout.
         run: |
           ./gradlew --max-workers 2 \
+            :shared:linkDebugFrameworkIosSimulatorArm64 \
             :core:common:iosSimulatorArm64Test \
             :core:models:iosSimulatorArm64Test \
             :core:net:iosSimulatorArm64Test \
@@ -186,12 +191,6 @@ jobs:
             feature/settings/build/reports/tests/
             feature/downloads/build/reports/tests/
           if-no-files-found: ignore
-
-      # Only the simulator slice is needed here: xcodebuild's embed phase links from
-      # shared/build/bin/iosSimulatorArm64/debugFramework. assembleRiffleDebugXCFramework also
-      # linked the arm64 device framework (~5 min) that nothing in this job uses.
-      - name: Link Riffle simulator framework
-        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Select and pre-boot simulator
         run: |
