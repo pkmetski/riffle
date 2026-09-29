@@ -153,6 +153,10 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      */
     internal var windowOffsetPx: Int = 0
 
+    /** Uptime of the last managed content-height change; internal-scroll reports shortly after it
+     *  are Chromium re-clamping, not gestures (see [ContinuousPositionTracker.internalScrollCorrection]). */
+    internal var contentHeightChangedAtMs: Long = 0L
+
     /**
      * Fired from [onScrollChanged] with the new internal scroll Y whenever Chromium moves this
      * WebView's own scroll offset — a selection-handle drag past the edge, a focus scroll, a

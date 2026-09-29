@@ -571,6 +571,7 @@ internal class ContinuousWindowController(
      * WebView itself is capped to a renderable window ([ContinuousPositionTracker.chapterWebViewHeight]).
      */
     private fun applyChapterHeight(wv: ChapterWebView, contentPx: Int) {
+        wv.contentHeightChangedAtMs = android.os.SystemClock.uptimeMillis()
         slotOf(wv).layoutParams = slotOf(wv).layoutParams.also { it.height = contentPx }
         val vh = port.viewportHeightPx.takeIf { it > 0 } ?: placeholderHeight
         val wvHeight = ContinuousPositionTracker.chapterWebViewHeight(
@@ -640,6 +641,7 @@ internal class ContinuousWindowController(
             wantedPx = wanted,
             density = wv.resources.displayMetrics.density,
             maxScrollPx = wv.internalMaxScrollY(),
+            msSinceContentHeightChange = android.os.SystemClock.uptimeMillis() - wv.contentHeightChangedAtMs,
         )
         when (decision) {
             ContinuousPositionTracker.InternalScrollCorrection.NONE -> Unit
@@ -1549,7 +1551,17 @@ internal class ContinuousWindowController(
                     // have already promoted: typography reflow is async and typically arrives after
                     // the animation completes, so the annotation reland does not chop it in
                     // practice, and silently discarding it loses the annotation focus entirely.
-                    reapplyLandingAfterFallback = if (smoothTailInProgress) reapplyLandingAfterFallback else reapplyLandingAfterFallback ?: scroll
+                    reapplyLandingAfterFallback = relandClosureAfterInitialMeasure(
+                        existing = reapplyLandingAfterFallback,
+                        annotationReland = annotationFocusRelandClosure(
+                            pendingFocusAnnotationId = pendingFocusAnnotationId,
+                            pendingFocusImageSrc = pendingFocusImageSrc,
+                            chapterHref = pendingTargetHref ?: wv.chapterHref,
+                            landOnAnnotation = ::scrollToFocusAnnotation,
+                        ),
+                        smoothTail = smoothTailInProgress,
+                        progressionReland = scroll,
+                    )
                     val targetIdx = pendingTargetHref?.let { webViewIndexFor(it) } ?: -1
                     reapplyTargetLastHeight = measuredHeights.getOrElse(targetIdx) { measuredPx }
                 } else if (webViews.getOrNull(i)?.chapterHref == pendingTargetHref &&
@@ -2220,6 +2232,22 @@ internal class ContinuousWindowController(
  * Extracted as a top-level `internal` function so the decision is JVM-testable:
  * [ContinuousWindowController] requires an Android `Context` to construct.
  */
+/**
+ * Which closure re-lands the reader when the target chapter remeasures after the initial landing.
+ * An annotation focus always wins: its closure re-queries the annotation's offset in the reflowed
+ * DOM, so a chapter that shrinks at load (DOM-ready measure → load measure) cannot leave the
+ * reader on a stale pixel offset. It is installed here — not only from
+ * `onAnnotationHighlightsApplied` — because a chapter whose only annotation is a figure border
+ * never fires that hook. Without an annotation, smooth-tail navigations keep the slot empty (a
+ * progression re-land would chop the tween) and hard landings fall back to the progression closure.
+ */
+internal fun relandClosureAfterInitialMeasure(
+    existing: (() -> Unit)?,
+    annotationReland: (() -> Unit)?,
+    smoothTail: Boolean,
+    progressionReland: (() -> Unit)?,
+): (() -> Unit)? = existing ?: annotationReland ?: if (smoothTail) null else progressionReland
+
 internal fun annotationFocusRelandClosure(
     pendingFocusAnnotationId: String?,
     pendingFocusImageSrc: String?,

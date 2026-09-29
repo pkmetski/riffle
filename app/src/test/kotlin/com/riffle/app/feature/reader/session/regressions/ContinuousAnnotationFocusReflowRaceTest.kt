@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.session.regressions
 
 import com.riffle.app.feature.reader.ContinuousPositionTracker
 import com.riffle.app.feature.reader.annotationFocusRelandClosure
+import com.riffle.app.feature.reader.relandClosureAfterInitialMeasure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -264,6 +265,60 @@ class ContinuousAnnotationFocusReflowRaceTest {
     // `appendChapter.onHeightMeasured` re-lands on the annotation offset on every
     // target remeasure until height stabilises.
     // ---------------------------------------------------------------------------
+
+    @Test
+    fun `initial-measure reland prefers the annotation closure even for smooth-tail navigations`() {
+        // Field trace 2026-09-29: a cross-chapter jump to a figure annotation measured the
+        // chapter at DOM-ready, the chapter shrank 17 501 px at load, and the landing used the
+        // stale offset — two screens below the figure. Smooth-tail mode used to leave the
+        // re-land slot null (the chapter's only annotation was a figure border, so
+        // onAnnotationHighlightsApplied never installed one).
+        var annotationRelands = 0
+        var progressionRelands = 0
+        val chosen = relandClosureAfterInitialMeasure(
+            existing = null,
+            annotationReland = { annotationRelands++ },
+            smoothTail = true,
+            progressionReland = { progressionRelands++ },
+        )
+        assertNotNull(chosen)
+        chosen!!()
+        assertEquals(1, annotationRelands)
+        assertEquals(0, progressionRelands)
+    }
+
+    @Test
+    fun `initial-measure reland keeps an already-installed closure`() {
+        var existingCalls = 0
+        val chosen = relandClosureAfterInitialMeasure(
+            existing = { existingCalls++ },
+            annotationReland = { error("must not replace the installed closure") },
+            smoothTail = false,
+            progressionReland = { error("must not replace the installed closure") },
+        )
+        chosen!!()
+        assertEquals(1, existingCalls)
+    }
+
+    @Test
+    fun `initial-measure reland stays empty for smooth-tail navigations without an annotation`() {
+        // A progression re-land during the 250 ms tween would chop the animation.
+        assertNull(
+            relandClosureAfterInitialMeasure(
+                existing = null, annotationReland = null, smoothTail = true, progressionReland = {},
+            ),
+        )
+    }
+
+    @Test
+    fun `initial-measure reland falls back to progression for hard landings`() {
+        var progressionRelands = 0
+        relandClosureAfterInitialMeasure(
+            existing = null, annotationReland = null, smoothTail = false,
+            progressionReland = { progressionRelands++ },
+        )!!()
+        assertEquals(1, progressionRelands)
+    }
 
     @Test
     fun `annotationFocusRelandClosure returns null when no focus id is pending`() {
