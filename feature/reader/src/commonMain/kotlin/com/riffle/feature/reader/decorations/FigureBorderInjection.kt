@@ -194,10 +194,17 @@ fun figureBorderApplyJs(
               // for the lowest heading level before falling back to sibling scan, which can
               // false-positive on the prose "Figure N shows…" reference paragraph preceding the
               // figure in source order.
-              if (!cap) { var _h6 = fig.getElementsByTagName('h6'); if (_h6 && _h6.length > 0) cap = _h6[0]; }
-              if (!cap) { var _h5 = fig.getElementsByTagName('h5'); if (_h5 && _h5.length > 0) cap = _h5[0]; }
-              if (!cap) { var _h4 = fig.getElementsByTagName('h4'); if (_h4 && _h4.length > 0) cap = _h4[0]; }
-              if (!cap) { var _h3 = fig.getElementsByTagName('h3'); if (_h3 && _h3.length > 0) cap = _h3[0]; }
+              // Only match a heading if its text begins with a caption prefix (Figure N, Table N,
+              // etc.). O'Reilly EPUBs also put accessibility alt-descriptions in <h6> elements
+              // ("A pink chart with green and red check marks Description automatically generated")
+              // — those must not be tinted; they don't start with the caption prefix.
+              var _htags = ['h6', 'h5', 'h4', 'h3'];
+              for (var _hi = 0; !cap && _hi < _htags.length; _hi++) {
+                var _hels = fig.getElementsByTagName(_htags[_hi]);
+                for (var _hj = 0; _hels && _hj < _hels.length; _hj++) {
+                  if (CAPTION_PREFIX_RX.test((_hels[_hj].textContent || '').trim())) { cap = _hels[_hj]; break; }
+                }
+              }
               // Tertiary: sibling of <figure> (some publishers place caption outside the element).
               if (!cap) cap = siblingCaption(fig);
             }
