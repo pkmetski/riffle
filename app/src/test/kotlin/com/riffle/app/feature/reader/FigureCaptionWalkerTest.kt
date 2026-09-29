@@ -24,6 +24,43 @@ class FigureCaptionWalkerTest {
     }
 
     @Test
+    fun `caption resolver checks h6 inside figure before falling back to alt attribute`() {
+        // O'Reilly EPUBs place the real caption in an <h6> inside the <figure> wrapper, and also
+        // put accessibility alt-descriptions in the <img alt="…"> attribute. Without this check,
+        // resolveCaption falls through to `alt` and returns "A pink chart … Description
+        // automatically generated" instead of "Figure 5-4. The effect of…".
+        //
+        // The h6/h5/h4/h3 scan is gated on CAPTION_PREFIX_RX so accessibility alt-descriptions
+        // placed in <h6> (which do NOT start with "Figure N") are excluded.
+        //
+        // Reverting to figcaption-only inside resolveFigcaptionElement — or moving the h6 scan
+        // after the alt fallback — flips this red.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        val resolveFnEnd = js.indexOf("function resolveTextPrefixElement(el)")
+        val resolveFn = js.substring(0, resolveFnEnd)
+        assertTrue(
+            "resolveFigcaptionElement must scan h6 (O'Reilly caption style)",
+            resolveFn.contains("'h6'"),
+        )
+        assertTrue(
+            "resolveFigcaptionElement must scan h5",
+            resolveFn.contains("'h5'"),
+        )
+        assertTrue(
+            "h6 scan inside resolveFigcaptionElement must be gated on CAPTION_PREFIX_RX",
+            resolveFn.contains("CAPTION_PREFIX_RX.test"),
+        )
+        // The h6 scan must appear BEFORE the 'alt' fallback in the full resolver, so that a
+        // real figure-prefixed caption beats the image's accessibility alt-description.
+        val h6ScanIdx = js.indexOf("'h6'")
+        val altIdx = js.indexOf("'alt'")
+        assertTrue(
+            "h6 scan inside figure must precede the alt-attribute fallback in resolveCaption",
+            h6ScanIdx in 0 until altIdx,
+        )
+    }
+
+    @Test
     fun `caption resolver has text-prefix fallback for non-semantic figures`() {
         // After the <figure>/<figcaption> and alt/aria-label paths, the resolver walks up to 3
         // ancestors looking for the nearest following <p>/<div> whose text starts with

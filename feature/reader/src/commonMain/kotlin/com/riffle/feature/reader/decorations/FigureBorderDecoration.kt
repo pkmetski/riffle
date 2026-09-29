@@ -4,7 +4,6 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.HighlightColor
-import com.riffle.feature.reader.normalizeCaptionText
 import com.riffle.feature.reader.toCssRgba
 
 /**
@@ -43,10 +42,9 @@ object FigureBorderDecoration {
     /**
      * Per-figure raster match — filename suffix (for CSS `[src$=…]` matching), the annotation's
      * CSS-ready color, and whether the annotation carries a note (drives the note-glyph badge).
-     * [tintCaption] is true only for `TYPE_IMAGE` annotations whose caption isn't a real
-     * annotated span — those get the render-side CSS caption tint. `TYPE_HIGHLIGHT` annotations
-     * whose range already covers the caption receive their tint from Readium's normal decoration
-     * pipeline, so this stays false to avoid double-painting.
+     * [tintCaption] is always true: the CSS `tintCaptionFor` pass styles the entire caption
+     * element so the legend appears visually highlighted as part of the annotation, regardless of
+     * whether the caption text was selected.
      */
     data class RasterMark(
         val filename: String,
@@ -71,14 +69,14 @@ object FigureBorderDecoration {
                     a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true) }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { fig ->
                     fig.href?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightOverlapsCaption(a, fig))
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true)
                     }
                 }
             }
         }
         return refs.groupBy { hrefFilename(it.href) }
             .mapValues { (_, group) ->
-                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.all { it.tintCaption })
+                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.any { it.tintCaption })
             }
             .values
             .map {
@@ -112,72 +110,6 @@ object FigureBorderDecoration {
     private const val SVG_FINGERPRINT_PREFIX_LEN = 200
 
     /**
-     * True when the highlight's captured `textSnippet` overlaps the figure's caption text — the
-     * signal that Readium's highlight decoration is already painting the caption for us and the
-     * render-side CSS tint would double-paint. False when the highlight range excludes the
-     * caption (e.g. a pre-caption-highlight text-selection across body prose that happens to
-     * enclose a figure — the figcaption sits below the range and only the CSS tint can reach
-     * it). Normalizes whitespace on both sides so the check matches how the text-content walks
-     * on the two rendering paths collapse.
-     *
-     * Blank `figure.caption` is the shape written by the caption-highlight code paths
-     * (`EpubReaderViewModel.onFigureLongPress` and `CaptionHighlightUpgrader`), which deliberately
-     * store an empty string to avoid an unrelated elided-view double-render. In that case the
-     * highlight's own `textSnippet` IS the caption, so falling back to false would let the CSS
-     * tint stack on top of Readium's decoration (~2x opacity — the "duplicated" look). Detect the
-     * shape via the same canonical caption prefix used by
-     * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
-     */
-    private fun highlightOverlapsCaption(annotation: Annotation, figure: EmbeddedFigure): Boolean {
-        val normalizedSnippet = normalizeCaptionText(annotation.textSnippet)
-        if (figure.caption.isBlank()) {
-            if (CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)) return true
-            // Caption element is not a <figcaption> (e.g. <p class="caption">) — the JS stash
-            // stored caption="". When charOffset is known, check if the text from the figure's
-            // position contains a caption label ("Figure N:") — the colon discriminates a real
-            // caption label from prose references like "Figure 3.1 illustrates...".
-            val offset = figure.charOffset ?: return false
-            return CAPTION_LABEL_REGEX.containsMatchIn(snippetFromOffset(annotation.textSnippet, offset))
-        }
-        val normalizedCaption = normalizeCaptionText(figure.caption)
-        if (normalizedSnippet.contains(normalizedCaption)) return true
-        val figureOffset = figure.charOffset
-        if (figureOffset == null) {
-            // charOffset not captured (JS-stash-only figure or pre-offset legacy row). Fall back
-            // to a suffix/prefix overlap: if the snippet's tail matches a prefix of the caption,
-            // the selection entered the figcaption from above (prose → figure → partial caption).
-            val maxOverlap = minOf(normalizedCaption.length, normalizedSnippet.length)
-            return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
-                normalizedCaption.take(overlap) == normalizedSnippet.takeLast(overlap)
-            }
-        }
-        val snippetFromFigure = snippetFromOffset(annotation.textSnippet, figureOffset)
-        if (snippetFromFigure.isEmpty()) return false
-        if (normalizedCaption.startsWith(snippetFromFigure) || snippetFromFigure.startsWith(normalizedCaption)) return true
-        if (normalizedCaption.contains(snippetFromFigure)) return true
-        val maxOverlap = minOf(normalizedCaption.length, snippetFromFigure.length)
-        return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
-            normalizedCaption.takeLast(overlap) == snippetFromFigure.take(overlap)
-        }
-    }
-
-    private fun snippetFromOffset(raw: String, offset: Long): String =
-        normalizeCaptionText(raw.drop(offset.coerceAtMost(raw.length.toLong()).toInt()))
-
-    private const val MIN_CAPTION_BOUNDARY_OVERLAP = 8
-
-    private const val CAPTION_KEYWORDS = "Figure|Fig\\.?|Table|Chart"
-
-    private val CAPTION_HIGHLIGHT_PREFIX_REGEX =
-        Regex("^\\s*($CAPTION_KEYWORDS)\\s+\\d", RegexOption.IGNORE_CASE)
-
-    // Matches a caption label "Figure N:" / "Table N:" anywhere in text — the colon after
-    // the number distinguishes a real figcaption label from a prose reference like
-    // "Figure 3.1 illustrates". Used when figure.caption is blank (no <figcaption> element).
-    private val CAPTION_LABEL_REGEX =
-        Regex("($CAPTION_KEYWORDS)\\s+\\d[^:]*:", RegexOption.IGNORE_CASE)
-
-    /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
      * two annotations reference the same SVG (same fingerprint).
      */
@@ -206,7 +138,7 @@ object FigureBorderDecoration {
                 }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
                     figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightOverlapsCaption(a, figure))
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true)
                     }
                 }
             }
@@ -214,7 +146,7 @@ object FigureBorderDecoration {
 
         return refs.groupBy { it.fingerprint }
             .mapValues { (_, group) ->
-                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.all { it.tintCaption })
+                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.any { it.tintCaption })
             }
             .values
             .map {

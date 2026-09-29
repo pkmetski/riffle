@@ -345,8 +345,6 @@ fun mergeEnclosedFigures(
     val merged = stashFigures.toMutableList()
     // Promote charOffset from walk entries into stash entries that lack it. The JS stash never
     // captures charOffset (the bridge has no char-counting logic); the Kotlin walk always does.
-    // Without promotion, figure.charOffset stays null and highlightOverlapsCaption returns false
-    // for the null branch → tintCaption=true → CSS double-paints the figcaption.
     val walkByFilename = htmlFigures.mapNotNull { fig -> fig.href?.let { figureHrefFilename(it) to fig } }.toMap()
     for (i in merged.indices) {
         val stashFig = merged[i]

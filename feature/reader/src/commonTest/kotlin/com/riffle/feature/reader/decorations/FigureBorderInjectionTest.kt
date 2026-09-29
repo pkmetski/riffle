@@ -81,11 +81,10 @@ class FigureBorderInjectionTest {
 
     @Test
     fun `apply js gates raster caption tint on the tintCap flag`() {
-        // Post-2026-07-14: TYPE_HIGHLIGHT annotations that cover a caption already emit a real
-        // Readium highlight over the caption text; firing tintCaptionFor for them again would
-        // double-paint. buildRasterMarks flags TYPE_IMAGE marks with tintCaption=true and
-        // TYPE_HIGHLIGHT-derived marks with tintCaption=false; the JS must respect it. Reverting
-        // the `if (rf.tintCap)` guard reintroduces the double-paint bug.
+        // The JS must respect the tintCap flag in the raster payload. Even though tintCap is
+        // currently always 1 for figure annotations, the gate must remain so future callers can
+        // set it to 0 if needed. Removing the `if (rf.tintCap)` guard would unconditionally
+        // call tintCaptionFor even for marks explicitly flagged to skip it.
         val marks = listOf(
             FigureBorderDecoration.RasterMark(
                 filename = "hl.png",
@@ -112,6 +111,65 @@ class FigureBorderInjectionTest {
         val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = matches, rasterMarks = emptyList())
         assertTrue(js.contains("\"tintCap\":0"), "tintCap flag must be encoded in the svg JSON payload")
         assertTrue(js.contains("if (matches[j].tintCap) tintCaptionFor(s, matches[j].color)"), "svg branch must gate tintCaptionFor on matches[j].tintCap")
+    }
+
+    @Test
+    fun `apply js checks adjacent figure siblings for caption when figcaption absent`() {
+        // O'Reilly EPUBs place the caption as a <p> sibling of <figure>, not inside it.
+        // The fix adds previousElementSibling + nextElementSibling checks on <figure> so the
+        // caption is found even when querySelector('figcaption') returns null.
+        // Reverting to a figcaption-only or FOLLOWING-only search flips this red.
+        val marks = listOf(
+            FigureBorderDecoration.RasterMark(
+                filename = "graph.png",
+                color = "rgba(52,211,153,0.5)",
+                hasNote = false,
+            ),
+        )
+        val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
+
+        assertTrue(js.contains("previousElementSibling"), "tintCaptionFor must check the previous sibling of <figure> for a caption")
+        assertTrue(js.contains("nextElementSibling"), "tintCaptionFor must check the next sibling of <figure> for a caption")
+        assertTrue(js.contains("getElementsByTagName('figcaption')"), "tintCaptionFor must use getElementsByTagName as namespace-safe fallback for XHTML EPUBs")
+        // siblingCaption must be factored into its own function to avoid duplicate sibling-walk
+        // logic and to reuse it in nearestCaptionBlock. Flattening it back inline would remove
+        // the named function and break the assertion below.
+        assertTrue(js.contains("function siblingCaption("), "sibling walk must be factored into siblingCaption() so nearestCaptionBlock reuses it without duplicating the walk")
+        // nearestCaptionBlock must use siblingCaption (sibling walking), NOT querySelectorAll.
+        // querySelectorAll across an ancestor section can false-positive match prose like
+        // "Figure 5-4 shows the result..." before the actual caption is found. Reverting to
+        // querySelectorAll in the fallback flips this red.
+        assertTrue(!js.contains("parent.querySelectorAll"), "nearestCaptionBlock must not use querySelectorAll — sibling walking via siblingCaption avoids false-positive matches on prose paragraphs that start with 'Figure N'")
+    }
+
+    @Test
+    fun `apply js checks h6 inside figure before falling back to sibling scan`() {
+        // O'Reilly EPUBs use <h6> (not <figcaption>) as the caption element, placed inside the
+        // <figure><div class="figure"> wrapper alongside the <img>. Without this check the code
+        // fell back to siblingCaption(<figure>), which false-positived on the prose reference
+        // paragraph preceding the figure ("Figure 5-4 shows the result…"). The fix looks for
+        // h6/h5/h4/h3 inside the <figure> before checking siblings. Reverting removes the heading
+        // scan and lets the prose paragraph be tinted instead of the actual caption.
+        //
+        // The heading match is gated on CAPTION_PREFIX_RX so that O'Reilly's accessibility
+        // alt-description h6 elements ("A pink chart with green and red check marks Description
+        // automatically generated") are not mistaken for captions and tinted.
+        val marks = listOf(
+            FigureBorderDecoration.RasterMark(
+                filename = "graph.png",
+                color = "rgba(52,211,153,0.5)",
+                hasNote = false,
+            ),
+        )
+        val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
+        // The heading tag names must appear as string literals so we can verify all levels are scanned.
+        assertTrue(js.contains("'h6'"), "tintCaptionFor must scan inside <figure> for h6 (O'Reilly caption style) before falling back to siblings")
+        assertTrue(js.contains("'h5'"), "heading scan inside figure must include h5")
+        assertTrue(js.contains("'h4'"), "heading scan inside figure must include h4")
+        assertTrue(js.contains("'h3'"), "heading scan inside figure must include h3")
+        // Heading scan must be gated on CAPTION_PREFIX_RX to avoid tinting accessibility
+        // alt-descriptions that O'Reilly places in <h6> for figures without formal captions.
+        assertTrue(js.contains("CAPTION_PREFIX_RX.test"), "heading match inside figure must check CAPTION_PREFIX_RX to exclude alt-description h6 elements")
     }
 
     @Test
