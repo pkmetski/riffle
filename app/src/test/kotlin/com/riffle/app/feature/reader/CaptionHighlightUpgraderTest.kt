@@ -8,6 +8,7 @@ import com.riffle.core.database.BookHighlightSummary
 import com.riffle.core.domain.DeviceIdStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
@@ -355,6 +356,154 @@ class CaptionHighlightUpgraderTest {
         val json = dao.rows.value.single().embeddedFigures ?: ""
         assertEquals("only two figures: original + h.png", 2, json.split("\"href\"").size - 1)
         assertTrue("h.png added", json.contains("h.png"))
+    }
+
+    /**
+     * Markup shape of an O'Reilly chapter (library item 70e7d5a2…, ch09): captions are `<h6>`
+     * inside a `<figure><div class="figure">` wrapper, not `<figcaption>`; Figure 9-1 is directly
+     * followed by Figure 9-2. The pre-#1125 resolver skipped 9-1's own `<h6>`, hunted forward
+     * and returned 9-2's wrapper — producing a highlight of "Figure 9-2…" carrying 9-1's image.
+     */
+    private val oreillyChapter = """
+        <html><body><section><div class="sect2">
+          <p>A visualization of a simple inference service is shown in <a href="#f1">Figure 9-1</a>.</p>
+          <figure><div id="ch09_figure_1" class="figure">
+            <p>. </p>
+            <img alt="A diagram of a computer hardware system Description automatically generated" src="assets/aien_0901.png"/>
+            <h6><span class="label">Figure 9-1. </span>A simple inference service.</h6>
+          </div></figure>
+          <p>Model APIs like those provided by OpenAI and Google are inference services.</p>
+          <p>A memory bandwidth-bound workload might be sped up by leveraging chips with higher bandwidth.</p>
+          <figure><div id="ch09_figure_2" class="figure">
+            <img alt="A graph with a line and a point" src="assets/aien_0902.png"/>
+            <h6><span class="label">Figure 9-2. </span>The roofline chart can help you visualize whether an operation is compute-bound.</h6>
+          </div></figure>
+          <p>Different model architectures and workloads result in different computational bottlenecks.</p>
+        </div></section></body></html>
+    """.trimIndent()
+
+    private val figure91Caption = "Figure 9-1. A simple inference service."
+    private val figure92Caption = "Figure 9-2. The roofline chart can help you visualize whether an operation is compute-bound."
+
+    @Test
+    fun `upgrade pairs an O'Reilly h6 caption with its own figure, not the next one`() = runTest {
+        // Blank snippet: the legacy row never captured a caption, so the DOM resolution alone
+        // decides. Before the h6 scan + same-figure guard this landed on Figure 9-2's caption.
+        val legacy = legacyImageRow(textSnippet = "", imageHref = "assets/aien_0901.png").copy(spineIndex = 0)
+        dao.upsert(legacy)
+
+        val upgraded = CaptionHighlightUpgrader(store()).upgradeLegacyImageAnnotations(
+            annotations = dao.rows.value.map { it.toDomain() },
+            readChapterHtml = { _ -> oreillyChapter },
+        )
+
+        assertEquals(1, upgraded)
+        val row = dao.rows.value.single()
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, row.type)
+        assertEquals(figure91Caption, row.textSnippet)
+        assertTrue("CFI must anchor inside Figure 9-1's wrapper", row.cfi.contains("ch09_figure_1"))
+    }
+
+    @Test
+    fun `forward caption hunt never borrows a caption from a different figure`() = runTest {
+        // Figure with no caption at all, immediately followed by a captioned figure. The 3-hop
+        // walk reaches the section and sees Figure 9-2's wrapper div; it must not adopt it.
+        val html = """
+            <html><body><section><div class="sect2">
+              <figure><div class="figure"><img src="assets/aien_0901.png"/></div></figure>
+              <figure><div id="ch09_figure_2" class="figure">
+                <img src="assets/aien_0902.png"/>
+                <h6><span class="label">Figure 9-2. </span>The roofline chart.</h6>
+              </div></figure>
+            </div></section></body></html>
+        """.trimIndent()
+        dao.upsert(legacyImageRow(textSnippet = "", imageHref = "assets/aien_0901.png").copy(spineIndex = 0))
+
+        val upgraded = CaptionHighlightUpgrader(store()).upgradeLegacyImageAnnotations(
+            annotations = dao.rows.value.map { it.toDomain() },
+            readChapterHtml = { _ -> html },
+        )
+
+        assertEquals("uncaptioned figure must stay TYPE_IMAGE rather than steal Figure 9-2's caption", 0, upgraded)
+        assertEquals(AnnotationEntity.TYPE_IMAGE, dao.rows.value.single().type)
+    }
+
+    private suspend fun seedCaptionHighlight(
+        storeInstance: AnnotationStoreImpl,
+        snippet: String,
+        figureHref: String,
+        cfi: String = "epubcfi(/6/28!/4/2[ch09_figure_2]/4,/2/1:0,/1:135)",
+    ) = storeInstance.createHighlight(
+        sourceId = "srv", itemId = "book-1",
+        cfi = cfi,
+        textSnippet = snippet,
+        chapterHref = "OEBPS/ch09.html",
+        embeddedFigures = listOf(
+            com.riffle.core.models.EmbeddedFigure(
+                href = "https://readium_package/OEBPS/$figureHref", svg = null, caption = "",
+                order = 0, imageBytes = "data:image/jpeg;base64,QQQ", charOffset = 0L,
+            ),
+        ),
+        originFontFamily = "serif",
+    )
+
+    @Test
+    fun `sweep re-anchors a caption highlight paired with the neighbouring figure's caption`() = runTest {
+        // The exact stored shape of the user's row: Figure 9-2's caption + Figure 9-1's image.
+        val storeInstance = store()
+        val mispaired = seedCaptionHighlight(storeInstance, snippet = figure92Caption, figureHref = "assets/aien_0901.png")
+        val oldCfi = dao.rows.value.single().cfi
+
+        val result = CaptionHighlightUpgrader(storeInstance).sweep(
+            annotations = storeInstance.observeAnnotations("srv", "book-1").first(),
+            readChapterHtml = { _ -> oreillyChapter },
+        )
+
+        assertEquals(1, result.repaired)
+        val row = dao.rows.value.single()
+        assertEquals(mispaired.id, row.id)
+        assertEquals(figure91Caption, row.textSnippet)
+        assertTrue("CFI must move into Figure 9-1's wrapper", row.cfi.contains("ch09_figure_1"))
+        assertTrue("CFI must change", row.cfi != oldCfi)
+        assertTrue("figure stays attached", (row.embeddedFigures ?: "").contains("aien_0901.png"))
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, row.type)
+    }
+
+    @Test
+    fun `sweep leaves a correctly paired caption highlight alone`() = runTest {
+        val storeInstance = store()
+        seedCaptionHighlight(storeInstance, snippet = figure92Caption, figureHref = "assets/aien_0902.png")
+        val before = dao.rows.value.single()
+
+        val result = CaptionHighlightUpgrader(storeInstance).sweep(
+            annotations = storeInstance.observeAnnotations("srv", "book-1").first(),
+            readChapterHtml = { _ -> oreillyChapter },
+        )
+
+        assertEquals(0, result.repaired)
+        assertEquals(before, dao.rows.value.single())
+    }
+
+    @Test
+    fun `sweep leaves a prose highlight that spans a figure alone`() = runTest {
+        // A user selection across Figure 9-1 carries the figure but its snippet is prose, not a
+        // caption — its range is the user's and must not be rewritten.
+        val storeInstance = store()
+        seedCaptionHighlight(
+            storeInstance,
+            snippet = "Model APIs like those provided by OpenAI and Google are inference services.",
+            figureHref = "assets/aien_0901.png",
+            cfi = "epubcfi(/6/28!/4/2/6,/1:0,/1:80)",
+        )
+        val before = dao.rows.value.single()
+
+        val result = CaptionHighlightUpgrader(storeInstance).sweep(
+            annotations = storeInstance.observeAnnotations("srv", "book-1").first(),
+            readChapterHtml = { _ -> oreillyChapter },
+        )
+
+        assertEquals(0, result.repaired)
+        assertEquals(before, dao.rows.value.single())
     }
 
     @Test

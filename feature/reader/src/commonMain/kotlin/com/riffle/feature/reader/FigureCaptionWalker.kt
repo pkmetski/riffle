@@ -50,6 +50,7 @@ object FigureCaptionWalker {
         }
         function resolveTextPrefixElement(el) {
             if (!el) return null;
+            var ownFig = el.closest ? el.closest('figure, [role="figure"]') : null;
             var cur = el;
             for (var hops = 0; hops < 3; hops++) {
                 var parent = cur.parentElement;
@@ -60,6 +61,11 @@ object FigureCaptionWalker {
                     if (b === el || b.contains(el)) continue;
                     var pos = el.compareDocumentPosition(b);
                     if (!(pos & 4)) continue;
+                    // A block inside a different <figure> is that figure's caption, never ours:
+                    // the 3-hop walk otherwise reaches the section and pairs an uncaptioned
+                    // figure with the NEXT figure's "Figure N…" block.
+                    var bFig = b.closest ? b.closest('figure, [role="figure"]') : null;
+                    if (bFig && bFig !== ownFig) continue;
                     if (CAPTION_PREFIX_RX.test((b.textContent || '').trim())) return b;
                 }
                 cur = parent;

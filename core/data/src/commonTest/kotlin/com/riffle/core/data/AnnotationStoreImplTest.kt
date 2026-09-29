@@ -203,6 +203,64 @@ class AnnotationStoreImplTest {
         assertEquals("green", dao.getById(created.id)?.color)
     }
 
+    @Test
+    fun reanchorCaptionHighlightMovesRangeAndBumpsProvenance() = runTest {
+        val s = store()
+        val created = s.createHighlight(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/28!/4/2[fig2]/4,/2/1:0,/1:135)",
+            textSnippet = "Figure 9-2. The roofline chart", chapterHref = "ch09.html",
+            originFontFamily = TEST_FONT,
+        )
+        now = 4_000L
+
+        val moved = s.reanchorCaptionHighlight(
+            id = created.id,
+            cfi = "epubcfi(/6/28!/4/2[fig1]/6,/2/1:0,/1:39)",
+            textSnippet = "Figure 9-1. A simple inference service.",
+            textBefore = "shown in Figure 9-1. ",
+            textAfter = " Model APIs like those",
+        )
+
+        assertEquals(created.id, moved?.id)
+        val row = dao.getById(created.id)!!
+        assertEquals("epubcfi(/6/28!/4/2[fig1]/6,/2/1:0,/1:39)", row.cfi)
+        assertEquals("Figure 9-1. A simple inference service.", row.textSnippet)
+        assertEquals("shown in Figure 9-1. ", row.textBefore)
+        assertEquals(" Model APIs like those", row.textAfter)
+        assertEquals(null, row.textSnippetHtml)
+        assertEquals(4_000L, row.updatedAt)
+        assertEquals("device-X", row.lastModifiedByDeviceId)
+        assertEquals(created.color, row.color)
+    }
+
+    @Test
+    fun reanchorCaptionHighlightRefusesBookmarkAndMissingRows() = runTest {
+        val s = store()
+        val bookmark = s.createBookmark(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/6!/4/1:0)",
+            textSnippet = "", chapterHref = "ch2.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "x",
+            originFontFamily = TEST_FONT,
+        )
+
+        assertEquals(null, s.reanchorCaptionHighlight(bookmark.id, "epubcfi(x)", "x", "", ""))
+        assertEquals(null, s.reanchorCaptionHighlight("missing", "epubcfi(x)", "x", "", ""))
+        assertEquals("epubcfi(/6/6!/4/1:0)", dao.getById(bookmark.id)?.cfi)
+    }
+
+    @Test
+    fun reanchorCaptionHighlightRefusesDeletedHighlight() = runTest {
+        val s = store()
+        val highlight = s.createHighlight(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            textSnippet = "t", chapterHref = "c.xhtml", originFontFamily = TEST_FONT,
+        )
+        s.delete(highlight.id)
+
+        assertEquals(null, s.reanchorCaptionHighlight(highlight.id, "epubcfi(x)", "x", "", ""))
+        assertEquals("epubcfi(/6/4!/4/2,/1:0,/1:10)", dao.getById(highlight.id)?.cfi)
+    }
+
     // Issue #484: `originFontFamily` must round-trip from the createHighlight/createBookmark call
     // to the persisted entity — non-null contract on the local write path.
     @Test

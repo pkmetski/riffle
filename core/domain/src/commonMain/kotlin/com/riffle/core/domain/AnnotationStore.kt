@@ -147,6 +147,20 @@ interface AnnotationStore {
     ): Annotation?
 
     /**
+     * Move a live `TYPE_HIGHLIGHT` to a different caption range — used by the open-time sweep
+     * when its embedded figure turns out to have been paired with a neighbouring figure's caption
+     * at creation. Keeps id, colour, note and figures; bumps `updatedAt` + provenance so sync
+     * propagates the corrected anchor. Returns `null` when [id] is not a live TYPE_HIGHLIGHT.
+     */
+    suspend fun reanchorCaptionHighlight(
+        id: String,
+        cfi: String,
+        textSnippet: String,
+        textBefore: String,
+        textAfter: String,
+    ): Annotation? = throw NotImplementedError("reanchorCaptionHighlight not implemented in this AnnotationStore")
+
+    /**
      * Create a `TYPE_EMPHASIS` annotation (ADR 0056). The [styles] set MUST be non-empty — an
      * empty emphasis row is not a legal state; the ViewModel garbage-collects on sheet dismiss
      * before calling into the store. Range shape mirrors [createHighlight] (CFI range + snippet +
