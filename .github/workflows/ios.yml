@@ -82,9 +82,10 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
-    # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
-    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 matches the harness
-    # job's ceiling and is a hard safety cap, not a per-test wait.
+    # unit target. Timing depends heavily on the Gradle K/N cache: a fully warm cache (all 27
+    # modules previously compiled on this runner) finishes in ~25–35 min; a cold or partly warm
+    # cache adds 15–25 min for K/N recompilation. 50 min is the hard ceiling — it covers warm-cache
+    # runs comfortably and a cold-cache run triggered by a new module or after cache expiry.
     timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
