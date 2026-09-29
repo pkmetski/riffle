@@ -26,17 +26,28 @@ object FigureCaptionWalker {
      * none of the fallbacks resolve.
      */
     val CAPTION_RESOLVER_JS: String = """
+        var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
         function resolveFigcaptionElement(el) {
             if (!el) return null;
             var fig = el.closest ? el.closest('figure, [role="figure"]') : null;
             if (!fig) return null;
             var cap = fig.querySelector('figcaption');
             if (cap && (cap.textContent || '').trim()) return cap;
+            // O'Reilly-style: caption is an h6/h5/h4/h3 inside the figure wrapper rather than
+            // a <figcaption>. Must be gated on CAPTION_PREFIX_RX to exclude accessibility
+            // alt-descriptions that O'Reilly places in <h6> (e.g. "A pink chart … Description
+            // automatically generated") — those don't start with the caption prefix.
+            var _htags = ['h6', 'h5', 'h4', 'h3'];
+            for (var _hi = 0; _hi < _htags.length; _hi++) {
+                var _hels = fig.getElementsByTagName(_htags[_hi]);
+                for (var _hj = 0; _hels && _hj < _hels.length; _hj++) {
+                    if (CAPTION_PREFIX_RX.test((_hels[_hj].textContent || '').trim())) return _hels[_hj];
+                }
+            }
             return null;
         }
         function resolveTextPrefixElement(el) {
             if (!el) return null;
-            var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
             var cur = el;
             for (var hops = 0; hops < 3; hops++) {
                 var parent = cur.parentElement;
