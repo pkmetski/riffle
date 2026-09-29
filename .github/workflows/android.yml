@@ -84,6 +84,7 @@ jobs:
           path: |
             app/build/reports/tests/
             core/*/build/reports/tests/
+            feature/*/build/reports/tests/
           if-no-files-found: ignore
 
   integration-test:

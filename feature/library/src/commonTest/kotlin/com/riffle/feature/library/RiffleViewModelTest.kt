@@ -55,15 +55,17 @@ class RiffleViewModelTest {
         val items = listOf(libraryItem("A", "src1"), libraryItem("B", "src2"))
         val observer = fakeObserver(inProgressAllSources = MutableStateFlow(items))
         val vm = makeViewModel(libraryObserver = observer)
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertEquals(listOf("A", "B"), vm.inProgress.first().map { it.id })
+        vm.viewModelScope.cancel()
     }
 
     @Test
     fun inProgressEmitsEmptyListWhenNoItems() = runTest(dispatcher) {
         val vm = makeViewModel()
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertTrue(vm.inProgress.first().isEmpty())
+        vm.viewModelScope.cancel()
     }
 
     // endregion
@@ -75,8 +77,9 @@ class RiffleViewModelTest {
         val items = listOf(libraryItem("X", "src1"), libraryItem("Y", "src2"))
         val observer = fakeObserver(continueSeriesAllSources = MutableStateFlow(items))
         val vm = makeViewModel(libraryObserver = observer)
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertEquals(listOf("X", "Y"), vm.continueSeries.first().map { it.id })
+        vm.viewModelScope.cancel()
     }
 
     // endregion
@@ -91,16 +94,18 @@ class RiffleViewModelTest {
         )
         val repo = FakeAllSourcesAnnotationsRepo(books)
         val vm = makeViewModel(annotationsRepo = repo)
-        advanceUntilIdle()
+        advanceTimeBy(1)
         val result = vm.annotations.first()
         assertEquals(listOf("item1", "item2"), result.map { it.itemId })
+        vm.viewModelScope.cancel()
     }
 
     @Test
     fun annotationsEmptyWhenRepoReturnsEmpty() = runTest(dispatcher) {
         val vm = makeViewModel()
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertTrue(vm.annotations.first().isEmpty())
+        vm.viewModelScope.cancel()
     }
 
     // endregion
@@ -117,17 +122,18 @@ class RiffleViewModelTest {
         val observer = fakeObserver(librariesBySourceId = mapOf("komga-1" to listOf(komgaLibrary)))
         val sourceRepo = FakeMultiSourceRepository(listOf(komgaSource))
 
-        makeViewModel(
+        val vm = makeViewModel(
             libraryObserver = observer,
             sourceRepository = sourceRepo,
             toReadRepository = tracker,
         )
-        advanceUntilIdle()
+        advanceTimeBy(1)
 
         assertTrue(
             tracker.refreshedPairs.contains("komga-1" to "lib-k1"),
             "refreshForSource must be called for Komga source libraries; got ${tracker.refreshedPairs}",
         )
+        vm.viewModelScope.cancel()
     }
 
     // endregion
@@ -138,8 +144,9 @@ class RiffleViewModelTest {
     fun isOfflineFalseWhenConnected() = runTest(dispatcher) {
         val connectivity = FakeConnectivityObserver(online = true)
         val vm = makeViewModel(connectivity = connectivity)
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertFalse(vm.isOffline.first())
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -195,8 +202,9 @@ class RiffleViewModelTest {
             libraryObserver = observer,
             connectivity = FakeConnectivityObserver(online = true),
         )
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertEquals(listOf("A", "B"), vm.inProgress.first().map { it.id })
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -346,8 +354,9 @@ class RiffleViewModelTest {
             connectivity = FakeConnectivityObserver(online = true),
             toReadRepository = FakeToReadRepository(),
         )
-        advanceUntilIdle()
+        advanceTimeBy(1)
         assertFalse(vm.isOffline.first(), "isOffline must remain false when connected and refresh succeeds")
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -371,9 +380,10 @@ class RiffleViewModelTest {
 
         toReadRepo.succeeds = true
         connectivity.setOnline(true)
-        advanceUntilIdle()
+        advanceTimeBy(1)
 
         assertFalse(vm.isOffline.first(), "isOffline must clear when connectivity is restored and retry succeeds")
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -397,9 +407,9 @@ class RiffleViewModelTest {
 
         toReadRepo.succeeds = true
         advanceTimeBy(RiffleViewModel.FAILED_REFRESH_RETRY_INTERVAL_MS + 1)
-        advanceUntilIdle()
 
         assertFalse(vm.isOffline.first(), "isOffline must clear after poll retry succeeds")
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -467,9 +477,10 @@ class RiffleViewModelTest {
         toReadRepo.succeeds = true
         val libraryReloaded = Library(id = "lib-1", name = "My Library (reloaded)", mediaType = "book", isUnsupported = false)
         librariesFlow.value = listOf(libraryReloaded)
-        advanceUntilIdle()
+        advanceTimeBy(1)
 
         assertFalse(vm.isOffline.first(), "isOffline must clear when library re-emits and refresh now succeeds")
+        vm.viewModelScope.cancel()
     }
 
     // endregion
@@ -482,9 +493,10 @@ class RiffleViewModelTest {
         val source2 = source("s2")
         val sourceRepo = FakeMultiSourceRepository(listOf(source1, source2))
         val vm = makeViewModel(sourceRepository = sourceRepo)
-        advanceUntilIdle()
+        advanceTimeBy(1)
         val result = vm.sources.first()
         assertEquals(listOf("s1", "s2"), result.map { it.id })
+        vm.viewModelScope.cancel()
     }
 
     // endregion
