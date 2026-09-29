@@ -176,6 +176,26 @@ class RiffleViewModel constructor(
                 }
             }
         }
+        // Periodically probe server reachability even when all sources are healthy and the device
+        // appears online. This catches the Samsung One UI / Android 17 airplane-mode scenario
+        // where the OS drops `onLost` for every network but keeps the `activeNetwork` handle alive
+        // with NET_CAPABILITY_INTERNET=true — so `connectivityObserver.isOnline` stays stuck at
+        // true. Without the probe, `_failedSourceIds` stays empty (last refresh succeeded before
+        // going offline) and `isOffline` never flips. The probe calls `refreshForSource` for every
+        // known source; on failure it populates `_failedSourceIds`, which flips `isOffline` and
+        // hands off to the retry loop above.
+        viewModelScope.launch {
+            combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
+                failed.isEmpty() && online
+            }.collectLatest { shouldProbe ->
+                if (shouldProbe) {
+                    while (true) {
+                        delay(CONNECTIVITY_PROBE_INTERVAL_MS)
+                        probeAllSources()
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun retryFailedSources() {
@@ -201,7 +221,27 @@ class RiffleViewModel constructor(
         }
     }
 
+    private suspend fun probeAllSources() {
+        val sources = sourceRepository.observeAll().first()
+        supervisorScope {
+            sources.forEach { source ->
+                launch {
+                    val libraries = libraryObserver.observeLibraries(source.id).first()
+                    val anyFailed = libraries.map { library ->
+                        async {
+                            runCatching {
+                                toReadRepository.refreshForSource(source.id, library.id)
+                            }.getOrDefault(false)
+                        }
+                    }.any { !it.await() }
+                    if (anyFailed) _failedSourceIds.update { it + source.id }
+                }
+            }
+        }
+    }
+
     companion object {
         internal const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
+        internal const val CONNECTIVITY_PROBE_INTERVAL_MS = 15_000L
     }
 }

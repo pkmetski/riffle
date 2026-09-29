@@ -403,6 +403,44 @@ class RiffleViewModelTest {
     }
 
     @Test
+    fun isOfflineDetectedByProbeWhenConnectivityObserverIsStuck() = runTest(dispatcher) {
+        // Samsung One UI / Android 17 airplane-mode scenario: the OS drops `onLost` for every
+        // network but keeps the `activeNetwork` handle alive with NET_CAPABILITY_INTERNET=true,
+        // so `connectivityObserver.isOnline` stays stuck at true even in airplane mode.
+        // The initial refresh at ViewModel creation succeeds (the user was online then).
+        // After CONNECTIVITY_PROBE_INTERVAL_MS, the periodic probe fires; `refreshForSource`
+        // fails (connection refused in airplane mode), `_failedSourceIds` is populated, and
+        // `isOffline` flips to true — despite the stuck connectivity observer.
+        val absSource = source("abs-1", type = SourceType.ABS)
+        val library = Library(id = "lib-1", name = "My Library", mediaType = "book", isUnsupported = false)
+        val observer = fakeObserver(librariesBySourceId = mapOf("abs-1" to listOf(library)))
+        val toReadRepo = ToggleableToReadRepository(initialSuccess = true)
+        val vm = makeViewModel(
+            libraryObserver = observer,
+            sourceRepository = FakeMultiSourceRepository(listOf(absSource)),
+            connectivity = FakeConnectivityObserver(online = true), // stuck at true (Samsung bug)
+            toReadRepository = toReadRepo,
+        )
+        // Initial refresh succeeds — isOffline must be false.
+        advanceTimeBy(1)
+        assertFalse(vm.isOffline.first(), "isOffline must be false when initial refresh succeeds")
+
+        // Device goes into airplane mode but Samsung keeps the network handle alive.
+        // Server becomes unreachable (connection refused).
+        toReadRepo.succeeds = false
+
+        // Probe fires after CONNECTIVITY_PROBE_INTERVAL_MS; refreshForSource fails →
+        // _failedSourceIds populated → isOffline must flip to true.
+        advanceTimeBy(RiffleViewModel.CONNECTIVITY_PROBE_INTERVAL_MS + 1)
+        assertTrue(
+            vm.isOffline.first(),
+            "isOffline must flip to true after probe detects server unreachable, " +
+                "even when connectivityObserver.isOnline is stuck at true",
+        )
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
     fun isOfflineClearsWhenLibraryReEmitsAndRefreshSucceeds() = runTest(dispatcher) {
         // Regression: with a single _refreshFailed Boolean, a failed refresh sets the flag but a
         // subsequent successful library re-emit never cleared it — the offline banner stuck
