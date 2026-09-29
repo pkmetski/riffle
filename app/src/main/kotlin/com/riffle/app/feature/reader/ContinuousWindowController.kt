@@ -818,7 +818,14 @@ internal class ContinuousWindowController(
         reapplyTargetLastHeight = -1
         pendingFocusAnnotationId = focusAnnotationId
         pendingFocusImageSrc = imageSrc
-        smoothTailRevealSuppressed = false
+        // Suppress the revealSmooth anchor-fallback scroll immediately when an annotation
+        // navigation is in flight. pendingInitialScroll fires at DOM-ready (before decorations
+        // are applied), falls back to the CFI anchor, and schedules smoothScrollTo via
+        // revealSmooth. By the time scrollToFocusAnnotation's JS callback returns, revealSmooth
+        // may already have fired — so the flag must be armed here, not inside the callback.
+        // For non-annotation navigations (focusAnnotationId == null) the flag stays false so
+        // revealSmooth runs normally and smooth-tails to the CFI anchor position.
+        smoothTailRevealSuppressed = focusAnnotationId != null
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())

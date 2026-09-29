@@ -104,16 +104,22 @@ class ContinuousWindowControllerScrollGateTest {
     }
 
     @Test
-    fun `openWindowAt resets smoothTailRevealSuppressed`() {
+    fun `openWindowAt arms smoothTailRevealSuppressed based on focusAnnotationId`() {
         val source = resolveSource("ContinuousWindowController.kt").readText()
         val fnIdx = source.indexOf("private fun openWindowAt(")
         assertTrue("openWindowAt not found in ContinuousWindowController", fnIdx >= 0)
         val fnBody = source.substring(fnIdx, source.indexOf("\n    }", fnIdx) + 1)
 
+        // The flag must be set from focusAnnotationId, not hardcoded to false.
+        // When focusAnnotationId != null: flag = true → revealSmooth cannot fire the stale
+        // anchor scroll even if the JS element query returns null (pre-migration TYPE_IMAGE with
+        // no imageHref/fragment).
+        // When focusAnnotationId == null: flag = false → revealSmooth runs normally.
         assertTrue(
-            "openWindowAt must reset smoothTailRevealSuppressed = false so a fresh navigation " +
-            "after a previous annotation focus does not suppress the new smooth tail",
-            fnBody.contains("smoothTailRevealSuppressed = false"),
+            "openWindowAt must set smoothTailRevealSuppressed = focusAnnotationId != null so " +
+            "revealSmooth cannot override the annotation landing even when the element is not " +
+            "found immediately (pre-migration TYPE_IMAGE with null imageHref and no CFI fragment)",
+            fnBody.contains("smoothTailRevealSuppressed = focusAnnotationId != null"),
         )
     }
 
