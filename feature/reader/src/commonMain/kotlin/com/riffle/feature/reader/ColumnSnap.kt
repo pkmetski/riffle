@@ -494,6 +494,10 @@ object ColumnSnap {
             "se.scrollTop=startV;" +
             VERTICAL_SMOOTH_TAIL_JS +
             "return;}" +
+            // Scroll mode + annotation navigation: go(locator) has already placed the range; the
+            // column loop below is paginated logic whose per-frame scrollToLocator re-scrolls the
+            // page vertically for up to 72 frames and drifted a landed figure a screen away.
+            "if(_skipV && se && se.scrollHeight > window.innerHeight + 4){window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=null;return;}" +
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
             "var lastW=-1,stable=0,frames=0,rangeMatched=false,rangeStable=0;" +
             "function snap(){var iw=window.innerWidth;" +
@@ -523,8 +527,10 @@ object ColumnSnap {
             "if(loc&&window.readium&&typeof window.readium.scrollToLocator==='function'){" +
             // Readium aligns the range's left edge with the viewport edge and does not snap, so a
             // highlight that starts on an indented element (a caption inside a figure wrapper)
-            // lands mid-turn; floor to the column that contains that edge.
-            "try{if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor(se.scrollLeft/iw)*iw;return;}}catch(e){}}" +
+            // lands mid-turn; floor to the column that contains that edge. The +2 absorbs a
+            // fractional rect.left stored a pixel below a column boundary, which would otherwise
+            // floor to the previous column.
+            "try{if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor((se.scrollLeft+2)/iw)*iw;return;}}catch(e){}}" +
             "if(id){var el=document.getElementById(id);" +
             "if(el){se.scrollLeft=Math.floor((el.getBoundingClientRect().left+se.scrollLeft)/iw)*iw;}" +
             "else{se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;}}" +

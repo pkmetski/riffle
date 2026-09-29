@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.session.regressions
 import com.riffle.app.feature.reader.ContinuousPositionTracker
 import com.riffle.app.feature.reader.annotationFocusRelandClosure
 import com.riffle.app.feature.reader.relandClosureAfterInitialMeasure
+import com.riffle.app.feature.reader.smoothTailRevealSuppressedAfterInitialLanding
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -285,6 +286,16 @@ class ContinuousAnnotationFocusReflowRaceTest {
         chosen!!()
         assertEquals(1, annotationRelands)
         assertEquals(0, progressionRelands)
+    }
+
+    @Test
+    fun `smooth tail runs when the initial pass resolved the annotation and stays suppressed otherwise`() {
+        // Resolved: y IS the annotation, so the pre-land → smoothScrollTo(y) tail must complete;
+        // suppressing it left the reader half a viewport short whenever no remeasure re-landed.
+        assertEquals(false, smoothTailRevealSuppressedAfterInitialLanding(annotationOffsetResolved = true))
+        // Unresolved: y is the CFI-anchor fallback; a tail to it would yank the reader off the
+        // precise landing that scrollToFocusAnnotation performs later.
+        assertEquals(true, smoothTailRevealSuppressedAfterInitialLanding(annotationOffsetResolved = false))
     }
 
     @Test

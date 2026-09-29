@@ -470,6 +470,35 @@ class CaptionHighlightUpgraderTest {
     }
 
     @Test
+    fun `sweep repairs a mispaired highlight before merging it into the genuine sibling`() = runTest {
+        // Mispaired row (9-2's caption, 9-1's image) next to the genuine 9-2 highlight. If the
+        // duplicate merge ran first they share a snippet and would collapse into one row carrying
+        // both images — the wrong pairing baked in for good. Repair must come first.
+        val storeInstance = store()
+        val mispaired = seedCaptionHighlight(storeInstance, snippet = figure92Caption, figureHref = "assets/aien_0901.png")
+        val genuine = seedCaptionHighlight(
+            storeInstance, snippet = figure92Caption, figureHref = "assets/aien_0902.png",
+            cfi = "epubcfi(/6/28!/4/2[ch09_figure_2]/4,/2/1:0,/1:135)",
+        )
+
+        val result = CaptionHighlightUpgrader(storeInstance).sweep(
+            annotations = storeInstance.observeAnnotations("srv", "book-1").first(),
+            readChapterHtml = { _ -> oreillyChapter },
+        )
+
+        assertEquals(1, result.repaired)
+        assertEquals(0, result.merged)
+        val live = dao.rows.value.filterNot { it.deleted }
+        assertEquals(2, live.size)
+        val repaired = live.single { it.id == mispaired.id }
+        assertEquals(figure91Caption, repaired.textSnippet)
+        assertTrue((repaired.embeddedFigures ?: "").contains("aien_0901.png"))
+        val untouched = live.single { it.id == genuine.id }
+        assertEquals(figure92Caption, untouched.textSnippet)
+        assertTrue((untouched.embeddedFigures ?: "").contains("aien_0902.png"))
+    }
+
+    @Test
     fun `sweep leaves a correctly paired caption highlight alone`() = runTest {
         val storeInstance = store()
         seedCaptionHighlight(storeInstance, snippet = figure92Caption, figureHref = "assets/aien_0902.png")

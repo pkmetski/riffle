@@ -305,7 +305,7 @@ class ReaderWebViewScriptsTest {
         assertTrue("embeds the exact locator safely", js.contains("var loc=JSON.parse("))
         assertTrue(
             "asks Readium to resolve and scroll to the exact range",
-            js.contains("if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor(se.scrollLeft/iw)*iw;return;}"),
+            js.contains("if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor((se.scrollLeft+2)/iw)*iw;return;}"),
         )
         assertTrue(
             "keeps progression as the stale-quote fallback",

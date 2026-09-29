@@ -50,6 +50,11 @@ internal class CaptionHighlightUpgrader(
     /**
      * Three phases, in order:
      *
+     *  0. **Mispaired-caption repair.** See [repairMispairedCaptionHighlights]. Runs first so a
+     *     highlight wrongly carrying Figure N's image under Figure N+1's caption is re-anchored
+     *     BEFORE the duplicate merge can fold it into the genuine Figure N+1 highlight (which
+     *     would bake the wrong image in permanently).
+     *
      *  1. **Duplicate-caption cleanup.** Group same-chapter `TYPE_HIGHLIGHT` rows by normalized
      *     `textSnippet`. For each group with more than one row, pick a canonical (highest
      *     `updatedAt`; tiebreaker: has at least one `embeddedFigure`), merge every other row's
@@ -64,30 +69,30 @@ internal class CaptionHighlightUpgrader(
      *     path so a legacy figure + a pre-existing text-selection highlight of the caption
      *     converge to one annotation. Otherwise rewrite the TYPE_IMAGE in place via
      *     [AnnotationStore.upgradeImageToCaptionHighlight].
-     *
-     *  3. **Mispaired-caption repair.** See [repairMispairedCaptionHighlights].
      */
     suspend fun sweep(
         annotations: List<Annotation>,
         readChapterHtml: suspend (spineIndex: Int) -> String?,
     ): SweepResult {
-        val merged = mergeDuplicateCaptionHighlights(annotations)
+        val repairedRows = repairMispairedCaptionHighlights(annotations, readChapterHtml)
+        val repairedById = repairedRows.associateBy { it.id }
+        val afterRepair = annotations.map { repairedById[it.id] ?: it }
+        val merged = mergeDuplicateCaptionHighlights(afterRepair)
         // Re-read the annotation set from the caller's snapshot; anything the merge phase
         // tombstoned needs to be dropped so the upgrade phase doesn't touch a deleted row.
-        val liveIdsAfterMerge = annotations
+        val liveIdsAfterMerge = afterRepair
             .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE }
             .filter { it.id !in tombstonedIds }
             .map { it.id }
             .toSet()
-        val liveAnnotations = annotations.filter { it.id in liveIdsAfterMerge }
+        val liveAnnotations = afterRepair.filter { it.id in liveIdsAfterMerge }
         val upgraded = upgradeLegacyImageAnnotations(liveAnnotations, readChapterHtml)
-        val repaired = repairMispairedCaptionHighlights(liveAnnotations, readChapterHtml)
         tombstonedIds.clear()
-        return SweepResult(merged = merged, upgraded = upgraded, repaired = repaired)
+        return SweepResult(merged = merged, upgraded = upgraded, repaired = repairedRows.size)
     }
 
     /**
-     * Phase 3: re-anchor caption highlights whose single embedded figure was paired with a
+     * Phase 0: re-anchor caption highlights whose single embedded figure was paired with a
      * NEIGHBOURING figure's caption when they were created. The pre-#1125 resolver could not see
      * O'Reilly `<h6>` captions and its forward hunt walked into the next `<figure>`, so a
      * long-press on Figure 9-1 was stored as a highlight of "Figure 9-2. …" carrying 9-1's image
@@ -98,8 +103,8 @@ internal class CaptionHighlightUpgrader(
     suspend fun repairMispairedCaptionHighlights(
         annotations: List<Annotation>,
         readChapterHtml: suspend (spineIndex: Int) -> String?,
-    ): Int {
-        var repaired = 0
+    ): List<Annotation> {
+        val repaired = mutableListOf<Annotation>()
         for (row in annotations) {
             if (row.type != AnnotationEntity.TYPE_HIGHLIGHT || row.id in tombstonedIds) continue
             val figure = row.embeddedFigures?.singleOrNull() ?: continue
@@ -127,10 +132,9 @@ internal class CaptionHighlightUpgrader(
                 startChar = startChar,
                 endChar = (startChar + ownCaption.length - 1L).coerceAtLeast(startChar),
             ) ?: continue
-            val result = runCatching {
+            runCatching {
                 annotationStore.reanchorCaptionHighlight(row.id, cfi, ownCaption, textBefore, textAfter)
-            }.getOrNull()
-            if (result != null) repaired++
+            }.getOrNull()?.let { repaired += it }
         }
         return repaired
     }

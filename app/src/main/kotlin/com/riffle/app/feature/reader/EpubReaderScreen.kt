@@ -2301,9 +2301,10 @@ private fun EpubNavigatorView(
                 // getElementById("ch01").getBoundingClientRect().left === 0, snapping to column 0
                 // every time. Clear fragments for TYPE_IMAGE so the snap falls back to
                 // progression-based column selection, which correctly lands near the figure.
-                val paginatedLocator = if (event.imageSrc != null &&
-                    effectiveOrientation == ReaderOrientation.Horizontal
-                ) {
+                // Vertical mode has the same section-level anchor problem (its smooth tail would
+                // target getElementById("ch01") → chapter top), so the clearing is not gated on
+                // orientation; this branch is never continuous.
+                val paginatedLocator = if (event.imageSrc != null) {
                     event.locator.copy(
                         locations = event.locator.locations.copy(fragments = emptyList()),
                     )

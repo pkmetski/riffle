@@ -571,7 +571,9 @@ internal class ContinuousWindowController(
      * WebView itself is capped to a renderable window ([ContinuousPositionTracker.chapterWebViewHeight]).
      */
     private fun applyChapterHeight(wv: ChapterWebView, contentPx: Int) {
-        wv.contentHeightChangedAtMs = android.os.SystemClock.uptimeMillis()
+        if (slotOf(wv).layoutParams.height != contentPx) {
+            wv.contentHeightChangedAtMs = android.os.SystemClock.uptimeMillis()
+        }
         slotOf(wv).layoutParams = slotOf(wv).layoutParams.also { it.height = contentPx }
         val vh = port.viewportHeightPx.takeIf { it > 0 } ?: placeholderHeight
         val wvHeight = ContinuousPositionTracker.chapterWebViewHeight(
@@ -973,6 +975,7 @@ internal class ContinuousWindowController(
             if (focusAnnotationId != null && targetWv != null) {
                 targetWv.annotationOffsetTopDevicePx(focusAnnotationId, imageSrc = imageSrc) { annOffset ->
                     val validated = targetWv.offsetIfStillTarget(annOffset)
+                    smoothTailRevealSuppressed = smoothTailRevealSuppressedAfterInitialLanding(validated != null)
                     if (validated != null) postLandAt(validated)
                     else resolveAnchorThenLand()
                 }
@@ -1118,7 +1121,7 @@ internal class ContinuousWindowController(
                     // Annotation panel taps arrive via Compose bottom sheet and never trigger
                     // onTouchDown on ContinuousReaderView, so the flag may still be false even after
                     // a deliberate cross-chapter navigation.
-                    inWindowNavSupersededByTouch = true
+                    if (!skipIfUserAlreadyInteracted) inWindowNavSupersededByTouch = true
                     scrollToLoadedChapter(
                         target, progression, fragment,
                         smooth = true, alignToTop = alignToTop,
@@ -1517,11 +1520,17 @@ internal class ContinuousWindowController(
                 // figure. Mirrors the i==0 path and the wasPlaceholder aboveCompensation path;
                 // uses direct scrollBy (no doOnNextLayout needed) because late-image deltas are
                 // small relative to the existing maxScrollY, so no NestedScrollView clipping occurs.
-                if (pendingInitialScroll == null && !wasPlaceholder && i != 0 && delta > 0 &&
+                if (pendingInitialScroll == null && !wasPlaceholder && i != 0 && delta != 0 &&
                     wv.chapterHref != pendingTargetHref && slotBottomBefore <= port.currentScrollY
                 ) {
-                    port.scrollBy(delta)
                     if (landingHoldTargetY >= 0) landingHoldTargetY += delta
+                    if (delta > 0) {
+                        // Growth: the NestedScrollView clamps against the still-old child height
+                        // until layout runs, so scroll on the next layout like the placeholder path.
+                        wv.doOnNextLayout { port.scrollBy(delta) }
+                    } else {
+                        port.scrollBy(delta)
+                    }
                 }
 
                 if (wasPlaceholder && pendingInitialMeasureIndices.remove(i) &&
@@ -2241,6 +2250,17 @@ internal class ContinuousWindowController(
  * never fires that hook. Without an annotation, smooth-tail navigations keep the slot empty (a
  * progression re-land would chop the tween) and hard landings fall back to the progression closure.
  */
+/**
+ * Whether the smooth-tail reveal must skip its pre-computed `smoothScrollTo(y)` after the initial
+ * landing. `openWindowAt` arms the suppression for every annotation navigation because the first
+ * pass usually cannot resolve the annotation yet and falls back to the CFI anchor — a tail to that
+ * anchor would later yank the reader off the precise landing. When the first pass DID resolve the
+ * annotation, `y` is the annotation itself and the tail must run, or the reader rests half a
+ * viewport short of it (the pre-land position) whenever no later remeasure re-lands.
+ */
+internal fun smoothTailRevealSuppressedAfterInitialLanding(annotationOffsetResolved: Boolean): Boolean =
+    !annotationOffsetResolved
+
 internal fun relandClosureAfterInitialMeasure(
     existing: (() -> Unit)?,
     annotationReland: (() -> Unit)?,

@@ -200,12 +200,23 @@ class ColumnSnapJsBuilderTest {
     }
 
     @Test
+    fun snapToTargetColumnJs_annotationNavigationInScrollModeStopsAfterGo() {
+        // Vertical (scroll) mode: the vertical smooth tail is skipped for annotation navigations,
+        // so the paginated column loop used to run and re-call scrollToLocator every frame,
+        // drifting a landed figure a screen away. The loop must not start in scroll mode.
+        val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false, locatorProgression = 0.3)
+        val guard = "if(_skipV && se && se.scrollHeight > window.innerHeight + 4){window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=null;return;}"
+        assertTrue(js.contains(guard))
+        assertTrue(js.indexOf(guard) < js.indexOf("var gen=(window.__riffleSnapGen"))
+    }
+
+    @Test
     fun snapToTargetColumnJs_floorsScrollLeftToColumnAfterScrollToLocator() {
         // Readium's scrollToLocator aligns the range's left edge with the viewport edge without
         // snapping; a caption indented inside a figure wrapper therefore landed 82 px off-grid
         // ("semi-turned page"). The landing must be floored to the containing column.
         val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false, locatorProgression = 0.1)
-        assertTrue(js.contains("if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor(se.scrollLeft/iw)*iw;return;}"))
+        assertTrue(js.contains("if(window.readium.scrollToLocator(loc)){se.scrollLeft=Math.floor((se.scrollLeft+2)/iw)*iw;return;}"))
     }
 
     @Test

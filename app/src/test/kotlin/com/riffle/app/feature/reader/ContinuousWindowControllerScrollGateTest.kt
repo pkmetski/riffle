@@ -198,7 +198,7 @@ class ContinuousWindowControllerScrollGateTest {
             "onHeightMeasured must compensate scroll when a non-top, non-target, non-placeholder " +
             "chapter grows and is entirely above the viewport — without this, the focused figure " +
             "drifts downward while scroll stays put (two-step annotation nav repro)",
-            source.contains("!wasPlaceholder && i != 0 && delta > 0") &&
+            source.contains("!wasPlaceholder && i != 0 && delta != 0") &&
             source.contains("wv.chapterHref != pendingTargetHref && slotBottomBefore <= port.currentScrollY"),
         )
     }
