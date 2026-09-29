@@ -2,6 +2,7 @@ package com.riffle.shared.source
 
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.models.SourceType
+import com.riffle.feature.library.tabIndexForAnnotations
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -65,6 +66,21 @@ class UnboundedBrowseRoutingTest {
         assertTrue(isAudioRoot(SourceType.CHITANKA, ChitankaCatalog.ROOT_AUDIOBOOKS))
         assertFalse(isAudioRoot(SourceType.CHITANKA, ChitankaCatalog.ROOT_BOOKS))
         assertFalse(isAudioRoot(SourceType.GUTENBERG, "books"))
+    }
+
+    /**
+     * The Home, To Read and Annotations local tabs map to their counterparts in LibraryTabContent.
+     *
+     * UnboundedBrowseScreen uses its own 4-slot tab bar (Home / To Read / Annotations / Library)
+     * while LibraryTabContent uses ABS's wider index space. The mapping must be correct or each tab
+     * would render the wrong content. Reverting [unboundedLocalTabToLibraryTabIndex] to an identity
+     * mapping would silently route To Read to Home, and Annotations to Series.
+     */
+    @Test
+    fun localTabIndexMapsToLibraryTabIndex() {
+        assertEquals(0, unboundedLocalTabToLibraryTabIndex(TAB_HOME), "Home tab must map to library tab 0")
+        assertEquals(1, unboundedLocalTabToLibraryTabIndex(TAB_TO_READ), "To Read tab must map to library tab 1")
+        assertEquals(tabIndexForAnnotations(), unboundedLocalTabToLibraryTabIndex(TAB_ANNOTATIONS), "Annotations tab must map to the shared annotations tab index")
     }
 
     @Test
