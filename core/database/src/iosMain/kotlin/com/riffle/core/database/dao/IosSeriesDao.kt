@@ -181,7 +181,7 @@ internal class IosSeriesDao(private val driver: SqlDriver, private val invalidat
                 }
             }
         }
-        if (series.isNotEmpty() || seriesItems.isNotEmpty()) invalidator.invalidate()
+        invalidator.invalidate()
     }
 
     override suspend fun upsertAll(series: List<SeriesEntity>) {

@@ -64,7 +64,7 @@ internal class IosCollectionDao(private val driver: SqlDriver, private val inval
                 }
             }
         }
-        if (collections.isNotEmpty() || collectionItems.isNotEmpty()) invalidator.invalidate()
+        invalidator.invalidate()
     }
 
     override suspend fun upsertAll(collections: List<CollectionEntity>) {

@@ -119,7 +119,7 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
 
     override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
         items.forEach { item ->
-            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 24) {
+            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 25) {
                 bindItem(item)
             }
         }
@@ -418,7 +418,7 @@ internal class IosLibraryItemDao(private val driver: SqlDriver, private val inva
 
     private fun insertOrIgnoreRaw(items: List<LibraryItemEntity>) {
         items.forEach { item ->
-            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 24) {
+            driver.execute(null, "INSERT OR IGNORE INTO library_items ($ALL_COLS) VALUES ($PLACEHOLDERS)", 25) {
                 bindItem(item)
             }
         }
