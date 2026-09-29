@@ -2294,8 +2294,24 @@ private fun EpubNavigatorView(
                     imageSrc = event.imageSrc,
                 )
             } else {
+                // For TYPE_IMAGE annotations in paginated mode: cfiStringToLocator puts the
+                // innermost CFI element id into locations.fragments. For most EPUB figures
+                // (O'Reilly, etc.) that element is a containing <section id="ch01"> that spans
+                // the whole chapter. ColumnSnap.snapToTargetColumnJs then does
+                // getElementById("ch01").getBoundingClientRect().left === 0, snapping to column 0
+                // every time. Clear fragments for TYPE_IMAGE so the snap falls back to
+                // progression-based column selection, which correctly lands near the figure.
+                val paginatedLocator = if (event.imageSrc != null &&
+                    effectiveOrientation == ReaderOrientation.Horizontal
+                ) {
+                    event.locator.copy(
+                        locations = event.locator.locations.copy(fragments = emptyList()),
+                    )
+                } else {
+                    event.locator
+                }
                 navigateWithCover(
-                    NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
+                    NavigationTarget.ToLocatorJson(paginatedLocator.toJSON().toString()),
                     annotationNavigationOptions(
                         isBookmark = event.isBookmark,
                         // TYPE_IMAGE annotations have no matching Readium decoration (their border
@@ -2306,7 +2322,7 @@ private fun EpubNavigatorView(
                             effectiveOrientation == ReaderOrientation.Horizontal && event.imageSrc == null
                         },
                     ),
-                    event.locator.href.toString(),
+                    paginatedLocator.href.toString(),
                 )
             }
         }
