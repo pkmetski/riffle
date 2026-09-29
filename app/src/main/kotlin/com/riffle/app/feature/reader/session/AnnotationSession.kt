@@ -152,6 +152,14 @@ class AnnotationSession constructor(
         val locator: Locator,
         val isBookmark: Boolean,
         val annotationId: String? = null,
+        /**
+         * Non-null for TYPE_IMAGE annotations: the stored `imageHref` (e.g.
+         * `EPUB/images/figure-1.png`). Continuous mode uses this to fall back to
+         * `img[src$="filename"]` when no `<mark data-riffle-ann>` has been injected
+         * for the figure. Paginated mode uses it to skip `focusAnnotationId` (there is
+         * no matching Readium decoration for a CSS-outline figure border).
+         */
+        val imageSrc: String? = null,
     )
 
     /**
@@ -718,6 +726,10 @@ class AnnotationSession constructor(
                     // Carry the id so continuous mode can centre the actual mark and paginated
                     // mode can snap to Readium's already-resolved decoration Range.
                     annotationId = id,
+                    // For figure annotations: pass the imageHref so continuous mode can fall
+                    // back to `img[src$="filename"]` (no <mark> is injected for figures) and
+                    // paginated mode can skip focusAnnotationId (no matching Readium decoration).
+                    imageSrc = if (annotation.type == AnnotationEntity.TYPE_IMAGE) annotation.imageHref else null,
                 ),
             )
             _annotationsPanelVisible.value = false

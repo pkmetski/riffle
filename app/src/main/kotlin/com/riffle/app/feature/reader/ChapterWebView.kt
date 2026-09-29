@@ -565,15 +565,30 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * when found its rect already reflects the final post-reflow layout — the exact thing a
      * slot+progression landing keeps missing.
      *
-     * Returns null when the mark is not yet in the DOM (cold-start, before the annotation has
-     * been observed and applied). Callers fall back to the existing anchor/progression landing;
-     * the reflow-tracking re-land re-fires this query on every target remeasure so once the mark
-     * appears, the landing snaps onto it.
+     * When [imageSrc] is non-null and no `<mark>` is found, falls back to the `<img>` element
+     * matched by `img[src$="<filename>"]`. Used for TYPE_IMAGE (figure) annotations, which are
+     * decorated with a CSS outline rather than a `<mark>` wrapper, so no `data-riffle-ann`
+     * attribute exists in the DOM for them.
+     *
+     * Returns null when neither the mark nor the image element is in the DOM (cold-start, before
+     * the annotation has been observed and applied). Callers fall back to the existing
+     * anchor/progression landing; the reflow-tracking re-land re-fires this query on every target
+     * remeasure so once the element appears, the landing snaps onto it.
      */
-    fun annotationOffsetTopDevicePx(id: String, callback: (Int?) -> Unit) {
+    fun annotationOffsetTopDevicePx(id: String, imageSrc: String? = null, callback: (Int?) -> Unit) {
         val esc = id.replace("\\", "\\\\").replace("'", "\\'")
+        val imgFallback = if (imageSrc != null) {
+            // Extract filename suffix (last path segment, no query/fragment) for the
+            // `img[src$="…"]` selector — mirrors FigureBorderDecoration.hrefFilename.
+            val trimmed = imageSrc.substringBefore('?').substringBefore('#')
+            val slash = trimmed.lastIndexOf('/')
+            val filename = (if (slash >= 0) trimmed.substring(slash + 1) else trimmed)
+                .replace("\\", "\\\\").replace("'", "\\'")
+            "if(!e){e=document.querySelector(\"img[src\$='$filename']\");}"
+        } else ""
         val js = """(function(){
             var e = document.querySelector("[data-riffle-ann='$esc']");
+            $imgFallback
             if (!e) return -1;
             var r = e.getBoundingClientRect();
             var y = r.top + (window.pageYOffset || document.documentElement.scrollTop || 0);

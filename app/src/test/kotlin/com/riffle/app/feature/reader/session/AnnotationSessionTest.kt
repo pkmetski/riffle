@@ -1243,6 +1243,144 @@ class AnnotationSessionTest {
     }
 
 
+    @Test
+    fun `navigateToAnnotation sets imageSrc from imageHref on TYPE_IMAGE annotations`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val targetLocator = buildLocator()
+        val imageAnnotation = Annotation(
+            id = "img1",
+            sourceId = "srv1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = "epubcfi(/6/4!/4/2)",
+            color = "yellow",
+            note = null,
+            textSnippet = "Figure 1.1",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "chapter1.xhtml",
+            spineIndex = 0,
+            progression = 0.4,
+            bookmarkTitle = "",
+            createdAt = 1000L,
+            updatedAt = 1001L,
+            imageHref = "EPUB/images/figure-1.png",
+        )
+        store.allAnnotations.value = listOf(imageAnnotation)
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { _ -> targetLocator },
+        )
+
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+        session.navigateToAnnotation("img1")
+
+        assertEquals(1, received.size)
+        assertEquals(
+            "TYPE_IMAGE navigation must carry the imageHref as imageSrc so continuous mode can " +
+                "fall back to img[src\$=filename] when no <mark data-riffle-ann> is in the DOM",
+            "EPUB/images/figure-1.png",
+            received[0].imageSrc,
+        )
+        assertFalse(received[0].isBookmark)
+        assertEquals("img1", received[0].annotationId)
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation emits null imageSrc for TYPE_HIGHLIGHT annotations`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val targetLocator = buildLocator()
+        val highlight = fakeAnnotation(id = "h1", type = AnnotationEntity.TYPE_HIGHLIGHT)
+        store.allAnnotations.value = listOf(highlight)
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { _ -> targetLocator },
+        )
+
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+        session.navigateToAnnotation("h1")
+
+        assertEquals(1, received.size)
+        assertNull(
+            "TYPE_HIGHLIGHT navigation must NOT carry imageSrc — passing it would trigger the " +
+                "img[src\$=filename] fallback for highlights that have no figure",
+            received[0].imageSrc,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation emits null imageSrc for TYPE_IMAGE annotations without imageHref`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val targetLocator = buildLocator()
+        val imageAnnotationNoHref = Annotation(
+            id = "img2",
+            sourceId = "srv1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = "epubcfi(/6/4!/4/2)",
+            color = "yellow",
+            note = null,
+            textSnippet = "",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "chapter1.xhtml",
+            spineIndex = 0,
+            progression = 0.5,
+            bookmarkTitle = "",
+            createdAt = 1000L,
+            updatedAt = 1001L,
+            imageHref = null,
+        )
+        store.allAnnotations.value = listOf(imageAnnotationNoHref)
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { _ -> targetLocator },
+        )
+
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+        session.navigateToAnnotation("img2")
+
+        assertEquals(1, received.size)
+        assertNull(
+            "TYPE_IMAGE with null imageHref (SVG-only figure) must emit null imageSrc since there " +
+                "is no img[src\$=…] selector to construct",
+            received[0].imageSrc,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
     /**
      * Test 9: updateHighlightNote persists note and schedules debounce sync
      */

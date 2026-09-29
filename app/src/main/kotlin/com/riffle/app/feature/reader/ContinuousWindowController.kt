@@ -504,6 +504,9 @@ internal class ContinuousWindowController(
     /** Annotation id to focus on initial open. See [ContinuousReaderView.pendingFocusAnnotationId]. */
     private var pendingFocusAnnotationId: String? = null
 
+    /** Fallback image src for figure annotations (TYPE_IMAGE) when no `<mark>` is in the DOM. */
+    private var pendingFocusImageSrc: String? = null
+
     /** The scrollY of the most recent initial land, and the deadline (uptime ms) until which any
      *  off-target scroll movement should be reverted. See [ContinuousReaderView.landingHoldTargetY]. */
     private var landingHoldTargetY: Int = -1
@@ -741,6 +744,8 @@ internal class ContinuousWindowController(
         anchorFragment: String = "",
         alignToTop: Boolean = false,
         focusAnnotationId: String? = null,
+        /** Non-null for TYPE_IMAGE annotations — see [AnnotationNavigationEvent.imageSrc]. */
+        imageSrc: String? = null,
         /**
          * When true the first initial land pre-scrolls half a viewport short of the target under
          * the still-showing nav-cover, then reveals the container and animates the remaining
@@ -793,6 +798,7 @@ internal class ContinuousWindowController(
         reapplyLandingAfterFallback = null
         reapplyTargetLastHeight = -1
         pendingFocusAnnotationId = focusAnnotationId
+        pendingFocusImageSrc = imageSrc
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
@@ -928,7 +934,7 @@ internal class ContinuousWindowController(
                 }
             }
             if (focusAnnotationId != null && targetWv != null) {
-                targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+                targetWv.annotationOffsetTopDevicePx(focusAnnotationId, imageSrc = imageSrc) { annOffset ->
                     val validated = targetWv.offsetIfStillTarget(annOffset)
                     if (validated != null) postLandAt(validated)
                     else resolveAnchorThenLand()
@@ -1026,11 +1032,11 @@ internal class ContinuousWindowController(
      * decorations not applied), we fall back to the paragraph-based landing — same shape as the
      * open-time `focusAnnotationId` path in [openWindowAt].
      */
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
-        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = false, focusAnnotationId = focusAnnotationId)
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?, imageSrc: String?) {
+        navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted = false, focusAnnotationId = focusAnnotationId, imageSrc = imageSrc)
     }
 
-    private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?) {
+    private fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean, focusAnnotationId: String?, imageSrc: String? = null) {
         val target = href.substringBefore('#')
         val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
@@ -1072,6 +1078,7 @@ internal class ContinuousWindowController(
                         target, progression, fragment,
                         smooth = true, alignToTop = alignToTop,
                         focusAnnotationId = focusAnnotationId,
+                        imageSrc = imageSrc,
                     )
                 }
             }
@@ -1096,6 +1103,7 @@ internal class ContinuousWindowController(
                 anchorFragment = fragment,
                 alignToTop = alignToTop,
                 focusAnnotationId = focusAnnotationId,
+                imageSrc = imageSrc,
                 smoothTail = true,
             )
         }
@@ -1163,6 +1171,7 @@ internal class ContinuousWindowController(
         smooth: Boolean,
         alignToTop: Boolean = false,
         focusAnnotationId: String? = null,
+        imageSrc: String? = null,
     ) {
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
@@ -1197,8 +1206,10 @@ internal class ContinuousWindowController(
         // highlight in the middle of a long paragraph, landing the paragraph at midpoint puts the
         // highlighted text well below the viewport centre and often off-screen. Reading the mark's
         // rect directly makes the landing pixel-accurate to what the user tapped in the panel.
+        // For TYPE_IMAGE annotations imageSrc provides an img[src$="filename"] fallback because no
+        // <mark> is injected for figures.
         if (focusAnnotationId != null) {
-            wv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+            wv.annotationOffsetTopDevicePx(focusAnnotationId, imageSrc = imageSrc) { annOffset ->
                 if (annOffset != null) {
                     go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, annOffset, port.viewportHeightPx, alignToTop))
                 } else {
@@ -1311,7 +1322,7 @@ internal class ContinuousWindowController(
 
     private fun scrollToFocusAnnotation(href: String, id: String) {
         val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
-        wv.annotationOffsetTopDevicePx(id) { annOffset ->
+        wv.annotationOffsetTopDevicePx(id, imageSrc = pendingFocusImageSrc) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
             // Consume the pending id now that the annotation is actually positioned in the DOM.
             // Deferring consumption here (rather than in onAnnotationHighlightsApplied) means a
@@ -1319,6 +1330,7 @@ internal class ContinuousWindowController(
             // loadChapter before onPageFinished) will leave the id intact for the real call that
             // arrives from onChapterLoaded once the page has finished.
             pendingFocusAnnotationId = null
+            pendingFocusImageSrc = null
             clearLandingHold()
             landOnAnnotationOffset(href, annOffset)
         }

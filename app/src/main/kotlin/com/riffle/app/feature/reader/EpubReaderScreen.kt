@@ -2291,14 +2291,19 @@ private fun EpubNavigatorView(
                     progression = locations.progression?.toFloat() ?: 0f,
                     alignToTop = false,
                     focusAnnotationId = event.annotationId,
+                    imageSrc = event.imageSrc,
                 )
             } else {
                 navigateWithCover(
                     NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
                     annotationNavigationOptions(
                         isBookmark = event.isBookmark,
+                        // TYPE_IMAGE annotations have no matching Readium decoration (their border
+                        // is a CSS outline, not a ranged decoration). Passing focusAnnotationId
+                        // makes the column-snap rAF loop wait 600 frames (~10 s) for a decoration
+                        // that never arrives. Skip it so the CFI-progression landing runs normally.
                         annotationId = event.annotationId.takeIf {
-                            effectiveOrientation == ReaderOrientation.Horizontal
+                            effectiveOrientation == ReaderOrientation.Horizontal && event.imageSrc == null
                         },
                     ),
                     event.locator.href.toString(),

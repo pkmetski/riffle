@@ -527,8 +527,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, skipIfUserAlreadyInteracted: Boolean) =
         controller.navigateTo(href, progression, alignToTop, skipIfUserAlreadyInteracted)
 
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) =
-        controller.navigateTo(href, progression, alignToTop, focusAnnotationId)
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?, imageSrc: String?) =
+        controller.navigateTo(href, progression, alignToTop, focusAnnotationId, imageSrc)
 
     override fun isTargetInWindow(href: String): Boolean = controller.isTargetInWindow(href)
 
