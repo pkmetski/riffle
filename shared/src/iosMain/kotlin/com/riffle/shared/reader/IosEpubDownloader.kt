@@ -1,6 +1,7 @@
 package com.riffle.shared.reader
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_EPUB_CACHE
 import com.riffle.core.data.NS_EPUB_DOWNLOADS
 import com.riffle.core.domain.SourceRepository
@@ -13,13 +14,7 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
-import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
-import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.create
 
 /**
  * Returns a local path for the given EPUB, used by the reader to open the file.
@@ -31,7 +26,6 @@ class IosEpubDownloader(
     private val tokenStorage: TokenStorage,
     private val fileStore: FileStore,
 ) {
-    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     suspend fun localPath(item: LibraryItem): String? {
         // Prefer already-downloaded permanent copy.
         val downloadPath = fileStore.resolve(NS_EPUB_DOWNLOADS, IosEpubPaths.downloadRelativePath(item.sourceId, item.id))
@@ -55,15 +49,9 @@ class IosEpubDownloader(
 
         val bytes = runCatching { response.bodyAsBytes() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return null
 
-        val nsData = bytes.usePinned { pinned ->
-            NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
-        }
-
-        val written = NSFileManager.defaultManager.createFileAtPath(
-            path = cachePath,
-            contents = nsData,
-            attributes = null,
-        )
-        return if (written) cachePath else null
+        // IosItemFiles.writeBytes creates the parent directory ($sourceId/) before writing,
+        // which NSFileManager.createFileAtPath does not — the subdirectory never existed so
+        // every write silently failed and localPath returned null for every book.
+        return if (IosItemFiles.writeBytes(cachePath, bytes)) cachePath else null
     }
 }

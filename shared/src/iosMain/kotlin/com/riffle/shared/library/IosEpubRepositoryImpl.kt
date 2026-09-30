@@ -1,6 +1,7 @@
 package com.riffle.shared.library
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_EPUB_CACHE
 import com.riffle.core.data.NS_EPUB_DOWNLOADS
 import com.riffle.core.domain.EpubDownloadResult
@@ -12,14 +13,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.network.withHttpChannelStream
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpHeaders
-import io.ktor.utils.io.readAvailable
-import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSMutableData
-import platform.Foundation.appendBytes
 
 internal class IosEpubRepositoryImpl(
     private val positionStore: ReadingPositionStore,
@@ -42,7 +36,6 @@ internal class IosEpubRepositoryImpl(
     override fun isCached(sourceId: String, itemId: String): Boolean =
         NSFileManager.defaultManager.fileExistsAtPath(cachePath(sourceId, itemId))
 
-    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     override suspend fun downloadEpub(
         item: LibraryItem,
         onProgress: (Long, Long) -> Unit,
@@ -68,25 +61,9 @@ internal class IosEpubRepositoryImpl(
                 url = urlString,
                 headers = mapOf(HttpHeaders.Authorization to "Bearer $token"),
             ) { stream ->
-                val accumulator = NSMutableData()
-                var downloaded = 0L
-                val buffer = ByteArray(8 * 1024)
-
-                while (!stream.channel.isClosedForRead) {
-                    val read = stream.channel.readAvailable(buffer)
-                    if (read <= 0) break
-                    buffer.copyOf(read).usePinned { p ->
-                        accumulator.appendBytes(p.addressOf(0), read.toULong())
-                    }
-                    downloaded += read
-                    onProgress(downloaded, stream.contentLength)
-                }
-
-                val written = NSFileManager.defaultManager.createFileAtPath(
-                    path = destPath,
-                    contents = accumulator,
-                    attributes = null,
-                )
+                // IosItemFiles.writeChannel creates the $sourceId/ parent directory before
+                // writing, which NSFileManager.createFileAtPath does not.
+                val written = IosItemFiles.writeChannel(destPath, stream.channel, stream.contentLength, onProgress)
                 if (written) {
                     EpubDownloadResult.Success
                 } else {
