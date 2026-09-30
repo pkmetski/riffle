@@ -32,6 +32,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +56,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
@@ -91,6 +94,7 @@ import org.koin.core.parameter.parametersOf
 // `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used
 // to exist as a byte-identical private copy in each screen.
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryItemsScreen(
     libraryId: String,
@@ -148,9 +152,11 @@ fun LibraryItemsScreen(
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
     }
 
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer)
+            LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer, scrollBehavior = scrollBehavior)
         },
         bottomBar = {
             LibraryTabBar(
@@ -313,7 +319,11 @@ private fun LibraryTabBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
+private fun LibraryTopBar(
+    title: String,
+    onMenuClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+) {
     TopAppBar(
         title = { Text(title) },
         navigationIcon = {
@@ -324,6 +334,7 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
                 Icon(RiffleIcons.Menu, contentDescription = "Open menu")
             }
         },
+        scrollBehavior = scrollBehavior,
     )
 }
 
