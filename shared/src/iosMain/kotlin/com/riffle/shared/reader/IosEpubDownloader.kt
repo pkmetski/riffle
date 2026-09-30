@@ -13,15 +13,18 @@ import platform.Foundation.NSFileManager
 
 /**
  * Returns a local path for the given EPUB, used by the reader to open the file.
- * Priority: permanent download (epub-downloads) → cached copy (epub-cache) → fetch via catalog.
+ * Priority: permanent download (epub-downloads) → cached copy (epub-cache) → fetch.
  *
- * Fetches through [CatalogRegistry] → [Catalog.withFileStream] so every source (ABS, Komga,
- * Kavita, Chitanka, WebDAV, …) is supported without ABS-specific URL construction. The ABS
- * catalog uses [LibraryItem.ebookFileIno] as a download-handle hint when present; other catalogs
- * ignore it. Previously this class bypassed the catalog layer and called ABS directly, which meant
- * any book from a non-ABS source returned null here and showed "Could not download book".
+ * ABS items (ebookFileIno != null) stream directly through [AbsFileStreamer] using the ABS
+ * `/api/items/{id}/file/{ino}` endpoint. All other sources (Komga, Kavita, WebDAV, …) stream
+ * through [CatalogRegistry.forSourceId] → [Catalog.withFileStream].
+ *
+ * Both paths use [IosItemFiles.writeChannel] which calls mkdirsForFile() first, so the
+ * $sourceId/ subdirectory is always created before the write (NSFileManager.createFileAtPath
+ * silently fails when the parent directory does not exist).
  */
 class IosEpubDownloader(
+    private val absStreamer: AbsFileStreamer,
     private val catalogRegistry: CatalogRegistry,
     private val fileStore: FileStore,
 ) {
@@ -32,15 +35,21 @@ class IosEpubDownloader(
         val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
         if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) return cachePath
 
-        val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
-        return try {
-            catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
-                if (IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)) cachePath else null
+        return if (item.ebookFileIno != null) {
+            absStreamer.withStream(item) { channel, length ->
+                if (IosItemFiles.writeChannel(cachePath, channel, length)) cachePath else null
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
+        } else {
+            val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
+            try {
+                catalog.withFileStream(item.id, BookFormat.Epub, null) { stream ->
+                    if (IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)) cachePath else null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 }

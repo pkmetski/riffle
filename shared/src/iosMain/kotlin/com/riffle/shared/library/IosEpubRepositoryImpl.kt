@@ -10,6 +10,7 @@ import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.models.LibraryItem
+import com.riffle.shared.reader.AbsFileStreamer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import platform.Foundation.NSFileManager
@@ -17,6 +18,7 @@ import platform.Foundation.NSFileManager
 internal class IosEpubRepositoryImpl(
     private val positionStore: ReadingPositionStore,
     private val fileStore: FileStore,
+    private val absStreamer: AbsFileStreamer,
     private val catalogRegistry: CatalogRegistry,
 ) : EpubRepository {
 
@@ -39,20 +41,30 @@ internal class IosEpubRepositoryImpl(
     ): EpubDownloadResult {
         if (isDownloaded(item.sourceId, item.id)) return EpubDownloadResult.AlreadyDownloaded
         val destPath = downloadPath(item.sourceId, item.id)
-        val catalog = catalogRegistry.forSourceId(item.sourceId)
-            ?: return EpubDownloadResult.NetworkError(IllegalStateException("No catalog for source ${item.sourceId}"))
-        return try {
-            catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
-                if (IosItemFiles.writeChannel(destPath, stream.channel, stream.contentLength, onProgress)) {
+        return if (item.ebookFileIno != null) {
+            absStreamer.withStream(item) { channel, length ->
+                if (IosItemFiles.writeChannel(destPath, channel, length, onProgress)) {
                     EpubDownloadResult.Success
                 } else {
-                    EpubDownloadResult.NetworkError(IllegalStateException("Failed to write file to $destPath"))
+                    EpubDownloadResult.NetworkError(IllegalStateException("Failed to write EPUB to $destPath"))
                 }
+            } ?: EpubDownloadResult.NetworkError(IllegalStateException("ABS stream unavailable for ${item.id}"))
+        } else {
+            val catalog = catalogRegistry.forSourceId(item.sourceId)
+                ?: return EpubDownloadResult.NetworkError(IllegalStateException("No catalog for source ${item.sourceId}"))
+            try {
+                catalog.withFileStream(item.id, BookFormat.Epub, null) { stream ->
+                    if (IosItemFiles.writeChannel(destPath, stream.channel, stream.contentLength, onProgress)) {
+                        EpubDownloadResult.Success
+                    } else {
+                        EpubDownloadResult.NetworkError(IllegalStateException("Failed to write EPUB to $destPath"))
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                EpubDownloadResult.NetworkError(e)
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            EpubDownloadResult.NetworkError(e)
         }
     }
 
