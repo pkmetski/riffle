@@ -429,6 +429,7 @@
 			name = "KMP Embed Framework";
 			outputFileListPaths = (
 			);
+			alwaysOutOfDate = 1;
 			outputPaths = (
 				"$(BUILT_PRODUCTS_DIR)/Riffle.framework/Riffle",
 			);
