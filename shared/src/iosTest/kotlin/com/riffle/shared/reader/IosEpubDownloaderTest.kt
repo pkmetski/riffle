@@ -1,22 +1,16 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
-import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
-import com.riffle.core.models.SourceUrl
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
@@ -28,16 +22,13 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Regression test for the missing parent-directory creation bug in IosEpubDownloader.
+ * Regression tests for IosEpubDownloader.
  *
- * The cache path is Documents/epub-cache/$sourceId/$itemId.epub. IosFileStore.resolve() only
- * creates Documents/epub-cache/ — it does not create the $sourceId/ subdirectory. Before the fix,
- * NSFileManager.createFileAtPath() was used directly and silently returned false because the
- * parent directory did not exist, so localPath() returned null and the reader showed
- * "Could not download book" for every book on every source.
- *
- * After the fix, IosItemFiles.writeBytes() creates the parent directory before writing, so
- * localPath() returns the path successfully.
+ * Key claim: localPath() returns the written cache path for any source (ABS, Komga, …) by going
+ * through CatalogRegistry.withFileStream rather than ABS-specific HTTP calls. Previously it used
+ * NSFileManager.createFileAtPath() without first creating the $sourceId/ parent directory, so the
+ * write silently returned false and localPath() returned null for every book on every source,
+ * showing "Could not download book".
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosEpubDownloaderTest {
@@ -50,7 +41,7 @@ class IosEpubDownloaderTest {
     }
 
     private inner class TempFileStore : FileStore {
-        private val root = NSTemporaryDirectory() + "epub_dl_test_" + NSUUID().UUIDString()
+        val root = NSTemporaryDirectory() + "epub_dl_test_" + NSUUID().UUIDString()
 
         init {
             roots += root
@@ -61,31 +52,6 @@ class IosEpubDownloaderTest {
             NSFileManager.defaultManager.createDirectoryAtPath(base, withIntermediateDirectories = true, attributes = null, error = null)
             return if (relativePath.isEmpty()) base else "$base/$relativePath"
         }
-    }
-
-    private val source = Source(
-        id = "src-1",
-        url = SourceUrl.parse("https://abs.example.test/")!!,
-        isActive = true,
-        insecureConnectionAllowed = false,
-        username = "reader",
-    )
-
-    private val sourceRepository = object : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
-        override suspend fun getActive(): Source? = source
-        override suspend fun getById(sourceId: String): Source? = source.takeIf { it.id == sourceId }
-        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-            CommitSourceResult.Failure(UnsupportedOperationException())
-        override suspend fun setActive(sourceId: String) {}
-        override suspend fun remove(sourceId: String) {}
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
-    private val tokenStorage = object : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) {}
-        override suspend fun getToken(sourceId: String): String? = "tok"
-        override suspend fun deleteToken(sourceId: String) {}
     }
 
     private val epubBytes = byteArrayOf(0x50, 0x4B, 0x03, 0x04, 1, 2, 3, 4)
@@ -102,43 +68,39 @@ class IosEpubDownloaderTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
         ebookFileIno = "ino-1",
-        hasAudio = false,
-        audioDurationSec = 0.0,
-        description = null,
-        seriesName = null,
-        publishedYear = null,
-        genres = emptyList(),
-        publisher = null,
-        language = null,
-        lastOpenedAt = null,
-        addedAt = null,
-        isbn = null,
     )
 
-    private fun servingDownloader(fileStore: FileStore) = IosEpubDownloader(
-        httpClient = HttpClient(
-            MockEngine { respond(content = epubBytes, status = HttpStatusCode.OK, headers = headersOf("Content-Length", epubBytes.size.toString())) },
-        ),
-        sourceRepository = sourceRepository,
-        tokenStorage = tokenStorage,
-        fileStore = fileStore,
-    )
+    private fun catalog(bytes: ByteArray): Catalog = object : Catalog {
+        override suspend fun <T> withFileStream(
+            itemId: String,
+            format: BookFormat,
+            handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = block(object : CatalogFileStream {
+            override val contentLength: Long = bytes.size.toLong()
+            override val channel: ByteReadChannel = ByteReadChannel(bytes)
+        })
+        override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
+    }
 
-    private fun failingDownloader(fileStore: FileStore) = IosEpubDownloader(
-        httpClient = HttpClient(
-            MockEngine { respond(content = ByteArray(0), status = HttpStatusCode.InternalServerError) },
-        ),
-        sourceRepository = sourceRepository,
-        tokenStorage = tokenStorage,
-        fileStore = fileStore,
-    )
+    private fun failingCatalog(): Catalog = object : Catalog {
+        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T =
+            throw IllegalStateException("simulated network error")
+        override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = false)
+    }
+
+    private fun registry(catalog: Catalog?) = object : CatalogRegistry {
+        override suspend fun forActive(): Catalog? = catalog
+        override suspend fun forSource(source: Source): Catalog? = catalog
+        override suspend fun forSourceId(sourceId: String): Catalog? = catalog
+    }
 
     @Test
     fun localPathCreatesTheSourceIdSubdirectoryAndReturnsTheCachePath() = runTest {
         val store = TempFileStore()
-        val path = servingDownloader(store).localPath(item)
+        val path = IosEpubDownloader(registry(catalog(epubBytes)), store).localPath(item)
 
-        assertNotNull(path, "localPath must return a non-null path when the download succeeds")
+        assertNotNull(path, "localPath must return a non-null path when the catalog delivers bytes")
         assertTrue(
             NSFileManager.defaultManager.fileExistsAtPath(path),
             "the file must exist at the returned path",
@@ -150,21 +112,38 @@ class IosEpubDownloaderTest {
     }
 
     @Test
-    fun localPathReturnsNullWhenTheServerRespondsWithAnError() = runTest {
-        val path = failingDownloader(TempFileStore()).localPath(item)
-        assertNull(path, "a server-error response must yield null so the reader shows the error UI")
+    fun localPathReturnsNullWhenTheCatalogThrows() = runTest {
+        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore()).localPath(item)
+        assertNull(path, "a catalog error must yield null so the reader shows the error UI")
     }
 
     @Test
-    fun localPathReturnsCacheHitWithoutANetworkRoundTrip() = runTest {
+    fun localPathReturnsNullWhenNoCatalogIsRegisteredForTheSource() = runTest {
+        val path = IosEpubDownloader(registry(null), TempFileStore()).localPath(item)
+        assertNull(path, "no catalog for source must yield null")
+    }
+
+    @Test
+    fun localPathReturnsCacheHitWithoutHittingTheCatalogASecondTime() = runTest {
         val store = TempFileStore()
-        val downloader = servingDownloader(store)
+        var calls = 0
+        val countingCatalog = object : Catalog {
+            override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T {
+                calls++
+                return block(object : CatalogFileStream {
+                    override val contentLength: Long = epubBytes.size.toLong()
+                    override val channel: ByteReadChannel = ByteReadChannel(epubBytes)
+                })
+            }
+            override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
+        }
+        val downloader = IosEpubDownloader(registry(countingCatalog), store)
 
         val first = downloader.localPath(item)
         assertNotNull(first, "first call must download and cache")
 
-        val failDownloader = failingDownloader(store)
-        val second = failDownloader.localPath(item)
-        assertNotNull(second, "second call must return the cached path without going to the network")
+        val second = downloader.localPath(item)
+        assertNotNull(second, "second call must return the cached path")
+        assertTrue(calls == 1, "catalog must only be called once; was called $calls times")
     }
 }

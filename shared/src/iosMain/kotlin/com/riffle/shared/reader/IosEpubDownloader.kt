@@ -1,57 +1,46 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
 import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_EPUB_CACHE
 import com.riffle.core.data.NS_EPUB_DOWNLOADS
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
 import com.riffle.shared.library.IosEpubPaths
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsBytes
-import io.ktor.http.HttpHeaders
-import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import platform.Foundation.NSFileManager
 
 /**
  * Returns a local path for the given EPUB, used by the reader to open the file.
- * Priority: permanent download (epub-downloads) → cached copy (epub-cache) → download to cache.
+ * Priority: permanent download (epub-downloads) → cached copy (epub-cache) → fetch via catalog.
+ *
+ * Fetches through [CatalogRegistry] → [Catalog.withFileStream] so every source (ABS, Komga,
+ * Kavita, Chitanka, WebDAV, …) is supported without ABS-specific URL construction. The ABS
+ * catalog uses [LibraryItem.ebookFileIno] as a download-handle hint when present; other catalogs
+ * ignore it. Previously this class bypassed the catalog layer and called ABS directly, which meant
+ * any book from a non-ABS source returned null here and showed "Could not download book".
  */
 class IosEpubDownloader(
-    private val httpClient: HttpClient,
-    private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
+    private val catalogRegistry: CatalogRegistry,
     private val fileStore: FileStore,
 ) {
     suspend fun localPath(item: LibraryItem): String? {
-        // Prefer already-downloaded permanent copy.
         val downloadPath = fileStore.resolve(NS_EPUB_DOWNLOADS, IosEpubPaths.downloadRelativePath(item.sourceId, item.id))
         if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) return downloadPath
 
-        // Fall back to the cached copy.
         val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
         if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) return cachePath
 
-        // Download from ABS into the cache namespace.
-        val endpoint = resolveItemEndpoint(sourceRepository, tokenStorage, item) ?: return null
-        val fileIno = item.ebookFileIno ?: return null
-
-        val urlString = endpoint.absFileUrl(item, fileIno)
-
-        val response = runCatching {
-            httpClient.get(urlString) { header(HttpHeaders.Authorization, "Bearer ${endpoint.token}") }
-        }.getOrNull() ?: return null
-
-        if (!response.status.isSuccess()) return null
-
-        val bytes = runCatching { response.bodyAsBytes() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return null
-
-        // IosItemFiles.writeBytes creates the parent directory ($sourceId/) before writing,
-        // which NSFileManager.createFileAtPath does not — the subdirectory never existed so
-        // every write silently failed and localPath returned null for every book.
-        return if (IosItemFiles.writeBytes(cachePath, bytes)) cachePath else null
+        val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
+        return try {
+            catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
+                if (IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)) cachePath else null
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
     }
 }
