@@ -214,7 +214,7 @@ class FigureCaptionWalkerTest {
     }
 
     @Test
-    fun `constants are safe to concatenate — no script tags, no leading semicolons`() {
+    fun constantsAreSafeToConcatenateNoScriptTagsNoLeadingSemicolons() {
         listOf(
             FigureCaptionWalker.CAPTION_RESOLVER_JS,
             FigureCaptionWalker.SVG_SERIALIZER_JS,
