@@ -296,6 +296,14 @@ Run all of these before pushing, sequentially — parallel Gradle invocations co
 
 The iOS `Lint` CI job runs **SwiftLint** as well as ktlint, and `swiftlint lint iosApp/` exits non-zero on pre-existing violations — so compare your branch's violation set against `main`'s rather than reading the exit code. Note also that the ktlint gate only covers the `iosMain` source sets listed in `.github/workflows/ios.yml`, so violations in `iosTest` escape CI and still need `:<module>:ktlintCheck` locally.
 
+## Prototypes are ephemeral — never commit them
+
+When a visual or UX decision requires a prototype, build it as a localhost HTML/CSS/JS page, show it to the user for review, then **delete it**. Prototype files must never be committed to the repository.
+
+- Create the prototype in a temporary directory outside the repo, or in `/tmp/`.
+- Once the user has approved the direction and implementation is underway, discard the prototype files entirely.
+- If you find prototype files already committed (e.g. a `prototype/` directory), remove them with `git rm -r` and commit the deletion.
+
 ## Agent skills
 
 ### Issue tracker
