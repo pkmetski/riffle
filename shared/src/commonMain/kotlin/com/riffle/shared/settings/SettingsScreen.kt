@@ -50,6 +50,10 @@ import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_libraries_with_arrow
+import com.riffle.feature.designsystem.generated.resources.ui_settings
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.settings.AppUpdateStatus
@@ -217,11 +221,11 @@ private fun MainSettingsContent(
                 .clickable { onBack() }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            BasicText("← Libraries", style = TextStyle(fontSize = 15.sp, color = Color(0xFF1565C0)))
+            BasicText(stringResource(Res.string.ui_libraries_with_arrow), style = TextStyle(fontSize = 15.sp, color = Color(0xFF1565C0)))
         }
 
         BasicText(
-            text = "Settings",
+            text = stringResource(Res.string.ui_settings),
             style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )

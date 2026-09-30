@@ -44,8 +44,15 @@ import com.riffle.feature.library.ui.AddToPlaylistSheet
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.Res
+import com.riffle.feature.source.ui.generated.resources.ui_add_to_to_read
+import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
 import com.riffle.feature.source.ui.generated.resources.ui_download_failed
+import com.riffle.feature.source.ui.generated.resources.ui_in_to_read
+import com.riffle.feature.source.ui.generated.resources.ui_item_not_found
+import com.riffle.feature.source.ui.generated.resources.ui_loading
+import com.riffle.feature.source.ui.generated.resources.ui_read
+import com.riffle.feature.source.ui.generated.resources.ui_you_are_offline
 import com.riffle.feature.source.ui.library.BookDownloadControls
 import com.riffle.feature.source.ui.rememberTransientMessages
 import org.jetbrains.compose.resources.stringResource
@@ -169,7 +176,7 @@ private fun FacetRow(
 @Composable
 private fun LoadingContent() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        BasicText(text = "Loading…", style = TextStyle(fontSize = 16.sp, color = Color(0xFF888888)))
+        BasicText(text = stringResource(Res.string.ui_loading), style = TextStyle(fontSize = 16.sp, color = Color(0xFF888888)))
     }
 }
 
@@ -178,12 +185,12 @@ private fun ErrorContent(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             BasicText(
-                text = "Item not found",
+                text = stringResource(Res.string.ui_item_not_found),
                 style = TextStyle(fontSize = 16.sp, color = Color(0xFF888888)),
             )
             Spacer(modifier = Modifier.height(16.dp))
             BasicText(
-                text = "← Back",
+                text = stringResource(Res.string.ui_back_with_arrow),
                 style = TextStyle(
                     fontSize = 16.sp,
                     color = Color(0xFF6650A4),
@@ -348,7 +355,7 @@ private fun ReadyBody(
                     .clickable(onClick = onRead),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText(text = "Read", style = ButtonTextStyle)
+                BasicText(text = stringResource(Res.string.ui_read), style = ButtonTextStyle)
             }
 
             Box(
@@ -361,7 +368,7 @@ private fun ReadyBody(
                 contentAlignment = Alignment.Center,
             ) {
                 BasicText(
-                    text = if (state.isInToRead) "In To-Read" else "Add to To-Read",
+                    text = if (state.isInToRead) stringResource(Res.string.ui_in_to_read) else stringResource(Res.string.ui_add_to_to_read),
                     style = ButtonTextStyle.copy(
                         color = if (state.isInToRead) Color.White else Color(0xFF6650A4),
                     ),
@@ -394,7 +401,7 @@ private fun ReadyBody(
         if (state.isOffline) {
             Spacer(modifier = Modifier.height(12.dp))
             BasicText(
-                text = "You are offline",
+                text = stringResource(Res.string.ui_you_are_offline),
                 style = TextStyle(fontSize = 13.sp, color = Color(0xFFAA8800)),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )

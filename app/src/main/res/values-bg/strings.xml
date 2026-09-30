@@ -336,6 +336,7 @@
     <string name="ui_sort_title_za">Заглавие (Я–А)</string>
     <string name="ui_sort_author_az">Автор (А–Я)</string>
     <string name="ui_sort_recently_opened">Наскоро отваряни</string>
+    <string name="ui_see_more_overflow">+%1$d\nоще</string>
     <string name="ui_section_in_progress">В процес</string>
     <string name="ui_section_completed">Завършени</string>
     <string name="ui_section_recently_added">Наскоро добавени</string>

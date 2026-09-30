@@ -72,7 +72,19 @@ import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_all_books
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_collections
+import com.riffle.feature.designsystem.generated.resources.ui_home
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
+import com.riffle.feature.designsystem.generated.resources.ui_playlists
+import com.riffle.feature.designsystem.generated.resources.ui_section_completed
+import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
+import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
+import com.riffle.feature.designsystem.generated.resources.ui_section_recently_added
 import com.riffle.feature.designsystem.generated.resources.ui_see_all
+import com.riffle.feature.designsystem.generated.resources.ui_series
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
@@ -270,51 +282,58 @@ private fun LibraryTabBar(
     onTabSelected: (Int) -> Unit,
     visibility: LibraryTabVisibility,
 ) {
+    val homeLabel = stringResource(Res.string.ui_home)
+    val toReadLabel = stringResource(Res.string.ui_to_read)
+    val annotationsLabel = stringResource(Res.string.ui_annotations)
+    val seriesLabel = stringResource(Res.string.ui_series)
+    val collectionsLabel = stringResource(Res.string.ui_collections)
+    val playlistsLabel = stringResource(Res.string.ui_playlists)
+    val allBooksLabel = stringResource(Res.string.ui_all_books)
     NavigationBar {
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
-            icon = { Icon(RiffleIcons.Home, contentDescription = "Home") },
+            icon = { Icon(RiffleIcons.Home, contentDescription = homeLabel) },
         )
         if (visibility.toRead) {
             NavigationBarItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = toReadLabel) },
             )
         }
         if (visibility.annotations) {
             NavigationBarItem(
                 selected = selectedTab == tabIndexForAnnotations(),
                 onClick = { onTabSelected(tabIndexForAnnotations()) },
-                icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                icon = { Icon(RiffleIcons.Annotations, contentDescription = annotationsLabel) },
             )
         }
         if (visibility.series) {
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = "Series") },
+                icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = seriesLabel) },
             )
         }
         if (visibility.collections) {
             NavigationBarItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
-                icon = { Icon(RiffleIcons.Folder, contentDescription = "Collections") },
+                icon = { Icon(RiffleIcons.Folder, contentDescription = collectionsLabel) },
             )
         }
         if (visibility.playlists) {
             NavigationBarItem(
                 selected = selectedTab == tabIndexForPlaylists(),
                 onClick = { onTabSelected(tabIndexForPlaylists()) },
-                icon = { Icon(RiffleIcons.QueueMusic, contentDescription = "Playlists") },
+                icon = { Icon(RiffleIcons.QueueMusic, contentDescription = playlistsLabel) },
             )
         }
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
-            icon = { Icon(RiffleIcons.GridView, contentDescription = "All Books") },
+            icon = { Icon(RiffleIcons.GridView, contentDescription = allBooksLabel) },
         )
     }
 }
@@ -329,7 +348,7 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
                 onClick = onMenuClick,
                 modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
             ) {
-                Icon(RiffleIcons.Menu, contentDescription = "Open menu")
+                Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
             }
         },
     )
@@ -350,12 +369,19 @@ private fun HomeTabContent(
     // Resolved once outside the LazyColumn: `stringResource` inside an `item { }` would re-read
     // the resource table for every recycled row.
     val seeAll = stringResource(Res.string.ui_see_all)
+    val inProgress = stringResource(Res.string.ui_section_in_progress)
+    val continueSeries = stringResource(Res.string.ui_section_continue_series)
+    val recentlyAdded = stringResource(Res.string.ui_section_recently_added)
+    val completed = stringResource(Res.string.ui_section_completed)
+    val seriesLabel = stringResource(Res.string.ui_series)
+    val collectionsLabel = stringResource(Res.string.ui_collections)
+    val allBooksLabel = stringResource(Res.string.ui_all_books)
     CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             if (projection.inProgress.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "In Progress",
+                        title = inProgress,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
                         tag = sectionHeaderTag(LibrarySectionType.IN_PROGRESS),
@@ -366,7 +392,7 @@ private fun HomeTabContent(
             if (projection.continueSeries.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "Continue Series",
+                        title = continueSeries,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) },
                         tag = sectionHeaderTag(LibrarySectionType.CONTINUE_SERIES),
@@ -379,7 +405,7 @@ private fun HomeTabContent(
             if (showRecentlyAdded && projection.recentlyAdded.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "Recently Added",
+                        title = recentlyAdded,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
                         tag = sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED),
@@ -392,7 +418,7 @@ private fun HomeTabContent(
             if (projection.finished.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "Completed",
+                        title = completed,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.FINISHED) },
                         tag = sectionHeaderTag(LibrarySectionType.FINISHED),
@@ -401,15 +427,15 @@ private fun HomeTabContent(
                 item { HorizontalBookRow(items = projection.finished.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
             }
             if (projection.series.isNotEmpty()) {
-                item { SectionHeader(title = "Series", tag = "section-header-SERIES") }
+                item { SectionHeader(title = seriesLabel, tag = "section-header-SERIES") }
                 item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
             }
             if (projection.collections.isNotEmpty()) {
-                item { SectionHeader(title = "Collections", tag = "section-header-COLLECTIONS") }
+                item { SectionHeader(title = collectionsLabel, tag = "section-header-COLLECTIONS") }
                 item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
             }
             if (projection.allBooks.isNotEmpty()) {
-                item { SectionHeader(title = "All Books", tag = "section-header-ALL_BOOKS") }
+                item { SectionHeader(title = allBooksLabel, tag = "section-header-ALL_BOOKS") }
                 // A horizontal shelf like every other section, NOT the 600dp LazyVerticalGrid
                 // this used to nest here. A vertically scrolling grid inside a vertically
                 // scrolling column swallows the drag as soon as the finger lands on it, so the

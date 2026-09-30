@@ -24,8 +24,14 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookGrid
 import com.riffle.feature.designsystem.LocalCoversAreSquare
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_section_completed
+import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
+import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
+import com.riffle.feature.designsystem.generated.resources.ui_section_recently_added
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -68,10 +74,10 @@ fun LibrarySectionScreen(
             )
             BasicText(
                 text = when (sectionType) {
-                    LibrarySectionType.IN_PROGRESS -> "In Progress"
-                    LibrarySectionType.FINISHED -> "Completed"
-                    LibrarySectionType.RECENTLY_ADDED -> "Recently Added"
-                    LibrarySectionType.CONTINUE_SERIES -> "Continue Series"
+                    LibrarySectionType.IN_PROGRESS -> stringResource(Res.string.ui_section_in_progress)
+                    LibrarySectionType.FINISHED -> stringResource(Res.string.ui_section_completed)
+                    LibrarySectionType.RECENTLY_ADDED -> stringResource(Res.string.ui_section_recently_added)
+                    LibrarySectionType.CONTINUE_SERIES -> stringResource(Res.string.ui_section_continue_series)
                 },
                 style = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
             )

@@ -165,4 +165,28 @@
     <string name="ui_this_will_remove_all_downloaded_media_from_your_device">This will remove all downloaded media from your device.</string>
     <string name="ui_download_complete">Download complete</string>
     <string name="ui_download_failed">Download failed</string>
+    <!-- Downloads screen: screen title. Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_downloads">Downloads</string>
+    <!-- Downloads screen: section headers for pinned vs. cached media. Same keys as app/. -->
+    <string name="ui_downloaded">Downloaded</string>
+    <string name="ui_cached">Cached</string>
+    <!-- Downloads screen: empty state when neither section has content. -->
+    <string name="ui_no_downloaded_or_cached_items">No downloaded or cached items.</string>
+    <!-- Downloads screen: button label to remove all pinned downloads (no dialog title — use ui_remove_all_downloads for that). -->
+    <string name="ui_remove_all_downloads_action">Remove all downloads</string>
+    <!-- Downloads screen: button label to clear all cached items (no dialog title — use ui_clear_all_cached for that). -->
+    <string name="ui_clear_all_cached_action">Clear all cached</string>
+    <!-- Navigation: back button with a leading arrow. Same key and value as feature:design-system. -->
+    <string name="ui_back_with_arrow">← Back</string>
+    <!-- Item detail screen: loading placeholder. Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_loading">Loading…</string>
+    <!-- Item detail screen: error state when the item cannot be found. -->
+    <string name="ui_item_not_found">Item not found</string>
+    <!-- Item detail screen: primary action button to open the reader. Same key and value as app/. -->
+    <string name="ui_read">Read</string>
+    <!-- Item detail screen: to-read toggle states. -->
+    <string name="ui_in_to_read">In To-Read</string>
+    <string name="ui_add_to_to_read">Add to To-Read</string>
+    <!-- Item detail screen: offline status note. -->
+    <string name="ui_you_are_offline">You are offline</string>
 </resources>

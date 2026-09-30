@@ -24,8 +24,11 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookGrid
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_this_series
 import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.SeriesDetailViewModel
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -43,7 +46,7 @@ fun SeriesDetailScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText("No books in this series")
+                BasicText(stringResource(Res.string.ui_no_books_in_this_series))
             }
         } else {
             BookGrid(
