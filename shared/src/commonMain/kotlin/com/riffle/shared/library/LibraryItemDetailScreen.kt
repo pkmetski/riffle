@@ -1,6 +1,5 @@
 package com.riffle.shared.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,14 +11,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,14 +37,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.BookDownloadOutcome
 import com.riffle.feature.library.DownloadState
@@ -60,14 +68,8 @@ import org.koin.core.parameter.parametersOf
 
 private const val READ_PROGRESS_THRESHOLD = 0.99f
 
-private val TitleStyle = TextStyle(fontWeight = FontWeight.Bold, fontSize = 22.sp)
-private val AuthorStyle = TextStyle(fontSize = 16.sp, color = Color(0xFF666666))
-private val MetadataStyle = TextStyle(fontSize = 13.sp, color = Color(0xFF6650A4))
-private val ButtonTextStyle = TextStyle(
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 16.sp,
-    color = Color.White,
-)
+private val AuthorStyle = TextStyle(fontSize = 16.sp)
+private val MetadataStyle = TextStyle(fontSize = 13.sp)
 
 /**
  * The item detail sheet.
@@ -163,11 +165,12 @@ private fun FacetRow(
     onClick: (String) -> Unit,
 ) {
     if (values.isEmpty()) return
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         values.forEach { value ->
-            BasicText(
+            Text(
                 text = value,
                 style = style,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .testTag(TestTags.facet(value))
                     .clickable { onClick(value) },
@@ -179,7 +182,7 @@ private fun FacetRow(
 @Composable
 private fun LoadingContent() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        BasicText(text = "Loading…", style = TextStyle(fontSize = 16.sp, color = Color(0xFF888888)))
+        Text("Loading…", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -187,20 +190,9 @@ private fun LoadingContent() {
 private fun ErrorContent(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            BasicText(
-                text = "Item not found",
-                style = TextStyle(fontSize = 16.sp, color = Color(0xFF888888)),
-            )
+            Text("Item not found", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(16.dp))
-            BasicText(
-                text = "← Back",
-                style = TextStyle(
-                    fontSize = 16.sp,
-                    color = Color(0xFF6650A4),
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                modifier = Modifier.clickable(onClick = onBack),
-            )
+            TextButton(onClick = onBack) { Text("Back") }
         }
     }
 }
@@ -212,6 +204,7 @@ private fun ErrorContent(onBack: () -> Unit) {
  * screen mounts a download control at all — and whether a finished download says anything — is
  * not derivable from any pure function, and it is exactly the wiring that was missing.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReadyContent(
     state: LibraryItemDetailUiState.Ready,
@@ -241,27 +234,49 @@ internal fun ReadyContent(
         }
         previousDownloadState = downloadState
     }
-    RiffleMessageScaffold(messages) {
-        ReadyBody(
-            state = state,
-            token = token,
-            onBack = onBack,
-            onRead = onRead,
-            onToggleToRead = onToggleToRead,
-            onMarkAsRead = onMarkAsRead,
-            onMarkAsUnread = onMarkAsUnread,
-            downloadControls = downloadControls,
-            onAddToPlaylist = onAddToPlaylist,
-            onFacet = onFacet,
-        )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = state.item.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.testTag(TestTags.BOOK_DETAIL_BACK),
+                    ) {
+                        Icon(RiffleIcons.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        RiffleMessageScaffold(messages) {
+            ReadyBody(
+                modifier = Modifier.padding(innerPadding),
+                state = state,
+                token = token,
+                onRead = onRead,
+                onToggleToRead = onToggleToRead,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+                downloadControls = downloadControls,
+                onAddToPlaylist = onAddToPlaylist,
+                onFacet = onFacet,
+            )
+        }
     }
 }
 
 @Composable
 private fun ReadyBody(
+    modifier: Modifier = Modifier,
     state: LibraryItemDetailUiState.Ready,
     token: String,
-    onBack: () -> Unit,
     onRead: () -> Unit,
     onToggleToRead: () -> Unit,
     onMarkAsRead: () -> Unit = {},
@@ -271,35 +286,21 @@ private fun ReadyBody(
     onFacet: (FacetType, String) -> Unit,
 ) {
     val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicText(
-                text = "← Back",
-                style = TextStyle(
-                    fontSize = 16.sp,
-                    color = Color(0xFF6650A4),
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                modifier = Modifier
-                    .testTag(TestTags.BOOK_DETAIL_BACK)
-                    .clickable(onClick = onBack),
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // Cover — full-width on phones, capped on wide screens (tablet portrait).
         Box(
             modifier = Modifier
-                .width(160.dp)
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(8.dp))
+                .widthIn(max = 280.dp)
+                .aspectRatio(if (state.item.isAudiobookOnly) 1f else 2f / 3f)
+                .clip(RoundedCornerShape(4.dp))
                 .align(Alignment.CenterHorizontally),
         ) {
-            // The hero was the procedural placeholder even when the item had artwork —
-            // `shared/commonMain` had no image loader call site at all.
             CoverImage(
                 url = state.item.coverUrl,
                 token = token,
@@ -310,19 +311,81 @@ private fun ReadyBody(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // Audiobook duration / page count — same line Android's PublicationFactsLine renders.
+        PublicationFactsLine(state.item)
 
-        BasicText(
-            text = state.item.title,
-            style = TitleStyle,
+        if (state.item.readingProgress > 0f) {
+            LinearProgressIndicator(
+                progress = { state.item.readingProgress.coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(TestTags.BOOK_DETAIL_PROGRESS),
+            )
+        }
+
+        // Action buttons — matches Android's order: CTA row first, then title/metadata below.
+        Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = onRead,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(TestTags.BOOK_DETAIL_OPEN),
+            ) {
+                Text("Read")
+            }
+            OutlinedButton(
+                onClick = onToggleToRead,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(if (state.isInToRead) "In To-Read" else "To Read")
+            }
+        }
+
+        if (onAddToPlaylist != null) {
+            OutlinedButton(
+                onClick = onAddToPlaylist,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(TestTags.DETAIL_ADD_TO_PLAYLIST),
+            ) {
+                Text(PlaylistLabels.English.addToPlaylist)
+            }
+        }
+
+        if (state.capabilities.hasMarkRead) {
+            val isRead = state.item.readingProgress >= READ_PROGRESS_THRESHOLD
+            if (isRead) {
+                OutlinedButton(
+                    onClick = onMarkAsUnread,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(TestTags.BOOK_DETAIL_MARK_READ),
+                ) {
+                    Text("Mark as unread")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onMarkAsRead,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(TestTags.BOOK_DETAIL_MARK_READ),
+                ) {
+                    Text("Mark as read")
+                }
+            }
+        }
+
+        // Title and byline come AFTER the action row — matching Android's phone-portrait layout
+        // where the CTA is the primary visual, not the title.
+        Text(
+            text = state.item.title,
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.testTag(TestTags.BOOK_DETAIL_TITLE),
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // The byline is a facet drill-in, exactly as Android's `AuthorByline` is: tapping it
-        // lists every book by that author. Android splits a multi-author string on ", " when it
-        // matches (`facetMatches`), so each name is offered separately here too.
         FacetRow(
             values = state.item.author.split(", ").filter { it.isNotBlank() },
             style = AuthorStyle,
@@ -330,14 +393,19 @@ private fun ReadyBody(
         )
 
         state.item.seriesName?.takeIf { it.isNotBlank() }?.let { seriesName ->
-            Spacer(modifier = Modifier.height(4.dp))
-            BasicText(text = seriesName, style = MetadataStyle)
+            Text(
+                text = seriesName,
+                style = MetadataStyle.copy(color = MaterialTheme.colorScheme.primary),
+            )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        downloadControls()
 
-        // Genre / year / language chips — the same four facets Android's `MetadataLines` offers.
-        // Without them `FilteredBooksViewModel` has no iOS entry point at all (#1072 §1).
+        state.item.description?.takeIf { it.isNotBlank() }?.let { description ->
+            CollapsibleDescription(description)
+        }
+
+        // Genre / year / language chips — same facets Android's MetadataLines offers.
         FacetRow(
             values = state.item.genres,
             style = MetadataStyle,
@@ -354,110 +422,64 @@ private fun ReadyBody(
             onClick = { onFacet(FacetType.LANGUAGE, it) },
         )
 
-        if (state.item.readingProgress > 0f) {
-            Spacer(modifier = Modifier.height(12.dp))
-            LinearProgressIndicator(
-                progress = { state.item.readingProgress.coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(TestTags.BOOK_DETAIL_PROGRESS),
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF6650A4))
-                    .testTag(TestTags.BOOK_DETAIL_OPEN)
-                    .clickable(onClick = onRead),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(text = "Read", style = ButtonTextStyle)
-            }
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (state.isInToRead) Color(0xFF6650A4) else Color(0xFFEAE0F8))
-                    .clickable(onClick = onToggleToRead),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(
-                    text = if (state.isInToRead) "In To-Read" else "Add to To-Read",
-                    style = ButtonTextStyle.copy(
-                        color = if (state.isInToRead) Color.White else Color(0xFF6650A4),
-                    ),
-                )
-            }
-        }
-
-        if (onAddToPlaylist != null) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFEAE0F8))
-                    .testTag(TestTags.DETAIL_ADD_TO_PLAYLIST)
-                    .clickable(onClick = onAddToPlaylist),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(
-                    text = PlaylistLabels.English.addToPlaylist,
-                    style = ButtonTextStyle.copy(color = Color(0xFF6650A4)),
-                )
-            }
-        }
-
-        if (state.capabilities.hasMarkRead) {
-            val isRead = state.item.readingProgress >= READ_PROGRESS_THRESHOLD
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isRead) Color(0xFF6650A4) else Color(0xFFEAE0F8))
-                    .testTag(TestTags.BOOK_DETAIL_MARK_READ)
-                    .clickable(onClick = if (isRead) onMarkAsUnread else onMarkAsRead),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(
-                    text = if (isRead) "Mark as unread" else "Mark as read",
-                    style = ButtonTextStyle.copy(
-                        color = if (isRead) Color.White else Color(0xFF6650A4),
-                    ),
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        downloadControls()
-
-        state.item.description?.takeIf { it.isNotBlank() }?.let { description ->
-            Spacer(modifier = Modifier.height(16.dp))
-            CollapsibleDescription(description)
-        }
+        FormatLine(state.item.ebookFormat)
 
         if (state.isOffline) {
-            Spacer(modifier = Modifier.height(12.dp))
-            BasicText(
+            Text(
                 text = "You are offline",
-                style = TextStyle(fontSize = 13.sp, color = Color(0xFFAA8800)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
+    }
+}
+
+/** "EPUB", "PDF", or "CBZ" label — mirrors Android's `FormatLine`. */
+@Composable
+private fun FormatLine(format: EbookFormat) {
+    val label = when (format) {
+        EbookFormat.Epub -> "EPUB"
+        EbookFormat.Pdf -> "PDF"
+        EbookFormat.Cbz -> "CBZ"
+        EbookFormat.Unsupported -> return
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * Page count or audiobook duration — mirrors Android's `PublicationFactsLine` /
+ * `AudiobookDurationLine`. Skipped when no discrete count exists (EPUB reflowable text,
+ * audiobook-only without a duration).
+ */
+@Composable
+private fun PublicationFactsLine(item: LibraryItem) {
+    val text = when {
+        item.isAudiobookOnly && item.audioDurationSec > 0 -> formatAudioDuration(item.audioDurationSec)
+        item.ebookFormat == EbookFormat.Cbz || item.ebookFormat == EbookFormat.Pdf ->
+            item.pageCount?.takeIf { it > 0 }?.let { "$it pages" }
+        else -> null
+    } ?: return
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** Compact h/m format matching the pattern Android's `formatCompactDuration` produces. */
+private fun formatAudioDuration(durationSec: Double): String {
+    val total = durationSec.toLong().coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    return when {
+        h > 0 && m > 0 -> "${h}h ${m}m"
+        h > 0 -> "${h}h"
+        else -> "${m}m"
     }
 }
 
@@ -466,21 +488,22 @@ private fun CollapsibleDescription(description: String) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
+            text = "Summary",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
             text = description,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = if (expanded) Int.MAX_VALUE else 4,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = if (expanded) Int.MAX_VALUE else 5,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (description.length > 200) {
-            Text(
-                text = if (expanded) "Show less" else "Show more",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF6650A4),
-                modifier = Modifier
-                    .padding(top = 4.dp)
-                    .clickable { expanded = !expanded },
-            )
+        TextButton(
+            onClick = { expanded = !expanded },
+            modifier = Modifier.align(Alignment.Start),
+        ) {
+            Text(if (expanded) "Show less" else "Show more")
         }
     }
 }

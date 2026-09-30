@@ -1,6 +1,5 @@
 package com.riffle.shared.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,15 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
@@ -42,6 +47,7 @@ import com.riffle.shared.ReaderHost
 import com.riffle.shared.openItemForReading
 import org.koin.compose.koinInject
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RiffleScreen(
     onOpenDrawer: () -> Unit,
@@ -96,77 +102,74 @@ fun RiffleScreen(
     }
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("In Progress", "To Read", "Annotations")
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF8F8F8))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            BasicText(
-                text = "☰",
-                modifier = Modifier
-                    .testTag(TestTags.NAV_DRAWER_TOGGLE)
-                    .clickable { onOpenDrawer() }
-                    .padding(end = 16.dp),
-                style = TextStyle(fontSize = 18.sp),
+    // `RiffleViewModel.authTokenMap` is documented as "sourceId -> auth token for authenticated
+    // cover image loading" and had no iOS caller at all, because nothing on iOS loaded a cover.
+    // This screen spans sources, so each row resolves its own.
+    val tokenFor: (String) -> String = { sourceId -> viewModel.authTokenMap[sourceId].orEmpty() }
+    val openDetail: (sourceId: String, itemId: String) -> Unit = { sourceId, itemId ->
+        nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Riffle") },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onOpenDrawer,
+                        modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
+                    ) {
+                        Icon(RiffleIcons.Menu, contentDescription = "Open menu")
+                    }
+                },
             )
-            BasicText(
-                text = "Riffle",
-                style = TextStyle(fontSize = 18.sp),
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(modifier = Modifier.fillMaxWidth()) {
-            tabs.forEachIndexed { index, title ->
-                val tabTag = when (index) {
-                    0 -> TestTags.NAV_TAB_IN_PROGRESS
-                    1 -> TestTags.NAV_TAB_TO_READ
-                    else -> TestTags.NAV_TAB_ANNOTATIONS
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag(tabTag)
-                        .background(if (selectedTab == index) Color(0xFFE0E0E0) else Color.Transparent)
-                        .clickable { selectedTab = index }
-                        .padding(vertical = 12.dp, horizontal = 4.dp),
-                ) {
-                    BasicText(text = title, style = TextStyle(fontSize = 13.sp))
-                }
-            }
-        }
-        if (isOffline) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFBBDEFB))
-                    .padding(vertical = 6.dp, horizontal = 16.dp),
-            ) {
-                BasicText(
-                    text = "Offline — showing cached data",
-                    style = TextStyle(fontSize = 12.sp),
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(RiffleIcons.Home, contentDescription = null) },
+                    label = { Text("In Progress") },
+                    modifier = Modifier.testTag(TestTags.NAV_TAB_IN_PROGRESS),
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = null) },
+                    label = { Text("To Read") },
+                    modifier = Modifier.testTag(TestTags.NAV_TAB_TO_READ),
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = { Icon(RiffleIcons.Annotations, contentDescription = null) },
+                    label = { Text("Annotations") },
+                    modifier = Modifier.testTag(TestTags.NAV_TAB_ANNOTATIONS),
                 )
             }
-        }
-        val openDetail: (sourceId: String, itemId: String) -> Unit = { sourceId, itemId ->
-            nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
-        }
-        // `RiffleViewModel.authTokenMap` is documented as "sourceId -> auth token for
-        // authenticated cover image loading" and had no iOS caller at all, because nothing on
-        // iOS loaded a cover. This screen spans sources, so each row resolves its own.
-        val tokenFor: (String) -> String = { sourceId -> viewModel.authTokenMap[sourceId].orEmpty() }
-        when (selectedTab) {
-            0 -> IosInProgressTab(inProgress, continueSeries, tokenFor) { openDetail(it.sourceId, it.id) }
-            1 -> IosToReadTab(toRead, tokenFor) { openDetail(it.sourceId, it.id) }
-            // Same list the per-library Annotations tab renders — one composable, two hosts.
-            else -> AnnotationsTabContent(
-                state = AnnotationsListUiState(loading = false, books = annotations),
-                tokenFor = tokenFor,
-                onBookSelected = openDetail,
-            )
+        },
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            if (isOffline) {
+                Text(
+                    text = "Offline — showing cached data",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }
+            when (selectedTab) {
+                0 -> IosInProgressTab(inProgress, continueSeries, tokenFor) { openDetail(it.sourceId, it.id) }
+                1 -> IosToReadTab(toRead, tokenFor) { openDetail(it.sourceId, it.id) }
+                // Same list the per-library Annotations tab renders — one composable, two hosts.
+                else -> AnnotationsTabContent(
+                    state = AnnotationsListUiState(loading = false, books = annotations),
+                    tokenFor = tokenFor,
+                    onBookSelected = openDetail,
+                )
+            }
         }
     }
 }
@@ -181,9 +184,10 @@ private fun IosInProgressTab(
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         if (inProgress.isEmpty() && continueSeries.isEmpty()) {
             item {
-                BasicText(
+                Text(
                     text = "No books in progress",
-                    style = TextStyle(fontSize = 15.sp, color = Color.Gray),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
                 )
             }
@@ -206,9 +210,10 @@ private fun IosToReadTab(
     onItemSelected: (LibraryItem) -> Unit,
 ) {
     if (items.isEmpty()) {
-        BasicText(
+        Text(
             text = "No books in your to-read list",
-            style = TextStyle(fontSize = 15.sp, color = Color.Gray),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(16.dp),
         )
         return
@@ -220,9 +225,10 @@ private fun IosToReadTab(
 
 @Composable
 private fun SectionLabel(title: String) {
-    BasicText(
+    Text(
         text = title,
-        style = TextStyle(fontSize = 13.sp, color = Color.Gray),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
@@ -236,7 +242,6 @@ private fun ItemRow(item: LibraryItem, tokenFor: (String) -> String, onClick: (L
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The row used to be text only — no cover, not even the placeholder.
         Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
             CoverImage(
                 url = item.coverUrl,
@@ -249,9 +254,13 @@ private fun ItemRow(item: LibraryItem, tokenFor: (String) -> String, onClick: (L
             )
         }
         Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            BasicText(text = item.title, style = TextStyle(fontSize = 15.sp))
+            Text(text = item.title, style = MaterialTheme.typography.bodyMedium)
             if (item.author.isNotEmpty()) {
-                BasicText(text = item.author, style = TextStyle(fontSize = 13.sp, color = Color.Gray))
+                Text(
+                    text = item.author,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

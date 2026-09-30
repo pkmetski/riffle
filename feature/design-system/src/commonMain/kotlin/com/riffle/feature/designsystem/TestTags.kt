@@ -18,6 +18,7 @@ object TestTags {
 
     // ── Book detail ───────────────────────────────────────────────────────────
     const val BOOK_DETAIL_BACK = "book_detail_back"
+    const val BOOK_DETAIL_TITLE = "book_detail_title"
     const val BOOK_DETAIL_OPEN = "book_detail_open"
     const val BOOK_DETAIL_DOWNLOAD = "book_detail_download"
     const val BOOK_DETAIL_MARK_READ = "book_detail_mark_read"
