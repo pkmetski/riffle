@@ -16,7 +16,7 @@ class FigureZoomTest {
     // ── Parser ────────────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun parseImgPayloadReturnsHrefAndNaturalDimensions() {
+    fun `parse img payload returns href and natural dimensions`() {
         val json = """{"kind":"img","href":"images/fig1.jpg","w":800,"h":600}"""
         val parsed = FigureTapMessageParser.parse(json)
         assertNotNull(parsed)
@@ -27,7 +27,7 @@ class FigureZoomTest {
     }
 
     @Test
-    fun parseSvgPayloadReturnsSvgMarkupAndBlankHref() {
+    fun `parse svg payload returns markup and skips href`() {
         val svg = "<svg width='100' height='100'><rect width='100' height='100'/></svg>"
         val json = """{"kind":"svg","svg":"$svg","w":100,"h":100}"""
         val parsed = FigureTapMessageParser.parse(json)
@@ -46,45 +46,45 @@ class FigureZoomTest {
     }
 
     @Test
-    fun parseRejectsZeroSizedFigures() {
+    fun `parse rejects zero-sized figures`() {
         assertNull(FigureTapMessageParser.parse("""{"kind":"img","href":"a.png","w":0,"h":100}"""))
     }
 
     @Test
-    fun parseRejectsBlankInput() {
+    fun `parse rejects blank input`() {
         assertNull(FigureTapMessageParser.parse(null))
         assertNull(FigureTapMessageParser.parse(""))
         assertNull(FigureTapMessageParser.parse("not-json"))
     }
 
     @Test
-    fun parseRejectsImgWithoutHref() {
+    fun `parse rejects img without href`() {
         assertNull(FigureTapMessageParser.parse("""{"kind":"img","w":100,"h":100}"""))
     }
 
     @Test
-    fun parseRejectsSvgWithoutMarkup() {
+    fun `parse rejects svg without markup`() {
         assertNull(FigureTapMessageParser.parse("""{"kind":"svg","w":100,"h":100}"""))
     }
 
     // ── Fit-into-viewport ─────────────────────────────────────────────────────────────────────
 
     @Test
-    fun fitPrefersWidthForLandscapeImageOnPortraitViewport() {
+    fun `fit prefers width for landscape image on portrait viewport`() {
         val fit = fitImageIntoViewport(2000, 1000, viewportWidth = 800f, viewportHeight = 1600f)
         assertEquals(800, fit.width)
         assertEquals(400, fit.height)
     }
 
     @Test
-    fun fitPrefersHeightForPortraitImageOnLandscapeViewport() {
+    fun `fit prefers height for portrait image on landscape viewport`() {
         val fit = fitImageIntoViewport(500, 1000, viewportWidth = 1600f, viewportHeight = 800f)
         assertEquals(400, fit.width)
         assertEquals(800, fit.height)
     }
 
     @Test
-    fun fitReturnsEmptyOnDegenerateInputs() {
+    fun `fit returns empty on degenerate inputs`() {
         assertEquals(0, fitImageIntoViewport(0, 100, 100f, 100f).width)
         assertEquals(0, fitImageIntoViewport(100, 100, 0f, 100f).width)
     }
@@ -92,7 +92,7 @@ class FigureZoomTest {
     // ── PanZoom clamp ─────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun clampScaleToBounds() {
+    fun `clamp scale to bounds`() {
         val below = clampPanZoom(0.1f, 0f, 0f, 100f, 100f, 200f, 200f)
         assertApprox(1f, below.scale)
 
@@ -101,14 +101,14 @@ class FigureZoomTest {
     }
 
     @Test
-    fun clampForbidsPanWhenImageSmallerThanViewport() {
+    fun `clamp forbids pan when image smaller than viewport`() {
         val clamped = clampPanZoom(1f, 500f, -300f, 100f, 100f, 400f, 400f)
         assertApprox(0f, clamped.translationX)
         assertApprox(0f, clamped.translationY)
     }
 
     @Test
-    fun clampAllowsPanUpToHalfExcessWhenZoomed() {
+    fun `clamp allows pan up to half the excess when zoomed`() {
         val extreme = clampPanZoom(2f, 500f, 500f, 200f, 200f, 200f, 200f)
         assertApprox(100f, extreme.translationX)
         assertApprox(100f, extreme.translationY)
@@ -119,7 +119,7 @@ class FigureZoomTest {
     }
 
     @Test
-    fun clampAllowsModeratePansWithinBoundsUnchanged() {
+    fun `clamp allows moderate pans within bounds unchanged`() {
         val clamped = clampPanZoom(3f, 50f, -25f, 100f, 100f, 100f, 100f)
         assertTrue(clamped.translationX in -100f..100f)
         assertApprox(50f, clamped.translationX)
