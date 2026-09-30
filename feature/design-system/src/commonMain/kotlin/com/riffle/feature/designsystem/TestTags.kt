@@ -171,6 +171,7 @@ object TestTags {
     const val SNACKBAR_HOST = "RiffleSnackbarHost"
 
     // ── Library / playlist ────────────────────────────────────────────────────
+    const val SEE_MORE_TILE = "see_more_tile"
     fun collectionGridTile(id: String) = "collection_grid_tile_$id"
     const val ANNOTATION_SEARCH_SUBMIT = "annotation-search-submit"
     const val ANNOTATION_SEARCH_RESULTS = "annotation-search-results"
@@ -261,6 +262,9 @@ object TestTags {
     fun localFilesFolder(treeUri: Any) = "LocalFilesFolder.$treeUri"
     fun localFilesFolderRemove(treeUri: Any) = "LocalFilesFolder.Remove.$treeUri"
     const val LOCAL_FILES_CONFIRM_REMOVE_FOLDER = "LocalFilesSourceRow.ConfirmRemoveFolder"
+    const val KOFI_DRAWER_BUTTON = "kofi_drawer_button"
+    const val KOFI_NUDGE_SUPPORT = "kofi_nudge_support"
+    const val KOFI_NUDGE_NOT_NOW = "kofi_nudge_not_now"
     fun reorderableLibraryUp(libraryId: Any) = "ReorderableLibrary.Up.$libraryId"
     fun reorderableLibraryDown(libraryId: Any) = "ReorderableLibrary.Down.$libraryId"
 }

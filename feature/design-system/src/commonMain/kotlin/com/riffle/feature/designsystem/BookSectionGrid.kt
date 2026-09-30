@@ -1,6 +1,7 @@
 package com.riffle.feature.designsystem
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,6 +90,7 @@ fun CoverGridLayout(
     bottomPadding: Dp = 0.dp,
     content: @Composable (index: Int) -> Unit,
 ) {
+    require(columns > 0) { "columns must be > 0, got $columns" }
     val rows = (count + columns - 1) / columns
     Column(
         verticalArrangement = Arrangement.spacedBy(spacing),
@@ -126,7 +128,7 @@ fun CoverGridLayout(
 @Composable
 fun SeeMoreTile(overflowCount: Int, onClick: () -> Unit) {
     val dashColor = MaterialTheme.colorScheme.outline
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
+    Column(modifier = Modifier.testTag(TestTags.SEE_MORE_TILE).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
