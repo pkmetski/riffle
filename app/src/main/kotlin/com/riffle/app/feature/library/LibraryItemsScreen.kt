@@ -134,7 +134,10 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.BookSectionGrid
+import com.riffle.feature.designsystem.CoverGridLayout
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
+import com.riffle.feature.designsystem.SeeMoreTile
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.LocalCoverGridScale
 import com.riffle.feature.designsystem.LocalCoversAreSquare
@@ -658,32 +661,7 @@ fun CollectionsSectionGrid(
     }
 }
 
-// --- Generic adaptive cover grid layout ---
-
-@Composable
-private fun CoverGridLayout(
-    count: Int,
-    columns: Int,
-    spacing: Dp = 8.dp,
-    content: @Composable (index: Int) -> Unit,
-) {
-    val rows = (count + columns - 1) / columns
-    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-        for (row in 0 until rows) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-            ) {
-                for (col in 0 until columns) {
-                    val index = row * columns + col
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (index < count) content(index)
-                    }
-                }
-            }
-        }
-    }
-}
+// CoverGridLayout and SeeMoreTile live in :feature:design-system (BookSectionGrid.kt).
 
 // --- Cover tiles ---
 
@@ -811,40 +789,6 @@ private fun CollectionCoverImage(url: String?, token: String, modifier: Modifier
         contentScale = ContentScale.Crop,
         modifier = modifier,
     )
-}
-
-@Composable
-fun SeeMoreTile(overflowCount: Int, onClick: () -> Unit) {
-    val dashColor = MaterialTheme.colorScheme.outline
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(coverAspectRatio(LocalCoversAreSquare.current))
-                .clip(RoundedCornerShape(4.dp))
-                .drawBehind {
-                    val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 4.dp.toPx()), 0f)
-                    drawRoundRect(
-                        color = dashColor,
-                        cornerRadius = CornerRadius(4.dp.toPx()),
-                        style = Stroke(width = 1.5.dp.toPx(), pathEffect = dashEffect),
-                    )
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "+$overflowCount\nmore",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "",
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
 }
 
 // --- Search result rows (kept for search mode) ---
