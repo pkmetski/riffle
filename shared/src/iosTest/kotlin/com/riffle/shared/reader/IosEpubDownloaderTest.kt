@@ -95,7 +95,13 @@ class IosEpubDownloaderTest {
     private abstract class FakeCatalog : Catalog {
         override val sourceType: SourceType = SourceType.ABS
         override suspend fun listRoots(): List<CatalogRoot> = emptyList()
-        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun browse(
+            rootId: String,
+            sort: com.riffle.core.catalog.SortKey,
+            page: Int,
+            pageSize: Int,
+            facet: com.riffle.core.catalog.FacetSelection?,
+        ): List<CatalogItem> = emptyList()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not used in tests")

@@ -9,7 +9,6 @@ import kotlinx.coroutines.yield
 import platform.UIKit.UIViewController
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * Pins the edge-tap page-turn logic in [ReadiumSwiftNavigator].
@@ -31,8 +30,12 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         override fun setTapCallback(callback: ((TapCoords) -> Unit)?) {
             tapCallback = callback
         }
-        override fun goForward() { goForwardCalls++ }
-        override fun goBackward() { goBackwardCalls++ }
+        override fun goForward() {
+            goForwardCalls++
+        }
+        override fun goBackward() {
+            goBackwardCalls++
+        }
 
         override fun viewController(): UIViewController = UIViewController()
         override fun openEpub(filePath: String, locatorJson: String?) = Unit

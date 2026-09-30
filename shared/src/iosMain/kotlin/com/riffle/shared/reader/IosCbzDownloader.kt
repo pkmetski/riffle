@@ -25,7 +25,11 @@ interface AbsFileStreamer {
  * is open, so a multi-hundred-megabyte archive never has to sit in memory and progress can
  * be reported as bytes arrive (#1101).
  */
-class IosCbzDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) : AbsFileStreamer {
+class IosCbzDownloader(
+    private val httpClient: HttpClient,
+    private val sourceRepository: SourceRepository,
+    private val tokenStorage: TokenStorage,
+) : AbsFileStreamer {
     /**
      * Opens the item's file and hands the body channel plus its declared length (−1 when the
      * server sent none) to [sink]. Returns null when the source, token or file inode is missing
