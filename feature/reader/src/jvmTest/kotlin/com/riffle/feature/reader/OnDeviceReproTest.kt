@@ -1,9 +1,7 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import com.riffle.feature.reader.anchorRangeToSnippet
-import com.riffle.feature.reader.findEnclosedFiguresInHtml
+import kotlin.test.Test
+import kotlin.test.assertTrue
 
 class OnDeviceReproTest {
 
@@ -23,8 +21,8 @@ class OnDeviceReproTest {
         val (start, end) = anchorRangeToSnippet(html, snippet, textBefore, 0.1983744538679)
         val figures = findEnclosedFiguresInHtml(html, start, end)
         assertTrue(
-            "expected image_rsrc2H6.jpg in figures for range [$start,$end]: ${figures.map { it.href }}",
             figures.any { it.href?.endsWith("image_rsrc2H6.jpg") == true },
+            "expected image_rsrc2H6.jpg in figures for range [$start,$end]: ${figures.map { it.href }}",
         )
     }
 }

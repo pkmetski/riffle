@@ -5,6 +5,9 @@ import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.PdfOutlineNode
+import com.riffle.feature.reader.pdfOutlineToTocEntries
+import com.riffle.feature.reader.pdfOutlineToFlatRailEntries
 import com.riffle.feature.reader.buildPdfRailSegments
 import com.riffle.feature.reader.findActivePdfSegmentIndex
 import com.riffle.feature.reader.pdfProgressionWithinActiveSegment

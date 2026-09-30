@@ -49,6 +49,7 @@ import java.util.zip.ZipOutputStream
 import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
+import com.riffle.feature.reader.ContinuousPositionTracker
 
 /**
  * Device-level regression for the shape observed in "Taking Charge of ADHD": a long chapter,

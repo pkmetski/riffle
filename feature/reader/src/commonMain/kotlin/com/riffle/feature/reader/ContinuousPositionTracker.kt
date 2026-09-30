@@ -1,6 +1,6 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-internal object ContinuousPositionTracker {
+object ContinuousPositionTracker {
 
     data class ChapterSlot(val href: String, val top: Int, val height: Int)
 
@@ -134,20 +134,27 @@ internal object ContinuousPositionTracker {
         (targetY - viewportHeight / 2).coerceAtLeast(0)
 
     /**
+     * Volume-key scroll fraction: one viewport minus a small overlap so the seam line isn't
+     * skipped. Mirrors `ScrollBoundaryNavigationContainer.VOLUME_SCROLL_FRACTION` in :app —
+     * both constants must stay in sync so rapid presses feel identical in all reader modes.
+     */
+    private const val VOLUME_SCROLL_FRACTION = 0.9f
+
+    /**
      * Pixels to scroll for a volume-key "page" in continuous mode: one viewport minus overlap so the
      * line at the seam isn't skipped. Matches the volume-key delta in the paginated/vertical path
-     * via [ScrollBoundaryNavigationContainer.handleVolumeScroll] — keeping both modes on the same
+     * via `ScrollBoundaryNavigationContainer.handleVolumeScroll` — keeping both modes on the same
      * step size is what makes rapid presses feel identical instead of "faster" in one mode.
      * Returns 0 for a non-positive viewport.
      */
     fun pageScrollDelta(viewportHeightPx: Int): Int =
-        if (viewportHeightPx <= 0) 0 else (viewportHeightPx * ScrollBoundaryNavigationContainer.VOLUME_SCROLL_FRACTION).toInt()
+        if (viewportHeightPx <= 0) 0 else (viewportHeightPx * VOLUME_SCROLL_FRACTION).toInt()
 
     /** Bounds for [pageScrollDurationMs]; the max also sizes the [PageScrollCoalescer] validity
      *  window in [ContinuousWindowController] — a window slightly longer than a finished animation
      *  is harmless because the pending target then equals the settled scroll position. */
-    internal const val PAGE_SCROLL_MIN_DURATION_MS = 200
-    internal const val PAGE_SCROLL_MAX_DURATION_MS = 1000
+    const val PAGE_SCROLL_MIN_DURATION_MS = 200
+    const val PAGE_SCROLL_MAX_DURATION_MS = 1000
 
     /**
      * Animation speed for a volume-key page scroll: ms per √(CSS px). Chromium's own rate for

@@ -10,6 +10,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
 import com.riffle.feature.reader.AboveSlotCompensationGate
+import com.riffle.feature.reader.ContinuousPositionTracker
 import org.readium.r2.shared.publication.Publication
 
 /**

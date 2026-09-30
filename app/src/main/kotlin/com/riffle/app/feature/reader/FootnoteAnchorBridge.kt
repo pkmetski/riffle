@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.webkit.JavascriptInterface
+import com.riffle.feature.reader.ContinuousScriptInjector
 
 // JS bridge that intercepts taps on in-document anchors before the browser
 // scrolls to the fragment. Works around Readium 3.0.0's broken footnote popup:

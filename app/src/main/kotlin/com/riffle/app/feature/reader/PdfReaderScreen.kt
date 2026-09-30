@@ -65,6 +65,7 @@ import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.ui.ChapterNavigationRail
 import com.riffle.feature.reader.ui.chapterRailProgressPercent
 import com.riffle.feature.reader.ui.formatTemplate
+import com.riffle.feature.reader.pdfActiveHref
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel

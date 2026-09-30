@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.renderer
 
+import com.riffle.feature.reader.ContinuousScriptInjector
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 

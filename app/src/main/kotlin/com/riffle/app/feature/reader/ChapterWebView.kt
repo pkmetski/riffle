@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.annotation.SuppressLint
+import com.riffle.feature.reader.ContinuousScriptInjector
 import android.content.Context
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -12,6 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.reader.FigureTapScript
+import com.riffle.feature.reader.ContinuousPositionTracker
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
