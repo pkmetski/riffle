@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -293,11 +294,12 @@ private fun ReadyBody(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Cover — full-width, matching Android's phone-portrait "full-bleed" rule.
-        // Tablet portrait will need a widthIn(max=280dp) cap when iOS tablet layout is supported.
+        // Cover — full-width up to a 280dp height cap so it never consumes the entire viewport.
+        // Tablet portrait will need a dedicated widthIn cap when iOS tablet layout is supported.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = 280.dp)
                 .aspectRatio(if (state.item.isAudiobookOnly) 1f else 2f / 3f)
                 .clip(RoundedCornerShape(4.dp)),
         ) {
