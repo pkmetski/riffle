@@ -70,23 +70,14 @@ class ConnectivityReconcileTest {
     }
 
     @Test
-    fun `foreground poll rescues stuck-online tracker on Android 13 dropped onLost`() {
-        // The regression the user reported on an Android 13 device: airplane mode ON while the
-        // library screen is in the foreground. The OS drops the `onLost` for the single
-        // qualifying network entirely — not just one-of-two, the only one — so the tracker
-        // remains non-empty and the banner never appears until the user navigates to a
-        // different library and forces a fresh refresh in a new ViewModel.
+    fun `foreground poll rescues stuck-online tracker via null activeNetwork`() {
+        // The dropped-onLost scenario: airplane mode ON while the library screen is in the
+        // foreground. The OS drops the `onLost` for the single qualifying network, so the tracker
+        // remains non-empty and thinks we're online. On AOSP Android 13+, `activeNetwork` becomes
+        // null quickly after going offline, so the poll's `reconcileOnline(trackerStillOnline,
+        // hasActiveNetwork = false)` correctly vetoes and emits offline.
         //
-        // Neither the callback-driven path nor the ON_START sweep can rescue this: no callback
-        // fires (dropped), and ON_START only fires on background→foreground transitions
-        // (irrelevant while the user is sitting on the screen).
-        //
-        // The foreground poll inside `ConnectivityObserverImpl` closes this gap: every
-        // POLL_INTERVAL_MS it calls `emitReconciled(tracker.isOnline())`, which threads through
-        // this predicate with a FRESH `activeNetwork` read. Airplane on → `activeNetwork == null`
-        // → veto fires → offline. This test captures the exact tracker+activeNetwork state that
-        // the poll observes at that moment. Do not delete it if the poll is refactored — rewire
-        // the assertion to the new mechanism.
+        // Do not delete if the poll is refactored — rewire to the new mechanism.
         val tracker = ValidatedNetworkTracker<String>()
         tracker.onAvailable("wifi")
         val trackerStillOnline = tracker.isOnline()
@@ -95,6 +86,75 @@ class ConnectivityReconcileTest {
         assertFalse(
             "The poll's fresh activeNetwork read (null after airplane on) must veto to offline",
             reconcileOnline(trackerStillOnline, hasActiveNetwork = false),
+        )
+    }
+
+    @Test
+    fun `foreground poll rescues stuck-online tracker via currentOnline returning false`() {
+        // When the poll's `currentOnline()` scan finds NO qualifying physical network (all physical
+        // networks are gone, or the only network is a VPN the tracker never recorded), `currentOnline()`
+        // returns false and the poll calls `tracker.clear()`. This covers both:
+        //   - AOSP Android 13+: OS nulls `activeNetwork` → currentOnline() = false via null check
+        //   - Samsung / VPN split-tunnel: physical networks gone but VPN handle stays alive;
+        //     currentOnline() iterates allNetworks and finds no qualifying physical network → false
+        // Either way, poll clears the tracker → offline emitted despite `activeNetwork` being non-null.
+        val tracker = ValidatedNetworkTracker<String>()
+        tracker.onAvailable("wifi")
+        assertTrue("Tracker still thinks online before clear", tracker.isOnline())
+
+        // currentOnline() returned false → poll calls tracker.clear()
+        val afterClear = tracker.clear()
+
+        assertFalse("Tracker must be empty after clear", afterClear)
+        assertFalse(
+            "reconcileOnline with cleared tracker and any activeNetwork value must be offline",
+            reconcileOnline(afterClear, hasActiveNetwork = true),
+        )
+    }
+
+    @Test
+    fun `VPN network does not qualify and is excluded from tracker`() {
+        // Tailscale and other VPN tunnels (TRANSPORT_VPN) remain alive in airplane mode at the
+        // kernel level — their tun interface, link addresses, and capabilities are unchanged
+        // whether or not the VPN can relay traffic. They must never enter the tracker, so that
+        // a physical-network onLost (which Samsung DOES fire) empties the tracker correctly.
+        assertFalse(
+            "VPN network must not qualify even with INTERNET capability",
+            isQualifyingNetwork(hasInternet = true, hasValidated = true, isVpn = true),
+        )
+    }
+
+    @Test
+    fun `physical network qualifies when not VPN`() {
+        assertTrue(
+            "Physical network with INTERNET must qualify",
+            isQualifyingNetwork(hasInternet = true, hasValidated = false, isVpn = false),
+        )
+    }
+
+    @Test
+    fun `VPN airplane mode scenario end-to-end via tracker`() {
+        // Samsung + Tailscale regression reproduction:
+        // 1. Device is online; both a physical network (WiFi) and Tailscale VPN are present.
+        // 2. The VPN is EXCLUDED from the tracker (filtered in onAvailable by TRANSPORT_VPN check).
+        // 3. User enables airplane mode: physical onLost fires (Samsung DOES deliver this), VPN onLost
+        //    is dropped (Samsung doesn't fire it). Tracker removes only the physical network.
+        // 4. Tracker is now empty → offline correctly detected, regardless of VPN still being alive.
+        val tracker = ValidatedNetworkTracker<String>()
+
+        // VPN is never added (filtered out in onAvailable)
+        // Physical WiFi is added
+        tracker.onAvailable("wifi")
+        assertTrue("Online with wifi in tracker", tracker.isOnline())
+
+        // Airplane mode: Samsung delivers onLost for wifi but drops it for the VPN (which wasn't
+        // in the tracker anyway). Tracker removes wifi → empty.
+        val trackerAfterWifiLost = tracker.onLost("wifi")
+
+        assertFalse("Tracker must be empty after wifi lost", trackerAfterWifiLost)
+        assertFalse(
+            "Offline must be emitted even though VPN activeNetwork is still non-null",
+            reconcileOnline(trackerAfterWifiLost, hasActiveNetwork = true),
         )
     }
 

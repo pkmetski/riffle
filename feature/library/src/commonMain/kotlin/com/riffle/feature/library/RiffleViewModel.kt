@@ -14,6 +14,8 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -41,6 +44,10 @@ class RiffleViewModel constructor(
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val offlineAvailability: LibraryItemOfflineAvailability,
+    // Tests that use runComposeUiTest set this to the test dispatcher so that advanceTimeBy
+    // fires the probe. Tests that use runComposeUiTest leave the default so that the compose
+    // awaitIdle() pump does not advance the probe's real-time delay and hang.
+    internal val probeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     // Tracks which sourceIds currently have a failing To Read refresh. A Set (rather than a single
@@ -59,12 +66,14 @@ class RiffleViewModel constructor(
         !online || failedIds.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    // When the device is truly offline (no network), surface ALL locally-available items so the
-    // user can read anything they've downloaded regardless of whether they've started it before.
-    // When online (even with a failing server refresh), show the standard in-progress list only.
+    // Gate inProgress and continueSeries on the combined isOffline signal (connectivity observer
+    // AND _failedSourceIds) rather than directly on connectivityObserver.isOnline. On Android 13+
+    // the OS can silently drop the onLost callback, leaving isOnline stuck at true for up to 15s.
+    // After the refreshForSource fix, _failedSourceIds is non-empty only on genuine network
+    // failures — the same condition that makes items unplayable — so isOffline is the correct gate.
     val inProgress: StateFlow<List<LibraryItem>> =
-        connectivityObserver.isOnline.flatMapLatest { online ->
-            if (online) {
+        isOffline.flatMapLatest { offline ->
+            if (!offline) {
                 libraryObserver.observeInProgressItemsAllSources()
             } else {
                 libraryObserver.observeAllLibraryItemsAllSources()
@@ -73,8 +82,8 @@ class RiffleViewModel constructor(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val continueSeries: StateFlow<List<LibraryItem>> =
-        connectivityObserver.isOnline.flatMapLatest { online ->
-            if (online) {
+        isOffline.flatMapLatest { offline ->
+            if (!offline) {
                 libraryObserver.observeContinueSeriesItemsAllSources()
             } else {
                 flowOf(emptyList())
@@ -123,7 +132,10 @@ class RiffleViewModel constructor(
         // collectLatest cancels the previous block (and all its children) whenever a new emission
         // arrives, preventing coroutine accumulation across source-list changes.
         viewModelScope.launch {
-            sourceRepository.observeAll().collectLatest { sources ->
+            // distinctUntilChanged suppresses Room Flow re-emissions with identical source lists,
+            // preventing _failedSourceIds from being spuriously cleared when the DB table changes
+            // but the query result (the set of configured sources) stays the same.
+            sourceRepository.observeAll().distinctUntilChanged().collectLatest { sources ->
                 _failedSourceIds.value = emptySet()
                 authTokenMap = coroutineScope {
                     sources.associate { source ->
@@ -161,7 +173,9 @@ class RiffleViewModel constructor(
         // Continuously poll while any source is failing and the device is online. On
         // offline→online transition shouldPoll flips to true and retryFailedSources() fires
         // immediately (no separate collectReconnects block needed — collectLatest handles it).
-        viewModelScope.launch {
+        // probeDispatcher keeps these loops off Dispatchers.Main so runComposeUiTest's
+        // awaitIdle() does not advance their delays and create an infinite loop in tests.
+        viewModelScope.launch(probeDispatcher) {
             combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
                 failed.isNotEmpty() && online
             }.collectLatest { shouldPoll ->
@@ -170,6 +184,26 @@ class RiffleViewModel constructor(
                     while (true) {
                         delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
                         retryFailedSources()
+                    }
+                }
+            }
+        }
+        // Periodically probe server reachability even when all sources are healthy and the device
+        // appears online. This catches the Samsung One UI / Android 17 airplane-mode scenario
+        // where the OS drops `onLost` for every network but keeps the `activeNetwork` handle alive
+        // with NET_CAPABILITY_INTERNET=true — so `connectivityObserver.isOnline` stays stuck at
+        // true. Without the probe, `_failedSourceIds` stays empty (last refresh succeeded before
+        // going offline) and `isOffline` never flips. The probe calls `refreshForSource` for every
+        // known source; on failure it populates `_failedSourceIds`, which flips `isOffline` and
+        // hands off to the retry loop above.
+        viewModelScope.launch(probeDispatcher) {
+            combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
+                failed.isEmpty() && online
+            }.collectLatest { shouldProbe ->
+                if (shouldProbe) {
+                    while (true) {
+                        delay(CONNECTIVITY_PROBE_INTERVAL_MS)
+                        probeAllSources()
                     }
                 }
             }
@@ -199,7 +233,27 @@ class RiffleViewModel constructor(
         }
     }
 
+    private suspend fun probeAllSources() {
+        val sources = sourceRepository.observeAll().first()
+        supervisorScope {
+            sources.forEach { source ->
+                launch {
+                    val libraries = libraryObserver.observeLibraries(source.id).first()
+                    val anyFailed = libraries.map { library ->
+                        async {
+                            runCatching {
+                                toReadRepository.refreshForSource(source.id, library.id)
+                            }.getOrDefault(false)
+                        }
+                    }.any { !it.await() }
+                    if (anyFailed) _failedSourceIds.update { it + source.id }
+                }
+            }
+        }
+    }
+
     companion object {
         internal const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
+        internal const val CONNECTIVITY_PROBE_INTERVAL_MS = 15_000L
     }
 }
