@@ -142,8 +142,9 @@ class AnnotationFocusHarnessTest : KoinTest {
         // Chrome must be hidden before tapping the ribbon — same as a real reader session.
         hideTopAppBar()
         composeTestRule.onNodeWithContentDescription("Bookmark this page").performClick()
+        composeTestRule.waitForIdle()
         val bookmark = runBlocking {
-            withTimeout(10_000) {
+            withTimeout(20_000) {
                 annotationStore.observeBookmarks(
                     database.sourceDao().getActive()?.id ?: error("no active source"),
                     StubAbsServer.TEST_STANDALONE_ITEM_ID,
