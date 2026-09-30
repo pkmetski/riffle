@@ -83,9 +83,8 @@ jobs:
     runs-on: macos-15
     # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
     # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
-    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 matches the harness
-    # job's ceiling and is a hard safety cap, not a per-test wait.
-    timeout-minutes: 50
+    # well past that. 35 min was too tight (killed mid-run on a slow runner); 40 is the current cap.
+    timeout-minutes: 40
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -302,10 +301,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: macos-15
-    # 65 min: a healthy run takes ~38–42 min of test execution + ~11 min Xcode build + ~3 min boot.
-    # The previous 50-min budget was exhausted as the suite grew (last overrun: 52 min). The hard
-    # per-test instrumentation timeout catches any genuinely hung test long before 65 min.
-    timeout-minutes: 65
+    timeout-minutes: 45
     concurrency:
       group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
