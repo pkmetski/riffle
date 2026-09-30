@@ -17,6 +17,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
 
@@ -25,6 +26,13 @@ class WebDavAnnotationSyncTargetTest {
     // ===== Test helpers =====
 
     private val BASE = "http://dav.test"
+
+    private val testDispatchers = object : com.riffle.core.domain.DispatcherProvider {
+        override val main get() = Dispatchers.Unconfined
+        override val mainImmediate get() = Dispatchers.Unconfined
+        override val io get() = Dispatchers.Unconfined
+        override val default get() = Dispatchers.Unconfined
+    }
 
     private fun xmlHeaders() = headersOf(HttpHeaders.ContentType, "text/xml")
 
@@ -46,7 +54,7 @@ class WebDavAnnotationSyncTargetTest {
             username = username,
             password = password,
             client = HttpClient(engine),
-            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+            dispatchers = testDispatchers,
         )
         return engine to target
     }
@@ -58,7 +66,7 @@ class WebDavAnnotationSyncTargetTest {
             username = "u",
             password = "p",
             client = HttpClient(failEngine),
-            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+            dispatchers = testDispatchers,
         )
     }
 
