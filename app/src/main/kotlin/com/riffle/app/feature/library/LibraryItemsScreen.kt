@@ -134,15 +134,14 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.BookCoverTile
-import com.riffle.feature.designsystem.BookSectionGrid
 import com.riffle.feature.designsystem.CoverGridLayout
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
-import com.riffle.feature.designsystem.SeeMoreTile
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.LocalCoverGridScale
 import com.riffle.feature.designsystem.LocalCoversAreSquare
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.SeeMoreTile
 import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.designsystem.coverAspectRatio
 import com.riffle.feature.designsystem.coverGridMinCell
@@ -660,8 +659,6 @@ fun CollectionsSectionGrid(
         }
     }
 }
-
-// CoverGridLayout and SeeMoreTile live in :feature:design-system (BookSectionGrid.kt).
 
 // --- Cover tiles ---
 
