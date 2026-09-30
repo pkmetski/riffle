@@ -501,7 +501,7 @@ class AnnotationFocusHarnessTest : KoinTest {
      * position to stop changing for [quietMs]. This prevents a false-stable result when Readium
      * hasn't fired its scroll yet on slow CI runners.
      */
-    private fun waitForWebViewScrollQuiet(quietMs: Long = 400, timeoutMs: Long = 8_000) {
+    private fun waitForWebViewScrollQuiet(quietMs: Long = 400, timeoutMs: Long = 16_000) {
         // Track BOTH axes: paginated mode uses scrollLeft (horizontal columns), vertical mode uses
         // scrollTop. Checking only scrollLeft caused a false-stable verdict in vertical mode because
         // scrollLeft never changes there, causing the function to return before Readium fired its scroll.
