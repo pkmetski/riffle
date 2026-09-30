@@ -1,3 +1,5 @@
+// JVM-only: exercises javax.net.ssl.SSLException, which has no KMP equivalent.
+// The iOS actual of isWebDavTlsFailure uses message-text matching instead.
 package com.riffle.core.sources.webdav
 
 import io.ktor.client.HttpClient
