@@ -8,15 +8,17 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.Url
 import io.ktor.utils.io.ByteReadChannel
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
-import org.junit.Test
-import java.util.Base64
+import kotlinx.io.IOException
 
 class WebDavAnnotationSyncTargetTest {
 
@@ -25,7 +27,6 @@ class WebDavAnnotationSyncTargetTest {
     private val BASE = "http://dav.test"
 
     private fun xmlHeaders() = headersOf(HttpHeaders.ContentType, "text/xml")
-    private fun textHeaders() = headersOf(HttpHeaders.ContentType, "text/plain")
 
     private data class Stub(val body: String, val status: HttpStatusCode = HttpStatusCode.OK)
 
@@ -61,8 +62,9 @@ class WebDavAnnotationSyncTargetTest {
         )
     }
 
+    @OptIn(ExperimentalEncodingApi::class)
     private fun basicAuth(user: String, pass: String): String =
-        "Basic " + Base64.getEncoder().encodeToString("$user:$pass".toByteArray(Charsets.UTF_8))
+        "Basic " + Base64.encode("$user:$pass".encodeToByteArray())
 
     // ===== read() =====
 
@@ -127,7 +129,7 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.url.encodedPath)
         assertEquals(basicAuth(USER, PASS), req.headers[HttpHeaders.Authorization])
         val ct = req.body.contentType?.toString() ?: ""
-        assertTrue("Content-Type should be JSON-LD, was $ct", ct.contains("application/ld+json"))
+        assertTrue(ct.contains("application/ld+json"), "Content-Type should be JSON-LD, was $ct")
     }
 
     @Test fun `write issues a single PUT — flat layout means no MKCOL chain`() = runTest {
@@ -175,7 +177,7 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals("1", req.headers["Depth"])
     }
 
-    @Test fun `list returns empty when directory absent (404)`() = runTest {
+    @Test fun `list returns empty when directory absent on 404`() = runTest {
         val (_, target) = buildTarget(Stub("", HttpStatusCode.NotFound))
 
         assertEquals(emptyList<String>(), target.list("srv1", "book1"))
@@ -238,7 +240,7 @@ class WebDavAnnotationSyncTargetTest {
 
         for (req in engine.requestHistory) {
             val ua = req.headers[HttpHeaders.UserAgent] ?: ""
-            assertTrue("expected Finder UA on ${req.method.value} ${req.url.encodedPath}, was \"$ua\"", ua.startsWith("WebDAVFS/"))
+            assertTrue(ua.startsWith("WebDAVFS/"), "expected Finder UA on ${req.method.value} ${req.url.encodedPath}, was \"$ua\"")
         }
     }
 
@@ -279,7 +281,7 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test fun `testConnection returns NetworkError when host unreachable`() = runTest {
-        val target = makeTargetWithFailingClient(java.io.IOException("connection refused"))
+        val target = makeTargetWithFailingClient(IOException("connection refused"))
 
         assertTrue(target.testConnection() is TestConnectionResult.NetworkError)
     }
@@ -297,7 +299,7 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals(basicAuth(USER, PASS), req.headers[HttpHeaders.Authorization])
     }
 
-    @Test fun `delete is a no-op on 404 (file already gone)`() = runTest {
+    @Test fun `delete is a no-op on 404 file already gone`() = runTest {
         val (_, target) = buildTarget(Stub("", HttpStatusCode.NotFound))
 
         // Should not throw.
@@ -396,24 +398,13 @@ class WebDavAnnotationSyncTargetTest {
     // ===== error propagation =====
 
     @Test fun `list wraps IOException as NetworkError`() = runTest {
-        val target = makeTargetWithFailingClient(java.io.IOException("connection reset"))
+        val target = makeTargetWithFailingClient(IOException("connection reset"))
 
         try {
             target.list("namespace-1", "item-1")
             fail("expected NetworkError")
         } catch (e: AnnotationSyncException.NetworkError) {
             assertTrue(e.message!!.contains("connection reset"))
-        }
-    }
-
-    @Test fun `list wraps SSLException as TlsError`() = runTest {
-        val target = makeTargetWithFailingClient(javax.net.ssl.SSLException("cert untrusted"))
-
-        try {
-            target.list("namespace-1", "item-1")
-            fail("expected TlsError")
-        } catch (e: AnnotationSyncException.TlsError) {
-            assertTrue(e.message!!.contains("cert untrusted"))
         }
     }
 
@@ -436,8 +427,8 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals("/annotations/${ABS_UUID}__book1__annotations-dev-legacy.jsonld", move.url.encodedPath)
         val dest = move.headers["Destination"] ?: ""
         assertTrue(
-            "Destination must point at the abs_ path, was $dest",
             dest.endsWith("/annotations/abs_${ABS_UUID}__book1__annotations-dev-legacy.jsonld"),
+            "Destination must point at the abs_ path, was $dest",
         )
         assertEquals("F", move.headers["Overwrite"])
     }
@@ -447,7 +438,7 @@ class WebDavAnnotationSyncTargetTest {
 
         target.list("abs_$ABS_UUID", "book1")
 
-        assertEquals("only PROPFIND should have fired", 1, engine.requestHistory.size)
+        assertEquals(1, engine.requestHistory.size, "only PROPFIND should have fired")
     }
 
     @Test fun `MOVE returning 404 still surfaces the file under the new namespace`() = runTest {
@@ -493,10 +484,10 @@ class WebDavAnnotationSyncTargetTest {
         val move = engine.requestHistory[1]
         assertEquals("MOVE", move.method.value)
         assertTrue(
-            "must migrate the ABS file, not the komga file",
             move.url.encodedPath.startsWith("/annotations/${ABS_UUID}__"),
+            "must migrate the ABS file, not the komga file",
         )
-        assertEquals("no second MOVE for the komga file", 2, engine.requestHistory.size)
+        assertEquals(2, engine.requestHistory.size, "no second MOVE for the komga file")
     }
 
     companion object {

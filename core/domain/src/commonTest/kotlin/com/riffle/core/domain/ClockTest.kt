@@ -1,11 +1,9 @@
 package com.riffle.core.domain
-import com.riffle.core.common.Clock
 
+import com.riffle.core.common.platformSystemClock
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.test.Test
-import com.riffle.core.common.SystemClock
-import com.riffle.core.domain.TestClock
 
 class ClockTest {
 
@@ -30,9 +28,9 @@ class ClockTest {
     }
 
     @Test
-    fun `SystemClock returns monotonically non-decreasing nanos`() {
-        val first = SystemClock.nowNs()
-        val second = SystemClock.nowNs()
+    fun `platformSystemClock returns monotonically non-decreasing nanos`() {
+        val first = platformSystemClock.nowNs()
+        val second = platformSystemClock.nowNs()
         // nanoTime is monotonic; same-tick reads tie, never regress.
         assertTrue(second >= first, "expected monotonic nanos, got first=$first second=$second")
     }
