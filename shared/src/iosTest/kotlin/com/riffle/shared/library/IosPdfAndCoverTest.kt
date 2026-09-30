@@ -1,24 +1,16 @@
 package com.riffle.shared.library
 
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
-import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respondOk
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
@@ -80,26 +72,14 @@ class IosPdfAndCoverTest {
         override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) = Unit
     }
 
-    private object NoopSourceRepository : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
-        override suspend fun getActive(): Source? = null
-        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-            CommitSourceResult.Failure(UnsupportedOperationException())
-        override suspend fun setActive(sourceId: String) = Unit
-        override suspend fun remove(sourceId: String) = Unit
-        override suspend fun getSourceVersion(sourceId: String): String? = null
+    private object NoopCatalogRegistry : CatalogRegistry {
+        override suspend fun forActive() = null
+        override suspend fun forSource(source: Source) = null
+        override suspend fun forSourceId(sourceId: String) = null
     }
-
-    private object NoopTokenStorage : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) = Unit
-        override suspend fun getToken(sourceId: String): String? = null
-        override suspend fun deleteToken(sourceId: String) = Unit
-    }
-
-    private val unusedClient = HttpClient(MockEngine { respondOk() })
 
     private fun pdfRepo(fileStore: FileStore) =
-        IosPdfRepositoryImpl(NoopPositionStore, fileStore, NoopSourceRepository, NoopTokenStorage, unusedClient)
+        IosPdfRepositoryImpl(NoopPositionStore, fileStore, NoopCatalogRegistry)
 
     private fun writeFile(path: String, bytes: ByteArray): Boolean {
         val data = bytes.usePinned { pinned ->
