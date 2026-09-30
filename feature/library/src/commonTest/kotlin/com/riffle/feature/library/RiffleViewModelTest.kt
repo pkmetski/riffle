@@ -519,6 +519,7 @@ class RiffleViewModelTest {
         annotationsLibraryRepository = annotationsRepo,
         connectivityObserver = connectivity,
         offlineAvailability = offlineAvailability,
+        probeDispatcher = dispatcher,
     )
 
     private fun fakeObserver(

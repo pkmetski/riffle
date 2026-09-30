@@ -14,6 +14,8 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -42,6 +44,10 @@ class RiffleViewModel constructor(
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val offlineAvailability: LibraryItemOfflineAvailability,
+    // Tests that use runComposeUiTest set this to the test dispatcher so that advanceTimeBy
+    // fires the probe. Tests that use runComposeUiTest leave the default so that the compose
+    // awaitIdle() pump does not advance the probe's real-time delay and hang.
+    internal val probeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     // Tracks which sourceIds currently have a failing To Read refresh. A Set (rather than a single
@@ -167,7 +173,9 @@ class RiffleViewModel constructor(
         // Continuously poll while any source is failing and the device is online. On
         // offline→online transition shouldPoll flips to true and retryFailedSources() fires
         // immediately (no separate collectReconnects block needed — collectLatest handles it).
-        viewModelScope.launch {
+        // probeDispatcher keeps these loops off Dispatchers.Main so runComposeUiTest's
+        // awaitIdle() does not advance their delays and create an infinite loop in tests.
+        viewModelScope.launch(probeDispatcher) {
             combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
                 failed.isNotEmpty() && online
             }.collectLatest { shouldPoll ->
@@ -188,7 +196,7 @@ class RiffleViewModel constructor(
         // going offline) and `isOffline` never flips. The probe calls `refreshForSource` for every
         // known source; on failure it populates `_failedSourceIds`, which flips `isOffline` and
         // hands off to the retry loop above.
-        viewModelScope.launch {
+        viewModelScope.launch(probeDispatcher) {
             combine(_failedSourceIds, connectivityObserver.isOnline) { failed, online ->
                 failed.isEmpty() && online
             }.collectLatest { shouldProbe ->
