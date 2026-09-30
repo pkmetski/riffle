@@ -470,7 +470,7 @@ private fun iosLibraryModule(
 
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
-    single { IosEpubDownloader(get(), get(), get(), get()) }
+    single { IosEpubDownloader(get(), get()) }
     single<IosPublicationInspector> { publicationInspector }
     single { TocRepositoryImpl(get(), get()) }
     single<TocRepository> { get<TocRepositoryImpl>() }
@@ -852,7 +852,7 @@ private fun iosLibraryModule(
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
     single<EpubRepository> {
-        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), sourceRepository = get(), tokenStorage = get(), httpClient = get())
+        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
     single { IosPdfRepositoryImpl(get(), get(), get(), get(), get()) }
@@ -903,6 +903,7 @@ private fun iosLibraryModule(
                 tokenStorage = get(),
                 deviceIdStore = get(),
                 clock = get(),
+                httpClient = get(),
             ),
             SourceType.KOMGA to KomgaCatalogFactory(
                 httpClient = get(),

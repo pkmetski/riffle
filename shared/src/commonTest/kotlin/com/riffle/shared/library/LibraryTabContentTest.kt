@@ -11,9 +11,9 @@ import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibraryProjection
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists

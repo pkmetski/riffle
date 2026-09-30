@@ -22,6 +22,9 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
@@ -131,6 +134,7 @@ class AbsProgressReachesTheSourceTest {
                     tokenStorage = FakeTokenStorage,
                     deviceIdStore = FakeDeviceIdStore,
                     clock = FixedClock,
+                    httpClient = HttpClient(MockEngine { respond("") }),
                 ),
             )
         } else {

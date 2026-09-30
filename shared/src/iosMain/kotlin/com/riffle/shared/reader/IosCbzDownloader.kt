@@ -13,18 +13,31 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
 
 /**
- * Streams a CBZ file from ABS (`/api/items/{id}/file/{ino}` — the same endpoint as EPUB
- * downloads) to a sink while the response is open, so a multi-hundred-megabyte archive never
- * has to sit in memory and progress can be reported as bytes arrive (#1101).
+ * Abstraction over the ABS file-streaming step, extracted so tests can inject a fake without
+ * an [HttpClient]. [IosCbzDownloader] is the production implementation.
  */
-class IosCbzDownloader(private val httpClient: HttpClient, private val sourceRepository: SourceRepository, private val tokenStorage: TokenStorage,) {
+interface AbsFileStreamer {
+    suspend fun <T> withStream(item: LibraryItem, sink: suspend (channel: ByteReadChannel, contentLength: Long) -> T): T?
+}
+
+/**
+ * Streams a CBZ file from ABS (`/api/items/{id}/file/{ino}`) to a sink while the response
+ * is open, so a multi-hundred-megabyte archive never has to sit in memory and progress can
+ * be reported as bytes arrive (#1101).
+ */
+class IosCbzDownloader(
+    private val httpClient: HttpClient,
+    private val sourceRepository: SourceRepository,
+    private val tokenStorage: TokenStorage,
+) : AbsFileStreamer {
     /**
      * Opens the item's file and hands the body channel plus its declared length (−1 when the
      * server sent none) to [sink]. Returns null when the source, token or file inode is missing
      * or the request fails; otherwise [sink]'s result.
      */
-    suspend fun <T> withStream(item: LibraryItem, sink: suspend (channel: ByteReadChannel, contentLength: Long) -> T): T? {
-        val endpoint = resolveItemEndpoint(sourceRepository, tokenStorage, item) ?: return null
+    override suspend fun <T> withStream(item: LibraryItem, sink: suspend (channel: ByteReadChannel, contentLength: Long) -> T): T? {
+        val endpoint = resolveItemEndpoint(sourceRepository, tokenStorage, item)
+            ?: return null
         val fileIno = item.ebookFileIno ?: return null
         val url = endpoint.absFileUrl(item, fileIno)
         return try {
@@ -36,7 +49,7 @@ class IosCbzDownloader(private val httpClient: HttpClient, private val sourceRep
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             null
         }
     }

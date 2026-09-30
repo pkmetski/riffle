@@ -25,7 +25,6 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
@@ -258,4 +257,3 @@ class RiffleScreenReadRouteTest {
         onNodeWithText("Read").assertIsDisplayed()
     }
 }
-

@@ -23,6 +23,9 @@ import com.riffle.core.network.NetworkLibraryItem
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkUserMediaProgress
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -152,6 +155,7 @@ class AbsCommonCatalogTest {
         sessionApi = sessionApi,
         serverInfoApi = serverInfoApi,
         clock = FixedClock(5_000L),
+        httpClient = HttpClient(MockEngine { respond("") }),
     )
 
     @Test
@@ -399,15 +403,33 @@ class AbsCommonCatalogTest {
     }
 
     @Test
-    fun fileTransferMembersRefuseExplicitlyRatherThanReturningAHandleThatCannotWork() = runTest {
-        // ABS ebook bytes come from AbsFileDownloadApi, which is JVM-only. Returning a plausible
-        // CatalogFileHandle here would 404 at read time far from the cause.
-        assertFailsWith<CatalogException.UnsupportedOperation> {
-            catalog().fetchFile("item-1", BookFormat.Epub)
+    fun fetchFileResolvesInodeFromLibraryApiAndBuildsTheCorrectUrl() = runTest {
+        // fetchFile must call libraryApi.getItemEbookFileIno when no handleHint is provided,
+        // then build the /api/items/{id}/file/{ino} URL — this is the behaviour that was absent
+        // on iOS (AbsCommonCatalog previously threw UnsupportedOperation here).
+        val libraryApiWithIno = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(emptyList<NetworkLibrary>())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(emptyList<NetworkLibraryItem>())
+            override suspend fun searchLibrary(baseUrl: String, libraryId: String, query: String, limit: Int, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(emptyList<NetworkLibraryItem>())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(emptyList<com.riffle.core.network.NetworkSeries>())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(emptyList<com.riffle.core.network.NetworkCollection>())
+            override suspend fun getItemEbookFileIno(baseUrl: String, itemId: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success("2348")
         }
-        assertFailsWith<CatalogException.UnsupportedOperation> {
-            catalog().withFileStream("item-1", BookFormat.Epub) { Unit }
-        }
+        val handle = catalog(libraryApi = libraryApiWithIno).fetchFile("item-1", BookFormat.Epub)
+        assertTrue(
+            handle is com.riffle.core.catalog.CatalogFileHandle.Stream,
+            "fetchFile must return a Stream handle, got $handle",
+        )
+        assertTrue(
+            (handle as com.riffle.core.catalog.CatalogFileHandle.Stream).url.endsWith("/api/items/item-1/file/2348"),
+            "handle URL must reference the resolved inode; was ${handle.url}",
+        )
     }
 
     @Test
@@ -435,6 +457,7 @@ class AbsCommonCatalogTest {
             override suspend fun getOrCreate() = "dev-1"
         },
         clock = FixedClock(1L),
+        httpClient = HttpClient(MockEngine { respond("") }),
     )
 
     private class FakeTokenStorage(private val token: String?) : TokenStorage {

@@ -16,6 +16,9 @@ import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.createDefaultHttpClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import okhttp3.OkHttpClient
 
 private val defaultTestClock = object : Clock {
@@ -61,6 +64,7 @@ class TestCatalogRegistry(
             bookmarkApi = apiClient,
             serverInfoApi = apiClient,
             clock = clock,
+            httpClient = HttpClient(MockEngine { respond("") }),
         )
     }
 }
@@ -101,6 +105,7 @@ fun testAbsCatalog(
     bookmarkApi: AbsBookmarkApi = NoopAbsBookmarkApi,
     serverInfoApi: AbsServerInfoApi = NoopAbsServerInfoApi,
     clock: Clock = defaultTestClock,
+    httpClient: HttpClient = HttpClient(MockEngine { respond("") }),
 ): Catalog = AbsCatalog(
     config = AbsCatalogConfig(baseUrl, token, insecureAllowed, deviceId),
     libraryApi = libraryApi,
@@ -110,6 +115,7 @@ fun testAbsCatalog(
     bookmarkApi = bookmarkApi,
     serverInfoApi = serverInfoApi,
     clock = clock,
+    httpClient = httpClient,
 )
 
 /** A minimal [AbsLibraryApi] whose methods all return empty results — useful in tests that only

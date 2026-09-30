@@ -56,6 +56,9 @@ import com.riffle.core.network.NetworkUserMediaProgress
 import com.riffle.core.network.NetworkUploadMetadata
 import com.riffle.core.network.NetworkUploadPart
 import kotlinx.coroutines.test.runTest
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import io.ktor.utils.io.readRemaining
 import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.ByteReadChannel
@@ -107,6 +110,7 @@ class AbsCatalogTest {
         bookmarkApi = bookmarkApi,
         serverInfoApi = serverInfoApi,
         clock = clock,
+        httpClient = HttpClient(MockEngine { respond("") }),
     )
 
     // region sourceType + capability presence

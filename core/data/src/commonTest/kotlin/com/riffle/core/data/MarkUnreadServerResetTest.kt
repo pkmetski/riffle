@@ -19,6 +19,9 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkResult
@@ -143,6 +146,7 @@ class MarkUnreadServerResetTest {
                         override fun nowMs(): Long = 5_000L
                         override fun nowNs(): Long = 5_000L * 1_000_000L
                     },
+                    httpClient = HttpClient(MockEngine { respond("") }),
                 )
             ),
             sourceRepository = sourceRepo,

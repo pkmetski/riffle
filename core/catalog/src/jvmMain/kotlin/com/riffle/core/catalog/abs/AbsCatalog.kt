@@ -49,6 +49,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsFileDownloadApi
+import io.ktor.client.HttpClient
 import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
@@ -98,6 +99,7 @@ class AbsCatalog(
     private val bookmarkApi: AbsBookmarkApi,
     private val serverInfoApi: AbsServerInfoApi,
     private val clock: Clock,
+    private val httpClient: HttpClient,
 ) : Catalog,
     SeriesCapability,
     CollectionsCapability,
@@ -126,6 +128,7 @@ class AbsCatalog(
         sessionApi = sessionApi,
         serverInfoApi = serverInfoApi,
         clock = clock,
+        httpClient = httpClient,
     )
 
     override val sourceType: SourceType = SourceType.ABS
