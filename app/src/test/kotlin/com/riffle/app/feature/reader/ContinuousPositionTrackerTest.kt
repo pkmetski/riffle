@@ -1285,6 +1285,73 @@ class ContinuousPositionTrackerTest {
         )
     }
 
+    @Test
+    fun `post-layout re-sync with cap height repairs gap left by placeholder-height offset`() {
+        // Regression for the tall-screen ch1-end cutoff: applyChapterHeight fires before the layout
+        // pass runs.  At that moment wv.height is still the slot placeholder (e.g. 2520 px, the
+        // device's full screen height) even though layoutParams.height has just been set to the
+        // renderable cap (e.g. 4096 px).  syncChapterWindows therefore calculates maxOffset as
+        // contentH − placeholder instead of contentH − cap.
+        //
+        // Steps:
+        //  1. syncChapterWindows fires immediately — wvH = placeholder (2520).
+        //     offset = contentH − 2520 = 146009.  scrollTo(146009) is within the WebView's own
+        //     max scroll while the view is still 2520 px, so no clamping yet.
+        //  2. Layout runs — wv.height grows to the cap (4096 px).  Chromium re-clamps the
+        //     internal scroll from 146009 → 144433 (= contentH − cap).
+        //     translationY stays 146009; scrollY is now 144433.
+        //     Gap = 4096 − 2520 = 1576 px; the last 1576 px of the chapter are invisible.
+        //  3. applyChapterHeight posts a second syncChapterWindows.  It runs after the layout,
+        //     sees wv.height = 4096, recalculates offset = 144433, and sets both translationY and
+        //     scrollTo to 144433 → gap gone.
+        //
+        // This test verifies that the offset recalculated with the cap height (step 3) closes the
+        // rendering gap and that the chapter end is reachable.
+        val viewportH = 2320   // tall-screen device (portrait, after system bars)
+        val placeholder = 2520 // displayMetrics.heightPixels on the repro device
+        val cap = 4096         // chapterWebViewHeight with conservativeMax before GPU-max learning
+        val contentH = 148_529 // AI Engineering ch01 measured height (px)
+        val scrollY = contentH - viewportH  // 146209 — user at the very end of ch01
+
+        // Step 1: offset calculated with wv.height = placeholder (wrong, but harmless at this
+        // instant because the WebView is still 2520 px and can accommodate the scroll).
+        val offsetWithPlaceholder = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 0, contentHeightPx = contentH, webViewHeightPx = placeholder,
+            currentOffsetPx = 0, scrollY = scrollY, viewportHeightPx = viewportH,
+        )!!
+        assertEquals(contentH - placeholder, offsetWithPlaceholder)  // 146009
+
+        // Step 2: after layout the view is cap (4096) px.  Chromium's clamp leaves
+        // translationY=offsetWithPlaceholder but scrollY=contentH−cap.
+        val clampedScrollY = contentH - cap  // 144433
+        // The content visible at the slot's bottom (slot pos = contentH) is now:
+        //   clampedScrollY + (contentH − offsetWithPlaceholder) = 144433 + 2520 = 146953
+        // which is 1576 px short of contentH — the chapter end is cut off.
+        val contentAtSlotBottom = clampedScrollY + (contentH - offsetWithPlaceholder)
+        assertTrue(
+            "gap: content shown at slot bottom ($contentAtSlotBottom) must be < contentH ($contentH) — this is the bug",
+            contentAtSlotBottom < contentH,
+        )
+        assertEquals(cap - placeholder, contentH - contentAtSlotBottom)  // gap = 1576 px
+
+        // Step 3: post-layout re-sync uses wv.height = cap (4096).
+        val offsetWithCap = ContinuousPositionTracker.chapterWebViewWindowOffset(
+            slotTop = 0, contentHeightPx = contentH, webViewHeightPx = cap,
+            currentOffsetPx = offsetWithPlaceholder, scrollY = scrollY, viewportHeightPx = viewportH,
+        )!!
+        assertEquals(contentH - cap, offsetWithCap)  // 144433
+        // Window [144433, 148529] covers viewport [146209, 148529] — chapter end is visible.
+        assertTrue(
+            "post-layout window bottom ${offsetWithCap + cap} must reach chapter end $contentH",
+            offsetWithCap + cap >= contentH,
+        )
+        // translationY = scrollY = offsetWithCap: no gap between translation and internal scroll.
+        assertEquals(
+            "offset after re-sync must equal Chromium's clamped scroll so translationY matches scrollY",
+            clampedScrollY, offsetWithCap,
+        )
+    }
+
     // ---- internal scroll correction -----------------------------------------------------------
 
     @Test

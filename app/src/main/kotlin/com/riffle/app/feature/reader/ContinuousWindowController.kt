@@ -583,6 +583,12 @@ internal class ContinuousWindowController(
         )
         wv.layoutParams = wv.layoutParams.also { it.height = wvHeight }
         syncChapterWindows()
+        // The layout pass triggered by the height change above updates wv.height asynchronously.
+        // Until the layout runs, syncChapterWindows above reads wv.height as either the initial
+        // placeholder or the previous cap — both may produce a maxOffset that Chromium then clamps
+        // once the view is re-measured. A second sync after the layout corrects the translationY/
+        // scrollY pair so the end of long chapters is never permanently cut off.
+        port.post { syncChapterWindows() }
     }
 
     /**
