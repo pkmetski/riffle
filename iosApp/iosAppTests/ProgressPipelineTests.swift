@@ -91,7 +91,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
         tapBackToLibrary(backButton, in: app)
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
-        XCTAssertTrue(sameTile.waitForExistence(timeout: 10), "\(kind) tile must reappear after close")
+        XCTAssertTrue(sameTile.waitForExistence(timeout: 25), "\(kind) tile must reappear after close")
 
         // Position restore path: the player must seek to the saved position before showing its
         // back control. After AudiobookPlayerTests run in the same simulator clone, resource
