@@ -1,9 +1,9 @@
 package com.riffle.app.feature.reader.session.regressions
 
-import com.riffle.app.feature.reader.ContinuousPositionTracker
 import com.riffle.app.feature.reader.annotationFocusRelandClosure
 import com.riffle.app.feature.reader.relandClosureAfterInitialMeasure
 import com.riffle.app.feature.reader.smoothTailRevealSuppressedAfterInitialLanding
+import com.riffle.feature.reader.ContinuousPositionTracker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

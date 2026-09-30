@@ -4,6 +4,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.NoopLogger
 import kotlin.math.abs
+import com.riffle.feature.reader.ContinuousPositionTracker
 
 /**
  * Owns annotation + search decoration state for continuous mode and applies it to the current

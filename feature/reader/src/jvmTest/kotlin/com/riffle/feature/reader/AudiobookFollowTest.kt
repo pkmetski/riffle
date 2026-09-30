@@ -1,21 +1,19 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.AudiobookFollow
-import com.riffle.feature.reader.CatalogAudioEndpoint
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.ProgressPeerCapability
-import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.common.Clock
+import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.domain.DefaultPositionTranslator
+import com.riffle.core.domain.JvmEpubCfiOps
 import com.riffle.core.domain.MediaOverlayClip
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import com.riffle.core.domain.JvmEpubCfiOps
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The bundle-SMIL-only [AudiobookFollow] (ADR 0037): readaloud→audiobook works from the bundle alone
@@ -68,8 +66,8 @@ class AudiobookFollowTest {
     @Test
     fun `secondsForFragment returns the sentence's absolute clip-begin`() {
         val f = follow(FakePeer())
-        assertEquals(5.0, f.secondsForFragment("c1.html#s2")!!, 0.0001)
-        assertEquals(10.0, f.secondsForFragment("c2.html#s1")!!, 0.0001)
+        assertEquals(5.0, f.secondsForFragment("c1.html#s2")!!)
+        assertEquals(10.0, f.secondsForFragment("c2.html#s1")!!)
     }
 
     @Test
@@ -88,7 +86,7 @@ class AudiobookFollowTest {
         val peer = FakePeer(stamp = 9999L)
         val stamp = follow(peer).pushFragment("c1.html#s2")
         assertEquals(9999L, stamp)
-        assertEquals(5.0, peer.sentSeconds!!, 0.0001)
+        assertEquals(5.0, peer.sentSeconds!!)
     }
 
     @Test
@@ -99,10 +97,10 @@ class AudiobookFollowTest {
     }
 
     @Test
-    fun `ebookLocatorForAudioSeconds yields a TEXT-anchored locator (index-free audiobook to ebook)`() {
+    fun ebookLocatorForAudioSecondsYieldsTextAnchoredLocatorIndexFreeAudiobookToEbook() {
         val json = follow(FakePeer()).ebookLocatorForAudioSeconds(7.0)
         assertNotNull(json)
-        assertTrue("must carry the sentence text for anchoring", json!!.contains("the narrated sentence"))
+        assertTrue(json!!.contains("the narrated sentence"), "must carry the sentence text for anchoring")
     }
 
     @Test
@@ -111,7 +109,7 @@ class AudiobookFollowTest {
     }
 
     @Test
-    fun `readaloudAnchorForAudioSeconds yields the narrated sentence (index-free)`() {
+    fun readaloudAnchorForAudioSecondsYieldsNarratedSentenceIndexFree() {
         val anchor = follow(FakePeer()).readaloudAnchorForAudioSeconds(7.0)
         assertNotNull(anchor)
         assertEquals("c1.html#s2", anchor!!.fragmentRef)
@@ -119,7 +117,7 @@ class AudiobookFollowTest {
     }
 
     @Test
-    fun `readaloudAnchorForAudioSeconds resolves even without a quote (the sentence ref is the anchor)`() {
+    fun readaloudAnchorForAudioSecondsResolvesEvenWithoutAQuote() {
         val anchor = follow(FakePeer()).readaloudAnchorForAudioSeconds(2.0)
         assertNotNull(anchor)
         assertEquals("c1.html#s1", anchor!!.fragmentRef)

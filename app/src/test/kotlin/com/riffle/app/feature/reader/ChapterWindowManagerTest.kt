@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.riffle.feature.reader.ContinuousPositionTracker
 
 class ChapterWindowManagerTest {
 

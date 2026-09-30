@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.ContinuousPositionTracker
+
 /**
  * Pure algorithm for deciding when the sliding chapter window should shift.
  *

@@ -1,10 +1,10 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ContinuousPositionTrackerTest {
 
@@ -15,7 +15,7 @@ class ContinuousPositionTrackerTest {
     )
 
     @Test
-    fun `scrollY 0 with viewport 800 — midY 400 is in chapter A, progression 0_4`() {
+    fun scrollY0WithViewport800MidYIsInChapterAProgression0point4() {
         val (href, prog) = ContinuousPositionTracker.locatorAt(
             scrollY = 0, viewportHeight = 800, window = window
         )
@@ -24,7 +24,7 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
-    fun `scrollY 1000 with viewport 800 — midY 1400 is in chapter B, progression 0_8`() {
+    fun scrollY1000WithViewport800MidYIsInChapterBProgression0point8() {
         val (href, prog) = ContinuousPositionTracker.locatorAt(
             scrollY = 1000, viewportHeight = 800, window = window
         )
@@ -65,7 +65,7 @@ class ContinuousPositionTrackerTest {
                 slot.top, slot.height, prog, viewport,
             )
             // Within rounding (progression is a float, scrollY/2 is integer-divided).
-            assertEquals("scrollY=$scrollY", scrollY.toFloat(), restored.toFloat(), 2f)
+            assertEquals(scrollY.toFloat(), restored.toFloat(), 2f, "scrollY=$scrollY")
         }
     }
 
@@ -81,7 +81,7 @@ class ContinuousPositionTrackerTest {
             val slot = window.first { it.href == href }
             val topAligned = (slot.top + (prog * slot.height).toInt()).coerceAtLeast(0)
             assertEquals(
-                "scrollY=$scrollY", (scrollY + viewport / 2).toFloat(), topAligned.toFloat(), 2f,
+                (scrollY + viewport / 2).toFloat(), topAligned.toFloat(), 2f, "scrollY=$scrollY",
             )
         }
     }
@@ -144,7 +144,7 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
-    fun `forwardShiftNeeded — fires while several chapters remain loaded ahead (lead time)`() {
+    fun forwardShiftNeededFiresWhileSeveralChaptersRemainLoadedAheadLeadTime() {
         // window [0..4], midpoint in ch2 → shift fires even though ch3,ch4 are still loaded
         // ahead. This is the look-ahead lead time that prevents blank gaps at chapter seams.
         assertTrue(ContinuousPositionTracker.forwardShiftNeeded(
@@ -171,12 +171,12 @@ class ContinuousPositionTrackerTest {
         // Midpoint sits at ch6 (topIndex+1) so pastBehindBudget is false. Without the bottom-of-
         // window trigger this returns false forever — reader walls off at ch7.
         assertTrue(
-            "short trailing chapter must not wall off scroll — bottom-of-window trigger fires",
             ContinuousPositionTracker.forwardShiftNeeded(
                 viewportChapterIndex = 6, topIndex = 5, loadedChapterCount = 3,
                 readingOrderSize = 11, chaptersBehind = 1,
                 atBottomOfLoadedWindow = true,
             ),
+            "short trailing chapter must not wall off scroll — bottom-of-window trigger fires",
         )
     }
 
@@ -198,11 +198,11 @@ class ContinuousPositionTrackerTest {
         // Default arg (no bottom-of-window signal) MUST preserve existing behavior — midpoint
         // trigger is authoritative when the flag isn't passed.
         assertFalse(
-            "no bottom-of-window info → midpoint trigger is the only path",
             ContinuousPositionTracker.forwardShiftNeeded(
                 viewportChapterIndex = 6, topIndex = 5, loadedChapterCount = 3,
                 readingOrderSize = 11, chaptersBehind = 1,
             ),
+            "no bottom-of-window info → midpoint trigger is the only path",
         )
     }
 
@@ -231,13 +231,13 @@ class ContinuousPositionTrackerTest {
 
         // Post-shift scrollY: after removeTop subtracts H0 from the minimum trigger scrollY.
         val postShiftScrollY = (H0 + H1 - viewport / 2) - H0
-        assertEquals("post-shift scrollY = H1 - viewport/2", H1 - viewport / 2, postShiftScrollY)
+        assertEquals(H1 - viewport / 2, postShiftScrollY, "post-shift scrollY = H1 - viewport/2")
 
         // Backward-shift threshold for the new first chapter (H1):
         val backwardThreshold = H1 / 2
         assertTrue(
-            "Without justShiftedForward, a backward shift fires: scrollY=$postShiftScrollY < threshold=$backwardThreshold",
             postShiftScrollY < backwardThreshold,
+            "Without justShiftedForward, a backward shift fires: scrollY=$postShiftScrollY < threshold=$backwardThreshold",
         )
     }
 
@@ -253,8 +253,8 @@ class ContinuousPositionTrackerTest {
         val postShiftScrollY = (H0 + H1 - viewport / 2) - H0
         val backwardThreshold = H1 / 2
         assertFalse(
-            "Tall chapter: scrollY=$postShiftScrollY must NOT be < threshold=$backwardThreshold",
             postShiftScrollY < backwardThreshold,
+            "Tall chapter: scrollY=$postShiftScrollY must NOT be < threshold=$backwardThreshold",
         )
     }
 
@@ -267,9 +267,9 @@ class ContinuousPositionTrackerTest {
             val postShiftScrollY = H1 - viewport / 2
             val backwardThreshold = H1 / 2
             assertTrue(
+                postShiftScrollY < backwardThreshold,
                 "Chapter of $H1 px (< viewport $viewport) must trigger oscillation without guard: " +
                     "postShiftScrollY=$postShiftScrollY, threshold=$backwardThreshold",
-                postShiftScrollY < backwardThreshold,
             )
         }
     }
@@ -281,9 +281,9 @@ class ContinuousPositionTrackerTest {
             val postShiftScrollY = H1 - viewport / 2
             val backwardThreshold = H1 / 2
             assertFalse(
+                postShiftScrollY < backwardThreshold,
                 "Chapter of $H1 px (>= viewport $viewport) must NOT trigger oscillation: " +
                     "postShiftScrollY=$postShiftScrollY, threshold=$backwardThreshold",
-                postShiftScrollY < backwardThreshold,
             )
         }
     }
@@ -322,25 +322,25 @@ class ContinuousPositionTrackerTest {
 
         // Midpoint does NOT overshoot the tall ch-X+1 (stays inside it).
         assertFalse(
-            "Midpoint=$viewportMidpoint must NOT overshoot tall ch-X+1 end=${chXPlusOneStart + H1}",
             viewportMidpoint > chXPlusOneStart + H1,
+            "Midpoint=$viewportMidpoint must NOT overshoot tall ch-X+1 end=${chXPlusOneStart + H1}",
         )
         // Midpoint IS past the short ch-X (viewport midpoint can never be inside a chapter
         // shorter than viewport/2 when sY is at the chapter's top).
         assertTrue(
-            "Midpoint=$viewportMidpoint must be past short ch-X end=$chXPlusOneStart",
             viewportMidpoint > chXPlusOneStart,
+            "Midpoint=$viewportMidpoint must be past short ch-X end=$chXPlusOneStart",
         )
 
         // gap = (X+1) − (X-1) = 2
         val gapAfterBackwardShift = 2
         assertTrue(
-            "chaptersBehind=1: gap $gapAfterBackwardShift > 1 → forward shift fires → oscillation",
             gapAfterBackwardShift > 1,
+            "chaptersBehind=1: gap $gapAfterBackwardShift > 1 → forward shift fires → oscillation",
         )
         assertFalse(
-            "chaptersBehind=2: gap $gapAfterBackwardShift > 2 is FALSE → backward shift sticks",
             gapAfterBackwardShift > 2,
+            "chaptersBehind=2: gap $gapAfterBackwardShift > 2 is FALSE → backward shift sticks",
         )
     }
 
@@ -361,23 +361,23 @@ class ContinuousPositionTrackerTest {
 
         // Combined height of both short chapters fits before the viewport midpoint.
         assertTrue(
-            "H0+H1=${H0 + H1} must be < viewport/2=${viewport / 2} for midpoint to overshoot both",
             H0 + H1 < viewport / 2,
+            "H0+H1=${H0 + H1} must be < viewport/2=${viewport / 2} for midpoint to overshoot both",
         )
         assertTrue(
-            "Midpoint=$viewportMidpoint must overshoot ch-X+1 end=$chXPlusOneEnd",
             viewportMidpoint > chXPlusOneEnd,
+            "Midpoint=$viewportMidpoint must overshoot ch-X+1 end=$chXPlusOneEnd",
         )
 
         // gap = (X+2) − (X-1) = 3
         val gapAfterBackwardShift = 3
         assertTrue(
-            "chaptersBehind=2: gap $gapAfterBackwardShift > 2 → forward shift still fires",
             gapAfterBackwardShift > 2,
+            "chaptersBehind=2: gap $gapAfterBackwardShift > 2 → forward shift still fires",
         )
         assertFalse(
-            "chaptersBehind=3: gap $gapAfterBackwardShift > 3 is FALSE → backward shift sticks",
             gapAfterBackwardShift > 3,
+            "chaptersBehind=3: gap $gapAfterBackwardShift > 3 is FALSE → backward shift sticks",
         )
     }
 
@@ -454,7 +454,7 @@ class ContinuousPositionTrackerTest {
                 .coerceIn(ContinuousPositionTracker.PAGE_SCROLL_MIN_DURATION_MS, ContinuousPositionTracker.PAGE_SCROLL_MAX_DURATION_MS),
             duration,
         )
-        assertTrue("duration must substantially exceed Chromium's bare heuristic of $chromiumBaseline ms", duration > chromiumBaseline)
+        assertTrue(duration > chromiumBaseline, "duration must substantially exceed Chromium's bare heuristic of $chromiumBaseline ms")
     }
 
     @Test
@@ -476,7 +476,7 @@ class ContinuousPositionTrackerTest {
     // ── pageScrollAnimation ───────────────────────────────────────────────────
 
     @Test
-    fun `pageScrollAnimation duration follows the actual animated distance, not the press delta`() {
+    fun pageScrollAnimationDurationFollowsActualAnimatedDistanceNotPressDelta() {
         // A press near the bottom boundary: the coalescer clamps the target so only 30 px remain.
         // The duration must come from the 30 px remainder (min-clamped to 200 ms), not the full
         // single-press duration — otherwise the remainder crawls.
@@ -499,8 +499,8 @@ class ContinuousPositionTrackerTest {
             coalesced?.durationMs,
         )
         assertTrue(
-            "coalesced glide must be longer than a single press",
             coalesced!!.durationMs > singlePressMs,
+            "coalesced glide must be longer than a single press",
         )
     }
 
@@ -561,14 +561,14 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
-    fun `top-aligned bookmark at chapter start lands at chapter top, not before it`() {
+    fun topAlignedBookmarkAtChapterStartLandsAtChapterTopNotBeforeIt() {
         // progression 0 on chapter B (top=1000): both alignments agree — the chapter start is at 1000.
         val topAligned = ContinuousPositionTracker.scrollOffsetFor("B.xhtml", 0f, window)
         assertEquals(1000, topAligned)
     }
 
     @Test
-    fun `top-aligned bookmark at chapter end lands at the last content, not past it`() {
+    fun topAlignedBookmarkAtChapterEndLandsAtLastContentNotPastIt() {
         // progression 1.0 on chapter A (height 1000, top 0): scrollY = 0 + 1000 = 1000
         // (the very bottom of chapter A, which is also where chapter B begins).
         val topAligned = ContinuousPositionTracker.scrollOffsetFor("A.xhtml", 1.0f, window)
@@ -614,9 +614,9 @@ class ContinuousPositionTrackerTest {
             "c1-s2" to "The cat ran away quickly.",
         )
         assertEquals(
-            "text-match picks the first sentence containing the word, not the selected position",
             "c1-s1",
             ContinuousPositionTracker.sentenceIdForSelection("cat", duplicateWordQuotes),
+            "text-match picks the first sentence containing the word, not the selected position",
         )
     }
 
@@ -646,7 +646,7 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
-    fun `deferred loads run ahead-first then behind, nearest first, never the target`() {
+    fun deferredLoadsRunAheadFirstThenBehindNearestFirstNeverTheTarget() {
         val w = ContinuousPositionTracker.initialWindow(
             targetIndex = 6, allChaptersSize = 20, chaptersBehind = 1, windowSize = 3,
         )
@@ -692,7 +692,7 @@ class ContinuousPositionTrackerTest {
     // window never shifted — the user walled off at the last loaded chapter.
 
     @Test
-    fun `initialWindow at chapter 0 loads the full window ahead (no behind buffer available)`() {
+    fun initialWindowAtChapter0LoadsFullWindowAheadNoBehindBufferAvailable() {
         // Opening at the very first chapter: no chapters behind, all spare slots go to ahead.
         val w = ContinuousPositionTracker.initialWindow(
             targetIndex = 0, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
@@ -701,8 +701,8 @@ class ContinuousPositionTrackerTest {
         assertEquals(7, w.totalChapters)
         assertEquals(0, w.targetWindowIndex)
         // Critical invariant: total > chaptersBehind, so the forward-shift trigger can fire.
-        assertTrue("must load > chaptersBehind chapters or shift trigger is unreachable",
-            w.totalChapters > 3)
+        assertTrue(w.totalChapters > 3,
+            "must load > chaptersBehind chapters or shift trigger is unreachable")
     }
 
     @Test
@@ -726,7 +726,7 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
-    fun `initialWindow mid-book uses full behind plus full ahead (unchanged from prior behavior)`() {
+    fun initialWindowMidBookUsesFullBehindPlusFullAheadUnchangedFromPriorBehavior() {
         val w = ContinuousPositionTracker.initialWindow(
             targetIndex = 25, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
         )
@@ -1262,8 +1262,8 @@ class ContinuousPositionTrackerTest {
         assertEquals(oldMaxOffset, offsetWithOldHeight)
         // window bottom = 45904 + 4096 = 50000 ≥ viewport bottom 50000 → content visible
         assertTrue(
-            "window bottom ${offsetWithOldHeight!! + oldWvH} must reach viewport bottom ${scrollY + viewportH}",
-            (offsetWithOldHeight + oldWvH) >= scrollY + viewportH,
+            (offsetWithOldHeight!! + oldWvH) >= scrollY + viewportH,
+            "window bottom ${offsetWithOldHeight + oldWvH} must reach viewport bottom ${scrollY + viewportH}",
         )
 
         // With the new (inflated) layoutParams.height 8400 the offset is 41600.
@@ -1279,9 +1279,9 @@ class ContinuousPositionTrackerTest {
         // The rendering bottom when using the new offset but old (still-4096) rendering height:
         // 41600 + 4096 = 45696, which is below the viewport top (47200) — no coverage.
         assertTrue(
-            "sanity: new-height offset ${offsetWithNewHeight!!} + old render height $oldWvH = " +
+            (offsetWithNewHeight!! + oldWvH) < scrollY,
+            "sanity: new-height offset ${offsetWithNewHeight} + old render height $oldWvH = " +
                 "${offsetWithNewHeight + oldWvH} must be below viewport top $scrollY (blank viewport)",
-            (offsetWithNewHeight + oldWvH) < scrollY,
         )
     }
 
@@ -1329,8 +1329,8 @@ class ContinuousPositionTrackerTest {
         // which is 1576 px short of contentH — the chapter end is cut off.
         val contentAtSlotBottom = clampedScrollY + (contentH - offsetWithPlaceholder)
         assertTrue(
-            "gap: content shown at slot bottom ($contentAtSlotBottom) must be < contentH ($contentH) — this is the bug",
             contentAtSlotBottom < contentH,
+            "gap: content shown at slot bottom ($contentAtSlotBottom) must be < contentH ($contentH) — this is the bug",
         )
         assertEquals(cap - placeholder, contentH - contentAtSlotBottom)  // gap = 1576 px
 
@@ -1342,13 +1342,13 @@ class ContinuousPositionTrackerTest {
         assertEquals(contentH - cap, offsetWithCap)  // 144433
         // Window [144433, 148529] covers viewport [146209, 148529] — chapter end is visible.
         assertTrue(
-            "post-layout window bottom ${offsetWithCap + cap} must reach chapter end $contentH",
             offsetWithCap + cap >= contentH,
+            "post-layout window bottom ${offsetWithCap + cap} must reach chapter end $contentH",
         )
         // translationY = scrollY = offsetWithCap: no gap between translation and internal scroll.
         assertEquals(
-            "offset after re-sync must equal Chromium's clamped scroll so translationY matches scrollY",
             clampedScrollY, offsetWithCap,
+            "offset after re-sync must equal Chromium's clamped scroll so translationY matches scrollY",
         )
     }
 

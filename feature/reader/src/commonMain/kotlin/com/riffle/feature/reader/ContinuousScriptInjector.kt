@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 /**
  * Page-infrastructure JavaScript injected into every continuous-mode [ChapterWebView] after load.
@@ -19,7 +19,7 @@ package com.riffle.app.feature.reader
  * because it is applied dynamically (not once at load time) and is tightly coupled to the
  * decoration-specific data types and callers in [ContinuousReaderView].
  */
-internal object ContinuousScriptInjector {
+object ContinuousScriptInjector {
 
     /**
      * JS that reports the chapter's CSS-pixel content height to

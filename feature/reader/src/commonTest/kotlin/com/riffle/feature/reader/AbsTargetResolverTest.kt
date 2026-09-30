@@ -1,11 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.ReadaloudLink
-import com.riffle.feature.reader.AbsLinkMedia
-import com.riffle.feature.reader.resolveAbsTargets
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class AbsTargetResolverTest {
 

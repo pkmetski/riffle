@@ -1,8 +1,7 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.PdfTocEntry
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class PdfTocAdapterTest {
 

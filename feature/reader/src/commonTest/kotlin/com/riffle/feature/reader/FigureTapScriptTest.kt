@@ -1,10 +1,8 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.FigureCaptionWalker
-import com.riffle.feature.reader.FigureTapScript
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Rhino (org.mozilla.javascript) is not on this repo's classpath, so these are string-shape
@@ -47,7 +45,7 @@ class FigureTapScriptTest {
     @Test
     fun `long-press payload includes kind caption href svg and elementId`() {
         listOf("kind:", "caption:", "href:", "svg:", "elementId:").forEach {
-            assertTrue("missing payload field $it", script.contains(it))
+            assertTrue(script.contains(it), "missing payload field $it")
         }
     }
 
@@ -60,12 +58,12 @@ class FigureTapScriptTest {
         val moveIdx = script.indexOf("addEventListener('touchmove'")
         val moveEnd = script.indexOf("}, true);", moveIdx).let { it + "}, true);".length }
         val moveBlock = script.substring(moveIdx, moveEnd)
-        assertTrue("touchmove must call cancelFigureLongPress()", moveBlock.contains("cancelFigureLongPress()"))
+        assertTrue(moveBlock.contains("cancelFigureLongPress()"), "touchmove must call cancelFigureLongPress()")
 
         val endIdx = script.indexOf("addEventListener('touchend'")
         val endEnd = script.indexOf("}, true);", endIdx).let { it + "}, true);".length }
         val endBlock = script.substring(endIdx, endEnd)
-        assertTrue("touchend must call cancelFigureLongPress()", endBlock.contains("cancelFigureLongPress()"))
+        assertTrue(endBlock.contains("cancelFigureLongPress()"), "touchend must call cancelFigureLongPress()")
     }
 
     /**
@@ -77,7 +75,7 @@ class FigureTapScriptTest {
     @Test
     fun `cancelFigureLongPress function clears timer and target so scroll cancels the annotations menu`() {
         val fnIdx = script.indexOf("function cancelFigureLongPress()")
-        assertTrue("cancelFigureLongPress helper function must be declared", fnIdx >= 0)
+        assertTrue(fnIdx >= 0, "cancelFigureLongPress helper function must be declared")
         // Locate the function body. trimIndent() on installScript's raw string strips 0 spaces
         // (the interpolated JS constants have 0-indent lines which floor the minimum). The raw
         // 12-space indent of the function's closing `}` is therefore preserved verbatim in the
@@ -87,10 +85,10 @@ class FigureTapScriptTest {
         val bodyStart = script.indexOf("{", fnIdx)
         val bodyEnd = script.indexOf("\n            }", bodyStart)
         val fnBody = script.substring(bodyStart, bodyEnd + 1)
-        assertTrue("cancelFigureLongPress must clearTimeout(longPressTimer)", fnBody.contains("clearTimeout(longPressTimer)"))
-        assertTrue("cancelFigureLongPress must null out longPressTarget", fnBody.contains("longPressTarget = null"))
-        assertTrue("cancelFigureLongPress must remove the touchcancel listener", fnBody.contains("removeEventListener('touchcancel', cancelFigureLongPress, true)"))
-        assertTrue("cancelFigureLongPress must remove the contextmenu listener", fnBody.contains("removeEventListener('contextmenu', preventFigureContextMenu, true)"))
+        assertTrue(fnBody.contains("clearTimeout(longPressTimer)"), "cancelFigureLongPress must clearTimeout(longPressTimer)")
+        assertTrue(fnBody.contains("longPressTarget = null"), "cancelFigureLongPress must null out longPressTarget")
+        assertTrue(fnBody.contains("removeEventListener('touchcancel', cancelFigureLongPress, true)"), "cancelFigureLongPress must remove the touchcancel listener")
+        assertTrue(fnBody.contains("removeEventListener('contextmenu', preventFigureContextMenu, true)"), "cancelFigureLongPress must remove the contextmenu listener")
     }
 
     /**
@@ -110,20 +108,20 @@ class FigureTapScriptTest {
         // The registration must appear INSIDE the touchstart handler, not outside it.
         // Check: touchcancel registration comes AFTER the figure-detection early-return guard.
         val earlyReturnIdx = script.indexOf("if (!el) return;")
-        assertTrue("early-return guard (if !el return) must exist in touchstart", earlyReturnIdx >= 0)
+        assertTrue(earlyReturnIdx >= 0, "early-return guard (if !el return) must exist in touchstart")
         val dynamicRegIdx = script.indexOf("document.addEventListener('touchcancel', cancelFigureLongPress, true)")
-        assertTrue("touchcancel must be registered via the named cancelFigureLongPress reference", dynamicRegIdx >= 0)
+        assertTrue(dynamicRegIdx >= 0, "touchcancel must be registered via the named cancelFigureLongPress reference")
         assertTrue(
+            dynamicRegIdx > earlyReturnIdx,
             "touchcancel registration must come AFTER the figure-detection early-return, " +
                 "so it is never registered during a text-selection long-press",
-            dynamicRegIdx > earlyReturnIdx,
         )
         // There must be NO anonymous-function touchcancel listener — that was the PR #599 shape
         // that caused the regression and must never come back. Check both no-arg and e-arg forms.
         assertFalse(
-            "permanent anonymous touchcancel listener must not exist (PR #601 regression guard)",
             script.contains("addEventListener('touchcancel', function()") ||
                 script.contains("addEventListener('touchcancel', function("),
+            "permanent anonymous touchcancel listener must not exist (PR #601 regression guard)",
         )
     }
 
@@ -139,33 +137,33 @@ class FigureTapScriptTest {
     @Test
     fun `contextmenu listener is registered dynamically inside touchstart not as a permanent global listener`() {
         val earlyReturnIdx = script.indexOf("if (!el) return;")
-        assertTrue("early-return guard (if !el return) must exist in touchstart", earlyReturnIdx >= 0)
+        assertTrue(earlyReturnIdx >= 0, "early-return guard (if !el return) must exist in touchstart")
         // preventFigureContextMenu must be declared before cancelFigureLongPress so the latter
         // can reference it by name.
         val preventFnIdx = script.indexOf("function preventFigureContextMenu(")
-        assertTrue("preventFigureContextMenu helper function must be declared", preventFnIdx >= 0)
+        assertTrue(preventFnIdx >= 0, "preventFigureContextMenu helper function must be declared")
         val cancelFnIdx = script.indexOf("function cancelFigureLongPress()")
-        assertTrue("cancelFigureLongPress must come after preventFigureContextMenu in the script", preventFnIdx < cancelFnIdx)
+        assertTrue(preventFnIdx < cancelFnIdx, "cancelFigureLongPress must come after preventFigureContextMenu in the script")
         val dynamicRegIdx = script.indexOf("document.addEventListener('contextmenu', preventFigureContextMenu, true)")
-        assertTrue("contextmenu must be registered via the named preventFigureContextMenu reference", dynamicRegIdx >= 0)
+        assertTrue(dynamicRegIdx >= 0, "contextmenu must be registered via the named preventFigureContextMenu reference")
         assertTrue(
+            dynamicRegIdx > earlyReturnIdx,
             "contextmenu registration must come AFTER the figure-detection early-return, " +
                 "so it is never registered during a text-selection long-press",
-            dynamicRegIdx > earlyReturnIdx,
         )
         // The body of preventFigureContextMenu must: remove itself, then conditionally prevent
         // the default (only while the figure LP is still the active target).
         val fnBodyStart = script.indexOf("{", preventFnIdx)
         val fnBodyEnd = script.indexOf("\n            }", fnBodyStart)
         val fnBody = script.substring(fnBodyStart, fnBodyEnd + 1)
-        assertTrue("preventFigureContextMenu must remove itself", fnBody.contains("removeEventListener('contextmenu', preventFigureContextMenu, true)"))
-        assertTrue("preventFigureContextMenu must call e.preventDefault()", fnBody.contains("e.preventDefault()"))
+        assertTrue(fnBody.contains("removeEventListener('contextmenu', preventFigureContextMenu, true)"), "preventFigureContextMenu must remove itself")
+        assertTrue(fnBody.contains("e.preventDefault()"), "preventFigureContextMenu must call e.preventDefault()")
         // There must be NO anonymous contextmenu listener — that was the permanent-listener shape
         // that caused the regression and must never come back.
         assertFalse(
-            "permanent anonymous contextmenu listener must not exist",
             script.contains("addEventListener('contextmenu', function()") ||
                 script.contains("addEventListener('contextmenu', function("),
+            "permanent anonymous contextmenu listener must not exist",
         )
     }
 
@@ -190,12 +188,12 @@ class FigureTapScriptTest {
     @Test
     fun `findFigure skips elided-view figure blocks so the accent-bar tap can fire`() {
         assertTrue(
-            "findFigure must recognise the highlights-view figure class",
             script.contains("'riffle-fig'"),
+            "findFigure must recognise the highlights-view figure class",
         )
         assertTrue(
-            "findFigure must bail out when it walks into a riffle-fig ancestor",
             script.contains("classList.contains('riffle-fig')"),
+            "findFigure must bail out when it walks into a riffle-fig ancestor",
         )
     }
 }
