@@ -18,8 +18,62 @@ class FigureCaptionWalkerTest {
         val figIdx = js.indexOf("figcaption")
         val altIdx = js.indexOf("'alt'")
         val ariaIdx = js.indexOf("'aria-label'")
-        assertTrue("figcaption lookup missing or out of order", figIdx in 0 until altIdx)
-        assertTrue("alt lookup missing or out of order", altIdx in 0 until ariaIdx)
+        assertTrue(figIdx in 0 until altIdx, "figcaption lookup missing or out of order")
+        assertTrue(altIdx in 0 until ariaIdx, "alt lookup missing or out of order")
+    }
+
+    @Test
+    fun `caption resolver checks h6 inside figure before falling back to alt attribute`() {
+        // O'Reilly EPUBs place the real caption in an <h6> inside the <figure> wrapper, and also
+        // put accessibility alt-descriptions in the <img alt="…"> attribute. Without this check,
+        // resolveCaption falls through to `alt` and returns "A pink chart … Description
+        // automatically generated" instead of "Figure 5-4. The effect of…".
+        //
+        // The h6/h5/h4/h3 scan is gated on CAPTION_PREFIX_RX so accessibility alt-descriptions
+        // placed in <h6> (which do NOT start with "Figure N") are excluded.
+        //
+        // Reverting to figcaption-only inside resolveFigcaptionElement — or moving the h6 scan
+        // after the alt fallback — flips this red.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        val resolveFnEnd = js.indexOf("function resolveTextPrefixElement(el)")
+        val resolveFn = js.substring(0, resolveFnEnd)
+        assertTrue(resolveFn.contains("'h6'"), "resolveFigcaptionElement must scan h6 (O'Reilly caption style)")
+        assertTrue(resolveFn.contains("'h5'"), "resolveFigcaptionElement must scan h5")
+        assertTrue(
+            resolveFn.contains("CAPTION_PREFIX_RX.test"),
+            "h6 scan inside resolveFigcaptionElement must be gated on CAPTION_PREFIX_RX",
+        )
+        val h6ScanIdx = js.indexOf("'h6'")
+        val altIdx = js.indexOf("'alt'")
+        assertTrue(
+            h6ScanIdx in 0 until altIdx,
+            "h6 scan inside figure must precede the alt-attribute fallback in resolveCaption",
+        )
+    }
+
+    @Test
+    fun `text-prefix fallback never borrows a caption from a different figure`() {
+        // O'Reilly ch09: an uncaptioned (or h6-captioned, pre-#1125) Figure 9-1's 3-hop walk
+        // reaches the section, where Figure 9-2's `<div class="figure">` starts with "Figure 9-2"
+        // — and was returned as 9-1's caption, so the long-press stored 9-2's caption + 9-1's
+        // image. Candidates inside a different figure wrapper must be skipped.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        val start = js.indexOf("function resolveTextPrefixElement(el)")
+        val end = js.indexOf("function resolveCaption(el)")
+        assertTrue(start in 0 until end, "resolveTextPrefixElement/resolveCaption not found in order")
+        val body = js.substring(start, end)
+        assertTrue(
+            body.contains("el.closest('figure, [role=\"figure\"]')"),
+            "must resolve the long-pressed element's own figure wrapper",
+        )
+        assertTrue(
+            body.contains("b.closest('figure, [role=\"figure\"]')"),
+            "must resolve each candidate block's figure wrapper",
+        )
+        assertTrue(
+            body.contains("if (bFig && bFig !== ownFig) continue;"),
+            "must skip candidates whose figure wrapper differs from the element's own",
+        )
     }
 
     @Test
@@ -32,22 +86,22 @@ class FigureCaptionWalkerTest {
         // empty textSnippet again and the Annotations view would render an empty caption block.
         val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
         assertTrue(
-            "caption resolver should carry the caption-prefix regex",
             js.contains("(Figure|Fig\\.?|Table|Chart)"),
+            "caption resolver should carry the caption-prefix regex",
         )
         assertTrue(
-            "caption resolver should walk parent chain (compareDocumentPosition)",
             js.contains("compareDocumentPosition"),
+            "caption resolver should walk parent chain (compareDocumentPosition)",
         )
         // The fallback must sit AFTER the alt/aria-label paths in resolveCaption so a legitimate
         // per-image alt attribute always wins over a proximity-based heuristic that could match
         // nearby prose like "Table 3 summarizes results...".
         val ariaIdx = js.indexOf("if (aria) return aria;")
-        assertTrue("resolveCaption must handle aria before falling through", ariaIdx > 0)
+        assertTrue(ariaIdx > 0, "resolveCaption must handle aria before falling through")
         val prefixCallIdx = js.indexOf("resolveTextPrefixElement(el)", ariaIdx)
         assertTrue(
-            "text-prefix fallback must come after aria-label inside resolveCaption",
             prefixCallIdx > ariaIdx,
+            "text-prefix fallback must come after aria-label inside resolveCaption",
         )
     }
 
@@ -64,12 +118,12 @@ class FigureCaptionWalkerTest {
         val rangeStart = js.indexOf("function resolveCaptionRange(el)")
         val rangeBody = js.substring(rangeStart)
         assertTrue(
-            "resolveCaptionRange must call resolveFigcaptionElement",
             rangeBody.contains("resolveFigcaptionElement(el)"),
+            "resolveCaptionRange must call resolveFigcaptionElement",
         )
         assertTrue(
-            "resolveCaptionRange must call resolveTextPrefixElement",
             rangeBody.contains("resolveTextPrefixElement(el)"),
+            "resolveCaptionRange must call resolveTextPrefixElement",
         )
         // Slice at the next function boundary — resolveCaptionRange's body must not read alt or
         // aria-label. `next` is the START of `function riffleCollectTextAround` above OR
@@ -78,12 +132,12 @@ class FigureCaptionWalkerTest {
         val nextBoundary = rangeBody.indexOf("function ", startIndex = 40)
         val bodyOnly = if (nextBoundary >= 0) rangeBody.substring(0, nextBoundary) else rangeBody
         assertFalse(
-            "resolveCaptionRange body must not consult alt",
             bodyOnly.contains("'alt'"),
+            "resolveCaptionRange body must not consult alt",
         )
         assertFalse(
-            "resolveCaptionRange body must not consult aria-label",
             bodyOnly.contains("'aria-label'"),
+            "resolveCaptionRange body must not consult aria-label",
         )
     }
 
@@ -91,7 +145,7 @@ class FigureCaptionWalkerTest {
     fun `caption resolver falls back to empty string`() {
         val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
         assertTrue(js.contains("function resolveCaption(el)"))
-        assertTrue("missing final empty-string fallback", js.contains("return \"\";"))
+        assertTrue(js.contains("return \"\";"), "missing final empty-string fallback")
     }
 
     @Test
@@ -114,7 +168,7 @@ class FigureCaptionWalkerTest {
     fun `figures in range filters on img svg picture figure`() {
         val js = FigureCaptionWalker.FIGURES_IN_RANGE_JS
         listOf("'img'", "'svg'", "'picture'", "'figure'").forEach {
-            assertTrue("missing filter for $it", js.contains(it))
+            assertTrue(js.contains(it), "missing filter for $it")
         }
     }
 
@@ -144,9 +198,9 @@ class FigureCaptionWalkerTest {
     @Test
     fun `figures in range dedupes via a seen set and assigns incrementing order`() {
         val js = FigureCaptionWalker.FIGURES_IN_RANGE_JS
-        assertTrue("missing dedupe guard", js.contains("seen.has(target)"))
-        assertTrue("missing seen.add", js.contains("seen.add(target)"))
-        assertTrue("missing incrementing order", js.contains("order: order++"))
+        assertTrue(js.contains("seen.has(target)"), "missing dedupe guard")
+        assertTrue(js.contains("seen.add(target)"), "missing seen.add")
+        assertTrue(js.contains("order: order++"), "missing incrementing order")
     }
 
     @Test
@@ -166,8 +220,8 @@ class FigureCaptionWalkerTest {
             FigureCaptionWalker.SVG_SERIALIZER_JS,
             FigureCaptionWalker.FIGURES_IN_RANGE_JS,
         ).forEach { js ->
-            assertFalse("must not contain <script> tags", js.contains("<script", ignoreCase = true))
-            assertFalse("must not start with a stray semicolon", js.trim().startsWith(";"))
+            assertFalse(js.contains("<script", ignoreCase = true), "must not contain <script> tags")
+            assertFalse(js.trim().startsWith(";"), "must not start with a stray semicolon")
         }
     }
 
@@ -175,12 +229,12 @@ class FigureCaptionWalkerTest {
     fun `figures in range JS embeds the resolver and serializer verbatim`() {
         val js = FigureCaptionWalker.FIGURES_IN_RANGE_JS
         assertTrue(
-            "resolveCaption body not embedded verbatim",
             js.contains(FigureCaptionWalker.CAPTION_RESOLVER_JS),
+            "resolveCaption body not embedded verbatim",
         )
         assertTrue(
-            "serializeSvg body not embedded verbatim",
             js.contains(FigureCaptionWalker.SVG_SERIALIZER_JS),
+            "serializeSvg body not embedded verbatim",
         )
     }
 }
