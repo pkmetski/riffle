@@ -302,7 +302,10 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: macos-15
-    timeout-minutes: 50
+    # 65 min: a healthy run takes ~38–42 min of test execution + ~11 min Xcode build + ~3 min boot.
+    # The previous 50-min budget was exhausted as the suite grew (last overrun: 52 min). The hard
+    # per-test instrumentation timeout catches any genuinely hung test long before 65 min.
+    timeout-minutes: 65
     concurrency:
       group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
