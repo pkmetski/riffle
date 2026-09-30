@@ -34,10 +34,18 @@ import com.riffle.feature.source.ui.CacheSettingsDialog
 import com.riffle.feature.source.ui.CacheSettingsRow
 import com.riffle.feature.source.ui.ConfirmDestructiveDialog
 import com.riffle.feature.source.ui.generated.resources.Res
+import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
+import com.riffle.feature.source.ui.generated.resources.ui_cached
 import com.riffle.feature.source.ui.generated.resources.ui_clear_all
 import com.riffle.feature.source.ui.generated.resources.ui_clear_all_cached
+import com.riffle.feature.source.ui.generated.resources.ui_clear_all_cached_action
+import com.riffle.feature.source.ui.generated.resources.ui_downloaded
+import com.riffle.feature.source.ui.generated.resources.ui_downloads
+import com.riffle.feature.source.ui.generated.resources.ui_no_downloaded_or_cached_items
+import com.riffle.feature.source.ui.generated.resources.ui_remove
 import com.riffle.feature.source.ui.generated.resources.ui_remove_all
 import com.riffle.feature.source.ui.generated.resources.ui_remove_all_downloads
+import com.riffle.feature.source.ui.generated.resources.ui_remove_all_downloads_action
 import com.riffle.feature.source.ui.generated.resources.ui_this_will_clear_all_cached_media_from_your_device
 import com.riffle.feature.source.ui.generated.resources.ui_this_will_remove_all_downloaded_media_from_your_device
 import org.jetbrains.compose.resources.stringResource
@@ -119,7 +127,7 @@ internal fun DownloadsContent(
             .padding(16.dp),
     ) {
         Text(
-            text = "← Back",
+            text = stringResource(Res.string.ui_back_with_arrow),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
@@ -128,7 +136,7 @@ internal fun DownloadsContent(
                 .padding(bottom = 12.dp),
         )
         Text(
-            text = "Downloads",
+            text = stringResource(Res.string.ui_downloads),
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(bottom = 8.dp),
         )
@@ -143,7 +151,7 @@ internal fun DownloadsContent(
 
         if (state.downloadedItems.isEmpty() && state.cachedItems.isEmpty()) {
             Text(
-                "No downloaded or cached items.",
+                stringResource(Res.string.ui_no_downloaded_or_cached_items),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp),
@@ -153,7 +161,7 @@ internal fun DownloadsContent(
 
         if (state.downloadedItems.isNotEmpty()) {
             SectionHeader(
-                title = "Downloaded",
+                title = stringResource(Res.string.ui_downloaded),
                 totalLabel = formatBytes(state.downloadedTotalBytes),
                 // This Column already pads 16.dp horizontally.
                 contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
@@ -162,7 +170,7 @@ internal fun DownloadsContent(
                 DownloadRow(item = item, onRemove = { onRemoveDownloadedItem(item) })
             }
             Text(
-                text = "Remove all downloads",
+                text = stringResource(Res.string.ui_remove_all_downloads_action),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier
@@ -174,7 +182,7 @@ internal fun DownloadsContent(
 
         if (state.cachedItems.isNotEmpty()) {
             SectionHeader(
-                title = "Cached",
+                title = stringResource(Res.string.ui_cached),
                 totalLabel = formatBytes(state.cachedTotalBytes),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
             )
@@ -182,7 +190,7 @@ internal fun DownloadsContent(
                 DownloadRow(item = item, onRemove = { onRemoveCachedItem(item) })
             }
             Text(
-                text = "Clear all cached",
+                text = stringResource(Res.string.ui_clear_all_cached_action),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier
@@ -211,7 +219,7 @@ private fun DownloadRow(item: LocalItemUi, onRemove: () -> Unit) {
         }
         Spacer(Modifier.width(8.dp))
         Text(
-            "Remove",
+            stringResource(Res.string.ui_remove),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.clickable { onRemove() },

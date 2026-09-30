@@ -34,6 +34,15 @@ import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_progress
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_to_read
+import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
+import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
+import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.shared.FilteredBooksHost
@@ -96,7 +105,10 @@ fun RiffleScreen(
     }
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("In Progress", "To Read", "Annotations")
+    val inProgressLabel = stringResource(Res.string.ui_section_in_progress)
+    val toReadLabel = stringResource(Res.string.ui_to_read)
+    val annotationsLabel = stringResource(Res.string.ui_annotations)
+    val tabs = listOf(inProgressLabel, toReadLabel, annotationsLabel)
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -146,7 +158,7 @@ fun RiffleScreen(
                     .padding(vertical = 6.dp, horizontal = 16.dp),
             ) {
                 BasicText(
-                    text = "Offline — showing cached data",
+                    text = stringResource(Res.string.ui_offline_showing_cached_data),
                     style = TextStyle(fontSize = 12.sp),
                 )
             }
@@ -182,18 +194,18 @@ private fun IosInProgressTab(
         if (inProgress.isEmpty() && continueSeries.isEmpty()) {
             item {
                 BasicText(
-                    text = "No books in progress",
+                    text = stringResource(Res.string.ui_no_books_in_progress),
                     style = TextStyle(fontSize = 15.sp, color = Color.Gray),
                     modifier = Modifier.padding(16.dp),
                 )
             }
         }
         if (inProgress.isNotEmpty()) {
-            item { SectionLabel("In Progress") }
+            item { SectionLabel(stringResource(Res.string.ui_section_in_progress)) }
             items(inProgress, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
         if (continueSeries.isNotEmpty()) {
-            item { SectionLabel("Continue Series") }
+            item { SectionLabel(stringResource(Res.string.ui_section_continue_series)) }
             items(continueSeries, key = { "cs_${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
     }
@@ -207,7 +219,7 @@ private fun IosToReadTab(
 ) {
     if (items.isEmpty()) {
         BasicText(
-            text = "No books in your to-read list",
+            text = stringResource(Res.string.ui_no_books_in_to_read),
             style = TextStyle(fontSize = 15.sp, color = Color.Gray),
             modifier = Modifier.padding(16.dp),
         )

@@ -833,7 +833,7 @@ fun SeeMoreTile(overflowCount: Int, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "+$overflowCount\nmore",
+                text = stringResource(R.string.ui_see_more_overflow, overflowCount),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

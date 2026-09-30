@@ -152,4 +152,17 @@
     <string name="ui_this_will_remove_all_downloaded_media_from_your_device">Esto eliminará todo el contenido descargado de tu dispositivo.</string>
     <string name="ui_download_complete">Descarga completada</string>
     <string name="ui_download_failed">Error al descargar</string>
+    <string name="ui_downloads">Descargas</string>
+    <string name="ui_downloaded">Descargado</string>
+    <string name="ui_cached">En caché</string>
+    <string name="ui_no_downloaded_or_cached_items">No hay elementos descargados ni en caché.</string>
+    <string name="ui_remove_all_downloads_action">Eliminar todas las descargas</string>
+    <string name="ui_clear_all_cached_action">Borrar todo el caché</string>
+    <string name="ui_back_with_arrow">← Atrás</string>
+    <string name="ui_loading">Cargando…</string>
+    <string name="ui_item_not_found">Elemento no encontrado</string>
+    <string name="ui_read">Leer</string>
+    <string name="ui_in_to_read">En por leer</string>
+    <string name="ui_add_to_to_read">Añadir a por leer</string>
+    <string name="ui_you_are_offline">No tienes conexión</string>
 </resources>
