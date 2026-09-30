@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -162,7 +161,7 @@ class NavigationSnapHarnessTest : KoinTest {
     // Choreographer starves, so goForward never reaches the next column — observed: scrollLeft nudges to
     // ~2px then reverts). This path therefore can't be exercised on the AVD; run it on a real device,
     // where turns animate and complete. Kept for that purpose.
-    @Ignore("Page-turn animation stalls on the headless emulator; verify manual flips on a real device")
+    @org.junit.Ignore("Page-turn animation stalls on the headless emulator; verify manual flips on a real device")
     @Test
     fun manualPageFlips_eachLandsSnapped_noPostSettleReadjustment() {
         openStandaloneReader()
