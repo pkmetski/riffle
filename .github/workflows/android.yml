@@ -52,7 +52,7 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     concurrency:
       group: android-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -84,7 +84,6 @@ jobs:
           path: |
             app/build/reports/tests/
             core/*/build/reports/tests/
-            feature/*/build/reports/tests/
           if-no-files-found: ignore
 
   integration-test:

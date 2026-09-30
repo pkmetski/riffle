@@ -174,9 +174,7 @@ class AnnotationFocusHarnessTest : KoinTest {
         // On slow CI runners the WebView may still be mid-animation to the bookmarked column when
         // the Compose tree is already idle. Wait for the WebView scroll position to stabilize
         // before sampling the phrase rect, to avoid a false "wrong column" failure.
-        // The 16-second budget (8s to START moving + 8s to SETTLE) accommodates slow emulators
-        // where Readium's scroll callback can be delayed more than 4 seconds after the bookmark click.
-        waitForWebViewScrollQuiet(timeoutMs = 16_000)
+        waitForWebViewScrollQuiet()
 
         val result = waitForPhraseOnScreen(
             orientation,

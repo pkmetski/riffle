@@ -82,10 +82,9 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     # This job Kotlin/Native-compiles and runs 27 modules' iosSimulatorArm64Test plus the XCTest
-    # unit target. Timing depends heavily on the Gradle K/N cache: a fully warm cache (all 27
-    # modules previously compiled on this runner) finishes in ~25–35 min; a cold or partly warm
-    # cache adds 15–25 min for K/N recompilation. 50 min is the hard ceiling — it covers warm-cache
-    # runs comfortably and a cold-cache run triggered by a new module or after cache expiry.
+    # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
+    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 matches the harness
+    # job's ceiling and is a hard safety cap, not a per-test wait.
     timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
@@ -120,11 +119,8 @@ jobs:
       # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
       # verified on iOS, not just Android. core:database and core:data have their own jobs.
       - name: Run iOS commonTest (all iOS-targeted modules)
-        # --max-workers 2 caps concurrent K/N link steps. Without the cap, Gradle's default worker
-        # count (≈ CPU count) launches too many K/N daemons simultaneously on the 7 GB macos-15
-        # runner, exhausting RAM and causing link hangs that kill the 50-minute timeout.
         run: |
-          ./gradlew --max-workers 2 \
+          ./gradlew \
             :core:common:iosSimulatorArm64Test \
             :core:models:iosSimulatorArm64Test \
             :core:net:iosSimulatorArm64Test \
