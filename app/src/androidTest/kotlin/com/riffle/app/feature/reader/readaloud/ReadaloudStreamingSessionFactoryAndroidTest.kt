@@ -44,6 +44,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -204,6 +207,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                 bookmarkApi = absApiClient,
                 serverInfoApi = absApiClient,
                 clock = testClock,
+                httpClient = HttpClient(MockEngine { respond("") }),
             )
         }
         return ReadaloudStreamingSessionFactory(

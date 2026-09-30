@@ -32,6 +32,7 @@ kotlin {
             implementation(project(":core:catalog-chitanka"))
             implementation(project(":core:catalog-gutenberg"))
             implementation(project(":core:catalog-radio-es"))
+            implementation(libs.ktor.client.mock)
         }
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
@@ -103,6 +104,7 @@ kotlin {
             implementation(libs.okhttp.mockwebserver)
             implementation(libs.mockk)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.mock)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
         }
@@ -112,6 +114,7 @@ kotlin {
             implementation(libs.okhttp.mockwebserver)
             implementation(libs.mockk)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.mock)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             // Production dependencies only in androidMain that jvmTest tests also need

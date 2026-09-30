@@ -794,6 +794,7 @@ private val coreDataCatalogModule = module {
                 tokenStorage = get(),
                 deviceIdStore = get(),
                 clock = get(),
+                httpClient = get(),
             ),
             SourceType.CHITANKA to ChitankaCatalogFactory(
                 httpClient = get(named(WEB_SOURCE_HTTP_CLIENT)),

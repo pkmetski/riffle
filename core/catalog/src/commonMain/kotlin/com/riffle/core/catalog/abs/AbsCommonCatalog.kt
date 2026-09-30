@@ -20,6 +20,9 @@ import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
+import com.riffle.core.network.withHttpChannelStream
+import io.ktor.client.HttpClient
+import io.ktor.http.HttpHeaders
 
 /**
  * The platform-neutral half of the ABS [Catalog]: everything that can be served from the
@@ -38,10 +41,10 @@ import com.riffle.core.network.NetworkEbookProgressPayload
  * two platforms cannot drift. Everything `AbsCatalog` adds on top — import/upload, series,
  * collections, playlists, bookmarks, reading sessions, stats, audiobook media — stays there.
  *
- * Members this class cannot serve honestly are the file-transfer pair ([fetchFile],
- * [withFileStream]): ABS serves ebook bytes through `AbsFileDownloadApi`, which is JVM-only. They
- * throw [CatalogException.UnsupportedOperation] rather than returning a plausible-looking handle
- * that would 404 or silently stream nothing. Every other [Catalog] member is real.
+ * The file-transfer pair ([fetchFile], [withFileStream]) are also fully implemented here using
+ * [io.ktor.client.HttpClient] and [withHttpChannelStream] from `core:net`. ABS serves ebook bytes
+ * from `/api/items/{id}/file/{ino}`; the inode is resolved lazily via [AbsLibraryApi.getItemEbookFileIno]
+ * when the library-list API has not supplied it (which it never does in batch responses).
  */
 class AbsCommonCatalog(
     private val config: AbsCatalogConfig,
@@ -49,6 +52,7 @@ class AbsCommonCatalog(
     private val sessionApi: AbsSessionApi,
     private val serverInfoApi: AbsServerInfoApi,
     private val clock: Clock,
+    private val httpClient: HttpClient,
 ) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability {
 
     override val sourceType: SourceType = SourceType.ABS
@@ -95,15 +99,45 @@ class AbsCommonCatalog(
             .unwrap()
             ?.toCatalogItem(config.baseUrl)
 
-    override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle =
-        throw CatalogException.UnsupportedOperation(FILE_TRANSFER_UNAVAILABLE)
+    override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle {
+        val ino = resolveIno(itemId, null)
+        return CatalogFileHandle.Stream(
+            url = absFileUrl(itemId, ino),
+            headers = mapOf(HttpHeaders.Authorization to "Bearer ${config.token}"),
+            format = format,
+        )
+    }
 
     override suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
         block: suspend (CatalogFileStream) -> T,
-    ): T = throw CatalogException.UnsupportedOperation(FILE_TRANSFER_UNAVAILABLE)
+    ): T {
+        val ino = resolveIno(itemId, handleHint)
+        val url = absFileUrl(itemId, ino)
+        return httpClient.withHttpChannelStream(
+            url = url,
+            headers = mapOf(HttpHeaders.Authorization to "Bearer ${config.token}"),
+        ) { stream ->
+            block(object : CatalogFileStream {
+                override val contentLength: Long = stream.contentLength
+                override val channel = stream.channel
+            })
+        }
+    }
+
+    /**
+     * Returns the file inode for [itemId]: uses [hint] if non-empty, otherwise fetches it from
+     * the ABS `/api/items/{id}` endpoint. The library-list API does not include `ebookFile.ino`,
+     * so a network call is required the first time a book is opened.
+     */
+    private suspend fun resolveIno(itemId: String, hint: String?): String =
+        hint?.takeIf { it.isNotEmpty() }
+            ?: libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
+
+    private fun absFileUrl(itemId: String, ino: String): String =
+        "${config.baseUrl.trimEnd('/')}/api/items/$itemId/file/$ino"
 
     override suspend fun connectivityCheck(): CatalogHealth {
         // AbsApiClient.getServerInfo swallows failures and returns null on any error, so we can't
@@ -199,9 +233,5 @@ class AbsCommonCatalog(
 
     // endregion
 
-    internal companion object {
-        const val FILE_TRANSFER_UNAVAILABLE =
-            "AbsCommonCatalog cannot transfer ebook bytes — ABS file downloads need AbsFileDownloadApi, " +
-                "which is JVM-only. Use AbsCatalog on JVM; on iOS the downloaders fetch ABS files directly."
-    }
+    internal companion object
 }

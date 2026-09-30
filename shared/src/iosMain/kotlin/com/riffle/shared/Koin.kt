@@ -249,7 +249,6 @@ import com.riffle.shared.library.IosPdfRepositoryImpl
 import com.riffle.shared.library.IosReadaloudHandoff
 import com.riffle.shared.library.IosReadaloudOfflineDownloader
 import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
-import com.riffle.shared.reader.AbsFileStreamer
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEbookCfiTranslatorFactory
@@ -471,7 +470,7 @@ private fun iosLibraryModule(
 
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
-    single { IosEpubDownloader(get(), get(), get()) }
+    single { IosEpubDownloader(get(), get()) }
     single<IosPublicationInspector> { publicationInspector }
     single { TocRepositoryImpl(get(), get()) }
     single<TocRepository> { get<TocRepositoryImpl>() }
@@ -483,9 +482,8 @@ private fun iosLibraryModule(
     single<IosPdfNavigatorBridgeFactory> { pdfNavigatorBridgeFactory }
     single { IosPdfDownloader(get(), get(), get()) }
 
-    // CBZ reader — IosCbzDownloader also implements AbsFileStreamer used by IosEpubDownloader
+    // CBZ reader
     single { IosCbzDownloader(get(), get(), get()) }
-    single<AbsFileStreamer> { get<IosCbzDownloader>() }
     single<CbzRepository> {
         IosCbzRepository(
             sourceRepository = get(),
@@ -854,7 +852,7 @@ private fun iosLibraryModule(
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
     single<EpubRepository> {
-        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), absStreamer = get(), catalogRegistry = get())
+        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
     single { IosPdfRepositoryImpl(get(), get(), get(), get(), get()) }
@@ -905,6 +903,7 @@ private fun iosLibraryModule(
                 tokenStorage = get(),
                 deviceIdStore = get(),
                 clock = get(),
+                httpClient = get(),
             ),
             SourceType.KOMGA to KomgaCatalogFactory(
                 httpClient = get(),

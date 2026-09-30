@@ -10,6 +10,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import io.ktor.client.HttpClient
 
 /**
  * Builds an [AbsCommonCatalog] per ABS Source row on platforms that have no JVM-only ABS
@@ -29,6 +30,7 @@ class AbsCommonCatalogFactory(
     private val tokenStorage: TokenStorage,
     private val deviceIdStore: DeviceIdStore,
     private val clock: Clock,
+    private val httpClient: HttpClient,
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.ABS
@@ -46,6 +48,7 @@ class AbsCommonCatalogFactory(
             sessionApi = sessionApi,
             serverInfoApi = serverInfoApi,
             clock = clock,
+            httpClient = httpClient,
         )
     }
 }

@@ -13,6 +13,7 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import io.ktor.client.HttpClient
 
 /**
  * Builds an [AbsCatalog] per ABS Source row. The token comes from [TokenStorage]; if the row has
@@ -29,6 +30,7 @@ class AbsCatalogFactory(
     private val tokenStorage: TokenStorage,
     private val deviceIdStore: DeviceIdStore,
     private val clock: Clock,
+    private val httpClient: HttpClient,
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.ABS
@@ -51,6 +53,7 @@ class AbsCatalogFactory(
             bookmarkApi = bookmarkApi,
             serverInfoApi = serverInfoApi,
             clock = clock,
+            httpClient = httpClient,
         )
     }
 }

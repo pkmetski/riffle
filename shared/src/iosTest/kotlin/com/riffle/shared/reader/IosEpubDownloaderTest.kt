@@ -28,13 +28,12 @@ import kotlin.test.assertTrue
 /**
  * Regression tests for IosEpubDownloader.
  *
- * Non-ABS items (ebookFileIno == null) go through CatalogRegistry → Catalog.withFileStream.
- * ABS items (ebookFileIno != null) go through AbsFileStreamer, bypassing AbsCommonCatalog which
- * throws UnsupportedOperation for withFileStream (the bug that prompted the two-path split).
+ * All items — ABS (ebookFileIno may be null or non-null) and non-ABS — go through
+ * CatalogRegistry → Catalog.withFileStream. AbsCommonCatalog resolves the file inode lazily
+ * via /api/items/{id} when the library-list API has not supplied it (which it never does).
  *
- * Both paths write via IosItemFiles.writeChannel which calls mkdirsForFile() first, so the
- * $sourceId/ subdirectory is always created before the write — the original "Could not download
- * book" bug.
+ * [IosItemFiles.writeChannel] calls mkdirsForFile() first, so the $sourceId/ subdirectory is
+ * always created before the write — the original "Could not download book" bug.
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosEpubDownloaderTest {
@@ -62,7 +61,7 @@ class IosEpubDownloaderTest {
 
     private val epubBytes = byteArrayOf(0x50, 0x4B, 0x03, 0x04, 1, 2, 3, 4)
 
-    /** Non-ABS item: ebookFileIno is null, so the catalog path is taken. */
+    /** Non-ABS item: ebookFileIno is null. */
     private val catalogItem = LibraryItem(
         id = "item-1",
         sourceId = "src-1",
@@ -77,7 +76,7 @@ class IosEpubDownloaderTest {
         ebookFileIno = null,
     )
 
-    /** ABS item: ebookFileIno is set, so the AbsFileStreamer path is taken. */
+    /** ABS item: ebookFileIno is null (library-list API never includes it). */
     private val absItem = LibraryItem(
         id = "item-2",
         sourceId = "src-abs",
@@ -89,7 +88,7 @@ class IosEpubDownloaderTest {
         isCached = false,
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
-        ebookFileIno = "ino-1",
+        ebookFileIno = null,
     )
 
     /** Minimal Catalog stub — only withFileStream and connectivityCheck are exercised by this test. */
@@ -127,26 +126,10 @@ class IosEpubDownloaderTest {
         override suspend fun forSourceId(sourceId: String): Catalog? = catalog
     }
 
-    private fun absStreamer(bytes: ByteArray): AbsFileStreamer = object : AbsFileStreamer {
-        override suspend fun <T> withStream(item: LibraryItem, sink: suspend (channel: ByteReadChannel, contentLength: Long) -> T): T =
-            sink(ByteReadChannel(bytes), bytes.size.toLong())
-    }
-
-    private fun failingAbsStreamer(): AbsFileStreamer = object : AbsFileStreamer {
-        override suspend fun <T> withStream(item: LibraryItem, sink: suspend (channel: ByteReadChannel, contentLength: Long) -> T): T? = null
-    }
-
-    private val noOpAbsStreamer: AbsFileStreamer = object : AbsFileStreamer {
-        override suspend fun <T> withStream(item: LibraryItem, sink: suspend (channel: ByteReadChannel, contentLength: Long) -> T): T? =
-            error("AbsFileStreamer must not be called for non-ABS items")
-    }
-
-    private val noOpRegistry = registry(null)
-
     @Test
     fun catalogItemCreatesTheSourceIdSubdirectoryAndReturnsTheCachePath() = runTest {
         val store = TempFileStore()
-        val path = IosEpubDownloader(noOpAbsStreamer, registry(catalog(epubBytes)), store).localPath(catalogItem)
+        val path = IosEpubDownloader(registry(catalog(epubBytes)), store).localPath(catalogItem)
 
         assertNotNull(path, "localPath must return a non-null path when the catalog delivers bytes")
         assertTrue(
@@ -161,13 +144,13 @@ class IosEpubDownloaderTest {
 
     @Test
     fun catalogItemReturnsNullWhenTheCatalogThrows() = runTest {
-        val path = IosEpubDownloader(noOpAbsStreamer, registry(failingCatalog()), TempFileStore()).localPath(catalogItem)
+        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore()).localPath(catalogItem)
         assertNull(path, "a catalog error must yield null so the reader shows the error UI")
     }
 
     @Test
     fun catalogItemReturnsNullWhenNoCatalogIsRegisteredForTheSource() = runTest {
-        val path = IosEpubDownloader(noOpAbsStreamer, registry(null), TempFileStore()).localPath(catalogItem)
+        val path = IosEpubDownloader(registry(null), TempFileStore()).localPath(catalogItem)
         assertNull(path, "no catalog for source must yield null")
     }
 
@@ -185,7 +168,7 @@ class IosEpubDownloaderTest {
             }
             override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
         }
-        val downloader = IosEpubDownloader(noOpAbsStreamer, registry(countingCatalog), store)
+        val downloader = IosEpubDownloader(registry(countingCatalog), store)
 
         val first = downloader.localPath(catalogItem)
         assertNotNull(first, "first call must download and cache")
@@ -196,15 +179,15 @@ class IosEpubDownloaderTest {
     }
 
     /**
-     * ABS items (ebookFileIno != null) must bypass AbsCommonCatalog (which throws
-     * UnsupportedOperation) and stream directly through AbsFileStreamer.
+     * ABS items route through the catalog just like any other source — AbsCommonCatalog resolves
+     * the inode on demand. The downloader must not short-circuit to null for these items.
      */
     @Test
-    fun absItemDownloadsViaAbsStreamerAndCreatesSourceIdSubdirectory() = runTest {
+    fun absItemDownloadsViaCatalogAndCreatesSourceIdSubdirectory() = runTest {
         val store = TempFileStore()
-        val path = IosEpubDownloader(absStreamer(epubBytes), noOpRegistry, store).localPath(absItem)
+        val path = IosEpubDownloader(registry(catalog(epubBytes)), store).localPath(absItem)
 
-        assertNotNull(path, "ABS item must return a non-null path when AbsFileStreamer delivers bytes")
+        assertNotNull(path, "ABS item must return a non-null path when the catalog delivers bytes")
         assertTrue(
             NSFileManager.defaultManager.fileExistsAtPath(path),
             "the file must exist at the returned path",
@@ -216,8 +199,8 @@ class IosEpubDownloaderTest {
     }
 
     @Test
-    fun absItemReturnsNullWhenAbsStreamerFails() = runTest {
-        val path = IosEpubDownloader(failingAbsStreamer(), noOpRegistry, TempFileStore()).localPath(absItem)
-        assertNull(path, "an AbsFileStreamer failure must yield null so the reader shows the error UI")
+    fun absItemReturnsNullWhenCatalogThrows() = runTest {
+        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore()).localPath(absItem)
+        assertNull(path, "a catalog error on an ABS item must yield null so the reader shows the error UI")
     }
 }

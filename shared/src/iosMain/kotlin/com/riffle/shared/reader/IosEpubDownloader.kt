@@ -15,41 +15,38 @@ import platform.Foundation.NSFileManager
  * Returns a local path for the given EPUB, used by the reader to open the file.
  * Priority: permanent download (epub-downloads) → cached copy (epub-cache) → fetch.
  *
- * ABS items (ebookFileIno != null) stream directly through [AbsFileStreamer] using the ABS
- * `/api/items/{id}/file/{ino}` endpoint. All other sources (Komga, Kavita, WebDAV, …) stream
- * through [CatalogRegistry.forSourceId] → [Catalog.withFileStream].
+ * All sources (ABS, Komga, Kavita, WebDAV, …) stream through [CatalogRegistry.forSourceId] →
+ * [Catalog.withFileStream]. For ABS items, [AbsCommonCatalog] resolves the file inode from
+ * the `/api/items/{id}` endpoint on demand (the library-list API does not include it).
  *
- * Both paths use [IosItemFiles.writeChannel] which calls mkdirsForFile() first, so the
- * $sourceId/ subdirectory is always created before the write (NSFileManager.createFileAtPath
- * silently fails when the parent directory does not exist).
+ * [IosItemFiles.writeChannel] calls mkdirsForFile() first, so the $sourceId/ subdirectory is
+ * always created before the write.
  */
 class IosEpubDownloader(
-    private val absStreamer: AbsFileStreamer,
     private val catalogRegistry: CatalogRegistry,
     private val fileStore: FileStore,
 ) {
     suspend fun localPath(item: LibraryItem): String? {
         val downloadPath = fileStore.resolve(NS_EPUB_DOWNLOADS, IosEpubPaths.downloadRelativePath(item.sourceId, item.id))
-        if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) return downloadPath
+        if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) {
+            return downloadPath
+        }
 
         val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
-        if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) return cachePath
+        if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) {
+            return cachePath
+        }
 
-        return if (item.ebookFileIno != null) {
-            absStreamer.withStream(item) { channel, length ->
-                if (IosItemFiles.writeChannel(cachePath, channel, length)) cachePath else null
+        val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
+        return try {
+            catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
+                val written = IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)
+                if (written) cachePath else null
             }
-        } else {
-            val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
-            try {
-                catalog.withFileStream(item.id, BookFormat.Epub, null) { stream ->
-                    if (IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)) cachePath else null
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                null
-            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
         }
     }
 }
