@@ -145,6 +145,7 @@ fun LibraryItemsScreen(
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
+    val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -192,6 +193,7 @@ fun LibraryItemsScreen(
                     annotationsState = annotationsState,
                     coversAreSquare = coversAreSquare,
                     linkedItemIds = linkedItemIds,
+                    collectionCoverUrls = collectionCoverUrls,
                     showRecentlyAdded = showRecentlyAdded,
                     onItemSelected = onItemSelected,
                     onAnnotatedBookSelected = onAnnotatedBookSelected,
@@ -227,6 +229,7 @@ internal fun LibraryTabContent(
     // Defaulted so the tab-content tests can stay focused on the projection they exercise.
     token: String = "",
     linkedItemIds: Set<String>,
+    collectionCoverUrls: Map<String, List<String>> = emptyMap(),
     showRecentlyAdded: Boolean = true,
     onItemSelected: (LibraryItem) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
@@ -248,7 +251,7 @@ internal fun LibraryTabContent(
             AnnotationsTabContent(annotationsState, { token }, onAnnotatedBookSelected)
         }
         3 -> SeriesTabContent(projection.series, token, onSeriesSelected)
-        4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
+        4 -> CollectionsTabContent(projection.collections, token, collectionCoverUrls, onCollectionSelected)
         5 -> AllBooksTabContent(projection.allBooks, token, coversAreSquare, linkedItemIds, onItemSelected)
         // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
         // Home tab. The shared ViewModel has exposed `playlists` all along
@@ -633,22 +636,92 @@ private fun SeriesGridTile(series: Series, token: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun CollectionsTabContent(collections: List<Collection>, onCollectionSelected: (Collection) -> Unit) {
+private fun CollectionsTabContent(
+    collections: List<Collection>,
+    token: String,
+    coverUrls: Map<String, List<String>>,
+    onCollectionSelected: (Collection) -> Unit,
+) {
     if (collections.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No collections", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(coverGridMinCell()),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         items(collections, key = { it.id }) { col ->
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onCollectionSelected(col) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(col.name, style = MaterialTheme.typography.bodyLarge)
+            CollectionGridTile(
+                collection = col,
+                token = token,
+                coverUrls = coverUrls[col.id].orEmpty(),
+                onClick = { onCollectionSelected(col) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CollectionGridTile(
+    collection: Collection,
+    token: String,
+    coverUrls: List<String>,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag(TestTags.collectionGridTile(collection.id)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            when {
+                coverUrls.size >= 4 -> {
+                    // 2×2 mosaic
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                CoverImage(url = coverUrls[0], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_0")
+                            }
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                CoverImage(url = coverUrls[1], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_1")
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                CoverImage(url = coverUrls[2], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_2")
+                            }
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                CoverImage(url = coverUrls[3], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_3")
+                            }
+                        }
+                    }
+                }
+                coverUrls.isNotEmpty() -> {
+                    CoverImage(url = coverUrls[0], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = collection.id)
+                }
+                else -> {
+                    DefaultCoverPlaceholder(modifier = Modifier.fillMaxSize(), isAudiobook = false)
+                }
             }
         }
+        Text(
+            text = collection.name,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

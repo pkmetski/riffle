@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
+import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
@@ -397,6 +398,70 @@ class LibraryTabContentTest {
 
         onNodeWithText("Foundation").performClick()
         assertEquals(series, selected)
+    }
+
+    /**
+     * The Collections tab must show collection names in a grid with a tile per collection,
+     * not a plain text list. The collection name must be visible so the tile is meaningful
+     * even when covers are absent.
+     *
+     * Before this fix, iOS rendered a plain `LazyColumn` with only the collection name in a `Text`
+     * row. The regression to pin: tab index 4 must route to the grid body, and the grid must show
+     * the collection name so the tile is meaningful. Reverting the change back to `LazyColumn` with
+     * no `collectionGridTile` tag makes the second assertion go red.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun collectionsTabShowsCollectionNameInGridTile() = runComposeUiTest {
+        val collection = Collection(id = "c1", libraryId = "lib1", name = "Fantasy Favourites", bookCount = 3)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 4,
+                projection = LibraryProjection.Empty.copy(collections = listOf(collection)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithText("Fantasy Favourites").assertIsDisplayed()
+        // The tile tag proves the grid path rendered, not the plain list path.
+        onNodeWithTag(TestTags.collectionGridTile("c1")).assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun tappingCollectionInGridNavigatesToThatCollection() = runComposeUiTest {
+        val collection = Collection(id = "c1", libraryId = "lib1", name = "Sci-Fi Picks", bookCount = 5)
+        var selected: Collection? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = 4,
+                projection = LibraryProjection.Empty.copy(collections = listOf(collection)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = { selected = it },
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithTag(TestTags.collectionGridTile("c1")).performClick()
+        assertEquals(collection, selected, "Tapping a collection tile must fire onCollectionSelected")
     }
 
     /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */

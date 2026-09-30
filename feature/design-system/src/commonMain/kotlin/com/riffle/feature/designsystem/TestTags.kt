@@ -171,6 +171,7 @@ object TestTags {
     const val SNACKBAR_HOST = "RiffleSnackbarHost"
 
     // ── Library / playlist ────────────────────────────────────────────────────
+    fun collectionGridTile(id: String) = "collection_grid_tile_$id"
     const val ANNOTATION_SEARCH_SUBMIT = "annotation-search-submit"
     const val ANNOTATION_SEARCH_RESULTS = "annotation-search-results"
     const val DETAIL_ADD_TO_PLAYLIST = "detail-add-to-playlist"

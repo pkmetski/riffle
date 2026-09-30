@@ -293,13 +293,13 @@ private fun ReadyBody(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Cover — full-width on phones, capped on wide screens (tablet portrait).
+        // Cover — full-width, matching Android's phone-portrait "full-bleed" rule.
+        // Tablet portrait will need a widthIn(max=280dp) cap when iOS tablet layout is supported.
         Box(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .fillMaxWidth()
                 .aspectRatio(if (state.item.isAudiobookOnly) 1f else 2f / 3f)
-                .clip(RoundedCornerShape(4.dp))
-                .align(Alignment.CenterHorizontally),
+                .clip(RoundedCornerShape(4.dp)),
         ) {
             CoverImage(
                 url = state.item.coverUrl,
