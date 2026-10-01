@@ -170,10 +170,7 @@ jobs:
     # 55 min: this job runs the LARGER subset (everything NOT annotated @TabletLayout) and the
     # budget was previously 20 min → 30 min → 40 min as the suite grew. A healthy run now takes
     # ~35–38 min of test execution plus ~3–5 min of APK build and emulator boot, so the 40-min
-    # budget is exhausted and the job is cancelled mid-test. Raising to 55 min gives the necessary
-    # headroom; a genuinely hung test still trips the per-test instrumentation timeout long before
-    # 55 min.
-    timeout-minutes: 55
+    timeout-minutes: 40
     concurrency:
       group: android-harness-phone-${{ github.ref }}
       cancel-in-progress: true
