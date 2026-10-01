@@ -19,18 +19,25 @@ final class IosAppTests: AbsHarnessTestCase {
     func testLibraryHomeSectionGridVisible() throws {
         waitForLibraryToLoad()
 
-        let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
-        let found = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 10) }
+        // Section headers carry a count suffix since #1140 ("In Progress (3)"); match by prefix.
+        let sectionPrefixes = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
+        let found = sectionPrefixes.contains {
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", $0)).firstMatch.waitForExistence(timeout: 10)
+        }
         XCTAssertTrue(found, "At least one section header should be visible in the library home")
     }
 
-    /// 1.3 + 1.4 — Tapping "See all" navigates to the section screen; back returns to library home.
+    /// 1.3 + 1.4 — Tapping the overflow tile navigates to the section screen; back returns to library home.
     func testSeeAllNavigatesToSectionScreenAndBackReturns() throws {
         waitForLibraryToLoad()
 
-        let seeAllButton = app.buttons["See all"].firstMatch
-        XCTAssertTrue(seeAllButton.waitForExistence(timeout: 15), "'See all' button must be present")
-        seeAllButton.tap()
+        // "See all" was removed in #1140; the overflow tile ("%N\nmore") carries testTag "see_more_tile"
+        // which the CMP bridge exposes as accessibilityIdentifier on iOS.
+        let seeMoreTile = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", "see_more_tile"))
+            .firstMatch
+        XCTAssertTrue(seeMoreTile.waitForExistence(timeout: 15), "Overflow '+N more' tile must be present")
+        seeMoreTile.tap()
 
         // BasicText+clickable in Compose maps to button trait on iOS; search all element types.
         let backButton = app.descendants(matching: .any).matching(
@@ -42,8 +49,11 @@ final class IosAppTests: AbsHarnessTestCase {
         )
         backButton.tap()
 
-        let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
-        let backOnHome = sectionLabels.contains { app.staticTexts[$0].waitForExistence(timeout: 5) }
+        // Section headers carry a count suffix since #1140; match by prefix.
+        let sectionPrefixes = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
+        let backOnHome = sectionPrefixes.contains {
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", $0)).firstMatch.waitForExistence(timeout: 5)
+        }
         XCTAssertTrue(backOnHome, "Navigating back should return to the library home screen")
     }
 
@@ -78,7 +88,7 @@ final class IosAppTests: AbsHarnessTestCase {
         backArrow.tap()
 
         let anySection = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series"].contains {
-            app.staticTexts[$0].waitForExistence(timeout: 5)
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", $0)).firstMatch.waitForExistence(timeout: 5)
         }
         XCTAssertTrue(anySection, "Navigating back from series detail should return to library home")
     }
@@ -114,7 +124,7 @@ final class IosAppTests: AbsHarnessTestCase {
         backArrow.tap()
 
         let anySection = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Collections"].contains {
-            app.staticTexts[$0].waitForExistence(timeout: 5)
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", $0)).firstMatch.waitForExistence(timeout: 5)
         }
         XCTAssertTrue(anySection, "Navigating back from collection detail should return to library home")
     }

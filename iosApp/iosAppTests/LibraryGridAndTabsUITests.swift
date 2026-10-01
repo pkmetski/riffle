@@ -100,7 +100,8 @@ final class LibraryGridAndTabsUITests: AbsHarnessTestCase {
     func testSelectingAllBooksSwitchesAwayFromTheHomeSections() throws {
         XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
         // The Home tab shows section headers; All Books does not.
-        let recentlyAdded = app.staticTexts["Recently Added"]
+        // Headers carry a count suffix since #1140 ("Recently Added (3)"); match by prefix.
+        let recentlyAdded = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Recently Added")).firstMatch
         XCTAssertTrue(recentlyAdded.waitForExistence(timeout: 20), "Home must show its section headers")
 
         tab("All Books").tap()
