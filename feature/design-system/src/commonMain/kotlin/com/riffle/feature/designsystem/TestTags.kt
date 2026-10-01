@@ -14,6 +14,7 @@ object TestTags {
     const val LIBRARY_FILTER = "library_filter"
     const val LIBRARY_SORT = "library_sort"
     const val LIBRARY_OVERFLOW_MENU = "library_overflow_menu"
+    const val LIBRARY_SECTION_BACK = "library_section_back"
     fun libraryBookItem(index: Int) = "library_book_item_$index"
 
     // ── Book detail ───────────────────────────────────────────────────────────

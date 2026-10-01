@@ -22,8 +22,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
+import androidx.compose.ui.platform.testTag
 import com.riffle.feature.designsystem.BookGrid
 import com.riffle.feature.designsystem.LocalCoversAreSquare
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_all_books
 import com.riffle.feature.designsystem.generated.resources.ui_collections
@@ -72,6 +74,7 @@ fun LibrarySectionScreen(
                 text = "←",
                 modifier = Modifier
                     .padding(end = 12.dp)
+                    .testTag(TestTags.LIBRARY_SECTION_BACK)
                     .clickable(onClick = onBack),
                 style = TextStyle(fontSize = 20.sp),
             )
