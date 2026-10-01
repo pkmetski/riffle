@@ -692,7 +692,10 @@ private fun SeriesTabContent(series: List<Series>, token: String, onSeriesSelect
 
 @Composable
 private fun SeriesGridTile(series: Series, token: String, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .semantics(mergeDescendants = true) { contentDescription = series.name }
+        .clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -760,6 +763,7 @@ private fun CollectionGridTile(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = collection.name }
             .clickable(onClick = onClick)
             .testTag(TestTags.collectionGridTile(collection.id)),
     ) {
@@ -864,6 +868,7 @@ private fun SeriesTile(
 ) {
     Box(
         modifier = modifier
+            .semantics(mergeDescendants = true) { contentDescription = series.name }
             .clip(RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.BottomStart,
