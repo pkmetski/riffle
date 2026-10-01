@@ -1975,8 +1975,14 @@ class EpubReaderViewModel constructor(
         // The close fraction (book-wide totalProgression) drives library_items.readingProgress.
         // Computed here — identical to Locator.toPayload()'s ebookProgress — so it can be persisted
         // on the survivable scope below without the heavier CFI translation toPayload() also does.
-        val closeFraction = locator.locations.totalProgression?.toFloat()
-            ?: locator.locations.progression?.toFloat() ?: 0f
+        // finishAwareEbookProgress clamps to 1.0 when on the last page: Readium never emits
+        // totalProgression=1 in paginated/vertical mode (last page starts at (N-1)/N), so without
+        // the clamp a completed book syncs to ABS as 99% rather than 100%.
+        val closeFraction = com.riffle.core.domain.finishAwareEbookProgress(
+            totalProgression = locator.locations.totalProgression?.toFloat(),
+            progression = locator.locations.progression?.toFloat() ?: 0f,
+            positionCounts = spinePositionCounts.value.second,
+        )
         progressFlushScope.flush {
             val sid = capturedNavServerId ?: sourceRepository.getActive()?.id ?: return@flush
             epubRepository.saveReadingPosition(sid, itemId, locatorJson)
@@ -2020,7 +2026,11 @@ class EpubReaderViewModel constructor(
         }
         SessionPayload(
             ebookLocation = fullCfi,
-            ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
+            ebookProgress = com.riffle.core.domain.finishAwareEbookProgress(
+                totalProgression = locations.totalProgression?.toFloat(),
+                progression = locations.progression?.toFloat() ?: 0f,
+                positionCounts = spinePositionCounts.value.second,
+            ),
         )
     }
 

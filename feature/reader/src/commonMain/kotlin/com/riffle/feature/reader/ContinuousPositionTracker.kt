@@ -178,6 +178,27 @@ object ContinuousPositionTracker {
         return ms.toInt().coerceIn(PAGE_SCROLL_MIN_DURATION_MS, PAGE_SCROLL_MAX_DURATION_MS)
     }
 
+    /**
+     * Corrects the raw within-chapter progression at the forward scroll boundary.
+     *
+     * In continuous mode [locatorAt] measures progression at the viewport midpoint. When the
+     * final chapter is shorter than half a viewport, scrollY is capped at content-height minus
+     * viewport, so the midpoint falls BELOW the chapter start — yielding rawProgression = 0.0
+     * even though the reader has reached the absolute end of the book. The resulting
+     * totalProgression is then (total − lastCount) / total, well below the finished threshold,
+     * so ABS shows 99 % instead of 100 %.
+     *
+     * Override to 1.0 when two conditions are both true: the chapter is the last spine item, and
+     * scrollY has reached maxScrollY (nothing more to scroll). This ensures computeTotalProgression
+     * returns 1.0 and downstream progress reporting reflects "finished".
+     */
+    fun adjustProgressionAtForwardBoundary(
+        rawProgression: Float,
+        isLastChapter: Boolean,
+        scrollY: Int,
+        maxScrollY: Int,
+    ): Float = if (isLastChapter && scrollY >= maxScrollY && rawProgression < 1f) 1f else rawProgression
+
     /** A resolved volume-key page-scroll animation: scroll by [scrollBy] px over [durationMs]. */
     data class PageScrollAnimation(val scrollBy: Int, val durationMs: Int)
 

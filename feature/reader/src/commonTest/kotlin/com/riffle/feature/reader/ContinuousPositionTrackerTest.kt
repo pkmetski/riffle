@@ -1443,4 +1443,55 @@ class ContinuousPositionTrackerTest {
             ),
         )
     }
+
+    // ── adjustProgressionAtForwardBoundary ─────────────────────────────────────────────────────
+
+    @Test
+    fun `adjustProgressionAtForwardBoundary — short final chapter at maxScrollY overrides to 1f`() {
+        // Regression: a short final chapter (height < viewportHeight/2) makes the viewport
+        // midpoint fall below the chapter's top at maxScrollY, yielding rawProgression = 0.0 and
+        // totalProgression well below the finished threshold — ABS showed 99% instead of 100%.
+        assertEquals(
+            1f,
+            ContinuousPositionTracker.adjustProgressionAtForwardBoundary(
+                rawProgression = 0f,
+                isLastChapter = true,
+                scrollY = 5_000,
+                maxScrollY = 5_000,
+            ),
+        )
+    }
+
+    @Test
+    fun `adjustProgressionAtForwardBoundary — not at maxScrollY leaves progression unchanged`() {
+        val result = ContinuousPositionTracker.adjustProgressionAtForwardBoundary(
+            rawProgression = 0.3f,
+            isLastChapter = true,
+            scrollY = 4_000,
+            maxScrollY = 5_000,
+        )
+        assertEquals(0.3f, result)
+    }
+
+    @Test
+    fun `adjustProgressionAtForwardBoundary — not last chapter at maxScrollY leaves progression unchanged`() {
+        val result = ContinuousPositionTracker.adjustProgressionAtForwardBoundary(
+            rawProgression = 0.3f,
+            isLastChapter = false,
+            scrollY = 5_000,
+            maxScrollY = 5_000,
+        )
+        assertEquals(0.3f, result)
+    }
+
+    @Test
+    fun `adjustProgressionAtForwardBoundary — already 1f is left unchanged`() {
+        val result = ContinuousPositionTracker.adjustProgressionAtForwardBoundary(
+            rawProgression = 1f,
+            isLastChapter = true,
+            scrollY = 5_000,
+            maxScrollY = 5_000,
+        )
+        assertEquals(1f, result)
+    }
 }
