@@ -11,6 +11,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.RecordItemOpened
@@ -86,7 +89,12 @@ fun HomeScreen() {
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var activeLibraryId by remember { mutableStateOf<String?>(null) }
+    var isInReaderDestination by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+
+    val density = LocalDensity.current.density
+    val containerSize = LocalWindowInfo.current.containerSize
+    val isTabletLayout = (containerSize.width / density) >= 840f && (containerSize.height / density) >= 480f
 
     val allServers by drawerViewModel.allServers.collectAsState()
     val activeServer by drawerViewModel.activeServer.collectAsState()
@@ -117,6 +125,8 @@ fun HomeScreen() {
     RiffleNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerEnabled,
+        usePermanentDrawer = isTabletLayout,
+        hidePermanentDrawerPanel = isTabletLayout && isInReaderDestination,
         activeServer = activeServer,
         allServers = allServers,
         visibleLibraries = visibleLibraries,
@@ -240,6 +250,7 @@ fun HomeScreen() {
                             libraryId = dest.libraryId,
                             libraryName = dest.libraryName,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
+                            onReaderActiveChanged = { isInReaderDestination = it },
                         )
                     }
                 }
@@ -254,6 +265,7 @@ private fun LibraryHost(
     libraryId: String,
     libraryName: String,
     onOpenDrawer: () -> Unit,
+    onReaderActiveChanged: (Boolean) -> Unit = {},
 ) {
     // rememberSaveable cannot be used here: LibraryNav.ReaderDestination carries a LibraryItem
     // which is not Parcelable/Serializable, so the stack would crash on process death.
@@ -265,6 +277,9 @@ private fun LibraryHost(
 
     fun push(dest: LibraryNav) { navStack = navStack + dest }
     fun pop() { navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) } }
+
+    SideEffect { onReaderActiveChanged(navStack.last() is LibraryNav.ReaderDestination) }
+    DisposableEffect(Unit) { onDispose { onReaderActiveChanged(false) } }
 
     when (val current = navStack.last()) {
         // Unbounded catalogues have no `library_items` mirror to render (ADR 0051), so they get
