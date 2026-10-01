@@ -146,6 +146,7 @@ jobs:
             :feature:source:iosSimulatorArm64Test \
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
+            :feature:settings-ui:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
             :core:logging:iosSimulatorArm64Test \
             :core:database-api:iosSimulatorArm64Test
@@ -183,6 +184,7 @@ jobs:
             feature/source/build/reports/tests/
             feature/source-ui/build/reports/tests/
             feature/settings/build/reports/tests/
+            feature/settings-ui/build/reports/tests/
             feature/downloads/build/reports/tests/
           if-no-files-found: ignore
 
