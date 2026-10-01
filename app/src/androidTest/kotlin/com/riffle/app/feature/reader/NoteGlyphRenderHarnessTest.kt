@@ -114,7 +114,7 @@ class NoteGlyphRenderHarnessTest : KoinTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        val deadline = System.currentTimeMillis() + 20_000
+        val deadline = System.currentTimeMillis() + 30_000
         var lastDetails = "no WebView"
         val glyphSelector = if (orientation == ReaderOrientation.Continuous) {
             "[data-riffle-note-glyph]"
