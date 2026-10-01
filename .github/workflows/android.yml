@@ -167,9 +167,6 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-    # 55 min: this job runs the LARGER subset (everything NOT annotated @TabletLayout) and the
-    # budget was previously 20 min → 30 min → 40 min as the suite grew. A healthy run now takes
-    # ~35–38 min of test execution plus ~3–5 min of APK build and emulator boot, so the 40-min
     timeout-minutes: 40
     concurrency:
       group: android-harness-phone-${{ github.ref }}
