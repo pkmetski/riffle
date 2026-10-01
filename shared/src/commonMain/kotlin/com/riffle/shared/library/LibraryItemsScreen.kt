@@ -376,9 +376,6 @@ private fun HomeTabContent(
     val continueSeriesTitle = stringResource(Res.string.ui_section_continue_series)
     val recentlyAddedTitle = stringResource(Res.string.ui_section_recently_added)
     val completedTitle = stringResource(Res.string.ui_section_completed)
-    val seriesLabel = stringResource(Res.string.ui_series)
-    val collectionsLabel = stringResource(Res.string.ui_collections)
-    val allBooksLabel = stringResource(Res.string.ui_all_books)
     CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -459,31 +456,6 @@ private fun HomeTabContent(
                         linkedItemIds = linkedItemIds,
                         onItemSelected = onItemSelected,
                         onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
-                    )
-                }
-            }
-            if (projection.series.isNotEmpty()) {
-                item { SectionHeader(title = seriesLabel, tag = "section-header-SERIES") }
-                item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
-            }
-            if (projection.collections.isNotEmpty()) {
-                item { SectionHeader(title = collectionsLabel, tag = "section-header-COLLECTIONS") }
-                item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
-            }
-            if (projection.allBooks.isNotEmpty()) {
-                item { SectionHeader(title = allBooksLabel, tag = "section-header-ALL_BOOKS") }
-                // A horizontal shelf like every other section, NOT the 600dp LazyVerticalGrid
-                // this used to nest here. A vertically scrolling grid inside a vertically
-                // scrolling column swallows the drag as soon as the finger lands on it, so the
-                // sections below it (Collections, and anything added later) became unreachable
-                // — #1072 flags the "fixed 600dp nested grid" for exactly this reason. The whole
-                // library is one tap away on the All Books tab.
-                item {
-                    HorizontalBookRow(
-                        items = projection.allBooks.take(10),
-                        token = token,
-                        linkedItemIds = linkedItemIds,
-                        onItemClick = onItemSelected,
                     )
                 }
             }
