@@ -156,12 +156,36 @@ class ProgressSyncIntegrationTest {
                 .addHeader("Content-Type", "text/plain")
                 .setBody("OK")
         )
+        // Follow-up GET after zero-stamp PATCH to get server's actual storage timestamp
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3100}"""))
 
         val result = buildRepo().runSyncCycle("item-1", payload)
 
         assertTrue(result is ProgressSyncCycleResult.LocalWins)
-        assertTrue(positionStore.updatedTimestamp != null)
-        assertTrue(positionStore.updatedTimestamp!! > 0L)
+        assertEquals(3100L, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `zero-stamp PATCH follow-up GET prevents clock-skew ServerWins on next cycle`() = runTest {
+        // Scenario: ABS PATCH returns no lastUpdate (stamp=0). ABS server clock is 52ms ahead of
+        // device clock. Without the follow-up GET, lastSyncedAt would be set to device clock, but ABS
+        // stores with server clock; next cycle sees serverLastUpdate > lastSyncedAt → spurious ServerWins.
+        // With the fix, a follow-up GET fetches the actual server-stored stamp so lastSyncedAt matches.
+        positionStore.localUpdatedAt = 3_000L
+        source.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))  // initial pull
+        source.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "text/plain")
+                .setBody("OK")
+        )  // PATCH returns no lastUpdate
+        val serverStamp = 3_052L  // ABS server clock 52ms ahead of device
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":$serverStamp}"""))  // follow-up GET
+
+        buildRepo().runSyncCycle("item-1", payload)
+
+        // lastSyncedAt must equal the ABS server stamp, not device clock
+        assertEquals(serverStamp, positionStore.updatedTimestamp)
+        assertEquals(3, source.requestCount)
     }
 
     @Test
@@ -173,16 +197,15 @@ class ProgressSyncIntegrationTest {
                 .addHeader("Content-Type", "text/plain")
                 .setBody("OK")
         )
+        // Follow-up GET after zero-stamp PATCH
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3052}"""))
 
         buildRepo().runSyncCycle("item-1", payload)
 
         val updatedTs = positionStore.updatedTimestamp
         assertTrue(updatedTs != null)
         assertTrue(updatedTs!! > 0L)
-        // Simulate: on the next cycle the source timestamp is still 1779445105751
-        // localUpdatedAt must be > 0 so source would NOT win
-        val serverTs = 1779445105751L
-        assertTrue("localUpdatedAt must be > 0 so source doesn't always win", updatedTs > 0L)
+        assertEquals(3, source.requestCount)
     }
 
     @Test
@@ -233,6 +256,98 @@ class ProgressSyncIntegrationTest {
         buildRepo().runSyncCycle("item-1", payload)
 
         assertEquals(3100L, positionStore.updatedTimestamp)
+    }
+
+    // --- explicit sourceId bypasses getActive() ---
+
+    @Test
+    fun `explicit sourceId syncs correctly when getActive returns null`() = runTest {
+        positionStore.localUpdatedAt = 1_000L
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/1:0)","lastUpdate":2000}"""))
+
+        val sourceUrl = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!
+        val knownSource = Source(
+            id = "source-1",
+            url = sourceUrl,
+            isActive = false,
+            insecureConnectionAllowed = false,
+            username = "",
+        )
+        val sourceRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = flowOf(listOf(knownSource))
+            override suspend fun getActive(): Source? = null
+            override suspend fun getById(sourceId: String): Source? = knownSource.takeIf { it.id == sourceId }
+            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+                throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) = Unit
+            override suspend fun remove(sourceId: String) = Unit
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val repo = ReadingSessionRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
+            sourceRepository = sourceRepo,
+            positionStore = positionStore,
+            audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
+                override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
+                override suspend fun load(sourceId: String, itemId: String): Double? = null
+                override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) {}
+                override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {}
+                override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            },
+            readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
+                override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+                override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+                override suspend fun clear(sourceId: String, itemId: String) = Unit
+            },
+            libraryItemDao = FakeLibraryItemDao(),
+            clock = com.riffle.core.domain.TestClock(initialMs = 5_000L),
+        )
+
+        val result = repo.runSyncCycle("item-1", payload, sourceId = "source-1")
+
+        assertTrue("expected ServerWins but got $result", result is ProgressSyncCycleResult.ServerWins)
+        assertEquals("epubcfi(/6/8!/4/1:0)", (result as ProgressSyncCycleResult.ServerWins).serverProgress.ebookLocation)
+    }
+
+    @Test
+    fun `runSyncCycle returns Offline when both sourceId is null and getActive returns null`() = runTest {
+        val nullSourceRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
+            override suspend fun getActive(): Source? = null
+            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+                throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) = Unit
+            override suspend fun remove(sourceId: String) = Unit
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val repo = ReadingSessionRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(nullSourceRepo, emptyMap()),
+            sourceRepository = nullSourceRepo,
+            positionStore = positionStore,
+            audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
+                override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
+                override suspend fun load(sourceId: String, itemId: String): Double? = null
+                override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) {}
+                override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {}
+                override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            },
+            readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
+                override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+                override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+                override suspend fun clear(sourceId: String, itemId: String) = Unit
+            },
+            libraryItemDao = FakeLibraryItemDao(),
+            clock = com.riffle.core.domain.TestClock(initialMs = 5_000L),
+        )
+
+        val result = repo.runSyncCycle("item-1", payload, sourceId = null)
+
+        assertTrue(result is ProgressSyncCycleResult.Offline)
+        assertEquals(0, source.requestCount)
     }
 
     // --- touchOpenTimestamp end-to-end (GET → PATCH-same-content → source bumps lastUpdate) ---

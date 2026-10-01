@@ -79,7 +79,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                             ebookLocation = locatorJson,
                             ebookProgress = progress,
                         )
-                        sessionRepository.runSyncCycle(item.id, payload)
+                        sessionRepository.runSyncCycle(item.id, payload, item.sourceId)
                     }
                 }
             }

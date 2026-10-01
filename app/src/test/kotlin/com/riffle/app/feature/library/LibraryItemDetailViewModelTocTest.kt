@@ -136,7 +136,7 @@ class LibraryItemDetailViewModelTocTest {
 
     private val noOpSessionRepo = object : ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: com.riffle.core.models.SessionPayload): com.riffle.core.models.SyncSessionResult = com.riffle.core.models.SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.models.SessionPayload): com.riffle.core.models.ProgressSyncCycleResult = com.riffle.core.models.ProgressSyncCycleResult.InSync
+        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.models.SessionPayload, sourceId: String?): com.riffle.core.models.ProgressSyncCycleResult = com.riffle.core.models.ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) {}
         override suspend fun touchOpenTimestamp(itemId: String) {}
     }

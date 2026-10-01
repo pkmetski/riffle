@@ -53,15 +53,23 @@ class ReadingSessionRepositoryImpl constructor(
         }
     }
 
-    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult {
-        val source = sourceRepository.getActive() ?: return ProgressSyncCycleResult.Offline
-        val catalog = catalogRegistry.forSource(source) ?: return ProgressSyncCycleResult.Offline
+    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult {
+        val sid: String
+        val catalog: com.riffle.core.catalog.Catalog
+        if (sourceId != null) {
+            sid = sourceId
+            catalog = catalogRegistry.forSourceId(sourceId) ?: return ProgressSyncCycleResult.Offline
+        } else {
+            val source = sourceRepository.getActive() ?: return ProgressSyncCycleResult.Offline
+            sid = source.id
+            catalog = catalogRegistry.forSource(source) ?: return ProgressSyncCycleResult.Offline
+        }
         val peer = catalog as? ProgressPeerCapability ?: return ProgressSyncCycleResult.Offline
 
         val serverProgress = runCatching { peer.pullProgress(itemId) }.getOrElse { return ProgressSyncCycleResult.Offline }
         val serverLastUpdate = serverProgress?.lastUpdate ?: 0L
-        val localUpdatedAt = positionStore.loadLocalUpdatedAt(source.id, itemId)
-        val lastSyncedAt = positionStore.loadLastSyncedAt(source.id, itemId)
+        val localUpdatedAt = positionStore.loadLocalUpdatedAt(sid, itemId)
+        val lastSyncedAt = positionStore.loadLastSyncedAt(sid, itemId)
         // A row is CLEAN when nothing has changed locally since the last time we adopted a server
         // stamp (via LocalWins push or ServerWins pull). The server-clock and device-clock skew
         // means we can NOT rely on `localUpdatedAt > serverLastUpdate` alone — on a Device 2 whose
@@ -87,13 +95,13 @@ class ReadingSessionRepositoryImpl constructor(
                 // progress" bug (#528).
                 val serverLoc = serverProgress.ebookLocation.orEmpty()
                 if (serverLoc.isNotEmpty()) {
-                    positionStore.acceptServer(source.id, itemId, serverLoc, serverLastUpdate)
+                    positionStore.acceptServer(sid, itemId, serverLoc, serverLastUpdate)
                 } else {
                     // Server is a never-opened peer with no locator — still adopt the timestamp
                     // AND mark clean so we don't leave the row permanently dirty (which the sweep
                     // would re-pick up on every tick). Don't clobber the locally-persisted locator
                     // with "" — that's what markSyncedAt guarantees vs updateLocalTimestamp (#528).
-                    positionStore.markSyncedAt(source.id, itemId, serverLastUpdate)
+                    positionStore.markSyncedAt(sid, itemId, serverLastUpdate)
                 }
                 // A finished server record with no location is a mark-as-read reset, not a
                 // position to jump to: surfacing it as ServerWins made the EPUB reader fall back
@@ -118,7 +126,7 @@ class ReadingSessionRepositoryImpl constructor(
                 // fraction: pullAllProgress derives isFinished from ebookProgress, so that push
                 // would move the book out of Completed without any reading. Reading past the
                 // cover pushes normally and un-finishes the book (see keepsFinishedState).
-                val localDbProgress = libraryItemDao.getById(source.id, itemId)?.readingProgress ?: 0f
+                val localDbProgress = libraryItemDao.getById(sid, itemId)?.readingProgress ?: 0f
                 if (keepsFinishedState(localDbProgress, payload.ebookProgress)) return ProgressSyncCycleResult.InSync
                 val stamp = runCatching {
                     peer.pushEbookProgress(
@@ -138,8 +146,15 @@ class ReadingSessionRepositoryImpl constructor(
                     // query. The sweep then re-picked the row on every tick and re-PATCHed
                     // indefinitely, and the dirty-aware runSyncCycle comparison misclassified
                     // subsequent cross-device pushes as LocalWins-worthy (#528).
-                    val ts = stamp.takeIf { it > 0L } ?: clock.nowMs()
-                    positionStore.markSyncedAt(source.id, itemId, ts)
+                    //
+                    // When the PATCH response doesn't carry lastUpdate (stamp == 0), the server
+                    // stores the position with its own clock which may be ahead of the device clock.
+                    // A follow-up pull fetches the actual server-stored stamp so lastSyncedAt matches
+                    // what the next cycle's pull returns, preventing a spurious ServerWins jump (#1154).
+                    val serverStamp = stamp.takeIf { it > 0L }
+                        ?: runCatching { peer.pullProgress(itemId) }.getOrNull()?.lastUpdate?.takeIf { it > 0L }
+                    val ts = serverStamp ?: clock.nowMs()
+                    positionStore.markSyncedAt(sid, itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
             }

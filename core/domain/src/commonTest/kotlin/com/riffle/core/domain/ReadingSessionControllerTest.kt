@@ -24,7 +24,7 @@ class ReadingSessionControllerTest {
         syncResult: SyncSessionResult = SyncSessionResult.Success,
     ) = object : ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload) = syncResult
-        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
@@ -40,7 +40,7 @@ class ReadingSessionControllerTest {
                     syncedPayload = payload
                     return SyncSessionResult.Success
                 }
-                override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+                override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
                 override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
                 override suspend fun touchOpenTimestamp(itemId: String) = Unit
             },
@@ -87,7 +87,7 @@ class ReadingSessionControllerTest {
                     callCount++
                     return SyncSessionResult.Success
                 }
-                override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+                override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
                 override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
                 override suspend fun touchOpenTimestamp(itemId: String) = Unit
             },

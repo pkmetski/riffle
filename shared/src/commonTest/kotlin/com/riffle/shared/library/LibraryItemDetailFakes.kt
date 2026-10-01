@@ -169,7 +169,7 @@ private object FakeLibraryMutator : LibraryMutator {
 private object FakeReadingSessionRepository : ReadingSessionRepository {
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult =
         SyncSessionResult.Success
-    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult =
+    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult =
         ProgressSyncCycleResult.InSync
     override suspend fun markFinished(itemId: String, finished: Boolean) {}
     override suspend fun touchOpenTimestamp(itemId: String) {}

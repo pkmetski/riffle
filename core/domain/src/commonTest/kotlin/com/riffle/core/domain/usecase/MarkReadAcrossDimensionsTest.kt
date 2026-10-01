@@ -45,7 +45,7 @@ class MarkReadAcrossDimensionsTest {
     private class RecordingSession : ReadingSessionRepository {
         val finished = mutableListOf<Pair<String, Boolean>>()
         override suspend fun syncProgress(itemId: String, payload: SessionPayload) = SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload) = ProgressSyncCycleResult.InSync
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?) = ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) { this.finished += itemId to finished }
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }

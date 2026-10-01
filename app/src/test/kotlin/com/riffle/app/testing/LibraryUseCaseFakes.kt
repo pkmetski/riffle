@@ -38,7 +38,7 @@ object NoopLibraryMutator : LibraryMutator {
 object NoopReadingSessionRepository : ReadingSessionRepository {
     override suspend fun syncProgress(itemId: String, payload: com.riffle.core.models.SessionPayload) =
         com.riffle.core.models.SyncSessionResult.Success
-    override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.models.SessionPayload) =
+    override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.models.SessionPayload, sourceId: String?) =
         com.riffle.core.models.ProgressSyncCycleResult.InSync
     override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
     override suspend fun touchOpenTimestamp(itemId: String) = Unit

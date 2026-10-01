@@ -296,7 +296,7 @@ private class FakeLibraryObserver(private val item: LibraryItem) : LibraryObserv
 private class FakeReadingSessionRepository : ReadingSessionRepository {
     val syncedPayloads = mutableListOf<SessionPayload>()
     override suspend fun syncProgress(itemId: String, payload: SessionPayload) = SyncSessionResult.Success
-    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult {
+    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult {
         syncedPayloads += payload
         return ProgressSyncCycleResult.InSync
     }

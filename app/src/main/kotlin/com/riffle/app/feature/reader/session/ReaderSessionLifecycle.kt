@@ -126,7 +126,6 @@ class ReaderSessionLifecycle constructor(
                 }
             }
         }
-
         // Lazy path: source built a Publication directly (e.g. O'Reilly per-chapter streaming).
         // Skip the EPUB download entirely when this succeeds.
         val lazyPair = openLazy?.invoke(item.sourceId, item.id)

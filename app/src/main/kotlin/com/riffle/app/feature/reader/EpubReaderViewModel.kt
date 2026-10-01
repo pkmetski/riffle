@@ -514,6 +514,12 @@ class EpubReaderViewModel constructor(
     // active server) for every other nav origin, including a normal FullBook open.
     private val navServerId: String? = savedStateHandle.get<String>("sourceId")
 
+    // Resolved source ID for this book, set in onOpenReady(). navServerId is preferred (it comes
+    // directly from the nav arg); resolvedReaderServerId is the fallback for ABS-only books opened
+    // without a sourceId nav arg. Used to thread the correct sourceId into runSyncCycle() so
+    // progress is pushed even when sourceRepository.getActive() returns null.
+    private var syncSourceId: String? = navServerId
+
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
@@ -1718,11 +1724,12 @@ class EpubReaderViewModel constructor(
         // posts the inbound-jump channel, which per the invariant documented at the close-path
         // caller site is not safe to relocate off Main. Kept both branches on Main for symmetry —
         // the modest saving on the else path isn't worth splitting the dispatcher story here.
+        syncSourceId = navServerId ?: o.resolvedReaderServerId
         val syncLocator = o.effectiveInitialLocator
         if (lifecycle.matchedSync.value?.readerSync != null) {
             runReaderSyncCycle(syncLocator)
         } else {
-            syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f))
+            syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f), syncSourceId)
         }
 
         // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the first
@@ -1748,7 +1755,7 @@ class EpubReaderViewModel constructor(
             // reader back to the pre-scroll position (the "scroll snaps back" symptom).
             position.withSaveLock {
                 if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
-                else syncSession.sync(locator.toPayload())
+                else syncSession.sync(locator.toPayload(), syncSourceId)
             }
         }
     }
@@ -1988,7 +1995,7 @@ class EpubReaderViewModel constructor(
         viewModelScope.launch {
             val payload = locator.toPayload()
             if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
-            else syncSession.sync(payload)
+            else syncSession.sync(payload, syncSourceId)
         }
     }
 

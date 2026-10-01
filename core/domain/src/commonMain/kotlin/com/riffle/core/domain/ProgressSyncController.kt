@@ -25,9 +25,9 @@ class ProgressSyncController(
     private val _serverPositionEvents = MutableSharedFlow<ServerProgress>(extraBufferCapacity = 1)
     val serverPositionEvents: SharedFlow<ServerProgress> = _serverPositionEvents.asSharedFlow()
 
-    fun sync(payload: SessionPayload) {
+    fun sync(payload: SessionPayload, sourceId: String? = null) {
         scope.launch {
-            when (val r = repository.runSyncCycle(itemId, payload)) {
+            when (val r = repository.runSyncCycle(itemId, payload, sourceId)) {
                 is ProgressSyncCycleResult.ServerWins -> _serverPositionEvents.tryEmit(r.serverProgress)
                 is ProgressSyncCycleResult.LocalWins -> Unit
                 is ProgressSyncCycleResult.InSync -> Unit
