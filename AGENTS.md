@@ -158,6 +158,17 @@ Deleting or `@Ignore`-ing a red test to unblock a PR is never acceptable.
 
 **Enforced by `checkTestGuardrails`** (part of `check` and run on CI via `riffleChecks` in the Lint job): any `@Test` function that exists at the merge base with main but not on the branch — deleted or renamed — fails the build unless a commit message on the branch carries a `Removed-test: <exact test name>` trailer (one line per test; backticks optional). The trailer is a declaration, not a bypass: the commit body and PR must still explain which behavioral claim is being retired and why, per the questions above. Moving a test between files needs no trailer. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/TestGuardrailLint.kt`.
 
+## Do not increase CI job timeouts without explicit user approval
+
+Never raise a `timeout-minutes` value in any workflow file (`.github/workflows/*.yml`) without the user explicitly asking for it. When a CI job times out, the correct response is to diagnose and fix the root cause — not to buy more time.
+
+The baseline values are:
+- Android harness phone: **40 min**
+- iOS unit tests: **40 min**
+- iOS harness phone: **50 min**
+
+If a job hits its limit, investigate the log, find what is slow or hung, and fix it in the code or test. Raising only the affected platform's timeout is acceptable as a temporary measure **only if the user explicitly approves it**; raising an unrelated platform's timeout alongside it is never acceptable.
+
 ## No empty commits to retrigger CI
 
 Never push a `git commit --allow-empty` (or any commit whose sole purpose is to kick off a new CI run). An empty commit pollutes the branch history and makes `git log` misleading.
