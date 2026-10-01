@@ -153,7 +153,9 @@ final class ScrollProbeBridgeTests: XCTestCase {
             XCTFail("the fixture's first chapter must overflow a 390×844 viewport for this test to mean anything")
             return
         }
-        settle(seconds: 0.3)
+        // 1.0 s: give the WKWebView layout a full repaint cycle after the scroll so the boundary
+        // probe reads a stable scrollY rather than a mid-animation value.
+        settle(seconds: 1.0)
         XCTAssertFalse(
             boundary(bridge).atForwardBoundary,
             "one viewport into an overflowing chapter is not the end of it — a probe that says "

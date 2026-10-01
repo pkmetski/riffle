@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -166,11 +167,9 @@ class NavigationSnapHarnessTest : KoinTest {
     // Choreographer starves, so goForward never reaches the next column — observed: scrollLeft nudges to
     // ~2px then reverts). This path therefore can't be exercised on the AVD; run it on a real device,
     // where turns animate and complete. Kept for that purpose.
-    // Assume.assumeTrue(false) is used instead of @Ignore: under emulator stress, @Ignore can be
-    // reported as "failed 0s" by the runner rather than "skipped", polluting CI results.
+    @Ignore("Page-turn animation stalls on the headless emulator — run on a real device")
     @Test
     fun manualPageFlips_eachLandsSnapped_noPostSettleReadjustment() {
-        org.junit.Assume.assumeTrue("Skip: page-turn animation stalls on the headless emulator; verify on a real device", false)
         openStandaloneReader()
         installFrameRecorder()
         val iw = innerWidth()

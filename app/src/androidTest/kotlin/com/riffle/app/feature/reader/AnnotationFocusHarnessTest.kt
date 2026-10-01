@@ -179,7 +179,9 @@ class AnnotationFocusHarnessTest : KoinTest {
 
         val result = waitForPhraseOnScreen(
             orientation,
-            timeoutMs = 30_000,
+            // 60 s: on slow CI runners, Readium's vertical-mode scroll to the bookmarked locator
+            // can take longer than the default 30 s under parallel test load.
+            timeoutMs = 60_000,
             phrase = targetPhrase,
         )
         assertTrue(
