@@ -42,6 +42,10 @@ import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
+import com.riffle.feature.library.ui.generated.resources.Res
+import com.riffle.feature.library.ui.generated.resources.ui_retry
+import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.shared.downloads.DownloadsScreen
 import com.riffle.shared.library.CollectionDetailScreen
@@ -107,7 +111,7 @@ fun HomeScreen() {
         destination = viewModel.getStartDestination()
     }
 
-    LaunchedEffect(drawerViewModel.redirectToLibrary) {
+    LaunchedEffect(drawerViewModel) {
         drawerViewModel.redirectToLibrary.collect { library ->
             val srcType = activeServer?.type ?: return@collect
             destination = HomeViewModel.StartDestination.Library(
@@ -238,8 +242,8 @@ fun HomeScreen() {
                     is HomeViewModel.StartDestination.NoLibraries -> Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text("Unable to connect to source")
-                        Button(onClick = { refreshKey++ }) { Text("Retry") }
+                        Text(stringResource(Res.string.ui_unable_to_connect_to_source))
+                        Button(onClick = { refreshKey++ }) { Text(stringResource(Res.string.ui_retry)) }
                     }
                     is HomeViewModel.StartDestination.Library -> {
                         LaunchedEffect(dest.libraryId) {

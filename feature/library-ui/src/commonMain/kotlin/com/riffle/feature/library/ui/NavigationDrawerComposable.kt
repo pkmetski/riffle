@@ -397,7 +397,7 @@ private fun AutoShrinkingSingleLineText(
     )
 }
 
-fun nextOverflowFontSize(
+internal fun nextOverflowFontSize(
     currentSize: TextUnit,
     minFontSize: TextUnit,
     hasVisualOverflow: Boolean,
@@ -421,7 +421,7 @@ private fun SourceRowIcon(server: Source) {
     }
 }
 
-fun buildSupportingLine(host: String?, version: String?): String? {
+internal fun buildSupportingLine(host: String?, version: String?): String? {
     val v = version?.let { "v$it" }
     return when {
         host != null && v != null -> "$host · $v"
@@ -440,7 +440,7 @@ private fun localizedSourceDisplayName(source: Source): String =
     if (source.type == SourceType.ABS) source.serverType.label
     else localizedDescriptorDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
 
-fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
+internal fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
     val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
     return if (descriptor.hasNetworkHost) {
         buildSupportingLine(source.url.authority(), version)
