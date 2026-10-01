@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="ui_drawer_riffle" translatable="false">Riffle</string>
     <string name="ui_drawer_no_source">Sin fuente</string>
     <string name="ui_drawer_downloads">Descargas</string>
     <string name="ui_drawer_settings">Ajustes</string>

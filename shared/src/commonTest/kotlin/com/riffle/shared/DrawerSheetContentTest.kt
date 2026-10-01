@@ -1,5 +1,7 @@
 package com.riffle.shared
 
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
@@ -9,6 +11,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import kotlin.test.Test
 
 /**
@@ -42,16 +45,20 @@ class DrawerSheetContentTest {
     @Test
     fun libraryListIsHiddenWhenRiffleIsActive() = runComposeUiTest {
         setContent {
-            DrawerSheetContent(
+            RiffleNavigationDrawer(
+                drawerState = rememberDrawerState(DrawerValue.Open),
+                usePermanentDrawer = true,
                 activeServer = testSource,
                 allServers = listOf(testSource),
                 visibleLibraries = listOf(testLibrary),
                 activeLibraryId = null,
+                serverVersions = emptyMap(),
                 isRiffleActive = true,
                 onServerSelected = {},
                 onLibrarySelected = {},
-                onNavigateToSettings = {},
-                onNavigateToDownloads = {},
+                onDownloadsSelected = {},
+                onSettingsSelected = {},
+                content = {},
             )
         }
 
@@ -61,16 +68,20 @@ class DrawerSheetContentTest {
     @Test
     fun libraryListIsShownWhenRiffleIsNotActive() = runComposeUiTest {
         setContent {
-            DrawerSheetContent(
+            RiffleNavigationDrawer(
+                drawerState = rememberDrawerState(DrawerValue.Open),
+                usePermanentDrawer = true,
                 activeServer = testSource,
                 allServers = listOf(testSource),
                 visibleLibraries = listOf(testLibrary),
                 activeLibraryId = null,
+                serverVersions = emptyMap(),
                 isRiffleActive = false,
                 onServerSelected = {},
                 onLibrarySelected = {},
-                onNavigateToSettings = {},
-                onNavigateToDownloads = {},
+                onDownloadsSelected = {},
+                onSettingsSelected = {},
+                content = {},
             )
         }
 
