@@ -1,5 +1,7 @@
 package com.riffle.app.feature.settings.annotationsync
 
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
+import com.riffle.feature.settings.ui.annotationsync.MaintenanceScreenUiState
 import com.riffle.core.data.AnnotationDeviceMetaCodec
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.sync.AnnotationSyncStatusStore

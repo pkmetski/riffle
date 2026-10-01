@@ -28,6 +28,7 @@ kotlin {
             api(libs.compose.runtime)
             api(libs.compose.foundation)
             api(libs.compose.ui)
+            api(libs.compose.ui.backhandler)
             api(compose.material3)
             implementation(compose.components.resources)
             // RiffleTheme, TestTags, TabletContentWidthContainer and design tokens.
@@ -62,6 +63,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.ktx)
             implementation(project(":core:dictionary"))
             implementation(project(":core:logging"))
+            // DictionaryPacksScreen uses formatBytes from feature:downloads.
+            implementation(project(":feature:downloads"))
         }
         iosTest.dependencies {
             implementation(kotlin("test"))

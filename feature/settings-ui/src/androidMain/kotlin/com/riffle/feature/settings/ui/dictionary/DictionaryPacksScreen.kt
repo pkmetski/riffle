@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
+import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,7 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
-import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import com.riffle.feature.source.ui.library.DownloadProgressIndicator
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.library.DownloadState
@@ -60,7 +58,7 @@ fun DictionaryPacksScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         // TODO: migrate to Res.string.ui_back
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
             )
@@ -187,7 +185,7 @@ private fun AvailablePackRow(
                     )
                     IconButton(onClick = onCancel) {
                         // TODO: migrate to Res.string.ui_cancel
-                        Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.ui_cancel))
+                        Icon(RiffleIcons.Close, contentDescription = stringResource(Res.string.ui_cancel))
                     }
                 }
             } else {

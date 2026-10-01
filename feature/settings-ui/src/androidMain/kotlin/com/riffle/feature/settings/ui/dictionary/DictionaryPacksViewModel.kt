@@ -2,7 +2,7 @@ package com.riffle.feature.settings.ui.dictionary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.feature.library.DownloadManager
+import com.riffle.feature.library.DownloadManager
 import com.riffle.feature.library.DownloadState
 import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.dictionary.InstalledPack

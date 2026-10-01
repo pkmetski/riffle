@@ -1,11 +1,11 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings.ui
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class CrashReportShareSubjectTest {
     @Test
-    fun `subject wraps the timestamp in the Riffle crash report label`() {
+    fun subjectWrapsTheTimestampInTheRiffleCrashReportLabel() {
         assertEquals(
             "Riffle crash report (Jan 1, 2026, 12:34:00 PM)",
             crashReportShareSubject("Jan 1, 2026, 12:34:00 PM"),

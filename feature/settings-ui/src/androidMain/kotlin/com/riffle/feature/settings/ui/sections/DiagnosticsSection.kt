@@ -57,6 +57,10 @@ internal fun DiagnosticsSection(
         trailingContent = { DrillInChevron() },
     )
     HorizontalDivider()
+    val crashReportsSubjectTemplate = stringResource(Res.string.ui_crash_reports_subject)
+    val shareCrashReportsTitle = stringResource(Res.string.ui_share_crash_reports)
+    val shareCrashReportTitle = stringResource(Res.string.ui_share_crash_report)
+
     if (crashReports.isEmpty()) {
         ListItem(
             // TODO: migrate to Res.string.ui_no_crashes_recorded
@@ -75,7 +79,7 @@ internal fun DiagnosticsSection(
             trailingContent = {
                 Row {
                     TextButton(onClick = {
-                        shareCrashReports(context, crashReportFiles())
+                        shareCrashReports(context, crashReportFiles(), crashReportsSubjectTemplate, shareCrashReportsTitle)
                     // TODO: migrate to Res.string.ui_share_all
                     }) { Text(stringResource(Res.string.ui_share_all)) }
                     TextButton(onClick = {
@@ -101,7 +105,7 @@ internal fun DiagnosticsSection(
                 trailingContent = {
                     Row {
                         TextButton(onClick = {
-                            shareSingleCrashReport(context, timestamp, item.content)
+                            shareSingleCrashReport(context, timestamp, item.content, shareCrashReportTitle)
                         // TODO: migrate to Res.string.ui_share
                         }) { Text(stringResource(Res.string.ui_share)) }
                         TextButton(onClick = { expandedCrashes[item.id] = !isOpen }) {
@@ -132,7 +136,7 @@ internal fun DiagnosticsSection(
     }
 }
 
-private fun shareCrashReports(context: Context, files: List<File>) {
+private fun shareCrashReports(context: Context, files: List<File>, subjectTemplate: String, chooserTitle: String) {
     if (files.isEmpty()) return
     val uris = ArrayList<Uri>(files.size)
     files.forEach { f ->
@@ -141,17 +145,17 @@ private fun shareCrashReports(context: Context, files: List<File>) {
     val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
         type = "text/plain"
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-        putExtra(Intent.EXTRA_SUBJECT, context.getString(Res.string.ui_crash_reports_subject, files.size))
+        putExtra(Intent.EXTRA_SUBJECT, String.format(subjectTemplate, files.size))
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, context.getString(Res.string.ui_share_crash_reports)))
+    context.startActivity(Intent.createChooser(intent, chooserTitle))
 }
 
-private fun shareSingleCrashReport(context: Context, timestamp: String, content: String) {
+private fun shareSingleCrashReport(context: Context, timestamp: String, content: String, chooserTitle: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, crashReportShareSubject(timestamp))
         putExtra(Intent.EXTRA_TEXT, content)
     }
-    context.startActivity(Intent.createChooser(intent, context.getString(Res.string.ui_share_crash_report)))
+    context.startActivity(Intent.createChooser(intent, chooserTitle))
 }

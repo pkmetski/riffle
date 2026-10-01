@@ -39,10 +39,10 @@ import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
-import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceViewModel
-import com.riffle.app.feature.settings.debug.DebugLogViewModel
-import com.riffle.app.feature.settings.dictionary.DictionaryPacksViewModel
-import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesViewModel
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
+import com.riffle.feature.settings.ui.debug.DebugLogViewModel
+import com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel
+import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.source.ui.AddChitankaViewModel
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.app.feature.source.gutenberg.AddGutenbergViewModel

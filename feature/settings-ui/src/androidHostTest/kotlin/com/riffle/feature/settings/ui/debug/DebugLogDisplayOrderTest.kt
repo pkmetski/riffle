@@ -1,4 +1,4 @@
-package com.riffle.app.feature.settings.debug
+package com.riffle.feature.settings.ui.debug
 
 import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.logging.LogChannel
@@ -8,7 +8,7 @@ import org.junit.Test
 class DebugLogDisplayOrderTest {
 
     @Test
-    fun `newest entry is first`() {
+    fun newestEntryIsFirst() {
         val oldest = entry(seq = 1L, timestampMs = 100L, message = "oldest")
         val mid = entry(seq = 2L, timestampMs = 200L, message = "mid")
         val newest = entry(seq = 3L, timestampMs = 300L, message = "newest")
@@ -19,7 +19,7 @@ class DebugLogDisplayOrderTest {
     }
 
     @Test
-    fun `empty input yields empty output`() {
+    fun emptyInputYieldsEmptyOutput() {
         assertEquals(emptyList<InMemoryLogBuffer.Entry>(), debugLogDisplayOrder(emptyList()))
     }
 
