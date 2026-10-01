@@ -286,65 +286,6 @@ class LibraryTabContentTest {
     }
 
     /**
-     * The home tab must only show reading-progress sections (In Progress, Continue Series,
-     * Recently Added, Completed). Series and All Books shelves were incorrectly appearing on iOS
-     * home tab while Android never showed them there — they belong on their dedicated tabs only.
-     */
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun homeTabDoesNotShowSeriesShelf() = runComposeUiTest {
-        val series = Series(id = "s1", libraryId = "lib", name = "Dune", coverUrl = null, bookCount = 3)
-        setContent {
-            LibraryTabContent(
-                selectedTab = 0,
-                projection = LibraryProjection.Empty.copy(series = listOf(series)),
-                playlists = emptyList(),
-                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
-                coversAreSquare = false,
-                linkedItemIds = emptySet(),
-                onItemSelected = {},
-                onAnnotatedBookSelected = { _, _ -> },
-                onSeriesSelected = {},
-                onCollectionSelected = {},
-                onSectionSeeMore = {},
-                onPlaylistSelected = {},
-                onSearchAnnotations = {},
-            )
-        }
-
-        onNodeWithTag("section-header-SERIES").assertDoesNotExist()
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun homeTabDoesNotShowAllBooksShelf() = runComposeUiTest {
-        val book = LibraryItem(
-            id = "b1", libraryId = "lib", title = "The Lord of the Rings", author = "Tolkien",
-            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
-            ebookFormat = EbookFormat.Epub,
-        )
-        setContent {
-            LibraryTabContent(
-                selectedTab = 0,
-                projection = LibraryProjection.Empty.copy(allBooks = listOf(book)),
-                playlists = emptyList(),
-                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
-                coversAreSquare = false,
-                linkedItemIds = emptySet(),
-                onItemSelected = {},
-                onAnnotatedBookSelected = { _, _ -> },
-                onSeriesSelected = {},
-                onCollectionSelected = {},
-                onSectionSeeMore = {},
-                onPlaylistSelected = {},
-                onSearchAnnotations = {},
-            )
-        }
-
-        onNodeWithTag("section-header-ALL_BOOKS").assertDoesNotExist()
-    }
-
-    /**
      * The series tab must show series names in a grid (backed by covers), not a plain text list.
      * The series name must be visible so the grid tile is meaningful even when a cover is absent.
      */

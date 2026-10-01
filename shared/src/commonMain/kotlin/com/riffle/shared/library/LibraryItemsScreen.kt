@@ -470,15 +470,15 @@ private fun HomeTabContent(
                 }
             }
             if (projection.series.isNotEmpty()) {
-                item(key = "header_series") { SectionHeader(title = seriesLabel, tag = "section-header-SERIES") }
+                item(key = "header_series") { SectionHeader(title = seriesLabel, tag = sectionHeaderTag(LibrarySectionType.SERIES)) }
                 item(key = "row_series") { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
             }
             if (projection.collections.isNotEmpty()) {
-                item(key = "header_collections") { SectionHeader(title = collectionsLabel, tag = "section-header-COLLECTIONS") }
+                item(key = "header_collections") { SectionHeader(title = collectionsLabel, tag = sectionHeaderTag(LibrarySectionType.COLLECTIONS)) }
                 item(key = "row_collections") { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
             }
             if (projection.allBooks.isNotEmpty()) {
-                item(key = "header_all_books") { SectionHeader(title = allBooksLabel, tag = "section-header-ALL_BOOKS") }
+                item(key = "header_all_books") { SectionHeader(title = allBooksLabel, tag = sectionHeaderTag(LibrarySectionType.ALL_BOOKS)) }
                 item(key = "row_all_books") {
                     HorizontalBookRow(
                         items = projection.allBooks.take(10),

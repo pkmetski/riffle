@@ -5,4 +5,7 @@ enum class LibrarySectionType {
     FINISHED,
     RECENTLY_ADDED,
     CONTINUE_SERIES,
+    SERIES,
+    COLLECTIONS,
+    ALL_BOOKS,
 }

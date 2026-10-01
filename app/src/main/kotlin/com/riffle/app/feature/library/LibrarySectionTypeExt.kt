@@ -10,4 +10,7 @@ fun LibrarySectionType.titleResId(): Int = when (this) {
     LibrarySectionType.FINISHED -> R.string.ui_section_completed
     LibrarySectionType.RECENTLY_ADDED -> R.string.ui_section_recently_added
     LibrarySectionType.CONTINUE_SERIES -> R.string.ui_section_continue_series
+    LibrarySectionType.SERIES -> R.string.ui_series
+    LibrarySectionType.COLLECTIONS -> R.string.ui_collections
+    LibrarySectionType.ALL_BOOKS -> R.string.ui_all_books
 }
