@@ -1,4 +1,4 @@
-package com.riffle.app.feature.navigation
+package com.riffle.feature.library.ui
 
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
@@ -6,14 +6,11 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import com.riffle.feature.library.ui.buildSupportingLine
-import com.riffle.feature.library.ui.sourceDisplayName
-import com.riffle.feature.library.ui.sourceSwitcherSubtitle
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
-class NavigationDrawerSourceSubtitleTest {
+class NavigationDrawerSubtitleTest {
 
     @Test
     fun `Komga switcher subtitle shows configured address`() {
@@ -46,9 +43,9 @@ class NavigationDrawerSourceSubtitleTest {
                 )
 
                 assertEquals(
-                    "${descriptor.type} must show its static subtitle in the source switcher",
                     descriptor.subtitle,
                     sourceSwitcherSubtitle(source, version = null),
+                    "${descriptor.type} must show its static subtitle in the source switcher",
                 )
             }
     }
@@ -64,9 +61,9 @@ class NavigationDrawerSourceSubtitleTest {
                 )
 
                 assertEquals(
-                    "${descriptor.type} must show its configured address in the source switcher",
                     source.url.authority(),
                     sourceSwitcherSubtitle(source, version = null),
+                    "${descriptor.type} must show its configured address in the source switcher",
                 )
             }
     }
