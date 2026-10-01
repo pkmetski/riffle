@@ -42,9 +42,26 @@ kotlin {
             implementation(project(":feature:source"))
             // SourcesSection and AddSourceBackend — used by the Sources row in SettingsScreen.
             api(project(":feature:source-ui"))
+            // Reader settings panels (FormattingPanel, DisplayPanel, etc.) reference reader types.
+            api(project(":feature:reader"))
+            // Reader-UI composables: AutoScrollToggleIcon, CadenceGlyph, readerPalette, swatchBackdropColor.
+            api(project(":feature:reader-ui"))
+            // Listening preferences panel uses PlaybackSpeed / SkipIntervals.
+            api(project(":feature:player"))
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             api(libs.androidx.lifecycle.viewmodel)
             api(libs.androidx.lifecycle.viewmodel.savedstate)
+            // koin-compose + koin-compose-viewmodel: koinInject / koinViewModel in shared screens.
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
+        }
+        androidMain.dependencies {
+            // DebugLogViewModel (AndroidViewModel), DiagnosticsSection (Intent/FileProvider),
+            // DictionaryPacksViewModel (DownloadManager from :app).
+            implementation(libs.androidx.lifecycle.runtime.ktx)
+            implementation(project(":core:dictionary"))
+            implementation(project(":core:logging"))
         }
         iosTest.dependencies {
             implementation(kotlin("test"))

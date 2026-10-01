@@ -1,0 +1,288 @@
+package com.riffle.feature.settings.ui
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.*
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.riffle.feature.designsystem.RiffleIcons
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.TabletContentWidthContainer
+import com.riffle.feature.designsystem.TestTags
+import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.source.ui.AddSourceBackend
+import com.riffle.feature.settings.SettingsNavEvent
+import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.panels.AutoScrollSettingsPanel
+import com.riffle.feature.settings.ui.panels.BehaviorSettingsPanel
+import com.riffle.feature.settings.ui.panels.CadenceSettingsPanel
+import com.riffle.feature.settings.ui.panels.DisplaySettingsPanel
+import com.riffle.feature.settings.ui.panels.FormattingSettingsPanel
+import com.riffle.feature.settings.ui.panels.ListeningPreferencesPanel
+import com.riffle.feature.settings.ui.panels.ComicDisplaySettingsPanel
+import com.riffle.feature.settings.ui.sections.AnnotationsSyncSection
+import com.riffle.feature.settings.ui.sections.AppBehaviorSection
+import com.riffle.feature.settings.ui.sections.DictionaryPacksSection
+import com.riffle.feature.settings.ui.sections.AppVersionSection
+import com.riffle.feature.settings.ui.sections.AppearanceSection
+import com.riffle.feature.settings.ui.sections.ComicsSection
+import com.riffle.feature.settings.ui.sections.DeveloperOptionsSection
+import com.riffle.feature.settings.ui.sections.ListeningSection
+import com.riffle.feature.settings.ui.sections.ReadaloudSection
+import com.riffle.feature.settings.ui.sections.ReadingSection
+import com.riffle.feature.source.ui.settings.SourcesSection
+import com.riffle.feature.settings.ui.i18n.AppLanguage
+
+/** Subject line used when sharing a single crash report. Kept here so tests can pin the format. */
+internal fun crashReportShareSubject(timestamp: String): String =
+    "Riffle crash report ($timestamp)"
+
+/**
+ * Global Settings screen. Composes one section per top-level category. All bottom-sheet drill-in
+ * panels share a single [SettingsPanel] state so only one panel can be open at a time; nav-to-screen
+ * drill-ins go through the standard NavController.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    isExpandedWidth: Boolean,
+    onNavigateBack: () -> Unit,
+    onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
+    onNavigateToAddSourcePicker: () -> Unit = { onNavigateToAddSource(AddSourceBackend.Audiobookshelf, null) },
+    onNavigateToAddLocalFolder: () -> Unit = {},
+    onNavigateToReadaloudSettings: () -> Unit = {},
+    onNavigateToAnnotationsSyncSettings: () -> Unit = {},
+    onNavigateToDeveloperOptions: () -> Unit = {},
+    onNavigateToDictionaryPacks: () -> Unit = {},
+    onNavigateToDebugLogs: () -> Unit = {},
+    onNavigateToChangelog: () -> Unit = {},
+    platformHooks: PlatformSettingsHooks = DefaultPlatformSettingsHooks,
+    viewModel: SettingsViewModel = koinViewModel(),
+) {
+    val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
+    val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
+    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
+    val appTheme by viewModel.appTheme.collectAsState()
+    var appLanguage by remember { mutableStateOf(AppLanguage.System) }
+    val servers by viewModel.servers.collectAsState()
+    val localFilesSource by viewModel.localFilesSource.collectAsState()
+    val localFilesFolders by viewModel.localFilesFolders.collectAsState()
+    val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
+    val singletonWebSources by viewModel.singletonWebSources.collectAsState()
+    val serverVersions by viewModel.serverVersions.collectAsState()
+    val libraryItemsBySource by viewModel.libraryUiItemsBySource.collectAsState()
+    val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
+    val appUpdateState by viewModel.appUpdateState.collectAsState()
+    val autoUpdateEnabled by viewModel.autoUpdateEnabled.collectAsState()
+    val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
+    val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
+    val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
+    val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
+    val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
+    val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
+    val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
+    var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val developerOptionsEnabledText = stringResource(Res.string.ui_developer_options_enabled)
+
+    LaunchedEffect(Unit) {
+        viewModel.developerUnlockEvents.collect { snackbarHostState.showSnackbar(developerOptionsEnabledText) }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.navigationEvents.collect { event ->
+            when (event) {
+                is SettingsNavEvent.NavigateToAddSource -> onNavigateToAddSourcePicker()
+            }
+        }
+    }
+
+    platformHooks.OnResumeEffect { viewModel.refreshLocalFilesFolderHealth() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(Res.string.ui_settings)) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SETTINGS_BACK)) {
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                    }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
+        TabletContentWidthContainer(
+            isExpandedWidth = isExpandedWidth,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                HorizontalDivider()
+
+                SettingsSectionHeader(stringResource(Res.string.ui_sources))
+                SourcesSection(
+                    servers = servers,
+                    localFilesSource = localFilesSource,
+                    localFilesFolders = localFilesFolders,
+                    localFilesFolderHealth = localFilesFolderHealth,
+                    singletonWebSources = singletonWebSources,
+                    sourceVersions = serverVersions,
+                    libraryItemsBySource = libraryItemsBySource,
+                    readaloudSummaries = readaloudSummaries,
+                    expandedSources = expandedServers,
+                    onNavigateToAddSourcePicker = onNavigateToAddSourcePicker,
+                    onNavigateToAddLocalFolder = onNavigateToAddLocalFolder,
+                    onOpenReadaloudMatches = { },
+                    onRemoveSource = viewModel::removeServer,
+                    onRemoveLocalFolder = viewModel::removeLocalFolder,
+                    onRemoveLocalFilesSource = viewModel::removeLocalFilesSource,
+                    onSetLibraryVisible = viewModel::setLibraryVisible,
+                    onReorderLibraries = viewModel::setLibraryOrder,
+                )
+                HorizontalDivider()
+
+                AppearanceSection(
+                    appTheme = appTheme,
+                    onAppThemeChange = viewModel::setAppTheme,
+                    appLanguage = appLanguage,
+                    onAppLanguageChange = { language ->
+                        appLanguage = language
+                        platformHooks.onLanguageChanged(language)
+                    },
+                )
+                HorizontalDivider()
+
+                AppBehaviorSection(
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = viewModel::setKeepScreenOn,
+                    volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+                    onVolumeKeyNavigationEnabledChange = viewModel::setVolumeKeyNavigationEnabled,
+                    invertVolumeKeys = invertVolumeKeys,
+                    onInvertVolumeKeysChange = viewModel::setInvertVolumeKeys,
+                )
+                HorizontalDivider()
+
+                ReadingSection(
+                    globalFormatting = globalFormatting,
+                    onOpenPanel = { openPanel = it },
+                )
+                HorizontalDivider()
+
+                ComicsSection(
+                    comicFormatting = globalComicFormatting,
+                    onOpenPanel = { openPanel = it },
+                )
+                HorizontalDivider()
+
+                ListeningSection(onOpenPanel = { openPanel = it })
+                HorizontalDivider()
+
+                ReadaloudSection(
+                    servers = servers,
+                    serverVersions = serverVersions,
+                    readaloudSummaries = readaloudSummaries,
+                    onOpen = onNavigateToReadaloudSettings,
+                )
+                HorizontalDivider()
+
+                AnnotationsSyncSection(
+                    row = annotationSyncRow,
+                    onOpen = onNavigateToAnnotationsSyncSettings,
+                )
+                HorizontalDivider()
+
+                DictionaryPacksSection(
+                    onOpen = onNavigateToDictionaryPacks,
+                )
+                HorizontalDivider()
+
+                if (developerModeEnabled) {
+                    DeveloperOptionsSection(onOpen = onNavigateToDeveloperOptions)
+                    HorizontalDivider()
+                }
+
+                AppVersionSection(
+                    installedVersionName = viewModel.installedVersionName,
+                    state = appUpdateState,
+                    autoUpdateEnabled = autoUpdateEnabled,
+                    onCheckForUpdate = viewModel::checkForUpdate,
+                    onInstallUpdate = viewModel::downloadAndInstallUpdate,
+                    onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
+                    onNavigateToChangelog = onNavigateToChangelog,
+                    onVersionTap = viewModel::onVersionTap,
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+
+    when (openPanel) {
+        SettingsPanel.Formatting -> FormattingSettingsPanel(
+            prefs = globalFormatting,
+            onPrefsChange = viewModel::updateGlobalFormatting,
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.Display -> DisplaySettingsPanel(
+            prefs = globalFormatting,
+            onPrefsChange = viewModel::updateGlobalFormatting,
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.Behavior -> {}
+        SettingsPanel.AutoScroll -> AutoScrollSettingsPanel(
+            prefs = globalFormatting,
+            onPrefsChange = viewModel::updateGlobalFormatting,
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.Cadence -> CadenceSettingsPanel(
+            prefs = globalFormatting,
+            appTheme = appTheme,
+            onPrefsChange = viewModel::updateGlobalFormatting,
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.Listening -> ListeningPreferencesPanel(
+            defaultSpeed = defaultPlaybackSpeed,
+            onDefaultSpeedChange = viewModel::setDefaultPlaybackSpeed,
+            skipIntervalSeconds = skipIntervalSeconds,
+            onSkipIntervalSecondsChange = viewModel::setSkipIntervalSeconds,
+            rewindIntervalSeconds = rewindIntervalSeconds,
+            onRewindIntervalSecondsChange = viewModel::setRewindIntervalSeconds,
+            rewindOnResumeSeconds = rewindOnResumeSeconds,
+            onRewindOnResumeSecondsChange = viewModel::setRewindOnResumeSeconds,
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.ComicDisplay -> ComicDisplaySettingsPanel(
+            prefs = globalComicFormatting,
+            onPrefsChange = viewModel::updateGlobalComicFormatting,
+            onDismiss = { openPanel = null },
+        )
+        null -> {}
+    }
+}

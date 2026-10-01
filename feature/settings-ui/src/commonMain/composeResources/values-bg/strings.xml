@@ -198,6 +198,8 @@
     <string name="ui_reading_progress">Напредък в четенето</string>
     <string name="ui_reading_progress_labels">Етикети за напредъка на четене</string>
     <string name="ui_refresh">Опресняване</string>
+    <string name="ui_no_release_notes">Няма бележки към версията.</string>
+    <string name="ui_no_releases_found">Няма намерени издания.</string>
     <string name="ui_release_history">История на изданията</string>
     <string name="ui_rename_this_device">Преименувайте това устройство</string>
     <string name="ui_retry">Повторен опит</string>

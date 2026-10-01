@@ -37,7 +37,7 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
-    fun `forgetDevice also deletes the device metadata sentinel`() = runTest {
+    fun `forgetDevice also deletes the device's metadata sentinel`() = runTest {
         val target = InMemoryMaintenanceTarget(
             files = mutableMapOf(
                 FileKey("ns", "item-1", "annotations-dev-A.jsonld") to "[]",

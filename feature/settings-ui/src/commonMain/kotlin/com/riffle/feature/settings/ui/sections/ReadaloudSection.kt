@@ -1,0 +1,100 @@
+package com.riffle.feature.settings.ui.sections
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.*
+
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.StorytellerBadge
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.ReadaloudMatchSummary
+import com.riffle.feature.settings.displayHost
+
+/**
+ * "Readaloud" section — collapsed to a single drill-in row that leads to the dedicated Readaloud
+ * settings screen. The row keeps the at-a-glance affordances the pre-collapse layout had:
+ *  - [StorytellerBadge] tinted by whether a Storyteller Service is configured
+ *  - subtitle summarising server host + version + review-match counts (or the "not configured"
+ *    hint when there's no Storyteller yet).
+ *
+ * Tapping opens `ReadaloudSettingsScreen` where the Storyteller-config row, match review, and
+ * highlight-color picker live.
+ */
+@Composable
+internal fun ReadaloudSection(
+    servers: List<Source>,
+    serverVersions: Map<String, String>,
+    readaloudSummaries: Map<String, ReadaloudMatchSummary>,
+    onOpen: () -> Unit,
+) {
+    // TODO: migrate to Res.string.ui_readaloud
+    SettingsSectionHeader(stringResource(Res.string.ui_readaloud))
+    val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }
+    val configured = storyteller != null
+    ListItem(
+        modifier = Modifier.clickable(onClick = onOpen),
+        leadingContent = { StorytellerBadge(configured = configured) },
+        headlineContent = {
+            Text(
+                if (configured) {
+                    // TODO: migrate to Res.string.ui_readaloud
+                    stringResource(Res.string.ui_readaloud)
+                } else {
+                    // TODO: migrate to Res.string.ui_configure_readaloud
+                    stringResource(Res.string.ui_configure_readaloud)
+                },
+            )
+        },
+        supportingContent = {
+            Text(localizedReadaloudRowSummary(storyteller, serverVersions, readaloudSummaries))
+        },
+        trailingContent = { DrillInChevron() },
+    )
+}
+
+@Composable
+internal fun localizedReadaloudRowSummary(
+    storyteller: Source?,
+    serverVersions: Map<String, String>,
+    readaloudSummaries: Map<String, ReadaloudMatchSummary>,
+): String {
+    // TODO: migrate to Res.string.ui_storyteller_not_configured_tap_to_set_up
+    if (storyteller == null) return stringResource(Res.string.ui_storyteller_not_configured_tap_to_set_up)
+    val username = storyteller.username.takeIf { it.isNotEmpty() }
+    val version = serverVersions[storyteller.id]
+    val summary = readaloudSummaries[storyteller.id]
+    val head = if (username != null) {
+        "$username@${storyteller.url.displayHost()}"
+    } else {
+        storyteller.url.displayHost()
+    }
+    val parts = mutableListOf(head)
+    if (version != null) parts += "v$version"
+    if (summary != null) parts += localizedMatchCountsFragment(summary)
+    return parts.joinToString(" · ")
+}
+
+@Composable
+internal fun localizedMatchCountsFragment(summary: ReadaloudMatchSummary): String {
+    val total = summary.unmatchedCount + summary.suggestedCount +
+        summary.partiallyMatchedCount + summary.matchedCount
+    // TODO: migrate to Res.string.ui_no_readalouds_yet
+    if (total == 0) return stringResource(Res.string.ui_no_readalouds_yet)
+    val parts = mutableListOf<String>()
+    // TODO: migrate to Res.string.ui_unmatched_count
+    if (summary.unmatchedCount > 0) parts += stringResource(Res.string.ui_unmatched_count, summary.unmatchedCount)
+    // TODO: migrate to Res.string.ui_suggested_count
+    if (summary.suggestedCount > 0) parts += stringResource(Res.string.ui_suggested_count, summary.suggestedCount)
+    // TODO: migrate to Res.string.ui_partial_count
+    if (summary.partiallyMatchedCount > 0) parts += stringResource(Res.string.ui_partial_count, summary.partiallyMatchedCount)
+    // TODO: migrate to Res.string.ui_matched_count
+    if (summary.matchedCount > 0) parts += stringResource(Res.string.ui_matched_count, summary.matchedCount)
+    return parts.joinToString(" · ")
+}

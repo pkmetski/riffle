@@ -1,0 +1,28 @@
+package com.riffle.feature.settings.ui.changelog
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.AppUpdateRepository
+import com.riffle.core.domain.ReleaseInfo
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed interface ChangelogUiState {
+    data object Loading : ChangelogUiState
+    data class Loaded(val releases: List<ReleaseInfo>) : ChangelogUiState
+}
+
+class ChangelogViewModel(
+    private val appUpdateRepository: AppUpdateRepository,
+) : ViewModel() {
+    private val _state = MutableStateFlow<ChangelogUiState>(ChangelogUiState.Loading)
+    val state: StateFlow<ChangelogUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _state.value = ChangelogUiState.Loaded(appUpdateRepository.listReleasesSince(0))
+        }
+    }
+}

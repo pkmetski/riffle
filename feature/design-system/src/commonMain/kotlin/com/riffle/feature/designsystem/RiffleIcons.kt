@@ -67,6 +67,39 @@ object RiffleIcons {
         listOf("M7 10l5 5 5-5z")
     }
 
+    /** `Icons.Filled.Bedtime` */
+    val Bedtime: ImageVector = materialIcon("Bedtime") {
+        listOf(
+            "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 " +
+                "2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z",
+        )
+    }
+
+    /** `Icons.Outlined.CloudOff` */
+    val CloudOff: ImageVector = materialIcon("CloudOff") {
+        listOf(
+            "M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 " +
+                "11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 1.13-.64 2.11-1.56 " +
+                "2.62l1.45 1.45C23.16 18.16 24 16.68 24 15c0-2.64-2.05-4.78-4.65-4.96z",
+            "M3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2L21 20.73 4.27 4 " +
+                "3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4 0-2.21 1.79-4 4-4h1.73z",
+        )
+    }
+
+    /** `Icons.Filled.Edit` */
+    val Edit: ImageVector = materialIcon("Edit") {
+        listOf(
+            "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z",
+            "M20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 " +
+                "3.75 3.75 1.83-1.83z",
+        )
+    }
+
+    /** `Icons.AutoMirrored.Filled.KeyboardArrowRight` */
+    val KeyboardArrowRight: ImageVector = materialIcon("KeyboardArrowRight", autoMirror = true) {
+        listOf("M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z")
+    }
+
     /**
      * `Icons.Filled.Bookmarks` — path data transcribed node-for-node from the androidx vector
      * (`RiffleIconsTest` asserts the two are geometrically identical, so Android renders exactly
