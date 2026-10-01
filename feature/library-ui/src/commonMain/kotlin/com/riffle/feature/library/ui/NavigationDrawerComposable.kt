@@ -43,6 +43,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,7 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.KoFiDrawerButton
 import com.riffle.feature.designsystem.RiffleAppIcon
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_active_source
@@ -274,7 +276,9 @@ private fun DrawerHeader(
                     contentDescription = stringResource(Res.string.ui_toggle_source_switcher),
                 )
             },
-            modifier = Modifier.clickable { switcherExpanded = !switcherExpanded },
+            modifier = Modifier
+                .testTag(TestTags.NAV_DRAWER_SOURCE_HEADER)
+                .clickable { switcherExpanded = !switcherExpanded },
         )
         DropdownMenu(
             expanded = switcherExpanded,

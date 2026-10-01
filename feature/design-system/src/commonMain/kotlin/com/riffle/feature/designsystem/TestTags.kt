@@ -5,6 +5,7 @@ object TestTags {
     // ── Navigation / top-level ────────────────────────────────────────────────
     const val NAV_BACK = "nav_back"
     const val NAV_DRAWER_TOGGLE = "nav_drawer_toggle"
+    const val NAV_DRAWER_SOURCE_HEADER = "nav_drawer_source_header"
     const val NAV_TAB_IN_PROGRESS = "nav_tab_in_progress"
     const val NAV_TAB_TO_READ = "nav_tab_to_read"
     const val NAV_TAB_ANNOTATIONS = "nav_tab_annotations"
