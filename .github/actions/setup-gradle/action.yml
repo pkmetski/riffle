@@ -12,9 +12,20 @@ inputs:
 runs:
   using: composite
   steps:
+    # Temurin binaries are served from GitHub releases (adoptium), which has returned 504s for
+    # setup-java's full retry budget (e.g. run 36867652948). Fall back to Zulu — same Java
+    # version, different host (Azul CDN) — so a GitHub-releases outage cannot fail a job before
+    # it has run anything.
     - uses: actions/setup-java@v6
+      id: java-temurin
+      continue-on-error: true
       with:
         distribution: temurin
+        java-version: ${{ inputs.java-version }}
+    - uses: actions/setup-java@v6
+      if: steps.java-temurin.outcome == 'failure'
+      with:
+        distribution: zulu
         java-version: ${{ inputs.java-version }}
     - uses: gradle/actions/setup-gradle@v6.3.0
       with:
