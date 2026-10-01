@@ -1,8 +1,7 @@
-package com.riffle.app.feature.navigation
+package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import com.riffle.feature.designsystem.KoFiDrawerButton
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,38 +11,31 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
+import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -55,16 +47,25 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.riffle.app.BuildConfig
-import com.riffle.app.ui.theme.RiffleAppIcon
-import com.riffle.feature.library.shouldShowRiffleSource
-import com.riffle.feature.source.ui.SourceIcon
-import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
-import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import com.riffle.core.domain.WebSourceDescriptors
+import com.riffle.feature.designsystem.KoFiDrawerButton
+import com.riffle.feature.designsystem.RiffleAppIcon
+import com.riffle.feature.library.shouldShowRiffleSource
+import com.riffle.feature.library.ui.generated.resources.Res
+import com.riffle.feature.library.ui.generated.resources.ui_active_source
+import com.riffle.feature.library.ui.generated.resources.ui_app_version_footer
+import com.riffle.feature.library.ui.generated.resources.ui_drawer_downloads
+import com.riffle.feature.library.ui.generated.resources.ui_drawer_no_source
+import com.riffle.feature.library.ui.generated.resources.ui_drawer_riffle
+import com.riffle.feature.library.ui.generated.resources.ui_drawer_settings
+import com.riffle.feature.library.ui.generated.resources.ui_toggle_source_switcher
+import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
+import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,6 +86,8 @@ fun RiffleNavigationDrawer(
     onSettingsSelected: () -> Unit,
     onRiffleSelected: () -> Unit = {},
     isRiffleActive: Boolean = false,
+    appVersion: String? = null,
+    appSha: String? = null,
     content: @Composable () -> Unit,
 ) {
     val sheetBody: @Composable () -> Unit = {
@@ -101,12 +104,12 @@ fun RiffleNavigationDrawer(
             onSettingsSelected = onSettingsSelected,
             onRiffleSelected = onRiffleSelected,
             isRiffleActive = isRiffleActive,
+            appVersion = appVersion,
+            appSha = appSha,
         )
     }
 
     if (usePermanentDrawer) {
-        // ADR 0019: Tablet Layout (Expanded ≥ 840dp) replaces the modal drawer with a
-        // permanent drawer pinned to the leading edge — no hamburger, no scrim.
         PermanentNavigationDrawer(
             drawerContent = {
                 if (!hidePermanentDrawerPanel) {
@@ -141,6 +144,8 @@ private fun DrawerSheetContent(
     onSettingsSelected: () -> Unit,
     onRiffleSelected: () -> Unit = {},
     isRiffleActive: Boolean = false,
+    appVersion: String? = null,
+    appSha: String? = null,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
         DrawerHeader(
@@ -169,33 +174,35 @@ private fun DrawerSheetContent(
         HorizontalDivider()
         if (showDownloadsLink) {
             NavigationDrawerItem(
-                label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_downloads)) },
-                icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                label = { Text(stringResource(Res.string.ui_drawer_downloads)) },
+                icon = { Icon(RiffleIcons.Download, contentDescription = null) },
                 selected = false,
                 onClick = onDownloadsSelected,
             )
         }
         NavigationDrawerItem(
-            label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_settings)) },
-            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+            label = { Text(stringResource(Res.string.ui_drawer_settings)) },
+            icon = { Icon(RiffleIcons.Settings, contentDescription = null) },
             selected = false,
             onClick = onSettingsSelected,
         )
         KoFiDrawerButton()
-        val sha = BuildConfig.GIT_SHA.takeIf { it.isNotEmpty() }
-        Text(
-            text = androidx.compose.ui.res.stringResource(
-                com.riffle.app.R.string.ui_app_version,
-                BuildConfig.VERSION_NAME,
-                sha?.let { " ($it)" } ?: "",
-            ),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp, top = 4.dp),
-            textAlign = TextAlign.Center,
-        )
+        if (appVersion != null) {
+            val sha = appSha?.takeIf { it.isNotEmpty() }
+            Text(
+                text = stringResource(
+                    Res.string.ui_app_version_footer,
+                    appVersion,
+                    sha?.let { " ($it)" } ?: "",
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp, top = 4.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -213,9 +220,10 @@ private fun DrawerHeader(
     var headerWidth by remember { mutableStateOf(Dp.Unspecified) }
     val density = LocalDensity.current
 
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onSizeChanged { headerWidth = with(density) { it.width.toDp() } },
     ) {
         ListItem(
             leadingContent = if (isRiffleActive) {
@@ -225,10 +233,10 @@ private fun DrawerHeader(
             },
             headlineContent = {
                 if (isRiffleActive) {
-                    AutoShrinkingSingleLineText(text = "Riffle")
+                    AutoShrinkingSingleLineText(text = stringResource(Res.string.ui_drawer_riffle))
                 } else {
                     val name = activeServer?.let { localizedSourceDisplayName(it) }
-                        ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_source)
+                        ?: stringResource(Res.string.ui_drawer_no_source)
                     val username = activeServer
                         ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                         ?.username?.takeIf { it.isNotEmpty() }
@@ -262,8 +270,8 @@ private fun DrawerHeader(
             },
             trailingContent = {
                 Icon(
-                    imageVector = if (switcherExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_toggle_source_switcher),
+                    imageVector = if (switcherExpanded) RiffleIcons.KeyboardArrowUp else RiffleIcons.KeyboardArrowDown,
+                    contentDescription = stringResource(Res.string.ui_toggle_source_switcher),
                 )
             },
             modifier = Modifier.clickable { switcherExpanded = !switcherExpanded },
@@ -273,14 +281,13 @@ private fun DrawerHeader(
             onDismissRequest = { switcherExpanded = false },
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
-            // Riffle entry pinned at top of the switcher — only when 2+ sources are configured.
             if (shouldShowRiffleSource(allServers.size)) {
                 DropdownMenuItem(
-                    text = { AutoShrinkingSingleLineText(text = "Riffle") },
+                    text = { AutoShrinkingSingleLineText(text = stringResource(Res.string.ui_drawer_riffle)) },
                     leadingIcon = { RiffleAppIcon(size = 24.dp) },
                     trailingIcon = {
                         if (isRiffleActive) {
-                            Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
+                            Icon(RiffleIcons.Check, contentDescription = stringResource(Res.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))
                         }
@@ -311,9 +318,7 @@ private fun DrawerHeader(
                                     },
                                 )
                             } else {
-                                AutoShrinkingSingleLineText(
-                                    text = displayName,
-                                )
+                                AutoShrinkingSingleLineText(text = displayName)
                             }
                             val support = localizedSourceSwitcherSubtitle(
                                 source = server,
@@ -331,7 +336,7 @@ private fun DrawerHeader(
                     leadingIcon = { SourceRowIcon(server = server) },
                     trailingIcon = {
                         if (server.isActive && !isRiffleActive) {
-                            Icon(Icons.Default.Check, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_active_source))
+                            Icon(RiffleIcons.Check, contentDescription = stringResource(Res.string.ui_active_source))
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))
                         }
@@ -388,7 +393,7 @@ private fun AutoShrinkingSingleLineText(
     )
 }
 
-internal fun nextOverflowFontSize(
+fun nextOverflowFontSize(
     currentSize: TextUnit,
     minFontSize: TextUnit,
     hasVisualOverflow: Boolean,
@@ -399,16 +404,11 @@ internal fun nextOverflowFontSize(
     return nextValue.sp.takeIf { it != currentSize }
 }
 
-/**
- * Leading icon for a source row in the switcher. Network sources render their server's favicon
- * via [SourceIcon] (bundled monogram fallback); LocalFiles keeps its Material Folder treatment
- * unchanged — the switcher had no monogram concept for LocalFiles before this change.
- */
 @Composable
 private fun SourceRowIcon(server: Source) {
     if (server.type == SourceType.LOCAL_FILES) {
         Icon(
-            imageVector = Icons.Default.Folder,
+            imageVector = RiffleIcons.Folder,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
         )
@@ -417,11 +417,7 @@ private fun SourceRowIcon(server: Source) {
     }
 }
 
-/**
- * Drawer supporting line: `host · version`, `host`, `version`, or null if nothing to show.
- * Storyteller never has a version (the repository returns null for it).
- */
-internal fun buildSupportingLine(host: String?, version: String?): String? {
+fun buildSupportingLine(host: String?, version: String?): String? {
     val v = version?.let { "v$it" }
     return when {
         host != null && v != null -> "$host · $v"
@@ -431,12 +427,7 @@ internal fun buildSupportingLine(host: String?, version: String?): String? {
     }
 }
 
-/**
- * Display label for the source-switcher header + dropdown. Non-ABS sources have their name in
- * their [com.riffle.core.domain.WebSourceDescriptor]; ABS is per-server (the same SourceType
- * covers Audiobookshelf and Storyteller product servers) so it picks the server-type label.
- */
-internal fun sourceDisplayName(source: Source): String =
+fun sourceDisplayName(source: Source): String =
     if (source.type == SourceType.ABS) source.serverType.label
     else WebSourceDescriptors.forTypeOrError(source.type).displayName
 
@@ -445,12 +436,7 @@ private fun localizedSourceDisplayName(source: Source): String =
     if (source.type == SourceType.ABS) source.serverType.label
     else localizedDescriptorDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
 
-/**
- * Subtitle for the source-switcher row. Sources with a network host render their configured
- * address on every row; everything else falls back to the descriptor's static subtitle. Gated on
- * [WebSourceDescriptor.hasNetworkHost] so a new credentialed source drops in without an edit here.
- */
-internal fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
+fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
     val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
     return if (descriptor.hasNetworkHost) {
         buildSupportingLine(source.url.authority(), version)

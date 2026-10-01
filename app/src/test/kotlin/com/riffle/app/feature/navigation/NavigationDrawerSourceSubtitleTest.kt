@@ -6,6 +6,9 @@ import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.feature.library.ui.buildSupportingLine
+import com.riffle.feature.library.ui.sourceDisplayName
+import com.riffle.feature.library.ui.sourceSwitcherSubtitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

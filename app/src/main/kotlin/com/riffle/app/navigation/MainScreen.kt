@@ -30,7 +30,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.HomeViewModel
-import com.riffle.app.feature.navigation.RiffleNavigationDrawer
+import com.riffle.app.BuildConfig
+import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.player.NowPlaying
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.LibraryItem
@@ -221,6 +222,8 @@ fun MainScreen(
             if (navController.currentDestination?.route != RIFFLE) navController.navigateAsRoot(RIFFLE)
         },
         isRiffleActive = isRiffleMode,
+        appVersion = BuildConfig.VERSION_NAME,
+        appSha = BuildConfig.GIT_SHA,
     ) {
         NavHost(
             navController = navController,
