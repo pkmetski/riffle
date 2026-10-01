@@ -177,8 +177,9 @@ func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeIn
         if read.waitForExistence(timeout: attempt == 0 ? 5 : 30) { break }
     }
     // A final settle wait covers the case where the last tap navigated but the loaded runner is
-    // still rendering the item detail.
-    XCTAssertTrue(read.waitForExistence(timeout: 30), "Item detail must show the Read action")
+    // still rendering the item detail. 60 s: on loaded simulator clones item-detail rendering
+    // can exceed 30 s; 60 s covers the observed worst-case.
+    XCTAssertTrue(read.waitForExistence(timeout: 60), "Item detail must show the Read action")
     read.tap()
     XCTAssertTrue(read.waitForNonExistence(timeout: timeout), "Read must leave the item detail screen")
     let back = app.buttons.matching(

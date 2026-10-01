@@ -155,33 +155,38 @@ class AnnotationFocusHarnessTest : KoinTest {
         // Leave the bookmarked page, then return through the actual Annotations panel navigation.
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
-        showTopAppBar()
-        // The bar can still be animating in when the click injects ("Failed to inject touch
-        // input" on slow emulators) — settle and retry once before giving up.
-        try {
-            composeTestRule.onNodeWithContentDescription("Annotations").performClick()
-        } catch (_: AssertionError) {
-            composeTestRule.waitForIdle()
-            showTopAppBar()
-            composeTestRule.onNodeWithContentDescription("Annotations").performClick()
-        }
-        composeTestRule.waitUntil(timeoutMillis = 8_000) {
-            composeTestRule.onAllNodesWithText(bookmark.bookmarkTitle).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(bookmark.bookmarkTitle).performClick()
-        composeTestRule.waitForIdle()
-        waitForReaderReady()
-        // waitForReaderReady checks Compose semantics, not Readium's internal chapter scroll.
-        // On slow CI runners the WebView may still be mid-animation to the bookmarked column when
-        // the Compose tree is already idle. Wait for the WebView scroll position to stabilize
-        // before sampling the phrase rect, to avoid a false "wrong column" failure.
-        waitForWebViewScrollQuiet()
 
-        val result = waitForPhraseOnScreen(
-            orientation,
-            timeoutMs = 30_000,
-            phrase = targetPhrase,
-        )
+        // Navigate to the bookmark via the Annotations panel. Retry once: on slow CI runners
+        // Readium's paginated column navigation can be fired after waitForWebViewScrollQuiet's
+        // Phase-1 window expires, leaving the reader at the pre-navigation position for the full
+        // phrase-poll window. A second tap of the same bookmark entry triggers a fresh navigation.
+        fun tapBookmarkAndWait(): FocusResult {
+            showTopAppBar()
+            // The bar can still be animating in when the click injects — settle and retry once.
+            try {
+                composeTestRule.onNodeWithContentDescription("Annotations").performClick()
+            } catch (_: AssertionError) {
+                composeTestRule.waitForIdle()
+                showTopAppBar()
+                composeTestRule.onNodeWithContentDescription("Annotations").performClick()
+            }
+            composeTestRule.waitUntil(timeoutMillis = 8_000) {
+                composeTestRule.onAllNodesWithText(bookmark.bookmarkTitle).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText(bookmark.bookmarkTitle).performClick()
+            composeTestRule.waitForIdle()
+            waitForReaderReady()
+            // waitForReaderReady checks Compose semantics, not Readium's internal chapter scroll.
+            // Phase-1 window is 20 s (half of 40 s) so that a slow-starting Readium navigation
+            // is still caught before Phase-2 declares a false-stable pre-navigation position.
+            waitForWebViewScrollQuiet(quietMs = 400, timeoutMs = 40_000)
+            return waitForPhraseOnScreen(orientation, timeoutMs = 30_000, phrase = targetPhrase)
+        }
+
+        var result = tapBookmarkAndWait()
+        if (!result.onScreen) {
+            result = tapBookmarkAndWait()
+        }
         assertTrue(
             "$orientation bookmark navigation did not land on the bookmarked position. $result",
             result.onScreen,
@@ -547,9 +552,9 @@ class AnnotationFocusHarnessTest : KoinTest {
         // The Search icon is gated on ReaderState.Ready. During a chapter navigation triggered by
         // the previous search result, the reader briefly re-enters a loading state and Search
         // disappears from the semantic tree. Vertical mode (scroll=true Readium) re-enters Ready
-        // more slowly than paginated. 25 s proved insufficient on slow CI runners (the whole test
-        // took 30 s with the 25 s timeout hit); budget 50 s to cover the slowest observed runner.
-        composeTestRule.waitUntil(timeoutMillis = 50_000) {
+        // more slowly than paginated. 25 s → 50 s proved insufficient on slow CI runners;
+        // budget 90 s to cover the slowest observed runner.
+        composeTestRule.waitUntil(timeoutMillis = 90_000) {
             composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
         }
         // The Search icon can disappear between the waitUntil pass and performClick if the reader

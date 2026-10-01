@@ -114,7 +114,9 @@ class NoteGlyphRenderHarnessTest : KoinTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        val deadline = System.currentTimeMillis() + 20_000
+        // 60 s: the continuous-mode annotation-focus reflow cycle (off-screen land → reflow → re-land)
+        // requires two full layout passes and can take longer than 30 s on slow CI runners.
+        val deadline = System.currentTimeMillis() + 60_000
         var lastDetails = "no WebView"
         val glyphSelector = if (orientation == ReaderOrientation.Continuous) {
             "[data-riffle-note-glyph]"

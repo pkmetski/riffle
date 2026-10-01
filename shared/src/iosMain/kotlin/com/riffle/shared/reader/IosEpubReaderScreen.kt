@@ -754,10 +754,19 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     runCatching {
                         // The locator was already written by the last onChanged; on close we
                         // persist only the progress float, per PositionSaveCoordinator's contract.
-                        positionSaver.onClose(position.totalProgression ?: position.progression)
+                        // finishAwareEbookProgress clamps to 1.0 when on the last page: Readium
+                        // never emits totalProgression=1 in paginated/vertical mode because
+                        // positions mark page starts ((N-1)/N for the last of N pages), so without
+                        // the clamp a completed book syncs as 99% rather than 100%.
+                        val closeProgress = com.riffle.core.domain.finishAwareEbookProgress(
+                            totalProgression = position.totalProgression,
+                            progression = position.progression,
+                            positionCounts = spineRef.value.positionCounts,
+                        )
+                        positionSaver.onClose(closeProgress)
                         val payload = SessionPayload(
                             ebookLocation = position.locatorJson,
-                            ebookProgress = position.totalProgression ?: position.progression,
+                            ebookProgress = closeProgress,
                         )
                         sessionRepository.runSyncCycle(item.id, payload, item.sourceId)
                     }

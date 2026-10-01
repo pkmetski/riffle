@@ -1960,7 +1960,14 @@ internal class ContinuousWindowController(
         if (shiftInProgress) return
         val window = buildWindow()
         if (window.isEmpty()) return
-        val (href, progression) = ContinuousPositionTracker.locatorAt(scrollY, port.viewportHeightPx, window)
+        val (href, rawProgression) = ContinuousPositionTracker.locatorAt(scrollY, port.viewportHeightPx, window)
+        val isLastChapter = allChapters.isNotEmpty() && allChapters.last().link.href.toString() == href
+        val progression = ContinuousPositionTracker.adjustProgressionAtForwardBoundary(
+            rawProgression = rawProgression,
+            isLastChapter = isLastChapter,
+            scrollY = scrollY,
+            maxScrollY = port.maxScrollY,
+        )
         onRawPosition(href, progression)
 
         if (!shiftPending) {

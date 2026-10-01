@@ -127,6 +127,7 @@ class ReadingSessionRepositoryImplTest {
         private val pullResult: CatalogProgress? = null,
     ) : Catalog, ProgressPeerCapability {
         val pushed: MutableList<Triple<String, String, Float>> = mutableListOf()
+        val pushedIsFinished: MutableList<Boolean?> = mutableListOf()
 
         // Catalog
         override val sourceType: SourceType = SourceType.ABS
@@ -147,6 +148,7 @@ class ReadingSessionRepositoryImplTest {
             lastUpdateEpochMs: Long,
         ): Long? {
             pushed += Triple(itemId, location, progress)
+            pushedIsFinished += isFinished
             return lastUpdateEpochMs + 1
         }
         override suspend fun pullProgress(itemId: String): CatalogProgress? = pullResult
@@ -546,5 +548,55 @@ class ReadingSessionRepositoryImplTest {
 
         assertTrue(repo.syncProgress("item-1", SessionPayload("locator-ch06", 0.4f)) is SyncSessionResult.Success)
         assertEquals(0.4f, peer.pushed.single().third, "reading past the cover must push the real fraction")
+    }
+
+    // ── isFinished propagation ─────────────────────────────────────────────────────────────────
+
+    @Test
+    fun syncProgressSendsIsFinishedTrueWhenEbookProgressIsOne() = runTest {
+        // Regression: reaching the last page pushed ebookProgress=1.0 but isFinished=null,
+        // so ABS displayed 100% but kept the book in "Continue Reading" instead of "Finished".
+        val peer = RecordingProgressPeer()
+        makeRepo(peer = peer).syncProgress("item-1", SessionPayload("locator-end", 1.0f))
+        assertEquals(true, peer.pushedIsFinished.single(), "isFinished must be true when ebookProgress = 1.0")
+    }
+
+    @Test
+    fun syncProgressSendsIsFinishedFalseForMidBookProgress() = runTest {
+        // isFinished=false (not null) lets ABS un-finish a previously-finished book when the user
+        // reads back into it. null would be ignored by ABS once isFinished=true was set.
+        val peer = RecordingProgressPeer()
+        makeRepo(peer = peer).syncProgress("item-1", SessionPayload("locator-ch03", 0.5f))
+        assertEquals(false, peer.pushedIsFinished.single(), "isFinished must be false for mid-book progress")
+    }
+
+    @Test
+    fun runSyncCycleSendsIsFinishedTrueOnLocalWinsWhenEbookProgressIsOne() = runTest {
+        // Regression: LocalWins push on book completion must include isFinished=true.
+        val posStore = FakeReadingPositionStore().also {
+            it.save("src-1", "item-1", "locator-end")
+            it.updateLocalTimestamp("src-1", "item-1", 5_000L)
+            it.markSyncedAt("src-1", "item-1", 1_000L)
+        }
+        val peer = RecordingProgressPeer(pullResult = CatalogProgress(itemId = "item-1", ebookProgress = 0.95f, lastUpdate = 2_000L))
+        makeRepo(peer = peer, positionStore = posStore, clock = FakeClock(6_000L))
+            .runSyncCycle("item-1", SessionPayload("locator-end", 1.0f))
+        assertEquals(true, peer.pushedIsFinished.single(), "LocalWins at ebookProgress=1.0 must send isFinished=true")
+    }
+
+    @Test
+    fun runSyncCycleSendsIsFinishedFalseOnLocalWinsForMidBookProgress() = runTest {
+        // Regression: after a book is finished (isFinished=true pushed to ABS), reading back into
+        // it must push isFinished=false so ABS actually un-finishes the book. isFinished=null would
+        // leave ABS's isFinished flag set and the book would remain in "Finished" on ABS.
+        val posStore = FakeReadingPositionStore().also {
+            it.save("src-1", "item-1", "locator-ch05")
+            it.updateLocalTimestamp("src-1", "item-1", 5_000L)
+            it.markSyncedAt("src-1", "item-1", 1_000L)
+        }
+        val peer = RecordingProgressPeer(pullResult = CatalogProgress(itemId = "item-1", ebookProgress = 0.3f, lastUpdate = 2_000L))
+        makeRepo(peer = peer, positionStore = posStore, clock = FakeClock(6_000L))
+            .runSyncCycle("item-1", SessionPayload("locator-ch05", 0.6f))
+        assertEquals(false, peer.pushedIsFinished.single(), "LocalWins for mid-book must send isFinished=false")
     }
 }
