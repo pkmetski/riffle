@@ -1662,7 +1662,7 @@ private fun ReadingProgressIndicator(progress: Float, listened: Boolean = false)
         Text(
             text = androidx.compose.ui.res.stringResource(
                 if (listened) com.riffle.app.R.string.ui_progress_listened else com.riffle.app.R.string.ui_progress_read,
-                (progress * 100).toInt(),
+                (progress * 100).roundToInt().coerceIn(0, 100),
             ),
             style = MaterialTheme.typography.bodyMedium,
         )
