@@ -105,9 +105,11 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         let allPillsPresent = NSPredicate { _, _ in
             self.chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
         }
+        // 120 s: playPause appeared but the CMP tree can still be settling under CI load; the old
+        // 60 s cap caused a spurious fail when the runner was under heavy contention.
         let pillsResult = XCTWaiter.wait(
             for: [XCTNSPredicateExpectation(predicate: allPillsPresent, object: nil)],
-            timeout: 60
+            timeout: 120
         )
         XCTAssertEqual(pillsResult, .completed,
                        "Player must offer Chapters, bookmarks, sleep-timer and speed controls")

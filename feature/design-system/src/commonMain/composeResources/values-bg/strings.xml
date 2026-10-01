@@ -5,6 +5,7 @@
     <string name="ui_cached">Кеширано</string>
     <string name="ui_no_items">Няма елементи</string>
     <string name="ui_see_all">Виж всички</string>
+    <string name="ui_see_more_overflow">+%1$d\nоще</string>
     <string name="ui_section_in_progress">В процес</string>
     <string name="ui_section_continue_series">Продължаване на поредица</string>
     <string name="ui_section_recently_added">Наскоро добавени</string>

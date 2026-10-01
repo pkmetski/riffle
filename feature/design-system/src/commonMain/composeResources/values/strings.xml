@@ -27,6 +27,9 @@
     <string name="ui_no_items">No items</string>
     <!-- Trailing action on a library section header that opens the section's full list. -->
     <string name="ui_see_all">See all</string>
+    <!-- BookSectionGrid overflow tile: "+N\nmore" / "+N\nmás" / "+N\nоще". %1$d = overflow count.
+         Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_see_more_overflow">+%1$d\nmore</string>
     <!-- Library home section headers. Same keys and values as app/src/main/res/values/strings.xml. -->
     <string name="ui_section_in_progress">In Progress</string>
     <string name="ui_section_continue_series">Continue Series</string>

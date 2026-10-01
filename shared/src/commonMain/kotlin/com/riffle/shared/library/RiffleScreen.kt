@@ -38,11 +38,15 @@ import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
 import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_progress
 import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_to_read
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
 import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
 import com.riffle.feature.library.AnnotationsListUiState
@@ -109,6 +113,9 @@ fun RiffleScreen(
     }
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val inProgressLabel = stringResource(Res.string.ui_section_in_progress)
+    val toReadLabel = stringResource(Res.string.ui_to_read)
+    val annotationsLabel = stringResource(Res.string.ui_annotations)
 
     // `RiffleViewModel.authTokenMap` is documented as "sourceId -> auth token for authenticated
     // cover image loading" and had no iOS caller at all, because nothing on iOS loaded a cover.
@@ -121,13 +128,19 @@ fun RiffleScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Riffle") },
+                title = {
+                    Text(
+                        text = "RIFFLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = onOpenDrawer,
                         modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
                     ) {
-                        Icon(RiffleIcons.Menu, contentDescription = "Open menu")
+                        Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
                     }
                 },
             )
@@ -137,22 +150,19 @@ fun RiffleScreen(
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(RiffleIcons.Home, contentDescription = null) },
-                    label = { Text("In Progress") },
+                    icon = { Icon(RiffleIcons.Home, contentDescription = inProgressLabel) },
                     modifier = Modifier.testTag(TestTags.NAV_TAB_IN_PROGRESS),
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = null) },
-                    label = { Text("To Read") },
+                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = toReadLabel) },
                     modifier = Modifier.testTag(TestTags.NAV_TAB_TO_READ),
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(RiffleIcons.Annotations, contentDescription = null) },
-                    label = { Text("Annotations") },
+                    icon = { Icon(RiffleIcons.Annotations, contentDescription = annotationsLabel) },
                     modifier = Modifier.testTag(TestTags.NAV_TAB_ANNOTATIONS),
                 )
             }
@@ -188,6 +198,8 @@ private fun IosInProgressTab(
     tokenFor: (String) -> String,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
+    val inProgressLabel = stringResource(Res.string.ui_section_in_progress)
+    val continueSeriesLabel = stringResource(Res.string.ui_section_continue_series)
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         if (inProgress.isEmpty() && continueSeries.isEmpty()) {
             item {
@@ -200,11 +212,11 @@ private fun IosInProgressTab(
             }
         }
         if (inProgress.isNotEmpty()) {
-            item { SectionLabel(stringResource(Res.string.ui_section_in_progress)) }
+            item { SectionHeader("$inProgressLabel (${inProgress.size})") }
             items(inProgress, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
         if (continueSeries.isNotEmpty()) {
-            item { SectionLabel(stringResource(Res.string.ui_section_continue_series)) }
+            item { SectionHeader("$continueSeriesLabel (${continueSeries.size})") }
             items(continueSeries, key = { "cs_${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
     }
@@ -231,16 +243,6 @@ private fun IosToReadTab(
 }
 
 @Composable
-private fun SectionLabel(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-}
-
-@Composable
 private fun ItemRow(item: LibraryItem, tokenFor: (String) -> String, onClick: (LibraryItem) -> Unit) {
     Row(
         modifier = Modifier
@@ -261,13 +263,9 @@ private fun ItemRow(item: LibraryItem, tokenFor: (String) -> String, onClick: (L
             )
         }
         Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(text = item.title, style = MaterialTheme.typography.bodyMedium)
+            Text(text = item.title, style = MaterialTheme.typography.bodyLarge)
             if (item.author.isNotEmpty()) {
-                Text(
-                    text = item.author,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(text = item.author, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

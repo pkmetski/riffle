@@ -214,9 +214,14 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
 }
 
 // True once any library-home section header is on screen.
+// Uses BEGINSWITH so the count suffix added in #1140 ("In Progress (3)") still matches.
 func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) -> Bool {
-    let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]
-    let anySection = NSPredicate { _, _ in sectionLabels.contains { app.staticTexts[$0].exists } }
+    let sectionPrefixes = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]
+    let anySection = NSPredicate { _, _ in
+        sectionPrefixes.contains { prefix in
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch.exists
+        }
+    }
     let result = XCTWaiter.wait(
         for: [XCTNSPredicateExpectation(predicate: anySection, object: nil)],
         timeout: timeout
