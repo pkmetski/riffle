@@ -54,7 +54,7 @@ final class NavDrawerTests: AbsHarnessTestCase {
         // the word "Settings" alone is ambiguous with the drawer entry that is still on screen
         // while the drawer animates shut.
         XCTAssertTrue(
-            app.buttons["← Libraries"].waitForExistence(timeout: 15),
+            app.buttons["← Libraries"].waitForExistence(timeout: 25),
             "Settings must open after tapping the drawer entry"
         )
 
@@ -62,7 +62,7 @@ final class NavDrawerTests: AbsHarnessTestCase {
 
         // After back we must be on the library home — the burger must be visible — not blank.
         XCTAssertTrue(
-            burger.waitForExistence(timeout: 15),
+            burger.waitForExistence(timeout: 25),
             "Back from Settings must return to library home; app must not show a blank screen"
         )
         XCTAssertTrue(app.state == .runningForeground, "App must still be running after back from Settings")
@@ -92,7 +92,7 @@ final class NavDrawerTests: AbsHarnessTestCase {
             settingsEntry.tap()
 
             XCTAssertTrue(
-                app.buttons["← Libraries"].waitForExistence(timeout: 15),
+                app.buttons["← Libraries"].waitForExistence(timeout: 25),
                 "Settings must be reachable on round \(round)"
             )
 
@@ -100,7 +100,7 @@ final class NavDrawerTests: AbsHarnessTestCase {
             leaveSettings()
 
             XCTAssertTrue(
-                burger.waitForExistence(timeout: 15),
+                burger.waitForExistence(timeout: 25),
                 "One back from Settings must return to library home on round \(round)"
             )
         }
@@ -190,17 +190,17 @@ final class NavDrawerTests: AbsHarnessTestCase {
 
         let secondLibrary = app.staticTexts[StubAbsServer.testLibraryName2]
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 15),
+            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 25),
             "Drawer must list the first library"
         )
         XCTAssertTrue(secondLibrary.exists, "Drawer must list every visible library, not just the active one")
 
         secondLibrary.tap()
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 20),
+            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 25),
             "Selecting a library must re-title the library screen"
         )
-        XCTAssertTrue(burger.waitForExistence(timeout: 15), "The drawer must close back onto the library screen")
+        XCTAssertTrue(burger.waitForExistence(timeout: 25), "The drawer must close back onto the library screen")
     }
 
     // MARK: - ND-7  Downloads is reachable from the drawer
@@ -218,8 +218,9 @@ final class NavDrawerTests: AbsHarnessTestCase {
         downloads.tap()
 
         let back = app.buttons["← Back"].firstMatch
-        XCTAssertTrue(back.waitForExistence(timeout: 15), "Downloads must open its own screen with a back control")
+        // 25 s: screen transitions can lag under simulator load when two clones run concurrently.
+        XCTAssertTrue(back.waitForExistence(timeout: 25), "Downloads must open its own screen with a back control")
         back.tap()
-        XCTAssertTrue(burger.waitForExistence(timeout: 15), "Back from Downloads must return to the library home")
+        XCTAssertTrue(burger.waitForExistence(timeout: 25), "Back from Downloads must return to the library home")
     }
 }
