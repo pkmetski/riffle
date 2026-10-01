@@ -1,10 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.ColumnSnap
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * JVM unit tests for [ColumnSnap.parseNarratedColumnsResult] — the Kotlin half of the contract
@@ -26,8 +25,8 @@ class NarratedColumnsResultParserTest {
         // would measure the WRONG span's columns and the intra-column follow would page-turn to
         // the wrong place.
         val js = ColumnSnap.measureCadenceColumnsJs("cd-181")
-        assertTrue("must resolve target by getElementById", js.contains("document.getElementById(\"cd-181\")"))
-        assertFalse("must NOT do a text prefix search on the DOM", js.contains("nodeValue.indexOf(key)"))
+        assertTrue(js.contains("document.getElementById(\"cd-181\")"), "must resolve target by getElementById")
+        assertFalse(js.contains("nodeValue.indexOf(key)"), "must NOT do a text prefix search on the DOM")
     }
 
     @Test

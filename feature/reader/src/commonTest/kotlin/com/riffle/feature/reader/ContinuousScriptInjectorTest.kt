@@ -1,7 +1,7 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
  * Pins the anchor-tap listener's dual-branch behaviour so regressions can't quietly return to the
@@ -16,12 +16,12 @@ class ContinuousScriptInjectorTest {
 
     @Test
     fun `listener still routes footnote-style anchors through onFootnoteAnchorTap`() {
-        assertTrue("expected onFootnoteAnchorTap in $js", js.contains("onFootnoteAnchorTap"))
+        assertTrue(js.contains("onFootnoteAnchorTap"), "expected onFootnoteAnchorTap in $js")
     }
 
     @Test
     fun `listener routes non-footnote anchors through onCrossReferenceTap`() {
-        assertTrue("expected onCrossReferenceTap in $js", js.contains("onCrossReferenceTap"))
+        assertTrue(js.contains("onCrossReferenceTap"), "expected onCrossReferenceTap in $js")
     }
 
     @Test
@@ -31,8 +31,8 @@ class ContinuousScriptInjectorTest {
         // Regression assertion: onCrossReferenceTap must always be followed by preventDefault().
         val crossRefBranch = js.substringAfter("onCrossReferenceTap")
         assertTrue(
-            "expected preventDefault() to run after onCrossReferenceTap in $js",
             crossRefBranch.contains("preventDefault"),
+            "expected preventDefault() to run after onCrossReferenceTap in $js",
         )
     }
 
@@ -41,8 +41,8 @@ class ContinuousScriptInjectorTest {
         // The third argument to addEventListener is the capture flag; without it the default scroll
         // handler on the WebView would fire first.
         assertTrue(
-            "expected capture-phase click listener in $js",
             js.contains("addEventListener('click'") && js.contains(", true)"),
+            "expected capture-phase click listener in $js",
         )
     }
 
@@ -53,9 +53,9 @@ class ContinuousScriptInjectorTest {
         // version of the fix skipped anything not starting with '#', which fell straight through
         // to WebView's default fragment scroll — no return card, and broke parent scroll continuity.
         // Assert the resolved-URL branch exists so this can't silently regress.
-        assertTrue("expected URL resolution against document.location", js.contains("new URL(href, document.location.href)"))
-        assertTrue("expected same-doc test against pathname", js.contains("resolved.pathname === document.location.pathname"))
-        assertTrue("expected fragment extraction from resolved URL hash", js.contains("resolved.hash"))
+        assertTrue(js.contains("new URL(href, document.location.href)"), "expected URL resolution against document.location")
+        assertTrue(js.contains("resolved.pathname === document.location.pathname"), "expected same-doc test against pathname")
+        assertTrue(js.contains("resolved.hash"), "expected fragment extraction from resolved URL hash")
     }
 
     @Test
@@ -65,8 +65,8 @@ class ContinuousScriptInjectorTest {
         // Regression assertion: the non-same-doc branch must NOT call onCrossReferenceTap.
         val crossResourceBranch = js.substringAfter("if (!sameDoc)").substringBefore("if (!id)")
         assertTrue(
-            "cross-resource branch must return without calling onCrossReferenceTap in $js",
             crossResourceBranch.contains("return") && !crossResourceBranch.contains("onCrossReferenceTap"),
+            "cross-resource branch must return without calling onCrossReferenceTap in $js",
         )
     }
 
@@ -79,8 +79,8 @@ class ContinuousScriptInjectorTest {
         // through new URL().
         val bareHashBranch = js.substringAfter("if (href.charAt(0) === '#')").substringBefore("} else {")
         assertTrue(
-            "bare-hash branch must not call new URL() in $js",
             bareHashBranch.contains("href.substring(1)") && !bareHashBranch.contains("new URL"),
+            "bare-hash branch must not call new URL() in $js",
         )
     }
 
@@ -93,8 +93,8 @@ class ContinuousScriptInjectorTest {
         // getAttribute).
         val pathPrefixedBranch = js.substringAfter("} else {").substringBefore("if (!id) return")
         assertTrue(
-            "path-prefixed branch must decodeURIComponent the fragment id in $js",
             pathPrefixedBranch.contains("decodeURIComponent"),
+            "path-prefixed branch must decodeURIComponent the fragment id in $js",
         )
     }
 
@@ -113,26 +113,25 @@ class ContinuousScriptInjectorTest {
 
     @Test
     fun `height script delays its first report until fonts are ready in DOM-ready mode`() {
-        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
-        assertTrue(js.contains("window.__riffleDomReadyMeasure"))
-        assertTrue(js.contains("document.fonts.status !== 'loaded'"))
-        // Every report path (initial, ResizeObserver, safety timers) is held until fonts.ready.
-        assertTrue(js.contains("if (reportsHeld) return;"))
-        assertTrue(js.contains("reportsHeld = true;"))
+        val hjs = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(hjs.contains("window.__riffleDomReadyMeasure"))
+        assertTrue(hjs.contains("document.fonts.status !== 'loaded'"))
+        assertTrue(hjs.contains("if (reportsHeld) return;"))
+        assertTrue(hjs.contains("reportsHeld = true;"))
     }
 
     @Test
     fun `image reservation keeps author-set widths and ignores non-numeric attributes`() {
-        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
-        assertTrue(js.contains("if (Math.round(rw) === 300) {"))
-        assertTrue(js.contains("/^\\s*\\d+\\s*(px)?\\s*$/.test(wa || '')"))
+        val hjs = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(hjs.contains("if (Math.round(rw) === 300) {"))
+        assertTrue(hjs.contains("/^\\s*\\d+\\s*(px)?\\s*$/.test(wa || '')"))
     }
 
     @Test
     fun `height script reserves sized image boxes in DOM-ready mode and releases them on load`() {
-        val js = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
-        assertTrue(js.contains("im.getAttribute('width')"))
-        assertTrue(js.contains("im.style.height = (rw * ah / aw) + 'px';"))
-        assertTrue(js.contains("im.addEventListener('load', release, { once: true });"))
+        val hjs = ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS
+        assertTrue(hjs.contains("im.getAttribute('width')"))
+        assertTrue(hjs.contains("im.style.height = (rw * ah / aw) + 'px';"))
+        assertTrue(hjs.contains("im.addEventListener('load', release, { once: true });"))
     }
 }

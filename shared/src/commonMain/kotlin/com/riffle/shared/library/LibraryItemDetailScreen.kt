@@ -59,8 +59,15 @@ import com.riffle.feature.library.ui.AddToPlaylistSheet
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.Res
+import com.riffle.feature.source.ui.generated.resources.ui_add_to_to_read
+import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
 import com.riffle.feature.source.ui.generated.resources.ui_download_failed
+import com.riffle.feature.source.ui.generated.resources.ui_in_to_read
+import com.riffle.feature.source.ui.generated.resources.ui_item_not_found
+import com.riffle.feature.source.ui.generated.resources.ui_loading
+import com.riffle.feature.source.ui.generated.resources.ui_read
+import com.riffle.feature.source.ui.generated.resources.ui_you_are_offline
 import com.riffle.feature.source.ui.library.BookDownloadControls
 import com.riffle.feature.source.ui.rememberTransientMessages
 import org.jetbrains.compose.resources.stringResource
@@ -183,7 +190,7 @@ private fun FacetRow(
 @Composable
 private fun LoadingContent() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Loading…", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(Res.string.ui_loading), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -191,9 +198,9 @@ private fun LoadingContent() {
 private fun ErrorContent(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Item not found", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(Res.string.ui_item_not_found), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(16.dp))
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = onBack) { Text(stringResource(Res.string.ui_back_with_arrow)) }
         }
     }
 }
@@ -428,7 +435,7 @@ private fun ReadyBody(
 
         if (state.isOffline) {
             Text(
-                text = "You are offline",
+                text = stringResource(Res.string.ui_you_are_offline),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),

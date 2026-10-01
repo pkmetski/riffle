@@ -72,7 +72,12 @@ class NavigationSnapHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
-        composeTestRule.waitForIdle()
+        // waitForIdle() is intentionally avoided here: the Readium WebView keeps triggering
+        // recompositions, so waitForIdle() can block indefinitely and its concurrent traversal
+        // of the slot table races with the WebView-driven recompositions, causing
+        // ArrayIndexOutOfBoundsException in SlotWriter.moveSlotGapTo. A short sleep gives the
+        // last composition cycle time to finish before we close the scenario.
+        Thread.sleep(400)
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)

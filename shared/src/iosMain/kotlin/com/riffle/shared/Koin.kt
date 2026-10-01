@@ -480,7 +480,7 @@ private fun iosLibraryModule(
 
     // PDF reader
     single<IosPdfNavigatorBridgeFactory> { pdfNavigatorBridgeFactory }
-    single { IosPdfDownloader(get(), get(), get()) }
+    single { IosPdfDownloader(catalogRegistry = get(), fileStore = get()) }
 
     // CBZ reader
     single { IosCbzDownloader(get(), get(), get()) }
@@ -855,7 +855,7 @@ private fun iosLibraryModule(
         IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
-    single { IosPdfRepositoryImpl(get(), get(), get(), get(), get()) }
+    single { IosPdfRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get()) }
     single<PdfRepository> { get<IosPdfRepositoryImpl>() }
     single { IosReadaloudAudioRepositoryImpl(get(), get(), get(), get(), get()) }
     single<ReadaloudAudioRepository> { get<IosReadaloudAudioRepositoryImpl>() }

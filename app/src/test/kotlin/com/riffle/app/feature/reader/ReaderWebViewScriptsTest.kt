@@ -6,6 +6,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.ContinuousPositionTracker
+import com.riffle.feature.reader.ContinuousScriptInjector
 
 class ReaderWebViewScriptsTest {
 

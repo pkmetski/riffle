@@ -1,15 +1,12 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.domain.countBodyChars
+import com.riffle.core.models.EmbeddedFigure
 import org.jsoup.Jsoup
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import com.riffle.feature.reader.anchorRangeToSnippet
-import com.riffle.feature.reader.findEnclosedFiguresInHtml
-import com.riffle.feature.reader.mergeEnclosedFigures
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class FiguresInHtmlRangeTest {
 
@@ -32,7 +29,7 @@ class FiguresInHtmlRangeTest {
         val figures = findEnclosedFiguresInHtml(html, 0, total)
         assertEquals(1, figures.size)
         assertEquals("image_rsrc2H6.jpg", figures.single().href)
-        assertNull("raster figure has no inline SVG", figures.single().svg)
+        assertNull(figures.single().svg, "raster figure has no inline SVG")
     }
 
     // Boundary rule (fixed 2026-07-09): a highlight that stops EXACTLY at the figure's position
@@ -41,12 +38,12 @@ class FiguresInHtmlRangeTest {
     // annotation gave users the surprise "highlighted the paragraph before the diagram → the
     // diagram got marked too". Only ranges that STRADDLE the figure (chars on both sides) count.
     @Test
-    fun `void img at exact range boundary is NOT enclosed (text ends flush at figure)`() {
+    fun voidImgAtExactRangeBoundaryIsNotEnclosed() {
         val html = """<html><body><p>Before</p><img src="mid.jpg"/><p>After</p></body></html>"""
         // "Before" is 6 chars → img sits at char-stream position 6. A range [0, 6] covers just
         // "Before" and stops flush at the figure; the figure must not be enclosed.
         val figures = findEnclosedFiguresInHtml(html, 0L, 6L)
-        assertEquals("range flush at figure's leading edge must not enclose it", emptyList<String>(), figures.map { it.href })
+        assertEquals(emptyList<String>(), figures.map { it.href }, "range flush at figure's leading edge must not enclose it")
     }
 
     @Test
@@ -87,7 +84,7 @@ class FiguresInHtmlRangeTest {
         val figures = findEnclosedFiguresInHtml(html, 0, total)
         assertEquals(1, figures.size)
         assertNull(figures.single().href)
-        assertTrue("svg is captured", figures.single().svg?.contains("<rect") == true)
+        assertTrue(figures.single().svg?.contains("<rect") == true, "svg is captured")
     }
 
     // A <figure><img></figure> block should be deduped to a single entry, and its <figcaption>
@@ -133,7 +130,7 @@ class FiguresInHtmlRangeTest {
     // reproduction from the ticket (highlight over the "C = ΣCₚtₚ" equation in *A Philosophy of
     // Software Design*, chapter 2). Proves the walker resolves the enclosed <img> for the real
     // production DOM — not just a synthesized fragment. Loads OEBPS/part0006.xhtml from
-    // src/test/resources/philosophy_ch2.xhtml.
+    // src/jvmTest/resources/philosophy_ch2.xhtml.
     @Test
     fun `real chapter HTML — highlight over the equation captures image_rsrc2H6 as embeddedFigure`() {
         val html = javaClass.getResourceAsStream("/philosophy_ch2.xhtml")!!
@@ -146,14 +143,14 @@ class FiguresInHtmlRangeTest {
         val endAnchor = "The overall complexity of a system"
         val startIdx = bodyText.indexOf(startAnchor)
         val endIdx = bodyText.indexOf(endAnchor) + endAnchor.length
-        assertTrue("both anchors found", startIdx >= 0 && endIdx > startIdx)
+        assertTrue(startIdx >= 0 && endIdx > startIdx, "both anchors found")
         // countBodyChars uses blank-text-node-aware counting; approximate by mapping through the
         // rendered-text offsets we just found — good enough for the range to straddle the figure
         // between the two paragraphs.
         val figures = findEnclosedFiguresInHtml(html, startIdx.toLong(), endIdx.toLong())
         assertTrue(
-            "expected image_rsrc2H6.jpg in captured figures: ${figures.map { it.href }}",
             figures.any { it.href?.endsWith("image_rsrc2H6.jpg") == true },
+            "expected image_rsrc2H6.jpg in captured figures: ${figures.map { it.href }}",
         )
     }
 
@@ -170,8 +167,8 @@ class FiguresInHtmlRangeTest {
         val (startChar, endChar) = anchorRangeToSnippet(html, snippet, textBefore, 0.1983744538679)
         val figures = findEnclosedFiguresInHtml(html, startChar, endChar)
         assertTrue(
-            "expected image_rsrc2H6.jpg in captured figures: ${figures.map { it.href }} (range [$startChar,$endChar])",
             figures.any { it.href?.endsWith("image_rsrc2H6.jpg") == true },
+            "expected image_rsrc2H6.jpg in captured figures: ${figures.map { it.href }} (range [$startChar,$endChar])",
         )
     }
 
@@ -191,8 +188,8 @@ class FiguresInHtmlRangeTest {
         val progressionFigures = findEnclosedFiguresInHtml(html, progressionStart, progressionEnd)
         // Prove the failure mode the anchor fix was needed for.
         assertTrue(
-            "sanity: progression-only range should miss the image (this is the bug we fixed)",
             progressionFigures.none { it.href?.endsWith("image_rsrc2H6.jpg") == true },
+            "sanity: progression-only range should miss the image (this is the bug we fixed)",
         )
     }
 

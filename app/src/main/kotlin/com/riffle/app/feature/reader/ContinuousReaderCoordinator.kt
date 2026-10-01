@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import androidx.compose.runtime.snapshotFlow
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
+import com.riffle.feature.reader.ContinuousPositionTracker
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.CoroutineScope

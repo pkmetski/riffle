@@ -24,7 +24,10 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookGrid
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_this_collection
 import com.riffle.feature.library.CollectionDetailViewModel
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -42,7 +45,7 @@ fun CollectionDetailScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText("No books in this collection")
+                BasicText(stringResource(Res.string.ui_no_books_in_this_collection))
             }
         } else {
             BookGrid(

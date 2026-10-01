@@ -39,6 +39,15 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_progress
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_to_read
+import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
+import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
+import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.shared.FilteredBooksHost
@@ -154,7 +163,7 @@ fun RiffleScreen(
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (isOffline) {
                 Text(
-                    text = "Offline — showing cached data",
+                    text = stringResource(Res.string.ui_offline_showing_cached_data),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -185,7 +194,7 @@ private fun IosInProgressTab(
         if (inProgress.isEmpty() && continueSeries.isEmpty()) {
             item {
                 Text(
-                    text = "No books in progress",
+                    text = stringResource(Res.string.ui_no_books_in_progress),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
@@ -193,11 +202,11 @@ private fun IosInProgressTab(
             }
         }
         if (inProgress.isNotEmpty()) {
-            item { SectionLabel("In Progress") }
+            item { SectionLabel(stringResource(Res.string.ui_section_in_progress)) }
             items(inProgress, key = { "${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
         if (continueSeries.isNotEmpty()) {
-            item { SectionLabel("Continue Series") }
+            item { SectionLabel(stringResource(Res.string.ui_section_continue_series)) }
             items(continueSeries, key = { "cs_${it.sourceId}_${it.id}" }) { ItemRow(it, tokenFor, onItemSelected) }
         }
     }
@@ -211,7 +220,7 @@ private fun IosToReadTab(
 ) {
     if (items.isEmpty()) {
         Text(
-            text = "No books in your to-read list",
+            text = stringResource(Res.string.ui_no_books_in_to_read),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(16.dp),

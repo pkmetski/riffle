@@ -1,8 +1,6 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.models.TocEntry
-import com.riffle.feature.reader.PdfTocEntry
-import com.riffle.feature.reader.pdfSegmentHref
 
 /**
  * Simple, JVM-testable view of one PDF outline node. The Riffle reader's

@@ -27,6 +27,36 @@
     <string name="ui_no_items">No items</string>
     <!-- Trailing action on a library section header that opens the section's full list. -->
     <string name="ui_see_all">See all</string>
+    <!-- Library home section headers. Same keys and values as app/src/main/res/values/strings.xml. -->
+    <string name="ui_section_in_progress">In Progress</string>
+    <string name="ui_section_continue_series">Continue Series</string>
+    <string name="ui_section_recently_added">Recently Added</string>
+    <string name="ui_section_completed">Completed</string>
+    <!-- Offline banner on the iOS home screen. Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_offline_showing_cached_data">Offline — showing cached data</string>
+    <!-- Empty state: no books currently in progress on the iOS home screen. -->
+    <string name="ui_no_books_in_progress">No books in progress</string>
+    <!-- Empty state: to-read list is empty on the iOS home screen. -->
+    <string name="ui_no_books_in_to_read">No books in your to-read list</string>
+    <!-- Navigation: back button with a leading arrow, e.g. "← Back". -->
+    <string name="ui_back_with_arrow">← Back</string>
+    <!-- Navigation: back-to-libraries button on the iOS Settings screen. -->
+    <string name="ui_libraries_with_arrow">← Libraries</string>
+    <!-- Settings screen title. Same key and value as app/src/main/res/values/strings.xml. -->
+    <string name="ui_settings">Settings</string>
+    <!-- Empty state for a series or collection detail screen with no books. Same keys as app/. -->
+    <string name="ui_no_books_in_this_series">No books in this series</string>
+    <string name="ui_no_books_in_this_collection">No books in this collection</string>
+    <!-- Top bar menu button content description. Same key and value as app/. -->
+    <string name="ui_open_menu">Open menu</string>
+    <!-- Library tab-bar navigation icons content descriptions. Same keys and values as app/. -->
+    <string name="ui_home">Home</string>
+    <string name="ui_to_read">To Read</string>
+    <string name="ui_annotations">Annotations</string>
+    <string name="ui_series">Series</string>
+    <string name="ui_collections">Collections</string>
+    <string name="ui_playlists">Playlists</string>
+    <string name="ui_all_books">All Books</string>
     <!-- Ko-fi support drawer button. Same key and value as app/src/main/res/values/strings.xml. -->
     <string name="ui_support_support_on_ko_fi">☕ Support on Ko-fi</string>
     <!-- Ko-fi nudge card: headline shown when the user nears the end of a book. -->
