@@ -5,6 +5,7 @@
     <string name="ui_cached">En caché</string>
     <string name="ui_no_items">No hay elementos</string>
     <string name="ui_see_all">Ver todo</string>
+    <string name="ui_see_more_overflow">+%1$d\nmás</string>
     <string name="ui_section_in_progress">En progreso</string>
     <string name="ui_section_continue_series">Continuar serie</string>
     <string name="ui_section_recently_added">Añadidos recientemente</string>

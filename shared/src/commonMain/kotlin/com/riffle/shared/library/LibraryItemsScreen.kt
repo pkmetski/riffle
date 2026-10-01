@@ -88,7 +88,6 @@ import com.riffle.feature.designsystem.generated.resources.ui_section_completed
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
 import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
 import com.riffle.feature.designsystem.generated.resources.ui_section_recently_added
-import com.riffle.feature.designsystem.generated.resources.ui_see_all
 import com.riffle.feature.designsystem.generated.resources.ui_series
 import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.library.AnnotationsListUiState
@@ -158,6 +157,7 @@ fun LibraryItemsScreen(
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
+    val seriesCoverUrls by viewModel.seriesCoverUrls.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -209,6 +209,7 @@ fun LibraryItemsScreen(
                     linkedItemIds = linkedItemIds,
                     collectionCoverUrls = collectionCoverUrls,
                     showRecentlyAdded = showRecentlyAdded,
+                    seriesCoverUrls = seriesCoverUrls,
                     onItemSelected = onItemSelected,
                     onAnnotatedBookSelected = onAnnotatedBookSelected,
                     onSeriesSelected = onSeriesSelected,
@@ -245,6 +246,9 @@ internal fun LibraryTabContent(
     linkedItemIds: Set<String>,
     collectionCoverUrls: Map<String, List<String>> = emptyMap(),
     showRecentlyAdded: Boolean = true,
+    // Live cover URLs derived from series member items — more up-to-date than the series cover stored
+    // in the DB. Defaulted to emptyMap so tests focused on other tabs need not supply it.
+    seriesCoverUrls: Map<String, String> = emptyMap(),
     onItemSelected: (LibraryItem) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
     onSeriesSelected: (Series) -> Unit,
@@ -254,17 +258,7 @@ internal fun LibraryTabContent(
     onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(
-            projection,
-            token,
-            coversAreSquare,
-            linkedItemIds,
-            showRecentlyAdded,
-            onItemSelected,
-            onSeriesSelected,
-            onCollectionSelected,
-            onSectionSeeMore,
-        )
+        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
         1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
@@ -288,17 +282,7 @@ internal fun LibraryTabContent(
             labels = PlaylistLabels.English,
             onPlaylistSelected = onPlaylistSelected,
         )
-        else -> HomeTabContent(
-            projection,
-            token,
-            coversAreSquare,
-            linkedItemIds,
-            showRecentlyAdded,
-            onItemSelected,
-            onSeriesSelected,
-            onCollectionSelected,
-            onSectionSeeMore,
-        )
+        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
     }
 }
 
@@ -392,6 +376,7 @@ private fun HomeTabContent(
     coversAreSquare: Boolean,
     linkedItemIds: Set<String>,
     showRecentlyAdded: Boolean,
+    seriesCoverUrls: Map<String, String>,
     onItemSelected: (LibraryItem) -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
@@ -399,11 +384,10 @@ private fun HomeTabContent(
 ) {
     // Resolved once outside the LazyColumn: `stringResource` inside an `item { }` would re-read
     // the resource table for every recycled row.
-    val seeAll = stringResource(Res.string.ui_see_all)
-    val inProgressTitle = stringResource(Res.string.ui_section_in_progress)
-    val continueSeriesTitle = stringResource(Res.string.ui_section_continue_series)
-    val recentlyAddedTitle = stringResource(Res.string.ui_section_recently_added)
-    val completedTitle = stringResource(Res.string.ui_section_completed)
+    val inProgress = stringResource(Res.string.ui_section_in_progress)
+    val continueSeries = stringResource(Res.string.ui_section_continue_series)
+    val recentlyAdded = stringResource(Res.string.ui_section_recently_added)
+    val completed = stringResource(Res.string.ui_section_completed)
     val seriesLabel = stringResource(Res.string.ui_series)
     val collectionsLabel = stringResource(Res.string.ui_collections)
     val allBooksLabel = stringResource(Res.string.ui_all_books)
@@ -419,9 +403,7 @@ private fun HomeTabContent(
             if (projection.inProgress.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = inProgressTitle,
-                        actionLabel = seeAll,
-                        onAction = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
+                        title = "$inProgress (${projection.inProgress.size})",
                         tag = sectionHeaderTag(LibrarySectionType.IN_PROGRESS),
                     )
                 }
@@ -438,9 +420,7 @@ private fun HomeTabContent(
             if (projection.continueSeries.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = continueSeriesTitle,
-                        actionLabel = seeAll,
-                        onAction = { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) },
+                        title = "$continueSeries (${projection.continueSeries.size})",
                         tag = sectionHeaderTag(LibrarySectionType.CONTINUE_SERIES),
                     )
                 }
@@ -459,9 +439,7 @@ private fun HomeTabContent(
             if (showRecentlyAdded && projection.recentlyAdded.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = recentlyAddedTitle,
-                        actionLabel = seeAll,
-                        onAction = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
+                        title = "$recentlyAdded (${projection.recentlyAdded.size})",
                         tag = sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED),
                     )
                 }
@@ -478,9 +456,7 @@ private fun HomeTabContent(
             if (projection.finished.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = completedTitle,
-                        actionLabel = seeAll,
-                        onAction = { onSectionSeeMore(LibrarySectionType.FINISHED) },
+                        title = "$completed (${projection.finished.size})",
                         tag = sectionHeaderTag(LibrarySectionType.FINISHED),
                     )
                 }
@@ -496,7 +472,7 @@ private fun HomeTabContent(
             }
             if (projection.series.isNotEmpty()) {
                 item { SectionHeader(title = seriesLabel, tag = sectionHeaderTag(LibrarySectionType.SERIES)) }
-                item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
+                item { SeriesRow(series = projection.series.take(10), token = token, seriesCoverUrls = seriesCoverUrls, onSeriesClick = onSeriesSelected) }
             }
             if (projection.collections.isNotEmpty()) {
                 item { SectionHeader(title = collectionsLabel, tag = sectionHeaderTag(LibrarySectionType.COLLECTIONS)) }
@@ -885,6 +861,7 @@ private fun HorizontalBookRow(
 private fun SeriesRow(
     series: List<Series>,
     token: String,
+    seriesCoverUrls: Map<String, String>,
     onSeriesClick: (Series) -> Unit,
 ) {
     LazyRow(
@@ -895,6 +872,7 @@ private fun SeriesRow(
         items(series, key = { it.id }) { s ->
             SeriesTile(
                 series = s,
+                coverUrl = seriesCoverUrls[s.id] ?: s.coverUrl,
                 token = token,
                 modifier = Modifier.width(SECTION_CELL_WIDTH.dp),
                 onClick = { onSeriesClick(s) },
@@ -906,6 +884,7 @@ private fun SeriesRow(
 @Composable
 private fun SeriesTile(
     series: Series,
+    coverUrl: String?,
     token: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
@@ -918,7 +897,7 @@ private fun SeriesTile(
         contentAlignment = Alignment.BottomStart,
     ) {
         CoverImage(
-            url = series.coverUrl,
+            url = coverUrl,
             token = token,
             contentDescription = null,
             isAudiobook = false,

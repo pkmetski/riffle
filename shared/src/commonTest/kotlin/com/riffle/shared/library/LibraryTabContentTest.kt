@@ -490,4 +490,41 @@ class LibraryTabContentTest {
 
         onNodeWithText("Nothing in To Read").assertIsDisplayed()
     }
+
+    /**
+     * Regression for #1140: home section headers must show the item count in the title and must
+     * NOT show a "See all" action link. Android always used count-headers; iOS used "See all"
+     * which is redundant given the "+N more" overflow tile.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun homeTabSectionHeadersShowCountAndHaveNoSeeAllAction() = runComposeUiTest {
+        val item = LibraryItem(
+            id = "i1", libraryId = "lib", title = "A Book", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = LibraryProjection.Empty.copy(inProgress = listOf(item, item.copy(id = "i2"))),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        // Header must include the count.
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.IN_PROGRESS)).assertIsDisplayed()
+        // "See all" must not be present: the overflow tile is the only "see more" affordance.
+        onNodeWithText("See all").assertDoesNotExist()
+    }
 }

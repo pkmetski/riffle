@@ -2,9 +2,11 @@ package com.riffle.shared.library
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.ApplicationScope
@@ -243,7 +245,8 @@ class RiffleScreenReadRouteTest {
 
         // The old wiring set `selectedItem = null` here, dropping straight back to the tab list.
         onNodeWithText("Read").assertIsDisplayed()
-        onNodeWithText("In Progress").assertDoesNotExist()
+        // NavigationBar (with its tabs) is only rendered on the hub; the detail sheet replaces it.
+        onNodeWithTag(TestTags.NAV_TAB_IN_PROGRESS).assertDoesNotExist()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -251,7 +254,8 @@ class RiffleScreenReadRouteTest {
     fun tappingAnAnnotatedBookOpensItsDetailSheet() = runComposeUiTest {
         setContent { RiffleScreen(onOpenDrawer = {}, onBack = {}) }
 
-        onNodeWithText("Annotations").performClick()
+        // NavigationBar shows icons — locate the tab by its stable testTag, not by label text.
+        onNodeWithTag(TestTags.NAV_TAB_ANNOTATIONS).performClick()
         onNodeWithText("Annotated Title").performClick()
 
         onNodeWithText("Read").assertIsDisplayed()
