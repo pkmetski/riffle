@@ -44,7 +44,7 @@ class ReadingSessionRepositoryImpl constructor(
                 itemId = itemId,
                 location = payload.ebookLocation,
                 progress = payload.ebookProgress,
-                isFinished = null,
+                isFinished = isFinishedReadingProgress(payload.ebookProgress),
                 lastUpdateEpochMs = clock.nowMs(),
             )
             SyncSessionResult.Success
@@ -133,7 +133,7 @@ class ReadingSessionRepositoryImpl constructor(
                         itemId = itemId,
                         location = payload.ebookLocation,
                         progress = payload.ebookProgress,
-                        isFinished = null,
+                        isFinished = isFinishedReadingProgress(payload.ebookProgress),
                         lastUpdateEpochMs = clock.nowMs(),
                     )
                 }.getOrNull()
