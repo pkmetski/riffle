@@ -10,7 +10,6 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -38,10 +37,7 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
-    fun `forgetDevice also deletes the device's metadata sentinel`() = runTest {
-        // Without this, forgetting a peer would leave its sentinel orphan on the share — and the
-        // peer's row would resurrect carrying the pre-forget label/lastSyncedAt the next time
-        // that deviceId pushed even a single annotation file.
+    fun `forgetDevice also deletes the device metadata sentinel`() = runTest {
         val target = InMemoryMaintenanceTarget(
             files = mutableMapOf(
                 FileKey("ns", "item-1", "annotations-dev-A.jsonld") to "[]",
@@ -83,15 +79,12 @@ class AnnotationSyncMaintenanceTest {
         assertEquals("Phone A", meta.label)
         assertEquals("2026-01-01T00:00:00Z", meta.lastSyncedAt)
         assertEquals("alice", meta.username)
-        // No sentinel for B → no metadata. The Maintenance UI shows just the deviceId-derived
-        // label, which is the honest signal that we have no recent evidence of this peer.
+        // No sentinel for B → no metadata.
         assertNull(b.metadata)
     }
 
     @Test
     fun `listDevices does NOT fall back to per-file headers when sentinel is missing`() = runTest {
-        // Old per-file header carrying device-scoped fields. Maintenance must NOT mine it for
-        // label/lastSyncedAt — that would reintroduce the push-vs-pull dishonesty.
         val legacy = """
             [
               {"type":"riffle:FileHeader","deviceId":"A","label":"Old Per-File Label","lastSeenAt":"2024-01-01T00:00:00Z","username":"alice","bookTitle":"Dune"},
@@ -109,7 +102,7 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
-    fun `publishHeader writes exactly one sentinel, with the new label`() = runTest {
+    fun publishHeaderWritesExactlyOneSentinelWithNewLabel() = runTest {
         val target = InMemoryMaintenanceTarget(
             files = mutableMapOf(
                 FileKey("ns", "i1", "annotations-A.jsonld") to "[]",
@@ -177,7 +170,7 @@ private class InMemoryMaintenanceTarget(
         val byDevice = files.keys
             .filter { it.namespace == namespace }
             .groupBy { it.deviceId }
-        val rows = byDevice.keys.toSortedSet().map { deviceId ->
+        val rows = byDevice.keys.sorted().map { deviceId ->
             DeviceFileSummary(
                 deviceId = deviceId,
                 annotationFiles = byDevice[deviceId].orEmpty().map { AnnotationFileRef(it.itemId, it.filename) },
@@ -188,7 +181,7 @@ private class InMemoryMaintenanceTarget(
 
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
         val annotations = files.keys.groupBy { it.namespace }.mapValues { it.value.size }
-        return annotations.keys.toSortedSet().map { ns ->
+        return annotations.keys.sorted().map { ns ->
             NamespaceSummary(
                 namespace = ns,
                 annotationFileCount = annotations[ns] ?: 0,

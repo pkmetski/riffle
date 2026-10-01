@@ -4,7 +4,7 @@ import com.riffle.core.models.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceSummary
-import java.time.Instant
+import kotlinx.datetime.Clock
 
 /**
  * Manual housekeeping for the per-device-file annotation-sync model (issue #78).
@@ -19,7 +19,7 @@ import java.time.Instant
  */
 class AnnotationSyncMaintenance(
     private val targetProvider: () -> AnnotationSyncTarget?,
-    private val nowIso: () -> String = { Instant.now().toString() },
+    private val nowIso: () -> String = { Clock.System.now().toString() },
 ) {
     /** Outcome of [publishHeader] — lets the UI report partial failure to the user. */
     data class PublishMetadataResult(
@@ -97,10 +97,6 @@ class AnnotationSyncMaintenance(
         namespace: String,
         summary: DeviceFileSummary,
     ): DeviceRow {
-        // Single source of truth: the per-device sentinel. No fallback to per-file headers —
-        // a device that hasn't run a sync cycle on the new client legitimately has no
-        // "Last synced" yet, and presenting per-file `lastSeenAt` would re-introduce the
-        // push-vs-pull dishonesty the sentinel was created to eliminate.
         val metadata = try {
             target.readDeviceMeta(namespace, summary.deviceId)
                 ?.let { AnnotationDeviceMetaCodec.decode(it) }
@@ -122,11 +118,7 @@ class AnnotationSyncMaintenance(
 
     /**
      * Deletes every annotation file belonging to [deviceId] under [namespace], plus that device's
-     * metadata sentinel. The sentinel delete is best-effort — failures don't block reporting
-     * success on the annotation-file deletes, but they DO count against [ForgetResult.failures]
-     * so the user sees the partial outcome. Without the sentinel delete, a forgotten peer that
-     * later writes one annotation file would resurrect its row carrying the stale pre-forget
-     * label and lastSyncedAt.
+     * metadata sentinel.
      */
     suspend fun forgetDevice(namespace: String, deviceId: String): ForgetResult {
         val target = targetProvider() ?: return ForgetResult(0, failures = 0)
@@ -155,5 +147,4 @@ class AnnotationSyncMaintenance(
         }
         return ForgetResult(deleted, failures)
     }
-
 }
