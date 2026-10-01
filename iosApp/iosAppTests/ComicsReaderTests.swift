@@ -18,7 +18,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         // from the stub server behind a cold launch. `testComicsPositionRestoredOnReopen` below
         // finds the same tile immediately once the app is warm.
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 45)
-        XCTAssertTrue(cbzTile.waitForExistence(timeout: 45), "CBZ tile must be visible in the library")
+        XCTAssertTrue(waitForLibraryTile(cbzTile, in: app, timeout: 45), "CBZ tile must be visible in the library")
 
         let backButton = openReader(from: cbzTile, in: app)
         XCTAssertTrue(backButton.exists, "Comics reader should show a Back button after opening")
@@ -38,7 +38,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
         // starts counting from app launch otherwise and trips under CI clone contention.
         XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
-        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForLibraryTile(cbzTile, in: app, timeout: 10))
         let bookLabel = cbzTile.label
 
         var backButton = openReader(from: cbzTile, in: app)
@@ -55,7 +55,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         let sameTile = app.buttons.matching(
             NSPredicate(format: "label == %@", bookLabel)
         ).firstMatch
-        XCTAssertTrue(sameTile.waitForExistence(timeout: 5), "CBZ tile must reappear after closing reader")
+        XCTAssertTrue(waitForLibraryTile(sameTile, in: app, timeout: 5), "CBZ tile must reappear after closing reader")
         backButton = openReader(from: sameTile, in: app)
         XCTAssertTrue(backButton.exists, "Comics reader must reopen")
         XCTAssertFalse(app.staticTexts["Book not found"].exists, "Reopened comics reader must resolve the book")
@@ -69,7 +69,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
         // starts counting from app launch otherwise and trips under CI clone contention.
         XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
-        XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForLibraryTile(cbzTile, in: app, timeout: 10))
 
         let backButton = openReader(from: cbzTile, in: app)
         XCTAssertTrue(backButton.exists, "Comics reader must open")

@@ -18,7 +18,7 @@ final class PdfReaderTests: AbsHarnessTestCase {
         // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
         // starts counting from app launch otherwise and trips under CI clone contention.
         XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
-        XCTAssertTrue(pdfTile.waitForExistence(timeout: 10), "PDF tile must be visible in the library")
+        XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10), "PDF tile must be visible in the library")
 
         let backButton = openReader(from: pdfTile, in: app)
         XCTAssertTrue(backButton.exists, "PDF reader should show a Back button after opening")
@@ -33,7 +33,7 @@ final class PdfReaderTests: AbsHarnessTestCase {
         // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
         // starts counting from app launch otherwise and trips under CI clone contention.
         XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
-        XCTAssertTrue(pdfTile.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10))
 
         let backButton = openReader(from: pdfTile, in: app)
         XCTAssertTrue(backButton.exists, "PDF reader must open")
