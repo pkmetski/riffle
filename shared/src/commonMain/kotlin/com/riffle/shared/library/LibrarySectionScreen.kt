@@ -78,6 +78,9 @@ fun LibrarySectionScreen(
                     LibrarySectionType.FINISHED -> stringResource(Res.string.ui_section_completed)
                     LibrarySectionType.RECENTLY_ADDED -> stringResource(Res.string.ui_section_recently_added)
                     LibrarySectionType.CONTINUE_SERIES -> stringResource(Res.string.ui_section_continue_series)
+                    LibrarySectionType.SERIES -> stringResource(Res.string.ui_series)
+                    LibrarySectionType.COLLECTIONS -> stringResource(Res.string.ui_collections)
+                    LibrarySectionType.ALL_BOOKS -> stringResource(Res.string.ui_all_books)
                 },
                 style = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
             )
