@@ -35,6 +35,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -51,11 +53,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
@@ -64,6 +69,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.BookGrid
+import com.riffle.feature.designsystem.BookSectionGrid
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
 import com.riffle.feature.designsystem.LocalCoversAreSquare
@@ -101,12 +107,6 @@ import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 private const val SECTION_ROW_HEIGHT = 200
-
-/**
- * Taller than [SECTION_ROW_HEIGHT] because a [BookCoverTile] now carries Android's title/author
- * caption under the artwork: a 120dp-wide 2:3 cover is 180dp on its own, so a 200dp row clipped
- * the caption away. Series and collection tiles have no caption and keep the shorter row.
- */
 private const val BOOK_SECTION_ROW_HEIGHT = 250
 private const val SECTION_CELL_WIDTH = 120
 
@@ -114,6 +114,7 @@ private const val SECTION_CELL_WIDTH = 120
 // `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used
 // to exist as a byte-identical private copy in each screen.
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryItemsScreen(
     libraryId: String,
@@ -156,6 +157,7 @@ fun LibraryItemsScreen(
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
+    val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -170,9 +172,11 @@ fun LibraryItemsScreen(
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
     }
 
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer)
+            LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer, scrollBehavior = scrollBehavior)
         },
         bottomBar = {
             LibraryTabBar(
@@ -203,6 +207,7 @@ fun LibraryItemsScreen(
                     annotationsState = annotationsState,
                     coversAreSquare = coversAreSquare,
                     linkedItemIds = linkedItemIds,
+                    collectionCoverUrls = collectionCoverUrls,
                     showRecentlyAdded = showRecentlyAdded,
                     onItemSelected = onItemSelected,
                     onAnnotatedBookSelected = onAnnotatedBookSelected,
@@ -238,6 +243,7 @@ internal fun LibraryTabContent(
     // Defaulted so the tab-content tests can stay focused on the projection they exercise.
     token: String = "",
     linkedItemIds: Set<String>,
+    collectionCoverUrls: Map<String, List<String>> = emptyMap(),
     showRecentlyAdded: Boolean = true,
     onItemSelected: (LibraryItem) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
@@ -248,7 +254,17 @@ internal fun LibraryTabContent(
     onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        0 -> HomeTabContent(
+            projection,
+            token,
+            coversAreSquare,
+            linkedItemIds,
+            showRecentlyAdded,
+            onItemSelected,
+            onSeriesSelected,
+            onCollectionSelected,
+            onSectionSeeMore,
+        )
         1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
@@ -258,8 +274,8 @@ internal fun LibraryTabContent(
             AnnotationSearchField(onSearch = onSearchAnnotations)
             AnnotationsTabContent(annotationsState, { token }, onAnnotatedBookSelected)
         }
-        3 -> SeriesTabContent(projection.series, onSeriesSelected)
-        4 -> CollectionsTabContent(projection.collections, onCollectionSelected)
+        3 -> SeriesTabContent(projection.series, token, onSeriesSelected)
+        4 -> CollectionsTabContent(projection.collections, token, collectionCoverUrls, onCollectionSelected)
         5 -> AllBooksTabContent(projection.allBooks, token, coversAreSquare, linkedItemIds, onItemSelected)
         // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
         // Home tab. The shared ViewModel has exposed `playlists` all along
@@ -272,7 +288,17 @@ internal fun LibraryTabContent(
             labels = PlaylistLabels.English,
             onPlaylistSelected = onPlaylistSelected,
         )
-        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        else -> HomeTabContent(
+            projection,
+            token,
+            coversAreSquare,
+            linkedItemIds,
+            showRecentlyAdded,
+            onItemSelected,
+            onSeriesSelected,
+            onCollectionSelected,
+            onSectionSeeMore,
+        )
     }
 }
 
@@ -340,7 +366,11 @@ private fun LibraryTabBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
+private fun LibraryTopBar(
+    title: String,
+    onMenuClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+) {
     TopAppBar(
         title = { Text(title) },
         navigationIcon = {
@@ -351,6 +381,7 @@ private fun LibraryTopBar(title: String, onMenuClick: () -> Unit) {
                 Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
             }
         },
+        scrollBehavior = scrollBehavior,
     )
 }
 
@@ -369,79 +400,110 @@ private fun HomeTabContent(
     // Resolved once outside the LazyColumn: `stringResource` inside an `item { }` would re-read
     // the resource table for every recycled row.
     val seeAll = stringResource(Res.string.ui_see_all)
-    val inProgress = stringResource(Res.string.ui_section_in_progress)
-    val continueSeries = stringResource(Res.string.ui_section_continue_series)
-    val recentlyAdded = stringResource(Res.string.ui_section_recently_added)
-    val completed = stringResource(Res.string.ui_section_completed)
+    val inProgressTitle = stringResource(Res.string.ui_section_in_progress)
+    val continueSeriesTitle = stringResource(Res.string.ui_section_continue_series)
+    val recentlyAddedTitle = stringResource(Res.string.ui_section_recently_added)
+    val completedTitle = stringResource(Res.string.ui_section_completed)
     val seriesLabel = stringResource(Res.string.ui_series)
     val collectionsLabel = stringResource(Res.string.ui_collections)
     val allBooksLabel = stringResource(Res.string.ui_all_books)
     CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        // Deliberately unkeyed items: the sections stream in from separate flows, and with keys
+        // LazyListState anchors on the first visible KEY — a Series header that emitted first
+        // stays put while Recently Added rows inserted above it land off-screen, so the home
+        // opens scrolled past its first sections. Positional identity keeps it at the top.
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
             if (projection.inProgress.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = inProgress,
+                        title = inProgressTitle,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
                         tag = sectionHeaderTag(LibrarySectionType.IN_PROGRESS),
                     )
                 }
-                item { HorizontalBookRow(items = projection.inProgress.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
+                item {
+                    BookSectionGrid(
+                        items = projection.inProgress,
+                        token = token,
+                        linkedItemIds = linkedItemIds,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
+                    )
+                }
             }
             if (projection.continueSeries.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = continueSeries,
+                        title = continueSeriesTitle,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.CONTINUE_SERIES) },
                         tag = sectionHeaderTag(LibrarySectionType.CONTINUE_SERIES),
                     )
                 }
                 item {
-                    HorizontalBookRow(items = projection.continueSeries.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected)
+                    // Continue Series has no "See all" on Android either — full list shown.
+                    BookSectionGrid(
+                        items = projection.continueSeries,
+                        token = token,
+                        linkedItemIds = linkedItemIds,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = null,
+                        showSeriesBadge = true,
+                    )
                 }
             }
             if (showRecentlyAdded && projection.recentlyAdded.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = recentlyAdded,
+                        title = recentlyAddedTitle,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
                         tag = sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED),
                     )
                 }
                 item {
-                    HorizontalBookRow(items = projection.recentlyAdded.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected)
+                    BookSectionGrid(
+                        items = projection.recentlyAdded,
+                        token = token,
+                        linkedItemIds = linkedItemIds,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
+                    )
                 }
             }
             if (projection.finished.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = completed,
+                        title = completedTitle,
                         actionLabel = seeAll,
                         onAction = { onSectionSeeMore(LibrarySectionType.FINISHED) },
                         tag = sectionHeaderTag(LibrarySectionType.FINISHED),
                     )
                 }
-                item { HorizontalBookRow(items = projection.finished.take(10), token = token, linkedItemIds = linkedItemIds, onItemClick = onItemSelected) }
+                item {
+                    BookSectionGrid(
+                        items = projection.finished,
+                        token = token,
+                        linkedItemIds = linkedItemIds,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
+                    )
+                }
             }
             if (projection.series.isNotEmpty()) {
-                item { SectionHeader(title = seriesLabel, tag = "section-header-SERIES") }
+                item { SectionHeader(title = seriesLabel, tag = sectionHeaderTag(LibrarySectionType.SERIES)) }
                 item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
             }
             if (projection.collections.isNotEmpty()) {
-                item { SectionHeader(title = collectionsLabel, tag = "section-header-COLLECTIONS") }
+                item { SectionHeader(title = collectionsLabel, tag = sectionHeaderTag(LibrarySectionType.COLLECTIONS)) }
                 item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
             }
             if (projection.allBooks.isNotEmpty()) {
-                item { SectionHeader(title = allBooksLabel, tag = "section-header-ALL_BOOKS") }
-                // A horizontal shelf like every other section, NOT the 600dp LazyVerticalGrid
-                // this used to nest here. A vertically scrolling grid inside a vertically
-                // scrolling column swallows the drag as soon as the finger lands on it, so the
-                // sections below it (Collections, and anything added later) became unreachable
-                // — #1072 flags the "fixed 600dp nested grid" for exactly this reason. The whole
-                // library is one tap away on the All Books tab.
+                item { SectionHeader(title = allBooksLabel, tag = sectionHeaderTag(LibrarySectionType.ALL_BOOKS)) }
                 item {
                     HorizontalBookRow(
                         items = projection.allBooks.take(10),
@@ -633,67 +695,166 @@ internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -
 }
 
 @Composable
-private fun SeriesTabContent(series: List<Series>, onSeriesSelected: (Series) -> Unit) {
+private fun SeriesTabContent(series: List<Series>, token: String, onSeriesSelected: (Series) -> Unit) {
     if (series.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No series", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(coverGridMinCell()),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         items(series, key = { it.id }) { s ->
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onSeriesSelected(s) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(s.name, style = MaterialTheme.typography.bodyLarge)
-            }
+            SeriesGridTile(series = s, token = token, onClick = { onSeriesSelected(s) })
         }
     }
 }
 
 @Composable
-private fun CollectionsTabContent(collections: List<Collection>, onCollectionSelected: (Collection) -> Unit) {
+private fun SeriesGridTile(series: Series, token: String, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = series.name }
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            CoverImage(
+                url = series.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = false,
+                modifier = Modifier.fillMaxSize(),
+                instrumentationKind = "series",
+                instrumentationKey = series.id,
+            )
+        }
+        // Caption is outside the merge: iOS builds the label from contentDescription AND text,
+        // which would turn it into "Name, Name" and break app.buttons["Name"] (see BookCoverTile).
+        Text(
+            text = series.name,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { },
+        )
+    }
+}
+
+@Composable
+private fun CollectionsTabContent(
+    collections: List<Collection>,
+    token: String,
+    coverUrls: Map<String, List<String>>,
+    onCollectionSelected: (Collection) -> Unit,
+) {
     if (collections.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No collections", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(coverGridMinCell()),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         items(collections, key = { it.id }) { col ->
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onCollectionSelected(col) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(col.name, style = MaterialTheme.typography.bodyLarge)
-            }
+            CollectionGridTile(
+                collection = col,
+                token = token,
+                coverUrls = coverUrls[col.id].orEmpty(),
+                onClick = { onCollectionSelected(col) },
+            )
         }
     }
 }
 
 @Composable
-private fun AllBooksTabContent(
-    items: List<LibraryItem>,
+private fun CollectionGridTile(
+    collection: Collection,
     token: String,
-    coversAreSquare: Boolean,
-    linkedItemIds: Set<String>,
-    onItemSelected: (LibraryItem) -> Unit,
+    coverUrls: List<String>,
+    onClick: () -> Unit,
 ) {
-    if (items.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No books", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = collection.name }
+            .clickable(onClick = onClick)
+            .testTag(TestTags.collectionGridTile(collection.id)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            when {
+                coverUrls.size >= 4 -> {
+                    // 2×2 mosaic
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                MosaicCover(coverUrls[0], token, "${collection.id}_0")
+                            }
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                MosaicCover(coverUrls[1], token, "${collection.id}_1")
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                MosaicCover(coverUrls[2], token, "${collection.id}_2")
+                            }
+                            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                MosaicCover(coverUrls[3], token, "${collection.id}_3")
+                            }
+                        }
+                    }
+                }
+                coverUrls.isNotEmpty() -> {
+                    MosaicCover(coverUrls[0], token, collection.id)
+                }
+                else -> {
+                    DefaultCoverPlaceholder(modifier = Modifier.fillMaxSize(), isAudiobook = false)
+                }
+            }
         }
-        return
-    }
-    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
-        BookGrid(
-            items = items,
-            token = token,
-            onItemSelected = onItemSelected,
-            hasReadaloudLink = { it.id in linkedItemIds },
+        // Caption is outside the merge: iOS builds the label from contentDescription AND text,
+        // which would turn it into "Name, Name" and break app.buttons["Name"] (see BookCoverTile).
+        Text(
+            text = collection.name,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { },
         )
     }
+}
+
+@Composable
+private fun MosaicCover(url: String, token: String, instrumentationKey: String) {
+    CoverImage(
+        url = url,
+        token = token,
+        contentDescription = null,
+        isAudiobook = false,
+        modifier = Modifier.fillMaxSize(),
+        instrumentationKind = "collection",
+        instrumentationKey = instrumentationKey,
+    )
 }
 
 @Composable
@@ -751,6 +912,7 @@ private fun SeriesTile(
 ) {
     Box(
         modifier = modifier
+            .semantics(mergeDescendants = true) { contentDescription = series.name }
             .clip(RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.BottomStart,
@@ -758,7 +920,6 @@ private fun SeriesTile(
         CoverImage(
             url = series.coverUrl,
             token = token,
-            // The name is drawn over the artwork below and the clickable Box merges it.
             contentDescription = null,
             isAudiobook = false,
             modifier = Modifier.fillMaxSize(),
@@ -770,7 +931,8 @@ private fun SeriesTile(
             modifier = Modifier
                 .padding(4.dp)
                 .background(Color.Black.copy(alpha = 0.5f))
-                .padding(4.dp),
+                .padding(4.dp)
+                .clearAndSetSemantics { },
             style = MaterialTheme.typography.labelSmall,
             color = Color.White,
         )
@@ -819,9 +981,34 @@ private fun CollectionTile(
             modifier = Modifier
                 .padding(4.dp)
                 .background(Color.Black.copy(alpha = 0.5f))
-                .padding(4.dp),
+                .padding(4.dp)
+                .clearAndSetSemantics { },
             style = MaterialTheme.typography.labelSmall,
             color = Color.White,
+        )
+    }
+}
+
+@Composable
+private fun AllBooksTabContent(
+    items: List<LibraryItem>,
+    token: String,
+    coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No books", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+        BookGrid(
+            items = items,
+            token = token,
+            onItemSelected = onItemSelected,
+            hasReadaloudLink = { it.id in linkedItemIds },
         )
     }
 }

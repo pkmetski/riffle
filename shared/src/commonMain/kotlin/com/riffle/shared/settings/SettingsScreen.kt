@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -53,7 +56,6 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_libraries_with_arrow
 import com.riffle.feature.designsystem.generated.resources.ui_settings
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.settings.AppUpdateStatus
@@ -69,6 +71,7 @@ import com.riffle.feature.source.ui.settings.SourcesSection
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 private enum class SettingsPanel {
@@ -212,6 +215,7 @@ private fun MainSettingsContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars)
             .verticalScroll(rememberScrollState()),
     ) {
         // Back header

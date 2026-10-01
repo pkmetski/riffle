@@ -20,6 +20,7 @@ import com.riffle.core.domain.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -53,6 +54,7 @@ class DismissEmptyHighlightHarnessTest {
     private lateinit var db: RiffleDatabaseAccess
     private lateinit var store: AnnotationStoreImpl
     private lateinit var sessionScope: CoroutineScope
+    private lateinit var appInnerScope: CoroutineScope
     private lateinit var session: AnnotationSession
 
     private class FixedDeviceIdStore : DeviceIdStore {
@@ -90,11 +92,11 @@ class DismissEmptyHighlightHarnessTest {
         )
         val dispatcher = UnconfinedTestDispatcher()
         sessionScope = CoroutineScope(dispatcher + SupervisorJob())
+        appInnerScope = CoroutineScope(dispatcher + SupervisorJob())
         val appScope = object : ApplicationScope {
-            private val inner = CoroutineScope(dispatcher + SupervisorJob())
-            override val coroutineScope: CoroutineScope = inner
+            override val coroutineScope: CoroutineScope = appInnerScope
             override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
-                inner.launch(block = block)
+                appInnerScope.launch(block = block)
             override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
                 kotlinx.coroutines.coroutineScope { block() }
         }
@@ -116,8 +118,13 @@ class DismissEmptyHighlightHarnessTest {
     }
 
     @After
-    fun tearDown() {
-        sessionScope.coroutineContext[Job]?.cancel()
+    fun tearDown() = runBlocking {
+        // Cancel AND join both scopes before closing Room. `cancel()` alone returns while a
+        // session/survivable job can still be mid-query on a Default thread; closing the
+        // connection under it crashes natively in the bundled sqlite driver (SIGSEGV, fault
+        // addr 0x20) and takes the whole instrumentation process down with the next test.
+        sessionScope.coroutineContext[Job]?.cancelAndJoin()
+        appInnerScope.coroutineContext[Job]?.cancelAndJoin()
         db.close()
     }
 

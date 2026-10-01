@@ -178,6 +178,13 @@ final class SourcePickerTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        // The unbounded host lands on its Home tab (the same default as Android's browse
+        // screens); the catalogue grid and its chip strip live on the Library tab.
+        let libraryTab = app.buttons["Library"].firstMatch
+        XCTAssertTrue(libraryTab.waitForExistence(timeout: 30),
+                      "\(cardTitle) must show the browse tab bar with a Library tab", file: file, line: line)
+        libraryTab.tap()
+
         let chipStrip = NSPredicate { _, _ in
             self.app.staticTexts["Not Started"].exists || self.app.staticTexts["All"].exists
         }

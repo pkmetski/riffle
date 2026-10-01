@@ -14,13 +14,16 @@ object TestTags {
     const val LIBRARY_FILTER = "library_filter"
     const val LIBRARY_SORT = "library_sort"
     const val LIBRARY_OVERFLOW_MENU = "library_overflow_menu"
+    const val LIBRARY_SECTION_BACK = "library_section_back"
     fun libraryBookItem(index: Int) = "library_book_item_$index"
 
     // ── Book detail ───────────────────────────────────────────────────────────
     const val BOOK_DETAIL_BACK = "book_detail_back"
+    const val BOOK_DETAIL_TITLE = "book_detail_title"
     const val BOOK_DETAIL_OPEN = "book_detail_open"
     const val BOOK_DETAIL_DOWNLOAD = "book_detail_download"
     const val BOOK_DETAIL_MARK_READ = "book_detail_mark_read"
+    const val BOOK_DETAIL_PROGRESS = "book_detail_progress"
     const val BOOK_DETAIL_OVERFLOW = "book_detail_overflow"
 
     // ── EPUB reader (Android) ─────────────────────────────────────────────────
@@ -169,6 +172,8 @@ object TestTags {
     const val SNACKBAR_HOST = "RiffleSnackbarHost"
 
     // ── Library / playlist ────────────────────────────────────────────────────
+    const val SEE_MORE_TILE = "see_more_tile"
+    fun collectionGridTile(id: String) = "collection_grid_tile_$id"
     const val ANNOTATION_SEARCH_SUBMIT = "annotation-search-submit"
     const val ANNOTATION_SEARCH_RESULTS = "annotation-search-results"
     const val DETAIL_ADD_TO_PLAYLIST = "detail-add-to-playlist"
@@ -258,6 +263,9 @@ object TestTags {
     fun localFilesFolder(treeUri: Any) = "LocalFilesFolder.$treeUri"
     fun localFilesFolderRemove(treeUri: Any) = "LocalFilesFolder.Remove.$treeUri"
     const val LOCAL_FILES_CONFIRM_REMOVE_FOLDER = "LocalFilesSourceRow.ConfirmRemoveFolder"
+    const val KOFI_DRAWER_BUTTON = "kofi_drawer_button"
+    const val KOFI_NUDGE_SUPPORT = "kofi_nudge_support"
+    const val KOFI_NUDGE_NOT_NOW = "kofi_nudge_not_now"
     fun reorderableLibraryUp(libraryId: Any) = "ReorderableLibrary.Up.$libraryId"
     fun reorderableLibraryDown(libraryId: Any) = "ReorderableLibrary.Down.$libraryId"
 }

@@ -405,12 +405,14 @@ jobs:
             # the cost of one test, not a 40-min suite re-run. A genuine regression fails every
             # iteration, so nothing real is retried away. The whole-suite retry below stays for the
             # heavier case where a clone's runner dies outright and its tests can't run at all.
+            rm -rf harness.xcresult
             xcodebuild test \
               -project iosApp/iosApp.xcodeproj \
               -scheme Riffle \
               -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
               -clonedSourcePackagesDirPath "$HOME/spm-packages" \
               -derivedDataPath "$HOME/derived-data" \
+              -resultBundlePath "$PWD/harness.xcresult" \
               -parallel-testing-enabled YES \
               -parallel-testing-worker-count 2 \
               -retry-tests-on-failure \
@@ -447,6 +449,23 @@ jobs:
           xcrun simctl shutdown "$SIMULATOR_UDID" || true
           if run_harness; then exit 0; else exit 1; fi
 
+      # xcodebuild's console output carries test names only; the assertion text lives in the
+      # result bundle. Print it so a failure is diagnosable from the job log alone.
+      - name: Print failed harness tests
+        if: always()
+        run: |
+          [ -d harness.xcresult ] || { echo "no harness.xcresult"; exit 0; }
+          python3 .github/scripts/print-xcresult-failures.py harness.xcresult
+      - name: Zip harness result bundle
+        if: failure()
+        run: ditto -c -k --keepParent harness.xcresult harness.xcresult.zip || true
+      - name: Upload harness result bundle
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-harness-xcresult
+          path: harness.xcresult.zip
+          if-no-files-found: ignore
       - name: Upload harness log
         if: always()
         uses: actions/upload-artifact@v7

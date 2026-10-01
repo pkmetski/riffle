@@ -37,9 +37,12 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
     /// PP-D.1 — After leaving an EPUB reader the library tile remains visible.
     func testLibraryProgressUpdatesAfterReading() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
 
         let anyTile = findFirstBookTile(hintKeywords: ["epub", "pdf", "cbz", "audiobook"])
-        XCTAssertTrue(anyTile.waitForExistence(timeout: 10), "A book tile must be visible")
+        XCTAssertTrue(waitForLibraryTile(anyTile, in: app, timeout: 10), "A book tile must be visible")
         let tileLabel = anyTile.label
 
         let backButton = openReader(from: anyTile, in: app)
@@ -48,7 +51,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         tapBackToLibrary(backButton, in: app)
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
         XCTAssertTrue(
-            sameTile.waitForExistence(timeout: 10),
+            waitForLibraryTile(sameTile, in: app, timeout: 10),
             "Library tile should be visible after returning from reader"
         )
     }
@@ -68,6 +71,9 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
     /// silently reset to 0%.
     private func assertReaderReopens(hintKeywords: [String], kind: String) throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
 
         let tile = findFirstBookTile(hintKeywords: hintKeywords)
         XCTAssertTrue(tile.waitForExistence(timeout: 10), "\(kind) tile must be visible")
@@ -91,7 +97,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
 
         tapBackToLibrary(backButton, in: app)
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
-        XCTAssertTrue(sameTile.waitForExistence(timeout: 25), "\(kind) tile must reappear after close")
+        XCTAssertTrue(waitForLibraryTile(sameTile, in: app, timeout: 25), "\(kind) tile must reappear after close")
 
         // Position restore path: the player must seek to the saved position before showing its
         // back control. After AudiobookPlayerTests run in the same simulator clone, resource
@@ -118,7 +124,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
             let tile = app.buttons.matching(
                 NSPredicate(format: "label CONTAINS[c] %@", keyword)
             ).firstMatch
-            if tile.exists { return tile }
+            if waitForLibraryTile(tile, in: app, timeout: 5) { return tile }
         }
         return app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] 'test'")

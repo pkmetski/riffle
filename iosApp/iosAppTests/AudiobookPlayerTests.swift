@@ -38,7 +38,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
     /// 04-A.1 — Opening a listenable item lands on the audiobook player screen.
     func testAudiobookPlayerOpensFromLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10),
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10),
                       "Audiobook tile must be visible in the library")
 
         let backButton = openReader(from: audiobookTile, in: app)
@@ -51,7 +54,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
     /// 04-C.1 — Player screen shows play/pause control.
     func testAudiobookPlayerControlsVisible() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10))
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10))
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
@@ -68,7 +74,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
     /// `:feature:player-ui` iOS had none of these.
     func testAudiobookPlayerShowsSpeedSleepAndListControls() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10))
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10))
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
@@ -109,7 +118,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
     /// 04-G.1 — Tapping '← Back' from the player returns to the library.
     func testAudiobookPlayerBackNavigationReturnsToLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
-        XCTAssertTrue(audiobookTile.waitForExistence(timeout: 10))
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10))
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")

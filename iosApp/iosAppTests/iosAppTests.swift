@@ -53,8 +53,13 @@ final class IosAppTests: AbsHarnessTestCase {
     func testSeriesTileNavigatesToDetailAndBackReturns() throws {
         waitForLibraryToLoad()
 
-        // Scroll until the series tile is hittable — one swipeUp on the header may not be enough.
+        // Series section sits below taller book-grid sections; scroll until the tile enters the
+        // LazyColumn's compose window before calling waitForExistence (which does not scroll).
         let seriesTile = app.buttons[StubAbsServer.testSeriesName].firstMatch
+        for _ in 0..<8 {
+            if seriesTile.exists { break }
+            app.swipeUp()
+        }
         XCTAssertTrue(seriesTile.waitForExistence(timeout: 15), "Series tile must appear in library")
         for _ in 0..<5 {
             if seriesTile.isHittable { break }
@@ -121,6 +126,10 @@ final class IosAppTests: AbsHarnessTestCase {
         waitForLibraryToLoad()
 
         let seriesTile2 = app.buttons[StubAbsServer.testSeriesName].firstMatch
+        for _ in 0..<8 {
+            if seriesTile2.exists { break }
+            app.swipeUp()
+        }
         XCTAssertTrue(seriesTile2.waitForExistence(timeout: 15), "Series tile must appear in library")
         for _ in 0..<5 {
             if seriesTile2.isHittable { break }
@@ -138,12 +147,11 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(itemTile.waitForExistence(timeout: 15), "An item tile must be visible in series detail")
         itemTile.tap()
 
-        let itemDetailBack = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        // Item detail renders a Material back IconButton labelled "Back" (same as Android).
+        let itemDetailBack = app.buttons["Back"].firstMatch
         XCTAssertTrue(
             itemDetailBack.waitForExistence(timeout: 15),
-            "Tapping a book in series detail must open item detail (← Back button)"
+            "Tapping a book in series detail must open item detail (Back button)"
         )
     }
 
@@ -179,12 +187,11 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(itemTile.waitForExistence(timeout: 15), "An item tile must be visible in collection detail")
         itemTile.tap()
 
-        let itemDetailBack = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        // Item detail renders a Material back IconButton labelled "Back" (same as Android).
+        let itemDetailBack = app.buttons["Back"].firstMatch
         XCTAssertTrue(
             itemDetailBack.waitForExistence(timeout: 30),
-            "Tapping a book in collection detail must open item detail (← Back button)"
+            "Tapping a book in collection detail must open item detail (Back button)"
         )
     }
 }

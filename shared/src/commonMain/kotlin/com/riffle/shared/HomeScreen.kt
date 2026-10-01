@@ -197,7 +197,7 @@ fun HomeScreen() {
 }
 
 @Composable
-private fun DrawerSheetContent(
+internal fun DrawerSheetContent(
     activeServer: Source?,
     allServers: List<Source>,
     visibleLibraries: List<Library>,
@@ -280,14 +280,17 @@ private fun DrawerSheetContent(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
 
-        // Library list
-        visibleLibraries.forEach { library ->
-            NavigationDrawerItem(
-                label = { Text(library.name) },
-                selected = library.id == activeLibraryId,
-                onClick = { onLibrarySelected(library) },
-                modifier = Modifier.padding(horizontal = 12.dp),
-            )
+        // Library list — hidden when Riffle is active because Riffle aggregates across every
+        // library and the individual library rows would re-enter a single-library view.
+        if (!isRiffleActive) {
+            visibleLibraries.forEach { library ->
+                NavigationDrawerItem(
+                    label = { Text(library.name) },
+                    selected = library.id == activeLibraryId,
+                    onClick = { onLibrarySelected(library) },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -334,6 +337,7 @@ private fun LibraryHost(
                 libraryName = libraryName,
                 onOpenDrawer = onOpenDrawer,
                 onOpenDetail = { itemId -> nav = LibraryNav.ItemDetail(itemId, null) },
+                onSearchAnnotations = { query -> nav = LibraryNav.AnnotationSearch(libraryId, query) },
             )
         } else {
             LibraryItemsScreen(

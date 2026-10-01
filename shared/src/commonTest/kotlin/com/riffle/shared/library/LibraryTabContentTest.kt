@@ -1,7 +1,12 @@
 package com.riffle.shared.library
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescriptionExactly
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -9,8 +14,10 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
+import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.Series
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibraryProjection
@@ -281,6 +288,182 @@ class LibraryTabContentTest {
         }
 
         onNodeWithTag(sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED)).assertDoesNotExist()
+    }
+
+    /**
+     * The home sections stream in from separate flows. When Series/Collections are already on
+     * screen and the book sections above them arrive later, the list must stay at the top. With
+     * keyed section items LazyListState anchors on the first visible KEY instead: the Series
+     * header stays put, the rows inserted above it land off-screen, and the home opens scrolled
+     * past "In Progress" / "Recently Added" — the iOS harness saw "See all" and the first cover
+     * tiles sitting above the viewport right after load.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun homeTabStaysAtTopWhenBookSectionsArriveAfterSeries() = runComposeUiTest {
+        fun book(i: Int) = LibraryItem(
+            id = "b$i", libraryId = "lib", title = "Book $i", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        val books = (1..20).map(::book)
+        val series = Series(id = "s1", libraryId = "lib", name = "Late Series", coverUrl = null, bookCount = 2)
+        var projection by mutableStateOf(LibraryProjection.Empty.copy(series = listOf(series)))
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = projection,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.SERIES)).assertIsDisplayed()
+
+        // Three two-row grids are taller than the test viewport, so an anchored list would be
+        // able to scroll the first sections out of view.
+        projection = projection.copy(inProgress = books, recentlyAdded = books, finished = books)
+        waitForIdle()
+
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.IN_PROGRESS)).assertIsDisplayed()
+    }
+
+    /**
+     * The series tab must show series names in a grid (backed by covers), not a plain text list.
+     * The series name must be visible so the grid tile is meaningful even when a cover is absent.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun seriesTabShowsSeriesNameInGrid() = runComposeUiTest {
+        val series = Series(id = "s1", libraryId = "lib", name = "The Expanse", coverUrl = null, bookCount = 9)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 3,
+                projection = LibraryProjection.Empty.copy(series = listOf(series)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        // The tile is one clickable element labelled exactly the name. The caption Text is kept
+        // out of the merge on purpose: Compose's iOS accessibility bridge concatenates a merged
+        // node's contentDescription and text, so a merged caption yields "The Expanse, The Expanse" and
+        // XCUITest's app.buttons["The Expanse"] no longer matches (see BookCoverTile).
+        onNode(hasContentDescriptionExactly("The Expanse")).assertIsDisplayed().assertHasClickAction()
+        onNodeWithText("The Expanse").assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun tappingSeriesInGridNavigatesToThatSeries() = runComposeUiTest {
+        val series = Series(id = "s1", libraryId = "lib", name = "Foundation", coverUrl = null, bookCount = 5)
+        var selected: Series? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = 3,
+                projection = LibraryProjection.Empty.copy(series = listOf(series)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = { selected = it },
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNode(hasContentDescriptionExactly("Foundation")).performClick()
+        assertEquals(series, selected)
+    }
+
+    /**
+     * The Collections tab must show collection names in a grid with a tile per collection,
+     * not a plain text list. The collection name must be visible so the tile is meaningful
+     * even when covers are absent.
+     *
+     * Before this fix, iOS rendered a plain `LazyColumn` with only the collection name in a `Text`
+     * row. The regression to pin: tab index 4 must route to the grid body, and the grid must show
+     * the collection name so the tile is meaningful. Reverting the change back to `LazyColumn` with
+     * no `collectionGridTile` tag makes the second assertion go red.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun collectionsTabShowsCollectionNameInGridTile() = runComposeUiTest {
+        val collection = Collection(id = "c1", libraryId = "lib1", name = "Fantasy Favourites", bookCount = 3)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 4,
+                projection = LibraryProjection.Empty.copy(collections = listOf(collection)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        // The tile is one clickable element labelled exactly the name. The caption Text is kept
+        // out of the merge on purpose: Compose's iOS accessibility bridge concatenates a merged
+        // node's contentDescription and text, so a merged caption yields "Fantasy Favourites, Fantasy Favourites" and
+        // XCUITest's app.buttons["Fantasy Favourites"] no longer matches (see BookCoverTile).
+        onNode(hasContentDescriptionExactly("Fantasy Favourites")).assertIsDisplayed().assertHasClickAction()
+        onNodeWithText("Fantasy Favourites").assertDoesNotExist()
+        // The tile tag proves the grid path rendered, not the plain list path.
+        onNodeWithTag(TestTags.collectionGridTile("c1")).assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun tappingCollectionInGridNavigatesToThatCollection() = runComposeUiTest {
+        val collection = Collection(id = "c1", libraryId = "lib1", name = "Sci-Fi Picks", bookCount = 5)
+        var selected: Collection? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = 4,
+                projection = LibraryProjection.Empty.copy(collections = listOf(collection)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = { selected = it },
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+
+        onNodeWithTag(TestTags.collectionGridTile("c1")).performClick()
+        assertEquals(collection, selected, "Tapping a collection tile must fire onCollectionSelected")
     }
 
     /** The To Read tab's empty copy, which the same merge nearly reverted to the tab's title. */

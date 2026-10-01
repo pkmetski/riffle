@@ -1,7 +1,6 @@
 package com.riffle.shared
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.ComposeUIViewController
@@ -15,10 +14,11 @@ fun MainViewController() = ComposeUIViewController {
     setSingletonImageLoaderFactory { context -> iosImageLoader(context) }
     // RiffleAppRoot provides MaterialTheme (colours + typography) to the full iOS composition,
     // driven by AppearanceCoordinator so the Settings App Theme picker actually applies, and
-    // pumps the OS dark flag back into the coordinator. safeDrawingPadding keeps content inside
-    // the safe area on devices with a notch, home indicator, and rounded corners (fixes C1).
+    // pumps the OS dark flag back into the coordinator. Edge-to-edge: the Surface fills the full
+    // screen; individual Scaffolds consume WindowInsets.systemBars so TopAppBar / NavigationBar
+    // backgrounds extend behind the status bar and home indicator (no white bars).
     RiffleAppRoot {
-        Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+        Surface(modifier = Modifier.fillMaxSize()) {
             LibraryBrowsingApp()
         }
     }

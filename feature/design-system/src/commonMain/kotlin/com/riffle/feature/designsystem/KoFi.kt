@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_kofi_nudge_body
@@ -64,6 +65,7 @@ fun KoFiDrawerButton(modifier: Modifier = Modifier) {
     OutlinedButton(
         onClick = { uriHandler.openUri(KO_FI_URL) },
         modifier = modifier
+            .testTag(TestTags.KOFI_DRAWER_BUTTON)
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -123,13 +125,13 @@ fun KoFiNudgeCard(
                             uriHandler.openUri(KO_FI_URL)
                             onSupport()
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.testTag(TestTags.KOFI_NUDGE_SUPPORT).fillMaxWidth(),
                     ) {
                         Text(stringResource(Res.string.ui_kofi_nudge_support))
                     }
                     OutlinedButton(
                         onClick = onNotNow,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.testTag(TestTags.KOFI_NUDGE_NOT_NOW).fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         ),

@@ -116,6 +116,18 @@ func dismissKeyboard(in app: XCUIApplication) {
 
 // MARK: - Library → reader helpers
 
+// Waits for a book tile, first on the tab that is showing (normally Home), then on the All Books
+// tab. Home's section grids preview only `columns × 2 − 1` books per section and the stub seeds
+// more than that, so a seeded book can legitimately sit behind the "+N more" tile — and which one
+// does depends on a tie-broken sort. All Books lists every book, so it is the authoritative place.
+func waitForLibraryTile(_ tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
+    if tile.waitForExistence(timeout: timeout) { return true }
+    let allBooks = app.buttons["All Books"].firstMatch
+    guard allBooks.waitForExistence(timeout: 5) else { return false }
+    allBooks.tap()
+    return tile.waitForExistence(timeout: timeout)
+}
+
 // Section rows are horizontal LazyRows: a tile past the right edge exists in the accessibility
 // tree, but XCUITest cannot compute a hit point for it — even asking `isHittable` fails the test.
 // Decide from the reported frame instead and drag the row until the tile is fully on screen.
