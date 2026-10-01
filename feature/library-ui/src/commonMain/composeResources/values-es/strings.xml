@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_drawer_riffle" translatable="false">Riffle</string>
+    <string name="ui_drawer_no_source">Sin fuente</string>
+    <string name="ui_drawer_downloads">Descargas</string>
+    <string name="ui_drawer_settings">Ajustes</string>
+    <string name="ui_toggle_source_switcher">Cambiar selector de fuente</string>
+    <string name="ui_active_source">Fuente activa</string>
+    <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
+    <string name="ui_unable_to_connect_to_source">No se puede conectar a la fuente</string>
+    <string name="ui_retry">Reintentar</string>
+</resources>

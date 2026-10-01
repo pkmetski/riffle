@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_drawer_riffle" translatable="false">Riffle</string>
+    <string name="ui_drawer_no_source">Няма източник</string>
+    <string name="ui_drawer_downloads">Изтегляния</string>
+    <string name="ui_drawer_settings">Настройки</string>
+    <string name="ui_toggle_source_switcher">Превключи избор на източник</string>
+    <string name="ui_active_source">Активен източник</string>
+    <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
+    <string name="ui_unable_to_connect_to_source">Неуспешна връзка с източника</string>
+    <string name="ui_retry">Повторен опит</string>
+</resources>

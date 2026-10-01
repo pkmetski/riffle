@@ -37,6 +37,7 @@ kotlin {
             // `api` for the Compose artifacts so :shared (which has no material3 dependency of
             // its own) can call these screens without re-declaring the whole Compose stack.
             api(libs.compose.runtime)
+            implementation(compose.components.resources)
             api(libs.compose.foundation)
             api(libs.compose.ui)
             api(compose.material3)
@@ -71,6 +72,17 @@ kotlin {
             implementation(compose.uiTest)
         }
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.riffle.feature.library.ui.generated.resources"
+    publicResClass = true
+}
+
+val copyComposeResourcesForApk by tasks.registering(Copy::class) {
+    dependsOn(tasks.matching { it.name == "prepareComposeResourcesTaskForCommonMain" })
+    from(layout.buildDirectory.dir("generated/compose/resourceGenerator/preparedResources/commonMain/composeResources"))
+    into(layout.buildDirectory.dir("composeAssetsForApk/composeResources/com.riffle.feature.library.ui.generated.resources"))
 }
 
 // The `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task: Compose's
