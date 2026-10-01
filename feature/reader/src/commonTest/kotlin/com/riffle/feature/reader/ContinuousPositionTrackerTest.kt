@@ -1494,4 +1494,18 @@ class ContinuousPositionTrackerTest {
         )
         assertEquals(1f, result)
     }
+
+    @Test
+    fun `adjustProgressionAtForwardBoundary — maxScrollY zero leaves progression unchanged`() {
+        // When the entire book fits in the viewport (maxScrollY=0), scrollY=0 >= maxScrollY=0
+        // would trivially fire for every scroll event on the last chapter. Guard against it to
+        // avoid prematurely marking a degenerate short book as finished.
+        val result = ContinuousPositionTracker.adjustProgressionAtForwardBoundary(
+            rawProgression = 0.3f,
+            isLastChapter = true,
+            scrollY = 0,
+            maxScrollY = 0,
+        )
+        assertEquals(0.3f, result)
+    }
 }

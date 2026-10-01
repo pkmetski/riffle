@@ -93,14 +93,28 @@ class FinishedProgressTest {
     }
 
     @Test
-    fun nullTotalProgressionFallsBackToProgression() {
-        // Continuous mode can emit null totalProgression; falls back to within-chapter progression
+    fun nullTotalProgressionReturnedAsIsWithoutClamping() {
+        // When totalProgression is absent, progression is per-chapter (0..1), not book-wide.
+        // Comparing it against a book-wide lastPageThreshold can false-positive mark an early
+        // chapter with high within-chapter progress as the last page. Return it unchanged.
         val result = finishAwareEbookProgress(
             totalProgression = null,
             progression = 9f / 10f,
             positionCounts = listOf(10),
         )
-        assertEquals(1.0f, result)
+        assertEquals(9f / 10f, result)
+    }
+
+    @Test
+    fun nullTotalProgressionInMultiSpineBookDoesNotFalsePositive() {
+        // Regression: chapter 1 of a 20-page multi-spine book at 95% within-chapter.
+        // Old code compared 0.95 against lastPageThreshold=19/20=0.95 → falsely returned 1.0.
+        val result = finishAwareEbookProgress(
+            totalProgression = null,
+            progression = 0.95f,
+            positionCounts = listOf(10, 5, 5),
+        )
+        assertEquals(0.95f, result)
     }
 
     @Test

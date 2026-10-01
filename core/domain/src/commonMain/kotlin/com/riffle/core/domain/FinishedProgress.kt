@@ -38,7 +38,11 @@ fun finishAwareEbookProgress(
     progression: Float,
     positionCounts: List<Int>,
 ): Float {
-    val raw = totalProgression ?: progression
+    // totalProgression is book-wide (0..1); progression is within the current chapter (0..1).
+    // Clamping only makes sense against a book-wide threshold, so skip it when totalProgression
+    // is absent — using per-chapter progression against the book-wide lastPageThreshold would
+    // falsely mark the book finished whenever an early chapter has high within-chapter progress.
+    val raw = totalProgression ?: return progression
     val total = positionCounts.sum()
     if (total <= 0) return raw
     val lastPageThreshold = (total - 1f) / total

@@ -197,7 +197,7 @@ object ContinuousPositionTracker {
         isLastChapter: Boolean,
         scrollY: Int,
         maxScrollY: Int,
-    ): Float = if (isLastChapter && scrollY >= maxScrollY && rawProgression < 1f) 1f else rawProgression
+    ): Float = if (isLastChapter && maxScrollY > 0 && scrollY >= maxScrollY && rawProgression < 1f) 1f else rawProgression
 
     /** A resolved volume-key page-scroll animation: scroll by [scrollBy] px over [durationMs]. */
     data class PageScrollAnimation(val scrollBy: Int, val durationMs: Int)
