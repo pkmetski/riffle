@@ -255,12 +255,18 @@ private fun LibraryHost(
     libraryName: String,
     onOpenDrawer: () -> Unit,
 ) {
-    var nav by rememberSaveable { mutableStateOf<LibraryNav>(LibraryNav.Items) }
+    // rememberSaveable cannot be used here: LibraryNav.ReaderDestination carries a LibraryItem
+    // which is not Parcelable/Serializable, so the stack would crash on process death.
+    // The tradeoff (back stack reset on process kill) is acceptable for iOS.
+    var navStack by remember { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
 
-    when (val current = nav) {
+    fun push(dest: LibraryNav) { navStack = navStack + dest }
+    fun pop() { navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) } }
+
+    when (val current = navStack.last()) {
         // Unbounded catalogues have no `library_items` mirror to render (ADR 0051), so they get
         // the browse surface instead of the Room-backed library screen — the same fork Android's
         // `NavRoutes.libraryEntryRoute` makes off `SourceType.isUnboundedCatalog`. Without it the
@@ -272,8 +278,8 @@ private fun LibraryHost(
                 libraryId = libraryId,
                 libraryName = libraryName,
                 onOpenDrawer = onOpenDrawer,
-                onOpenDetail = { itemId -> nav = LibraryNav.ItemDetail(itemId, null) },
-                onSearchAnnotations = { query -> nav = LibraryNav.AnnotationSearch(libraryId, query) },
+                onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
+                onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
             )
         } else {
             LibraryItemsScreen(
@@ -281,70 +287,70 @@ private fun LibraryHost(
                 libraryName = libraryName,
                 onOpenDrawer = onOpenDrawer,
                 showRecentlyAdded = sourceType?.isWebSource != true,
-                onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+                onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
                 onAnnotatedBookSelected = { sourceId, itemId ->
-                    nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+                    push(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
                 },
                 onSeriesSelected = { series ->
-                    nav = LibraryNav.SeriesDetail(
+                    push(LibraryNav.SeriesDetail(
                         seriesId = series.id,
                         seriesLibraryId = series.libraryId,
                         seriesName = series.name,
-                    )
+                    ))
                 },
                 onCollectionSelected = { collection ->
-                    nav = LibraryNav.CollectionDetail(
+                    push(LibraryNav.CollectionDetail(
                         collectionId = collection.id,
                         collectionLibraryId = collection.libraryId,
                         collectionName = collection.name,
-                    )
+                    ))
                 },
-                onSectionSeeMore = { sectionType -> nav = LibraryNav.Section(sectionType) },
-                onSearchAnnotations = { query -> nav = LibraryNav.AnnotationSearch(libraryId, query) },
+                onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
+                onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                 onPlaylistSelected = { playlist ->
-                    nav = LibraryNav.PlaylistDetail(
+                    push(LibraryNav.PlaylistDetail(
                         playlistId = playlist.id,
                         playlistName = playlist.name,
                         // The playlist's own rootId, not the host's libraryId: the Playlists tab
                         // is only visible on an ABS audiobook root and the two are the same
                         // today, but every PlaylistsRepository call keys on the playlist's root.
                         playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
-                    )
+                    ))
                 },
             )
         }
         is LibraryNav.Section -> LibrarySectionScreen(
             libraryId = libraryId,
             sectionType = current.sectionType,
-            onBack = { nav = LibraryNav.Items },
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+            onBack = ::pop,
+            onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
         )
         is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
             itemId = current.itemId,
             sourceId = current.sourceId,
-            onBack = { nav = LibraryNav.Items },
+            onBack = ::pop,
             // Stay on the sheet when the format has no iOS reader rather than dismissing it.
             onRead = { item ->
-                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { nav = it }
+                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
             },
             onFacetSelected = { facetLibraryId, facet, value ->
-                nav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
+                push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
             },
         )
         is LibraryNav.FilteredBooks -> FilteredBooksHost(
             destination = current,
-            onBack = { nav = LibraryNav.Items },
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+            onBack = ::pop,
+            onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
         )
         is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
             destination = current,
-            onBack = { nav = LibraryNav.Items },
+            onBack = ::pop,
             // Android opens the reader at the annotation's CFI; iOS's reader has no
             // open-at-annotation entry point yet (#1072 §2 — the whole annotation seam is
             // missing there), so a result opens the book's detail sheet, which is the furthest
             // the iOS reader can currently be driven from outside.
             onOpenBook = { sourceId, itemId ->
-                nav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+                push(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
             },
         )
         is LibraryNav.ReaderDestination -> {
@@ -352,7 +358,7 @@ private fun LibraryHost(
             // this resolves it to a LibraryItem and re-enters the player carrying the same
             // playlist context, so the chain continues. Android does the equivalent by
             // navigating to the next player route with `popUpTo(AUDIOBOOK_PLAYER)`; replacing
-            // `nav` in place is this host's equivalent of that pop.
+            // the stack top in place is this host's equivalent of that pop.
             val libraryObserver = koinInject<LibraryObserver>()
             var advanceToItemId by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(advanceToItemId) {
@@ -362,11 +368,12 @@ private fun LibraryHost(
                 advanceToItemId = null
                 val next = libraryObserver.observeLibraryItems(rootId).first()
                     .firstOrNull { it.id == nextItemId }
-                nav = playlistAdvanceNav(next, context)
+                val nextNav = playlistAdvanceNav(next, context)
+                navStack = navStack.dropLast(1) + nextNav
             }
             ReaderHost(
                 destination = current,
-                onBack = { nav = LibraryNav.Items },
+                onBack = ::pop,
                 onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
             )
         }
@@ -374,23 +381,23 @@ private fun LibraryHost(
             seriesId = current.seriesId,
             libraryId = current.seriesLibraryId,
             seriesName = current.seriesName,
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
-            onNavigateBack = { nav = LibraryNav.Items },
+            onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
+            onNavigateBack = ::pop,
         )
         is LibraryNav.CollectionDetail -> CollectionDetailScreen(
             collectionId = current.collectionId,
             libraryId = current.collectionLibraryId,
             collectionName = current.collectionName,
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
-            onNavigateBack = { nav = LibraryNav.Items },
+            onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
+            onNavigateBack = ::pop,
         )
         is LibraryNav.PlaylistDetail -> PlaylistDetailHost(
             destination = current,
-            onBack = { nav = LibraryNav.Items },
-            onItemSelected = { item -> nav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+            onBack = ::pop,
+            onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
             // "Play" carries the playlist context into the player, which is what makes
             // AudiobookPlayerViewModel's end-of-book auto-advance reachable on iOS at all.
-            onPlayItem = { item -> nav = playlistPlayerNav(item, current) },
+            onPlayItem = { item -> push(playlistPlayerNav(item, current)) },
         )
     }
 }
