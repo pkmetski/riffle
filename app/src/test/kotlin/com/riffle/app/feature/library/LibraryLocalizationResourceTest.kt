@@ -31,6 +31,9 @@ class LibraryLocalizationResourceTest {
                 LibrarySectionType.FINISHED to R.string.ui_section_completed,
                 LibrarySectionType.RECENTLY_ADDED to R.string.ui_section_recently_added,
                 LibrarySectionType.CONTINUE_SERIES to R.string.ui_section_continue_series,
+                LibrarySectionType.SERIES to R.string.ui_series,
+                LibrarySectionType.COLLECTIONS to R.string.ui_collections,
+                LibrarySectionType.ALL_BOOKS to R.string.ui_all_books,
             ),
             LibrarySectionType.entries.associateWith { it.titleResId() },
         )
