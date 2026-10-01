@@ -7,10 +7,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.LibraryItemDetailUiState
-import com.riffle.feature.designsystem.TestTags
 import kotlin.test.Test
 import kotlin.test.assertTrue
 

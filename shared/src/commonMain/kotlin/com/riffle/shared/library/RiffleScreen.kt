@@ -40,20 +40,18 @@ import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.Res
-import com.riffle.feature.designsystem.generated.resources.ui_annotations
 import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_progress
 import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_to_read
 import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
 import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
-import com.riffle.feature.designsystem.generated.resources.ui_to_read
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.shared.FilteredBooksHost
 import com.riffle.shared.LibraryNav
 import com.riffle.shared.ReaderHost
 import com.riffle.shared.openItemForReading
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)

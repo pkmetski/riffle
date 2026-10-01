@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,14 +57,11 @@ import com.riffle.feature.library.ui.AddToPlaylistSheet
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.Res
-import com.riffle.feature.source.ui.generated.resources.ui_add_to_to_read
 import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
 import com.riffle.feature.source.ui.generated.resources.ui_download_failed
-import com.riffle.feature.source.ui.generated.resources.ui_in_to_read
 import com.riffle.feature.source.ui.generated.resources.ui_item_not_found
 import com.riffle.feature.source.ui.generated.resources.ui_loading
-import com.riffle.feature.source.ui.generated.resources.ui_read
 import com.riffle.feature.source.ui.generated.resources.ui_you_are_offline
 import com.riffle.feature.source.ui.library.BookDownloadControls
 import com.riffle.feature.source.ui.rememberTransientMessages

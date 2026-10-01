@@ -80,7 +80,11 @@ class UnboundedBrowseRoutingTest {
     fun localTabIndexMapsToLibraryTabIndex() {
         assertEquals(0, unboundedLocalTabToLibraryTabIndex(TAB_HOME), "Home tab must map to library tab 0")
         assertEquals(1, unboundedLocalTabToLibraryTabIndex(TAB_TO_READ), "To Read tab must map to library tab 1")
-        assertEquals(tabIndexForAnnotations(), unboundedLocalTabToLibraryTabIndex(TAB_ANNOTATIONS), "Annotations tab must map to the shared annotations tab index")
+        assertEquals(
+            tabIndexForAnnotations(),
+            unboundedLocalTabToLibraryTabIndex(TAB_ANNOTATIONS),
+            "Annotations tab must map to the shared annotations tab index",
+        )
     }
 
     @Test

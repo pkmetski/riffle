@@ -5,10 +5,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.models.Library
+import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.models.ServerType
 import kotlin.test.Test
 
 /**

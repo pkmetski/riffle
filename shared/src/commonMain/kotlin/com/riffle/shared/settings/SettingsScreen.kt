@@ -56,7 +56,6 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_libraries_with_arrow
 import com.riffle.feature.designsystem.generated.resources.ui_settings
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.settings.AppUpdateStatus
@@ -72,6 +71,7 @@ import com.riffle.feature.source.ui.settings.SourcesSection
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 private enum class SettingsPanel {
