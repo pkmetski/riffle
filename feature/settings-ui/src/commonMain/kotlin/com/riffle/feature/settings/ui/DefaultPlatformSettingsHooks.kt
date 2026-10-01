@@ -7,6 +7,7 @@ import com.riffle.feature.settings.ui.i18n.AppLanguage
 object DefaultPlatformSettingsHooks : PlatformSettingsHooks {
     @Composable override fun LanguageRow() = Unit
     override fun canInstallUpdate(): Boolean = false
+    override fun currentLanguage(): AppLanguage = AppLanguage.System
     override fun onLanguageChanged(language: AppLanguage) = Unit
     @Composable override fun OnResumeEffect(block: () -> Unit) = Unit
 }

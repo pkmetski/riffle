@@ -29,6 +29,7 @@ internal fun AppVersionSection(
     installedVersionName: String,
     state: AppUpdateUiState,
     autoUpdateEnabled: Boolean,
+    canInstallUpdate: Boolean = true,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
@@ -65,7 +66,11 @@ internal fun AppVersionSection(
                     )
                 is AppUpdateUiState.Installing -> {}
                 is AppUpdateUiState.UpdateAvailable ->
-                    Button(onClick = onInstallUpdate) { Text(stringResource(Res.string.ui_update)) }
+                    if (canInstallUpdate) {
+                        Button(onClick = onInstallUpdate) { Text(stringResource(Res.string.ui_update)) }
+                    } else {
+                        TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_check_for_updates)) }
+                    }
                 is AppUpdateUiState.Failed ->
                     TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_retry)) }
                 else ->

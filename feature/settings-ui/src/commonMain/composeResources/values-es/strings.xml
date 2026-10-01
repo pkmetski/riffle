@@ -272,4 +272,12 @@
     <string name="ui_webdav_not_configured_status">No configurado · disponible para fuentes Komga</string>
     <string name="ui_webdav_tls_check_url">Error TLS · toca para comprobar el URL del servidor</string>
     <string name="ui_wide">Ancho</string>
+    <string name="ui_current_page_and_remaining_pages">Página actual y páginas restantes</string>
+    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Mostrar un panel a la vez en orden de lectura</string>
+    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">Cómo manejar paneles demasiado anchos o altos para ampliar de forma útil.</string>
+    <string name="ui_panel_overflow">Desbordamiento de panel</string>
+    <string name="ui_panel_view">Vista de paneles</string>
+    <string name="ui_progress_bar_at_the_bottom_of_the_page">Barra de progreso en la parte inferior de la página</string>
+    <string name="ui_smart_split">División inteligente</string>
+    <string name="ui_split">Dividir</string>
 </resources>

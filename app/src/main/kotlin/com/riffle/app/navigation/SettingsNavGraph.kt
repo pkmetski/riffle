@@ -48,6 +48,11 @@ internal fun NavGraphBuilder.settingsNavGraph(
 
                 override fun canInstallUpdate(): Boolean = true
 
+                override fun currentLanguage(): AppLanguage {
+                    val appLang = AppLocaleController.currentLanguage(context)
+                    return AppLanguage.fromTag(appLang.tag)
+                }
+
                 override fun onLanguageChanged(language: AppLanguage) {
                     val appLanguage = com.riffle.app.i18n.AppLanguage.fromTag(language.tag)
                     AppLocaleController.setLanguage(context, appLanguage)

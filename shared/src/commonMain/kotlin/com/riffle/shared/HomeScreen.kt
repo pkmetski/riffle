@@ -64,6 +64,8 @@ import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
+import com.riffle.feature.settings.ui.changelog.ChangelogScreen
+import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
@@ -85,6 +87,7 @@ private sealed interface IosSettingsSubScreen {
     data object AddSource : IosSettingsSubScreen
     data object AnnotationsSync : IosSettingsSubScreen
     data object ReadaloudSettings : IosSettingsSubScreen
+    data object Changelog : IosSettingsSubScreen
 }
 
 @Composable
@@ -191,6 +194,13 @@ fun HomeScreen() {
                         onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
                         onNavigateToReadaloudMatches = { /* no-op on iOS */ },
                     )
+                    IosSettingsSubScreen.Changelog -> {
+                        val changelogViewModel = koinInject<ChangelogViewModel>()
+                        ChangelogScreen(
+                            onNavigateBack = { settingsSubScreen = null },
+                            viewModel = changelogViewModel,
+                        )
+                    }
                     null -> SettingsScreen(
                         isExpandedWidth = false,
                         onNavigateBack = { appSection = AppSection.Library },
@@ -206,7 +216,7 @@ fun HomeScreen() {
                         onNavigateToDeveloperOptions = { /* no-op: developer options is Android-only */ },
                         onNavigateToDictionaryPacks = { /* no-op: dictionary packs is Android-only */ },
                         onNavigateToDebugLogs = { /* no-op: debug logs is Android-only */ },
-                        onNavigateToChangelog = { /* no-op: changelog screen pending iOS port */ },
+                        onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
                         platformHooks = DefaultPlatformSettingsHooks,
                     )
                 }

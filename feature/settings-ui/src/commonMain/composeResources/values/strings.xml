@@ -59,6 +59,7 @@
     <string name="ui_crash_report_count">%1$d crash report(s)</string>
     <string name="ui_crash_reports_subject">Riffle crash reports (%1$d)</string>
     <string name="ui_current_chapter_label">Current chapter label</string>
+    <string name="ui_current_page_and_remaining_pages">Current page and remaining pages</string>
     <string name="ui_dark">Dark</string>
     <string name="ui_dark_app_reader_theme">Dark app reader theme</string>
     <string name="ui_dark_app_theme">Dark app theme</string>
@@ -103,6 +104,7 @@
     <string name="ui_failures_count">%1$d failure(s)</string>
     <string name="ui_files_removed_count">%1$d file(s) removed</string>
     <string name="ui_font">Font</string>
+    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Frame one panel at a time in reading order</string>
     <string name="ui_font_named">%1$s font</string>
     <string name="ui_font_size">Font size</string>
     <string name="ui_force_paginated_in_landscape">Force paginated in landscape</string>
@@ -125,6 +127,7 @@
     <string name="ui_github_pat">GitHub PAT</string>
     <string name="ui_github_pat_public_repo_scope">GitHub PAT (public_repo scope)</string>
     <string name="ui_hide">Hide</string>
+    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">How to handle panels that are too wide or tall to zoom into usefully.</string>
     <string name="ui_highlight_color">Highlight color</string>
     <string name="ui_increase_value">Increase %1$s</string>
     <string name="ui_independent_from_readaloud_same_palette">Independent from Readaloud. Same palette.</string>
@@ -182,6 +185,8 @@
     <string name="ui_page">Page</string>
     <string name="ui_page_numbers">Page numbers</string>
     <string name="ui_paginated">Paginated</string>
+    <string name="ui_panel_overflow">Panel Overflow</string>
+    <string name="ui_panel_view">Panel View</string>
     <string name="ui_panel_view_no_split">Panel View · No split</string>
     <string name="ui_panel_view_off">Panel View off</string>
     <string name="ui_panel_view_smart_split">Panel View · Smart split</string>
@@ -197,6 +202,7 @@
     <string name="ui_readaloud_matches">Readaloud matches</string>
     <string name="ui_reading_mode">Reading mode</string>
     <string name="ui_reading_orientation_named">%1$s reading orientation</string>
+    <string name="ui_progress_bar_at_the_bottom_of_the_page">Progress bar at the bottom of the page</string>
     <string name="ui_reading_progress">Reading progress</string>
     <string name="ui_reading_progress_labels">Reading progress labels</string>
     <string name="ui_refresh">Refresh</string>
@@ -225,6 +231,8 @@
     <string name="ui_share_crash_reports">Share crash reports</string>
     <string name="ui_share_debug_log">Share debug log</string>
     <string name="ui_show">Show</string>
+    <string name="ui_smart_split">Smart split</string>
+    <string name="ui_split">Split</string>
     <string name="ui_show_auto_scroll">Show Auto-Scroll</string>
     <string name="ui_show_cadence">Show Cadence</string>
     <string name="ui_showing_abs_items_with_audiobook">Showing ABS items that have an audiobook.</string>

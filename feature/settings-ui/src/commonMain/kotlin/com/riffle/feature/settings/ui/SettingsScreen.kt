@@ -87,7 +87,7 @@ fun SettingsScreen(
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val appTheme by viewModel.appTheme.collectAsState()
-    var appLanguage by remember { mutableStateOf(AppLanguage.System) }
+    var appLanguage by remember { mutableStateOf(platformHooks.currentLanguage()) }
     val servers by viewModel.servers.collectAsState()
     val localFilesSource by viewModel.localFilesSource.collectAsState()
     val localFilesFolders by viewModel.localFilesFolders.collectAsState()
@@ -233,6 +233,7 @@ fun SettingsScreen(
                     installedVersionName = viewModel.installedVersionName,
                     state = appUpdateState,
                     autoUpdateEnabled = autoUpdateEnabled,
+                    canInstallUpdate = platformHooks.canInstallUpdate(),
                     onCheckForUpdate = viewModel::checkForUpdate,
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,

@@ -20,6 +20,9 @@ interface PlatformSettingsHooks {
      */
     fun canInstallUpdate(): Boolean
 
+    /** Returns the currently active app language. Returns [AppLanguage.System] on iOS until #1151. */
+    fun currentLanguage(): AppLanguage
+
     /** Called when the user selects a new app language. No-op on iOS until #1151. */
     fun onLanguageChanged(language: AppLanguage)
 

@@ -272,4 +272,12 @@
     <string name="ui_webdav_not_configured_status">Не е настроено · налично за източници Komga</string>
     <string name="ui_webdav_tls_check_url">TLS грешка · докоснете, за да проверите URL адреса на сървъра</string>
     <string name="ui_wide">Широко</string>
+    <string name="ui_current_page_and_remaining_pages">Текуща страница и оставащи</string>
+    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Показване на панел по панел в ред на четене</string>
+    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">Как да се обработват панели, твърде широки или висли за мащабиране.</string>
+    <string name="ui_panel_overflow">Препълване на панел</string>
+    <string name="ui_panel_view">Изглед на панели</string>
+    <string name="ui_progress_bar_at_the_bottom_of_the_page">Лента за напредък в долната част на страницата</string>
+    <string name="ui_smart_split">Интелигентно разделяне</string>
+    <string name="ui_split">Разделяне</string>
 </resources>
