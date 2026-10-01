@@ -1,5 +1,8 @@
 package com.riffle.shared.library
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -285,6 +288,52 @@ class LibraryTabContentTest {
         }
 
         onNodeWithTag(sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED)).assertDoesNotExist()
+    }
+
+    /**
+     * The home sections stream in from separate flows. When Series/Collections are already on
+     * screen and the book sections above them arrive later, the list must stay at the top. With
+     * keyed section items LazyListState anchors on the first visible KEY instead: the Series
+     * header stays put, the rows inserted above it land off-screen, and the home opens scrolled
+     * past "In Progress" / "Recently Added" — the iOS harness saw "See all" and the first cover
+     * tiles sitting above the viewport right after load.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun homeTabStaysAtTopWhenBookSectionsArriveAfterSeries() = runComposeUiTest {
+        fun book(i: Int) = LibraryItem(
+            id = "b$i", libraryId = "lib", title = "Book $i", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        val books = (1..20).map(::book)
+        val series = Series(id = "s1", libraryId = "lib", name = "Late Series", coverUrl = null, bookCount = 2)
+        var projection by mutableStateOf(LibraryProjection.Empty.copy(series = listOf(series)))
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = projection,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+            )
+        }
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.SERIES)).assertIsDisplayed()
+
+        // Three two-row grids are taller than the test viewport, so an anchored list would be
+        // able to scroll the first sections out of view.
+        projection = projection.copy(inProgress = books, recentlyAdded = books, finished = books)
+        waitForIdle()
+
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.IN_PROGRESS)).assertIsDisplayed()
     }
 
     /**

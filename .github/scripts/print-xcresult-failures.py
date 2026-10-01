@@ -12,11 +12,13 @@ import sys
 def walk(node, trail):
     if isinstance(node, dict):
         kind = node.get("nodeType")
-        if kind == "Test Case" and node.get("result") == "Failed":
+        if kind == "Test Case" and node.get("result") != "Passed":
             trail = trail + [node.get("name", "?")]
-            print("=== FAILED:", " / ".join(trail), "(", node.get("duration", "?"), ")")
-        if kind == "Failure Message":
-            print("   ", node.get("name", ""))
+            print("===", node.get("result", "?").upper() + ":", " / ".join(trail), "(", node.get("duration", "?"), ")")
+        elif kind == "Repetition":
+            print("   -", node.get("name", ""), node.get("result", ""), "(", node.get("duration", "?"), ")")
+        elif kind == "Failure Message":
+            print("      ", node.get("name", ""))
         for child in node.get("children", []):
             walk(child, trail)
     elif isinstance(node, list):

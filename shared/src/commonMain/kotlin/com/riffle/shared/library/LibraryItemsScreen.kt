@@ -408,12 +408,16 @@ private fun HomeTabContent(
     val collectionsLabel = stringResource(Res.string.ui_collections)
     val allBooksLabel = stringResource(Res.string.ui_all_books)
     CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+        // Deliberately unkeyed items: the sections stream in from separate flows, and with keys
+        // LazyListState anchors on the first visible KEY — a Series header that emitted first
+        // stays put while Recently Added rows inserted above it land off-screen, so the home
+        // opens scrolled past its first sections. Positional identity keeps it at the top.
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp),
         ) {
             if (projection.inProgress.isNotEmpty()) {
-                item(key = "header_in_progress") {
+                item {
                     SectionHeader(
                         title = inProgressTitle,
                         actionLabel = seeAll,
@@ -421,7 +425,7 @@ private fun HomeTabContent(
                         tag = sectionHeaderTag(LibrarySectionType.IN_PROGRESS),
                     )
                 }
-                item(key = "grid_in_progress") {
+                item {
                     BookSectionGrid(
                         items = projection.inProgress,
                         token = token,
@@ -432,7 +436,7 @@ private fun HomeTabContent(
                 }
             }
             if (projection.continueSeries.isNotEmpty()) {
-                item(key = "header_continue_series") {
+                item {
                     SectionHeader(
                         title = continueSeriesTitle,
                         actionLabel = seeAll,
@@ -440,7 +444,7 @@ private fun HomeTabContent(
                         tag = sectionHeaderTag(LibrarySectionType.CONTINUE_SERIES),
                     )
                 }
-                item(key = "grid_continue_series") {
+                item {
                     // Continue Series has no "See all" on Android either — full list shown.
                     BookSectionGrid(
                         items = projection.continueSeries,
@@ -453,7 +457,7 @@ private fun HomeTabContent(
                 }
             }
             if (showRecentlyAdded && projection.recentlyAdded.isNotEmpty()) {
-                item(key = "header_recently_added") {
+                item {
                     SectionHeader(
                         title = recentlyAddedTitle,
                         actionLabel = seeAll,
@@ -461,7 +465,7 @@ private fun HomeTabContent(
                         tag = sectionHeaderTag(LibrarySectionType.RECENTLY_ADDED),
                     )
                 }
-                item(key = "grid_recently_added") {
+                item {
                     BookSectionGrid(
                         items = projection.recentlyAdded,
                         token = token,
@@ -472,7 +476,7 @@ private fun HomeTabContent(
                 }
             }
             if (projection.finished.isNotEmpty()) {
-                item(key = "header_completed") {
+                item {
                     SectionHeader(
                         title = completedTitle,
                         actionLabel = seeAll,
@@ -480,7 +484,7 @@ private fun HomeTabContent(
                         tag = sectionHeaderTag(LibrarySectionType.FINISHED),
                     )
                 }
-                item(key = "grid_completed") {
+                item {
                     BookSectionGrid(
                         items = projection.finished,
                         token = token,
@@ -491,16 +495,16 @@ private fun HomeTabContent(
                 }
             }
             if (projection.series.isNotEmpty()) {
-                item(key = "header_series") { SectionHeader(title = seriesLabel, tag = sectionHeaderTag(LibrarySectionType.SERIES)) }
-                item(key = "row_series") { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
+                item { SectionHeader(title = seriesLabel, tag = sectionHeaderTag(LibrarySectionType.SERIES)) }
+                item { SeriesRow(series = projection.series.take(10), token = token, onSeriesClick = onSeriesSelected) }
             }
             if (projection.collections.isNotEmpty()) {
-                item(key = "header_collections") { SectionHeader(title = collectionsLabel, tag = sectionHeaderTag(LibrarySectionType.COLLECTIONS)) }
-                item(key = "row_collections") { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
+                item { SectionHeader(title = collectionsLabel, tag = sectionHeaderTag(LibrarySectionType.COLLECTIONS)) }
+                item { CollectionRow(collections = projection.collections.take(10), onCollectionClick = onCollectionSelected) }
             }
             if (projection.allBooks.isNotEmpty()) {
-                item(key = "header_all_books") { SectionHeader(title = allBooksLabel, tag = sectionHeaderTag(LibrarySectionType.ALL_BOOKS)) }
-                item(key = "row_all_books") {
+                item { SectionHeader(title = allBooksLabel, tag = sectionHeaderTag(LibrarySectionType.ALL_BOOKS)) }
+                item {
                     HorizontalBookRow(
                         items = projection.allBooks.take(10),
                         token = token,
