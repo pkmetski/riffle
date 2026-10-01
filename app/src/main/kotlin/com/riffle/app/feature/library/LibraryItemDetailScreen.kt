@@ -927,6 +927,9 @@ internal fun audiobookDurationLineText(
     }
 }
 
+internal fun progressPercent(progress: Float): Int =
+    (progress * 100).roundToInt().coerceIn(0, 100)
+
 private fun formatDuration(durationSec: Long): String {
     val total = durationSec.coerceAtLeast(0)
     val h = total / 3600
@@ -1662,7 +1665,7 @@ private fun ReadingProgressIndicator(progress: Float, listened: Boolean = false)
         Text(
             text = androidx.compose.ui.res.stringResource(
                 if (listened) com.riffle.app.R.string.ui_progress_listened else com.riffle.app.R.string.ui_progress_read,
-                (progress * 100).roundToInt().coerceIn(0, 100),
+                progressPercent(progress),
             ),
             style = MaterialTheme.typography.bodyMedium,
         )

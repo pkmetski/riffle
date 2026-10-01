@@ -101,4 +101,22 @@ class LibraryItemDetailPublicationFactsTest {
         assertFalse(publicationFactsLineReservesSpace(EbookFormat.Cbz))
         assertFalse(publicationFactsLineReservesSpace(EbookFormat.Unsupported))
     }
+
+    @Test
+    fun progressPercentRoundsNotTruncates() {
+        // 98.6% must display as 99%, not 98% (toInt() truncation bug)
+        assertEquals(99, progressPercent(0.986f))
+    }
+
+    @Test
+    fun progressPercentClampsToHundred() {
+        assertEquals(100, progressPercent(1.0f))
+        assertEquals(100, progressPercent(1.001f))
+    }
+
+    @Test
+    fun progressPercentClampsToZero() {
+        assertEquals(0, progressPercent(0f))
+        assertEquals(0, progressPercent(-0.001f))
+    }
 }
