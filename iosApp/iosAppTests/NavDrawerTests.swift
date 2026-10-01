@@ -3,8 +3,8 @@ import XCTest
 // iOS counterparts to the Android navigation-drawer suite:
 //
 //   app/src/androidTest/.../navigation/NavigateAsRootTest.kt       (blank screen / duplicate roots)
-//   app/src/test/.../feature/navigation/NavigationDrawerSourceSubtitleTest.kt (host subtitle)
-//   app/src/test/.../feature/navigation/NavigationDrawerViewModelTest.kt      (library listing)
+//   feature/library-ui/src/commonTest/.../NavigationDrawerSubtitleTest.kt (host subtitle)
+//   feature/navigation/src/commonTest/.../NavigationDrawerViewModelTest.kt (library listing)
 //
 // Important: iOS does NOT share Android's navigation helpers. Android's MainScreen drives a
 // `NavController` and guards it with `navigateAsRoot` / `popBackStackIfTop` /
@@ -160,20 +160,36 @@ final class NavDrawerTests: AbsHarnessTestCase {
     // MARK: - ND-5  Source switcher is collapsed until tapped
 
     /// The switcher starts collapsed — the drawer opens on the library list, not on a source
-    /// picker. Tapping the header expands it, which is what the caret flip encodes.
+    /// picker. Tapping the header expands a dropdown that lists all sources.
+    ///
+    /// The new implementation uses a DropdownMenu (not inline expanded text), so the test
+    /// looks for the source appearing twice: once in the header, once in the dropdown item.
     func testSourceSwitcherStartsCollapsedAndExpandsOnTap() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10))
         burger.tap()
 
-        let collapsed = app.staticTexts["▼ Switch source"]
-        XCTAssertTrue(collapsed.waitForExistence(timeout: 10), "Switcher must start collapsed")
-        XCTAssertFalse(app.staticTexts["▲ Switch source"].exists)
-
-        collapsed.tap()
+        // The header must show the active source name.
         XCTAssertTrue(
-            app.staticTexts["▲ Switch source"].waitForExistence(timeout: 10),
-            "Tapping the header must expand the source switcher"
+            app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 10),
+            "Switcher header must show the active source name"
+        )
+
+        // Before tapping: the dropdown is not open, so the source name appears exactly once.
+        let beforeCount = app.staticTexts.matching(NSPredicate(format: "label == 'Audiobookshelf'")).count
+        XCTAssertEqual(beforeCount, 1, "Switcher must start collapsed — source name must appear once")
+
+        // Tap the header to open the dropdown.
+        app.staticTexts["Audiobookshelf"].firstMatch.tap()
+
+        // After tapping: the DropdownMenu appears, adding a second occurrence of the source name.
+        // waitForExistence on element(boundBy: 1) polls until the second matching element exists.
+        let secondEntry = app.staticTexts
+            .matching(NSPredicate(format: "label == 'Audiobookshelf'"))
+            .element(boundBy: 1)
+        XCTAssertTrue(
+            secondEntry.waitForExistence(timeout: 10),
+            "Tapping the header must open the dropdown — source name must appear in the dropdown list"
         )
     }
 
@@ -222,5 +238,28 @@ final class NavDrawerTests: AbsHarnessTestCase {
         XCTAssertTrue(back.waitForExistence(timeout: 25), "Downloads must open its own screen with a back control")
         back.tap()
         XCTAssertTrue(burger.waitForExistence(timeout: 25), "Back from Downloads must return to the library home")
+    }
+
+    // MARK: - ND-8  Version footer is absent on iOS (appVersion not yet wired)
+
+    /// Android's drawer shows a version footer from `BuildConfig.VERSION_NAME`. iOS passes
+    /// `appVersion = null` (no BuildConfig), so `RiffleNavigationDrawer` suppresses the footer
+    /// via its `if (appVersion != null)` guard. Assert the footer is NOT rendered rather than
+    /// showing a blank or placeholder string.
+    func testVersionFooterIsAbsentBecauseAppVersionIsNull() throws {
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 10))
+        burger.tap()
+
+        // Wait for the drawer to settle.
+        XCTAssertTrue(app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 10))
+
+        // No element whose label begins with "Riffle v" should exist in the drawer.
+        let versionPredicate = NSPredicate(format: "label BEGINSWITH 'Riffle v'")
+        let versionTexts = app.staticTexts.matching(versionPredicate)
+        XCTAssertEqual(
+            versionTexts.count, 0,
+            "iOS does not supply appVersion, so the version footer must not appear in the drawer"
+        )
     }
 }
