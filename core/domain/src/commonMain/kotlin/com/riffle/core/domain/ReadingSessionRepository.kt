@@ -5,7 +5,7 @@ import com.riffle.core.models.SyncSessionResult
 
 interface ReadingSessionRepository {
     suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult
-    suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult
+    suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String? = null): ProgressSyncCycleResult
 
     /**
      * Mark the item read/listened (`finished = true`) or unread/unlistened (`finished = false`)

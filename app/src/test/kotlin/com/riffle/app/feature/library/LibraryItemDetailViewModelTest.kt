@@ -268,7 +268,7 @@ class LibraryItemDetailViewModelTest {
 
     private val noOpSessionRepository = object : ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
@@ -277,7 +277,7 @@ class LibraryItemDetailViewModelTest {
     private class RecordingSessionRepository : ReadingSessionRepository {
         val markFinishedCalls = mutableListOf<Pair<String, Boolean>>()
         override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) { markFinishedCalls += itemId to finished }
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }

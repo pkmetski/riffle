@@ -759,7 +759,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                             ebookLocation = position.locatorJson,
                             ebookProgress = position.totalProgression ?: position.progression,
                         )
-                        sessionRepository.runSyncCycle(item.id, payload)
+                        sessionRepository.runSyncCycle(item.id, payload, item.sourceId)
                     }
                 }
             }

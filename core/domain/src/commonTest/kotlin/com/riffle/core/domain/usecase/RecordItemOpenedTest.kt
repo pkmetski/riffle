@@ -29,7 +29,7 @@ class RecordItemOpenedTest {
     private class RecordingSession : ReadingSessionRepository {
         val touched = mutableListOf<String>()
         override suspend fun syncProgress(itemId: String, payload: SessionPayload) = SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload) = ProgressSyncCycleResult.InSync
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?) = ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
         override suspend fun touchOpenTimestamp(itemId: String) { touched += itemId }
     }

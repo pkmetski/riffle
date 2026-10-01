@@ -322,7 +322,7 @@ class PdfReaderViewModel constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
-                syncSession.sync(locator?.toPayload() ?: SessionPayload("", 0f))
+                syncSession.sync(locator?.toPayload() ?: SessionPayload("", 0f), navSourceId)
                 readingSessionCoordinator.onResumed(
                     initialTotalProgression = null,
                     onTick = { syncCurrentPosition() },
@@ -523,7 +523,7 @@ class PdfReaderViewModel constructor(
 
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
-        syncSession.sync(locator.toPayload())
+        syncSession.sync(locator.toPayload(), navSourceId)
     }
 
     fun onReaderResumed() {
@@ -564,7 +564,7 @@ class PdfReaderViewModel constructor(
         }
         viewModelScope.launch {
             val payload = locator.toPayload()
-            syncSession.sync(payload)
+            syncSession.sync(payload, navSourceId)
         }
     }
 
