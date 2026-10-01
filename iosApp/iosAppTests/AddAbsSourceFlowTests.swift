@@ -68,6 +68,13 @@ final class AddAbsSourceFlowTests: XCTestCase {
         )
         XCTAssertTrue(app.state == .runningForeground, "App must survive the Chitanka install")
 
+        // The unbounded host lands on its Home tab (the same default as Android's browse
+        // screens); the catalogue grid and its chip strip live on the Library tab.
+        let libraryTab = app.buttons["Library"].firstMatch
+        XCTAssertTrue(libraryTab.waitForExistence(timeout: 30),
+                      "Chitanka must show the browse tab bar with a Library tab")
+        libraryTab.tap()
+
         // The chip strip belongs to `UnboundedBrowseLibraryTab` and to nothing else on iOS, so
         // this goes red if the host routes an unbounded catalogue back to LibraryItemsScreen.
         let chipStrip = NSPredicate { _, _ in

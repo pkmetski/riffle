@@ -1,7 +1,9 @@
 package com.riffle.shared.library
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescriptionExactly
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -311,7 +313,12 @@ class LibraryTabContentTest {
             )
         }
 
-        onNodeWithText("The Expanse").assertIsDisplayed()
+        // The tile is one clickable element labelled exactly the name. The caption Text is kept
+        // out of the merge on purpose: Compose's iOS accessibility bridge concatenates a merged
+        // node's contentDescription and text, so a merged caption yields "The Expanse, The Expanse" and
+        // XCUITest's app.buttons["The Expanse"] no longer matches (see BookCoverTile).
+        onNode(hasContentDescriptionExactly("The Expanse")).assertIsDisplayed().assertHasClickAction()
+        onNodeWithText("The Expanse").assertDoesNotExist()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -337,7 +344,7 @@ class LibraryTabContentTest {
             )
         }
 
-        onNodeWithText("Foundation").performClick()
+        onNode(hasContentDescriptionExactly("Foundation")).performClick()
         assertEquals(series, selected)
     }
 
@@ -373,7 +380,12 @@ class LibraryTabContentTest {
             )
         }
 
-        onNodeWithText("Fantasy Favourites").assertIsDisplayed()
+        // The tile is one clickable element labelled exactly the name. The caption Text is kept
+        // out of the merge on purpose: Compose's iOS accessibility bridge concatenates a merged
+        // node's contentDescription and text, so a merged caption yields "Fantasy Favourites, Fantasy Favourites" and
+        // XCUITest's app.buttons["Fantasy Favourites"] no longer matches (see BookCoverTile).
+        onNode(hasContentDescriptionExactly("Fantasy Favourites")).assertIsDisplayed().assertHasClickAction()
+        onNodeWithText("Fantasy Favourites").assertDoesNotExist()
         // The tile tag proves the grid path rendered, not the plain list path.
         onNodeWithTag(TestTags.collectionGridTile("c1")).assertIsDisplayed()
     }

@@ -35,6 +35,9 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
     /// `onReaderClosed()` before the ViewModel is cleared.
     func testComicsPositionRestoredOnReopen() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
         XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
         let bookLabel = cbzTile.label
 
@@ -63,6 +66,9 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
     /// 06-G.1 — Tapping back from the comics reader returns to the library.
     func testComicsReaderBackNavigationReturnsToLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
         XCTAssertTrue(cbzTile.waitForExistence(timeout: 10))
 
         let backButton = openReader(from: cbzTile, in: app)

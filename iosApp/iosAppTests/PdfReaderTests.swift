@@ -15,6 +15,9 @@ final class PdfReaderTests: AbsHarnessTestCase {
     /// 06-B.1 — Tapping a PDF item and choosing Read opens the PDF reader screen.
     func testPdfReaderOpensFromLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
         XCTAssertTrue(pdfTile.waitForExistence(timeout: 10), "PDF tile must be visible in the library")
 
         let backButton = openReader(from: pdfTile, in: app)
@@ -27,6 +30,9 @@ final class PdfReaderTests: AbsHarnessTestCase {
     /// 06-G.1 — Tapping back from the PDF reader returns to the library.
     func testPdfReaderBackNavigationReturnsToLibrary() throws {
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
+        // starts counting from app launch otherwise and trips under CI clone contention.
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
         XCTAssertTrue(pdfTile.waitForExistence(timeout: 10))
 
         let backButton = openReader(from: pdfTile, in: app)

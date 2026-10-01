@@ -53,13 +53,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
@@ -68,13 +69,13 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.BookGrid
+import com.riffle.feature.designsystem.BookSectionGrid
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.DefaultCoverPlaceholder
 import com.riffle.feature.designsystem.LocalCoversAreSquare
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.designsystem.BookSectionGrid
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_all_books
@@ -253,7 +254,17 @@ internal fun LibraryTabContent(
     onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        0 -> HomeTabContent(
+            projection,
+            token,
+            coversAreSquare,
+            linkedItemIds,
+            showRecentlyAdded,
+            onItemSelected,
+            onSeriesSelected,
+            onCollectionSelected,
+            onSectionSeeMore,
+        )
         1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
@@ -277,7 +288,17 @@ internal fun LibraryTabContent(
             labels = PlaylistLabels.English,
             onPlaylistSelected = onPlaylistSelected,
         )
-        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        else -> HomeTabContent(
+            projection,
+            token,
+            coversAreSquare,
+            linkedItemIds,
+            showRecentlyAdded,
+            onItemSelected,
+            onSeriesSelected,
+            onCollectionSelected,
+            onSectionSeeMore,
+        )
     }
 }
 
@@ -692,10 +713,12 @@ private fun SeriesTabContent(series: List<Series>, token: String, onSeriesSelect
 
 @Composable
 private fun SeriesGridTile(series: Series, token: String, onClick: () -> Unit) {
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .semantics(mergeDescendants = true) { contentDescription = series.name }
-        .clickable(onClick = onClick)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = series.name }
+            .clickable(onClick = onClick)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -712,12 +735,14 @@ private fun SeriesGridTile(series: Series, token: String, onClick: () -> Unit) {
                 instrumentationKey = series.id,
             )
         }
+        // Caption is outside the merge: iOS builds the label from contentDescription AND text,
+        // which would turn it into "Name, Name" and break app.buttons["Name"] (see BookCoverTile).
         Text(
             text = series.name,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { },
         )
     }
 }
@@ -779,38 +804,53 @@ private fun CollectionGridTile(
                     Column(modifier = Modifier.fillMaxSize()) {
                         Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
                             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                                CoverImage(url = coverUrls[0], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_0")
+                                MosaicCover(coverUrls[0], token, "${collection.id}_0")
                             }
                             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                                CoverImage(url = coverUrls[1], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_1")
+                                MosaicCover(coverUrls[1], token, "${collection.id}_1")
                             }
                         }
                         Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
                             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                                CoverImage(url = coverUrls[2], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_2")
+                                MosaicCover(coverUrls[2], token, "${collection.id}_2")
                             }
                             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                                CoverImage(url = coverUrls[3], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = "${collection.id}_3")
+                                MosaicCover(coverUrls[3], token, "${collection.id}_3")
                             }
                         }
                     }
                 }
                 coverUrls.isNotEmpty() -> {
-                    CoverImage(url = coverUrls[0], token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKind = "collection", instrumentationKey = collection.id)
+                    MosaicCover(coverUrls[0], token, collection.id)
                 }
                 else -> {
                     DefaultCoverPlaceholder(modifier = Modifier.fillMaxSize(), isAudiobook = false)
                 }
             }
         }
+        // Caption is outside the merge: iOS builds the label from contentDescription AND text,
+        // which would turn it into "Name, Name" and break app.buttons["Name"] (see BookCoverTile).
         Text(
             text = collection.name,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { },
         )
     }
+}
+
+@Composable
+private fun MosaicCover(url: String, token: String, instrumentationKey: String) {
+    CoverImage(
+        url = url,
+        token = token,
+        contentDescription = null,
+        isAudiobook = false,
+        modifier = Modifier.fillMaxSize(),
+        instrumentationKind = "collection",
+        instrumentationKey = instrumentationKey,
+    )
 }
 
 @Composable
@@ -887,7 +927,8 @@ private fun SeriesTile(
             modifier = Modifier
                 .padding(4.dp)
                 .background(Color.Black.copy(alpha = 0.5f))
-                .padding(4.dp),
+                .padding(4.dp)
+                .clearAndSetSemantics { },
             style = MaterialTheme.typography.labelSmall,
             color = Color.White,
         )
@@ -936,7 +977,8 @@ private fun CollectionTile(
             modifier = Modifier
                 .padding(4.dp)
                 .background(Color.Black.copy(alpha = 0.5f))
-                .padding(4.dp),
+                .padding(4.dp)
+                .clearAndSetSemantics { },
             style = MaterialTheme.typography.labelSmall,
             color = Color.White,
         )
@@ -966,7 +1008,6 @@ private fun AllBooksTabContent(
         )
     }
 }
-
 
 @Composable
 private fun DownloadedBadge(downloaded: Boolean, modifier: Modifier = Modifier) {
