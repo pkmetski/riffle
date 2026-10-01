@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -26,7 +26,6 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -43,7 +43,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -65,9 +64,9 @@ import com.riffle.feature.library.ui.generated.resources.ui_drawer_riffle
 import com.riffle.feature.library.ui.generated.resources.ui_drawer_settings
 import com.riffle.feature.library.ui.generated.resources.ui_toggle_source_switcher
 import com.riffle.feature.source.ui.SourceIcon
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
-import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,7 +256,9 @@ private fun DrawerHeader(
                     }
                 }
             },
-            supportingContent = if (isRiffleActive) null else {
+            supportingContent = if (isRiffleActive) {
+                null
+            } else {
                 {
                     val support = activeServer?.let {
                         localizedSourceSwitcherSubtitle(source = it, version = activeVersion)
@@ -432,13 +433,19 @@ internal fun buildSupportingLine(host: String?, version: String?): String? {
 }
 
 fun sourceDisplayName(source: Source): String =
-    if (source.type == SourceType.ABS) source.serverType.label
-    else WebSourceDescriptors.forTypeOrError(source.type).displayName
+    if (source.type == SourceType.ABS) {
+        source.serverType.label
+    } else {
+        WebSourceDescriptors.forTypeOrError(source.type).displayName
+    }
 
 @Composable
 private fun localizedSourceDisplayName(source: Source): String =
-    if (source.type == SourceType.ABS) source.serverType.label
-    else localizedDescriptorDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
+    if (source.type == SourceType.ABS) {
+        source.serverType.label
+    } else {
+        localizedDescriptorDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
+    }
 
 internal fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
     val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
