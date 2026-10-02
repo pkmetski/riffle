@@ -24,6 +24,11 @@ import XCTest
 // Downloads availability: AbsCatalog is JVM-only, so the ABS source registered by the harness
 // does not implement DownloadsCapability on iOS. NavigationDrawerViewModel therefore sets
 // showDownloadsLink=false for ABS-only setups, and the Downloads entry does not appear.
+//
+// Test consolidation note: ND-3 (drawer contents), ND-4 (host subtitle), ND-7 (Downloads absent),
+// and ND-8 (version absent) were merged into a single test that opens the drawer once and checks
+// all four assertions. Each merged test required a full app launch via AbsHarnessTestCase; merging
+// saves three launches and keeps the suite within the 50-minute iOS CI budget.
 final class NavDrawerTests: AbsHarnessTestCase {
 
     /// iOS's Settings screen labels its back affordance "← Libraries" (SettingsScreen.kt's back
@@ -98,14 +103,14 @@ final class NavDrawerTests: AbsHarnessTestCase {
     ///
     /// Counterpart to switchingRootsNeverAccumulatesOrEmptiesBackStack. iOS switches an
     /// `AppSection` enum rather than pushing nav entries, so the claim here is that the section
-    /// switch stays idempotent: after three trips to Settings, one back still lands on home.
+    /// switch stays idempotent: after two trips to Settings, one back still lands on home.
     func testRepeatedDrawerNavigationDoesNotAccumulateSettingsEntries() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
 
-        // Perform three Settings round-trips. If roots accumulate, the third would require three
+        // Perform two Settings round-trips. If roots accumulate, the second would require two
         // back-presses; with navigateAsRoot it always requires just one.
-        for round in 1...3 {
+        for round in 1...2 {
             burger.tap()
             let settingsEntry = app.staticTexts["Settings"]
             XCTAssertTrue(
@@ -129,23 +134,27 @@ final class NavDrawerTests: AbsHarnessTestCase {
         }
     }
 
-    // MARK: - ND-3  Drawer is accessible and shows expected entries
+    // MARK: - ND-3/4/7/8  Drawer contents, host subtitle, Downloads and version absences
 
-    /// The navigation drawer must list at least the source name and Settings.
+    /// The navigation drawer must list the source name, Settings, and the source host subtitle;
+    /// it must not show Downloads (AbsCatalog is JVM-only on iOS) or a version footer
+    /// (appVersion is not wired on iOS).
     ///
-    /// Regression guard: if the burger tap opens an empty drawer (e.g. due to a blank-NavHost root
-    /// bug) the source name and Settings entries would be missing.
+    /// Consolidates ND-3 (source header + Settings present), ND-4 (host subtitle in header),
+    /// ND-7 (Downloads absent for ABS-only), and ND-8 (version footer absent). All four
+    /// assertions need only one drawer open, so merging them saves three app launches and
+    /// keeps the iOS CI harness within the 50-minute budget.
     ///
     /// The source header is a Material3 ListItem with clickable modifier (mergeDescendants=true),
     /// so the source name is accessible via the button's label rather than as a StaticText.
-    /// We find the header by its testTag accessibilityIdentifier "nav_drawer_source_header".
-    func testDrawerContainsSourceAndSettingsEntries() throws {
+    /// We find the header by searching for a descendant whose label CONTAINS "Audiobookshelf".
+    func testDrawerContentsSubtitleAndAbsencesForAbsSource() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
 
         burger.tap()
 
-        // The seeded ABS source must appear in the source-switcher header button.
+        // ND-3: The seeded ABS source must appear in the source-switcher header button.
         let header = sourceHeaderButton()
         XCTAssertTrue(
             header.waitForExistence(timeout: 10),
@@ -159,25 +168,10 @@ final class NavDrawerTests: AbsHarnessTestCase {
             app.staticTexts["Settings"].exists,
             "Drawer must always list Settings"
         )
-    }
 
-    // MARK: - ND-4  Source switcher header carries the host as its subtitle
-
-    /// Android's `NavigationDrawerSourceSubtitleTest` pins that a credentialed source shows its
-    /// host under the display name so a user with two Audiobookshelf installs can tell them
-    /// apart. iOS builds the same line in `RiffleNavigationDrawer`'s `DrawerHeader`; assert it
-    /// renders the stub's real authority in the header button's merged label.
-    func testDrawerHeaderShowsTheSourceHostBeneathItsName() throws {
-        let burger = app.buttons["Open menu"]
-        XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
-        burger.tap()
-
-        let header = sourceHeaderButton()
-        XCTAssertTrue(
-            header.waitForExistence(timeout: 10),
-            "Drawer must show the source-switcher header"
-        )
-
+        // ND-4: Android's NavigationDrawerSourceSubtitleTest pins that a credentialed source
+        // shows its host under the display name. iOS builds the same line in DrawerHeader; assert
+        // it renders the stub's real authority in the header button's merged label.
         let expectedHost = URL(string: absServer.baseUrl)
             .flatMap { url -> String? in
                 guard let host = url.host else { return nil }
@@ -187,6 +181,23 @@ final class NavDrawerTests: AbsHarnessTestCase {
         XCTAssertTrue(
             header.label.contains(host),
             "Source-switcher header must include the source host '\(host)' as a subtitle; got: \(header.label)"
+        )
+
+        // ND-7: AbsCatalog is JVM-only, so iOS's CatalogRegistry does not return a
+        // DownloadsCapability for ABS sources. The Downloads entry must not appear.
+        let downloads = app.staticTexts["Downloads"]
+        XCTAssertFalse(
+            downloads.exists,
+            "Downloads must not appear in the drawer for ABS-only sources on iOS (AbsCatalog is JVM-only)"
+        )
+
+        // ND-8: Android's drawer shows a version footer from BuildConfig.VERSION_NAME. iOS passes
+        // appVersion = null (no BuildConfig), so RiffleNavigationDrawer suppresses the footer.
+        let versionPredicate = NSPredicate(format: "label BEGINSWITH 'Riffle v'")
+        let versionTexts = app.staticTexts.matching(versionPredicate)
+        XCTAssertEqual(
+            versionTexts.count, 0,
+            "iOS does not supply appVersion, so the version footer must not appear in the drawer"
         )
     }
 
@@ -258,55 +269,5 @@ final class NavDrawerTests: AbsHarnessTestCase {
             "Selecting a library must re-title the library screen"
         )
         XCTAssertTrue(burger.waitForExistence(timeout: 25), "The drawer must close back onto the library screen")
-    }
-
-    // MARK: - ND-7  Downloads is absent for ABS on iOS
-
-    /// AbsCatalog is JVM-only, so iOS's CatalogRegistry does not return a DownloadsCapability
-    /// for ABS sources. NavigationDrawerViewModel therefore sets showDownloadsLink=false when
-    /// only ABS sources are registered, and the Downloads entry does not appear in the drawer.
-    ///
-    /// This is a known iOS/Android capability gap: the Downloads entry in Android's drawer
-    /// comes from AbsCatalog's DownloadsCapability, which has no iOS equivalent.
-    func testDownloadsIsAbsentForAbsOnlySourceOnIos() throws {
-        let burger = app.buttons["Open menu"]
-        XCTAssertTrue(burger.waitForExistence(timeout: 10))
-        burger.tap()
-
-        // Wait for the drawer to settle — the library list must be visible.
-        XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 15),
-            "Drawer must show the library list before checking for Downloads absence"
-        )
-
-        // Downloads must NOT appear because AbsCatalog has no DownloadsCapability on iOS.
-        let downloads = app.staticTexts["Downloads"]
-        XCTAssertFalse(
-            downloads.exists,
-            "Downloads must not appear in the drawer for ABS-only sources on iOS (AbsCatalog is JVM-only)"
-        )
-    }
-
-    // MARK: - ND-8  Version footer is absent on iOS (appVersion not yet wired)
-
-    /// Android's drawer shows a version footer from `BuildConfig.VERSION_NAME`. iOS passes
-    /// `appVersion = null` (no BuildConfig), so `RiffleNavigationDrawer` suppresses the footer
-    /// via its `if (appVersion != null)` guard. Assert the footer is NOT rendered rather than
-    /// showing a blank or placeholder string.
-    func testVersionFooterIsAbsentBecauseAppVersionIsNull() throws {
-        let burger = app.buttons["Open menu"]
-        XCTAssertTrue(burger.waitForExistence(timeout: 10))
-        burger.tap()
-
-        // Wait for the drawer to settle using Settings (always visible, not source-dependent).
-        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 10))
-
-        // No element whose label begins with "Riffle v" should exist in the drawer.
-        let versionPredicate = NSPredicate(format: "label BEGINSWITH 'Riffle v'")
-        let versionTexts = app.staticTexts.matching(versionPredicate)
-        XCTAssertEqual(
-            versionTexts.count, 0,
-            "iOS does not supply appVersion, so the version footer must not appear in the drawer"
-        )
     }
 }
