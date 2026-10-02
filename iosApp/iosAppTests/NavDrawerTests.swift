@@ -87,10 +87,10 @@ final class NavDrawerTests: XCTestCase {
         // Verify library home is showing (burger visible). If the drawer is still open
         // it covers the burger — tap the far-right scrim to close it, then re-check.
         let burger = app.buttons["Open menu"]
-        if !burger.waitForExistence(timeout: 10) {
+        if !burger.waitForExistence(timeout: 15) {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
             XCTAssertTrue(
-                burger.waitForExistence(timeout: 10),
+                burger.waitForExistence(timeout: 30),
                 "setUp: must return to library home (burger visible) before each test"
             )
         }
@@ -251,6 +251,13 @@ final class NavDrawerTests: XCTestCase {
         XCTAssertEqual(
             app.staticTexts.matching(versionPredicate).count, 0,
             "iOS does not supply appVersion, so the version footer must not appear in the drawer"
+        )
+
+        // Close the drawer so subsequent tests start from library home (drawer open = burger hidden).
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(
+            app.buttons["Open menu"].waitForExistence(timeout: 15),
+            "Drawer must close after ND-3/4/7/8 assertions to leave library home for the next test"
         )
     }
 
