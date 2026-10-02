@@ -6,16 +6,14 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -26,6 +24,10 @@ import androidx.compose.ui.unit.dp
  * Shared full-screen scaffold for every Settings drill-in panel (Formatting, Display, Behavior,
  * Auto-Scroll, Cadence, Listening). Handles the top app bar, back handling, status/nav insets,
  * and vertical scroll. Panel-specific content renders inside the scrollable column.
+ *
+ * Uses Material3 Scaffold so that window insets (status bar, nav bar) are applied exactly once
+ * through the Scaffold's own inset management — avoiding the double-inset issue that occurred when
+ * statusBarsPadding() was applied on the root Surface while TopAppBar also consumed topBar insets.
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -35,8 +37,8 @@ internal fun DetailScaffold(
     content: @Composable () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
-    Surface(modifier = Modifier.fillMaxSize().statusBarsPadding(), tonalElevation = 1.dp) {
-        Column {
+    Scaffold(
+        topBar = {
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
@@ -45,13 +47,14 @@ internal fun DetailScaffold(
                     }
                 },
             )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .navigationBarsPadding(),
-            ) { content() }
-        }
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+        ) { content() }
     }
 }
