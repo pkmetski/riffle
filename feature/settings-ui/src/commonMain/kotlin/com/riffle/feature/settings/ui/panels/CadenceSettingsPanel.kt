@@ -48,6 +48,14 @@ fun CadenceSettingsPanel(
 // TODO: migrate to Res.string.ui_cadence
 ) = DetailScaffold(stringResource(Res.string.ui_cadence), onDismiss) {
     val systemInDark = isSystemInDarkTheme()
+    if (!platformSupported) {
+        Text(
+            text = stringResource(Res.string.ui_cadence_webview_unavailable),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return@DetailScaffold
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
@@ -67,14 +75,6 @@ fun CadenceSettingsPanel(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 20.dp),
     )
-    if (!platformSupported) {
-        Text(
-            text = stringResource(Res.string.ui_cadence_webview_unavailable),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        return@DetailScaffold
-    }
     ListItem(
         modifier = Modifier
             .testTag(TestTags.SETTINGS_CADENCE_READER_TOGGLE)
