@@ -10,7 +10,7 @@
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_all_orientations">Adds the toggle to the reader top bar (all orientations)</string>
     <string name="ui_adds_the_toggle_to_the_reader_top_bar_vertical_and_continuous_only">Adds the toggle to the reader top bar (Vertical &amp; Continuous only)</string>
     <string name="ui_all_packs_installed">All available packs are installed.</string>
-    <string name="ui_annotation_sync_isn_t_set_up_yet_configure_a_webdav_server_first_to_manage_devic">Annotation sync isn\'t set up yet. Configure a WebDAV server first to manage devices.</string>
+    <string name="ui_annotation_sync_isn_t_set_up_yet_configure_a_webdav_server_first_to_manage_devic">Annotation sync isn't set up yet. Configure a WebDAV server first to manage devices.</string>
     <string name="ui_annotations_webdav_maintenance_description">Each device writes its own annotation file per book to WebDAV. The list below shows every device whose files are currently on the server.</string>
     <string name="ui_app_language">Language</string>
     <string name="ui_app_theme">App theme</string>
@@ -39,7 +39,7 @@
     <string name="ui_cadence">Cadence</string>
     <string name="ui_cadence_description">Cadence highlights one sentence at a time and advances on its own at a set pace, so you can read hands-free. Start and stop from the reader top bar; nudge speed with the volume keys while running.</string>
     <string name="ui_cadence_running_summary">Sentence highlight — %1$d wpm</string>
-    <string name="ui_cadence_webview_unavailable">Cadence isn\'t available on this device\'s WebView. Update the Android System WebView from the Play Store to enable it.</string>
+    <string name="ui_cadence_webview_unavailable">Cadence isn't available on this device's WebView. Update the Android System WebView from the Play Store to enable it.</string>
     <string name="ui_cancel">Cancel</string>
     <string name="ui_chapter_map">Chapter map</string>
     <string name="ui_check_for_updates">Check for updates</string>
@@ -89,7 +89,7 @@
     <string name="ui_done">Done</string>
     <string name="ui_double_page_in_landscape">Double page in landscape</string>
     <string name="ui_download">Download</string>
-    <string name="ui_download_only_audio_doesn_t_match">Download only · audio doesn\'t match</string>
+    <string name="ui_download_only_audio_doesn_t_match">Download only · audio doesn't match</string>
     <string name="ui_download_only_no_audiobook_linked">Download only · no audiobook linked</string>
     <string name="ui_downloading_dictionary_name">Downloading %1$s dictionary</string>
     <string name="ui_downloading_update_percent">Downloading update… %1$d%%</string>
@@ -114,12 +114,12 @@
     <string name="ui_forget_all_from_this_user">Forget all from this user</string>
     <string name="ui_forget_all_from_user_title">Forget all from "%1$s"?</string>
     <string name="ui_forget_device">Forget device</string>
-    <string name="ui_forget_device_explanation">Removes this device\'s files from the WebDAV server. Other devices still have copies of these annotations in their own files, so the records are preserved.</string>
+    <string name="ui_forget_device_explanation">Removes this device's files from the WebDAV server. Other devices still have copies of these annotations in their own files, so the records are preserved.</string>
     <string name="ui_forget_device_title">Forget "%1$s"?</string>
     <string name="ui_forget_device_warning">Edge case: if this device went offline before any other device synced its last edits, those edits exist only on its files and will be lost.</string>
     <string name="ui_forget_devices_rename_this_device">Forget devices, rename this device</string>
     <string name="ui_forget_user_summary">Removes every file from this user on the WebDAV server — %1$d device(s), %2$d file(s).</string>
-    <string name="ui_forget_user_warning">Only do this if you\'re sure no device is still using this account — usually it\'s an old account you no longer sync from.</string>
+    <string name="ui_forget_user_warning">Only do this if you're sure no device is still using this account — usually it's an old account you no longer sync from.</string>
     <string name="ui_forgot_device_snack">Forgot "%1$s"</string>
     <string name="ui_forgot_user_snack">Forgot "%1$s" · %2$d file(s) removed</string>
     <string name="ui_formatting">Formatting</string>
@@ -170,7 +170,7 @@
     <string name="ui_no_entries_match_current_filter">No entries match the current filter</string>
     <string name="ui_no_fully_matched_readalouds_yet">No fully matched readalouds yet.</string>
     <string name="ui_no_log_entries_yet">No log entries yet</string>
-    <string name="ui_no_match_don_t_ask_again">No match — don\'t ask again</string>
+    <string name="ui_no_match_don_t_ask_again">No match — don't ask again</string>
     <string name="ui_no_readalouds_yet">no readalouds yet</string>
     <string name="ui_no_suggested_matches_right_now">No suggested matches right now.</string>
     <string name="ui_normal">Normal</string>
@@ -181,7 +181,7 @@
     <string name="ui_on_screen_info">On-screen info</string>
     <string name="ui_open_menu">Open menu</string>
     <string name="ui_original">Original</string>
-    <string name="ui_other_users_description">Files written by a different Audiobookshelf account. They aren\'t read by any device using your current account. Expand to forget individual devices, or remove the whole user.</string>
+    <string name="ui_other_users_description">Files written by a different Audiobookshelf account. They aren't read by any device using your current account. Expand to forget individual devices, or remove the whole user.</string>
     <string name="ui_other_users_on_this_share">Other users on this share</string>
     <string name="ui_page">Page</string>
     <string name="ui_page_numbers">Page numbers</string>
@@ -194,7 +194,7 @@
     <string name="ui_panel_view_split">Panel View · Split</string>
     <string name="ui_partial_count">%1$d partial</string>
     <string name="ui_partially_matched">Partially matched</string>
-    <string name="ui_per_book_override_formatting_panel_volume_keys">Per-book override in the reader\'s Formatting panel. Adjust live with the volume keys while running.</string>
+    <string name="ui_per_book_override_formatting_panel_volume_keys">Per-book override in the reader's Formatting panel. Adjust live with the volume keys while running.</string>
     <string name="ui_plus_not_linked">＋ Not linked</string>
     <string name="ui_preferences">Preferences</string>
     <string name="ui_readaloud">Readaloud</string>
