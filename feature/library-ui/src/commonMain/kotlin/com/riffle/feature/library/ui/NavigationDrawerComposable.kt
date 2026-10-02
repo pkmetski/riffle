@@ -53,6 +53,7 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.KoFiDrawerButton
 import com.riffle.feature.designsystem.RiffleAppIcon
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.shouldShowRiffleSource
 import com.riffle.feature.library.ui.generated.resources.Res
