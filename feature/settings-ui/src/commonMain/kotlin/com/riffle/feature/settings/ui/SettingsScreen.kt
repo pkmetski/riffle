@@ -129,7 +129,7 @@ fun SettingsScreen(
                 title = { Text(stringResource(Res.string.ui_settings)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SETTINGS_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_libraries_with_arrow))
                     }
                 },
             )

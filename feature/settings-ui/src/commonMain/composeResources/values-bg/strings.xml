@@ -28,6 +28,7 @@
     <string name="ui_auto_theme_summary">Автоматично · %1$s</string>
     <string name="ui_available">Налични</string>
     <string name="ui_back">Назад</string>
+    <string name="ui_libraries_with_arrow">← Библиотеки</string>
     <string name="ui_backward_rewind">Превъртане назад</string>
     <string name="ui_behavior">Поведение</string>
     <string name="ui_books">Книги</string>
