@@ -177,8 +177,12 @@ final class AddAbsSourceFlowTests: XCTestCase {
         XCTAssertEqual(refreshed, .completed, "Library items must be fetched and section headers rendered")
 
         burger.tap()
+        // The drawer source-switcher header uses Material3 ListItem with mergeDescendants=true,
+        // so the source name is accessible via the merged button's label rather than as a
+        // separate StaticText. Use a CONTAINS predicate across all element types.
+        let sourcePred = NSPredicate(format: "label CONTAINS[c] 'Audiobookshelf'")
         XCTAssertTrue(
-            app.staticTexts["Audiobookshelf"].waitForExistence(timeout: 10),
+            app.descendants(matching: .any).matching(sourcePred).firstMatch.waitForExistence(timeout: 10),
             "Drawer must list the added Audiobookshelf source"
         )
     }

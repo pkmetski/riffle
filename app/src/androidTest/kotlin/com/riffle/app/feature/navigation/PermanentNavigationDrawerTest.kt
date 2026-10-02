@@ -3,6 +3,7 @@ package com.riffle.app.feature.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerState
+import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import com.riffle.app.harness.TabletLayout
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
+import com.riffle.feature.designsystem.TestTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,8 +68,8 @@ class PermanentNavigationDrawerTest {
 
         // Drawer is rendered without being "opened" — its items are immediately on screen.
         composeTestRule.onNodeWithText("Ebooks").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Downloads").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_DOWNLOADS).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_SETTINGS).assertIsDisplayed()
     }
 
     /**
@@ -109,8 +111,8 @@ class PermanentNavigationDrawerTest {
 
         // Drawer items must be absent — the panel itself is not emitted.
         composeTestRule.onNodeWithText("Ebooks").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Downloads").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Settings").assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_DOWNLOADS).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_SETTINGS).assertDoesNotExist()
         // Reader content is still rendered.
         composeTestRule.onNodeWithTag("reader-content").assertIsDisplayed()
     }

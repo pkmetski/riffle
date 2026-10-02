@@ -156,10 +156,12 @@ class AnnotationFocusHarnessTest : KoinTest {
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
 
-        // Navigate to the bookmark via the Annotations panel. Retry once: on slow CI runners
-        // Readium's paginated column navigation can be fired after waitForWebViewScrollQuiet's
-        // Phase-1 window expires, leaving the reader at the pre-navigation position for the full
-        // phrase-poll window. A second tap of the same bookmark entry triggers a fresh navigation.
+        // Navigate to the bookmark via the Annotations panel. Retry once: on loaded CI runners
+        // Readium's intra-chapter paginated navigation can fire its JS go() asynchronously after
+        // the Compose layer reports Ready. waitForWebViewScrollQuiet was unreliable here because
+        // scrollLeft stays at 0 if the navigation fires after Phase-1 expires (Phase-2 then
+        // declares the pre-navigation position as stable). Polling the phrase rect directly with a
+        // longer window is simpler and catches the navigation whenever Readium fires it.
         fun tapBookmarkAndWait(): FocusResult {
             showTopAppBar()
             // The bar can still be animating in when the click injects — settle and retry once.
@@ -176,11 +178,10 @@ class AnnotationFocusHarnessTest : KoinTest {
             composeTestRule.onNodeWithText(bookmark.bookmarkTitle).performClick()
             composeTestRule.waitForIdle()
             waitForReaderReady()
-            // waitForReaderReady checks Compose semantics, not Readium's internal chapter scroll.
-            // Phase-1 window is 20 s (half of 40 s) so that a slow-starting Readium navigation
-            // is still caught before Phase-2 declares a false-stable pre-navigation position.
-            waitForWebViewScrollQuiet(quietMs = 400, timeoutMs = 40_000)
-            return waitForPhraseOnScreen(orientation, timeoutMs = 30_000, phrase = targetPhrase)
+            // Poll the phrase rect directly: getBoundingClientRect() flips to on-screen the
+            // moment Readium's scrollLeft changes. 90 s gives Readium plenty of time on loaded
+            // runners while keeping worst-case per-attempt time below the harness wall clock.
+            return waitForPhraseOnScreen(orientation, timeoutMs = 90_000, phrase = targetPhrase)
         }
 
         var result = tapBookmarkAndWait()

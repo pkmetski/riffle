@@ -318,7 +318,20 @@ private fun iosLibraryModule(
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
-    single { DrawerViewModel(get(), get(), get(), get()) }
+    single { com.riffle.feature.navigation.NowPlayingNavigator() }
+    single {
+        com.riffle.feature.navigation.NavigationDrawerViewModel(
+            sourceRepository = get(),
+            libraryObserver = get(),
+            visibilityStore = get(),
+            orderStore = get(),
+            lastOpenedLibraryStore = get(),
+            connectivityObserver = get(),
+            catalogRegistry = get(),
+            nowPlayingNavigator = get(),
+            nowPlayingStore = get(),
+        )
+    }
     single {
         RiffleViewModel(
             libraryObserver = get(),

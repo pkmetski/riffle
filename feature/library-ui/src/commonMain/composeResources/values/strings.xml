@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Navigation drawer copy, shared by Android (:app) and iOS (:shared) through Compose Multiplatform
+  resources. Any edit here must be mirrored in values-es/ and values-bg/.
+-->
+<resources>
+    <string name="ui_drawer_riffle" translatable="false">Riffle</string>
+    <string name="ui_drawer_no_source">No source</string>
+    <string name="ui_drawer_downloads">Downloads</string>
+    <string name="ui_drawer_settings">Settings</string>
+    <string name="ui_toggle_source_switcher">Toggle source switcher</string>
+    <string name="ui_active_source">Active source</string>
+    <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
+    <string name="ui_unable_to_connect_to_source">Unable to connect to source</string>
+    <string name="ui_retry">Retry</string>
+</resources>
