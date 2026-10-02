@@ -1,4 +1,4 @@
-package com.riffle.shared.settings
+package com.riffle.feature.settings.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -9,6 +9,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ui.panels.AutoScrollSettingsPanel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -20,7 +22,7 @@ import kotlin.test.assertTrue
  * because the reader has one now (`AutoScrollController` + `ReadiumSwiftNavigator.scrollByPx`,
  * mounted by `IosEpubReaderScreen`), and both controls must actually write.
  *
- * Runs on `iosSimulatorArm64` as part of `:shared:iosSimulatorArm64Test`.
+ * Runs on `iosSimulatorArm64` as part of `:feature:settings-ui:iosSimulatorArm64Test`.
  */
 class SettingsAutoScrollPanelTest {
 
@@ -28,10 +30,10 @@ class SettingsAutoScrollPanelTest {
     @Test
     fun autoScrollPanelOffersTheToggleAndTheSpeedStepper() = runComposeUiTest {
         setContent {
-            Column { AutoScrollPanelContent(FormattingPreferences(), onPrefsChange = {}) }
+            Column { AutoScrollSettingsPanel(FormattingPreferences(), onPrefsChange = {}, onDismiss = {}) }
         }
-        onNodeWithTag("panel-toggle-Show auto-scroll toggle in reader").assertIsDisplayed()
-        onNodeWithText("${FormattingPreferences().autoScrollWpm} WPM").assertIsDisplayed()
+        onNodeWithTag(TestTags.SETTINGS_AUTO_SCROLL_READER_TOGGLE).assertIsDisplayed()
+        onNodeWithText("${FormattingPreferences().autoScrollWpm} wpm").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -40,21 +42,22 @@ class SettingsAutoScrollPanelTest {
         val writes = mutableListOf<FormattingPreferences>()
         setContent {
             Column {
-                AutoScrollPanelContent(
+                AutoScrollSettingsPanel(
                     FormattingPreferences(showAutoScroll = false),
                     onPrefsChange = { writes += it },
+                    onDismiss = {},
                 )
             }
         }
-        onNodeWithTag("panel-toggle-Show auto-scroll toggle in reader").performClick()
+        onNodeWithTag(TestTags.SETTINGS_AUTO_SCROLL_READER_TOGGLE).performClick()
         assertEquals(1, writes.size)
         assertTrue(writes[0].showAutoScroll)
     }
 
     /**
-     * The stepper goes through `AutoScrollSpeed.of`, so it snaps and clamps the same way the HUD
-     * pill's nudges and the ticker do. A hand-rolled `wpm ± 10` would let Settings store a speed
-     * the reader immediately rounds to something else.
+     * The stepper goes through `AutoScrollSpeed.of`, the same range and snap rule the HUD pill's
+     * nudges and the ticker use, with a 20-WPM step per tap (coarser than the slider's own 10-WPM
+     * snap — single-snap deltas are imperceptible for reading pace).
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -62,15 +65,16 @@ class SettingsAutoScrollPanelTest {
         val writes = mutableListOf<FormattingPreferences>()
         setContent {
             Column {
-                AutoScrollPanelContent(
+                AutoScrollSettingsPanel(
                     FormattingPreferences(autoScrollWpm = 250),
                     onPrefsChange = { writes += it },
+                    onDismiss = {},
                 )
             }
         }
-        onNodeWithText("+").performClick()
-        onNodeWithText("−").performClick()
-        assertEquals(listOf(260, 240), writes.map { it.autoScrollWpm })
+        onNodeWithTag(TestTags.SETTINGS_AUTO_SCROLL_WPM_INCREMENT).performClick()
+        onNodeWithTag(TestTags.SETTINGS_AUTO_SCROLL_WPM_DECREMENT).performClick()
+        assertEquals(listOf(270, 230), writes.map { it.autoScrollWpm })
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -79,13 +83,14 @@ class SettingsAutoScrollPanelTest {
         val writes = mutableListOf<FormattingPreferences>()
         setContent {
             Column {
-                AutoScrollPanelContent(
+                AutoScrollSettingsPanel(
                     FormattingPreferences(autoScrollWpm = AutoScrollSpeed.MAX_WPM),
                     onPrefsChange = { writes += it },
+                    onDismiss = {},
                 )
             }
         }
-        onNodeWithText("+").performClick()
+        onNodeWithTag(TestTags.SETTINGS_AUTO_SCROLL_WPM_INCREMENT).performClick()
         assertEquals(listOf(AutoScrollSpeed.MAX_WPM), writes.map { it.autoScrollWpm })
     }
 }

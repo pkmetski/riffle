@@ -158,7 +158,12 @@ fun DisplaySection(
         Text(stringResource(Res.string.ui_on_screen_info), style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
         // TODO: migrate to Res.string.ui_chapter_map
-        ToggleRow(stringResource(Res.string.ui_chapter_map), prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
+        ToggleRow(
+            label = stringResource(Res.string.ui_chapter_map),
+            checked = prefs.showChapterMap,
+            testTag = TestTags.SETTINGS_DISPLAY_CHAPTER_MAP,
+            onChange = { onPrefsChange(prefs.copy(showChapterMap = it)) },
+        )
         ToggleRow(
             // TODO: migrate to Res.string.ui_colored_chapter_map
             label = stringResource(Res.string.ui_colored_chapter_map),
@@ -170,11 +175,26 @@ fun DisplaySection(
         )
         if (capabilities.supportsPositionOverlays) {
             // TODO: migrate to Res.string.ui_current_chapter_label
-            ToggleRow(stringResource(Res.string.ui_current_chapter_label), prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
+            ToggleRow(
+                label = stringResource(Res.string.ui_current_chapter_label),
+                checked = prefs.showCurrentChapterLabel,
+                testTag = TestTags.SETTINGS_DISPLAY_CURRENT_CHAPTER_LABEL,
+                onChange = { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) },
+            )
             // TODO: migrate to Res.string.ui_reading_progress_labels
-            ToggleRow(stringResource(Res.string.ui_reading_progress_labels), prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
+            ToggleRow(
+                label = stringResource(Res.string.ui_reading_progress_labels),
+                checked = prefs.showReadingProgressLabels,
+                testTag = TestTags.SETTINGS_DISPLAY_READING_PROGRESS_LABELS,
+                onChange = { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) },
+            )
             // TODO: migrate to Res.string.ui_time_remaining
-            ToggleRow(stringResource(Res.string.ui_time_remaining), prefs.showReadingTimeEstimate) { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) }
+            ToggleRow(
+                label = stringResource(Res.string.ui_time_remaining),
+                checked = prefs.showReadingTimeEstimate,
+                testTag = TestTags.SETTINGS_DISPLAY_TIME_REMAINING,
+                onChange = { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) },
+            )
         }
     }
 }

@@ -47,6 +47,8 @@ internal fun WpmSliderRow(
     helper: String,
     wpm: Int,
     onWpmChange: (Int) -> Unit,
+    decrementTestTag: String? = null,
+    incrementTestTag: String? = null,
 ) {
     val speedContentDescription = stringResource(Res.string.ui_speed_named, label)
     Column(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
@@ -67,6 +69,8 @@ internal fun WpmSliderRow(
             contentDescription = speedContentDescription,
             onDecrement = { onWpmChange(AutoScrollSpeed.of(wpm - wpmButtonStep).wpm) },
             onIncrement = { onWpmChange(AutoScrollSpeed.of(wpm + wpmButtonStep).wpm) },
+            decrementTestTag = decrementTestTag,
+            incrementTestTag = incrementTestTag,
         )
         Text(
             text = helper,

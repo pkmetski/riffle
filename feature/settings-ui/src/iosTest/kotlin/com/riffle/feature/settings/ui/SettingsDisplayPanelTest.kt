@@ -1,4 +1,4 @@
-package com.riffle.shared.settings
+package com.riffle.feature.settings.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -8,6 +8,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ui.panels.DisplaySettingsPanel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -20,7 +22,7 @@ import kotlin.test.assertTrue
  * `IosEpubReaderScreen`), so the switches are back — and each one must actually write its
  * preference, which is what a hidden-then-restored control most easily gets wrong.
  *
- * Runs on `iosSimulatorArm64` as part of `:shared:iosSimulatorArm64Test`.
+ * Runs on `iosSimulatorArm64` as part of `:feature:settings-ui:iosSimulatorArm64Test`.
  */
 class SettingsDisplayPanelTest {
 
@@ -28,14 +30,14 @@ class SettingsDisplayPanelTest {
     @Test
     fun displayPanelOffersEveryOnScreenInfoSwitch() = runComposeUiTest {
         setContent {
-            Column { DisplayPanelContent(FormattingPreferences(), onPrefsChange = {}) }
+            Column { DisplaySettingsPanel(FormattingPreferences(), onPrefsChange = {}, onDismiss = {}) }
         }
-        onNodeWithText("On-Screen Info").assertIsDisplayed()
-        onNodeWithTag("panel-toggle-Chapter map").assertIsDisplayed()
-        onNodeWithTag("panel-toggle-Colored chapter map").assertIsDisplayed()
-        onNodeWithTag("panel-toggle-Current chapter label").assertIsDisplayed()
-        onNodeWithTag("panel-toggle-Reading progress labels").assertIsDisplayed()
-        onNodeWithTag("panel-toggle-Time remaining").assertIsDisplayed()
+        onNodeWithText("On-screen info").assertIsDisplayed()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_CHAPTER_MAP).assertIsDisplayed()
+        onNodeWithTag(TestTags.READER_SETTINGS_COLORED_CHAPTER_MAP).assertIsDisplayed()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_CURRENT_CHAPTER_LABEL).assertIsDisplayed()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_READING_PROGRESS_LABELS).assertIsDisplayed()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_TIME_REMAINING).assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -50,12 +52,12 @@ class SettingsDisplayPanelTest {
         )
         val writes = mutableListOf<FormattingPreferences>()
         setContent {
-            Column { DisplayPanelContent(prefs, onPrefsChange = { writes += it }) }
+            Column { DisplaySettingsPanel(prefs, onPrefsChange = { writes += it }, onDismiss = {}) }
         }
-        onNodeWithTag("panel-toggle-Chapter map").performClick()
-        onNodeWithTag("panel-toggle-Current chapter label").performClick()
-        onNodeWithTag("panel-toggle-Reading progress labels").performClick()
-        onNodeWithTag("panel-toggle-Time remaining").performClick()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_CHAPTER_MAP).performClick()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_CURRENT_CHAPTER_LABEL).performClick()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_READING_PROGRESS_LABELS).performClick()
+        onNodeWithTag(TestTags.SETTINGS_DISPLAY_TIME_REMAINING).performClick()
 
         assertEquals(4, writes.size)
         assertTrue(writes[0].showChapterMap, "chapter map switch must set showChapterMap")
@@ -87,13 +89,14 @@ class SettingsDisplayPanelTest {
         val writes = mutableListOf<FormattingPreferences>()
         setContent {
             Column {
-                DisplayPanelContent(
+                DisplaySettingsPanel(
                     FormattingPreferences(showChapterMap = false, coloredChapterMap = false),
                     onPrefsChange = { writes += it },
+                    onDismiss = {},
                 )
             }
         }
-        onNodeWithTag("panel-toggle-Colored chapter map").performClick()
+        onNodeWithTag(TestTags.READER_SETTINGS_COLORED_CHAPTER_MAP).performClick()
         assertEquals(emptyList(), writes)
     }
 
@@ -103,13 +106,14 @@ class SettingsDisplayPanelTest {
         val writes = mutableListOf<FormattingPreferences>()
         setContent {
             Column {
-                DisplayPanelContent(
+                DisplaySettingsPanel(
                     FormattingPreferences(showChapterMap = true, coloredChapterMap = false),
                     onPrefsChange = { writes += it },
+                    onDismiss = {},
                 )
             }
         }
-        onNodeWithTag("panel-toggle-Colored chapter map").performClick()
+        onNodeWithTag(TestTags.READER_SETTINGS_COLORED_CHAPTER_MAP).performClick()
         assertEquals(1, writes.size)
         assertTrue(writes[0].coloredChapterMap)
     }

@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.ui.readersettings.CadenceHeroIcon
 import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
 import com.riffle.core.domain.AppTheme
@@ -74,10 +76,12 @@ fun CadenceSettingsPanel(
         return@DetailScaffold
     }
     ListItem(
-        modifier = Modifier.toggleable(
-            value = prefs.showCadence,
-            onValueChange = { onPrefsChange(prefs.copy(showCadence = it)) },
-        ),
+        modifier = Modifier
+            .testTag(TestTags.SETTINGS_CADENCE_READER_TOGGLE)
+            .toggleable(
+                value = prefs.showCadence,
+                onValueChange = { onPrefsChange(prefs.copy(showCadence = it)) },
+            ),
         // TODO: migrate to Res.string.ui_show_cadence
         headlineContent = { Text(stringResource(Res.string.ui_show_cadence)) },
         // TODO: migrate to Res.string.ui_adds_the_toggle_to_the_reader_top_bar_all_orientations
@@ -93,6 +97,8 @@ fun CadenceSettingsPanel(
         helper = stringResource(Res.string.ui_per_book_override_formatting_panel_volume_keys),
         wpm = prefs.cadenceWpm,
         onWpmChange = { onPrefsChange(prefs.copy(cadenceWpm = it)) },
+        decrementTestTag = TestTags.SETTINGS_CADENCE_WPM_DECREMENT,
+        incrementTestTag = TestTags.SETTINGS_CADENCE_WPM_INCREMENT,
     )
     HighlightColorRow(
         selected = prefs.cadenceHighlightColor,

@@ -1,4 +1,4 @@
-package com.riffle.shared.settings
+package com.riffle.feature.settings.ui
 
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
@@ -13,15 +13,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the composed strings and the chip selections the iOS Settings screen renders.
+ * Pins the composed strings and the chip selections the Settings screen renders.
  *
  * These live as `internal` top-level functions rather than inline in a Composable precisely so
  * this test can reach them — every one of them is a site that had drifted away from the shared
  * derivation, and a Composable body is not reachable from a unit test.
  */
-class SettingsScreenDerivationsTest {
+class SettingsDerivationsTest {
 
-    // --- Listening summary + speed range (item 16c) ---
+    // --- Listening summary + speed range ---
 
     /**
      * The private `formatSpeed` this replaced truncated to one decimal, so a 0.75× default read
@@ -36,7 +36,7 @@ class SettingsScreenDerivationsTest {
         assertEquals("Speed 1× · Skip 30s · Rewind 10s", listeningSummary(1.0f, 30, 10))
     }
 
-    // --- Readaloud subtitle (item 16j) ---
+    // --- Readaloud subtitle ---
 
     private fun storyteller(username: String = "reader") = Source(
         id = "sty-1",

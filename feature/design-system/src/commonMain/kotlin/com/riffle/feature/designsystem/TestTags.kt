@@ -152,6 +152,18 @@ object TestTags {
     // ── Settings ──────────────────────────────────────────────────────────────
     const val SETTINGS_BACK = "settings_back"
 
+    // Settings panel toggle controls (feature:settings-ui panels)
+    const val SETTINGS_AUTO_SCROLL_READER_TOGGLE = "settings_auto_scroll_reader_toggle"
+    const val SETTINGS_CADENCE_READER_TOGGLE = "settings_cadence_reader_toggle"
+    const val SETTINGS_AUTO_SCROLL_WPM_DECREMENT = "settings_auto_scroll_wpm_dec"
+    const val SETTINGS_AUTO_SCROLL_WPM_INCREMENT = "settings_auto_scroll_wpm_inc"
+    const val SETTINGS_CADENCE_WPM_DECREMENT = "settings_cadence_wpm_dec"
+    const val SETTINGS_CADENCE_WPM_INCREMENT = "settings_cadence_wpm_inc"
+    const val SETTINGS_DISPLAY_CHAPTER_MAP = "settings_display_chapter_map"
+    const val SETTINGS_DISPLAY_CURRENT_CHAPTER_LABEL = "settings_display_current_chapter_label"
+    const val SETTINGS_DISPLAY_READING_PROGRESS_LABELS = "settings_display_reading_progress_labels"
+    const val SETTINGS_DISPLAY_TIME_REMAINING = "settings_display_time_remaining"
+
     // ── Source management ─────────────────────────────────────────────────────
     const val SOURCE_TYPE_PICKER_CONFIRM = "source_type_picker_confirm"
     const val SOURCE_TYPE_PICKER_CANCEL = "source_type_picker_cancel"

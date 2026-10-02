@@ -16,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.ui.AutoScrollToggleIcon
 import com.riffle.core.domain.FormattingPreferences
 
@@ -53,10 +55,12 @@ fun AutoScrollSettingsPanel(
         modifier = Modifier.padding(bottom = 20.dp),
     )
     ListItem(
-        modifier = Modifier.toggleable(
-            value = prefs.showAutoScroll,
-            onValueChange = { onPrefsChange(prefs.copy(showAutoScroll = it)) },
-        ),
+        modifier = Modifier
+            .testTag(TestTags.SETTINGS_AUTO_SCROLL_READER_TOGGLE)
+            .toggleable(
+                value = prefs.showAutoScroll,
+                onValueChange = { onPrefsChange(prefs.copy(showAutoScroll = it)) },
+            ),
         // TODO: migrate to Res.string.ui_show_auto_scroll
         headlineContent = { Text(stringResource(Res.string.ui_show_auto_scroll)) },
         // TODO: migrate to Res.string.ui_adds_the_toggle_to_the_reader_top_bar_vertical_and_continuous_only
@@ -72,5 +76,7 @@ fun AutoScrollSettingsPanel(
         helper = stringResource(Res.string.ui_per_book_override_formatting_panel_volume_keys),
         wpm = prefs.autoScrollWpm,
         onWpmChange = { onPrefsChange(prefs.copy(autoScrollWpm = it)) },
+        decrementTestTag = TestTags.SETTINGS_AUTO_SCROLL_WPM_DECREMENT,
+        incrementTestTag = TestTags.SETTINGS_AUTO_SCROLL_WPM_INCREMENT,
     )
 }
