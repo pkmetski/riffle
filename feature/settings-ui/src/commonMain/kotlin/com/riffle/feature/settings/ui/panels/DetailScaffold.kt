@@ -47,6 +47,7 @@ internal fun DetailScaffold(
             )
             Column(
                 modifier = Modifier
+                    .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 16.dp)
                     .navigationBarsPadding(),
