@@ -1,0 +1,243 @@
+package com.riffle.feature.settings.ui.readaloud
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.*
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import com.riffle.feature.designsystem.RiffleIcons
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.StorytellerBadge
+import com.riffle.feature.settings.ui.disabledListItemColors
+import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.core.domain.withResolvedTheme
+import com.riffle.core.models.HighlightColor
+import com.riffle.core.models.ServerType
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.source.ui.AddSourceBackend
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.koin.compose.viewmodel.koinViewModel
+
+/**
+ * Full-screen drill-in that hosts every Readaloud-related setting. Reached from the collapsed
+ * "Readaloud" row on the main Settings screen. Groups:
+ *  - **Server** — Storyteller service configuration row (tap to edit / create).
+ *  - **Matches** — Review readaloud matches row (tap to open [ReadaloudMatchesScreen]).
+ *  - **Appearance** — sentence-highlight colour picker (persists to [ReadaloudPreferences]).
+ *
+ * When no Storyteller Service is configured, the Matches row and colour picker read as disabled
+ * — they still render so the user can see what will unlock once Storyteller is set up.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReadaloudSettingsScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateToAddSource: (AddSourceBackend, String?) -> Unit,
+    onNavigateToReadaloudMatches: (String) -> Unit,
+    viewModel: SettingsViewModel = koinViewModel(),
+) {
+    val servers by viewModel.servers.collectAsState()
+    val serverVersions by viewModel.serverVersions.collectAsState()
+    val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
+    val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
+    val formattingPreferences by viewModel.globalFormattingPreferences.collectAsState()
+    val appTheme by viewModel.appTheme.collectAsState()
+    val systemInDark = isSystemInDarkTheme()
+    // Swatches must preview against the paper the reader draws, not the app's Material surface.
+    // A dark-app / light-reader combo (or vice-versa) otherwise makes the swatches look nothing
+    // like the highlight that lands on the page. The store persists Auto verbatim, so resolve to
+    // the currently-scheduled concrete theme here — otherwise a night-schedule user opening
+    // Settings during the dark arc would still see swatches on the Light fallback.
+    val readerBackground = formattingPreferences
+        .withResolvedTheme(run {
+            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            LocalMinuteTime(now.hour, now.minute)
+        }, appTheme, systemInDark)
+        .swatchBackdropColor
+
+    val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(Res.string.ui_readaloud)) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SETTINGS_BACK)) {
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                    }
+                },
+            )
+        },
+    ) { padding: PaddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            HorizontalDivider()
+            SettingsSectionHeader(stringResource(Res.string.ui_server))
+            if (storyteller == null) {
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onNavigateToAddSource(AddSourceBackend.Storyteller, null)
+                    },
+                    leadingContent = { StorytellerBadge(configured = false) },
+                    headlineContent = { Text(stringResource(Res.string.ui_configure_storyteller)) },
+                    supportingContent = { Text(stringResource(Res.string.ui_not_configured)) },
+                    trailingContent = { DrillInChevron() },
+                )
+            } else {
+                val username = storyteller.username.takeIf { it.isNotEmpty() }
+                val version = serverVersions[storyteller.id]
+                val subtitle = buildString {
+                    if (username != null) {
+                        append(username)
+                        append(" · ")
+                    }
+                    append(storyteller.url.value)
+                    if (version != null) {
+                        append(" · v")
+                        append(version)
+                    }
+                }
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onNavigateToAddSource(AddSourceBackend.Storyteller, storyteller.id)
+                    },
+                    leadingContent = { StorytellerBadge(configured = true) },
+                    headlineContent = { Text(stringResource(Res.string.ui_source_storyteller_name)) },
+                    supportingContent = { Text(subtitle) },
+                    trailingContent = { DrillInChevron() },
+                )
+            }
+            HorizontalDivider()
+
+            SettingsSectionHeader(stringResource(Res.string.ui_matches))
+            val summary = storyteller?.let { readaloudSummaries[it.id] }
+            ListItem(
+                modifier = if (storyteller != null) {
+                    Modifier.clickable { onNavigateToReadaloudMatches(storyteller.id) }
+                } else Modifier,
+                headlineContent = { Text(stringResource(Res.string.ui_review_readaloud_matches)) },
+                supportingContent = {
+                    if (summary != null) {
+                        Text(
+                            stringResource(
+                                Res.string.ui_readaloud_match_counts,
+                                summary.unmatchedCount,
+                                summary.suggestedCount,
+                                summary.partiallyMatchedCount,
+                                summary.matchedCount,
+                            ),
+                        )
+                    } else {
+                        Text(stringResource(Res.string.ui_configure_storyteller_first_to_review_matches))
+                    }
+                },
+                colors = if (storyteller != null) ListItemDefaults.colors() else disabledListItemColors(),
+                // Only render the drill-in affordance when the row is actually tappable — a
+                // disabled row with a chevron reads as a broken link.
+                trailingContent = if (storyteller != null) {
+                    { DrillInChevron() }
+                } else null,
+            )
+            HorizontalDivider()
+
+            SettingsSectionHeader(stringResource(Res.string.ui_appearance))
+            val highlightEnabled = storyteller != null
+            ListItem(
+                headlineContent = { Text(stringResource(Res.string.ui_sentence_highlight)) },
+                colors = if (highlightEnabled) ListItemDefaults.colors() else disabledListItemColors(),
+                trailingContent = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        HighlightColor.entries.forEach { color ->
+                            val isSelected = readaloudPreferences.highlightColor == color
+                            // Swatch renders the exact `argb` from [HighlightColor] — same pixel
+                            // value that lands in the reader. Enabled: don't compose additional
+                            // alpha (the palette bakes in 0x80). Disabled: drop to Material's
+                            // 0.38 (absolute, not multiplicative against the palette).
+                            val base = Color(color.argb.toLong() and 0xFFFFFFFFL)
+                            val swatchColor = if (highlightEnabled) base else base.copy(alpha = 0.38f)
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (highlightEnabled) Modifier.clickable {
+                                            viewModel.updateHighlightColor(color)
+                                        } else Modifier,
+                                    )
+                                    .then(
+                                        if (isSelected)
+                                            Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                        else Modifier,
+                                    )
+                                    .padding(4.dp)
+                                    .clip(CircleShape)
+                                    .background(readerBackground)
+                                    .background(swatchColor)
+                                    .semantics {
+                                        contentDescription = color.name.lowercase()
+                                            .replaceFirstChar { it.uppercase() } + " highlight" +
+                                            if (isSelected) ", selected" else ""
+                                    },
+                            ) {
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = RiffleIcons.Check,
+                                        contentDescription = null,
+                                        tint = Color(0xDD000000),
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+            )
+            HorizontalDivider()
+        }
+    }
+}

@@ -78,6 +78,10 @@ class NoteGlyphRenderHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
+        // Sleep before close so the last WebView recomposition cycle completes before Activity
+        // destruction fires. See ContinuousChapterBoundaryHarnessTest.tearDown() for the full
+        // rationale (SlotWriter AIOOBE race). Pattern mirrors NavigationSnapHarnessTest.tearDown().
+        Thread.sleep(400)
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)

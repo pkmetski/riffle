@@ -37,6 +37,7 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
             implementation(project(":core:common"))
             implementation(project(":core:domain"))
             implementation(project(":core:models"))

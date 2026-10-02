@@ -146,6 +146,7 @@ jobs:
             :feature:source:iosSimulatorArm64Test \
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
+            :feature:settings-ui:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
             :core:logging:iosSimulatorArm64Test \
             :core:database-api:iosSimulatorArm64Test
@@ -183,6 +184,7 @@ jobs:
             feature/source/build/reports/tests/
             feature/source-ui/build/reports/tests/
             feature/settings/build/reports/tests/
+            feature/settings-ui/build/reports/tests/
             feature/downloads/build/reports/tests/
           if-no-files-found: ignore
 
@@ -421,7 +423,7 @@ jobs:
           }
           # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
           # assertion. Keep this list narrow so real failures are never retried away.
-          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test'
+          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test|Timed out while acquiring background assertion'
           # Contention signature (failure mode 2, see the block comment above): a parallel clone that
           # never died but ran so CPU-starved that even the harness's generous per-wait timeouts were
           # exceeded. The tell is a single test that took absurdly long — healthy tests finish in

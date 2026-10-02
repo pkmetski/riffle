@@ -82,6 +82,13 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
+        // Let the last Readium WebView composition cycle finish before Activity.onDestroy fires.
+        // Without this sleep, Compose's SlotTable gap-buffer can be in a partial state when the
+        // lifecycle event triggers composition disposal, causing SlotWriter.moveSlotGapTo to
+        // compute a negative index and throw ArrayIndexOutOfBoundsException. waitForIdle() is
+        // intentionally avoided: the WebView keeps triggering recompositions and would block it
+        // indefinitely. Pattern mirrors NavigationSnapHarnessTest.tearDown().
+        Thread.sleep(400)
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)

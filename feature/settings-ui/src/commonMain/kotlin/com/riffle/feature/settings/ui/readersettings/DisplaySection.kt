@@ -1,0 +1,225 @@
+package com.riffle.feature.settings.ui.readersettings
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.*
+
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
+import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.ReaderTheme
+import com.riffle.feature.settings.ReaderSettingsSections
+
+/**
+ * Theme + view + on-screen-info controls. Reused by the in-reader settings sheet (Display tab)
+ * and the global Settings → Display screen.
+ *
+ * @param scheduleEditable when the theme is Auto: `true` shows the full day/night schedule editor
+ *   (Settings host), `false` shows a read-only summary card (reader host, which can't edit times).
+ * @param capabilities hides rows the current renderer can't apply (e.g. reading-mode switching
+ *   and double-page spread on PDF, see [RenderCapabilities.PDF]).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DisplaySection(
+    prefs: FormattingPreferences,
+    onPrefsChange: (FormattingPreferences) -> Unit,
+    scheduleEditable: Boolean,
+    capabilities: RenderCapabilities = RenderCapabilities.EPUB,
+) {
+    Column {
+        // Theme
+        if (capabilities.supportsTheme) {
+            // TODO: migrate to Res.string.ui_theme
+            Text(stringResource(Res.string.ui_theme), style = MaterialTheme.typography.labelMedium)
+            ThemeChipRows(
+                selected = prefs.theme,
+                onSelect = { onPrefsChange(prefs.copy(theme = it)) },
+                schedule = prefs.themeSchedule,
+                autoMode = prefs.autoReaderThemeMode,
+                appThemeReaderThemes = prefs.appThemeReaderThemes,
+                includeAuto = true,
+                labelForTheme = { it.localizedLabel() },
+                // TODO: migrate to Res.string.ui_theme_named
+                contentDescriptionForTheme = { _, label -> stringResource(Res.string.ui_theme_named, label) },
+            )
+            if (ReaderSettingsSections.showsAutoThemeBlock(prefs.theme)) {
+                Spacer(Modifier.height(12.dp))
+                if (ReaderSettingsSections.showsAutoThemeEditor(prefs.theme, scheduleEditable)) {
+                    AutoThemeControls(
+                        schedule = prefs.themeSchedule,
+                        autoMode = prefs.autoReaderThemeMode,
+                        appThemeReaderThemes = prefs.appThemeReaderThemes,
+                        onAutoModeChange = { onPrefsChange(prefs.copy(autoReaderThemeMode = it)) },
+                        onAppThemeReaderThemesChange = {
+                            onPrefsChange(prefs.copy(appThemeReaderThemes = it))
+                        },
+                        onScheduleChange = { onPrefsChange(prefs.copy(themeSchedule = it)) },
+                    )
+                } else {
+                    AutoThemeSummaryCard(
+                        prefs.themeSchedule,
+                        prefs.autoReaderThemeMode,
+                        prefs.appThemeReaderThemes,
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // View — only render the header if any of its sub-controls are visible.
+        if (ReaderSettingsSections.showsViewSectionHeader(capabilities)) {
+            // TODO: migrate to Res.string.ui_view
+            Text(stringResource(Res.string.ui_view), style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(8.dp))
+        }
+        if (capabilities.supportsReadingModeSwitch) {
+            // TODO: migrate to Res.string.ui_reading_mode
+            Text(stringResource(Res.string.ui_reading_mode), style = MaterialTheme.typography.labelMedium)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            ) {
+                ReaderOrientation.entries.forEach { orientation ->
+                    val label = orientation.localizedLabel()
+                    // TODO: migrate to Res.string.ui_reading_orientation_named
+                    val orientationContentDescription = stringResource(Res.string.ui_reading_orientation_named, label)
+                    FilterChip(
+                        selected = prefs.orientation == orientation,
+                        onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },
+                        label = { Text(label) },
+                        leadingIcon = { OrientationIcon(orientation) },
+                        modifier = Modifier
+                            .testTag(TestTags.readerSettingsOrientation(orientation.name))
+                            .semantics { contentDescription = orientationContentDescription },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // TODO: migrate to Res.string.ui_force_paginated_in_landscape
+                Text(stringResource(Res.string.ui_force_paginated_in_landscape), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = prefs.forcePaginatedInLandscape,
+                    onCheckedChange = { onPrefsChange(prefs.copy(forcePaginatedInLandscape = it)) },
+                    modifier = Modifier.testTag(TestTags.READER_SETTINGS_FORCE_PAGINATED_LANDSCAPE),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        if (capabilities.supportsDoublePage) {
+            // Active when paginated is the base mode, or when forcePaginatedInLandscape will
+            // promote to paginated in landscape — in both cases the setting has a rendering effect.
+            val doublePageEnabled = ReaderSettingsSections.doublePageToggleEnabled(prefs.orientation, prefs.forcePaginatedInLandscape)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().alpha(if (doublePageEnabled) 1f else 0.38f),
+            ) {
+                // TODO: migrate to Res.string.ui_double_page_in_landscape
+                Text(stringResource(Res.string.ui_double_page_in_landscape), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = prefs.doublePageSpread,
+                    onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
+                    enabled = doublePageEnabled,
+                    modifier = Modifier.testTag(TestTags.READER_SETTINGS_DOUBLE_PAGE),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // On-screen info
+        // TODO: migrate to Res.string.ui_on_screen_info
+        Text(stringResource(Res.string.ui_on_screen_info), style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        // TODO: migrate to Res.string.ui_chapter_map
+        ToggleRow(
+            label = stringResource(Res.string.ui_chapter_map),
+            checked = prefs.showChapterMap,
+            testTag = TestTags.SETTINGS_DISPLAY_CHAPTER_MAP,
+            onChange = { onPrefsChange(prefs.copy(showChapterMap = it)) },
+        )
+        ToggleRow(
+            // TODO: migrate to Res.string.ui_colored_chapter_map
+            label = stringResource(Res.string.ui_colored_chapter_map),
+            checked = prefs.coloredChapterMap,
+            enabled = ReaderSettingsSections.coloredChapterMapEnabled(prefs.showChapterMap),
+            modifier = Modifier.padding(start = 16.dp),
+            testTag = TestTags.READER_SETTINGS_COLORED_CHAPTER_MAP,
+            onChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
+        )
+        if (capabilities.supportsPositionOverlays) {
+            // TODO: migrate to Res.string.ui_current_chapter_label
+            ToggleRow(
+                label = stringResource(Res.string.ui_current_chapter_label),
+                checked = prefs.showCurrentChapterLabel,
+                testTag = TestTags.SETTINGS_DISPLAY_CURRENT_CHAPTER_LABEL,
+                onChange = { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) },
+            )
+            // TODO: migrate to Res.string.ui_reading_progress_labels
+            ToggleRow(
+                label = stringResource(Res.string.ui_reading_progress_labels),
+                checked = prefs.showReadingProgressLabels,
+                testTag = TestTags.SETTINGS_DISPLAY_READING_PROGRESS_LABELS,
+                onChange = { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) },
+            )
+            // TODO: migrate to Res.string.ui_time_remaining
+            ToggleRow(
+                label = stringResource(Res.string.ui_time_remaining),
+                checked = prefs.showReadingTimeEstimate,
+                testTag = TestTags.SETTINGS_DISPLAY_TIME_REMAINING,
+                onChange = { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    testTag: String? = null,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.38f),
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            enabled = enabled,
+            modifier = testTag?.let { Modifier.testTag(it) } ?: Modifier,
+        )
+    }
+}

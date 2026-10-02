@@ -62,7 +62,15 @@ import com.riffle.shared.library.LibraryItemsScreen
 import com.riffle.shared.library.LibrarySectionScreen
 import com.riffle.shared.library.RiffleScreen
 import com.riffle.shared.library.SeriesDetailScreen
-import com.riffle.shared.settings.SettingsScreen
+import com.riffle.feature.settings.ui.SettingsScreen
+import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
+import com.riffle.feature.settings.ui.changelog.ChangelogScreen
+import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
+import com.riffle.feature.source.ui.AddSourceBackend
+import com.riffle.core.data.localfiles.FolderPickerInterface
+import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
+import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.UnboundedBrowseScreen
 import com.riffle.shared.source.shouldRenderUnboundedBrowse
@@ -75,6 +83,13 @@ import org.koin.core.parameter.parametersOf
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
+private sealed interface IosSettingsSubScreen {
+    data object AddSource : IosSettingsSubScreen
+    data object AnnotationsSync : IosSettingsSubScreen
+    data object ReadaloudSettings : IosSettingsSubScreen
+    data object Changelog : IosSettingsSubScreen
+}
+
 @Composable
 fun HomeScreen() {
     val viewModel = koinInject<HomeViewModel>()
@@ -82,6 +97,7 @@ fun HomeScreen() {
 
     val scope = rememberCoroutineScope()
     var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
+    var settingsSubScreen by remember { mutableStateOf<IosSettingsSubScreen?>(null) }
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var activeLibraryId by remember { mutableStateOf<String?>(null) }
@@ -160,7 +176,51 @@ fun HomeScreen() {
         },
     ) {
         when (appSection) {
-            AppSection.Settings -> SettingsScreen(onBack = { appSection = AppSection.Library })
+            AppSection.Settings -> {
+                val folderPicker = koinInject<FolderPickerInterface>()
+                val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
+                when (val sub = settingsSubScreen) {
+                    IosSettingsSubScreen.AddSource -> SourceOnboardingHost(
+                        onFinished = { settingsSubScreen = null },
+                        onCancelled = { settingsSubScreen = null },
+                    )
+                    IosSettingsSubScreen.AnnotationsSync -> AnnotationsSyncSettingsScreen(
+                        onNavigateBack = { settingsSubScreen = null },
+                        onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
+                        onNavigateToMaintenance = { /* no-op: maintenance screen is Android-only for now */ },
+                    )
+                    IosSettingsSubScreen.ReadaloudSettings -> ReadaloudSettingsScreen(
+                        onNavigateBack = { settingsSubScreen = null },
+                        onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
+                        onNavigateToReadaloudMatches = { /* no-op on iOS */ },
+                    )
+                    IosSettingsSubScreen.Changelog -> {
+                        val changelogViewModel = koinInject<ChangelogViewModel>()
+                        ChangelogScreen(
+                            onNavigateBack = { settingsSubScreen = null },
+                            viewModel = changelogViewModel,
+                        )
+                    }
+                    null -> SettingsScreen(
+                        isExpandedWidth = false,
+                        onNavigateBack = { appSection = AppSection.Library },
+                        onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
+                        onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource },
+                        onNavigateToAddLocalFolder = {
+                            folderPicker.pickFolder { uri ->
+                                if (uri != null) scope.launch { runCatching { localFilesInstaller.installFolder(uri) } }
+                            }
+                        },
+                        onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
+                        onNavigateToAnnotationsSyncSettings = { settingsSubScreen = IosSettingsSubScreen.AnnotationsSync },
+                        onNavigateToDeveloperOptions = { /* no-op: developer options is Android-only */ },
+                        onNavigateToDictionaryPacks = { /* no-op: dictionary packs is Android-only */ },
+                        onNavigateToDebugLogs = { /* no-op: debug logs is Android-only */ },
+                        onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
+                        platformHooks = DefaultPlatformSettingsHooks,
+                    )
+                }
+            }
             AppSection.Downloads -> DownloadsScreen(onBack = { appSection = AppSection.Library })
             AppSection.Riffle -> RiffleScreen(
                 onOpenDrawer = { scope.launch { drawerState.open() } },

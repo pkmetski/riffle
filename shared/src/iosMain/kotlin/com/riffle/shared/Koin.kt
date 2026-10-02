@@ -223,6 +223,7 @@ import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
@@ -843,6 +844,7 @@ private fun iosLibraryModule(
             annotationDao = get(),
         )
     }
+    single { ChangelogViewModel(appUpdateRepository = get()) }
     single<Clock> { IosSystemClock }
     single<TimeProvider> { SystemTimeProvider }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }

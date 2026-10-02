@@ -1,5 +1,6 @@
 package com.riffle.app.feature.settings.dictionary
 
+import com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.feature.library.DownloadState

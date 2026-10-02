@@ -2,23 +2,34 @@ package com.riffle.app.navigation
 
 import com.riffle.feature.navigation.addSourceRouteFor
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.koin.androidx.compose.koinViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.riffle.app.feature.settings.SettingsScreen
+import com.riffle.feature.settings.ui.SettingsScreen
+import com.riffle.feature.settings.ui.PlatformSettingsHooks
+import com.riffle.feature.settings.ui.i18n.AppLanguage
 import com.riffle.feature.settings.SettingsViewModel
-import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
-import com.riffle.app.feature.settings.annotationsync.AnnotationsSyncSettingsScreen
-import com.riffle.app.feature.settings.debug.DebugLogScreen
-import com.riffle.app.feature.settings.developer.DeveloperOptionsScreen
-import com.riffle.app.feature.settings.dictionary.DictionaryPacksScreen
-import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
-import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceScreen
+import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
+import com.riffle.feature.settings.ui.debug.DebugLogScreen
+import com.riffle.feature.settings.ui.developer.DeveloperOptionsScreen
+import com.riffle.feature.settings.ui.dictionary.DictionaryPacksScreen
+import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
+import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.feature.update.ChangelogScreen
+import com.riffle.app.i18n.AppLocaleController
+import com.riffle.app.i18n.findActivity
 import java.net.URLEncoder
 
 internal fun NavGraphBuilder.settingsNavGraph(
@@ -26,8 +37,43 @@ internal fun NavGraphBuilder.settingsNavGraph(
     windowSizeClass: WindowSizeClass,
 ) {
     composable(SETTINGS) { backStackEntry ->
+        val context = LocalContext.current
+        val activity = context.findActivity()
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+        val platformHooks = remember(context, activity, lifecycle) {
+            object : PlatformSettingsHooks {
+                @Composable
+                override fun LanguageRow() = Unit
+
+                override fun canInstallUpdate(): Boolean = true
+
+                override fun currentLanguage(): AppLanguage {
+                    val appLang = AppLocaleController.currentLanguage(context)
+                    return AppLanguage.fromTag(appLang.tag)
+                }
+
+                override fun onLanguageChanged(language: AppLanguage) {
+                    val appLanguage = com.riffle.app.i18n.AppLanguage.fromTag(language.tag)
+                    AppLocaleController.setLanguage(context, appLanguage)
+                    activity?.recreate()
+                }
+
+                @Composable
+                override fun OnResumeEffect(block: () -> Unit) {
+                    DisposableEffect(lifecycle) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_RESUME) block()
+                        }
+                        lifecycle.addObserver(observer)
+                        onDispose { lifecycle.removeObserver(observer) }
+                    }
+                }
+            }
+        }
+
         SettingsScreen(
-            windowSizeClass = windowSizeClass,
+            isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
             // form from their respective Settings drill-ins; editing an existing ABS
@@ -51,6 +97,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
             onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
             onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
             onNavigateToChangelog = { navController.navigate(CHANGELOG) },
+            platformHooks = platformHooks,
         )
     }
     composable(READALOUD_SETTINGS) { backStackEntry ->
