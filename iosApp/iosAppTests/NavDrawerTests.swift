@@ -25,17 +25,86 @@ import XCTest
 // does not implement DownloadsCapability on iOS. NavigationDrawerViewModel therefore sets
 // showDownloadsLink=false for ABS-only setups, and the Downloads entry does not appear.
 //
-// Test consolidation note: ND-3 (drawer contents), ND-4 (host subtitle), ND-7 (Downloads absent),
-// and ND-8 (version absent) were merged into a single test that opens the drawer once and checks
-// all four assertions. Each merged test required a full app launch via AbsHarnessTestCase; merging
-// saves three launches and keeps the suite within the 50-minute iOS CI budget.
-final class NavDrawerTests: AbsHarnessTestCase {
+// Class-level launch strategy: the base iOS harness suite takes ~40 minutes, leaving ~10 min
+// for new tests before hitting the 50-min job wall. With -parallel-testing-worker-count 2
+// each simulator clone now shares a single app launch for all its NavDrawerTests instead of
+// launching once per test. This reduces the overhead from 5 × 3-min launches distributed across
+// 2 clones (~7.5 min wall clock) to 2 × 3-min launches (~3 min wall clock) — saving ~4.5 min
+// and keeping the suite well within budget. Each test recovers to library-home state in
+// setUpWithError() so tests are independent despite the shared session.
+final class NavDrawerTests: XCTestCase {
+
+    // MARK: - Class-level shared session
+
+    static var sharedApp: XCUIApplication!
+    static var sharedAbsServer: StubAbsServer!
+
+    override class func setUp() {
+        super.setUp()
+        let server = StubAbsServer()
+        server.start()
+        sharedAbsServer = server
+
+        let a = XCUIApplication()
+        a.launchArguments += [
+            "--RIFFLE_RESET_FOR_TESTS",
+            seedSourceArgument(type: "ABS", url: server.baseUrl, username: "testuser", password: "test")
+        ]
+        a.launch()
+        sharedApp = a
+
+        waitForSeededLibraryHome(in: a, sourceName: "Audiobookshelf")
+    }
+
+    override class func tearDown() {
+        sharedApp?.terminate()
+        sharedApp = nil
+        sharedAbsServer?.shutdown()
+        sharedAbsServer = nil
+        super.tearDown()
+    }
+
+    // Between tests: recover to library home with drawer closed so each test starts cleanly.
+    // The previous test may have left the drawer open, the source switcher expanded, or
+    // navigated into Settings — all of which this setUp handles before the next test runs.
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        let a = NavDrawerTests.sharedApp!
+
+        // Tap the top-centre of the screen — always a safe non-interactive region in both
+        // the library home and the Settings screen — to collapse any open dropdown or overlay.
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+
+        // Navigate back if the previous test left us in Settings.
+        for label in ["← Libraries", "← Back"] {
+            let btn = a.buttons[label].firstMatch
+            if btn.exists && btn.isHittable {
+                btn.tap()
+                break
+            }
+        }
+
+        // Verify library home is showing (burger visible). If the drawer is still open
+        // it covers the burger — tap the far-right scrim to close it, then re-check.
+        let burger = a.buttons["Open menu"]
+        if !burger.waitForExistence(timeout: 10) {
+            a.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            XCTAssertTrue(
+                burger.waitForExistence(timeout: 10),
+                "setUp: must return to library home (burger visible) before each test"
+            )
+        }
+    }
+
+    // MARK: - Convenience accessors
+
+    private var app: XCUIApplication { NavDrawerTests.sharedApp }
+    private var absServer: StubAbsServer { NavDrawerTests.sharedAbsServer }
+
+    // MARK: - Helpers
 
     /// iOS's Settings screen labels its back affordance "← Libraries" (SettingsScreen.kt's back
-    /// header); the nested panels and the reader use "← Back". These three tests had never
-    /// executed — NavDrawerTests.swift was a member of no Xcode target until this change — so the
-    /// original "← Back" lookup silently fell through to an edge swipe that does nothing in
-    /// Compose Multiplatform, and the screen never went back.
+    /// header); the nested panels and the reader use "← Back".
     private func leaveSettings() {
         for label in ["← Libraries", "← Back"] {
             let control = app.buttons[label].firstMatch
@@ -68,19 +137,16 @@ final class NavDrawerTests: AbsHarnessTestCase {
     /// implementation: leaving the Settings section must restore the library surface underneath
     /// it rather than an empty screen.
     func testBackFromSettingsReturnsToLibraryHome() throws {
-        // The harness base class already lands us on the library home with the burger visible.
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
 
-        // Open the drawer and navigate to Settings.
         burger.tap()
         let settingsEntry = app.staticTexts["Settings"]
         XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must show a Settings entry")
         settingsEntry.tap()
 
         // The Settings screen is identified by its own back header, which only that screen shows —
-        // the word "Settings" alone is ambiguous with the drawer entry that is still on screen
-        // while the drawer animates shut.
+        // the word "Settings" alone is ambiguous with the drawer entry still animating shut.
         XCTAssertTrue(
             app.buttons["← Libraries"].waitForExistence(timeout: 25),
             "Settings must open after tapping the drawer entry"
@@ -88,7 +154,6 @@ final class NavDrawerTests: AbsHarnessTestCase {
 
         leaveSettings()
 
-        // After back we must be on the library home — the burger must be visible — not blank.
         XCTAssertTrue(
             burger.waitForExistence(timeout: 25),
             "Back from Settings must return to library home; app must not show a blank screen"
@@ -108,8 +173,8 @@ final class NavDrawerTests: AbsHarnessTestCase {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
 
-        // Perform two Settings round-trips. If roots accumulate, the second would require two
-        // back-presses; with navigateAsRoot it always requires just one.
+        // Two round-trips suffice to prove idempotency — the claim is that returning once is
+        // always enough, not that it holds exactly three times.
         for round in 1...2 {
             burger.tap()
             let settingsEntry = app.staticTexts["Settings"]
@@ -124,7 +189,6 @@ final class NavDrawerTests: AbsHarnessTestCase {
                 "Settings must be reachable on round \(round)"
             )
 
-            // One back press must return to library home.
             leaveSettings()
 
             XCTAssertTrue(
@@ -142,19 +206,14 @@ final class NavDrawerTests: AbsHarnessTestCase {
     ///
     /// Consolidates ND-3 (source header + Settings present), ND-4 (host subtitle in header),
     /// ND-7 (Downloads absent for ABS-only), and ND-8 (version footer absent). All four
-    /// assertions need only one drawer open, so merging them saves three app launches and
-    /// keeps the iOS CI harness within the 50-minute budget.
-    ///
-    /// The source header is a Material3 ListItem with clickable modifier (mergeDescendants=true),
-    /// so the source name is accessible via the button's label rather than as a StaticText.
-    /// We find the header by searching for a descendant whose label CONTAINS "Audiobookshelf".
+    /// assertions need only one drawer open, so merging them saves three app launches.
     func testDrawerContentsSubtitleAndAbsencesForAbsSource() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
 
         burger.tap()
 
-        // ND-3: The seeded ABS source must appear in the source-switcher header button.
+        // ND-3: source header and Settings present.
         let header = sourceHeaderButton()
         XCTAssertTrue(
             header.waitForExistence(timeout: 10),
@@ -169,9 +228,7 @@ final class NavDrawerTests: AbsHarnessTestCase {
             "Drawer must always list Settings"
         )
 
-        // ND-4: Android's NavigationDrawerSourceSubtitleTest pins that a credentialed source
-        // shows its host under the display name. iOS builds the same line in DrawerHeader; assert
-        // it renders the stub's real authority in the header button's merged label.
+        // ND-4: host subtitle in merged header label.
         let expectedHost = URL(string: absServer.baseUrl)
             .flatMap { url -> String? in
                 guard let host = url.host else { return nil }
@@ -183,20 +240,16 @@ final class NavDrawerTests: AbsHarnessTestCase {
             "Source-switcher header must include the source host '\(host)' as a subtitle; got: \(header.label)"
         )
 
-        // ND-7: AbsCatalog is JVM-only, so iOS's CatalogRegistry does not return a
-        // DownloadsCapability for ABS sources. The Downloads entry must not appear.
-        let downloads = app.staticTexts["Downloads"]
+        // ND-7: Downloads must not appear for ABS-only sources (AbsCatalog is JVM-only).
         XCTAssertFalse(
-            downloads.exists,
+            app.staticTexts["Downloads"].exists,
             "Downloads must not appear in the drawer for ABS-only sources on iOS (AbsCatalog is JVM-only)"
         )
 
-        // ND-8: Android's drawer shows a version footer from BuildConfig.VERSION_NAME. iOS passes
-        // appVersion = null (no BuildConfig), so RiffleNavigationDrawer suppresses the footer.
+        // ND-8: iOS does not supply appVersion, so the version footer must not appear.
         let versionPredicate = NSPredicate(format: "label BEGINSWITH 'Riffle v'")
-        let versionTexts = app.staticTexts.matching(versionPredicate)
         XCTAssertEqual(
-            versionTexts.count, 0,
+            app.staticTexts.matching(versionPredicate).count, 0,
             "iOS does not supply appVersion, so the version footer must not appear in the drawer"
         )
     }
@@ -205,9 +258,6 @@ final class NavDrawerTests: AbsHarnessTestCase {
 
     /// The switcher starts collapsed — the drawer opens on the library list, not on a source
     /// picker. Tapping the header expands a dropdown that lists all sources.
-    ///
-    /// The implementation uses a DropdownMenu (not inline expanded text), so the test verifies
-    /// that a second element containing "Audiobookshelf" appears after tapping the header.
     func testSourceSwitcherStartsCollapsedAndExpandsOnTap() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10))
@@ -218,24 +268,16 @@ final class NavDrawerTests: AbsHarnessTestCase {
             header.waitForExistence(timeout: 10),
             "Switcher header must be present before tapping"
         )
-        XCTAssertTrue(
-            header.label.contains("Audiobookshelf"),
-            "Switcher header must show the active source name"
-        )
 
-        // Before tapping: the dropdown is not open — only the header matches "Audiobookshelf".
-        // The DropdownMenu is not rendered yet, so there's no dropdown item to match.
+        // Before tapping: only the header matches "Audiobookshelf".
         let absPred = NSPredicate(format: "label CONTAINS[c] 'Audiobookshelf'")
         let beforeCount = app.descendants(matching: .any).matching(absPred).count
         XCTAssertGreaterThanOrEqual(beforeCount, 1, "Before tapping: header must exist and match 'Audiobookshelf'")
 
-        // Tap the header to open the dropdown.
         header.tap()
 
-        // After tapping: the DropdownMenu appears, adding a second element that CONTAINS
-        // "Audiobookshelf" — the DropdownMenuItem for the ABS source. The dropdown item may
-        // have a merged label that includes the trailing "Active source" icon description, so
-        // we use CONTAINS rather than exact match, and exclude the header itself by identifier.
+        // After tapping: the DropdownMenu appears with a second Audiobookshelf element
+        // (the DropdownMenuItem for the source, distinct from the header).
         let dropdownItem = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS[c] 'Audiobookshelf' AND identifier != 'nav_drawer_source_header'"))
             .firstMatch
@@ -248,9 +290,7 @@ final class NavDrawerTests: AbsHarnessTestCase {
     // MARK: - ND-6  Drawer lists every visible library and switching one re-titles the screen
 
     /// The drawer's library list is the only way to move between an ABS source's libraries.
-    /// The stub serves two; selecting the second must close the drawer and re-title the library
-    /// screen — a silently ignored tap (or a list that only ever renders the active library) is
-    /// the regression this catches.
+    /// The stub serves two; selecting the second must close the drawer and re-title the screen.
     func testDrawerListsBothLibrariesAndSwitchingRetitlesTheScreen() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10))
