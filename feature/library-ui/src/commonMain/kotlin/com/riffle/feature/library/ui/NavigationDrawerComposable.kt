@@ -180,6 +180,7 @@ private fun DrawerSheetContent(
                 icon = { Icon(RiffleIcons.Download, contentDescription = null) },
                 selected = false,
                 onClick = onDownloadsSelected,
+                modifier = Modifier.testTag(TestTags.NAV_DRAWER_DOWNLOADS),
             )
         }
         NavigationDrawerItem(
@@ -187,6 +188,7 @@ private fun DrawerSheetContent(
             icon = { Icon(RiffleIcons.Settings, contentDescription = null) },
             selected = false,
             onClick = onSettingsSelected,
+            modifier = Modifier.testTag(TestTags.NAV_DRAWER_SETTINGS),
         )
         KoFiDrawerButton()
         if (appVersion != null) {

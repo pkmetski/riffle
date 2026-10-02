@@ -17,6 +17,7 @@ import com.riffle.app.harness.TabletLayout
 import com.riffle.core.models.Library
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
+import com.riffle.feature.designsystem.TestTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,8 +68,8 @@ class PermanentNavigationDrawerTest {
 
         // Drawer is rendered without being "opened" — its items are immediately on screen.
         composeTestRule.onNodeWithText("Ebooks").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Downloads").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_DOWNLOADS).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_SETTINGS).assertIsDisplayed()
     }
 
     /**
@@ -110,8 +111,8 @@ class PermanentNavigationDrawerTest {
 
         // Drawer items must be absent — the panel itself is not emitted.
         composeTestRule.onNodeWithText("Ebooks").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Downloads").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Settings").assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_DOWNLOADS).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_SETTINGS).assertDoesNotExist()
         // Reader content is still rendered.
         composeTestRule.onNodeWithTag("reader-content").assertIsDisplayed()
     }
