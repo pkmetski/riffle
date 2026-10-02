@@ -177,9 +177,9 @@ class AnnotationFocusHarnessTest : KoinTest {
             composeTestRule.waitForIdle()
             waitForReaderReady()
             // waitForReaderReady checks Compose semantics, not Readium's internal chapter scroll.
-            // Phase-1 window is 20 s (half of 40 s) so that a slow-starting Readium navigation
-            // is still caught before Phase-2 declares a false-stable pre-navigation position.
-            waitForWebViewScrollQuiet(quietMs = 400, timeoutMs = 40_000)
+            // Phase-1 window is 30 s (half of 60 s) so that a slow-starting Readium navigation
+            // is caught even on heavily loaded CI runners where navigation can take >20 s to fire.
+            waitForWebViewScrollQuiet(quietMs = 400, timeoutMs = 60_000)
             return waitForPhraseOnScreen(orientation, timeoutMs = 30_000, phrase = targetPhrase)
         }
 

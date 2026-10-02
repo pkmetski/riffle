@@ -39,24 +39,24 @@ final class NavDrawerTests: XCTestCase {
     static var sharedApp: XCUIApplication!
     static var sharedAbsServer: StubAbsServer!
 
-    override class func setUp() {
+    override static func setUp() {
         super.setUp()
         let server = StubAbsServer()
         server.start()
         sharedAbsServer = server
 
-        let a = XCUIApplication()
-        a.launchArguments += [
+        let app = XCUIApplication()
+        app.launchArguments += [
             "--RIFFLE_RESET_FOR_TESTS",
             seedSourceArgument(type: "ABS", url: server.baseUrl, username: "testuser", password: "test")
         ]
-        a.launch()
-        sharedApp = a
+        app.launch()
+        sharedApp = app
 
-        waitForSeededLibraryHome(in: a, sourceName: "Audiobookshelf")
+        waitForSeededLibraryHome(in: app, sourceName: "Audiobookshelf")
     }
 
-    override class func tearDown() {
+    override static func tearDown() {
         sharedApp?.terminate()
         sharedApp = nil
         sharedAbsServer?.shutdown()
@@ -69,15 +69,15 @@ final class NavDrawerTests: XCTestCase {
     // navigated into Settings — all of which this setUp handles before the next test runs.
     override func setUpWithError() throws {
         continueAfterFailure = false
-        let a = NavDrawerTests.sharedApp!
+        let app = NavDrawerTests.sharedApp!
 
         // Tap the top-centre of the screen — always a safe non-interactive region in both
         // the library home and the Settings screen — to collapse any open dropdown or overlay.
-        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
 
         // Navigate back if the previous test left us in Settings.
         for label in ["← Libraries", "← Back"] {
-            let btn = a.buttons[label].firstMatch
+            let btn = app.buttons[label].firstMatch
             if btn.exists && btn.isHittable {
                 btn.tap()
                 break
@@ -86,9 +86,9 @@ final class NavDrawerTests: XCTestCase {
 
         // Verify library home is showing (burger visible). If the drawer is still open
         // it covers the burger — tap the far-right scrim to close it, then re-check.
-        let burger = a.buttons["Open menu"]
+        let burger = app.buttons["Open menu"]
         if !burger.waitForExistence(timeout: 10) {
-            a.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
             XCTAssertTrue(
                 burger.waitForExistence(timeout: 10),
                 "setUp: must return to library home (burger visible) before each test"
