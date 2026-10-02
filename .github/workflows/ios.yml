@@ -423,7 +423,7 @@ jobs:
           }
           # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
           # assertion. Keep this list narrow so real failures are never retried away.
-          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test'
+          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test|Timed out while acquiring background assertion'
           # Contention signature (failure mode 2, see the block comment above): a parallel clone that
           # never died but ran so CPU-starved that even the harness's generous per-wait timeouts were
           # exceeded. The tell is a single test that took absurdly long — healthy tests finish in
