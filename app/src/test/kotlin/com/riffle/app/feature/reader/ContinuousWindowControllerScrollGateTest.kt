@@ -242,6 +242,49 @@ class ContinuousWindowControllerScrollGateTest {
         )
     }
 
+    /**
+     * Regression guard for the top-chapter reflow hold-revert bug:
+     *
+     * When the top chapter (i == 0) changes height after the initial land (e.g. images load and
+     * the chapter shrinks), [ContinuousWindowController.onHeightMeasured] calls [port.scrollBy]
+     * to compensate so the target chapter stays visible. But if the landing hold is still active
+     * (within 600 ms of the last land or reapply), [tickLandingHold] runs on the next animation
+     * frame and reverts the scroll back to the stale [landingHoldTargetY], while the target
+     * chapter's [slot.top] has already moved by the same delta. The reader then reports a
+     * progression that is `delta / targetSlotHeight` higher than the saved value — users see
+     * the book reopen several pages forward.
+     *
+     * Fix: update [landingHoldTargetY] by the same delta BEFORE calling [port.scrollBy] so the
+     * hold and the actual scroll stay in sync.
+     */
+    @Test
+    fun `i==0 height change updates landingHoldTargetY before scrollBy so tickLandingHold does not revert the compensation`() {
+        val source = resolveSource("ContinuousWindowController.kt").readText()
+        // Locate the i==0 compensation block. The critical invariant is that
+        // "landingHoldTargetY += delta" appears inside (i.e. before the closing brace of) the
+        // i==0 scrollBy block — NOT after port.scrollBy — so the hold target is adjusted first.
+        val i0Idx = source.indexOf("pendingInitialScroll == null && i == 0 && delta != 0")
+        assertTrue("i==0 compensation block not found in onHeightMeasured", i0Idx >= 0)
+        // Extract from the condition to the closing brace of its enclosing if-block.
+        val blockStart = source.indexOf("{", i0Idx)
+        val blockEnd = source.indexOf("}", blockStart)
+        val blockBody = source.substring(blockStart, blockEnd + 1)
+
+        assertTrue(
+            "i==0 height-change block must update landingHoldTargetY before port.scrollBy so " +
+            "tickLandingHold does not revert the compensation while the landing hold is active — " +
+            "without this, a top-chapter image-load during the 600 ms hold shifts slot.top for the " +
+            "target but the hold restores the old scroll, causing a forward progression jump on close",
+            blockBody.contains("landingHoldTargetY += delta"),
+        )
+        val holdIdx = blockBody.indexOf("landingHoldTargetY += delta")
+        val scrollIdx = blockBody.indexOf("port.scrollBy(delta)")
+        assertTrue(
+            "landingHoldTargetY += delta must precede port.scrollBy(delta) in the i==0 block",
+            holdIdx in 0 until scrollIdx,
+        )
+    }
+
     private fun resolveSource(name: String): File {
         val relative = "src/main/kotlin/com/riffle/app/feature/reader/$name"
         val candidates = listOf(File(relative), File("app/$relative"))

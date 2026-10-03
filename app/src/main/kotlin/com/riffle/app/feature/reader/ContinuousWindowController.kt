@@ -1523,6 +1523,11 @@ internal class ContinuousWindowController(
                 publishViewportFraction(wv, measuredPx)
                 applyChapterHeight(wv, measuredPx)
                 if (pendingInitialScroll == null && i == 0 && delta != 0 && (delta < 0 || port.currentScrollY >= oldHeight)) {
+                    // Update the hold target before scrolling so tickLandingHold doesn't revert
+                    // the compensation while the landing hold is still active. Without this, the
+                    // hold restores the old scroll Y while slot.top for the target chapter has
+                    // already shifted, causing a forward progression jump of delta/targetHeight.
+                    if (landingHoldTargetY >= 0) landingHoldTargetY += delta
                     port.scrollBy(delta)
                 }
                 // Compensate scroll when a non-target, non-top chapter re-measures (grows) after

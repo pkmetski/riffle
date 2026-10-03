@@ -115,19 +115,19 @@ internal class ContinuousPresenter : ReaderPresenter {
             )
             is NavigationTarget.ToLocatorJson -> {
                 // Reader-side Locator JSON is `{href, locations: {progression, fragments[]}}` —
-                // ContinuousReaderView.navigateTo wants (href[#anchor], progression, alignToTop),
-                // so parse those three fields directly. Going through Readium's Locator.fromJSON
-                // here would pull android.net.Uri into a unit-testable path for no payoff.
+                // ContinuousReaderView.navigateTo wants (href, progression, alignToTop).
+                // Going through Readium's Locator.fromJSON here would pull android.net.Uri into
+                // a unit-testable path for no payoff.
                 val parsed = runCatching { JSONObject(target.locatorJson) }.getOrNull() ?: return
                 val href = parsed.optString("href").takeIf { it.isNotEmpty() } ?: return
                 val locations = parsed.optJSONObject("locations")
                 val progression = locations?.optDouble("progression", 0.0)?.toFloat() ?: 0f
-                val anchor = locations?.optJSONArray("fragments")
-                    ?.takeIf { it.length() > 0 }
-                    ?.optString(0)
-                    ?.takeIf { it.isNotEmpty() }
-                val fullHref = if (anchor != null) "$href#$anchor" else href
-                view.navigateTo(fullHref, progression, alignToTop = options.alignToTop, skipIfUserAlreadyInteracted = options.skipIfUserAlreadyInteracted)
+                // Do NOT use locations.fragments as an element anchor here. Anchor-based landing
+                // places the element top at the viewport top, ignoring the −vh/2 midpoint
+                // correction and the progression within the element. ABS CFI locators always
+                // carry a DOM element ID in fragments; using it yanks the reader to the element
+                // boundary rather than the reading position. Use progression-based landing instead.
+                view.navigateTo(href, progression, alignToTop = options.alignToTop, skipIfUserAlreadyInteracted = options.skipIfUserAlreadyInteracted)
             }
         }
     }
