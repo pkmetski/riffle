@@ -669,7 +669,11 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     // Paint the current sentence and keep it on screen. One decoration group of its own so it
     // replaces atomically and never fights the annotation highlights.
-    LaunchedEffect(cadence, navigator) {
+    //
+    // Re-keys on cadenceHighlightColor: when the user changes the colour in Settings and returns
+    // to the reader, the LaunchedEffect restarts and combine re-emits the current sentence so
+    // the decoration immediately reflects the new colour instead of waiting for the next sentence.
+    LaunchedEffect(cadence, navigator, resolvedPrefs?.cadenceHighlightColor) {
         var followedRef: String? = null
         combine(cadence.currentFragment, cadence.quotes) { ref, quotes -> ref to quotes }
             .collect { (ref, quotes) ->

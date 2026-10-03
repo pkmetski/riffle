@@ -86,6 +86,22 @@ class CadenceDecorationTest {
         assertEquals(annotationGroups.size, annotationGroups.toSet().size, "groups must be distinct")
     }
 
+    // Regression counterpart to the Android `applySentenceHighlight re-applies with new color`
+    // test: the IosEpubReaderScreen LaunchedEffect is re-keyed on cadenceHighlightColor so it
+    // restarts whenever the colour changes. This test pins that a fresh cadenceDecoration call
+    // with the new colour produces a different, correctly-coloured decoration — if cadenceDecoration
+    // ignored its `color` argument the two decorations would be identical.
+    @Test
+    fun changingColourProducesADecoractionWithTheNewColour() {
+        val blueDecoration = cadenceDecoration("c.xhtml#cd-1", quote, HighlightColor.BLUE)
+        val yellowDecoration = cadenceDecoration("c.xhtml#cd-1", quote, HighlightColor.YELLOW)
+        assertTrue(blueDecoration.color != yellowDecoration.color, "each colour maps to a distinct hex")
+        assertEquals(
+            "#" + (HighlightColor.YELLOW.argb and 0xFFFFFF).toString(16).uppercase().padStart(6, '0'),
+            yellowDecoration.color,
+        )
+    }
+
     @Test
     fun aSentenceWithNoKnownQuoteStillAnchorsOnItsSpan() {
         val json = Json.parseToJsonElement(
