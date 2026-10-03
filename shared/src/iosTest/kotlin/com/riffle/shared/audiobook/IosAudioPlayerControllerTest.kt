@@ -304,6 +304,38 @@ class IosAudioPlayerControllerTest {
         assertEquals(listOf(0 to 0.0), bridge.seeks)
     }
 
+    // Regression: headphone next/prev must skip ±N seconds, not navigate chapters.
+    // The Swift bridge routes nextTrackCommand → onSkip(+forwardSec) and
+    // previousTrackCommand → onSkip(-backwardSec) since the headphone buttons fix.
+
+    @Test
+    fun remoteSkipForwardSeeksWithinTheCurrentTrack() = runTest {
+        val bridge = FakeBridge()
+        prepared(bridge)
+        // Position: track 1 at offset 20 s → book-absolute 120 s
+        bridge.reportedTrackIndex = 1
+        bridge.reportedOffsetSec = 20.0
+        bridge.seeks.clear()
+        // Simulates the nextTrackCommand handler calling onSkip(+30)
+        assertNotNull(bridge.remoteCommandCallback).onSkip(deltaSec = 30.0)
+        // 120 + 30 = 150 → still on track 1, offset 50 s (not at track 2 start)
+        assertEquals(listOf(1 to 50.0), bridge.seeks)
+    }
+
+    @Test
+    fun remoteSkipBackwardSeeksWithinTheCurrentTrack() = runTest {
+        val bridge = FakeBridge()
+        prepared(bridge)
+        // Position: track 1 at offset 20 s → book-absolute 120 s
+        bridge.reportedTrackIndex = 1
+        bridge.reportedOffsetSec = 20.0
+        bridge.seeks.clear()
+        // Simulates the previousTrackCommand handler calling onSkip(-15)
+        assertNotNull(bridge.remoteCommandCallback).onSkip(deltaSec = -15.0)
+        // 120 - 15 = 105 → still on track 1, offset 5 s (not at track 0 start)
+        assertEquals(listOf(1 to 5.0), bridge.seeks)
+    }
+
     @Test
     fun cacheSwapReachesTheBridge() = runTest {
         val bridge = FakeBridge()

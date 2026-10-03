@@ -151,6 +151,28 @@ class AudioPlayerService : MediaSessionService() {
                 .build()
         }
 
+        /**
+         * Headphone next/prev buttons arrive as SEEK_TO_NEXT / SEEK_TO_NEXT_MEDIA_ITEM (and their
+         * prev counterparts). Default Media3 behaviour would navigate chapters; we redirect them to
+         * the same skip-forward / skip-backward as the notification buttons.
+         */
+        override fun onPlayerCommandRequest(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            playerCommand: Int,
+        ): Int {
+            val player = session.player
+            val targetMs = headphoneSkipTargetMs(
+                playerCommand, player.currentPosition, player.duration, skipIntervals,
+            )
+            return if (targetMs != null) {
+                player.seekTo(targetMs)
+                SessionResult.RESULT_ERROR_NOT_SUPPORTED
+            } else {
+                super.onPlayerCommandRequest(session, controller, playerCommand)
+            }
+        }
+
         override fun onCustomCommand(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
