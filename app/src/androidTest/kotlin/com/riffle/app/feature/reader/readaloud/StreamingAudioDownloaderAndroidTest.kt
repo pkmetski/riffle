@@ -12,6 +12,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -74,9 +75,13 @@ class StreamingAudioDownloaderAndroidTest {
     }
 
     /**
-     * Regression: transient server errors (503) during a download must be retried automatically.
+     * Regression: transient connection drops during a download must be retried automatically.
      * Before the fix, any IOException from [CacheWriter.cache] failed the whole download and required
      * a manual retry tap — requiring 20 taps for a large multi-track book.
+     *
+     * Uses DISCONNECT_AFTER_REQUEST (server closes connection before sending a response) rather than
+     * a 503 status code. A 503 is an explicit HTTP response code — [InvalidResponseCodeException] —
+     * and is deliberately NOT retried. A connection drop produces a plain [IOException] and IS retried.
      */
     @Test
     fun download_retries_on_transient_server_error_and_fills_cache() = runBlocking {
@@ -84,7 +89,7 @@ class StreamingAudioDownloaderAndroidTest {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 if (failCount.getAndDecrement() > 0) {
-                    return MockResponse().setResponseCode(503)
+                    return MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)
                 }
                 val range = request.getHeader("Range")
                 return if (range != null) {
