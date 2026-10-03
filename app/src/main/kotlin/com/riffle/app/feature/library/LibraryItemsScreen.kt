@@ -248,6 +248,15 @@ fun LibraryItemsScreen(
         viewModel.setCoverGridScale(it)
     }
 
+    // Separate zoom level for the Home tab — persisted independently from the All Books scale.
+    val persistedHomeCoverScale by viewModel.homeCoverGridScale.collectAsState()
+    var liveHomeCoverScale by remember { mutableFloatStateOf(persistedHomeCoverScale) }
+    LaunchedEffect(persistedHomeCoverScale) { liveHomeCoverScale = persistedHomeCoverScale }
+    val onHomeCoverScaleChange: (Float) -> Unit = {
+        liveHomeCoverScale = it
+        viewModel.setHomeCoverGridScale(it)
+    }
+
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
@@ -367,7 +376,8 @@ fun LibraryItemsScreen(
                         onItemSelected = onItemSelected,
                         onSectionSeeMore = onSectionSeeMore,
                         linkedItemIds = linkedItemIds,
-                        onCoverScaleChange = onCoverScaleChange,
+                        coverScale = liveHomeCoverScale,
+                        onCoverScaleChange = onHomeCoverScaleChange,
                     )
                     1 -> ToReadTabContent(
                         items = toReadItems,
@@ -1068,6 +1078,7 @@ internal fun HomeTabContent(
     onItemSelected: (LibraryItem) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
+    coverScale: Float = LocalCoverGridScale.current,
     onCoverScaleChange: (Float) -> Unit = {},
     onItemLongPress: ((LibraryItem) -> Unit)? = null,
 ) {
@@ -1100,64 +1111,66 @@ internal fun HomeTabContent(
             listState.scrollToItem(0)
         }
     }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
-            .fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
-    ) {
-        if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader("${stringResource(R.string.ui_section_in_progress)} (${inProgress.size})") }
-            item(key = "grid_in_progress") {
-                BookSectionGrid(
-                    items = inProgress,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
-                    linkedItemIds = linkedItemIds,
-                    onItemLongPress = onItemLongPress,
-                )
+    CompositionLocalProvider(LocalCoverGridScale provides coverScale) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
+            if (inProgress.isNotEmpty()) {
+                item(key = "header_in_progress") { SectionHeader("${stringResource(R.string.ui_section_in_progress)} (${inProgress.size})") }
+                item(key = "grid_in_progress") {
+                    BookSectionGrid(
+                        items = inProgress,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
+                        linkedItemIds = linkedItemIds,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
-        }
-        if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader("${stringResource(R.string.ui_section_continue_series)} (${continueSeries.size})") }
-            item(key = "grid_continue_series") {
-                BookSectionGrid(
-                    items = continueSeries,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = null,
-                    linkedItemIds = linkedItemIds,
-                    showSeriesBadge = true,
-                    onItemLongPress = onItemLongPress,
-                )
+            if (continueSeries.isNotEmpty()) {
+                item(key = "header_continue_series") { SectionHeader("${stringResource(R.string.ui_section_continue_series)} (${continueSeries.size})") }
+                item(key = "grid_continue_series") {
+                    BookSectionGrid(
+                        items = continueSeries,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = null,
+                        linkedItemIds = linkedItemIds,
+                        showSeriesBadge = true,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
-        }
-        if (recentlyAdded.isNotEmpty()) {
-            item(key = "header_recently_added") { SectionHeader("${stringResource(R.string.ui_section_recently_added)} (${recentlyAdded.size})") }
-            item(key = "grid_recently_added") {
-                BookSectionGrid(
-                    items = recentlyAdded,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
-                    linkedItemIds = linkedItemIds,
-                    onItemLongPress = onItemLongPress,
-                )
+            if (recentlyAdded.isNotEmpty()) {
+                item(key = "header_recently_added") { SectionHeader("${stringResource(R.string.ui_section_recently_added)} (${recentlyAdded.size})") }
+                item(key = "grid_recently_added") {
+                    BookSectionGrid(
+                        items = recentlyAdded,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
+                        linkedItemIds = linkedItemIds,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
-        }
-        if (finished.isNotEmpty()) {
-            item(key = "header_completed") { SectionHeader("${stringResource(R.string.ui_section_completed)} (${finished.size})") }
-            item(key = "grid_completed") {
-                BookSectionGrid(
-                    items = finished,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
-                    linkedItemIds = linkedItemIds,
-                    onItemLongPress = onItemLongPress,
-                )
+            if (finished.isNotEmpty()) {
+                item(key = "header_completed") { SectionHeader("${stringResource(R.string.ui_section_completed)} (${finished.size})") }
+                item(key = "grid_completed") {
+                    BookSectionGrid(
+                        items = finished,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
+                        linkedItemIds = linkedItemIds,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
         }
     }

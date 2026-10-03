@@ -167,6 +167,11 @@ fun LibraryItemsScreen(
     var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
     LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
 
+    // Separate zoom level for the Home tab — persisted independently.
+    val persistedHomeCoverScale by viewModel.homeCoverGridScale.collectAsState()
+    var liveHomeCoverScale by remember { mutableFloatStateOf(persistedHomeCoverScale) }
+    LaunchedEffect(persistedHomeCoverScale) { liveHomeCoverScale = persistedHomeCoverScale }
+
     // Clamp to Home when the previously-selected tab's data has disappeared.
     LaunchedEffect(tabVisibility) {
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
@@ -186,12 +191,21 @@ fun LibraryItemsScreen(
             )
         },
     ) { innerPadding ->
-        CoverGridZoomBox(
-            scale = liveCoverScale,
-            onScaleChange = { scale ->
+        // Home tab (0) has its own independent zoom; all other tabs share the all-books scale.
+        val (activeScale, onActiveScaleChange) = if (selectedTab == 0) {
+            liveHomeCoverScale to { scale: Float ->
+                liveHomeCoverScale = scale
+                viewModel.setHomeCoverGridScale(scale)
+            }
+        } else {
+            liveCoverScale to { scale: Float ->
                 liveCoverScale = scale
                 viewModel.setCoverGridScale(scale)
-            },
+            }
+        }
+        CoverGridZoomBox(
+            scale = activeScale,
+            onScaleChange = onActiveScaleChange,
             modifier = Modifier.fillMaxSize().padding(innerPadding),
         ) {
             if (isLoading) {
