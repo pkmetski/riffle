@@ -46,7 +46,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Audiobook player screen should show its back control")
-        XCTAssertTrue(playPause.waitForExistence(timeout: 60), "Player screen must show its play/pause control")
+        // 90 s, raised from 60 s: the CMP iOS accessibility bridge populates the player controls
+        // asynchronously after the screen opens. Observed failures at exactly 60 s (95–113 s total
+        // test time) on contended CI runners where the controls were still rendering at the limit.
+        XCTAssertTrue(playPause.waitForExistence(timeout: 90), "Player screen must show its play/pause control")
     }
 
     // MARK: - Scenario 04-C: Player controls visible
@@ -81,11 +84,12 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.exists, "Player screen must open")
-        // 150 s: the CMP iOS accessibility bridge populates the player controls asynchronously
+        // 200 s: the CMP iOS accessibility bridge populates the player controls asynchronously
         // after the reader screen opens. On Clone 1 after 5+ min of sequential heavy tests the
-        // tree can take >90 s to settle; 150 s covers the worst observed lag while remaining
-        // well under the 600 s per-test execution allowance.
-        XCTAssertTrue(playPause.waitForExistence(timeout: 150), "Player must finish loading")
+        // tree can take >90 s to settle; raised from 150 s after observing exact 150 s timeout
+        // hits (150.6 s total test time) on contended CI runners — the player was still loading
+        // at the limit. 200 s remains well under the 600 s per-test execution allowance.
+        XCTAssertTrue(playPause.waitForExistence(timeout: 200), "Player must finish loading")
 
         // All four pills render together when loading=false, but the CMP iOS accessibility bridge
         // populates the tree incrementally, so a pill can be visible before its node lands. Wait

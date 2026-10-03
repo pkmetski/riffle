@@ -589,7 +589,13 @@ internal class ContinuousWindowController(
         // placeholder or the previous cap — both may produce a maxOffset that Chromium then clamps
         // once the view is re-measured. A second sync after the layout corrects the translationY/
         // scrollY pair so the end of long chapters is never permanently cut off.
-        port.post { syncChapterWindows() }
+        //
+        // postAfterLayout (= doOnNextLayout on ContinuousReaderView) is required here, NOT a bare
+        // port.post. port.post queues on the Handler and runs BEFORE the Choreographer-driven
+        // layout traversal, so wv.height would still be the old placeholder when it fires.
+        // doOnNextLayout fires once the outer view's onLayout returns — by that point the full
+        // descendant tree (including wv) has been measured and laid out, so wv.height == wvHeight.
+        port.postAfterLayout { syncChapterWindows() }
     }
 
     /**
