@@ -1301,9 +1301,12 @@ class ContinuousPositionTrackerTest {
         //     internal scroll from 146009 → 144433 (= contentH − cap).
         //     translationY stays 146009; scrollY is now 144433.
         //     Gap = 4096 − 2520 = 1576 px; the last 1576 px of the chapter are invisible.
-        //  3. applyChapterHeight posts a second syncChapterWindows.  It runs after the layout,
+        //  3. applyChapterHeight calls port.postAfterLayout { syncChapterWindows() } (= doOnNextLayout
+        //     on the outer ContinuousReaderView).  It fires after the layout traversal completes,
         //     sees wv.height = 4096, recalculates offset = 144433, and sets both translationY and
-        //     scrollTo to 144433 → gap gone.
+        //     scrollTo to 144433 → gap gone.  A bare port.post would fire BEFORE the layout pass
+        //     (Handler queue runs ahead of the Choreographer VSYNC traversal), leaving wv.height at
+        //     the placeholder and reproducing the bug — that was the #1134 mistake.
         //
         // This test verifies that the offset recalculated with the cap height (step 3) closes the
         // rendering gap and that the chapter end is reachable.
@@ -1334,7 +1337,7 @@ class ContinuousPositionTrackerTest {
         )
         assertEquals(cap - placeholder, contentH - contentAtSlotBottom)  // gap = 1576 px
 
-        // Step 3: post-layout re-sync uses wv.height = cap (4096).
+        // Step 3: postAfterLayout (doOnNextLayout) re-sync uses wv.height = cap (4096).
         val offsetWithCap = ContinuousPositionTracker.chapterWebViewWindowOffset(
             slotTop = 0, contentHeightPx = contentH, webViewHeightPx = cap,
             currentOffsetPx = offsetWithPlaceholder, scrollY = scrollY, viewportHeightPx = viewportH,

@@ -203,6 +203,45 @@ class ContinuousWindowControllerScrollGateTest {
         )
     }
 
+    /**
+     * Regression guard for the tall-screen chapter-end cutoff: `applyChapterHeight` must schedule
+     * the post-layout `syncChapterWindows` call via [ContinuousScrollPort.postAfterLayout], not a
+     * bare [ContinuousScrollPort.post].
+     *
+     * `port.post` queues on the Handler and runs *before* the Choreographer-driven layout traversal
+     * (VSYNC). When it fires, `wv.height` is still the old placeholder — the new cap hasn't been
+     * applied yet — so `syncChapterWindows` calculates a maxOffset based on the placeholder height.
+     * Chromium then clamps the internal scroll to `contentH − cap` once the layout runs, leaving a
+     * gap of `(cap − placeholder)` px (up to ~1576 px on tall-screen Samsung devices) permanently
+     * invisible at the chapter end.
+     *
+     * `postAfterLayout` (= `doOnNextLayout` on `ContinuousReaderView`) fires after the full
+     * descendant layout traversal, at which point `wv.height == cap`. `syncChapterWindows` then
+     * sets the correct offset and both `translationY` and internal `scrollY` match, closing the gap.
+     * The algorithm correctness is proven by `ContinuousPositionTrackerTest
+     * .post-layout re-sync with cap height repairs gap left by placeholder-height offset`.
+     */
+    @Test
+    fun `applyChapterHeight uses postAfterLayout so syncChapterWindows fires after wv height updates`() {
+        val source = resolveSource("ContinuousWindowController.kt").readText()
+        val fnIdx = source.indexOf("private fun applyChapterHeight(")
+        assertTrue("applyChapterHeight not found in ContinuousWindowController", fnIdx >= 0)
+        val fnBody = source.substring(fnIdx, source.indexOf("\n    }", fnIdx) + 1)
+
+        assertTrue(
+            "applyChapterHeight must schedule the post-layout syncChapterWindows via " +
+            "port.postAfterLayout so the call fires after wv.height is updated by the layout " +
+            "traversal — a bare port.post runs before the VSYNC layout pass and reads the stale " +
+            "placeholder height, leaving a (cap − placeholder) px gap at the chapter end",
+            fnBody.contains("postAfterLayout"),
+        )
+        assertFalse(
+            "applyChapterHeight must NOT use bare port.post { for the deferred sync — that runs " +
+            "before the layout pass and so reads the old wv.height (placeholder), not the new cap",
+            fnBody.contains("port.post {"),
+        )
+    }
+
     private fun resolveSource(name: String): File {
         val relative = "src/main/kotlin/com/riffle/app/feature/reader/$name"
         val candidates = listOf(File(relative), File("app/$relative"))
