@@ -44,6 +44,7 @@ internal class SentencePlaybackController(
         readaloudHighlightColor: HighlightColor,
         reflowGeneration: Int,
         pageLoadGeneration: Int,
+        resumeGeneration: Int,
     ) {
         // ---- Readaloud synced highlight -----------------------------------------------------
         // Superset keys cover both Readium (pageLoadGeneration, reflowGeneration re-apply on
@@ -51,6 +52,12 @@ internal class SentencePlaybackController(
         // asynchronously). The [highlightRenderer] key picks up an orientation flip: the renderer
         // is recreated Readium<->Continuous and the fresh instance has to receive the current
         // sentence immediately, not on the next reflow tick.
+        //
+        // [resumeGeneration] re-fires the effect when the reader returns from the back stack
+        // (e.g. user navigated to Settings via the nav drawer and changed the highlight colour).
+        // The color change fires the effect while the WebView may be suspended, dropping the
+        // decoration silently. ON_RESUME bumps this counter so the decoration is always
+        // re-applied once the reader is the active destination again.
         LaunchedEffect(
             highlightRenderer(),
             activeFragmentRef,
@@ -58,6 +65,7 @@ internal class SentencePlaybackController(
             pageLoadGeneration,
             sentenceQuotes,
             readaloudHighlightColor,
+            resumeGeneration,
         ) {
             highlightRenderer().applySentenceHighlight(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
         }

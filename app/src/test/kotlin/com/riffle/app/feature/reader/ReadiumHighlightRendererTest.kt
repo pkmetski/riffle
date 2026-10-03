@@ -16,6 +16,7 @@ import org.junit.Before
 import org.junit.Test
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator
+import com.riffle.app.feature.reader.HighlightTintStyle
 import com.riffle.feature.reader.EmphasisDomInjector
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -90,6 +91,26 @@ class ReadiumHighlightRendererTest {
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
         assertEquals("readaloud", applied[0].second)
+    }
+
+    // Regression: after changing the readaloud highlight colour in Settings (while the reader may
+    // be in the back stack), the LaunchedEffect re-fires with the new colour and the decoration
+    // must be re-applied. This test fails if applySentenceHighlight returns early on a same-ref
+    // call instead of re-issuing applyDecorationsWithClear with the new colour.
+    @Test
+    fun `applySentenceHighlight re-applies with new color when called again with same ref`() = runTest {
+        val quote = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello", after = ""))
+        renderer.applySentenceHighlight("c.xhtml#s1", quote, HighlightColor.BLUE)
+        applied.clear()
+
+        renderer.applySentenceHighlight("c.xhtml#s1", quote, HighlightColor.YELLOW)
+
+        val sentenceCalls = applied.filter { it.second == "readaloud" }
+        assertEquals("color change must re-issue clear + apply", 2, sentenceCalls.size)
+        assertEquals(emptyList<Decoration>(), sentenceCalls[0].first)
+        assertEquals(1, sentenceCalls[1].first.size)
+        val style = sentenceCalls[1].first[0].style as HighlightTintStyle
+        assertEquals(HighlightColor.YELLOW.argb, style.tint)
     }
 
     // ---- applyAnnotations ----------------------------------------------------
