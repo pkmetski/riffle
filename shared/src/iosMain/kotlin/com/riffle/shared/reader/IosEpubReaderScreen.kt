@@ -1,7 +1,6 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -67,6 +66,8 @@ import com.riffle.feature.reader.ChapterMapUiState
 import com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy
 import com.riffle.feature.reader.FigureTapMessageParser
 import com.riffle.feature.reader.FigureZoomState
+import com.riffle.feature.reader.FootnoteContent
+import com.riffle.feature.reader.FootnotePopupState
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.NavigatorDecoration
 import com.riffle.feature.reader.NavigatorEvent
@@ -78,15 +79,13 @@ import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.activeTocHref
-import com.riffle.feature.reader.FootnoteContent
-import com.riffle.feature.reader.FootnotePopupState
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
+import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
-import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.readiumFontFamilyName
