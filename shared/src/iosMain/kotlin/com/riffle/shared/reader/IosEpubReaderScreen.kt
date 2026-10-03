@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitViewController
@@ -28,6 +29,8 @@ import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.BookFormattingOverrides
+import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
@@ -53,6 +56,8 @@ import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.designsystem.TestTags
@@ -73,12 +78,15 @@ import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.activeTocHref
+import com.riffle.feature.reader.FootnoteContent
+import com.riffle.feature.reader.FootnotePopupState
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
+import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.readiumFontFamilyName
@@ -132,11 +140,23 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val sessionRepository = koinInject<ReadingSessionRepository>()
     val updateReadingProgress = koinInject<UpdateReadingProgress>()
     val formattingPreferencesStore = koinInject<FormattingPreferencesStore>()
+    val bookFormattingPreferencesStore = koinInject<BookFormattingPreferencesStore>()
     val appearanceCoordinator = koinInject<AppearanceCoordinator>()
     val publicationInspector = koinInject<IosPublicationInspector>()
     val readingSpeedStore = koinInject<ReadingSpeedStore>()
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
+    // Landscape flag — derived from the Compose container so it updates on rotation.
+    val containerSize = LocalWindowInfo.current.containerSize
+    val isLandscape = containerSize.width > containerSize.height
+    // Rotation-invariant screen-size key for per-book formatting overrides (ADR 0031).
+    val screenDimensionBucket = remember(containerSize) {
+        ScreenDimensionBucket.of(
+            a = containerSize.width.dpToSizeClass(),
+            b = containerSize.height.dpToSizeClass(),
+        )
+    }
+    var bookOverrides by remember { mutableStateOf(BookFormattingOverrides()) }
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -215,6 +235,13 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     // Cached publication shape for prefetch index lookups — avoids re-fetching on every position.
     var lazyShape by remember { mutableStateOf<LazyPublicationShape?>(null) }
 
+    // Load per-book formatting overrides on open. When the dimension bucket changes (fold/rotate),
+    // reload the row for the new bucket — each screen-size class has its own settings (ADR 0031).
+    LaunchedEffect(item.id, screenDimensionBucket) {
+        bookOverrides = bookFormattingPreferencesStore.load(item.sourceId, item.id, screenDimensionBucket)
+            ?: BookFormattingOverrides()
+    }
+
     LaunchedEffect(item.id) {
         val savedLocator = positionStore.load(item.sourceId, item.id)
 
@@ -263,26 +290,27 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     // theme, the Auto schedule and the live system-dark flag, and re-emits at each day/night
     // crossing so a book left open across the threshold repaints. `readerTheme` is already
     // concrete, so `toReadiumThemeName` never sees Auto here.
-    LaunchedEffect(item.id) {
+    LaunchedEffect(item.id, isLandscape) {
         combine(
             formattingPreferencesStore.preferences,
             appearanceCoordinator.resolved,
         ) { prefs, appearance -> prefs to prefs.withResolvedTheme(appearance) }
             .collect { (stored, prefs) ->
+                val effective = bookOverrides.applyTo(prefs)
                 storedPrefs = stored
-                resolvedPrefs = prefs
-                orientationRef.value = prefs.orientation
-                val styling = prefs.toReadiumTextStyling()
+                resolvedPrefs = effective
+                orientationRef.value = effective.orientation
+                val styling = effective.toReadiumTextStyling(isLandscape = isLandscape)
                 navigator.applyReaderPreferences(
-                    fontSizePercent = prefs.fontSize,
-                    scrollMode = epubScrollMode(prefs.orientation),
+                    fontSizePercent = effective.fontSize,
+                    scrollMode = epubScrollMode(effective.orientation),
                     theme = styling.theme.value,
                     // The bridge takes "" for "leave the publisher's font alone"; the shared
                     // mapping expresses that as null.
-                    fontFamilyCss = prefs.fontFamily.readiumFontFamilyName() ?: "",
-                    lineHeightMultiplier = prefs.lineSpacing,
-                    pageMargins = prefs.margins.toDouble(),
-                    justifyText = prefs.justifyText,
+                    fontFamilyCss = effective.fontFamily.readiumFontFamilyName() ?: "",
+                    lineHeightMultiplier = effective.lineSpacing,
+                    pageMargins = effective.margins.toDouble(),
+                    justifyText = effective.justifyText,
                     // The shared mapping computes these; the bridge carries them so iOS renders
                     // what Android renders — DarkDim's muted body colour, Riffle's typography
                     // winning over the publisher stylesheet, and the single-column pin that
@@ -434,10 +462,16 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     // cannot race with the collector above and close the sheet it just opened.
     LaunchedEffect(navigator) {
         navigator.eventFlow.collect { event ->
-            if (event is NavigatorEvent.BodyTap) {
-                editTargetId = null
-                pendingStyles = emptySet()
-                chromeVisible = !chromeVisible
+            when (event) {
+                is NavigatorEvent.BodyTap -> {
+                    editTargetId = null
+                    pendingStyles = emptySet()
+                    chromeVisible = !chromeVisible
+                }
+                is NavigatorEvent.Footnote -> {
+                    footnotePopupState = FootnotePopupState(FootnoteContent(event.contentHtml))
+                }
+                else -> Unit
             }
         }
     }
@@ -1113,6 +1147,18 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         // FormattingPreferences flags Android's EpubReaderScreen gates them with. The composable
         // itself is the shared one in :feature:reader-ui, so the two platforms cannot drift.
         val prefs = resolvedPrefs
+        val bookmarkPositions = remember(annotations, chapterMap.segments, spine.hrefs) {
+            annotations
+                .filter { it.type == AnnotationEntity.TYPE_BOOKMARK }
+                .mapNotNull { bookmark ->
+                    bookmarkRailPosition(
+                        segments = chapterMap.segments,
+                        chapterHref = bookmark.chapterHref,
+                        progression = bookmark.progression,
+                        spineHrefs = spine.hrefs,
+                    )
+                }
+        }
         if (prefs != null && chapterMap.segments.isNotEmpty() && chapterMapVisible(prefs)) {
             ChapterMapOverlay(
                 segments = chapterMap.segments,
@@ -1128,6 +1174,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 // iOS has no string-resource mechanism yet (#1072's i18n item), so the host hands
                 // the shared overlay the English catalogue. Android hands it its own res/values*.
                 templates = ChapterMapProgressLabelTemplates.English,
+                bookmarkPositions = bookmarkPositions,
                 chapterTimeRemaining = chapterMap.chapterTimeRemaining,
                 bookTimeRemaining = chapterMap.bookTimeRemaining,
                 onSegmentClick = { segment ->
@@ -1155,10 +1202,29 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         if (settingsOpen) {
             val storedForSettings = storedPrefs
             if (storedForSettings != null) {
+                val effectiveForSettings = bookOverrides.applyTo(storedForSettings)
                 IosReaderSettingsSheet(
-                    prefs = storedForSettings,
+                    prefs = effectiveForSettings,
+                    hasBookOverrides = !bookOverrides.isEmpty,
                     onPrefsChange = { updated ->
-                        scope.launch { formattingPreferencesStore.update(updated) }
+                        scope.launch {
+                            // Save the delta as per-book overrides.
+                            val updatedOverrides = bookOverrides.withChanges(effectiveForSettings, updated)
+                            bookOverrides = updatedOverrides
+                            bookFormattingPreferencesStore.save(
+                                item.sourceId,
+                                item.id,
+                                screenDimensionBucket,
+                                updatedOverrides,
+                            )
+                            // Global prefs are not touched — book overrides layer on top.
+                        }
+                    },
+                    onReset = {
+                        scope.launch {
+                            bookFormattingPreferencesStore.clear(item.sourceId, item.id, screenDimensionBucket)
+                            bookOverrides = BookFormattingOverrides()
+                        }
                     },
                     onDismiss = { settingsOpen = false },
                 )
@@ -1211,6 +1277,15 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
  * gesture rather than a delayed jump.
  */
 private const val BOUNDARY_POLL_INTERVAL_MS = 120L
+
+// Maps a Compose logical-pixel dimension to a Material3-style window size class, using the same
+// breakpoints Android's WindowSizeClass uses (600 dp = Compact/Medium, 840 dp = Medium/Expanded).
+// LocalWindowInfo.containerSize is already in logical pixels on iOS (UIKit points ≈ dp).
+private fun Int.dpToSizeClass(): SizeClass = when {
+    this < 600 -> SizeClass.Compact
+    this < 840 -> SizeClass.Medium
+    else -> SizeClass.Expanded
+}
 
 @Composable
 private fun KoFiNudgeOverlay(

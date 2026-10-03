@@ -146,6 +146,9 @@ class ReadiumSwiftNavigator(
         bridge.setFigureTapCallback { payload ->
             _figureTapPayloads.tryEmit(payload)
         }
+        bridge.setFootnoteCallback { contentHtml ->
+            _eventFlow.tryEmit(NavigatorEvent.Footnote(contentHtml))
+        }
     }
 
     init {
@@ -172,6 +175,7 @@ class ReadiumSwiftNavigator(
         bridge.setSelectionCallback(null)
         bridge.setDecorationActivatedCallback(null)
         bridge.setFigureTapCallback(null)
+        bridge.setFootnoteCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
     }

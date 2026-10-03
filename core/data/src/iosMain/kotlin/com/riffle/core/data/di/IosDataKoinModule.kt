@@ -66,6 +66,9 @@ import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.EbookCfiTranslatorFactory
+import com.riffle.core.data.IosBookFormattingPreferencesStoreImpl
+import com.riffle.core.database.BookFormattingPreferencesDao
+import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
@@ -214,6 +217,7 @@ val iosDataModule = module {
     }
 
     single<FormattingPreferencesStore> { IosFormattingPreferencesStoreImpl() }
+    single<BookFormattingPreferencesStore> { IosBookFormattingPreferencesStoreImpl(get<BookFormattingPreferencesDao>()) }
     single<BookComicFormattingPreferencesStore> { IosBookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
     single<LibraryMutator> { IosLibraryMutatorImpl(get<LibraryItemDao>(), get<SourceRepository>(), get<Clock>()) }

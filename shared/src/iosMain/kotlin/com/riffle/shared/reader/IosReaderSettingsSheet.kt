@@ -5,22 +5,20 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.settings.RenderCapabilities
 import com.riffle.feature.settings.ui.readersettings.ReaderSettingsSheet
 
-/**
- * iOS wrapper around the shared [ReaderSettingsSheet]. Per-book overrides are not yet
- * implemented on iOS, so the "Reset to global defaults" button is always disabled.
- */
 @Composable
 fun IosReaderSettingsSheet(
     prefs: FormattingPreferences,
+    hasBookOverrides: Boolean,
     onPrefsChange: (FormattingPreferences) -> Unit,
+    onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ReaderSettingsSheet(
         prefs = prefs,
         capabilities = RenderCapabilities.EPUB,
-        hasBookOverrides = false,
+        hasBookOverrides = hasBookOverrides,
         onPrefsChange = onPrefsChange,
-        onReset = {},
+        onReset = onReset,
         onDismiss = onDismiss,
     )
 }
