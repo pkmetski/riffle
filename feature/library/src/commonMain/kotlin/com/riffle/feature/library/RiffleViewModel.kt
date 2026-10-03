@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
@@ -17,6 +18,7 @@ import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -44,11 +46,25 @@ class RiffleViewModel constructor(
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val offlineAvailability: LibraryItemOfflineAvailability,
+    private val coverGridDensityStore: CoverGridDensityStore,
     // Tests that use runComposeUiTest set this to the test dispatcher so that advanceTimeBy
     // fires the probe. Tests that use runComposeUiTest leave the default so that the compose
     // awaitIdle() pump does not advance the probe's real-time delay and hang.
     internal val probeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
+
+    val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    private var coverScalePersistJob: Job? = null
+
+    fun setCoverGridScale(value: Float) {
+        coverScalePersistJob?.cancel()
+        coverScalePersistJob = viewModelScope.launch {
+            delay(200)
+            coverGridDensityStore.setScale(value)
+        }
+    }
 
     // Tracks which sourceIds currently have a failing To Read refresh. A Set (rather than a single
     // Boolean) is necessary because multiple sources refresh concurrently: when one source's library

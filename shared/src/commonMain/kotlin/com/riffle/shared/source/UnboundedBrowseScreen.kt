@@ -86,8 +86,6 @@ internal fun UnboundedBrowseScreen(
     }
 
     val query by viewModel.query.collectAsState()
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
-    val persistedHomeCoverScale by viewModel.homeCoverGridScale.collectAsState()
 
     val projection by libraryVm.projection.collectAsState()
     val annotationsState by annotationsVm.state.collectAsState()
@@ -155,9 +153,9 @@ internal fun UnboundedBrowseScreen(
                 TAB_HOME, TAB_TO_READ, TAB_ANNOTATIONS -> {
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
                     UnboundedCoverGridZoomProvider(
-                        persistedScale = persistedCoverScale,
+                        browseScaleFlow = viewModel.coverGridScale,
                         onPersistScaleChange = viewModel::setCoverGridScale,
-                        persistedHomeScale = persistedHomeCoverScale,
+                        homeScaleFlow = viewModel.homeCoverGridScale,
                         onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
                         isHomeTab = selectedLocalTab == TAB_HOME,
                     ) { _ ->
@@ -184,7 +182,7 @@ internal fun UnboundedBrowseScreen(
                 }
                 else -> {
                     UnboundedCoverGridZoomProvider(
-                        persistedScale = persistedCoverScale,
+                        browseScaleFlow = viewModel.coverGridScale,
                         onPersistScaleChange = viewModel::setCoverGridScale,
                     ) { onCoverScaleChange ->
                         UnboundedBrowseLibraryTabFor(

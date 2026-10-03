@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -39,6 +40,7 @@ import com.riffle.feature.source.ui.OfflineBanner
 import com.riffle.feature.source.ui.fadingScrollbar
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_no_results
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.compose.resources.stringResource
 
@@ -122,21 +124,25 @@ fun <T> UnboundedBrowseContent(
  * Supplies the persisted cover density to every tab in an unbounded web source while keeping
  * gesture updates live. When [isHomeTab] is true the provider uses the home-tab scale pair so the
  * Home shelf zoom is independent of the browse/catalog zoom.
+ *
+ * Accepts [StateFlow]s directly so call sites need not collect them — the composable subscribes
+ * to whichever flow is active for the current tab.
  */
 @Composable
 fun UnboundedCoverGridZoomProvider(
-    persistedScale: Float,
+    browseScaleFlow: StateFlow<Float>,
     onPersistScaleChange: (Float) -> Unit,
-    persistedHomeScale: Float = persistedScale,
+    homeScaleFlow: StateFlow<Float> = browseScaleFlow,
     onPersistHomeScaleChange: (Float) -> Unit = onPersistScaleChange,
     isHomeTab: Boolean = false,
     content: @Composable (onScaleChange: (Float) -> Unit) -> Unit,
 ) {
-    val activePersistedScale = if (isHomeTab) persistedHomeScale else persistedScale
+    val activeFlow = if (isHomeTab) homeScaleFlow else browseScaleFlow
     val onActivePersist = if (isHomeTab) onPersistHomeScaleChange else onPersistScaleChange
+    val persistedScale by activeFlow.collectAsState()
 
-    var liveScale by remember { mutableFloatStateOf(activePersistedScale) }
-    LaunchedEffect(activePersistedScale) { liveScale = activePersistedScale }
+    var liveScale by remember { mutableFloatStateOf(persistedScale) }
+    LaunchedEffect(persistedScale) { liveScale = persistedScale }
     val onScaleChange: (Float) -> Unit = {
         liveScale = it
         onActivePersist(it)

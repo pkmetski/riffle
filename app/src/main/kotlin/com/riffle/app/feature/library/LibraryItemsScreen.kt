@@ -240,22 +240,14 @@ fun LibraryItemsScreen(
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
     // persisted value (collected here) seeds it and wins on any external change.
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
-    var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
-    LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
-    val onCoverScaleChange: (Float) -> Unit = {
-        liveCoverScale = it
-        viewModel.setCoverGridScale(it)
-    }
-
-    // Separate zoom level for the Home tab — persisted independently from the All Books scale.
-    val persistedHomeCoverScale by viewModel.homeCoverGridScale.collectAsState()
-    var liveHomeCoverScale by remember { mutableFloatStateOf(persistedHomeCoverScale) }
-    LaunchedEffect(persistedHomeCoverScale) { liveHomeCoverScale = persistedHomeCoverScale }
-    val onHomeCoverScaleChange: (Float) -> Unit = {
-        liveHomeCoverScale = it
-        viewModel.setHomeCoverGridScale(it)
-    }
+    val (liveCoverScale, onCoverScaleChange) = rememberLivePersistedScale(
+        flow = viewModel.coverGridScale,
+        onPersist = viewModel::setCoverGridScale,
+    )
+    val (liveHomeCoverScale, onHomeCoverScaleChange) = rememberLivePersistedScale(
+        flow = viewModel.homeCoverGridScale,
+        onPersist = viewModel::setHomeCoverGridScale,
+    )
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -1427,4 +1419,20 @@ private fun SortModeChip(
             }
         }
     }
+}
+
+/**
+ * Returns a live [Float] scale and its updater. The live value is seeded from [flow] and updated
+ * optimistically on gesture events; [onPersist] is called with each gesture value so the ViewModel
+ * can debounce and write to the store. When [flow] emits (store settled), the live value syncs.
+ */
+@Composable
+internal fun rememberLivePersistedScale(
+    flow: kotlinx.coroutines.flow.StateFlow<Float>,
+    onPersist: (Float) -> Unit,
+): Pair<Float, (Float) -> Unit> {
+    val persisted by flow.collectAsState()
+    var live by remember { mutableFloatStateOf(persisted) }
+    LaunchedEffect(persisted) { live = persisted }
+    return live to { value: Float -> live = value; onPersist(value) }
 }
