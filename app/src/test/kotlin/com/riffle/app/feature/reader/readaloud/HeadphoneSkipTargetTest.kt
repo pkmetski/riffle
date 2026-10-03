@@ -97,6 +97,20 @@ class HeadphoneSkipTargetTest {
     }
 
     @Test
+    fun forwardSkipWithZeroDurationDoesNotClamp() {
+        // durationMs == 0L passes the TIME_UNSET guard but must be treated as unknown too —
+        // otherwise forwardTargetSec receives durationSec = 0.0 and its coerceAtMost guard
+        // (durationSec > 0.0) is skipped, letting the seek overshoot on unloaded items.
+        val targetMs = headphoneSkipTargetMs(
+            playerCommand = Player.COMMAND_SEEK_TO_NEXT,
+            currentPositionMs = 60_000L,
+            durationMs = 0L,
+            skipIntervals = intervals,
+        )
+        assertEquals(90_000L, targetMs)
+    }
+
+    @Test
     fun otherCommandsReturnNull() {
         assertNull(
             headphoneSkipTargetMs(

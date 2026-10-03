@@ -19,7 +19,7 @@ internal fun headphoneSkipTargetMs(
     skipIntervals: SkipIntervals,
 ): Long? = when (playerCommand) {
     Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> {
-        val durationSec = if (durationMs != C.TIME_UNSET) durationMs / MS_PER_SEC else 0.0
+        val durationSec = if (durationMs > 0L && durationMs != C.TIME_UNSET) durationMs / MS_PER_SEC else 0.0
         val target = skipIntervals.forwardTargetSec(currentPositionMs / MS_PER_SEC, durationSec)
         (target * MS_PER_SEC).toLong()
     }
