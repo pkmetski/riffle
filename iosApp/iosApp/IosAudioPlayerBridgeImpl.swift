@@ -410,16 +410,18 @@ import UIKit
             self.remoteCommandCallback?.onSkip(deltaSec: -event.interval)
             return .success
         }
-        // Track skip: the lock screen and CarPlay show these for multi-track content, and without
-        // a registered target the buttons are dead.
+        // Headphone next/prev buttons arrive here. Redirect to skip-forward / skip-backward (same
+        // as the lock-screen ⟲⟳ buttons) rather than navigating chapters.
         center.nextTrackCommand.isEnabled = true
         center.nextTrackCommand.addTarget { [weak self] _ in
-            self?.remoteCommandCallback?.onTrackDelta(delta: 1)
+            guard let self else { return .commandFailed }
+            self.remoteCommandCallback?.onSkip(deltaSec: Double(self.skipIntervals.forwardSec))
             return .success
         }
         center.previousTrackCommand.isEnabled = true
         center.previousTrackCommand.addTarget { [weak self] _ in
-            self?.remoteCommandCallback?.onTrackDelta(delta: -1)
+            guard let self else { return .commandFailed }
+            self.remoteCommandCallback?.onSkip(deltaSec: -Double(self.skipIntervals.backwardSec))
             return .success
         }
     }

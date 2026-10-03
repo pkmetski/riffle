@@ -77,7 +77,7 @@ class AudioPlayerService : MediaSessionService() {
         // book-absolute position / total duration rather than per-track (per-chapter) values.
         val player = AbsolutePositionPlayer(exoPlayer)
         mediaSession = MediaSession.Builder(this, player)
-            .setCallback(MediaItemUriRestoringCallback(mediaItemRestorerRegistry))
+            .setCallback(MediaItemUriRestoringCallback(mediaItemRestorerRegistry, player))
             .setSessionActivity(openRiffleIntent())
             .build()
             .also { session ->
@@ -116,6 +116,7 @@ class AudioPlayerService : MediaSessionService() {
      */
     private class MediaItemUriRestoringCallback(
         private val restorers: MediaItemRestorerRegistry,
+        private val absPlayer: AbsolutePositionPlayer,
     ) : MediaSession.Callback {
 
         /**
@@ -168,7 +169,7 @@ class AudioPlayerService : MediaSessionService() {
                     val duration = player.duration
                     val target = skipIntervals.forwardTargetSec(
                         currentSec = player.currentPosition / MS_PER_SEC,
-                        durationSec = if (duration != C.TIME_UNSET) duration / MS_PER_SEC else 0.0,
+                        durationSec = if (duration > 0L && duration != C.TIME_UNSET) duration / MS_PER_SEC else 0.0,
                     )
                     player.seekTo((target * MS_PER_SEC).toLong())
                     Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -180,6 +181,7 @@ class AudioPlayerService : MediaSessionService() {
                     )
                     if (updated != skipIntervals) {
                         skipIntervals = updated
+                        absPlayer.skipIntervals = updated
                         session.setMediaButtonPreferences(mediaButtonPreferences(updated))
                     }
                     Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
