@@ -14,6 +14,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicInteger
 
 class AudiobookBundleDownloaderTest {
 
@@ -140,12 +141,36 @@ class AudiobookBundleDownloaderTest {
         assertEquals(120, part.length())
     }
 
+    /**
+     * Regression: transient Offline failures must be retried automatically so that a large bundle
+     * that keeps losing its connection does not require 20 manual retry taps to complete.
+     */
+    @Test fun transientNetworkFailure_retriesAndEventuallySucceeds() = runTest {
+        val dir = tmp.newFolder()
+        val failCount = AtomicInteger(3)
+        val retryApi = object : AudiobookBundleApi {
+            override suspend fun <T> withBundleStream(
+                baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean,
+                fromByte: Long, block: suspend (AudiobookBundleStream) -> T,
+            ): NetworkResult<T> {
+                if (failCount.getAndDecrement() > 0) return NetworkResult.Offline(IOException("transient"))
+                return NetworkResult.Success(
+                    block(AudiobookBundleStream(ByteArrayInputStream(full), full.size.toLong(), false)),
+                )
+            }
+        }
+        val result = downloader(retryApi, dir).download("s1", "u", "42", "t", false, retryBaseDelayMs = 0L) { _, _ -> }
+
+        assertTrue("should succeed after retries", result is AudiobookBundleDownloader.Result.Success)
+        assertArrayEquals(full, (result as AudiobookBundleDownloader.Result.Success).file.readBytes())
+    }
+
     @Test fun networkError_preservesPartialForResume() = runTest {
         val dir = tmp.newFolder()
         val part = File(dir, "42.epub.part").apply { writeBytes(full.copyOfRange(0, 40)) }
 
         val result = downloader(FakeApi(failWith = IOException("boom")), dir)
-            .download("s1", "u", "42", "t", false) { _, _ -> }
+            .download("s1", "u", "42", "t", false, retryBaseDelayMs = 0L) { _, _ -> }
 
         assertTrue(result is AudiobookBundleDownloader.Result.NetworkError)
         assertTrue("partial kept for resume", part.exists())
