@@ -281,4 +281,5 @@
     <string name="ui_progress_bar_at_the_bottom_of_the_page">Barra de progreso en la parte inferior de la página</string>
     <string name="ui_smart_split">División inteligente</string>
     <string name="ui_split">Dividir</string>
+    <string name="ui_reset_to_global_defaults">Restablecer los valores predeterminados globales</string>
 </resources>

@@ -49,6 +49,11 @@ object TestTags {
     const val READER_TOC_PANEL = "toc_panel"
     const val READER_NAV_RAIL = "chapter_navigation_rail"
     const val READER_AUTOSCROLL = "reader_autoscroll"
+    const val READER_FOOTNOTE_POPUP = "footnote_popup"
+    const val READER_FOOTNOTE_CLOSE = "footnote_close"
+    const val READER_RETURN_CARD = "return_to_position_card"
+    const val READER_RETURN_BACK = "return_to_position_back"
+    const val READER_RETURN_DISMISS = "return_to_position_dismiss"
 
     // ── Readaloud player ──────────────────────────────────────────────────────
     const val READALOUD_MINI_PLAYER = "readaloud_mini_player"

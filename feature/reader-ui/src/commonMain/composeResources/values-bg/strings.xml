@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Reader chrome UI strings — Bulgarian. Values copied from app/src/main/res/values-bg/strings.xml.
+-->
+<resources>
+    <string name="ui_back">Назад</string>
+    <string name="ui_cancel">Отказ</string>
+    <string name="ui_save">Запазване</string>
+    <string name="ui_delete">Изтриване</string>
+    <string name="ui_rename">Преименуване</string>
+    <string name="ui_rename_bookmark">Преименуване на отметката</string>
+    <string name="ui_dismiss">Затваряне</string>
+    <string name="ui_annotations">анотации</string>
+    <string name="ui_format">Формат</string>
+    <string name="ui_formatting">Форматиране</string>
+    <string name="ui_display">Дисплей</string>
+    <string name="ui_reset_to_global_defaults">Връщане към глобалните настройки по подразбиране</string>
+    <string name="ui_search_in_book">Търсене в книгата...</string>
+    <string name="ui_no_results">Няма резултати</string>
+    <string name="ui_result_position">%1$d от %2$d</string>
+    <string name="ui_previous_result">Предишен резултат</string>
+    <string name="ui_next_result">Следващ резултат</string>
+    <string name="ui_close_search">Затворете търсенето</string>
+    <string name="ui_footnote">Бележка под линия</string>
+    <string name="ui_return_to_previous_position">Върнете се в предишна позиция</string>
+    <string name="ui_next_chapter">Следваща глава</string>
+    <string name="ui_look_up">Търси в речника</string>
+    <string name="ui_table_of_contents">Съдържание</string>
+    <string name="ui_options">Опции</string>
+    <string name="ui_no_annotations_yet">Все още няма анотации.</string>
+    <string name="ui_close_footnote">Затворете бележката под линия</string>
+</resources>

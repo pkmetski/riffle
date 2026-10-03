@@ -1,20 +1,12 @@
 package com.riffle.shared.reader
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
@@ -82,7 +73,6 @@ import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.activeTocHref
-import com.riffle.feature.reader.annotationListLabel
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
@@ -91,8 +81,6 @@ import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
-import com.riffle.feature.reader.findActiveEntry
-import com.riffle.feature.reader.flattenToc
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toReadiumTextStyling
@@ -104,9 +92,15 @@ import com.riffle.feature.reader.ui.CadenceHudPill
 import com.riffle.feature.reader.ui.CadenceToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
+import com.riffle.feature.reader.ui.FootnotePopup
 import com.riffle.feature.reader.ui.NoteEditorSheet
+import com.riffle.feature.reader.ui.ReaderTopBar
+import com.riffle.feature.reader.ui.ReturnToPositionCard
+import com.riffle.feature.reader.ui.SharedAnnotationsPanel
+import com.riffle.feature.reader.ui.SharedSearchTopBar
 import com.riffle.feature.reader.ui.SpeedHudLabels
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
+import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -208,6 +202,11 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     // being written on a selection that has not been persisted yet.
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
     var annotationsPanelOpen by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var chromeVisible by remember { mutableStateOf(true) }
+    var searchResultIndex by remember { mutableStateOf(0) }
+    var footnotePopupState by remember { mutableStateOf<com.riffle.feature.reader.FootnotePopupState?>(null) }
+    var returnToPositionTarget by remember { mutableStateOf<String?>(null) }
     var currentBookmark by remember { mutableStateOf<Annotation?>(null) }
     // Styles picked on a selection before it is persisted. Applied by `createHighlight`.
     var pendingStyles by remember { mutableStateOf(emptySet<EmphasisStyle>()) }
@@ -430,14 +429,15 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
-    // A tap on the body dismisses the actions sheet. Readium's decorator consumes a tap that
-    // landed on a decoration before it ever becomes a body tap, so this cannot race with the
-    // collector above and close the sheet it just opened.
+    // A tap on the body dismisses the actions sheet and toggles chrome. Readium's decorator
+    // consumes a tap that landed on a decoration before it ever becomes a body tap, so this
+    // cannot race with the collector above and close the sheet it just opened.
     LaunchedEffect(navigator) {
         navigator.eventFlow.collect { event ->
             if (event is NavigatorEvent.BodyTap) {
                 editTargetId = null
                 pendingStyles = emptySet()
+                chromeVisible = !chromeVisible
             }
         }
     }
@@ -455,8 +455,9 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 
     // Search results painted in the page, not just listed. `searchMark` had no producer on iOS
-    // even though the Swift bridge already knew the type.
-    LaunchedEffect(searchResults, searchOpen) {
+    // even though the Swift bridge already knew the type. `searchResultIndex` tracks which
+    // result is current so the page highlights one match at a time (same as Android).
+    LaunchedEffect(searchResults, searchOpen, searchResultIndex) {
         if (!searchOpen || searchResults.isEmpty()) {
             navigator.applyDecorations(ReaderDecorationGroups.search, emptyList())
             return@LaunchedEffect
@@ -467,10 +468,14 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 NavigatorDecoration.SearchMark(
                     id = "search_$index",
                     locatorJson = match.locatorJson,
-                    isCurrent = index == 0,
+                    isCurrent = index == searchResultIndex,
                 )
             },
         )
+        // Navigate to the current result each time the index changes.
+        searchResults.getOrNull(searchResultIndex)?.let { match ->
+            goTo(NavigatorNavigationTarget.ToLocatorJson(match.locatorJson))
+        }
     }
 
     // The chapter map. Android derives these six values from six StateFlows on its reader
@@ -802,21 +807,19 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
         )
 
-        // Top chrome row
-        Row(
-            modifier = Modifier
-                .systemBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .fillMaxWidth()
-                .align(Alignment.TopStart),
-        ) {
-            BasicText(text = "← Back", modifier = Modifier.testTag(TestTags.IOS_READER_BACK).clickable(onClick = onBack))
-            Spacer(modifier = Modifier.weight(1f))
-            if (localPath != null) {
-                // Auto-scroll only makes sense where the document scrolls. Android gates its
-                // toggle on Vertical || Continuous for the same reason; on iOS both map to
-                // Readium's scroll mode via `epubScrollMode`, and paginated has nothing to scroll.
-                val prefsForChrome = resolvedPrefs
+        // Shared M3 top bar (slides in/out with chromeVisible).
+        // Auto-scroll and cadence toggles are extra actions injected by the host.
+        val prefsForChrome = resolvedPrefs
+        ReaderTopBar(
+            visible = chromeVisible && !searchOpen,
+            title = item.title,
+            isReady = localPath != null,
+            onBack = onBack,
+            onSearch = { searchOpen = true; tocOpen = false; annotationsPanelOpen = false },
+            onToc = { tocOpen = !tocOpen; searchOpen = false; annotationsPanelOpen = false },
+            onAnnotations = { annotationsPanelOpen = !annotationsPanelOpen; tocOpen = false; searchOpen = false },
+            onFormat = { settingsOpen = true },
+            extraActions = {
                 if (prefsForChrome != null &&
                     prefsForChrome.showAutoScroll &&
                     prefsForChrome.orientation != ReaderOrientation.Horizontal
@@ -828,9 +831,6 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                             if (autoScrollState is AutoScrollState.Running) {
                                 autoScroll.dispatch(AutoScrollEvent.Stop)
                             } else {
-                                // Mutual exclusion (ADR 0047): whichever hands-free feature the
-                                // user starts parks the other. Pause, not Stop, so the parked
-                                // Cadence session keeps its position and its speed.
                                 runArbiter(
                                     currentRunning = currentRunningFeature(
                                         cadenceRunning = cadenceState is CadenceState.Running,
@@ -846,10 +846,6 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         },
                     )
                 }
-                // Cadence works in every reading mode — paginated snaps columns, the two scroll
-                // modes let Readium bring the decoration into view — so unlike auto-scroll its
-                // toggle is not gated on orientation. It IS gated on the WebView's
-                // `Intl.Segmenter` probe, because there is no fallback tokeniser.
                 if (prefsForChrome != null && prefsForChrome.showCadence && cadenceSupported) {
                     val cadenceRunning = cadenceState is CadenceState.Running
                     CadenceToggleIcon(
@@ -874,34 +870,41 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         },
                     )
                 }
-                BasicText(
-                    text = "✎",
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .testTag(TestTags.IOS_READER_ANNOTATIONS)
-                        .clickable {
-                            annotationsPanelOpen = !annotationsPanelOpen
-                            tocOpen = false
-                            searchOpen = false
-                        },
-                )
-                if (tocEntries.isNotEmpty()) {
-                    BasicText(
-                        text = "TOC",
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp)
-                            .testTag(TestTags.IOS_READER_TOC)
-                            .clickable { tocOpen = !tocOpen; searchOpen = false; annotationsPanelOpen = false },
-                    )
-                }
-                BasicText(
-                    text = if (searchOpen) "✕" else "⌕",
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .testTag(TestTags.IOS_READER_SEARCH)
-                        .clickable { searchOpen = !searchOpen; tocOpen = false; searchQuery = ""; searchResults = emptyList() },
-                )
-            }
+            },
+        )
+
+        // Search bar (replaces the BasicTextField list approach — results nav via prev/next).
+        if (searchOpen) {
+            SharedSearchTopBar(
+                query = searchQuery,
+                resultCount = searchResults.size,
+                currentIndex = searchResultIndex,
+                onQueryChange = { q ->
+                    searchQuery = q
+                    searchResults = emptyList()
+                    searchResultIndex = 0
+                    if (q.length >= 2) {
+                        scope.launch {
+                            navigator.search(q).collect { batch ->
+                                searchResults = searchResults + batch
+                            }
+                        }
+                    }
+                },
+                onPrev = {
+                    if (searchResults.isNotEmpty()) {
+                        searchResultIndex = (searchResultIndex - 1 + searchResults.size) % searchResults.size
+                    }
+                },
+                onNext = {
+                    if (searchResults.isNotEmpty()) {
+                        searchResultIndex = (searchResultIndex + 1) % searchResults.size
+                    }
+                },
+                onClose = { searchOpen = false; searchQuery = ""; searchResults = emptyList(); searchResultIndex = 0 },
+                onNavigateBack = { searchOpen = false; searchQuery = ""; searchResults = emptyList(); searchResultIndex = 0 },
+                modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+            )
         }
 
         // The corner bookmark ribbon — the shared composable Android's three readers and its
@@ -1028,83 +1031,46 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             )
         }
 
-        // The annotations panel — every highlight, note and bookmark on the book, tap to go
-        // there. This is what makes "navigate to an annotation" reachable at all on iOS.
+        // Shared annotations panel — every highlight, note, and bookmark, tap to navigate.
         if (annotationsPanelOpen) {
-            Box(modifier = Modifier.fillMaxSize().padding(top = 56.dp)) {
-                LazyColumn(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .fillMaxWidth(0.8f)
-                        .padding(8.dp),
-                ) {
-                    items(annotations.filter { it.type != AnnotationEntity.TYPE_EMPHASIS }) { a ->
-                        BasicText(
-                            text = annotationListLabel(a),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp)
-                                .clickable {
-                                    annotationsPanelOpen = false
-                                    scope.launch {
-                                        goTo(
-                                            NavigatorNavigationTarget.ToLocatorJson(
-                                                annotationDecorationLocator(a),
-                                            ),
-                                        )
-                                        editTargetId = a.id
-                                    }
-                                },
-                        )
+            SharedAnnotationsPanel(
+                annotations = annotations.filter { it.type != AnnotationEntity.TYPE_EMPHASIS },
+                onNavigate = { id ->
+                    annotationsPanelOpen = false
+                    val target = annotations.firstOrNull { it.id == id }
+                    if (target != null) {
+                        scope.launch {
+                            goTo(NavigatorNavigationTarget.ToLocatorJson(annotationDecorationLocator(target)))
+                            editTargetId = id
+                        }
                     }
-                }
-            }
+                },
+                onDelete = { id -> scope.launch { editor.delete(id) } },
+                onRename = { id, title -> scope.launch { editor.renameBookmark(id, title) } },
+                onDismiss = { annotationsPanelOpen = false },
+            )
         }
 
-        // TOC sheet
+        // Shared TOC panel (same ModalBottomSheet Android's reader uses).
         if (tocOpen && tocEntries.isNotEmpty()) {
             val tocActiveHref = activeTocHref(locatorHref, lastTocNavigatedHref)
-            val activeEntry = remember(tocEntries, tocActiveHref) {
-                tocActiveHref?.let { findActiveEntry(tocEntries, it) }
-            }
-            val flatTocRows = remember(tocEntries) { flattenToc(tocEntries) }
-            val activePrimary = MaterialTheme.colorScheme.primary
-            val defaultColor = MaterialTheme.colorScheme.onSurface
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 56.dp),
-            ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .fillMaxWidth(0.75f)
-                        .padding(8.dp),
-                ) {
-                    items(flatTocRows) { row ->
-                        val isActive = row.entry === activeEntry
-                        BasicText(
-                            text = "  ".repeat(row.depth) + row.entry.title,
-                            style = TextStyle(color = if (isActive) activePrimary else defaultColor),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp)
-                                .clickable {
-                                    lastTocNavigatedHref = row.entry.href
-                                    tocOpen = false
-                                    scope.launch {
-                                        goTo(
-                                            NavigatorNavigationTarget.ToHref(
-                                                href = row.entry.href.substringBefore("#"),
-                                                fragment = row.entry.href.substringAfter("#", "").ifEmpty { null },
-                                            ),
-                                        )
-                                    }
-                                },
+            TocPanel(
+                entries = tocEntries,
+                activeHref = tocActiveHref,
+                onEntryClick = { entry ->
+                    lastTocNavigatedHref = entry.href
+                    tocOpen = false
+                    scope.launch {
+                        goTo(
+                            NavigatorNavigationTarget.ToHref(
+                                href = entry.href.substringBefore("#"),
+                                fragment = entry.href.substringAfter("#", "").ifEmpty { null },
+                            ),
                         )
                     }
-                }
-            }
+                },
+                onDismiss = { tocOpen = false },
+            )
         }
 
         // Auto-scroll HUD pill — pause/resume and live WPM nudges, over everything else.
@@ -1185,46 +1151,39 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
-        // Search bar + results
-        if (searchOpen) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 56.dp)
-                    .align(Alignment.TopCenter),
-            ) {
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { q ->
-                        searchQuery = q
-                        searchResults = emptyList()
-                        if (q.length >= 2) {
-                            scope.launch {
-                                navigator.search(q).collect { batch ->
-                                    searchResults = searchResults + batch
-                                }
-                            }
-                        }
+        // Reader settings sheet ("Aa" button).
+        if (settingsOpen) {
+            val storedForSettings = storedPrefs
+            if (storedForSettings != null) {
+                IosReaderSettingsSheet(
+                    prefs = storedForSettings,
+                    onPrefsChange = { updated ->
+                        scope.launch { formattingPreferencesStore.update(updated) }
                     },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag(TestTags.IOS_READER_SEARCH_FIELD),
+                    onDismiss = { settingsOpen = false },
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyColumn(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    items(searchResults) { match ->
-                        BasicText(
-                            text = match.snippet.take(120),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    scope.launch {
-                                        goTo(NavigatorNavigationTarget.ToLocatorJson(match.locatorJson))
-                                    }
-                                },
-                        )
-                    }
-                }
             }
+        }
+
+        // Footnote popup.
+        footnotePopupState?.let { state ->
+            FootnotePopup(
+                state = state,
+                onDismiss = { footnotePopupState = null },
+            )
+        }
+
+        // Return-to-position card (shown after internal-link navigation).
+        returnToPositionTarget?.let {
+            ReturnToPositionCard(
+                onReturn = {
+                    scope.launch {
+                        goTo(NavigatorNavigationTarget.ToLocatorJson(it))
+                        returnToPositionTarget = null
+                    }
+                },
+                onDismiss = { returnToPositionTarget = null },
+            )
         }
     }
 }

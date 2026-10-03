@@ -283,4 +283,5 @@
     <string name="ui_webdav_not_configured_status">Not configured · Komga annotations, web-source reading progress</string>
     <string name="ui_webdav_tls_check_url">TLS error · tap to check server URL</string>
     <string name="ui_wide">Wide</string>
+    <string name="ui_reset_to_global_defaults">Reset to global defaults</string>
 </resources>
