@@ -17,13 +17,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_annotations
 import com.riffle.feature.reader.ui.generated.resources.ui_back
-import com.riffle.feature.reader.ui.generated.resources.ui_format
 import com.riffle.feature.reader.ui.generated.resources.ui_search_in_book
 import com.riffle.feature.reader.ui.generated.resources.ui_table_of_contents
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Shared reader top bar for both Android and iOS. Slides in/out based on [visible].

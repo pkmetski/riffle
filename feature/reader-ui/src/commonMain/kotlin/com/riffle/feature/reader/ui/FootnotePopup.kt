@@ -33,10 +33,10 @@ import androidx.compose.ui.unit.sp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.FootnotePopupState
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_close_footnote
 import com.riffle.feature.reader.ui.generated.resources.ui_footnote
+import org.jetbrains.compose.resources.stringResource
 
 private val POPUP_MAX_HEIGHT = 240.dp
 

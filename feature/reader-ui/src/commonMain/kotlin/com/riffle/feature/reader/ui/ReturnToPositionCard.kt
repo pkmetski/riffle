@@ -24,11 +24,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_back
 import com.riffle.feature.reader.ui.generated.resources.ui_dismiss
 import com.riffle.feature.reader.ui.generated.resources.ui_return_to_previous_position
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * A bottom card offering to undo an internal-link jump. Unlike [FootnotePopup] it lays no

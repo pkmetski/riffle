@@ -44,8 +44,6 @@ import com.riffle.feature.reader.RowKind
 import com.riffle.feature.reader.collectInlineFigures
 import com.riffle.feature.reader.maxLinesForAnnotationTitle
 import com.riffle.feature.reader.rowKindFor
-import com.riffle.feature.source.ui.fadingScrollbar
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_annotations
 import com.riffle.feature.reader.ui.generated.resources.ui_cancel
@@ -55,6 +53,8 @@ import com.riffle.feature.reader.ui.generated.resources.ui_options
 import com.riffle.feature.reader.ui.generated.resources.ui_rename
 import com.riffle.feature.reader.ui.generated.resources.ui_rename_bookmark
 import com.riffle.feature.reader.ui.generated.resources.ui_save
+import com.riffle.feature.source.ui.fadingScrollbar
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Shared annotations panel. Android and iOS both render this; Android passes its
