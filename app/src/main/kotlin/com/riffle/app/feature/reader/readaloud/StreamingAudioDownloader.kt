@@ -6,6 +6,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import com.riffle.core.data.StreamingMediaItem
@@ -67,7 +68,10 @@ object StreamingAudioDownloader {
                     CacheWriter(dataSource, DataSpec(Uri.parse(url)), null, listener).cache()
                     break
                 } catch (e: IOException) {
-                    if (attempt >= MAX_RETRY_ATTEMPTS) throw e
+                    // InvalidResponseCodeException = server returned an explicit HTTP error code.
+                    // Retrying won't change the server's answer — only network-layer failures benefit
+                    // from retry (connection reset, timeout, partial read).
+                    if (attempt >= MAX_RETRY_ATTEMPTS || e is HttpDataSource.InvalidResponseCodeException) throw e
                     delay(minOf(retryBaseDelayMs shl attempt, RETRY_MAX_DELAY_MS))
                     attempt++
                 }

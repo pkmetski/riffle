@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.AudiobookBundleApi
+import com.riffle.core.network.HttpStatusFailureException
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.errorAsThrowable
 import kotlinx.coroutines.delay
@@ -82,7 +83,12 @@ class AudiobookBundleDownloader(
             }
             when {
                 response is NetworkResult.Success -> break
-                response is NetworkResult.Offline && attempt < MAX_RETRY_ATTEMPTS -> {
+                // HttpStatusFailureException wraps explicit HTTP error codes (4xx/5xx).
+                // KtorClassifier maps those to Offline (IOException ancestry), but they are
+                // deliberate server responses — retrying them won't help.
+                response is NetworkResult.Offline &&
+                    response.cause !is HttpStatusFailureException &&
+                    attempt < MAX_RETRY_ATTEMPTS -> {
                     delay(minOf(retryBaseDelayMs shl attempt, RETRY_MAX_DELAY_MS))
                     attempt++
                 }

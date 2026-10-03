@@ -264,6 +264,38 @@ class IosAudiobookOfflineTest {
         assertFalse(repo.isDownloaded("s1", "i1"))
     }
 
+    /**
+     * Regression: transient network failures must be retried automatically. Mirrors
+     * AudiobookBundleDownloaderTest.transientNetworkFailure_retriesAndEventuallySucceeds.
+     */
+    @Test
+    fun `download retries on transient network failure and eventually succeeds`() = runTest {
+        val fileStore = TempFileStore()
+        val body = ByteArray(64) { it.toByte() }
+        var attempts = 0
+        val retryingClient = HttpClient(
+            MockEngine { _ ->
+                if (++attempts <= 3) throw Exception("transient failure $attempts")
+                respond(
+                    content = body,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf("Content-Length", body.size.toString()),
+                )
+            },
+        )
+        val repo = downloadRepo(
+            fileStore,
+            client = retryingClient,
+            audiobookRepository = FakeAudiobookRepository(session(listOf("https://x/1"))),
+        )
+
+        val result = repo.download("s1", "i1") { _, _ -> }
+
+        assertTrue(result is AudiobookDownloadResult.Success, "expected Success after retries, got $result")
+        assertTrue(repo.isDownloaded("s1", "i1"), "track must be persisted after successful retry")
+        assertEquals(4, attempts, "should have tried 4 times (3 failures + 1 success)")
+    }
+
     @Test
     fun `remove deletes the directory and reports freed bytes`() = runTest {
         val fileStore = TempFileStore()
