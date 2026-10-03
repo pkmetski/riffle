@@ -1920,6 +1920,22 @@ private fun EpubNavigatorView(
     // bump it; the re-applies are idempotent (same decoration id + locator), so that's harmless.
     val pageLoadGeneration = remember { mutableStateOf(0) }
 
+    // Bumps whenever the reader's NavBackStackEntry transitions back to RESUMED — i.e. the user
+    // returns from another destination (e.g. Settings reached via the nav drawer). A colour-change
+    // made while the reader was in the back stack fires the sentence-highlight LaunchedEffect, but
+    // the Readium WebView may be suspended at that moment, causing the decoration call to be
+    // silently dropped. Re-keying on this counter ensures the decoration is re-applied the moment
+    // the reader is active again, regardless of whether any other key has since changed.
+    val resumeGeneration = remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeGeneration.value += 1
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Injects, into each newly loaded reflowable page: the ClientRect.toJSON polyfill (see
     // RECT_TO_JSON_POLYFILL_JS), the selection-span tracker (SELECTION_SPAN_TRACKER_JS), the targeted
     // typography overrides (see TypographyOverride.kt), and the footnote-anchor install script. All are
@@ -2398,6 +2414,7 @@ private fun EpubNavigatorView(
         readaloudHighlightColor = readaloudHighlightColor,
         reflowGeneration = reflowGeneration,
         pageLoadGeneration = pageLoadGeneration.value,
+        resumeGeneration = resumeGeneration.value,
     )
 
     // ---- Persisted highlights (annotations + note glyphs) ----------------------------------
