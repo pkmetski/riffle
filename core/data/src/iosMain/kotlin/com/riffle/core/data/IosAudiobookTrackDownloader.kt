@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.network.HttpChannelException
 import com.riffle.core.network.withHttpChannelStream
 import io.ktor.client.HttpClient
 import io.ktor.utils.io.readAvailable
@@ -28,11 +29,12 @@ class IosAudiobookTrackDownloader(
         dirPath: String,
         progress: IosCumulativeDownloadProgress,
         interTrackDelayMs: Long = 0L,
+        retryBaseDelayMs: Long = RETRY_BASE_DELAY_MS,
     ): List<AudiobookDownloadManifest.ManifestTrack> = withContext(dispatchers.io) {
         buildList(session.trackUrls.size) {
             session.trackUrls.forEachIndexed { i, url ->
                 val fileName = "track-$i"
-                downloadOne(url, "$dirPath/$fileName", singleTrack = session.trackUrls.size == 1, progress = progress)
+                downloadOne(url, "$dirPath/$fileName", singleTrack = session.trackUrls.size == 1, progress = progress, retryBaseDelayMs = retryBaseDelayMs)
                 val span = session.tracks.getOrNull(i)
                 add(
                     AudiobookDownloadManifest.ManifestTrack(
@@ -54,32 +56,51 @@ class IosAudiobookTrackDownloader(
         outPath: String,
         singleTrack: Boolean,
         progress: IosCumulativeDownloadProgress,
+        retryBaseDelayMs: Long,
     ) {
-        httpClient.withHttpChannelStream(url = url) { stream ->
-            if (singleTrack) progress.establishTotal(stream.contentLength)
-            // NSFileManager has no append-stream primitive as convenient as an OutputStream, and
-            // audiobook tracks are chapter-sized, so each track is assembled in memory and written
-            // once. Progress is still reported per chunk so the UI advances during the transfer.
-            val chunks = mutableListOf<ByteArray>()
-            var totalRead = 0
-            val buffer = ByteArray(64 * 1024)
-            while (!stream.channel.isClosedForRead) {
-                val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                if (read <= 0) continue
-                chunks += buffer.copyOfRange(0, read)
-                totalRead += read
-                progress.record(read.toLong())
-            }
-            val body = ByteArray(totalRead)
-            var offset = 0
-            for (chunk in chunks) {
-                chunk.copyInto(body, offset)
-                offset += chunk.size
-            }
-            if (!IosAudiobookFiles.writeBytes(outPath, body)) {
-                error("Could not write track to $outPath")
+        var attempt = 0
+        while (true) {
+            try {
+                httpClient.withHttpChannelStream(url = url) { stream ->
+                    if (singleTrack) progress.establishTotal(stream.contentLength)
+                    // NSFileManager has no append-stream primitive as convenient as an OutputStream, and
+                    // audiobook tracks are chapter-sized, so each track is assembled in memory and written
+                    // once. Progress is still reported per chunk so the UI advances during the transfer.
+                    val chunks = mutableListOf<ByteArray>()
+                    var totalRead = 0
+                    val buffer = ByteArray(64 * 1024)
+                    while (!stream.channel.isClosedForRead) {
+                        val read = stream.channel.readAvailable(buffer, 0, buffer.size)
+                        if (read <= 0) continue
+                        chunks += buffer.copyOfRange(0, read)
+                        totalRead += read
+                        progress.record(read.toLong())
+                    }
+                    val body = ByteArray(totalRead)
+                    var offset = 0
+                    for (chunk in chunks) {
+                        chunk.copyInto(body, offset)
+                        offset += chunk.size
+                    }
+                    if (!IosAudiobookFiles.writeBytes(outPath, body)) {
+                        error("Could not write track to $outPath")
+                    }
+                }
+                return
+            } catch (e: Exception) {
+                // HttpChannelException = server returned an explicit HTTP error code.
+                // Only retry transient I/O failures, not deliberate server responses.
+                if (attempt >= MAX_RETRY_ATTEMPTS || e is HttpChannelException) throw e
+                delay(minOf(retryBaseDelayMs shl attempt, RETRY_MAX_DELAY_MS))
+                attempt++
             }
         }
+    }
+
+    private companion object {
+        const val MAX_RETRY_ATTEMPTS = 5
+        const val RETRY_BASE_DELAY_MS = 2_000L
+        const val RETRY_MAX_DELAY_MS = 30_000L
     }
 }
 

@@ -219,11 +219,13 @@ class AnnotationFocusHarnessTest : KoinTest {
         repeat(attempts) { i ->
             val attempt = i + 1
             searchAndTapAnnotation()
-            composeTestRule.waitUntil(timeoutMillis = 20_000) {
-                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                    .fetchSemanticsNodes().isNotEmpty()
-            }
-            val result = waitForPhraseOnScreen(orientation, timeoutMs = 15_000)
+            // waitForReaderReady() waits for TAG_READER_READY AND then TAG_LOADING to disappear.
+            // In continuous mode the loading spinner stays active until the initial landing
+            // completes; polling before it clears means we read a pre-landing scroll position.
+            // The annotation focus scroll fires after highlights apply (which is after the initial
+            // landing), so we also need a generous timeout here, same as the bookmark test.
+            waitForReaderReady()
+            val result = waitForPhraseOnScreen(orientation, timeoutMs = 60_000)
             assertTrue(
                 "$orientation attempt $attempt: annotated phrase not focused on screen. $result",
                 result.onScreen,

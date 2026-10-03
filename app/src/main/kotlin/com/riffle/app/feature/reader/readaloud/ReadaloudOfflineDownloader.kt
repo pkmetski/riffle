@@ -38,7 +38,7 @@ class ReadaloudOfflineDownloaderImpl constructor(
                 session.streaming.itemsByMediaId.values.toList(),
                 session.absToken,
                 dispatchers.io,
-                onProgress,
+                onProgress = onProgress,
             )
         }.isSuccess
     }
