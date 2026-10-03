@@ -2,8 +2,10 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.AudiobookBundleApi
+import com.riffle.core.network.HttpStatusFailureException
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.errorAsThrowable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -37,6 +39,7 @@ class AudiobookBundleDownloader(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
+        retryBaseDelayMs: Long = RETRY_BASE_DELAY_MS,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): Result = withContext(dispatchers.io) {
         val finalFile = targetFileProvider(sourceId, bookId)
@@ -44,42 +47,64 @@ class AudiobookBundleDownloader(
         if (finalFile.exists()) return@withContext Result.Success(finalFile)
 
         val partFile = File(finalFile.parentFile, finalFile.name + ".part")
-        val resumeFrom = if (partFile.exists()) partFile.length() else 0L
 
-        val response = api.withBundleStream(
-            baseUrl, bookId, token, insecureAllowed, resumeFrom,
-        ) { stream ->
-            // If we asked to resume but the server sent a full body (200, not 206), the partial
-            // bytes are not a prefix of this stream — start over to avoid corrupting the file.
-            val appending = stream.isPartial && resumeFrom > 0L
-            if (!appending) partFile.delete()
-            var written = if (appending) resumeFrom else 0L
-            val total = if (stream.totalBytes > 0) stream.totalBytes else -1L
-            val progress = CumulativeDownloadProgress(total, onProgress, initialDownloaded = written)
-            stream.body.use { source ->
-                java.io.FileOutputStream(partFile, appending).use { sink ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    while (true) {
-                        val n = source.read(buffer)
-                        if (n == -1) break
-                        sink.write(buffer, 0, n)
-                        written += n
-                        progress.record(n.toLong())
+        // Retry on transient network failures (Offline). Each iteration recomputes resumeFrom from
+        // the .part file so the Range request picks up exactly where bytes were last flushed to disk.
+        // Auth failures and hard server errors are not retried — they require user action.
+        var attempt = 0
+        while (true) {
+            val resumeFrom = if (partFile.exists()) partFile.length() else 0L
+            val response = api.withBundleStream(
+                baseUrl, bookId, token, insecureAllowed, resumeFrom,
+            ) { stream ->
+                // If we asked to resume but the server sent a full body (200, not 206), the partial
+                // bytes are not a prefix of this stream — start over to avoid corrupting the file.
+                val appending = stream.isPartial && resumeFrom > 0L
+                if (!appending) partFile.delete()
+                var written = if (appending) resumeFrom else 0L
+                val total = if (stream.totalBytes > 0) stream.totalBytes else -1L
+                val progress = CumulativeDownloadProgress(total, onProgress, initialDownloaded = written)
+                stream.body.use { source ->
+                    java.io.FileOutputStream(partFile, appending).use { sink ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val n = source.read(buffer)
+                            if (n == -1) break
+                            sink.write(buffer, 0, n)
+                            written += n
+                            progress.record(n.toLong())
+                        }
                     }
                 }
+                // A stream can end short without throwing. Preserve the .part for a later resume.
+                if (total > 0 && written < total) {
+                    throw java.io.IOException("Truncated bundle for $bookId: $written/$total bytes")
+                }
             }
-            // A stream can end short without throwing. Preserve the .part for a later resume.
-            if (total > 0 && written < total) {
-                throw java.io.IOException("Truncated bundle for $bookId: $written/$total bytes")
+            when {
+                response is NetworkResult.Success -> break
+                // HttpStatusFailureException wraps explicit HTTP error codes (4xx/5xx).
+                // KtorClassifier maps those to Offline (IOException ancestry), but they are
+                // deliberate server responses — retrying them won't help.
+                response is NetworkResult.Offline &&
+                    response.cause !is HttpStatusFailureException &&
+                    attempt < MAX_RETRY_ATTEMPTS -> {
+                    delay(minOf(retryBaseDelayMs shl attempt, RETRY_MAX_DELAY_MS))
+                    attempt++
+                }
+                else -> return@withContext Result.NetworkError(response.errorAsThrowable())
             }
-        }
-        if (response !is NetworkResult.Success) {
-            return@withContext Result.NetworkError(response.errorAsThrowable())
         }
         if (!partFile.renameTo(finalFile)) {
             partFile.copyTo(finalFile, overwrite = true)
             partFile.delete()
         }
         Result.Success(finalFile)
+    }
+
+    private companion object {
+        const val MAX_RETRY_ATTEMPTS = 5
+        const val RETRY_BASE_DELAY_MS = 2_000L
+        const val RETRY_MAX_DELAY_MS = 30_000L
     }
 }

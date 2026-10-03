@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * On-device check (ADR 0040) that "Download readaloud" eagerly fills the audio cache: after a
@@ -70,5 +71,50 @@ class StreamingAudioDownloaderAndroidTest {
         assertTrue("progress should reach 1.0, was $lastProgress", lastProgress >= 1f)
         val cached = StreamingAudioCache.get(appCtx).getCachedBytes(url, 0, Long.MAX_VALUE)
         assertTrue("the whole track should be cached; cached=$cached of ${mp3.size}", cached >= mp3.size)
+    }
+
+    /**
+     * Regression: transient server errors (503) during a download must be retried automatically.
+     * Before the fix, any IOException from [CacheWriter.cache] failed the whole download and required
+     * a manual retry tap — requiring 20 taps for a large multi-track book.
+     */
+    @Test
+    fun download_retries_on_transient_server_error_and_fills_cache() = runBlocking {
+        val failCount = AtomicInteger(3)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (failCount.getAndDecrement() > 0) {
+                    return MockResponse().setResponseCode(503)
+                }
+                val range = request.getHeader("Range")
+                return if (range != null) {
+                    val spec = range.substringAfter("bytes=").split("-")
+                    val start = spec[0].toInt()
+                    val end = spec.getOrNull(1)?.toIntOrNull()?.coerceAtMost(mp3.size - 1) ?: (mp3.size - 1)
+                    MockResponse().setResponseCode(206)
+                        .setHeader("Accept-Ranges", "bytes")
+                        .setHeader("Content-Range", "bytes $start-$end/${mp3.size}")
+                        .setBody(Buffer().write(mp3.copyOfRange(start, end + 1)))
+                } else {
+                    MockResponse().setResponseCode(200)
+                        .setHeader("Content-Length", mp3.size.toString())
+                        .setBody(Buffer().write(mp3))
+                }
+            }
+        }
+
+        val url = server.url("/retry-audio").toString()
+        val items = listOf(StreamingMediaItem("seg", url, 0, 5000))
+        var lastProgress = 0f
+
+        StreamingAudioDownloader.download(
+            context = appCtx, items = items, bearerToken = "tok",
+            ioDispatcher = kotlinx.coroutines.Dispatchers.IO,
+            retryBaseDelayMs = 0L,
+        ) { lastProgress = it }
+
+        assertTrue("progress should reach 1.0 despite retries, was $lastProgress", lastProgress >= 1f)
+        val cached = StreamingAudioCache.get(appCtx).getCachedBytes(url, 0, Long.MAX_VALUE)
+        assertTrue("the whole track should be cached after retries; cached=$cached of ${mp3.size}", cached >= mp3.size)
     }
 }

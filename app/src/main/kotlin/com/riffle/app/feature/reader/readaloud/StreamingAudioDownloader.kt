@@ -6,12 +6,15 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import com.riffle.core.data.StreamingMediaItem
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -23,11 +26,16 @@ import kotlin.coroutines.coroutineContext
 @OptIn(UnstableApi::class)
 object StreamingAudioDownloader {
 
+    private const val MAX_RETRY_ATTEMPTS = 5
+    private const val RETRY_BASE_DELAY_MS = 2_000L
+    private const val RETRY_MAX_DELAY_MS = 30_000L
+
     suspend fun download(
         context: Context,
         items: List<StreamingMediaItem>,
         bearerToken: String,
         ioDispatcher: CoroutineDispatcher,
+        retryBaseDelayMs: Long = RETRY_BASE_DELAY_MS,
         onProgress: (Float) -> Unit = {},
     ) = withContext(ioDispatcher) {
         val cache = StreamingAudioCache.get(context)
@@ -50,7 +58,24 @@ object StreamingAudioDownloader {
                 val withinTrack = if (requestLength > 0) bytesCached.toFloat() / requestLength else 0f
                 onProgress((index + withinTrack) / urls.size)
             }
-            CacheWriter(dataSource, DataSpec(Uri.parse(url)), null, listener).cache()
+            // CacheWriter preserves already-cached bytes on failure, so each retry continues from where
+            // it left off. Without automatic retry a transient drop (connection reset, server timeout)
+            // requires a manual tap for every interruption — problematic for long multi-track books.
+            var attempt = 0
+            while (true) {
+                coroutineContext.ensureActive()
+                try {
+                    CacheWriter(dataSource, DataSpec(Uri.parse(url)), null, listener).cache()
+                    break
+                } catch (e: IOException) {
+                    // InvalidResponseCodeException = server returned an explicit HTTP error code.
+                    // Retrying won't change the server's answer — only network-layer failures benefit
+                    // from retry (connection reset, timeout, partial read).
+                    if (attempt >= MAX_RETRY_ATTEMPTS || e is HttpDataSource.InvalidResponseCodeException) throw e
+                    delay(minOf(retryBaseDelayMs shl attempt, RETRY_MAX_DELAY_MS))
+                    attempt++
+                }
+            }
             onProgress((index + 1f) / urls.size)
         }
     }
