@@ -62,7 +62,13 @@ class ContinuousPresenterTest {
     }
 
     @Test
-    fun `navigateTo ToLocatorJson appends a fragment anchor when present`() = runTest {
+    fun `navigateTo ToLocatorJson ignores fragment anchor — uses progression-based landing`() = runTest {
+        // Regression guard: ABS CFI locators (from cfiStringToLocator) carry DOM element IDs
+        // in locations.fragments. Appending them as "#anchor" in href caused openWindowAt to
+        // use anchor-based landing, which places the element top at the viewport top and ignores
+        // both the progression and the −vh/2 midpoint correction. Users reopening a book saw a
+        // position several pages off from where they left off. Fix: always use progression-based
+        // landing for ToLocatorJson navigation.
         val presenter = ContinuousPresenter()
         val view = FakeView()
         presenter.attach(view)
@@ -73,7 +79,8 @@ class ContinuousPresenterTest {
             ),
         )
 
-        assertEquals("ch07.xhtml#sec3", view.navCalls[0].href)
+        assertEquals("ch07.xhtml", view.navCalls[0].href)
+        assertEquals(0.42f, view.navCalls[0].progression, 0.0001f)
     }
 
     @Test
