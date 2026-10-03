@@ -133,8 +133,14 @@ class PlayerCoordinator constructor(
         ticker.reset()
     }
 
-    /** Cancels the state-collection scope. Call when the owning ViewModel is cleared (not on a
-     *  mere bar-close, which must leave the coordinator reusable for the next open). */
+    /**
+     * Cancels the state-collection scope. Must NOT be called while the coordinator is registered
+     * as a Koin singleton (see AppKoinModules + PlayerCoordinatorScopeTest): the singleton outlives
+     * any single ViewModel, so cancelling its scope would permanently kill [AudioClockTicker]'s
+     * state-collection coroutine and break the sentence highlight for every subsequent reader
+     * session. Only call this if the coordinator is known to be truly process-scope-final (e.g.
+     * in a test harness or if the singleton registration is ever removed).
+     */
     fun dispose() {
         scope.cancel()
     }

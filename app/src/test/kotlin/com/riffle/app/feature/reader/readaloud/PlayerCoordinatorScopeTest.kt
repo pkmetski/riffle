@@ -1,22 +1,27 @@
 package com.riffle.app.feature.reader.readaloud
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 /**
- * Regression for the missing-Readaloud-highlight bug (fix 8d06cc8).
+ * Regression tests for the missing-Readaloud-highlight bugs.
  *
- * [PlayerCoordinator] is injected into both `ReadaloudSession` (as a `PlayerController`)
- * and `EpubReaderViewModel` (as its concrete type). Without a shared-instance binding,
- * each injection point would get a fresh instance — the session would drive audio on one
- * `AudioClockTicker` while the ViewModel's `activeFragmentRef` observed a different one
- * that never sees the audio clock, so the synced sentence highlight would stay on `null`.
+ * Bug 1 (fix 8d06cc8): [PlayerCoordinator] was injected as a factory — each injection site
+ * (ReadaloudSession and EpubReaderViewModel) received a separate instance. The session drove
+ * audio on one [AudioClockTicker] while the ViewModel's `activeFragmentRef` observed a
+ * different one that never received audio-clock updates, so the highlight stayed on `null`.
+ * Fixed by registering with `single`.
  *
- * With Koin, `single { PlayerCoordinator(...) }` ensures the same instance is returned
- * for every `get<PlayerCoordinator>()` call, replacing the former `@ViewModelScoped` Hilt
- * annotation that provided the same guarantee. This test pins that the registration uses
- * `single`, not `factory`, so a careless refactor doesn't silently break the highlight.
+ * Bug 2: After changing the readaloud colour in Settings and reopening the reader, the
+ * highlight would permanently stop appearing until the app was restarted. Root cause: the
+ * [PlayerCoordinator] is app-lifetime (Koin `single`), but [EpubReaderViewModel.onCleared]
+ * called [PlayerCoordinator.dispose] which permanently cancelled the coordinator's internal
+ * [kotlinx.coroutines.CoroutineScope]. [AudioClockTicker]'s state-collection coroutine runs
+ * in that scope, so once cancelled it could never update `activeFragmentRef` again — all
+ * subsequent reader sessions would see `null` for the fragment ref and no highlight. Fixed
+ * by removing the [PlayerCoordinator.dispose] call from [EpubReaderViewModel.onCleared].
  */
 class PlayerCoordinatorScopeTest {
     @Test
@@ -36,6 +41,35 @@ class PlayerCoordinatorScopeTest {
                 "to ensure ReadaloudSession and EpubReaderViewModel share the same AudioClockTicker. " +
                 "A `factory` registration would silently break the Readaloud highlight. See fix 8d06cc8.",
             singletonPattern.containsMatchIn(text),
+        )
+    }
+
+    @Test
+    fun `EpubReaderViewModel onCleared does not call playerCoordinator dispose`() {
+        val vmFile = File("src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt")
+        assertTrue(
+            "EpubReaderViewModel.kt must exist at ${vmFile.absolutePath}",
+            vmFile.exists(),
+        )
+        val text = vmFile.readText()
+        // The onCleared body must not call playerCoordinator.dispose(). PlayerCoordinator is a
+        // Koin singleton whose internal scope must live for the app's lifetime — cancelling it
+        // permanently kills AudioClockTicker's state-collection coroutine so every subsequent
+        // readaloud session sees activeFragmentRef=null and shows no highlight.
+        // We match only un-commented lines — a `// NOTE: do NOT call playerCoordinator.dispose()`
+        // comment is fine; an actual invocation is not.
+        val callsDispose = text.lines()
+            .dropWhile { !it.contains("override fun onCleared()") }
+            .drop(1) // skip the `override fun onCleared()` line itself
+            .takeWhile { it != "    }" && it != "    })" } // stop at closing brace of onCleared
+            .filter { !it.trimStart().startsWith("//") } // skip comment lines
+            .any { it.contains("playerCoordinator.dispose()") }
+        assertFalse(
+            "EpubReaderViewModel.onCleared() must not call playerCoordinator.dispose(). " +
+                "PlayerCoordinator is a Koin singleton — calling dispose() permanently cancels " +
+                "its AudioClockTicker coroutine, so all subsequent readaloud sessions lose the " +
+                "sentence highlight until the app restarts. See PlayerCoordinatorScopeTest.",
+            callsDispose,
         )
     }
 }
