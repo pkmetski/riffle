@@ -3030,13 +3030,20 @@ private fun EpubNavigatorView(
             LaunchedEffect(continuousView) {
                 val view = continuousView ?: return@LaunchedEffect
                 val initialLocator = latestLocator() ?: state.initialLocator
-                val anchor = initialLocator?.locations?.fragments?.firstOrNull()
                 val rawHref = initialLocator?.href?.toString()
                     ?: chapters.firstOrNull()?.link?.href?.toString()
                     ?: return@LaunchedEffect
-                val initialHref = if (anchor != null) "$rawHref#$anchor" else rawHref
                 val focusId = state.initialFocusAnnotationId?.takeIf { focusIsFresh }
                 focusIsFresh = false
+                // For annotation navigation (focusId set), append the element anchor so
+                // resolveAnchorThenLand can fall back if scrollToFocusAnnotation doesn't resolve.
+                // For position restoration (focusId null), never use the anchor: anchor-based
+                // landing places the element top at the viewport top, losing position within the
+                // element and ignoring the −vh/2 midpoint correction that scrollYForProgression
+                // applies. ABS CFI locators populate locations.fragments with DOM element IDs,
+                // so without this guard a ServerWins reopen drifts forward by up to a full page.
+                val anchor = if (focusId != null) initialLocator?.locations?.fragments?.firstOrNull() else null
+                val initialHref = if (anchor != null) "$rawHref#$anchor" else rawHref
                 // Bootstrap persisted highlights for this freshly-bound view BEFORE chapters load:
                 // the persisted-highlights LaunchedEffect above this block doesn't re-fire on the
                 // ref-null→view transition (its keys don't include continuousViewRef.value), so on
