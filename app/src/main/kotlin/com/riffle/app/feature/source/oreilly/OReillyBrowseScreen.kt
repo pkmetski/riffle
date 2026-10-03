@@ -59,6 +59,7 @@ fun OReillyBrowseScreen(
 
     val query by viewModel.query.collectAsState()
     val persistedCoverScale by viewModel.coverGridScale.collectAsState()
+    val persistedHomeCoverScale by viewModel.homeCoverGridScale.collectAsState()
 
     val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
@@ -111,9 +112,14 @@ fun OReillyBrowseScreen(
             windowSizeClass = windowSizeClass,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+            val (activeScale, onActiveScalePersist) = if (selectedTab == TAB_HOME) {
+                persistedHomeCoverScale to viewModel::setHomeCoverGridScale
+            } else {
+                persistedCoverScale to viewModel::setCoverGridScale
+            }
             UnboundedCoverGridZoomProvider(
-                persistedScale = persistedCoverScale,
-                onPersistScaleChange = viewModel::setCoverGridScale,
+                persistedScale = activeScale,
+                onPersistScaleChange = onActiveScalePersist,
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides isAudio) {
                     when (selectedTab) {

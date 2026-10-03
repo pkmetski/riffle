@@ -15,10 +15,15 @@ class CoverGridDensityStoreImpl constructor(
 ) : CoverGridDensityStore {
 
     private val globalStore = preferenceStore(dataStore, PrefCodecs.float("cover_grid_scale", default = 1f))
+    private val homeScaleStore = preferenceStore(dataStore, PrefCodecs.float("cover_grid_scale_home", default = 1f))
 
     override val scale: Flow<Float> = globalStore.flow
 
     override suspend fun setScale(value: Float) = globalStore.update(value)
+
+    override val homeScale: Flow<Float> = homeScaleStore.flow
+
+    override suspend fun setHomeScale(value: Float) = homeScaleStore.update(value)
 
     override fun scale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket): Flow<Float> =
         dao.observeScale(sourceId, libraryId, bucket.encode()).map { it ?: 1f }
