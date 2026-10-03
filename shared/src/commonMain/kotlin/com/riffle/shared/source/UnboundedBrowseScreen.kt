@@ -153,10 +153,7 @@ internal fun UnboundedBrowseScreen(
                 TAB_HOME, TAB_TO_READ, TAB_ANNOTATIONS -> {
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
                     UnboundedCoverGridZoomProvider(
-                        browseScaleFlow = viewModel.coverGridScale,
-                        onPersistScaleChange = viewModel::setCoverGridScale,
-                        homeScaleFlow = viewModel.homeCoverGridScale,
-                        onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                        viewModel = viewModel,
                         isHomeTab = selectedLocalTab == TAB_HOME,
                     ) { _ ->
                         LibraryTabContent(

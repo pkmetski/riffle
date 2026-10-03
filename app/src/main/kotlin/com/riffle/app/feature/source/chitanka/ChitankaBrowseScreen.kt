@@ -149,10 +149,7 @@ fun ChitankaBrowseScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             UnboundedCoverGridZoomProvider(
-                browseScaleFlow = viewModel.coverGridScale,
-                onPersistScaleChange = viewModel::setCoverGridScale,
-                homeScaleFlow = viewModel.homeCoverGridScale,
-                onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                viewModel = viewModel,
                 isHomeTab = selectedTab == TAB_HOME,
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides isAudioRoot) {

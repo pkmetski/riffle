@@ -121,6 +121,24 @@ fun <T> UnboundedBrowseContent(
 }
 
 /**
+ * Convenience overload for [UnboundedBrowseViewModel]-backed screens: wires the browse and home
+ * scale flows from [viewModel] automatically, so call sites only pass [isHomeTab].
+ */
+@Composable
+fun UnboundedCoverGridZoomProvider(
+    viewModel: UnboundedBrowseViewModel,
+    isHomeTab: Boolean,
+    content: @Composable (onScaleChange: (Float) -> Unit) -> Unit,
+) = UnboundedCoverGridZoomProvider(
+    browseScaleFlow = viewModel.coverGridScale,
+    onPersistScaleChange = viewModel::setCoverGridScale,
+    homeScaleFlow = viewModel.homeCoverGridScale,
+    onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+    isHomeTab = isHomeTab,
+    content = content,
+)
+
+/**
  * Supplies the persisted cover density to every tab in an unbounded web source while keeping
  * gesture updates live. When [isHomeTab] is true the provider uses the home-tab scale pair so the
  * Home shelf zoom is independent of the browse/catalog zoom.
