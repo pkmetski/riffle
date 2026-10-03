@@ -118,9 +118,11 @@ class NoteGlyphRenderHarnessTest : KoinTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        // 60 s: the continuous-mode annotation-focus reflow cycle (off-screen land → reflow → re-land)
-        // requires two full layout passes and can take longer than 30 s on slow CI runners.
-        val deadline = System.currentTimeMillis() + 60_000
+        // Continuous mode needs 90 s: the annotation-focus reflow cycle (off-screen land → reflow →
+        // re-land) requires two full layout passes and has taken >60 s on the slowest CI runners.
+        // Paginated/vertical are faster (Readium handles layout); 60 s covers them comfortably.
+        val budgetMs = if (orientation == ReaderOrientation.Continuous) 90_000L else 60_000L
+        val deadline = System.currentTimeMillis() + budgetMs
         var lastDetails = "no WebView"
         val glyphSelector = if (orientation == ReaderOrientation.Continuous) {
             "[data-riffle-note-glyph]"
