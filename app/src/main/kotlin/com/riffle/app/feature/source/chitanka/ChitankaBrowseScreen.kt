@@ -150,7 +150,7 @@ fun ChitankaBrowseScreen(
         ) {
             UnboundedCoverGridZoomProvider(
                 viewModel = viewModel,
-                isHomeTab = selectedTab == TAB_HOME,
+                selectedTab = selectedTab,
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides isAudioRoot) {
                     when (selectedTab) {

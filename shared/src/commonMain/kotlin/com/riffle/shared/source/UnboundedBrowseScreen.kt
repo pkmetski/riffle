@@ -154,7 +154,7 @@ internal fun UnboundedBrowseScreen(
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
                     UnboundedCoverGridZoomProvider(
                         viewModel = viewModel,
-                        isHomeTab = selectedLocalTab == TAB_HOME,
+                        selectedTab = selectedLocalTab,
                     ) { _ ->
                         LibraryTabContent(
                             selectedTab = libraryTabIndex,

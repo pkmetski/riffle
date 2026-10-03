@@ -131,7 +131,7 @@ fun GutenbergBrowseScreen(
         ) {
             UnboundedCoverGridZoomProvider(
                 viewModel = viewModel,
-                isHomeTab = selectedTab == TAB_HOME,
+                selectedTab = selectedTab,
             ) { onCoverScaleChange ->
                 when (selectedTab) {
                     TAB_HOME -> WebSourceHomeTab(

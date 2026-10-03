@@ -112,7 +112,7 @@ fun OReillyBrowseScreen(
         ) {
             UnboundedCoverGridZoomProvider(
                 viewModel = viewModel,
-                isHomeTab = selectedTab == TAB_HOME,
+                selectedTab = selectedTab,
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides isAudio) {
                     when (selectedTab) {

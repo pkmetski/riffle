@@ -122,19 +122,21 @@ fun <T> UnboundedBrowseContent(
 
 /**
  * Convenience overload for [UnboundedBrowseViewModel]-backed screens: wires the browse and home
- * scale flows from [viewModel] automatically, so call sites only pass [isHomeTab].
+ * scale flows from [viewModel] automatically. Home tab is always index 0 across every web-source
+ * browse screen, so [selectedTab] is compared to 0 here rather than requiring the call site to
+ * reconstruct `selectedTab == TAB_HOME`.
  */
 @Composable
 fun UnboundedCoverGridZoomProvider(
     viewModel: UnboundedBrowseViewModel,
-    isHomeTab: Boolean,
+    selectedTab: Int,
     content: @Composable (onScaleChange: (Float) -> Unit) -> Unit,
 ) = UnboundedCoverGridZoomProvider(
     browseScaleFlow = viewModel.coverGridScale,
     onPersistScaleChange = viewModel::setCoverGridScale,
     homeScaleFlow = viewModel.homeCoverGridScale,
     onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
-    isHomeTab = isHomeTab,
+    isHomeTab = selectedTab == 0,
     content = content,
 )
 

@@ -110,7 +110,7 @@ fun RadioEsBrowseScreen(
         ) {
             UnboundedCoverGridZoomProvider(
                 viewModel = viewModel,
-                isHomeTab = selectedTab == TAB_HOME,
+                selectedTab = selectedTab,
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides true) {
                     when (selectedTab) {
