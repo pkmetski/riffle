@@ -193,12 +193,12 @@ private fun minuteOfDayToLocalTime(value: Int): LocalMinuteTime {
 private const val SERIF_V2_PERSIST_NAME = "SerifV2"
 private const val LEGACY_SERIF_PERSIST_NAME = "Serif"
 
-private fun ReaderFontFamily.encodePersistName(): String = when (this) {
+internal fun ReaderFontFamily.encodePersistName(): String = when (this) {
     ReaderFontFamily.Serif -> SERIF_V2_PERSIST_NAME
     else -> name
 }
 
-private fun String.decodeFontFamily(): ReaderFontFamily? = when (this) {
+internal fun String.decodeFontFamily(): ReaderFontFamily? = when (this) {
     SERIF_V2_PERSIST_NAME -> ReaderFontFamily.Serif
     LEGACY_SERIF_PERSIST_NAME -> ReaderFontFamily.Original
     else -> runCatching { ReaderFontFamily.valueOf(this) }.getOrNull()

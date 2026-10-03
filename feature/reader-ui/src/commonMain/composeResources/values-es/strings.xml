@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Reader chrome UI strings — Spanish. Values copied from app/src/main/res/values-es/strings.xml.
+-->
+<resources>
+    <string name="ui_back">Atrás</string>
+    <string name="ui_cancel">Cancelar</string>
+    <string name="ui_save">Guardar</string>
+    <string name="ui_delete">Eliminar</string>
+    <string name="ui_rename">Renombrar</string>
+    <string name="ui_rename_bookmark">Renombrar marcador</string>
+    <string name="ui_dismiss">Cerrar</string>
+    <string name="ui_annotations">Anotaciones</string>
+    <string name="ui_format">Formato</string>
+    <string name="ui_formatting">Formato</string>
+    <string name="ui_display">Pantalla</string>
+    <string name="ui_reset_to_global_defaults">Restablecer los valores predeterminados globales</string>
+    <string name="ui_search_in_book">Buscar en el libro…</string>
+    <string name="ui_no_results">Sin resultados</string>
+    <string name="ui_result_position">%1$d de %2$d</string>
+    <string name="ui_previous_result">Resultado anterior</string>
+    <string name="ui_next_result">Siguiente resultado</string>
+    <string name="ui_close_search">Cerrar búsqueda</string>
+    <string name="ui_footnote">Nota al pie</string>
+    <string name="ui_return_to_previous_position">Volver a la posición anterior</string>
+    <string name="ui_next_chapter">Siguiente capítulo</string>
+    <string name="ui_look_up">Buscar en diccionario</string>
+    <string name="ui_table_of_contents">Índice</string>
+    <string name="ui_options">Opciones</string>
+    <string name="ui_no_annotations_yet">Aún no hay anotaciones.</string>
+    <string name="ui_close_footnote">Cerrar nota al pie</string>
+</resources>

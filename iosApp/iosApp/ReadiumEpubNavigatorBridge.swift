@@ -34,6 +34,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
     private var figureTapCallback: ((String) -> Void)?
+    private var footnoteCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
     /// remove the handler and break the retain cycle that WKUserContentController's strong
@@ -153,6 +154,22 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     func setFigureTapCallback(callback: ((String) -> Void)?) {
         figureTapCallback = callback
+    }
+
+    func setFootnoteCallback(callback: ((String) -> Void)?) {
+        footnoteCallback = callback
+    }
+
+    /// Test seam: exercises the footnote-stripping + callback path without a live Readium Navigator.
+    /// Returns `false` when a callback is registered (same semantics as the delegate), `true` otherwise.
+    func simulateFootnoteTap(content: String) -> Bool {
+        guard let cb = footnoteCallback else { return true }
+        let plain = content
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        cb(plain.isEmpty ? content : plain)
+        return false
     }
 
     func setErrorCallback(callback: ((String) -> Void)?) {
@@ -484,6 +501,20 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     /// the Kotlin side so they reach the RIFFLE_READER log channel instead of vanishing.
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
         errorCallback?(String(describing: error))
+    }
+
+    /// Readium-Swift 3.x calls this when the user taps a `epub:type="noteref"` anchor. When a
+    /// [footnoteCallback] is registered we strip the note HTML to plain text, forward it, and
+    /// return `false` so the navigator does NOT jump to the note location — the shared
+    /// `FootnotePopup` composable shows it inline instead.
+    func navigator(_ navigator: Navigator, shouldNavigateToNoteAt link: Link, content: String, referrer: String?) -> Bool {
+        guard let cb = footnoteCallback else { return true }
+        let plain = content
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        cb(plain.isEmpty ? content : plain)
+        return false
     }
 
     /// The selection seam.

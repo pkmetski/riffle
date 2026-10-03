@@ -12,12 +12,6 @@ plugins {
 // androidTarget + iOS targets. Put reader Compose that both platforms render here; the
 // platform-bound hosting (Readium-Android fragments, the UIKit navigator bridge) stays in
 // :app / :shared.
-//
-// Unlike :feature:source-ui this module deliberately has no composeResources: its only strings
-// are the chapter-map labels, and they are supplied by the host as a
-// [com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates] so Android keeps serving them
-// from its own `res/values*` (bg/es included) with no resource migration and no APK asset
-// bridging.
 kotlin {
     android {
         namespace = "com.riffle.feature.reader.ui"
@@ -40,7 +34,9 @@ kotlin {
             api(libs.compose.runtime)
             api(libs.compose.foundation)
             api(libs.compose.ui)
+            api(libs.compose.ui.backhandler)
             api(compose.material3)
+            implementation(compose.components.resources)
             api(project(":core:common"))
             api(project(":core:domain"))
             api(project(":feature:reader"))
@@ -55,6 +51,21 @@ kotlin {
             implementation(compose.uiTest)
         }
     }
+}
+
+// Pin the generated Res class to the module's Kotlin package (same pattern as :feature:source-ui).
+compose.resources {
+    packageOfResClass = "com.riffle.feature.reader.ui.generated.resources"
+    publicResClass = true
+}
+
+// AGP 9's KMP library plugin does not configure the Compose resource task's outputDirectory, so
+// composeResources never reach the consuming APK. Bridge manually: same pattern as :feature:source-ui.
+// :app adds this directory as an asset srcDir and wires its asset-merge tasks to depend on this task.
+val copyComposeResourcesForApk by tasks.registering(Copy::class) {
+    dependsOn(tasks.matching { it.name == "prepareComposeResourcesTaskForCommonMain" })
+    from(layout.buildDirectory.dir("generated/compose/resourceGenerator/preparedResources/commonMain/composeResources"))
+    into(layout.buildDirectory.dir("composeAssetsForApk/composeResources/com.riffle.feature.reader.ui.generated.resources"))
 }
 
 // The `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task:
@@ -77,6 +88,13 @@ tasks.withType<Test>().configureEach {
         // they execute for real on `iosSimulatorArm64Test`, and Android renders the ribbon
         // on-device in `app/src/androidTest` (`CornerBookmarkIndicatorTest`).
         excludeTestsMatching("com.riffle.feature.reader.ui.AnnotationActionsSheetTest")
+        // New shared chrome composables (ReaderTopBar, SearchTopBar, AnnotationsPanel, etc.)
+        // follow the same run-on-iOS-only policy as AnnotationActionsSheetTest above.
+        excludeTestsMatching("com.riffle.feature.reader.ui.ReaderTopBarTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.SearchTopBarTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.AnnotationsPanelTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.FootnotePopupTest")
+        excludeTestsMatching("com.riffle.feature.reader.ui.ReturnToPositionCardTest")
         isFailOnNoMatchingTests = false
     }
 }

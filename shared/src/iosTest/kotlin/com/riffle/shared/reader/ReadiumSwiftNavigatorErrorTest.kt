@@ -83,6 +83,7 @@ class ReadiumSwiftNavigatorErrorTest {
             onResult(jsResult)
         }
         override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
     }
 

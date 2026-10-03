@@ -281,4 +281,5 @@
     <string name="ui_progress_bar_at_the_bottom_of_the_page">Лента за напредък в долната част на страницата</string>
     <string name="ui_smart_split">Интелигентно разделяне</string>
     <string name="ui_split">Разделяне</string>
+    <string name="ui_reset_to_global_defaults">Връщане към глобалните настройки по подразбиране</string>
 </resources>

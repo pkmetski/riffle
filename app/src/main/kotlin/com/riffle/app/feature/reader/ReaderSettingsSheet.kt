@@ -1,48 +1,10 @@
 package com.riffle.app.feature.reader
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import com.riffle.app.R
-import com.riffle.app.feature.readersettings.DisplaySection
-import com.riffle.app.feature.readersettings.FormattingSection
 import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.settings.ui.readersettings.ReaderSettingsSheet as SharedReaderSettingsSheet
 
-/**
- * In-reader settings host. A fixed-height bottom sheet (does not resize when switching tabs;
- * leaves the page visible behind it to preview changes) with Formatting / Display tabs,
- * each rendering the shared section composable. Hosts the reader-only "Reset to global defaults"
- * footer. Opened from the reader's "Aa" toolbar button.
- *
- * @param capabilities gates rows in [FormattingSection] and [DisplaySection] that don't apply to
- *   the current renderer (e.g. font-family and reading-mode switching for PDF).
- */
 @Composable
 fun ReaderSettingsSheet(
     prefs: FormattingPreferences,
@@ -51,68 +13,11 @@ fun ReaderSettingsSheet(
     onPrefsChange: (FormattingPreferences) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
-) {
-    val tabs = listOf(stringResource(R.string.ui_formatting), stringResource(R.string.ui_display))
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    BackHandler(onBack = onDismiss)
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Tap-catcher above the sheet dismisses; reader pane stays visible to preview changes.
-        Box(
-            modifier = Modifier.fillMaxSize().clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss,
-            ),
-        )
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.6f)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                ),
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            tonalElevation = 1.dp,
-            shadowElevation = 8.dp,
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SecondaryTabRow(selectedTabIndex = selectedTab) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title) },
-                        )
-                    }
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                ) {
-                    when (selectedTab) {
-                        0 -> FormattingSection(prefs, onPrefsChange, capabilities)
-                        else -> DisplaySection(prefs, onPrefsChange, scheduleEditable = false, capabilities = capabilities)
-                    }
-                }
-                HorizontalDivider()
-                TextButton(
-                    onClick = onReset,
-                    enabled = hasBookOverrides,
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(vertical = 4.dp)
-                        .navigationBarsPadding(),
-                ) {
-                    Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_reset_to_global_defaults))
-                }
-            }
-        }
-    }
-}
+) = SharedReaderSettingsSheet(
+    prefs = prefs,
+    capabilities = capabilities,
+    hasBookOverrides = hasBookOverrides,
+    onPrefsChange = onPrefsChange,
+    onReset = onReset,
+    onDismiss = onDismiss,
+)

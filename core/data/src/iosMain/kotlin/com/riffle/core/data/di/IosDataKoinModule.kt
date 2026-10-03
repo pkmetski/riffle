@@ -12,6 +12,7 @@ import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.IosAudiobookSleepStopStoreImpl
 import com.riffle.core.data.IosBookComicFormattingPreferencesStoreImpl
+import com.riffle.core.data.IosBookFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosCatalogProgressRemoteFactory
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosConnectivityObserver
@@ -54,6 +55,7 @@ import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookComicFormattingPreferencesDao
+import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudResumePositionDao
@@ -61,6 +63,7 @@ import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DeviceIdStore
@@ -214,6 +217,7 @@ val iosDataModule = module {
     }
 
     single<FormattingPreferencesStore> { IosFormattingPreferencesStoreImpl() }
+    single<BookFormattingPreferencesStore> { IosBookFormattingPreferencesStoreImpl(get<BookFormattingPreferencesDao>()) }
     single<BookComicFormattingPreferencesStore> { IosBookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
     single<LibraryMutator> { IosLibraryMutatorImpl(get<LibraryItemDao>(), get<SourceRepository>(), get<Clock>()) }
