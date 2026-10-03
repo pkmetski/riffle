@@ -71,6 +71,7 @@
 		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1019010 /* StubKomgaServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1019020 /* StubKomgaServer.swift */; };
 		B101901A /* PdfBridgeUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B101901B /* PdfBridgeUnitTests.swift */; };
+		B1055010 /* FootnoteBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1055020 /* FootnoteBridgeTests.swift */; };
 		B1020010 /* RiffleHarnessTestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1020020 /* RiffleHarnessTestCase.swift */; };
 		B1021010 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
 		B1022010 /* test-footnotes.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1022020 /* test-footnotes.epub */; };
@@ -132,6 +133,7 @@
 		B1015020 /* ProgressPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPipelineTests.swift; sourceTree = "<group>"; };
 		B1018020 /* StubAbsServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubAbsServer.swift; sourceTree = "<group>"; };
 		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
+		B1055020 /* FootnoteBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootnoteBridgeTests.swift; sourceTree = "<group>"; };
 		B1019020 /* StubKomgaServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubKomgaServer.swift; sourceTree = "<group>"; };
 		B1020020 /* RiffleHarnessTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleHarnessTestCase.swift; sourceTree = "<group>"; };
 		B1021020 /* test.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.epub; sourceTree = "<group>"; };
@@ -244,6 +246,7 @@
 				B1014020 /* SourcePickerTests.swift */,
 				B1015020 /* ProgressPipelineTests.swift */,
 				B101901B /* PdfBridgeUnitTests.swift */,
+				B1055020 /* FootnoteBridgeTests.swift */,
 				E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */,
 				A1C0DE010002 /* AutoScrollBridgeTests.swift */,
 				A1C0DE020002 /* CadenceBridgeTests.swift */,
@@ -503,6 +506,7 @@
 				B100E010 /* LibraryTabVisibilityTests.swift in Sources */,
 				B101801A /* PdfKitNavigatorBridge.swift in Sources */,
 				B101901A /* PdfBridgeUnitTests.swift in Sources */,
+				B1055010 /* FootnoteBridgeTests.swift in Sources */,
 				A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */,
 				64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */,
 				A1C0DE010001 /* AutoScrollBridgeTests.swift in Sources */,

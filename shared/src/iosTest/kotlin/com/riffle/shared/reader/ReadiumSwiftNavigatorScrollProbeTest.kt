@@ -59,6 +59,7 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         override fun startSearch(query: String, onBatch: ((matchesJson: String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
         override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
     }
 

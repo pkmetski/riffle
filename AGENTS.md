@@ -296,6 +296,8 @@ Run all of these before pushing, sequentially — parallel Gradle invocations co
 
 The iOS `Lint` CI job runs **SwiftLint** as well as ktlint, and `swiftlint lint iosApp/` exits non-zero on pre-existing violations — so compare your branch's violation set against `main`'s rather than reading the exit code. Note also that the ktlint gate only covers the `iosMain` source sets listed in `.github/workflows/ios.yml`, so violations in `iosTest` escape CI and still need `:<module>:ktlintCheck` locally.
 
+**ktlint scope includes every module you touched.** Run `./gradlew :<module>:ktlintCheck` for every module containing an edited file — not only modules where new files were created. A one-line change in an existing file is enough to make CI flag pre-existing violations in that file. `ktlintFormat` may also silently reformat adjacent files in the same module; always inspect its output diff and re-run `ktlintCheck` afterwards to confirm nothing was re-dirtied before pushing.
+
 ## Prototypes are ephemeral — never commit them
 
 When a visual or UX decision requires a prototype, build it as a localhost HTML/CSS/JS page, show it to the user for review, then **delete it**. Prototype files must never be committed to the repository.

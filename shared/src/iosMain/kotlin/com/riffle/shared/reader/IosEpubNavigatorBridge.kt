@@ -139,6 +139,20 @@ interface IosEpubNavigatorBridge {
     fun readResource(href: String, onResult: (html: String?) -> Unit)
 
     /**
+     * Register a callback that fires when Readium detects a footnote/endnote link tap.
+     *
+     * Readium-Swift 3.x calls [EPUBNavigatorDelegate.navigator(_:shouldNavigateToNoteAt:content:referrer:)]
+     * whenever the user taps an internal link whose anchor carries `epub:type="noteref"`. The
+     * Swift bridge implements that delegate method and, when [callback] is non-null, strips the
+     * note body HTML to plain text and forwards it here instead of navigating to the note location.
+     * The callback returns `false` to Readium to prevent the jump, so the reader stays put while
+     * the shared [FootnotePopup] is shown.
+     *
+     * Pass `null` to unregister (called by [ReadiumSwiftNavigator.close]).
+     */
+    fun setFootnoteCallback(callback: ((contentHtml: String) -> Unit)?)
+
+    /**
      * Called when Readium reports a navigator error (e.g. `copyForbidden`). Before #1071 §17 the
      * Swift delegate's `presentError` was an empty body, so these were silently discarded;
      * [ReadiumSwiftNavigator] now logs them on [com.riffle.core.logging.LogChannel.Reader].

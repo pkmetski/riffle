@@ -244,6 +244,33 @@ object RiffleIcons {
     val KeyboardArrowUp: ImageVector = materialIcon("KeyboardArrowUp") {
         listOf("M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41z")
     }
+
+    /** `Icons.Filled.Delete` */
+    val Delete: ImageVector = materialIcon("Delete") {
+        listOf("M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z")
+    }
+
+    /** `Icons.Filled.MoreVert` */
+    val MoreVert: ImageVector = materialIcon("MoreVert") {
+        listOf(
+            "M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" +
+                "m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" +
+                "m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
+        )
+    }
+
+    /** `Icons.Filled.Bookmark` (single bookmark — distinct from [Bookmarks] which is stacked) */
+    val BookmarkSingle: ImageVector = materialIcon("BookmarkSingle") {
+        listOf("M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
+    }
+
+    /** `Icons.Filled.Image` — placeholder for image annotations without decoded bitmap */
+    val Image: ImageVector = materialIcon("Image") {
+        listOf(
+            "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2z" +
+                "M8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
+        )
+    }
 }
 
 /**

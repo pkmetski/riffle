@@ -2,6 +2,7 @@ package com.riffle.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmbeddedFigure
 
 /**
  * Which visual variant an annotations-panel row renders, derived from [Annotation.type].
@@ -33,3 +34,23 @@ const val HIGHLIGHT_SNIPPET_MAX_LINES = 6
 
 fun maxLinesForAnnotationTitle(type: String): Int =
     if (type == AnnotationEntity.TYPE_BOOKMARK) BOOKMARK_TITLE_MAX_LINES else HIGHLIGHT_SNIPPET_MAX_LINES
+
+/**
+ * Platform-neutral figure descriptor used by the shared annotations panel row.
+ * [bytesUri] is a `data:image/…;base64,…` URI; [caption] is the figure's caption text.
+ */
+data class InlineFigure(val bytesUri: String, val caption: String, val charOffset: Long?)
+
+/** Collects the displayable inline figures for [annotation], same logic as the Android panel. */
+fun collectInlineFigures(annotation: Annotation): List<InlineFigure> {
+    val fromEmbedded = annotation.embeddedFigures
+        ?.sortedBy(EmbeddedFigure::order)
+        ?.mapNotNull { fig ->
+            val bytes = fig.imageBytes
+            if (!bytes.isNullOrBlank()) InlineFigure(bytes, fig.caption, fig.charOffset) else null
+        }
+        ?: emptyList()
+    if (fromEmbedded.isNotEmpty()) return fromEmbedded
+    val bytes = annotation.imageBytes
+    return if (!bytes.isNullOrBlank()) listOf(InlineFigure(bytes, "", charOffset = null)) else emptyList()
+}
