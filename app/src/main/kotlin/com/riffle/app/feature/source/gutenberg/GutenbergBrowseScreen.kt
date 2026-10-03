@@ -131,14 +131,12 @@ fun GutenbergBrowseScreen(
             windowSizeClass = windowSizeClass,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            val (activeScale, onActiveScalePersist) = if (selectedTab == TAB_HOME) {
-                persistedHomeCoverScale to viewModel::setHomeCoverGridScale
-            } else {
-                persistedCoverScale to viewModel::setCoverGridScale
-            }
             UnboundedCoverGridZoomProvider(
-                persistedScale = activeScale,
-                onPersistScaleChange = onActiveScalePersist,
+                persistedScale = persistedCoverScale,
+                onPersistScaleChange = viewModel::setCoverGridScale,
+                persistedHomeScale = persistedHomeCoverScale,
+                onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                isHomeTab = selectedTab == TAB_HOME,
             ) { onCoverScaleChange ->
                 when (selectedTab) {
                     TAB_HOME -> WebSourceHomeTab(

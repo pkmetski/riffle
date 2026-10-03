@@ -119,21 +119,27 @@ fun <T> UnboundedBrowseContent(
 }
 
 /**
- * Supplies the global, persisted cover density to every tab in an unbounded web source while
- * keeping gesture updates live. Persistence is deliberately delegated to the ViewModel so writes
- * can be debounced once the gesture settles.
+ * Supplies the persisted cover density to every tab in an unbounded web source while keeping
+ * gesture updates live. When [isHomeTab] is true the provider uses the home-tab scale pair so the
+ * Home shelf zoom is independent of the browse/catalog zoom.
  */
 @Composable
 fun UnboundedCoverGridZoomProvider(
     persistedScale: Float,
     onPersistScaleChange: (Float) -> Unit,
+    persistedHomeScale: Float = persistedScale,
+    onPersistHomeScaleChange: (Float) -> Unit = onPersistScaleChange,
+    isHomeTab: Boolean = false,
     content: @Composable (onScaleChange: (Float) -> Unit) -> Unit,
 ) {
-    var liveScale by remember { mutableFloatStateOf(persistedScale) }
-    LaunchedEffect(persistedScale) { liveScale = persistedScale }
+    val activePersistedScale = if (isHomeTab) persistedHomeScale else persistedScale
+    val onActivePersist = if (isHomeTab) onPersistHomeScaleChange else onPersistScaleChange
+
+    var liveScale by remember { mutableFloatStateOf(activePersistedScale) }
+    LaunchedEffect(activePersistedScale) { liveScale = activePersistedScale }
     val onScaleChange: (Float) -> Unit = {
         liveScale = it
-        onPersistScaleChange(it)
+        onActivePersist(it)
     }
 
     CompositionLocalProvider(LocalCoverGridScale provides liveScale) {

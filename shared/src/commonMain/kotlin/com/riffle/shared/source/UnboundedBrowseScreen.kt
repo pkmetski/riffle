@@ -154,15 +154,12 @@ internal fun UnboundedBrowseScreen(
             when (selectedLocalTab) {
                 TAB_HOME, TAB_TO_READ, TAB_ANNOTATIONS -> {
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
-                    // Home tab gets its own zoom level; ToRead/Annotations have no cover grid.
-                    val (activeScale, onActiveScalePersist) = if (selectedLocalTab == TAB_HOME) {
-                        persistedHomeCoverScale to viewModel::setHomeCoverGridScale
-                    } else {
-                        persistedCoverScale to viewModel::setCoverGridScale
-                    }
                     UnboundedCoverGridZoomProvider(
-                        persistedScale = activeScale,
-                        onPersistScaleChange = onActiveScalePersist,
+                        persistedScale = persistedCoverScale,
+                        onPersistScaleChange = viewModel::setCoverGridScale,
+                        persistedHomeScale = persistedHomeCoverScale,
+                        onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                        isHomeTab = selectedLocalTab == TAB_HOME,
                     ) { _ ->
                         LibraryTabContent(
                             selectedTab = libraryTabIndex,
