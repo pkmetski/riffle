@@ -70,6 +70,37 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
         XCTAssertEqual(SleepTimerModeKt.formatCountdown(SleepTimerModeCountDown(remainingMs: 1_999)), "0:01")
     }
 
+    // MARK: - Progress fraction at playback completion (iOS path for radio.es completion bug)
+
+    /// When ExoPlayer fires STATE_ENDED the position equals totalDurationSec.
+    /// AudiobookPlayerViewModel.positionSaveCoordinator.updateProgress now calls
+    /// updateReadingProgressUseCase(sourceId, itemId, fraction) using the two-arg overload.
+    /// This test verifies that the fraction produced by audiobookProgressFraction at that
+    /// position is 1.0 — i.e., the book is marked completed, not left in the "in progress" list.
+    /// Regression: before the fix the single-arg overload used getActive()?.id, so a radio.es
+    /// podcast opened from the Home tab (where ABS is still the active source) wrote 0 DB rows.
+    func testAudiobookProgressFractionAtCompletionIsOne() {
+        let durationSec = 3600.0
+        let fraction = AudiobookProgressUtilsKt.audiobookProgressFraction(
+            positionSec: durationSec,
+            durationSec: durationSec
+        )
+        XCTAssertEqual(fraction, 1.0, accuracy: 0.001,
+                       "a fully-played podcast must write readingProgress = 1.0 to be removed from the Home tab")
+    }
+
+    /// Confirms that progress at 99% of duration is treated as in-progress (not yet completed),
+    /// so only a true end-of-stream event marks the book finished.
+    func testAudiobookProgressFractionAtNinetyNinePercentIsNotCompleted() {
+        let durationSec = 3600.0
+        let fraction = AudiobookProgressUtilsKt.audiobookProgressFraction(
+            positionSec: durationSec * 0.99,
+            durationSec: durationSec
+        )
+        XCTAssertLessThan(fraction, 1.0,
+                          "99% progress must not prematurely complete the book")
+    }
+
     // MARK: - NowPlayingStore guard (scenario 5.8, remaining cases)
 
     /// Each player screen clears its own session on teardown. The predicate guard is what stops
