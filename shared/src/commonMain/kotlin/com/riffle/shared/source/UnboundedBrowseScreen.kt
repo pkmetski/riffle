@@ -35,6 +35,7 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
+import com.riffle.shared.library.CoverGridZoomBox
 import com.riffle.shared.ScreenScopedViewModelHost
 import com.riffle.shared.library.LibraryTabContent
 import org.koin.compose.koinInject
@@ -152,10 +153,14 @@ internal fun UnboundedBrowseScreen(
             when (selectedLocalTab) {
                 TAB_HOME, TAB_TO_READ, TAB_ANNOTATIONS -> {
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
-                    UnboundedCoverGridZoomProvider(
-                        viewModel = viewModel,
-                        selectedTab = selectedLocalTab,
-                    ) { _ ->
+                    CoverGridZoomBox(
+                        browseScaleFlow = viewModel.coverGridScale,
+                        onPersistScaleChange = viewModel::setCoverGridScale,
+                        homeScaleFlow = viewModel.homeCoverGridScale,
+                        onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                        isHomeTab = selectedLocalTab == TAB_HOME,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                         LibraryTabContent(
                             selectedTab = libraryTabIndex,
                             projection = projection,

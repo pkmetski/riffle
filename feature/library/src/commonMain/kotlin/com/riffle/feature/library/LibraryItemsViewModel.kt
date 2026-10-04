@@ -148,7 +148,7 @@ class LibraryItemsViewModel constructor(
             if (bucket != null) {
                 coverGridDensityStore.setScale(sourceId, homeLibraryKey, bucket, value)
             } else {
-                coverGridDensityStore.setScale(value)
+                coverGridDensityStore.setHomeScale(value)
             }
         }
     }

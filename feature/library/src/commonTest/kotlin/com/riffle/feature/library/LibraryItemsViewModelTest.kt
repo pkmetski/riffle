@@ -49,6 +49,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -1792,6 +1793,37 @@ class LibraryItemsViewModelTest {
 
         assertEquals("lib-77:home", writtenLibraryId)
         assertEquals(1.4f, writtenValue)
+    }
+
+    @Test
+    fun setHomeCoverGridScaleNullBucketFallbackUsesHomeScaleNotGlobalScale() = runTest {
+        var globalHomeScaleWritten: Float? = null
+        var globalBrowseScaleWritten: Float? = null
+        val store = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) { globalBrowseScaleWritten = value }
+            override suspend fun setHomeScale(value: Float) { globalHomeScaleWritten = value }
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {}
+        }
+        val vm = makeViewModel(
+            libraryId = "lib-77",
+            coverGridDensityStore = store,
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+        )
+        // Do NOT call setScreenDimensionBucket — bucket stays null to exercise the fallback path.
+        vm.setHomeCoverGridScale(1.6f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.6f, globalHomeScaleWritten)
+        assertNull(globalBrowseScaleWritten, "null-bucket fallback must not overwrite the global browse scale")
     }
 }
 

@@ -38,7 +38,7 @@ internal fun CoverGridZoomBox(
     val onActivePersist = if (isHomeTab) onPersistHomeScaleChange else onPersistScaleChange
     val persistedScale by activeFlow.collectAsState()
 
-    var liveScale by remember { mutableFloatStateOf(persistedScale) }
+    var liveScale by remember(isHomeTab) { mutableFloatStateOf(persistedScale) }
     LaunchedEffect(persistedScale) { liveScale = persistedScale }
     val onScaleChange: (Float) -> Unit = { liveScale = it; onActivePersist(it) }
 
