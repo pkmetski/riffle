@@ -42,19 +42,31 @@ class PlaylistSweep(
             val namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase())
             val libraryIds = libraryDao.libraryIdsForSource(source.id)
             for (libraryId in libraryIds) {
-                runCatching { syncLibrary(syncer, namespace, libraryId) }
+                // Scope localToReadStore keys by source so that different sources with the same
+                // library id (e.g. two web sources both serving a library named "books") do not
+                // corrupt each other's lists.
+                val scopedId = "${source.id}:$libraryId"
+                runCatching { syncLibrary(syncer, namespace, libraryId, scopedId) }
             }
         }
     }
 
-    private suspend fun syncLibrary(syncer: WebDavPlaylistSyncer, namespace: String, libraryId: String) {
+    private suspend fun syncLibrary(
+        syncer: WebDavPlaylistSyncer,
+        namespace: String,
+        libraryId: String,
+        scopedLibraryId: String,
+    ) {
         val playlistId = WebDavPlaylistSyncer.toReadPlaylistId(libraryId)
         val remote = syncer.pull(namespace, playlistId)
-        val localTs = localToReadStore.lastUpdateMs(libraryId)
+        val localTs = localToReadStore.lastUpdateMs(scopedLibraryId)
         when {
             remote == null || localTs > remote.lastUpdate -> {
-                // Local is authoritative — push to remote.
-                val localItems = localToReadStore.observeItemIds(libraryId).first().toList()
+                // Local is authoritative — push to remote. Do NOT update local timestamp after the
+                // push: the file body was written with localTs, but the server returns its own
+                // Last-Modified which may be newer. Storing serverTs would make localTs > localTs on
+                // the next sync and trigger another redundant push.
+                val localItems = localToReadStore.observeItemIds(scopedLibraryId).first().toList()
                 val playlist = WebDavPlaylist(
                     id = playlistId,
                     name = "To Read",
@@ -62,14 +74,11 @@ class PlaylistSweep(
                     itemIds = localItems,
                     lastUpdate = localTs,
                 )
-                val serverTs = syncer.push(namespace, playlist)
-                if (serverTs > 0L) {
-                    localToReadStore.setAll(libraryId, localItems.toSet(), serverTs)
-                }
+                syncer.push(namespace, playlist)
             }
             remote.lastUpdate > localTs -> {
                 // Remote is authoritative — adopt remote items.
-                localToReadStore.setAll(libraryId, remote.itemIds.toSet(), remote.lastUpdate)
+                localToReadStore.setAll(scopedLibraryId, remote.itemIds.toSet(), remote.lastUpdate)
             }
             // Equal timestamps → no-op.
         }

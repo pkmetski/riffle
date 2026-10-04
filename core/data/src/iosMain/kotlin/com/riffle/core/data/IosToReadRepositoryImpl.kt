@@ -78,16 +78,31 @@ class IosToReadRepositoryImpl(
         }
     }
 
-    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
-        cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean {
+        val creds = credentials()
+        return if (creds != null) {
+            cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+        } else {
+            // Non-ABS active source — fall back to local store.
+            localToReadStore.isInToRead(libraryId, libraryItemId)
+        }
+    }
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentials() ?: return false
+        val creds = credentials() ?: run {
+            // Non-ABS active source — fall back to local store.
+            localToReadStore.add(libraryId, libraryItemId)
+            return true
+        }
         return addWithCreds(creds, libraryItemId, libraryId)
     }
 
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentials() ?: return false
+        val creds = credentials() ?: run {
+            // Non-ABS active source — fall back to local store.
+            localToReadStore.remove(libraryId, libraryItemId)
+            return true
+        }
         return removeWithCreds(creds, libraryItemId, libraryId)
     }
 
