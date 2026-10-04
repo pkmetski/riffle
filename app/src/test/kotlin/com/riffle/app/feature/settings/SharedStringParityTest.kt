@@ -33,15 +33,20 @@ class SharedStringParityTest {
 
     @Test
     fun `annotation sync subtitles match the English resources`() {
-        assertResource("ui_webdav_not_configured_status", AnnotationSyncSubtitle.NotConfigured.label())
-        assertResource("ui_waiting_for_first_sync", AnnotationSyncSubtitle.WaitingForFirstSync.label())
-        assertResource("ui_webdav_auth_failed_reenter", AnnotationSyncSubtitle.AuthFailed.label())
-        assertResource("ui_webdav_tls_check_url", AnnotationSyncSubtitle.TlsError.label())
-        assertResource("ui_sync_failed_retry_short", AnnotationSyncSubtitle.SyncFailed.label())
-        assertResource("ui_offline_sync_when_connected", AnnotationSyncSubtitle.Offline.label())
-        assertResource("ui_source_http_retry_short", AnnotationSyncSubtitle.HttpError(503).label(), 503)
-        assertResource("ui_books_pending_sync_online", AnnotationSyncSubtitle.BooksPendingOffline(3).label(), 3)
-        assertResource("ui_synced_identity", AnnotationSyncSubtitle.Synced("me@host").label(), "me@host")
+        val anyNow = 1_000_000L
+        assertResource("ui_webdav_not_configured_status", AnnotationSyncSubtitle.NotConfigured.label(anyNow))
+        assertResource("ui_waiting_for_first_sync", AnnotationSyncSubtitle.WaitingForFirstSync.label(anyNow))
+        assertResource("ui_webdav_auth_failed_reenter", AnnotationSyncSubtitle.AuthFailed.label(anyNow))
+        assertResource("ui_webdav_tls_check_url", AnnotationSyncSubtitle.TlsError.label(anyNow))
+        assertResource("ui_sync_failed_retry_short", AnnotationSyncSubtitle.SyncFailed.label(anyNow))
+        assertResource("ui_offline_sync_when_connected", AnnotationSyncSubtitle.Offline.label(anyNow))
+        assertResource("ui_source_http_retry_short", AnnotationSyncSubtitle.HttpError(503).label(anyNow), 503)
+        assertResource("ui_books_pending_sync_online", AnnotationSyncSubtitle.BooksPendingOffline(3).label(anyNow), 3)
+        // Synced: verify the template still wraps the relative-time argument correctly.
+        val syncMs = 1_000_000L
+        val nowMs = syncMs + 300_000L  // 5 minutes later
+        val minutesAgo = String.format(java.util.Locale.ROOT, strings.getValue("ui_minutes_ago"), 5L)
+        assertResource("ui_synced_identity", AnnotationSyncSubtitle.Synced(syncMs).label(nowMs), minutesAgo)
     }
 
     /**
@@ -57,7 +62,7 @@ class SharedStringParityTest {
             .format(java.util.Locale.ROOT, strings.getValue("ui_synced_identity"), "")
             .withoutDanglingSeparator()
         assertEquals("Synced", androidText)
-        assertEquals(androidText, AnnotationSyncSubtitle.Synced(null).label())
+        assertEquals(androidText, AnnotationSyncSubtitle.Synced(null).label(nowMs = 1_000_000L))
     }
 
     // --- AppUpdateUiState (#1071 §16b) ---

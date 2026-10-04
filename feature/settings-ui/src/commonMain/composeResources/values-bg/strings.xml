@@ -242,6 +242,10 @@
     <string name="ui_suggested_count_header">Предложени (%1$d)</string>
     <string name="ui_sync_failed_retry_short">Синхронизацията не бе успешна · ще се опита отново автоматично</string>
     <string name="ui_synced_identity">Синхронизирано · %1$s</string>
+    <string name="ui_synced_just_now">току-що</string>
+    <string name="ui_synced_minutes_ago">преди %1$d мин</string>
+    <string name="ui_synced_hours_ago">преди %1$d ч</string>
+    <string name="ui_synced_days_ago">преди %1$d дни</string>
     <string name="ui_system">Системна</string>
     <string name="ui_text">Текст</string>
     <string name="ui_the_app_has_not_crashed_since_installation">Приложението не се е сривало след инсталирането</string>

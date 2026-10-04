@@ -855,7 +855,7 @@ class SettingsViewModelTest {
         val row = vm.annotationSyncRow.value
         assertEquals(AnnotationSyncRowState.Badge.Synced, row.badge)
         val synced = assertIs<AnnotationSyncSubtitle.Synced>(row.sub)
-        assertTrue(synced.identity?.contains("alice") == true)
+        assertEquals(1_000L, synced.lastSyncMs)
     }
 
     @Test

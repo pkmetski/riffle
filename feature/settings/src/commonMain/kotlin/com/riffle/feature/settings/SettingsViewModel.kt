@@ -91,18 +91,20 @@ class SettingsViewModel constructor(
         annotationSyncConfigStore.observe(),
         annotationSyncStatusStore.lastCycleOutcome,
         annotationDao.observePendingBookCountAcrossAll(),
-    ) { config, outcome, pendingCount ->
-        deriveRow(config, outcome, pendingCount)
+        annotationSyncStatusStore.lastSuccessAtMs,
+    ) { config, outcome, pendingCount, lastSyncMs ->
+        deriveRow(config, outcome, pendingCount, lastSyncMs)
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        deriveRow(null, CycleOutcome.NeverRun, 0),
+        deriveRow(null, CycleOutcome.NeverRun, 0, null),
     )
 
     private fun deriveRow(
         config: AnnotationSyncConfig?,
         outcome: CycleOutcome,
         pendingCount: Int,
+        lastSyncMs: Long?,
     ): AnnotationSyncRowState {
         val kind = deriveAnnotationSyncKind(config, outcome, pendingCount)
         val badge = when (kind) {
@@ -116,7 +118,7 @@ class SettingsViewModel constructor(
             AnnotationSyncKind.Pending -> AnnotationSyncRowState.Tone.Pending
             AnnotationSyncKind.Error -> AnnotationSyncRowState.Tone.Error
         }
-        return AnnotationSyncRowState(badge, "WebDAV", deriveSubtitle(config, outcome, pendingCount), subTone)
+        return AnnotationSyncRowState(badge, "WebDAV", deriveSubtitle(config, outcome, pendingCount, lastSyncMs), subTone)
     }
 
     private val _crashReports = MutableStateFlow(crashReportRepository.listCrashReports())
