@@ -707,11 +707,7 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     // Paint the current sentence and keep it on screen. One decoration group of its own so it
     // replaces atomically and never fights the annotation highlights.
-    //
-    // Re-keys on cadenceHighlightColor: when the user changes the colour in Settings and returns
-    // to the reader, the LaunchedEffect restarts and combine re-emits the current sentence so
-    // the decoration immediately reflects the new colour instead of waiting for the next sentence.
-    LaunchedEffect(cadence, navigator, resolvedPrefs?.cadenceHighlightColor) {
+    LaunchedEffect(cadence, navigator) {
         var followedRef: String? = null
         combine(cadence.currentFragment, cadence.quotes) { ref, quotes -> ref to quotes }
             .collect { (ref, quotes) ->
@@ -744,6 +740,25 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     goTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
                 }
             }
+    }
+    // Colour-change re-paint: when the user changes cadenceHighlightColor in Settings and
+    // returns to the reader, re-apply the current sentence decoration with the new colour.
+    // This is a separate effect (not keyed into the main follow LaunchedEffect above) so that
+    // a colour change does NOT reset followedRef — resetting it would cause a spurious goTo
+    // call for the already-visible sentence the next time combine emits.
+    LaunchedEffect(cadence, navigator, resolvedPrefs?.cadenceHighlightColor) {
+        val ref = cadence.currentFragment.value ?: return@LaunchedEffect
+        val quotes = cadence.quotes.value
+        navigator.applyDecorations(
+            DECORATION_GROUP_CADENCE,
+            listOf(
+                cadenceDecoration(
+                    fragmentRef = ref,
+                    quote = quotes[ref],
+                    color = (resolvedPrefs ?: FormattingPreferences()).cadenceHighlightColor,
+                ),
+            ),
+        )
     }
 
     // Intra-sentence page follow (paginated only): a sentence that wraps a column boundary leaves

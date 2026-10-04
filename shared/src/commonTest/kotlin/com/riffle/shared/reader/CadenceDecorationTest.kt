@@ -92,7 +92,7 @@ class CadenceDecorationTest {
     // with the new colour produces a different, correctly-coloured decoration — if cadenceDecoration
     // ignored its `color` argument the two decorations would be identical.
     @Test
-    fun changingColourProducesADecoractionWithTheNewColour() {
+    fun changingColourProducesADecorationWithTheNewColour() {
         val blueDecoration = cadenceDecoration("c.xhtml#cd-1", quote, HighlightColor.BLUE)
         val yellowDecoration = cadenceDecoration("c.xhtml#cd-1", quote, HighlightColor.YELLOW)
         assertTrue(blueDecoration.color != yellowDecoration.color, "each colour maps to a distinct hex")

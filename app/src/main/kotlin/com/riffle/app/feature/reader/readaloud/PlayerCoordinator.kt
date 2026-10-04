@@ -20,8 +20,9 @@ import java.io.File
  * controller's polled playback position. The screen decorates that fragment as the synced highlight
  * and follows it (see EpubReaderScreen's auto-follow).
  *
- * Lives as a per-reader instance (constructed by the ViewModel, not a @Singleton) so its scope
- * dies with the reader. The shared [ReadaloudController] it drives is the singleton.
+ * Registered as a Koin `single` (app-lifetime singleton). Its [scope] must NOT be cancelled while
+ * the app is running — see [PlayerCoordinatorScopeTest] and [dispose]. The [ReadaloudController]
+ * it drives is also a singleton; together they outlive any individual reader ViewModel.
  */
 class PlayerCoordinator constructor(
     private val controller: ReadaloudController,
