@@ -25,6 +25,7 @@
 		B1060012 /* OpenInDocumentStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060021 /* OpenInDocumentStagingTests.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
+		B1056010 /* ToReadNonAbsSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1056020 /* ToReadNonAbsSourceTests.swift */; };
 		B1002010 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1002001 /* ReadiumShared */; };
 		B1002011 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1002002 /* ReadiumStreamer */; };
 		B1002012 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1002003 /* ReadiumNavigator */; };
@@ -146,6 +147,7 @@
 		A1C0DE030002 /* AnnotationBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE050002 /* AnnotationWireFormatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationWireFormatTests.swift; sourceTree = "<group>"; };
 		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
+		B1056020 /* ToReadNonAbsSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToReadNonAbsSourceTests.swift; sourceTree = "<group>"; };
 		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
 		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -253,6 +255,7 @@
 				A1C0DE030002 /* AnnotationBridgeTests.swift */,
 				A1C0DE050002 /* AnnotationWireFormatTests.swift */,
 				A1C0DE060002 /* ScrollProbeBridgeTests.swift */,
+				B1056020 /* ToReadNonAbsSourceTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -518,6 +521,7 @@
 				B1053010 /* EpubProgressionLocatorTests.swift in Sources */,
 				B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */,
 				B1054010 /* AudioPlayerBridgeTests.swift in Sources */,
+				B1056010 /* ToReadNonAbsSourceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

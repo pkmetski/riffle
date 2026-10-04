@@ -51,8 +51,10 @@ import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
+import com.riffle.core.data.IosLocalToReadStore
 import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
+import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
@@ -719,7 +721,8 @@ private fun iosLibraryModule(
     // Playlists tab. The AudiobookPlayerViewModel injection stays dead until navPlaylistId can be
     // supplied (see the factory above and #1072).
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
-    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
+    single<LocalToReadStore> { IosLocalToReadStore() }
+    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
     // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles

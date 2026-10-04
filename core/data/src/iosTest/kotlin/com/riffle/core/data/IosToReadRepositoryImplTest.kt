@@ -16,8 +16,10 @@ import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkSeries
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -78,6 +80,64 @@ class IosToReadRepositoryImplTest {
         assertTrue(repo.refreshForSource("src-1", "lib-1"))
     }
 
+    // ── Non-ABS source: localToReadStore ──────────────────────────────────────
+
+    @Test
+    fun addToToReadForSourcePersistsLocallyForNonAbsSource() = runTest {
+        val store = FakeLocalToReadStore()
+        val repo = makeRepo(
+            source = absSource().copy(type = SourceType.KOMGA),
+            getPlaylistsResult = NetworkResult.Offline(RuntimeException("should not be called")),
+            localToReadStore = store,
+        )
+        assertTrue(repo.addToToReadForSource("src-1", "item-42", "lib-1"))
+        assertTrue(store.isInToRead("lib-1", "item-42"))
+    }
+
+    @Test
+    fun removeFromToReadForSourceRemovesLocallyForNonAbsSource() = runTest {
+        val store = FakeLocalToReadStore()
+        store.add("lib-1", "item-42")
+        val repo = makeRepo(
+            source = absSource().copy(type = SourceType.KOMGA),
+            getPlaylistsResult = NetworkResult.Offline(RuntimeException("should not be called")),
+            localToReadStore = store,
+        )
+        assertTrue(repo.removeFromToReadForSource("src-1", "item-42", "lib-1"))
+        assertFalse(store.isInToRead("lib-1", "item-42"))
+    }
+
+    @Test
+    fun isInToReadForSourceReadsLocalStoreForNonAbsSource() = runTest {
+        val store = FakeLocalToReadStore()
+        val repo = makeRepo(
+            source = absSource().copy(type = SourceType.KOMGA),
+            getPlaylistsResult = NetworkResult.Offline(RuntimeException("should not be called")),
+            localToReadStore = store,
+        )
+        assertFalse(repo.isInToReadForSource("src-1", "item-42", "lib-1"))
+        store.add("lib-1", "item-42")
+        assertTrue(repo.isInToReadForSource("src-1", "item-42", "lib-1"))
+    }
+
+    @Test
+    fun observeToReadItemIdsCombinesAbsCacheAndLocalStore() = runTest {
+        val store = FakeLocalToReadStore()
+        store.add("lib-1", "local-item")
+        val playlist = NetworkPlaylist(
+            id = "pl-1", libraryId = "lib-1", name = TO_READ_PLAYLIST_NAME,
+            items = emptyList(), bookIds = setOf("abs-item"),
+        )
+        val repo = makeRepo(
+            getPlaylistsResult = NetworkResult.Success(listOf(playlist)),
+            localToReadStore = store,
+        )
+        repo.refreshForSource("src-1", "lib-1")
+        val ids = repo.observeToReadItemIds("lib-1").first()
+        assertTrue("abs-item" in ids)
+        assertTrue("local-item" in ids)
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun absSource() = Source(
@@ -93,11 +153,13 @@ class IosToReadRepositoryImplTest {
         source: Source = absSource(),
         token: String = "tok",
         getPlaylistsResult: NetworkResult<List<NetworkPlaylist>>,
+        localToReadStore: LocalToReadStore = FakeLocalToReadStore(),
     ) = IosToReadRepositoryImpl(
         absLibraryApi = FixedPlaylistApi(getPlaylistsResult),
         sourceRepository = FixedSourceRepository(source),
         tokenStorage = FixedTokenStorage(token),
         logger = RecordingLogger(),
+        localToReadStore = localToReadStore,
     )
 
     private class FixedPlaylistApi(
@@ -130,5 +192,26 @@ class IosToReadRepositoryImplTest {
         override suspend fun saveToken(sourceId: String, token: String) = Unit
         override suspend fun getToken(sourceId: String): String? = token
         override suspend fun deleteToken(sourceId: String) = Unit
+    }
+
+    private class FakeLocalToReadStore : LocalToReadStore {
+        private val map = mutableMapOf<String, Set<String>>()
+        private val flow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+        override fun observeItemIds(libraryId: String) = flow.map { it[libraryId].orEmpty() }
+        override suspend fun isInToRead(libraryId: String, libraryItemId: String) =
+            map[libraryId]?.contains(libraryItemId) == true
+        override suspend fun add(libraryId: String, libraryItemId: String) {
+            map[libraryId] = map[libraryId].orEmpty() + libraryItemId
+            flow.value = map.toMap()
+        }
+        override suspend fun remove(libraryId: String, libraryItemId: String) {
+            map[libraryId] = map[libraryId].orEmpty() - libraryItemId
+            flow.value = map.toMap()
+        }
+        override suspend fun lastUpdateMs(libraryId: String): Long = 0L
+        override suspend fun setAll(libraryId: String, itemIds: Set<String>, lastUpdateMs: Long) {
+            map[libraryId] = itemIds
+            flow.value = map.toMap()
+        }
     }
 }
