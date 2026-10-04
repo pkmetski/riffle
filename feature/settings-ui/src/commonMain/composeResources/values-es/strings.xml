@@ -242,6 +242,10 @@
     <string name="ui_suggested_count_header">Sugeridos (%1$d)</string>
     <string name="ui_sync_failed_retry_short">Error de sincronización · se reintentará automáticamente</string>
     <string name="ui_synced_identity">Sincronizado · %1$s</string>
+    <string name="ui_synced_just_now">ahora mismo</string>
+    <string name="ui_synced_minutes_ago">hace %1$d min</string>
+    <string name="ui_synced_hours_ago">hace %1$d h</string>
+    <string name="ui_synced_days_ago">hace %1$d d</string>
     <string name="ui_system">Sistema</string>
     <string name="ui_text">Texto</string>
     <string name="ui_the_app_has_not_crashed_since_installation">La aplicación no ha fallado desde su instalación.</string>

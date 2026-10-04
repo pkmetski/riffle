@@ -13,8 +13,12 @@ package com.riffle.feature.settings
  * entry named in its comment, and `AnnotationSyncSubtitleStringsParityTest` in `:app` fails if
  * the two ever diverge again. Android keeps rendering the localized `stringResource` variant
  * because it needs a Compose composition; iOS renders this one.
+ *
+ * [nowMs] is the current wall-clock epoch millisecond, supplied by the caller so that the
+ * relative-time computation in the [AnnotationSyncSubtitle.Synced] branch is deterministic in
+ * tests without a real clock dependency.
  */
-fun AnnotationSyncSubtitle.label(): String = when (this) {
+fun AnnotationSyncSubtitle.label(nowMs: Long): String = when (this) {
     // R.string.ui_webdav_not_configured_status
     is AnnotationSyncSubtitle.NotConfigured ->
         "Not configured · Komga annotations, web-source reading progress"
@@ -32,8 +36,25 @@ fun AnnotationSyncSubtitle.label(): String = when (this) {
     is AnnotationSyncSubtitle.BooksPendingOffline -> "$count book(s) pending · will sync when online"
     // R.string.ui_offline_sync_when_connected
     is AnnotationSyncSubtitle.Offline -> "Offline · will sync when connected"
-    // R.string.ui_synced_identity
-    is AnnotationSyncSubtitle.Synced -> "Synced · ${identity ?: ""}".withoutDanglingSeparator()
+    // R.string.ui_synced_identity + relative time strings
+    is AnnotationSyncSubtitle.Synced ->
+        "Synced · ${relativeTimeEnglish(lastSyncMs, nowMs)}".withoutDanglingSeparator()
+}
+
+/**
+ * English-only relative time string matching the resource templates in `values/strings.xml`.
+ * Used by [label] (the iOS/test path). Android's `resolve()` composable uses the equivalent
+ * `stringResource` calls so the user's locale is respected there.
+ */
+internal fun relativeTimeEnglish(lastSyncMs: Long?, nowMs: Long): String {
+    if (lastSyncMs == null) return ""
+    val elapsedSec = (nowMs - lastSyncMs) / 1_000L
+    return when {
+        elapsedSec < 60 -> "just now"
+        elapsedSec < 3_600 -> "${elapsedSec / 60} min ago"
+        elapsedSec < 86_400 -> "${elapsedSec / 3_600} h ago"
+        else -> "${elapsedSec / 86_400} d ago"
+    }
 }
 
 /**

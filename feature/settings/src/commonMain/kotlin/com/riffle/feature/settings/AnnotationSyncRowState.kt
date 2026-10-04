@@ -43,32 +43,27 @@ sealed class AnnotationSyncSubtitle {
     /** Device is offline and there are no pending books. */
     data object Offline : AnnotationSyncSubtitle()
 
-    /** Fully synced — shows the configured user identity. */
-    data class Synced(val identity: String?) : AnnotationSyncSubtitle()
+    /** Fully synced — shows how long ago the last sync completed. */
+    data class Synced(val lastSyncMs: Long?) : AnnotationSyncSubtitle()
 }
 
 internal fun deriveSubtitle(
     config: com.riffle.core.domain.AnnotationSyncConfig?,
     outcome: CycleOutcome,
     pendingCount: Int,
-): AnnotationSyncSubtitle {
-    val identity = config?.let { "${it.username}@${shortHost(it.baseUrl)}" }
-    return when {
-        config == null -> AnnotationSyncSubtitle.NotConfigured
-        // NeverRun outranks a positive pending count — keep "Waiting for first sync…" for a
-        // freshly-configured install rather than showing "N book(s) pending".
-        outcome is CycleOutcome.NeverRun -> AnnotationSyncSubtitle.WaitingForFirstSync
-        outcome is CycleOutcome.Failed.Auth -> AnnotationSyncSubtitle.AuthFailed
-        outcome is CycleOutcome.Failed.Tls -> AnnotationSyncSubtitle.TlsError
-        outcome is CycleOutcome.Failed.Server -> AnnotationSyncSubtitle.HttpError(outcome.code)
-        outcome is CycleOutcome.Failed.Unknown -> AnnotationSyncSubtitle.SyncFailed
-        outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
-            AnnotationSyncSubtitle.BooksPendingOffline(pendingCount)
-        outcome is CycleOutcome.Failed.Network -> AnnotationSyncSubtitle.Offline
-        pendingCount > 0 -> AnnotationSyncSubtitle.BooksPendingOffline(pendingCount)
-        else -> AnnotationSyncSubtitle.Synced(identity)
-    }
+    lastSyncMs: Long?,
+): AnnotationSyncSubtitle = when {
+    config == null -> AnnotationSyncSubtitle.NotConfigured
+    // NeverRun outranks a positive pending count — keep "Waiting for first sync…" for a
+    // freshly-configured install rather than showing "N book(s) pending".
+    outcome is CycleOutcome.NeverRun -> AnnotationSyncSubtitle.WaitingForFirstSync
+    outcome is CycleOutcome.Failed.Auth -> AnnotationSyncSubtitle.AuthFailed
+    outcome is CycleOutcome.Failed.Tls -> AnnotationSyncSubtitle.TlsError
+    outcome is CycleOutcome.Failed.Server -> AnnotationSyncSubtitle.HttpError(outcome.code)
+    outcome is CycleOutcome.Failed.Unknown -> AnnotationSyncSubtitle.SyncFailed
+    outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
+        AnnotationSyncSubtitle.BooksPendingOffline(pendingCount)
+    outcome is CycleOutcome.Failed.Network -> AnnotationSyncSubtitle.Offline
+    pendingCount > 0 -> AnnotationSyncSubtitle.BooksPendingOffline(pendingCount)
+    else -> AnnotationSyncSubtitle.Synced(lastSyncMs)
 }
-
-private fun shortHost(rawUrl: String): String =
-    rawUrl.substringAfter("://").substringBefore("/").substringBefore("?").substringBefore("#")

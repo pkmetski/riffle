@@ -623,6 +623,10 @@
     <string name="ui_webdav_tls_check_url">TLS error · tap to check server URL</string>
     <string name="ui_offline_sync_when_connected">Offline · will sync when connected</string>
     <string name="ui_synced_identity">Synced · %1$s</string>
+    <string name="ui_synced_just_now">just now</string>
+    <string name="ui_synced_minutes_ago">%1$d min ago</string>
+    <string name="ui_synced_hours_ago">%1$d h ago</string>
+    <string name="ui_synced_days_ago">%1$d d ago</string>
     <string name="ui_never">Never</string>
     <string name="ui_just_now">just now</string>
     <string name="ui_minutes_ago">%1$d min ago</string>

@@ -606,6 +606,10 @@
     <string name="ui_webdav_tls_check_url">Error TLS · toca para comprobar el URL del servidor</string>
     <string name="ui_offline_sync_when_connected">Sin conexión · se sincronizará al conectarse</string>
     <string name="ui_synced_identity">Sincronizado · %1$s</string>
+    <string name="ui_synced_just_now">ahora mismo</string>
+    <string name="ui_synced_minutes_ago">hace %1$d min</string>
+    <string name="ui_synced_hours_ago">hace %1$d h</string>
+    <string name="ui_synced_days_ago">hace %1$d d</string>
     <string name="ui_never">Nunca</string>
     <string name="ui_just_now">ahora mismo</string>
     <string name="ui_minutes_ago">hace %1$d min</string>

@@ -116,7 +116,10 @@ class SettingsViewModel constructor(
             AnnotationSyncKind.Pending -> AnnotationSyncRowState.Tone.Pending
             AnnotationSyncKind.Error -> AnnotationSyncRowState.Tone.Error
         }
-        return AnnotationSyncRowState(badge, "WebDAV", deriveSubtitle(config, outcome, pendingCount), subTone)
+        // Extract atMs from the outcome directly so there's no race between the two StateFlows
+        // in AnnotationSyncStatusStore — the timestamp is always consistent with the outcome.
+        val lastSyncMs = (outcome as? CycleOutcome.Success)?.atMs
+        return AnnotationSyncRowState(badge, "WebDAV", deriveSubtitle(config, outcome, pendingCount, lastSyncMs), subTone)
     }
 
     private val _crashReports = MutableStateFlow(crashReportRepository.listCrashReports())

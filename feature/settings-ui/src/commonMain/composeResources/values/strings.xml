@@ -252,6 +252,10 @@
     <string name="ui_suggested_count_header">Suggested (%1$d)</string>
     <string name="ui_sync_failed_retry_short">Sync failed · will retry automatically</string>
     <string name="ui_synced_identity">Synced · %1$s</string>
+    <string name="ui_synced_just_now">just now</string>
+    <string name="ui_synced_minutes_ago">%1$d min ago</string>
+    <string name="ui_synced_hours_ago">%1$d h ago</string>
+    <string name="ui_synced_days_ago">%1$d d ago</string>
     <string name="ui_system">System</string>
     <string name="ui_text">Text</string>
     <string name="ui_the_app_has_not_crashed_since_installation">The app has not crashed since installation</string>
