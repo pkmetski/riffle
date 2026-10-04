@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.riffle.core.common.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -21,11 +22,18 @@ class LocalToReadStoreTimestampTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
+    /** Real-time clock so the timestamp assertions (before..after) remain valid. */
+    private val realClock = object : Clock {
+        override fun nowMs() = System.currentTimeMillis()
+        override fun nowNs() = System.nanoTime()
+    }
+
     private fun buildStore() = LocalToReadStoreImpl(
-        PreferenceDataStoreFactory.create(
+        dataStore = PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("to_read_ts_test_${System.nanoTime()}.preferences_pb") },
         ),
+        clock = realClock,
     )
 
     @Test

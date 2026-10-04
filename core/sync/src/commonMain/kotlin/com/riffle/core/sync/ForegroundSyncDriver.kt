@@ -36,6 +36,7 @@ import kotlinx.coroutines.sync.withLock
 class ForegroundSyncDriver(
     private val runProgressSweep: suspend () -> Unit,
     private val runAnnotationSweep: suspend () -> Unit = {},
+    private val runPlaylistSweep: suspend () -> Unit = {},
     private val nowMs: () -> Long,
     private val minIntervalMs: Long = DEFAULT_MIN_INTERVAL_MS,
 ) {
@@ -52,6 +53,7 @@ class ForegroundSyncDriver(
         lastPassAtMs = nowMs()
         runCatching { runProgressSweep() }
         runCatching { runAnnotationSweep() }
+        runCatching { runPlaylistSweep() }
         true
     }
 
@@ -71,6 +73,14 @@ class ForegroundSyncDriver(
         }
     }
 
+    /** Playlist half of a reconnect pass — never throttled. */
+    suspend fun sweepPlaylistsNow() {
+        mutex.withLock {
+            lastPassAtMs = nowMs()
+            runCatching { runPlaylistSweep() }
+        }
+    }
+
     /**
      * Collects all three triggers for as long as the caller's scope lives. Suspends forever;
      * launch it on an application-lifetime scope.
@@ -83,6 +93,7 @@ class ForegroundSyncDriver(
                 isOnline = isOnline,
                 runProgressSweep = { sweepProgressNow() },
                 runAnnotationSweep = { sweepAnnotationsNow() },
+                runPlaylistSweep = { sweepPlaylistsNow() },
             )
         }
     }

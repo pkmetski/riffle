@@ -16,6 +16,7 @@ import com.riffle.core.logging.loggingKoinModule
 import com.riffle.core.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
+import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.domain.ApplicationScope
@@ -114,11 +115,16 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         val connectivity = get<com.riffle.core.domain.ConnectivityObserver>()
         val annotationSweep = get<AnnotationSweep>()
         val progressSweep = get<ProgressSweep>()
+        val playlistSweep = get<PlaylistSweep>()
+        applicationScope.launchSurvivable {
+            runCatching { playlistSweep.run() }
+        }
         applicationScope.launchSurvivable {
             kickSweepsOnReconnect(
                 isOnline = connectivity.isOnline,
                 runProgressSweep = { runCatching { progressSweep.run() } },
                 runAnnotationSweep = { runCatching { annotationSweep.run() } },
+                runPlaylistSweep = { runCatching { playlistSweep.run() } },
             )
         }
 

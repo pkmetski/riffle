@@ -5,12 +5,14 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.riffle.core.common.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class LocalToReadStoreImpl constructor(
     private val dataStore: DataStore<Preferences>,
+    private val clock: Clock,
 ) : LocalToReadStore {
 
     override fun observeItemIds(libraryId: String): Flow<Set<String>> =
@@ -22,14 +24,14 @@ class LocalToReadStoreImpl constructor(
     override suspend fun add(libraryId: String, libraryItemId: String) {
         dataStore.edit { prefs ->
             prefs[itemKey(libraryId)] = prefs[itemKey(libraryId)].orEmpty() + libraryItemId
-            prefs[tsKey(libraryId)] = System.currentTimeMillis()
+            prefs[tsKey(libraryId)] = clock.nowMs()
         }
     }
 
     override suspend fun remove(libraryId: String, libraryItemId: String) {
         dataStore.edit { prefs ->
             prefs[itemKey(libraryId)] = prefs[itemKey(libraryId)].orEmpty() - libraryItemId
-            prefs[tsKey(libraryId)] = System.currentTimeMillis()
+            prefs[tsKey(libraryId)] = clock.nowMs()
         }
     }
 
