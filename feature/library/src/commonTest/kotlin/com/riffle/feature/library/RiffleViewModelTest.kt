@@ -511,6 +511,7 @@ class RiffleViewModelTest {
         annotationsRepo: AnnotationsLibraryRepository = FakeAllSourcesAnnotationsRepo(emptyList()),
         connectivity: ConnectivityObserver = FakeConnectivityObserver(online = true),
         offlineAvailability: LibraryItemOfflineAvailability = AlwaysUnavailableOfflineAvailability,
+        coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore = fakeCoverGridDensityStore(),
     ) = RiffleViewModel(
         libraryObserver = libraryObserver,
         sourceRepository = sourceRepository,
@@ -519,8 +520,23 @@ class RiffleViewModelTest {
         annotationsLibraryRepository = annotationsRepo,
         connectivityObserver = connectivity,
         offlineAvailability = offlineAvailability,
+        coverGridDensityStore = coverGridDensityStore,
         probeDispatcher = dispatcher,
     )
+
+    private fun fakeCoverGridDensityStore() = object : com.riffle.core.domain.CoverGridDensityStore {
+        override val scale = kotlinx.coroutines.flow.flowOf(1f)
+        override suspend fun setScale(value: Float) {}
+        override fun scale(
+            sourceId: String, libraryId: String,
+            bucket: com.riffle.core.models.ScreenDimensionBucket,
+        ) = kotlinx.coroutines.flow.flowOf(1f)
+        override suspend fun setScale(
+            sourceId: String, libraryId: String,
+            bucket: com.riffle.core.models.ScreenDimensionBucket,
+            value: Float,
+        ) {}
+    }
 
     private fun fakeObserver(
         inProgressAllSources: MutableStateFlow<List<LibraryItem>> = MutableStateFlow(emptyList()),

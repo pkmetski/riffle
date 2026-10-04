@@ -75,8 +75,6 @@ fun ChitankaBrowseScreen(
 
     val isAudioRoot = viewModel.rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
     val query by viewModel.query.collectAsState()
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
-
     val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
     // Annotations are anchored to ebook text — Gramofonche (the audiobook root) can never surface
@@ -151,8 +149,8 @@ fun ChitankaBrowseScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             UnboundedCoverGridZoomProvider(
-                persistedScale = persistedCoverScale,
-                onPersistScaleChange = viewModel::setCoverGridScale,
+                viewModel = viewModel,
+                selectedTab = selectedTab,
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides isAudioRoot) {
                     when (selectedTab) {

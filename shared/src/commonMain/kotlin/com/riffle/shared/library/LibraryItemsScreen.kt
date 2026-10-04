@@ -43,7 +43,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -161,12 +160,6 @@ fun LibraryItemsScreen(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    // Drive the grids off a local live scale so a pinch reflows instantly; the ViewModel debounces
-    // the persist and re-emits the settled value. Same shape as Android's LibraryItemsScreen.
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
-    var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
-    LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
-
     // Clamp to Home when the previously-selected tab's data has disappeared.
     LaunchedEffect(tabVisibility) {
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
@@ -187,11 +180,11 @@ fun LibraryItemsScreen(
         },
     ) { innerPadding ->
         CoverGridZoomBox(
-            scale = liveCoverScale,
-            onScaleChange = { scale ->
-                liveCoverScale = scale
-                viewModel.setCoverGridScale(scale)
-            },
+            browseScaleFlow = viewModel.coverGridScale,
+            onPersistScaleChange = viewModel::setCoverGridScale,
+            homeScaleFlow = viewModel.homeCoverGridScale,
+            onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+            isHomeTab = selectedTab == 0,
             modifier = Modifier.fillMaxSize().padding(innerPadding),
         ) {
             if (isLoading) {

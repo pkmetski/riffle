@@ -35,6 +35,7 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
+import com.riffle.shared.library.CoverGridZoomBox
 import com.riffle.shared.ScreenScopedViewModelHost
 import com.riffle.shared.library.LibraryTabContent
 import org.koin.compose.koinInject
@@ -86,7 +87,6 @@ internal fun UnboundedBrowseScreen(
     }
 
     val query by viewModel.query.collectAsState()
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
     val projection by libraryVm.projection.collectAsState()
     val annotationsState by annotationsVm.state.collectAsState()
@@ -153,29 +153,38 @@ internal fun UnboundedBrowseScreen(
             when (selectedLocalTab) {
                 TAB_HOME, TAB_TO_READ, TAB_ANNOTATIONS -> {
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
-                    LibraryTabContent(
-                        selectedTab = libraryTabIndex,
-                        projection = projection,
-                        playlists = playlists,
-                        annotationsState = annotationsState,
-                        coversAreSquare = coversAreSquare,
-                        linkedItemIds = emptySet(),
-                        // Web sources only have items in library_items when the user has opened
-                        // them — showing a "Recently Added" section would reflect open history,
-                        // not anything the source published, so we suppress it.
-                        showRecentlyAdded = false,
-                        onItemSelected = { item -> onOpenDetail(item.id) },
-                        onAnnotatedBookSelected = { _, itemId -> onOpenDetail(itemId) },
-                        onSeriesSelected = {},
-                        onCollectionSelected = {},
-                        onSectionSeeMore = {},
-                        onPlaylistSelected = {},
-                        onSearchAnnotations = onSearchAnnotations,
-                    )
+                    CoverGridZoomBox(
+                        browseScaleFlow = viewModel.coverGridScale,
+                        onPersistScaleChange = viewModel::setCoverGridScale,
+                        homeScaleFlow = viewModel.homeCoverGridScale,
+                        onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                        isHomeTab = selectedLocalTab == TAB_HOME,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        LibraryTabContent(
+                            selectedTab = libraryTabIndex,
+                            projection = projection,
+                            playlists = playlists,
+                            annotationsState = annotationsState,
+                            coversAreSquare = coversAreSquare,
+                            linkedItemIds = emptySet(),
+                            // Web sources only have items in library_items when the user has opened
+                            // them — showing a "Recently Added" section would reflect open history,
+                            // not anything the source published, so we suppress it.
+                            showRecentlyAdded = false,
+                            onItemSelected = { item -> onOpenDetail(item.id) },
+                            onAnnotatedBookSelected = { _, itemId -> onOpenDetail(itemId) },
+                            onSeriesSelected = {},
+                            onCollectionSelected = {},
+                            onSectionSeeMore = {},
+                            onPlaylistSelected = {},
+                            onSearchAnnotations = onSearchAnnotations,
+                        )
+                    }
                 }
                 else -> {
                     UnboundedCoverGridZoomProvider(
-                        persistedScale = persistedCoverScale,
+                        browseScaleFlow = viewModel.coverGridScale,
                         onPersistScaleChange = viewModel::setCoverGridScale,
                     ) { onCoverScaleChange ->
                         UnboundedBrowseLibraryTabFor(

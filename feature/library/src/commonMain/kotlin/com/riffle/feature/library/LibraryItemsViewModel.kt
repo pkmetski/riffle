@@ -91,10 +91,25 @@ class LibraryItemsViewModel constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
+    // Synthetic key for the Home tab's independent zoom — uses a ":home" suffix that cannot
+    // collide with real server-assigned library IDs (UUIDs / alphanumeric slugs).
+    private val homeLibraryKey = "$libraryId:home"
+
+    /** User's persisted pinch-to-zoom multiplier for the All Books grid (1.0 = defaults). */
     val coverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sourceId, bucket ->
             if (sourceId != null && bucket != null) {
                 coverGridDensityStore.scale(sourceId, libraryId, bucket)
+            } else {
+                coverGridDensityStore.scale
+            }
+        }
+        .flatMapLatest { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    /** User's persisted pinch-to-zoom multiplier for the Home tab cover grids (independent of [coverGridScale]). */
+    val homeCoverGridScale: StateFlow<Float> = combine(_activeSourceId, _screenDimensionBucket) { sourceId, bucket ->
+            if (sourceId != null && bucket != null) {
+                coverGridDensityStore.scale(sourceId, homeLibraryKey, bucket)
             } else {
                 coverGridDensityStore.scale
             }
@@ -118,6 +133,22 @@ class LibraryItemsViewModel constructor(
                 coverGridDensityStore.setScale(sourceId, libraryId, bucket, value)
             } else {
                 coverGridDensityStore.setScale(value)
+            }
+        }
+    }
+
+    private var homeCoverScalePersistJob: Job? = null
+
+    fun setHomeCoverGridScale(value: Float) {
+        homeCoverScalePersistJob?.cancel()
+        homeCoverScalePersistJob = viewModelScope.launch {
+            delay(200)
+            val sourceId = _activeSourceId.filterNotNull().first()
+            val bucket = _screenDimensionBucket.value
+            if (bucket != null) {
+                coverGridDensityStore.setScale(sourceId, homeLibraryKey, bucket, value)
+            } else {
+                coverGridDensityStore.setHomeScale(value)
             }
         }
     }

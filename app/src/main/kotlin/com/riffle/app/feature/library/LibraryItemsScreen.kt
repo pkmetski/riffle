@@ -240,13 +240,14 @@ fun LibraryItemsScreen(
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
     // persisted value (collected here) seeds it and wins on any external change.
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
-    var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
-    LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
-    val onCoverScaleChange: (Float) -> Unit = {
-        liveCoverScale = it
-        viewModel.setCoverGridScale(it)
-    }
+    val (liveCoverScale, onCoverScaleChange) = rememberLivePersistedScale(
+        flow = viewModel.coverGridScale,
+        onPersist = viewModel::setCoverGridScale,
+    )
+    val (liveHomeCoverScale, onHomeCoverScaleChange) = rememberLivePersistedScale(
+        flow = viewModel.homeCoverGridScale,
+        onPersist = viewModel::setHomeCoverGridScale,
+    )
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -367,7 +368,8 @@ fun LibraryItemsScreen(
                         onItemSelected = onItemSelected,
                         onSectionSeeMore = onSectionSeeMore,
                         linkedItemIds = linkedItemIds,
-                        onCoverScaleChange = onCoverScaleChange,
+                        coverScale = liveHomeCoverScale,
+                        onCoverScaleChange = onHomeCoverScaleChange,
                     )
                     1 -> ToReadTabContent(
                         items = toReadItems,
@@ -1068,6 +1070,7 @@ internal fun HomeTabContent(
     onItemSelected: (LibraryItem) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
+    coverScale: Float = LocalCoverGridScale.current,
     onCoverScaleChange: (Float) -> Unit = {},
     onItemLongPress: ((LibraryItem) -> Unit)? = null,
 ) {
@@ -1100,64 +1103,66 @@ internal fun HomeTabContent(
             listState.scrollToItem(0)
         }
     }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
-            .fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
-    ) {
-        if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader("${stringResource(R.string.ui_section_in_progress)} (${inProgress.size})") }
-            item(key = "grid_in_progress") {
-                BookSectionGrid(
-                    items = inProgress,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
-                    linkedItemIds = linkedItemIds,
-                    onItemLongPress = onItemLongPress,
-                )
+    CompositionLocalProvider(LocalCoverGridScale provides coverScale) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .pinchCoverZoom(LocalCoverGridScale.current, onCoverScaleChange)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
+            if (inProgress.isNotEmpty()) {
+                item(key = "header_in_progress") { SectionHeader("${stringResource(R.string.ui_section_in_progress)} (${inProgress.size})") }
+                item(key = "grid_in_progress") {
+                    BookSectionGrid(
+                        items = inProgress,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
+                        linkedItemIds = linkedItemIds,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
-        }
-        if (continueSeries.isNotEmpty()) {
-            item(key = "header_continue_series") { SectionHeader("${stringResource(R.string.ui_section_continue_series)} (${continueSeries.size})") }
-            item(key = "grid_continue_series") {
-                BookSectionGrid(
-                    items = continueSeries,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = null,
-                    linkedItemIds = linkedItemIds,
-                    showSeriesBadge = true,
-                    onItemLongPress = onItemLongPress,
-                )
+            if (continueSeries.isNotEmpty()) {
+                item(key = "header_continue_series") { SectionHeader("${stringResource(R.string.ui_section_continue_series)} (${continueSeries.size})") }
+                item(key = "grid_continue_series") {
+                    BookSectionGrid(
+                        items = continueSeries,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = null,
+                        linkedItemIds = linkedItemIds,
+                        showSeriesBadge = true,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
-        }
-        if (recentlyAdded.isNotEmpty()) {
-            item(key = "header_recently_added") { SectionHeader("${stringResource(R.string.ui_section_recently_added)} (${recentlyAdded.size})") }
-            item(key = "grid_recently_added") {
-                BookSectionGrid(
-                    items = recentlyAdded,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
-                    linkedItemIds = linkedItemIds,
-                    onItemLongPress = onItemLongPress,
-                )
+            if (recentlyAdded.isNotEmpty()) {
+                item(key = "header_recently_added") { SectionHeader("${stringResource(R.string.ui_section_recently_added)} (${recentlyAdded.size})") }
+                item(key = "grid_recently_added") {
+                    BookSectionGrid(
+                        items = recentlyAdded,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
+                        linkedItemIds = linkedItemIds,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
-        }
-        if (finished.isNotEmpty()) {
-            item(key = "header_completed") { SectionHeader("${stringResource(R.string.ui_section_completed)} (${finished.size})") }
-            item(key = "grid_completed") {
-                BookSectionGrid(
-                    items = finished,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
-                    linkedItemIds = linkedItemIds,
-                    onItemLongPress = onItemLongPress,
-                )
+            if (finished.isNotEmpty()) {
+                item(key = "header_completed") { SectionHeader("${stringResource(R.string.ui_section_completed)} (${finished.size})") }
+                item(key = "grid_completed") {
+                    BookSectionGrid(
+                        items = finished,
+                        token = token,
+                        onItemSelected = onItemSelected,
+                        onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
+                        linkedItemIds = linkedItemIds,
+                        onItemLongPress = onItemLongPress,
+                    )
+                }
             }
         }
     }
@@ -1414,4 +1419,20 @@ private fun SortModeChip(
             }
         }
     }
+}
+
+/**
+ * Returns a live [Float] scale and its updater. The live value is seeded from [flow] and updated
+ * optimistically on gesture events; [onPersist] is called with each gesture value so the ViewModel
+ * can debounce and write to the store. When [flow] emits (store settled), the live value syncs.
+ */
+@Composable
+internal fun rememberLivePersistedScale(
+    flow: kotlinx.coroutines.flow.StateFlow<Float>,
+    onPersist: (Float) -> Unit,
+): Pair<Float, (Float) -> Unit> {
+    val persisted by flow.collectAsState()
+    var live by remember { mutableFloatStateOf(persisted) }
+    LaunchedEffect(persisted) { live = persisted }
+    return live to { value: Float -> live = value; onPersist(value) }
 }

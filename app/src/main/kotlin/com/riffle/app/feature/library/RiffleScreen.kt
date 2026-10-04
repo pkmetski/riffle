@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,9 +36,11 @@ import com.riffle.feature.library.ui.sourceDisplayName
 import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.LocalCoverGridScale
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.pinchCoverZoom
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.RiffleViewModel
@@ -63,7 +66,12 @@ fun RiffleScreen(
     val authTokenMap = viewModel.authTokenMap
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val (liveCoverScale, onCoverScaleChange) = rememberLivePersistedScale(
+        flow = viewModel.coverGridScale,
+        onPersist = viewModel::setCoverGridScale,
+    )
 
+    CompositionLocalProvider(LocalCoverGridScale provides liveCoverScale) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -110,7 +118,12 @@ fun RiffleScreen(
             }
         },
     ) { innerPadding ->
-        Column(modifier = androidx.compose.ui.Modifier.fillMaxSize().padding(innerPadding)) {
+        Column(
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .pinchCoverZoom(liveCoverScale, onCoverScaleChange),
+        ) {
             if (isOffline) {
                 OfflineBanner()
             }
@@ -136,6 +149,7 @@ fun RiffleScreen(
             }
         }
     }
+    } // CompositionLocalProvider
 }
 
 @Composable

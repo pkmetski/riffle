@@ -295,6 +295,7 @@ private val navigationViewModelModule = module {
             annotationsLibraryRepository = get(),
             connectivityObserver = get(),
             offlineAvailability = get(),
+            coverGridDensityStore = get(),
         )
     }
     viewModel {

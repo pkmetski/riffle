@@ -8,6 +8,11 @@ interface CoverGridDensityStore {
     val scale: Flow<Float>
     suspend fun setScale(value: Float)
 
+    // Global home-tab scale — used by web-source Home tabs, independent of the browse scale.
+    // Defaults to the browse scale so anonymous test objects need no change.
+    val homeScale: Flow<Float> get() = scale
+    suspend fun setHomeScale(value: Float) { setScale(value) }
+
     // Per-library scale keyed by source + library + screen size class.
     // `bucket` is ScreenDimensionBucket.encode() — e.g. "Compact_Medium" — so a phone in
     // portrait and in landscape share one row (rotation-invariant, per ADR 0029).

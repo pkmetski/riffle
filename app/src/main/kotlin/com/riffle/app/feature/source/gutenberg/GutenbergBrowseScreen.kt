@@ -57,7 +57,6 @@ fun GutenbergBrowseScreen(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
     val query by viewModel.query.collectAsState()
-    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
     val visibility by koinViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
@@ -131,8 +130,8 @@ fun GutenbergBrowseScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             UnboundedCoverGridZoomProvider(
-                persistedScale = persistedCoverScale,
-                onPersistScaleChange = viewModel::setCoverGridScale,
+                viewModel = viewModel,
+                selectedTab = selectedTab,
             ) { onCoverScaleChange ->
                 when (selectedTab) {
                     TAB_HOME -> WebSourceHomeTab(

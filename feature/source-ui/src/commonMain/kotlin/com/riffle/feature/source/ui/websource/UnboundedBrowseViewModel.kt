@@ -102,8 +102,12 @@ abstract class UnboundedBrowseViewModel(
         .map { !it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** Global per-device cover density, shared with bounded library screens. */
+    /** Global per-device cover density for the browse/catalog tab. */
     val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    /** Global per-device cover density for the Home tab — independent of [coverGridScale]. */
+    val homeCoverGridScale: StateFlow<Float> = coverGridDensityStore.homeScale
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 
     private var coverScalePersistJob: Job? = null
@@ -113,6 +117,16 @@ abstract class UnboundedBrowseViewModel(
         coverScalePersistJob = viewModelScope.launch {
             delay(200)
             coverGridDensityStore.setScale(value)
+        }
+    }
+
+    private var homeCoverScalePersistJob: Job? = null
+
+    fun setHomeCoverGridScale(value: Float) {
+        homeCoverScalePersistJob?.cancel()
+        homeCoverScalePersistJob = viewModelScope.launch {
+            delay(200)
+            coverGridDensityStore.setHomeScale(value)
         }
     }
 

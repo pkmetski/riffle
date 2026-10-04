@@ -49,6 +49,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -1723,6 +1724,106 @@ class LibraryItemsViewModelTest {
         assertEquals("lib-99", writtenLibraryId)
         assertEquals(bucket, writtenBucket)
         assertEquals(1.2f, writtenValue)
+    }
+
+    @Test
+    fun homeCoverGridScaleUsesPerLibraryStoreWithHomeSuffix() = runTest {
+        val bucket = com.riffle.core.models.ScreenDimensionBucket.PhonePortrait
+        val queriedLibraryIds = mutableListOf<String>()
+        val store = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) {}
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ): kotlinx.coroutines.flow.Flow<Float> {
+                queriedLibraryIds.add(libraryId)
+                return kotlinx.coroutines.flow.flowOf(if (libraryId.endsWith(":home")) 1.8f else 1f)
+            }
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {}
+        }
+        val vm = makeViewModel(
+            libraryId = "lib-77",
+            coverGridDensityStore = store,
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+        )
+        backgroundScope.launch { vm.homeCoverGridScale.collect {} }
+        vm.setScreenDimensionBucket(bucket)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.8f, vm.homeCoverGridScale.value)
+        assertTrue(queriedLibraryIds.any { it == "lib-77:home" }, "home key must use lib:home suffix")
+    }
+
+    @Test
+    fun setHomeCoverGridScaleWritesToPerLibraryStoreWithHomeSuffix() = runTest {
+        val bucket = com.riffle.core.models.ScreenDimensionBucket.PhonePortrait
+        var writtenLibraryId: String? = null
+        var writtenValue: Float? = null
+        val store = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) {}
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {
+                writtenLibraryId = libraryId
+                writtenValue = value
+            }
+        }
+        val vm = makeViewModel(
+            libraryId = "lib-77",
+            coverGridDensityStore = store,
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+        )
+        vm.setScreenDimensionBucket(bucket)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setHomeCoverGridScale(1.4f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("lib-77:home", writtenLibraryId)
+        assertEquals(1.4f, writtenValue)
+    }
+
+    @Test
+    fun setHomeCoverGridScaleNullBucketFallbackUsesHomeScaleNotGlobalScale() = runTest {
+        var globalHomeScaleWritten: Float? = null
+        var globalBrowseScaleWritten: Float? = null
+        val store = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) { globalBrowseScaleWritten = value }
+            override suspend fun setHomeScale(value: Float) { globalHomeScaleWritten = value }
+            override fun scale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+            ) = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(
+                sourceId: String, libraryId: String,
+                bucket: com.riffle.core.models.ScreenDimensionBucket,
+                value: Float,
+            ) {}
+        }
+        val vm = makeViewModel(
+            libraryId = "lib-77",
+            coverGridDensityStore = store,
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+        )
+        // Do NOT call setScreenDimensionBucket — bucket stays null to exercise the fallback path.
+        vm.setHomeCoverGridScale(1.6f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.6f, globalHomeScaleWritten)
+        assertNull(globalBrowseScaleWritten, "null-bucket fallback must not overwrite the global browse scale")
     }
 }
 

@@ -341,6 +341,7 @@ private fun iosLibraryModule(
             annotationsLibraryRepository = get(),
             connectivityObserver = get(),
             offlineAvailability = get(),
+            coverGridDensityStore = get(),
         )
     }
 

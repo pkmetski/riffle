@@ -20,11 +20,22 @@ internal class IosCoverGridDensityStoreImpl(private val dao: CoverGridScaleDao) 
         if (defaults.objectForKey(GLOBAL_KEY) != null) defaults.floatForKey(GLOBAL_KEY) else 1f,
     )
 
+    private val homeScaleFlow = MutableStateFlow(
+        if (defaults.objectForKey(HOME_KEY) != null) defaults.floatForKey(HOME_KEY) else 1f,
+    )
+
     override val scale: Flow<Float> = globalScaleFlow
 
     override suspend fun setScale(value: Float) {
         defaults.setFloat(value, forKey = GLOBAL_KEY)
         globalScaleFlow.value = value
+    }
+
+    override val homeScale: Flow<Float> = homeScaleFlow
+
+    override suspend fun setHomeScale(value: Float) {
+        defaults.setFloat(value, forKey = HOME_KEY)
+        homeScaleFlow.value = value
     }
 
     override fun scale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket): Flow<Float> =
@@ -36,5 +47,6 @@ internal class IosCoverGridDensityStoreImpl(private val dao: CoverGridScaleDao) 
 
     private companion object {
         const val GLOBAL_KEY = "cover_grid_scale"
+        const val HOME_KEY = "cover_grid_scale_home"
     }
 }
