@@ -795,7 +795,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             listOf(navSourceId),
             capturedSourceIds,
         )
-        assertEquals(activeSourceId, "srv-1") // guard: FakeServerRepository.getActive().id is still "srv-1"
+        assertEquals("srv-1", activeSourceId) // guard: FakeServerRepository.getActive().id is still "srv-1"
         vm2.clearForTest()
     }
 
