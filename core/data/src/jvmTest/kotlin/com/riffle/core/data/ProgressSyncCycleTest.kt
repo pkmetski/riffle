@@ -1,26 +1,22 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.SourceUrl
+import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.models.SessionPayload
-import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -33,7 +29,7 @@ class ProgressSyncCycleTest {
 
     private class FakePositionStore(
         var localUpdatedAt: Long = 0L,
-        var lastSyncedAt: Long = localUpdatedAt,  // default: clean (in sync with server)
+        var lastSyncedAt: Long = localUpdatedAt, // default: clean (in sync with server)
         private var storedCfi: String? = null,
     ) : ReadingPositionStore {
         var updatedTimestamp: Long? = null
@@ -97,8 +93,10 @@ class ProgressSyncCycleTest {
     private class FakeAudiobookPositionStore : com.riffle.core.domain.AudiobookPositionStore {
         var savedPayload: Double? = null
         var saveCalled = false
+
         // Set only by updateLocalTimestamp — a "dirty bump" that leaves localUpdatedAt > lastSyncedAt.
         var updatedTimestamp: Long? = null
+
         // Set only by markSyncedAt — a "mark clean" that sets localUpdatedAt == lastSyncedAt so the
         // sweep won't push the row. Kept distinct from updatedTimestamp so a test can tell the two apart.
         var syncedStamp: Long? = null
@@ -110,7 +108,9 @@ class ProgressSyncCycleTest {
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
-        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { syncedStamp = stamp }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {
+            syncedStamp = stamp
+        }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             updatedTimestamp = millis
         }
@@ -120,7 +120,9 @@ class ProgressSyncCycleTest {
         var clearCalled = false
         override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
         override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
-        override suspend fun clear(sourceId: String, itemId: String) { clearCalled = true }
+        override suspend fun clear(sourceId: String, itemId: String) {
+            clearCalled = true
+        }
     }
 
     private fun buildRepo(
@@ -519,7 +521,9 @@ class ProgressSyncCycleTest {
                 baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload,
                 token: String, insecureAllowed: Boolean,
             ): NetworkResult<Long> = NetworkResult.Success(0L)
-            override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkServerProgress> =
+            override suspend fun getProgress(
+                baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
+            ): NetworkResult<NetworkServerProgress> =
                 NetworkResult.Success(NetworkServerProgress("source-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
         }
 

@@ -10,9 +10,9 @@ import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsFormatFilter
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.models.AudioIdentity
-import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.models.ServerType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,10 +24,8 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 class ReadaloudReviewRepositoryTest {
 
@@ -528,7 +526,9 @@ class ReadaloudReviewRepositoryTest {
 
     private class RecordingLibraryItemDao : LibraryItemDao by ThrowingLibraryItemDao {
         private val items = mutableMapOf<Pair<String, String>, LibraryItemEntity>()
-        fun seed(e: LibraryItemEntity) { items[e.sourceId to e.id] = e }
+        fun seed(e: LibraryItemEntity) {
+            items[e.sourceId to e.id] = e
+        }
         override suspend fun getById(sourceId: String, itemId: String) = items[sourceId to itemId]
     }
 
@@ -538,7 +538,9 @@ class ReadaloudReviewRepositoryTest {
         override suspend fun save(identity: AudioIdentity, speed: Float) {
             if (speed == AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED) store.remove(identity) else store[identity] = speed
         }
-        override suspend fun clear(identity: AudioIdentity) { store.remove(identity) }
+        override suspend fun clear(identity: AudioIdentity) {
+            store.remove(identity)
+        }
         override suspend fun rekey(old: AudioIdentity, new: AudioIdentity) {
             val v = store.remove(old) ?: return
             store[if (old == new) old else new] = v
@@ -559,8 +561,12 @@ class ReadaloudReviewRepositoryTest {
     private class RecordingLinkDao : ReadaloudLinkDao {
         override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()
-        fun seed(e: ReadaloudLinkEntity) { store[e.absSourceId to e.absLibraryItemId] = e }
-        override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absSourceId to entity.absLibraryItemId] = entity }
+        fun seed(e: ReadaloudLinkEntity) {
+            store[e.absSourceId to e.absLibraryItemId] = e
+        }
+        override suspend fun upsert(entity: ReadaloudLinkEntity) {
+            store[entity.absSourceId to entity.absLibraryItemId] = entity
+        }
         override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = store[absSourceId to absLibraryItemId]
         override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
             store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
@@ -568,7 +574,9 @@ class ReadaloudReviewRepositoryTest {
         override suspend fun allRows() = store.values.toList()
         override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
         override suspend fun countForSource(sourceId: String) = 0
-        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) { store.remove(absSourceId to absLibraryItemId) }
+        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) {
+            store.remove(absSourceId to absLibraryItemId)
+        }
         override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
             store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
                 .forEach { store.remove(it.absSourceId to it.absLibraryItemId) }
@@ -578,11 +586,19 @@ class ReadaloudReviewRepositoryTest {
     private class RecordingCandidateDao : ReadaloudCandidateDao {
         private val store = mutableListOf<ReadaloudCandidateEntity>()
         val rows: List<ReadaloudCandidateEntity> get() = store.toList()
-        fun seed(e: ReadaloudCandidateEntity) { store += e }
-        override suspend fun upsert(entity: ReadaloudCandidateEntity) { store += entity }
-        override suspend fun upsertAll(entities: List<ReadaloudCandidateEntity>) { store += entities }
+        fun seed(e: ReadaloudCandidateEntity) {
+            store += e
+        }
+        override suspend fun upsert(entity: ReadaloudCandidateEntity) {
+            store += entity
+        }
+        override suspend fun upsertAll(entities: List<ReadaloudCandidateEntity>) {
+            store += entities
+        }
         override suspend fun allRows() = store.toList()
-        override suspend fun clearAll() { store.clear() }
+        override suspend fun clearAll() {
+            store.clear()
+        }
         override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(store.toList())
         override fun observeForStorytellerSource(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>> =
             flowOf(store.filter { it.storytellerSourceId == storytellerSourceId })
@@ -591,8 +607,10 @@ class ReadaloudReviewRepositoryTest {
         }
         override suspend fun deleteCandidate(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) {
             store.removeAll {
-                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
-                    it.absSourceId == absSourceId && it.absLibraryItemId == absLibraryItemId
+                it.storytellerSourceId == storytellerSourceId &&
+                    it.storytellerBookId == storytellerBookId &&
+                    it.absSourceId == absSourceId &&
+                    it.absLibraryItemId == absLibraryItemId
             }
         }
     }
@@ -600,15 +618,25 @@ class ReadaloudReviewRepositoryTest {
     private class RecordingDismissalDao : ReadaloudDismissalDao {
         val store = mutableListOf<ReadaloudDismissalEntity>()
         val rows: List<ReadaloudDismissalEntity> get() = store.toList()
-        override suspend fun upsert(entity: ReadaloudDismissalEntity) { store += entity }
+        override suspend fun upsert(entity: ReadaloudDismissalEntity) {
+            store += entity
+        }
         override suspend fun allRows() = store.toList()
         override fun observeAll(): Flow<List<ReadaloudDismissalEntity>> = flowOf(store.toList())
         override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
             store.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         override suspend fun isBookDismissed(storytellerSourceId: String, storytellerBookId: String) =
-            store.any { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId && it.scope == ReadaloudDismissalEntity.SCOPE_BOOK }
+            store.any {
+                it.storytellerSourceId == storytellerSourceId &&
+                    it.storytellerBookId == storytellerBookId &&
+                    it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
+            }
         override suspend fun clearBookDismissal(storytellerSourceId: String, storytellerBookId: String) {
-            store.removeAll { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId && it.scope == ReadaloudDismissalEntity.SCOPE_BOOK }
+            store.removeAll {
+                it.storytellerSourceId == storytellerSourceId &&
+                    it.storytellerBookId == storytellerBookId &&
+                    it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
+            }
         }
     }
 }

@@ -1,41 +1,34 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-import com.riffle.core.sync.DirtyProgressLedger
-
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
-import com.riffle.core.database.LastOpenedAtRow
-import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
-import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.models.EbookFormat
-import com.riffle.core.domain.PendingSource
-import com.riffle.core.models.Library
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.models.Source
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryItem
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkSeriesItem
 import com.riffle.core.network.NetworkUserMediaProgress
+import com.riffle.core.sync.DirtyProgressLedger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,8 +42,12 @@ class LibraryRepositoryTest {
         private val backing = MutableStateFlow<List<Source>>(emptyList())
         var activeServer: Source?
             get() = backing.value.firstOrNull { it.isActive }
-            set(value) { backing.value = listOfNotNull(value) }
-        fun setServers(servers: List<Source>) { backing.value = servers }
+            set(value) {
+                backing.value = listOfNotNull(value)
+            }
+        fun setServers(servers: List<Source>) {
+            backing.value = servers
+        }
         override fun observeAll() = backing
         override suspend fun getActive() = backing.value.firstOrNull { it.isActive }
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
@@ -62,9 +59,13 @@ class LibraryRepositoryTest {
 
     private val fakeTokenStorage = object : TokenStorage {
         val tokens = mutableMapOf<String, String>()
-        override suspend fun saveToken(sourceId: String, token: String) { tokens[sourceId] = token }
+        override suspend fun saveToken(sourceId: String, token: String) {
+            tokens[sourceId] = token
+        }
         override suspend fun getToken(sourceId: String) = tokens[sourceId]
-        override suspend fun deleteToken(sourceId: String) { tokens.remove(sourceId) }
+        override suspend fun deleteToken(sourceId: String) {
+            tokens.remove(sourceId)
+        }
     }
 
     private class FakeLibraryDao : LibraryDao {
@@ -220,11 +221,13 @@ class LibraryRepositoryTest {
         },
         sessionApi: com.riffle.core.network.AbsSessionApi = NoopAbsSessionApi,
     ) = LibraryRepositoryImpl(
-        InlineCatalogRegistry(testAbsCatalog(
-            libraryApi = api,
-            sessionApi = sessionApi,
-            baseUrl = fakeServerRepository.activeServer?.url?.value ?: "http://abs",
-        )),
+        InlineCatalogRegistry(
+            testAbsCatalog(
+                libraryApi = api,
+                sessionApi = sessionApi,
+                baseUrl = fakeServerRepository.activeServer?.url?.value ?: "http://abs",
+            )
+        ),
         libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, com.riffle.core.domain.TestClock(),
         com.riffle.core.logging.RecordingLogger(),
@@ -248,11 +251,13 @@ class LibraryRepositoryTest {
         val dao = FakeLibraryDao()
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false),
-                    NetworkLibrary("lib-2", "Audiobooks", "book", audiobooksOnly = true),
-                    NetworkLibrary("lib-3", "Podcasts", "podcast", audiobooksOnly = false),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false),
+                        NetworkLibrary("lib-2", "Audiobooks", "book", audiobooksOnly = true),
+                        NetworkLibrary("lib-3", "Podcasts", "podcast", audiobooksOnly = false),
+                    )
+                )
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
@@ -339,9 +344,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -363,11 +370,13 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f, ebookFormat = EbookFormat.Epub),
-                    NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f, ebookFormat = EbookFormat.Epub),
-                    NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f, ebookFormat = EbookFormat.Epub),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f, ebookFormat = EbookFormat.Epub),
+                        NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f, ebookFormat = EbookFormat.Epub),
+                        NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f, ebookFormat = EbookFormat.Epub),
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -382,9 +391,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 1_000L, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 1_000L, addedAt = 0L),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
@@ -393,9 +404,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -410,9 +423,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 9_000L, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 9_000L, addedAt = 0L),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
@@ -421,9 +436,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -444,9 +461,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.75f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.75f, addedAt = 0L),
+            )
+        )
         val ledger = FakeDirtyProgressLedger(ebookDirty = mutableMapOf("s1" to mutableListOf("item-1")))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
@@ -456,9 +475,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -479,9 +500,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0f, addedAt = 0L),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
@@ -490,9 +513,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -514,12 +539,14 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity(
-                "s1", "item-1", "lib-1", "Book", "A", null, 0f,
-                lastOpenedAt = 10_000L, addedAt = 0L,
-            ),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    "s1", "item-1", "lib-1", "Book", "A", null, 0f,
+                    lastOpenedAt = 10_000L, addedAt = 0L,
+                ),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
@@ -528,9 +555,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -548,12 +577,14 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity(
-                "s1", "item-1", "lib-1", "Book", "A", null, 0.75f,
-                lastOpenedAt = 10_000L, addedAt = 0L,
-            ),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    "s1", "item-1", "lib-1", "Book", "A", null, 0.75f,
+                    lastOpenedAt = 10_000L, addedAt = 0L,
+                ),
+            )
+        )
         val ledger = FakeDirtyProgressLedger(ebookDirty = mutableMapOf("s1" to mutableListOf("item-1")))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
@@ -563,9 +594,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.42f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.42f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -583,9 +616,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L),
+            )
+        )
         val ledger = FakeDirtyProgressLedger(audioDirty = mutableMapOf("s1" to mutableListOf("item-1")))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
@@ -595,9 +630,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.42f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.42f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -618,26 +655,32 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity(
-                "s1", "item-1", "lib-1", "Book", "A", null, 0.59f,
-                lastOpenedAt = 10_000L, addedAt = 0L,
-            ),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    "s1", "item-1", "lib-1", "Book", "A", null, 0.59f,
+                    lastOpenedAt = 10_000L, addedAt = 0L,
+                ),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
-                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
-                        ebookProgress = null, lastUpdate = 5_000L,
-                        currentTime = 59.0, duration = 100.0, isFinished = false,
-                    ))
+                    mapOf(
+                        "item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                            ebookProgress = null, lastUpdate = 5_000L,
+                            currentTime = 59.0, duration = 100.0, isFinished = false,
+                        )
+                    )
                 )
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -655,12 +698,14 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity(
-                "s1", "item-1", "lib-1", "Book", "A", null, 0.59f,
-                lastOpenedAt = 10_000L, addedAt = 0L,
-            ),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    "s1", "item-1", "lib-1", "Book", "A", null, 0.59f,
+                    lastOpenedAt = 10_000L, addedAt = 0L,
+                ),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
@@ -669,9 +714,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -692,17 +739,21 @@ class LibraryRepositoryTest {
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
-                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
-                        ebookProgress = null, lastUpdate = 1_000L,
-                        currentTime = 25.0, duration = 100.0, isFinished = false,
-                    ))
+                    mapOf(
+                        "item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                            ebookProgress = null, lastUpdate = 1_000L,
+                            currentTime = 25.0, duration = 100.0, isFinished = false,
+                        )
+                    )
                 )
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -725,9 +776,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -745,16 +798,20 @@ class LibraryRepositoryTest {
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
         // Seed an existing item with a known lastOpenedAt
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 99_000L, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 99_000L, addedAt = 0L),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -773,9 +830,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 1f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 1f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
                     mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 1f, lastUpdate = 1_000L, finishedAt = 1_700_000_000_000L))
@@ -798,9 +857,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, addedAt = 1_708_369_906_982L)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, addedAt = 1_708_369_906_982L)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -819,9 +880,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, updatedAt = 1_762_902_014_957L)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, updatedAt = 1_762_902_014_957L)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -843,9 +906,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, updatedAt = null)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, updatedAt = null)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -862,10 +927,12 @@ class LibraryRepositoryTest {
     fun `observeRecentlyAddedItems emits items from DAO ordered by addedAt`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Older Book", "Author", null, 0f, addedAt = 1_000L),
-            LibraryItemEntity("s1", "item-2", "lib-1", "Newer Book", "Author", null, 0f, addedAt = 2_000L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Older Book", "Author", null, 0f, addedAt = 1_000L),
+                LibraryItemEntity("s1", "item-2", "lib-1", "Newer Book", "Author", null, 0f, addedAt = 2_000L),
+            )
+        )
         val result = makeRepo(libraryItemDao = dao).observeRecentlyAddedItems("lib-1").first()
         assertEquals(2, result.size)
         assertEquals(2_000L, result[0].addedAt)
@@ -899,9 +966,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Foundation's Edge", "Asimov", null, ebookFormat = EbookFormat.Unsupported, hasAudio = true)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Foundation's Edge", "Asimov", null, ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -944,10 +1013,12 @@ class LibraryRepositoryTest {
         // pinned to In Progress while book detail (which reads the active Source's row) shows 100%.
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 1.0f, addedAt = 0L),
-            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.45f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 1.0f, addedAt = 0L),
+                LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.45f, addedAt = 0L),
+            )
+        )
         val repo = makeRepo(libraryItemDao = dao)
 
         val inProgress = repo.observeInProgressItems("lib-1").first()
@@ -964,11 +1035,13 @@ class LibraryRepositoryTest {
         // never a stale snapshot of the previous Source's rows.
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-shared", "S1 Book", "Author", null, 0.5f, addedAt = 0L),
-            LibraryItemEntity("s2", "item-1", "lib-shared", "S2 Book", "Author", null, 0.2f, addedAt = 0L),
-            LibraryItemEntity("s2", "item-99", "lib-shared", "S2 Other", "Author", null, 0.1f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-shared", "S1 Book", "Author", null, 0.5f, addedAt = 0L),
+                LibraryItemEntity("s2", "item-1", "lib-shared", "S2 Book", "Author", null, 0.2f, addedAt = 0L),
+                LibraryItemEntity("s2", "item-99", "lib-shared", "S2 Other", "Author", null, 0.1f, addedAt = 0L),
+            )
+        )
         val repo = makeRepo(libraryItemDao = dao)
 
         val initial = repo.observeLibraryItems("lib-shared").first()
@@ -988,10 +1061,12 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
         // Seed the inactive duplicate first so a naive distinctBy{id} would keep the wrong row.
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.9f, addedAt = 0L),
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.9f, addedAt = 0L),
+                LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f, addedAt = 0L),
+            )
+        )
         val repo = makeRepo(libraryItemDao = dao)
 
         val all = repo.observeLibraryItems("lib-1").first()
@@ -1067,9 +1142,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 0f, EbookFormat.Epub),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 0f, EbookFormat.Epub),
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -1091,9 +1168,11 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Audiobook", "Author", 0f, EbookFormat.Unsupported),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Audiobook", "Author", 0f, EbookFormat.Unsupported),
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -1119,12 +1198,17 @@ class LibraryRepositoryTest {
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
-                NetworkResult.Success(listOf(
-                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
-                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0.5f, EbookFormat.Epub),
-                        NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, EbookFormat.Epub),
-                    )),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkSeries(
+                            "ser-1", "lib-1", "Stormlight",
+                            listOf(
+                                NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0.5f, EbookFormat.Epub),
+                                NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, EbookFormat.Epub),
+                            )
+                        ),
+                    )
+                )
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         }
@@ -1171,13 +1255,18 @@ class LibraryRepositoryTest {
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
-                NetworkResult.Success(listOf(
-                    NetworkSeries("ser-1", "lib-1", "Cycle", listOf(
-                        NetworkSeriesItem("num-1", "lib-1", "One", "A", "1", 0f, EbookFormat.Epub),
-                        NetworkSeriesItem("num-10", "lib-1", "Ten", "A", "10", 0f, EbookFormat.Epub),
-                        NetworkSeriesItem("no-seq", "lib-1", "Extra", "A", null, 0f, EbookFormat.Epub),
-                    )),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkSeries(
+                            "ser-1", "lib-1", "Cycle",
+                            listOf(
+                                NetworkSeriesItem("num-1", "lib-1", "One", "A", "1", 0f, EbookFormat.Epub),
+                                NetworkSeriesItem("num-10", "lib-1", "Ten", "A", "10", 0f, EbookFormat.Epub),
+                                NetworkSeriesItem("no-seq", "lib-1", "Extra", "A", null, 0f, EbookFormat.Epub),
+                            )
+                        ),
+                    )
+                )
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         }
@@ -1204,12 +1293,17 @@ class LibraryRepositoryTest {
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
-                NetworkResult.Success(listOf(
-                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
-                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub, updatedAt = 1_762_902_014_957L),
-                        NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, EbookFormat.Epub, updatedAt = 1_762_000_000_000L),
-                    )),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkSeries(
+                            "ser-1", "lib-1", "Stormlight",
+                            listOf(
+                                NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub, updatedAt = 1_762_902_014_957L),
+                                NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, EbookFormat.Epub, updatedAt = 1_762_000_000_000L),
+                            )
+                        ),
+                    )
+                )
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         }
@@ -1231,11 +1325,16 @@ class LibraryRepositoryTest {
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
-                NetworkResult.Success(listOf(
-                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
-                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub, updatedAt = null),
-                    )),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkSeries(
+                            "ser-1", "lib-1", "Stormlight",
+                            listOf(
+                                NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub, updatedAt = null),
+                            )
+                        ),
+                    )
+                )
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         }
@@ -1273,12 +1372,17 @@ class LibraryRepositoryTest {
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
-                NetworkResult.Success(listOf(
-                    NetworkCollection("col-1", "lib-1", "Favorites", listOf(
-                        NetworkLibraryItem("item-1", "lib-1", "Book A", "Author", 0.3f, EbookFormat.Epub),
-                        NetworkLibraryItem("item-2", "lib-1", "Book B", "Author", 0f, EbookFormat.Epub),
-                    )),
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkCollection(
+                            "col-1", "lib-1", "Favorites",
+                            listOf(
+                                NetworkLibraryItem("item-1", "lib-1", "Book A", "Author", 0.3f, EbookFormat.Epub),
+                                NetworkLibraryItem("item-2", "lib-1", "Book B", "Author", 0f, EbookFormat.Epub),
+                            )
+                        ),
+                    )
+                )
         }
         makeRepo(collectionDao = dao, api = api).refreshCollections("lib-1")
         assertEquals(1, dao.upsertedCollections.size)
@@ -1339,18 +1443,21 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeSeriesDao()
         val repo = makeRepo(seriesDao = dao)
-        dao.seedContinueSeriesItems("lib-1", listOf(
-            LibraryItemEntity(
-                sourceId = "s1", id = "item-42", libraryId = "lib-1",
-                title = "Abaddon's Gate", author = "James S. A. Corey",
-                coverUrl = null, readingProgress = 0f, addedAt = 0L,
-            ),
-            LibraryItemEntity(
-                sourceId = "s1", id = "item-43", libraryId = "lib-1",
-                title = "Cibola Burn", author = "James S. A. Corey",
-                coverUrl = null, readingProgress = 0f, addedAt = 0L,
-            ),
-        ))
+        dao.seedContinueSeriesItems(
+            "lib-1",
+            listOf(
+                LibraryItemEntity(
+                    sourceId = "s1", id = "item-42", libraryId = "lib-1",
+                    title = "Abaddon's Gate", author = "James S. A. Corey",
+                    coverUrl = null, readingProgress = 0f, addedAt = 0L,
+                ),
+                LibraryItemEntity(
+                    sourceId = "s1", id = "item-43", libraryId = "lib-1",
+                    title = "Cibola Burn", author = "James S. A. Corey",
+                    coverUrl = null, readingProgress = 0f, addedAt = 0L,
+                ),
+            )
+        )
 
         val result = repo.observeContinueSeriesItems("lib-1").first()
 
@@ -1406,9 +1513,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.10f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.10f, addedAt = 0L),
+            )
+        )
         val session = FakeGetProgressApi(
             com.riffle.core.network.NetworkServerProgress(
                 ebookLocation = "epubcfi(/6/4)", ebookProgress = 0.63f, lastUpdate = 5_000L,
@@ -1428,9 +1537,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L),
+            )
+        )
         val ledger = FakeDirtyProgressLedger(ebookDirty = mutableMapOf("s1" to mutableListOf("item-1")))
         val session = FakeGetProgressApi(
             com.riffle.core.network.NetworkServerProgress(
@@ -1454,9 +1565,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.42f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.42f, addedAt = 0L),
+            )
+        )
         val session = FakeGetProgressApi(
             com.riffle.core.network.NetworkServerProgress(
                 ebookLocation = "", ebookProgress = 0f,
@@ -1478,9 +1591,11 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "Audio", "A", null, 0f, addedAt = 0L),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity("s1", "item-1", "lib-1", "Audio", "A", null, 0f, addedAt = 0L),
+            )
+        )
         val session = FakeGetProgressApi(
             com.riffle.core.network.NetworkServerProgress(
                 ebookLocation = "", ebookProgress = 0f,
@@ -1503,30 +1618,36 @@ class LibraryRepositoryTest {
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
         // Pre-existing row: book was previously fully read (readingProgress = 1.0).
-        dao.upsertAll(listOf(
-            LibraryItemEntity(
-                "s1", "item-1", "lib-1", "Book", "A", null, 1.0f,
-                lastOpenedAt = 10_000L, addedAt = 0L,
-            ),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    "s1", "item-1", "lib-1", "Book", "A", null, 1.0f,
+                    lastOpenedAt = 10_000L, addedAt = 0L,
+                ),
+            )
+        )
         val api = object : AbsLibraryApi {
             // ABS returns ebookProgress=0.6 (user resumed on another device) but isFinished/finishedAt
             // are still sticky from the previous completion — they were never cleared by ABS.
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
-                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
-                        ebookProgress = 0.6f,
-                        lastUpdate = 15_000L,
-                        isFinished = true,
-                        finishedAt = 5_000L,
-                    ))
+                    mapOf(
+                        "item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                            ebookProgress = 0.6f,
+                            lastUpdate = 15_000L,
+                            isFinished = true,
+                            finishedAt = 5_000L,
+                        )
+                    )
                 )
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.6f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.6f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
@@ -1544,30 +1665,36 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(
-            LibraryItemEntity(
-                "s1", "item-1", "lib-1", "Audio Book", "A", null, 1.0f,
-                lastOpenedAt = 10_000L, addedAt = 0L,
-            ),
-        ))
+        dao.upsertAll(
+            listOf(
+                LibraryItemEntity(
+                    "s1", "item-1", "lib-1", "Audio Book", "A", null, 1.0f,
+                    lastOpenedAt = 10_000L, addedAt = 0L,
+                ),
+            )
+        )
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
-                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
-                        ebookProgress = null,
-                        lastUpdate = 15_000L,
-                        currentTime = 36.0,
-                        duration = 60.0,
-                        isFinished = true,
-                        finishedAt = 5_000L,
-                    ))
+                    mapOf(
+                        "item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                            ebookProgress = null,
+                            lastUpdate = 15_000L,
+                            currentTime = 36.0,
+                            duration = 60.0,
+                            isFinished = true,
+                            finishedAt = 5_000L,
+                        )
+                    )
                 )
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Audio Book", "A", 0f, ebookFormat = EbookFormat.Epub)
-                ))
+                NetworkResult.Success(
+                    listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Audio Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                    )
+                )
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
                 NetworkResult.Success(emptyList())
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =

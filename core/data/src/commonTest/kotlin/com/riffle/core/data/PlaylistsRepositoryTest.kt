@@ -18,23 +18,23 @@ import com.riffle.core.database.PlaylistItemEntity
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
-import kotlin.test.Test
 
 class PlaylistsRepositoryTest {
 

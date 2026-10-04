@@ -1,6 +1,5 @@
 package com.riffle.core.data
 
-import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
 import com.riffle.core.data.absbookmark.CompositeAnnotationSyncTarget
 import com.riffle.core.domain.AbsWebSourceDescriptor
@@ -9,14 +8,17 @@ import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkResult
+import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -25,8 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -172,9 +172,15 @@ class AnnotationSyncTargetHolderTest {
 private class FakeConfigStore : AnnotationSyncConfigStore {
     private val state = MutableStateFlow<AnnotationSyncConfig?>(null)
     override fun observe(): StateFlow<AnnotationSyncConfig?> = state
-    override suspend fun save(config: AnnotationSyncConfig) { state.value = config }
-    override suspend fun clear() { state.value = null }
-    fun emit(value: AnnotationSyncConfig?) { state.value = value }
+    override suspend fun save(config: AnnotationSyncConfig) {
+        state.value = config
+    }
+    override suspend fun clear() {
+        state.value = null
+    }
+    fun emit(value: AnnotationSyncConfig?) {
+        state.value = value
+    }
 }
 
 private class EmptySourceRepository : SourceRepository {
@@ -196,9 +202,13 @@ private class NoopTokenStorage : TokenStorage {
 
 private class InMemoryTokenStorage : TokenStorage {
     val savedTokens: MutableMap<String, String> = mutableMapOf()
-    override suspend fun saveToken(sourceId: String, token: String) { savedTokens[sourceId] = token }
+    override suspend fun saveToken(sourceId: String, token: String) {
+        savedTokens[sourceId] = token
+    }
     override suspend fun getToken(sourceId: String): String? = savedTokens[sourceId]
-    override suspend fun deleteToken(sourceId: String) { savedTokens.remove(sourceId) }
+    override suspend fun deleteToken(sourceId: String) {
+        savedTokens.remove(sourceId)
+    }
 }
 
 private class SingleSourceRepository(private val source: Source) : SourceRepository {

@@ -42,7 +42,9 @@ class AndroidDeviceLabelResolver constructor(
     override fun deviceModel(): String = composeBuildLabel(Build.MANUFACTURER, Build.MODEL).let { built ->
         if (looksLikeEmulator(Build.MANUFACTURER, Build.MODEL, Build.FINGERPRINT, Build.PRODUCT)) {
             "Android Emulator"
-        } else built
+        } else {
+            built
+        }
     }
 
     private fun osDeviceName(): String? {

@@ -5,12 +5,12 @@ import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.models.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.Library
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -94,12 +94,20 @@ class CredentialedSourceInstallerOrderingTest {
     )
 
     private class RecordingTokenStorage(private val order: MutableList<String>) : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) { order += "saveToken" }
+        override suspend fun saveToken(sourceId: String, token: String) {
+            order += "saveToken"
+        }
         override suspend fun getToken(sourceId: String): String? = null
-        override suspend fun deleteToken(sourceId: String) { order += "deleteToken" }
-        override suspend fun savePassword(sourceId: String, password: String) { order += "savePassword" }
+        override suspend fun deleteToken(sourceId: String) {
+            order += "deleteToken"
+        }
+        override suspend fun savePassword(sourceId: String, password: String) {
+            order += "savePassword"
+        }
         override suspend fun getPassword(sourceId: String): String? = null
-        override suspend fun deletePassword(sourceId: String) { order += "deletePassword" }
+        override suspend fun deletePassword(sourceId: String) {
+            order += "deletePassword"
+        }
     }
 
     private class RecordingSourceDao(private val order: MutableList<String>) : SourceDao {
@@ -107,15 +115,25 @@ class CredentialedSourceInstallerOrderingTest {
         override suspend fun getActive(): SourceEntity? = null
         override suspend fun getById(id: String): SourceEntity? = null
         override suspend fun getByType(type: String): SourceEntity? = null
-        override suspend fun upsert(source: SourceEntity) { order += "upsert" }
-        override suspend fun clearActiveFlag() { order += "clearActiveFlag" }
-        override suspend fun setActive(id: String) { order += "setActive" }
-        override suspend fun setActiveAtomic(id: String) { order += "setActiveAtomic" }
+        override suspend fun upsert(source: SourceEntity) {
+            order += "upsert"
+        }
+        override suspend fun clearActiveFlag() {
+            order += "clearActiveFlag"
+        }
+        override suspend fun setActive(id: String) {
+            order += "setActive"
+        }
+        override suspend fun setActiveAtomic(id: String) {
+            order += "setActiveAtomic"
+        }
         override suspend fun upsertAsFirstIfNoActive(source: SourceEntity): SourceEntity {
             order += "upsertAsFirstIfNoActive"
             return source.copy(isActive = true)
         }
-        override suspend fun deleteById(id: String) { order += "deleteById" }
+        override suspend fun deleteById(id: String) {
+            order += "deleteById"
+        }
         override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
         override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
         override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
@@ -143,7 +161,9 @@ class CredentialedSourceInstallerOrderingTest {
         override suspend fun deleteCoverGridScaleForSource(id: String) = Unit
         override suspend fun deleteLibraryItemsForSource(id: String) = Unit
         override suspend fun deleteLibrariesForSource(id: String) = Unit
-        override suspend fun setAbsUserId(id: String, absUserId: String) { order += "setAbsUserId" }
+        override suspend fun setAbsUserId(id: String, absUserId: String) {
+            order += "setAbsUserId"
+        }
     }
 
     private object NoopLibraryDao : LibraryDao {

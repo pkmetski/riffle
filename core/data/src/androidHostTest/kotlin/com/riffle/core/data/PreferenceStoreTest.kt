@@ -78,5 +78,4 @@ class PreferenceStoreTest {
         val store = preferenceStore(ds, PrefCodecs.enum("k", Pet.CAT, Pet.entries.toTypedArray()))
         assertEquals(Pet.CAT, store.flow.first())
     }
-
 }

@@ -106,5 +106,4 @@ class ComicFormattingPreferencesStoreImplTest {
         store.update(ComicFormattingPreferences(panelAnimationSpeedMs = 250))
         assertEquals(250, store.preferences.first().panelAnimationSpeedMs)
     }
-
 }

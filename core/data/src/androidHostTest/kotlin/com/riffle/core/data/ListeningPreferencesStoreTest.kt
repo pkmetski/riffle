@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import com.riffle.core.domain.ListeningPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job

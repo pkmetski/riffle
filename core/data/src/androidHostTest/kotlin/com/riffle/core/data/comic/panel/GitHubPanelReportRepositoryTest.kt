@@ -66,9 +66,11 @@ class GitHubPanelReportRepositoryTest {
     @Test
     fun `submit makes 2 API calls and returns issue URL`() = runTest {
         // 1. create gist
-        server.enqueue(MockResponse().setBody(
-            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
-        ).setResponseCode(201))
+        server.enqueue(
+            MockResponse().setBody(
+                gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+            ).setResponseCode(201)
+        )
         // 2. create issue
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
@@ -81,9 +83,11 @@ class GitHubPanelReportRepositoryTest {
 
     @Test
     fun `gist body contains base64-encoded mask and metadata`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
-        ).setResponseCode(201))
+        server.enqueue(
+            MockResponse().setBody(
+                gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+            ).setResponseCode(201)
+        )
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val maskBytes = ByteArray(5) { it.toByte() }
@@ -107,9 +111,11 @@ class GitHubPanelReportRepositoryTest {
     fun `issue body contains gist URL and mask raw URL`() = runTest {
         val gistHtmlUrl = "https://gist.github.com/pkmetski/abc123"
         val maskRawUrl = "https://gist.githubusercontent.com/raw/mask.b64"
-        server.enqueue(MockResponse().setBody(
-            gistResponse(gistHtmlUrl, maskRawUrl)
-        ).setResponseCode(201))
+        server.enqueue(
+            MockResponse().setBody(
+                gistResponse(gistHtmlUrl, maskRawUrl)
+            ).setResponseCode(201)
+        )
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         repo().submit(fakeReport, ByteArray(0)).getOrThrow()
@@ -126,9 +132,11 @@ class GitHubPanelReportRepositoryTest {
 
     @Test
     fun `issue body contains expected panel order when WrongPanelOrder report submitted`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
-        ).setResponseCode(201))
+        server.enqueue(
+            MockResponse().setBody(
+                gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+            ).setResponseCode(201)
+        )
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val reportWithOrder = fakeReport.copy(
@@ -146,9 +154,11 @@ class GitHubPanelReportRepositoryTest {
 
     @Test
     fun `gist metadata contains false panel indices when FalsePanel report submitted`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
-        ).setResponseCode(201))
+        server.enqueue(
+            MockResponse().setBody(
+                gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+            ).setResponseCode(201)
+        )
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val reportWithFalsePanels = fakeReport.copy(
@@ -169,9 +179,11 @@ class GitHubPanelReportRepositoryTest {
 
     @Test
     fun `issue body contains false panel indices when FalsePanel report submitted`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
-        ).setResponseCode(201))
+        server.enqueue(
+            MockResponse().setBody(
+                gistResponse("https://gist.github.com/pkmetski/abc123", "https://gist.githubusercontent.com/raw/mask.b64")
+            ).setResponseCode(201)
+        )
         server.enqueue(MockResponse().setBody("""{"html_url":"https://github.com/pkmetski/riffle/issues/99"}""").setResponseCode(201))
 
         val reportWithFalsePanels = fakeReport.copy(

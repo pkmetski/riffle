@@ -15,8 +15,10 @@ interface LocalToReadStore {
     suspend fun isInToRead(libraryId: String, libraryItemId: String): Boolean
     suspend fun add(libraryId: String, libraryItemId: String)
     suspend fun remove(libraryId: String, libraryItemId: String)
+
     /** Epoch-ms of the last local write for [libraryId]. Returns 0 if never written. */
     suspend fun lastUpdateMs(libraryId: String): Long
+
     /** Atomically replace all item IDs and record [lastUpdateMs]. Used by the WebDAV sweep on remote-wins. */
     suspend fun setAll(libraryId: String, itemIds: Set<String>, lastUpdateMs: Long)
 }

@@ -7,12 +7,11 @@ import com.riffle.core.data.comic.NetworkComicPageSource
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
 import com.riffle.core.domain.CbzOpenResult
-import com.riffle.core.domain.JvmCbzRepository
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.JvmCbzRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
@@ -20,11 +19,12 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.comic.CbzArchive
 import com.riffle.core.domain.comic.ComicArchivePageSource
 import com.riffle.core.domain.comic.ComicBookmark
+import com.riffle.core.models.LibraryItem
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
-import kotlinx.coroutines.withContext
 
 /**
  * Mirrors [PdfRepositoryImpl]. Validates local files by opening their ZIP central directory
@@ -57,9 +57,11 @@ class CbzRepositoryImpl(
             } catch (t: Throwable) {
                 return CbzOpenResult.NetworkError(t)
             }
-            if (pageCount <= 0) return CbzOpenResult.NetworkError(
-                IllegalStateException("Server returned zero page count for ${item.id}")
-            )
+            if (pageCount <= 0) {
+                return CbzOpenResult.NetworkError(
+                    IllegalStateException("Server returned zero page count for ${item.id}")
+                )
+            }
             val lastPosition = loadLastPosition(item)
             return CbzOpenResult.Streaming(
                 imageSource = NetworkComicPageSource(

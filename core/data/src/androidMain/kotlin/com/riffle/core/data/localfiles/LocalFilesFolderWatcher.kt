@@ -12,16 +12,15 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.SourceType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 /**
  * Keeps the LocalFiles library in sync with the folders on disk *without* asking the user to hit a
@@ -96,7 +95,11 @@ class LocalFilesFolderWatcher constructor(
             logger.d(LogChannel.LocalFiles) { "watcher unregistered observer tree=$tree" }
         }
         for (tree in currentSet - observers.keys) {
-            val treeUri = try { Uri.parse(tree) } catch (_: Throwable) { continue }
+            val treeUri = try {
+                Uri.parse(tree)
+            } catch (_: Throwable) {
+                continue
+            }
             val childrenUri = try {
                 DocumentsContract.buildChildDocumentsUriUsingTree(
                     treeUri,

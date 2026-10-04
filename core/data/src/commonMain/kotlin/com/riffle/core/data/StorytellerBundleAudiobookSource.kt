@@ -4,8 +4,8 @@ import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudBundleReader
-import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.models.ReadaloudLink
 
 /**
  * The sole [BundleAudiobookSource] implementation, and the only audiobook/library code that knows the

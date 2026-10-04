@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
-import com.riffle.core.catalog.CatalogCollection
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
@@ -10,13 +9,13 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.SortKey
-import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.abs.CatalogException
+import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest

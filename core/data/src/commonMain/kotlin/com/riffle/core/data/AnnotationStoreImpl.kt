@@ -1,16 +1,16 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.Clock
+import com.riffle.core.common.randomUuidString
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.common.Clock
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.EmphasisStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import com.riffle.core.common.randomUuidString
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -389,7 +389,8 @@ class AnnotationStoreImpl(
     private fun logMissingEmphasisTarget(id: String) {
         // Intentionally quiet — the store has no logger dependency; callers with logging can
         // observe the effect (zero-row change followed by their own sync-cost push).
-        @Suppress("UNUSED_VARIABLE") val _unused = id
+        @Suppress("UNUSED_VARIABLE")
+        val _unused = id
     }
 
     override suspend fun delete(id: String) {

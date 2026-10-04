@@ -1,35 +1,25 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.DefaultDispatcherProvider
-
-import com.riffle.core.network.NetworkResult
-
-import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
-import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.StoredItemRef
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.ServerType
-import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsApiClient
-import com.riffle.core.network.StorytellerBundleApi
-import com.riffle.core.network.StorytellerBundleProbeApi
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
@@ -389,9 +379,12 @@ class EpubRepositoryTest {
         // and returns AlreadyDownloaded. Either terminal is valid — the invariant is that both
         // finish non-error AND exactly one HTTP request went out.
         val terminals = listOf(ra, rb)
-        assertTrue("all terminals must Success/AlreadyDownloaded: $terminals", terminals.all {
-            it is EpubDownloadResult.Success || it is EpubDownloadResult.AlreadyDownloaded
-        })
+        assertTrue(
+            "all terminals must Success/AlreadyDownloaded: $terminals",
+            terminals.all {
+                it is EpubDownloadResult.Success || it is EpubDownloadResult.AlreadyDownloaded
+            }
+        )
         assertEquals(1, source.requestCount)
         assertTrue(downloadsStore.get("source-1", "item-1") != null)
     }
@@ -635,5 +628,4 @@ class EpubRepositoryTest {
         assertEquals(0, source.requestCount)
         assertFalse(repo.isDownloaded("orphaned-source", "item-1"))
     }
-
 }

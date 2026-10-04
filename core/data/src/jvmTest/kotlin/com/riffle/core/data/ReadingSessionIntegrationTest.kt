@@ -1,19 +1,14 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.SourceUrl
 import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.models.SyncSessionResult
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsApiClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -58,29 +53,29 @@ class ReadingSessionIntegrationTest {
             catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
             sourceRepository = sourceRepo,
             positionStore = object : ReadingPositionStore {
-            override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
-            override suspend fun load(sourceId: String, itemId: String): String? = null
-            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
-            override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
-            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-        },
-        audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
-            override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
-            override suspend fun load(sourceId: String, itemId: String): Double? = null
-            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
-            override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
-            override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
-            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-        },
-        readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
-            override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
-            override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
-            override suspend fun clear(sourceId: String, itemId: String) = Unit
-        },
-        libraryItemDao = FakeLibraryItemDao(),
+                override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
+                override suspend fun load(sourceId: String, itemId: String): String? = null
+                override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
+                override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
+                override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            },
+            audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
+                override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
+                override suspend fun load(sourceId: String, itemId: String): Double? = null
+                override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+                override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
+                override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
+                override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            },
+            readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
+                override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+                override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+                override suspend fun clear(sourceId: String, itemId: String) = Unit
+            },
+            libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(),
         )
     }

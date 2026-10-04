@@ -18,7 +18,6 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -132,8 +131,11 @@ class AudiobookCacheRepositoryImplTest {
             server.dispatcher = object : Dispatcher() {
                 private val getQueue = ArrayDeque(listOf("audio-track-0", "audio-track-1"))
                 override fun dispatch(request: RecordedRequest): MockResponse =
-                    if (request.method == "HEAD") MockResponse().setResponseCode(405)
-                    else MockResponse().setBody(getQueue.removeFirst())
+                    if (request.method == "HEAD") {
+                        MockResponse().setResponseCode(405)
+                    } else {
+                        MockResponse().setBody(getQueue.removeFirst())
+                    }
             }
             val session = AudiobookSession(
                 trackUrls = listOf(

@@ -9,11 +9,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.models.HighlightColor
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
+import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -23,7 +24,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import com.riffle.core.domain.LocalMinuteTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FormattingPreferencesStoreTest {

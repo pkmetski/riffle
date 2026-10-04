@@ -3,13 +3,14 @@ package com.riffle.core.data
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.resolveAutoReaderTheme
 import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
 import com.riffle.core.domain.appearance.ResolvedAppearance
+import com.riffle.core.domain.resolveAutoReaderTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -22,7 +23,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import com.riffle.core.domain.LocalMinuteTime
 
 /**
  * Production [AppearanceCoordinator]. Combines [AppThemeStore], [FormattingPreferencesStore] and
@@ -80,8 +80,10 @@ class AppearanceCoordinatorImpl(
             formattingPreferencesStore.preferences
                 .map { prefs ->
                     prefs.themeSchedule to
-                        (prefs.theme == ReaderTheme.Auto &&
-                            prefs.autoReaderThemeMode == AutoReaderThemeMode.Schedule)
+                        (
+                            prefs.theme == ReaderTheme.Auto &&
+                                prefs.autoReaderThemeMode == AutoReaderThemeMode.Schedule
+                            )
                 }
                 .distinctUntilChanged()
                 .collectLatest { (schedule, autoActive) ->

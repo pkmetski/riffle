@@ -2,12 +2,12 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudioPlaybackPreferencesEntity
-import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore.Companion.DEFAULT_PLAYBACK_SPEED
+import com.riffle.core.models.AudioIdentity
 import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.Test
 
 class AudioPlaybackPreferencesStoreImplTest {
 
@@ -67,6 +67,8 @@ class AudioPlaybackPreferencesStoreImplTest {
             rows[entity.sourceId to entity.bookId] = entity
         }
         override suspend fun get(sourceId: String, bookId: String) = rows[sourceId to bookId]
-        override suspend fun delete(sourceId: String, bookId: String) { rows.remove(sourceId to bookId) }
+        override suspend fun delete(sourceId: String, bookId: String) {
+            rows.remove(sourceId to bookId)
+        }
     }
 }

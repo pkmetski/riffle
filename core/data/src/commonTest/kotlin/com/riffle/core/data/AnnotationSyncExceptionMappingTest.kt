@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.toFailedCycleOutcome
 import com.riffle.core.sources.webdav.AnnotationSyncException
 import com.riffle.core.sync.CycleOutcome
-import com.riffle.core.data.toFailedCycleOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

@@ -9,8 +9,8 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Source
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

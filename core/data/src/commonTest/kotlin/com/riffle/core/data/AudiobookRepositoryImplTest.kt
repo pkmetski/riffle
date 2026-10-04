@@ -13,8 +13,8 @@ import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
-import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.Clock
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
@@ -27,7 +27,10 @@ class AudiobookRepositoryImplTest {
 
     private fun repo(catalog: Catalog?) = AudiobookRepositoryImpl(
         catalogRegistry = FakeRegistry(catalog),
-        clock = object : Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
+        clock = object : Clock {
+            override fun nowMs() = 0L
+            override fun nowNs() = 0L
+        },
     )
 
     @Test

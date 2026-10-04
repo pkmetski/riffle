@@ -288,7 +288,9 @@ class WebSourceLibraryItemUpserterTest {
             rows.entries.removeAll { it.value.libraryId == libraryId && it.value.sourceId == sourceId }
         }
 
-        override suspend fun deleteById(sourceId: String, itemId: String) { rows.remove(sourceId to itemId) }
+        override suspend fun deleteById(sourceId: String, itemId: String) {
+            rows.remove(sourceId to itemId)
+        }
         override fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())

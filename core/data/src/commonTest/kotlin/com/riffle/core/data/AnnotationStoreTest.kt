@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.domain.DeviceIdStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.assertFailsWith
 
 private const val TEST_FONT = "Georgia, serif"
 
@@ -43,8 +43,11 @@ class AnnotationStoreTest {
             imageHref: String?,
             imageSvg: String?,
         ): AnnotationEntity? = rows.value.firstOrNull {
-            it.sourceId == sourceId && it.itemId == itemId && it.chapterHref == chapterHref &&
-                it.type == AnnotationEntity.TYPE_IMAGE && !it.deleted &&
+            it.sourceId == sourceId &&
+                it.itemId == itemId &&
+                it.chapterHref == chapterHref &&
+                it.type == AnnotationEntity.TYPE_IMAGE &&
+                !it.deleted &&
                 (imageHref == null || it.imageHref == imageHref) &&
                 (imageSvg == null || it.imageSvg == imageSvg)
         }
@@ -81,7 +84,9 @@ class AnnotationStoreTest {
                         updatedAt = updatedAt,
                         lastModifiedByDeviceId = deviceId,
                     )
-                } else row
+                } else {
+                    row
+                }
             }
             return updated
         }
@@ -149,7 +154,9 @@ class AnnotationStoreTest {
                         updatedAt = updatedAt,
                         lastModifiedByDeviceId = deviceId,
                     )
-                } else it
+                } else {
+                    it
+                }
             }
             return updated
         }
@@ -271,8 +278,10 @@ class AnnotationStoreTest {
     fun `createBookmark returns the created annotation`() = runTest {
         val store = buildStore(idGenerator = { "bm-1" })
 
-        val created = store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c.xhtml",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
+        val created = store.createBookmark(
+            "abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT
+        )
 
         assertEquals("bm-1", created.id)
         assertEquals(AnnotationEntity.TYPE_BOOKMARK, created.type)
@@ -285,10 +294,14 @@ class AnnotationStoreTest {
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
         store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c", originFontFamily = TEST_FONT)
-        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
-        store.createBookmark("abs1", "item2", "epubcfi(c)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)  // different item
+        store.createBookmark(
+            "abs1", "item1", "epubcfi(b)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT
+        )
+        store.createBookmark(
+            "abs1", "item2", "epubcfi(c)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT
+        ) // different item
 
         val list = store.observeBookmarks("abs1", "item1").first()
         assertEquals(1, list.size)
@@ -299,8 +312,10 @@ class AnnotationStoreTest {
     fun `delete tombstones a bookmark so it leaves observeBookmarks`() = runTest {
         val dao = FakeAnnotationDao()
         val store = buildStore(dao = dao, idGenerator = { "bm-1" })
-        store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
+        store.createBookmark(
+            "abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT
+        )
 
         store.delete("bm-1")
 
@@ -314,8 +329,10 @@ class AnnotationStoreTest {
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
         store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c", originFontFamily = TEST_FONT)
-        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
+        store.createBookmark(
+            "abs1", "item1", "epubcfi(b)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT
+        )
 
         val highlights = store.observeHighlights("abs1", "item1").first()
         assertEquals(1, highlights.size)
@@ -406,8 +423,10 @@ class AnnotationStoreTest {
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
         store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c", originFontFamily = TEST_FONT)
-        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
+        store.createBookmark(
+            "abs1", "item1", "epubcfi(b)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT
+        )
         store.createEmphasis(
             sourceId = "abs1",
             itemId = "item1",

@@ -7,7 +7,6 @@ import com.riffle.core.database.LookupHistoryDao
 import com.riffle.core.database.LookupHistoryEntity
 import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.DictionaryPackState
-import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.PackEntryReader
 import com.riffle.core.domain.DispatcherProvider
 import io.mockk.every
@@ -120,18 +119,24 @@ private class FakeDictionaryPackDao(private val entity: DictionaryPackEntity?) :
     private val state = MutableStateFlow(entity)
     override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = state
     override fun observeAll(): Flow<List<DictionaryPackEntity>> = flowOf(listOfNotNull(entity))
-    override suspend fun upsert(entity: DictionaryPackEntity) { state.value = entity }
+    override suspend fun upsert(entity: DictionaryPackEntity) {
+        state.value = entity
+    }
     override suspend fun updateState(languageTag: String, state: String) {
         this.state.value = this.state.value?.copy(state = state)
     }
-    override suspend fun delete(languageTag: String) { state.value = null }
+    override suspend fun delete(languageTag: String) {
+        state.value = null
+    }
 }
 
 private class FakeLookupHistoryDao : LookupHistoryDao {
     private val history = mutableListOf<LookupHistoryEntity>()
     override fun observeRecent(languageTag: String, limit: Int): Flow<List<String>> =
         flowOf(history.filter { it.languageTag == languageTag }.takeLast(limit).map { it.form })
-    override suspend fun insert(entity: LookupHistoryEntity) { history.add(entity) }
+    override suspend fun insert(entity: LookupHistoryEntity) {
+        history.add(entity)
+    }
     override suspend fun pruneOldest(languageTag: String) {
         val kept = history.filter { it.languageTag == languageTag }.takeLast(50)
         history.removeIf { it.languageTag == languageTag }

@@ -88,16 +88,12 @@ object AnnotationW3CCodec {
     /**
      * Converts milliseconds since epoch to ISO 8601 string.
      */
-    private fun Long.toIso8601(): String {
-        return formatIso8601(this)
-    }
+    private fun Long.toIso8601(): String = formatIso8601(this)
 
     /**
      * Parses ISO 8601 string to milliseconds since epoch.
      */
-    private fun String.fromIso8601(): Long {
-        return parseIso8601ToEpochMillis(this) ?: 0L
-    }
+    private fun String.fromIso8601(): Long = parseIso8601ToEpochMillis(this) ?: 0L
 
     /**
      * Converts an AnnotationEntity to W3C Web Annotation JSON string.
@@ -139,19 +135,23 @@ object AnnotationW3CCodec {
                 add(buildPdfFragmentSelector(pdfLocator))
             } else {
                 // FragmentSelector: EPUB CFI
-                add(buildJsonObject {
-                    put("type", "FragmentSelector")
-                    put("conformsTo", "http://idpf.org/epub/linking/cfi/epub-cfi.html")
-                    put("value", entity.cfi)
-                })
+                add(
+                    buildJsonObject {
+                        put("type", "FragmentSelector")
+                        put("conformsTo", "http://idpf.org/epub/linking/cfi/epub-cfi.html")
+                        put("value", entity.cfi)
+                    }
+                )
             }
             // TextQuoteSelector: text context for re-anchoring
-            add(buildJsonObject {
-                put("type", "TextQuoteSelector")
-                put("exact", entity.textSnippet)
-                put("prefix", entity.textBefore)
-                put("suffix", entity.textAfter)
-            })
+            add(
+                buildJsonObject {
+                    put("type", "TextQuoteSelector")
+                    put("exact", entity.textSnippet)
+                    put("prefix", entity.textBefore)
+                    put("suffix", entity.textAfter)
+                }
+            )
         }
 
         // Build the target object. Source scheme distinguishes book types so
@@ -182,9 +182,12 @@ object AnnotationW3CCodec {
             // styles token. No TextualBody — emphasis has no color, no note.
             bodies += buildJsonObject {
                 put("type", "riffle:emphasis")
-                put("value", buildJsonObject {
-                    put("styles", entity.emphasisStyles ?: "")
-                })
+                put(
+                    "value",
+                    buildJsonObject {
+                        put("styles", entity.emphasisStyles ?: "")
+                    }
+                )
             }
         } else {
             bodies += buildJsonObject {
@@ -271,17 +274,20 @@ object AnnotationW3CCodec {
     ): JsonObject =
         buildJsonObject {
             put("type", "riffle:image")
-            put("value", buildJsonObject {
-                if (href != null) put("href", href)
-                if (svg != null) put("svg", svg)
-                put("caption", caption)
-                if (order != null) put("order", JsonPrimitive(order))
-                // Extension fields (2026-07-14): preserve captured raster bytes and the figure's
-                // position-in-range so a sync round-trip doesn't reset local rendering. Older
-                // peers ignore unknown value fields, so this stays backward-compatible.
-                if (imageBytes != null) put("imageBytes", imageBytes)
-                if (charOffset != null) put("charOffset", JsonPrimitive(charOffset))
-            })
+            put(
+                "value",
+                buildJsonObject {
+                    if (href != null) put("href", href)
+                    if (svg != null) put("svg", svg)
+                    put("caption", caption)
+                    if (order != null) put("order", JsonPrimitive(order))
+                    // Extension fields (2026-07-14): preserve captured raster bytes and the figure's
+                    // position-in-range so a sync round-trip doesn't reset local rendering. Older
+                    // peers ignore unknown value fields, so this stays backward-compatible.
+                    if (imageBytes != null) put("imageBytes", imageBytes)
+                    if (charOffset != null) put("charOffset", JsonPrimitive(charOffset))
+                }
+            )
         }
 
     /**
@@ -371,13 +377,11 @@ object AnnotationW3CCodec {
         }
     }
 
-    fun w3cToAnnotationEntity(jsonString: String): W3CAnnotation {
-        return try {
-            val root = json.parseToJsonElement(jsonString).jsonObject
-            w3cObjectToAnnotation(root)
-        } catch (_: Exception) {
-            emptyAnnotation()
-        }
+    fun w3cToAnnotationEntity(jsonString: String): W3CAnnotation = try {
+        val root = json.parseToJsonElement(jsonString).jsonObject
+        w3cObjectToAnnotation(root)
+    } catch (_: Exception) {
+        emptyAnnotation()
     }
 
     private fun w3cObjectToAnnotation(root: JsonObject): W3CAnnotation {
@@ -630,12 +634,15 @@ object AnnotationW3CCodec {
             put("conformsTo", PDF_FRAGMENT_CONFORMS_TO)
             put("value", "page=$page")
             if (charStart != null && charEnd != null) {
-                put("refinedBy", buildJsonObject {
-                    put("type", "DataPositionSelector")
-                    put("start", JsonPrimitive(charStart))
-                    put("end", JsonPrimitive(charEnd))
-                    if (quads != null) put("riffle:quads", quads)
-                })
+                put(
+                    "refinedBy",
+                    buildJsonObject {
+                        put("type", "DataPositionSelector")
+                        put("start", JsonPrimitive(charStart))
+                        put("end", JsonPrimitive(charEnd))
+                        if (quads != null) put("riffle:quads", quads)
+                    }
+                )
             }
         }
     }
@@ -662,16 +669,22 @@ object AnnotationW3CCodec {
         val locator = buildJsonObject {
             put("href", chapterHref)
             put("type", "application/pdf")
-            put("locations", buildJsonObject {
-                put("position", JsonPrimitive(page))
-                if (charStart != null && charEnd != null) {
-                    put("otherLocations", buildJsonObject {
-                        put("charStart", JsonPrimitive(charStart))
-                        put("charEnd", JsonPrimitive(charEnd))
-                        if (quads != null) put("quads", quads as JsonElement)
-                    })
+            put(
+                "locations",
+                buildJsonObject {
+                    put("position", JsonPrimitive(page))
+                    if (charStart != null && charEnd != null) {
+                        put(
+                            "otherLocations",
+                            buildJsonObject {
+                                put("charStart", JsonPrimitive(charStart))
+                                put("charEnd", JsonPrimitive(charEnd))
+                                if (quads != null) put("quads", quads as JsonElement)
+                            }
+                        )
+                    }
                 }
-            })
+            )
         }
         return locator.toString()
     }

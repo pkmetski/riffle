@@ -169,6 +169,7 @@ class AbsBookmarkAnnotationSyncTarget(
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
         requireOwnNamespace(namespace)
         val all = listAllBookmarksInReservedRange()
+
         // Group by (deviceShort, itemId). For each device we recover the full deviceId from at
         // least one manifest so the maintenance UI can label the row.
         data class ShardBookmarks(val bookmarks: MutableList<NetworkAbsBookmark> = mutableListOf())

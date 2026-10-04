@@ -27,8 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
-
-
 class WebSourceLibraryItemMaterializerTest {
 
     private val chitankaSourceId = "chitanka-1"
@@ -103,12 +101,16 @@ class WebSourceLibraryItemMaterializerTest {
             mockk<ProgressRemote<String>>(relaxed = true).also {
                 coEvery { it.get() } returns RemoteProgress("cfi", 100L, ebookProgress, null)
             }
-        } else null
+        } else {
+            null
+        }
         val audioRemote = if (audioProgress != null) {
             mockk<ProgressRemote<Double>>(relaxed = true).also {
                 coEvery { it.get() } returns RemoteProgress(894.0, 100L, audioProgress, null)
             }
-        } else null
+        } else {
+            null
+        }
         return mockk<ProgressRemoteFactory>(relaxed = true).also {
             coEvery { it.ebook(any(), any()) } returns ebookRemote
             coEvery { it.audio(any(), any()) } returns audioRemote
@@ -129,7 +131,7 @@ class WebSourceLibraryItemMaterializerTest {
 
     @Test
     fun `run creates library item and sets readingProgress for missing web-source item`() = runTest {
-        val dao = libraryItemDao()  // empty
+        val dao = libraryItemDao() // empty
         val catalog = mockk<Catalog>(relaxed = true)
         coEvery { catalog.getItem(itemId) } returns fakeCatalogItem
         val registry = mockk<CatalogRegistry>(relaxed = true)
@@ -152,7 +154,7 @@ class WebSourceLibraryItemMaterializerTest {
         val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
 
         makeMaterializer(
-            libraryItemDao = libraryItemDao(itemId),  // row already exists
+            libraryItemDao = libraryItemDao(itemId), // row already exists
             catalogRegistry = registry,
             upserter = upserter,
         ).run(chitankaSourceId)
@@ -264,7 +266,7 @@ class WebSourceLibraryItemMaterializerTest {
             hasAudio = true,
             language = "bg",
         )
-        val dao = libraryItemDao()  // empty
+        val dao = libraryItemDao() // empty
         val catalog = mockk<Catalog>(relaxed = true)
         coEvery { catalog.getItem(audioItemId) } returns audioCatalogItem
         val registry = mockk<CatalogRegistry>(relaxed = true)
@@ -272,7 +274,7 @@ class WebSourceLibraryItemMaterializerTest {
         val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
 
         makeMaterializer(
-            readingPositionDao = positionDao(),         // no ebook positions
+            readingPositionDao = positionDao(), // no ebook positions
             audiobookPositionDao = audioPositionDao(audioItemId),
             libraryItemDao = dao,
             catalogRegistry = registry,

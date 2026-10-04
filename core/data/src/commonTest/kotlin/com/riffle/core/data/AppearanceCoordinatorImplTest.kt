@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.AppTheme
-import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppThemeReaderThemes
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
@@ -36,8 +36,12 @@ class AppearanceCoordinatorImplTest {
     private class FakeAppThemeStore(initial: AppTheme = AppTheme.System) : AppThemeStore {
         private val _flow = MutableStateFlow(initial)
         override val appTheme: Flow<AppTheme> = _flow
-        override suspend fun setAppTheme(value: AppTheme) { _flow.value = value }
-        fun set(value: AppTheme) { _flow.value = value }
+        override suspend fun setAppTheme(value: AppTheme) {
+            _flow.value = value
+        }
+        fun set(value: AppTheme) {
+            _flow.value = value
+        }
     }
 
     private class FakeFormattingPreferencesStore(
@@ -45,16 +49,22 @@ class AppearanceCoordinatorImplTest {
     ) : FormattingPreferencesStore {
         private val _flow = MutableStateFlow(initial)
         override val preferences: Flow<FormattingPreferences> = _flow
-        override suspend fun update(preferences: FormattingPreferences) { _flow.value = preferences }
+        override suspend fun update(preferences: FormattingPreferences) {
+            _flow.value = preferences
+        }
         override suspend fun setCadencePlatformSupported(supported: Boolean) {
             _flow.value = _flow.value.copy(cadencePlatformSupported = supported)
         }
-        fun set(value: FormattingPreferences) { _flow.value = value }
+        fun set(value: FormattingPreferences) {
+            _flow.value = value
+        }
     }
 
     private class FakeTimeProvider(private var time: LocalMinuteTime = LocalMinuteTime.of(12, 0)) : TimeProvider {
         override fun nowLocalTime(): LocalMinuteTime = time
-        fun setTime(t: LocalMinuteTime) { time = t }
+        fun setTime(t: LocalMinuteTime) {
+            time = t
+        }
     }
 
     @Test

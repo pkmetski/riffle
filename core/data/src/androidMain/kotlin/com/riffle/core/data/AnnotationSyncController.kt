@@ -6,13 +6,13 @@ import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.models.AnnotationFileHeader
 import com.riffle.core.sync.AnnotationLockPort
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.ReconcileLocks
-import com.riffle.core.models.AnnotationFileHeader
-import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import java.time.Instant
 
 /**
  * Facade for annotation sync lifecycle. Composes three collaborators behind the

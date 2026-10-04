@@ -1,9 +1,9 @@
 package com.riffle.core.data
 
-import com.riffle.core.models.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceSummary
+import com.riffle.core.models.AnnotationDeviceMeta
 import kotlinx.datetime.Clock
 
 /**
@@ -72,13 +72,21 @@ class AnnotationSyncMaintenance(
     /** All namespaces discovered on the target, regardless of which is currently active. */
     suspend fun listNamespaces(): List<NamespaceSummary> {
         val target = targetProvider() ?: return emptyList()
-        return try { target.enumerateNamespaces() } catch (_: Exception) { emptyList() }
+        return try {
+            target.enumerateNamespaces()
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     /** Bulk-deletes every file under [namespace]. Returns the deleted-file count (0 if no target). */
     suspend fun forgetNamespace(namespace: String): Int {
         val target = targetProvider() ?: return 0
-        return try { target.forgetNamespace(namespace) } catch (_: Exception) { 0 }
+        return try {
+            target.forgetNamespace(namespace)
+        } catch (_: Exception) {
+            0
+        }
     }
 
     /** Empty list when sync is disabled, the namespace has no files, or the listing fails. */

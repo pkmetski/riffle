@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
-import com.riffle.core.common.Clock
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SyncPositionStore

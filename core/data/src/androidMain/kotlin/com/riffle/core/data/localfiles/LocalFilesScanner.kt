@@ -1,5 +1,6 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LocalFilesFileDao
@@ -7,16 +8,14 @@ import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
-import com.riffle.core.common.Clock
-import com.riffle.core.models.EbookFormat
-import com.riffle.core.models.EpubMetadata
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.PdfMetadata
 import com.riffle.core.domain.PdfMetadataExtractor
-import com.riffle.core.domain.comic.ComicMetadata
 import com.riffle.core.domain.comic.ComicMetadataExtractor
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.EpubMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -225,7 +224,9 @@ class LocalFilesScanner constructor(
         val coverBytes = metadata.coverBytes
         val coverFile = if (coverBytes != null) {
             copyIn.writeCover(sourceId, identity, metadata.coverExtension ?: "jpg", coverBytes)
-        } else null
+        } else {
+            null
+        }
         return libraryItemFromEpub(sourceId, identity, folderLibraryId, file, metadata, coverFile) to coverFile
     }
 
@@ -236,7 +237,11 @@ class LocalFilesScanner constructor(
         file: WalkedFile,
         copied: java.io.File,
     ): Pair<LibraryItemEntity, java.io.File?> {
-        val metadata = try { pdfMetadata.extract(copied) } catch (_: Exception) { PdfMetadata.EMPTY }
+        val metadata = try {
+            pdfMetadata.extract(copied)
+        } catch (_: Exception) {
+            PdfMetadata.EMPTY
+        }
         val entity = LibraryItemEntity(
             sourceId = sourceId,
             id = identity,

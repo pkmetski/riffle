@@ -1,15 +1,13 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.ServerType
-import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkStorytellerBook
 import com.riffle.core.network.StorytellerLibraryApi
 import kotlinx.coroutines.flow.Flow
@@ -17,10 +15,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
-import kotlin.test.fail
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -125,7 +119,7 @@ class StorytellerReadaloudSyncerTest {
             clock = { 0L },
         )
         syncer.syncStale()
-        assertEquals(listOf("http://st-st-1:8001"), api.calls)   // only the storyteller source fetched
+        assertEquals(listOf("http://st-st-1:8001"), api.calls) // only the storyteller source fetched
         assertEquals(1, itemDao.itemsFor("readaloud:st-1").size)
     }
 
@@ -143,10 +137,10 @@ class StorytellerReadaloudSyncerTest {
         syncer.syncStale()
         now = 9 * 60 * 1000L
         syncer.syncStale()
-        assertEquals(1, api.calls.size)   // throttled within TTL
+        assertEquals(1, api.calls.size) // throttled within TTL
         now = 11 * 60 * 1000L
         syncer.syncStale()
-        assertEquals(2, api.calls.size)   // refetched after TTL
+        assertEquals(2, api.calls.size) // refetched after TTL
     }
 
     @Test fun `syncStale is best-effort - a failing source does not throw or record success`() = runTest {
@@ -164,6 +158,6 @@ class StorytellerReadaloudSyncerTest {
         assertEquals(0, itemDao.itemsFor("readaloud:st-1").size)
         now = 1L
         syncer.syncStale()
-        assertEquals(2, api.calls.size)   // not recorded as synced → retried
+        assertEquals(2, api.calls.size) // not recorded as synced → retried
     }
 }

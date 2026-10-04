@@ -20,8 +20,6 @@ import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.database.LibraryItemMetadata
-import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
@@ -113,7 +111,9 @@ class IosLibraryRefresherImplTest {
         val finishedAtUpdates = mutableListOf<Triple<String, String, Long?>>()
         private val rows = mutableMapOf<String, LibraryItemEntity>()
 
-        fun seed(entity: LibraryItemEntity) { rows[entity.id] = entity }
+        fun seed(entity: LibraryItemEntity) {
+            rows[entity.id] = entity
+        }
         fun getById(itemId: String): LibraryItemEntity? = rows[itemId]
 
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {

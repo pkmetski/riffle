@@ -1,22 +1,21 @@
 package com.riffle.core.data
 
-import com.riffle.core.sources.webdav.AnnotationSyncException
-import com.riffle.core.sync.AnnotationSyncStatusStore
-import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.domain.AnnotationSyncTarget
-import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.NamespaceDeviceListing
-import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.sources.webdav.AnnotationSyncException
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
@@ -124,9 +123,11 @@ class AnnotationSweepTest {
         val target = FakeTarget(writeException = AnnotationSyncException.AuthFailed(401))
         val dao = FakeAnnotationDao(
             dirty = listOf(DirtySourceItem("srv-A", "item-1")),
-            rowsByItem = mapOf(("srv-A" to "item-1") to listOf(
-                annotation("ann-1", "srv-A", "item-1", updatedAt = 100L, lastSyncedAt = 0L)
-            )),
+            rowsByItem = mapOf(
+                ("srv-A" to "item-1") to listOf(
+                    annotation("ann-1", "srv-A", "item-1", updatedAt = 100L, lastSyncedAt = 0L)
+                )
+            ),
         )
         val sweep = AnnotationSweep(
             targetProvider = { target },

@@ -6,13 +6,13 @@ import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.JvmCbzRepository
 import com.riffle.core.models.LibraryItem
-import java.util.Collections
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.Collections
 
 class NetworkComicPageSourceTest {
 

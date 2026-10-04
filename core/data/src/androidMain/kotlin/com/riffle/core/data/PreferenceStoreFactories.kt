@@ -10,8 +10,6 @@ import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.EmphasisPreferencesStore
-import com.riffle.core.models.EmphasisStyle
-import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ReadaloudPreferences
@@ -19,6 +17,8 @@ import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map

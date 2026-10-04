@@ -1,33 +1,28 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-import com.riffle.core.sync.DirtyProgressLedger
-
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
+import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
-import com.riffle.core.database.LastOpenedAtRow
-import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsApiClient
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.sync.DirtyProgressLedger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -93,8 +88,12 @@ class SeriesIntegrationTest {
         override suspend fun findSeriesIdForItem(sourceId: String, itemId: String): String? = null
         override fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeContinueSeriesAllSources(): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override suspend fun upsertAll(series: List<SeriesEntity>) { upsertedSeries.addAll(series) }
-        override suspend fun upsertAllItems(items: List<SeriesItemEntity>) { upsertedItems.addAll(items) }
+        override suspend fun upsertAll(series: List<SeriesEntity>) {
+            upsertedSeries.addAll(series)
+        }
+        override suspend fun upsertAllItems(items: List<SeriesItemEntity>) {
+            upsertedItems.addAll(items)
+        }
         override suspend fun deleteByLibraryId(libraryId: String) {}
         override suspend fun deleteItemsByLibraryId(libraryId: String) {}
     }
