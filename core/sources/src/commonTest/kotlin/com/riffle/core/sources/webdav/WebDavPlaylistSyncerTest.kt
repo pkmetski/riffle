@@ -79,6 +79,37 @@ class WebDavPlaylistSyncerTest {
         assertTrue(serverTs > 0L, "serverTs=$serverTs")
     }
 
+    @Test
+    fun push_with_no_trailing_slash_url_produces_correct_path() = runTest {
+        val configNoSlash = AnnotationSyncConfig(
+            baseUrl = "https://dav.example.com/riffle",
+            username = "alice",
+            password = "secret",
+        )
+        var capturedUrl = ""
+        val engine = MockEngine { request ->
+            capturedUrl = request.url.toString()
+            respond(
+                ByteReadChannel.Empty,
+                HttpStatusCode.NoContent,
+                headersOf("Last-Modified", "Fri, 02 Jan 2026 00:00:00 GMT"),
+            )
+        }
+        val playlist = WebDavPlaylist(
+            id = "toread-books",
+            name = "To Read",
+            libraryId = "books",
+            itemIds = emptyList(),
+            lastUpdate = 0L,
+        )
+        WebDavPlaylistSyncer(config = configNoSlash, httpClient = HttpClient(engine))
+            .push("chitanka", playlist)
+        assertTrue(
+            capturedUrl.contains("/riffle/chitanka__playlist_toread-books.json"),
+            "url=$capturedUrl",
+        )
+    }
+
     // ---- list ----
 
     @Test

@@ -30,7 +30,10 @@ class WebDavPlaylistSyncer(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val authHeader: String = webDavBasicAuthHeader(config.username, config.password)
-    private val basePath: String = parseWebDavBaseUrl(config.baseUrl)?.toString() ?: ""
+    private val basePath: String = parseWebDavBaseUrl(config.baseUrl)
+        ?.toString()
+        ?.let { if (it.endsWith("/")) it else "$it/" }
+        ?: ""
 
     /**
      * Writes [playlist] to WebDAV. Returns the server-authoritative `Last-Modified` epoch-ms
@@ -87,7 +90,7 @@ class WebDavPlaylistSyncer(
         if (propfindResponse.status == HttpStatusCode.NotFound) return emptyList()
         if (!propfindResponse.status.isSuccess()) return emptyList()
         val xml = propfindResponse.bodyAsText()
-        val prefix = "${namespace.safeSegment()}${NAMESPACE_SEP}playlist_"
+        val prefix = "${namespace.safeSegment()}${NAMESPACE_SEPARATOR}playlist_"
         val suffix = ".json"
         val filenames = parsePropfindFilenames(xml)
         val matchingIds = filenames
@@ -109,14 +112,12 @@ class WebDavPlaylistSyncer(
     private fun fileUrl(namespace: String, playlistId: String): String {
         val safeNs = namespace.safeSegment()
         val safeId = playlistId.safeSegment()
-        return "${basePath}${safeNs}${NAMESPACE_SEP}playlist_${safeId}.json"
+        return "${basePath}${safeNs}${NAMESPACE_SEPARATOR}playlist_${safeId}.json"
     }
 
     private fun String.safeSegment() = replace('/', '.')
 
     companion object {
-        private const val NAMESPACE_SEP = "__"
-
         /** Builds the deterministic playlist ID for a library's To Read list. */
         fun toReadPlaylistId(libraryId: String) = "toread-$libraryId"
     }
