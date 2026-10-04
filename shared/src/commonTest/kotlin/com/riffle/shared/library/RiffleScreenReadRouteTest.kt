@@ -12,6 +12,7 @@ import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
@@ -25,6 +26,7 @@ import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
@@ -206,6 +208,7 @@ class RiffleScreenReadRouteTest {
                             offlineAvailability = object : LibraryItemOfflineAvailability {
                                 override fun isAvailableOffline(item: LibraryItem): Boolean = false
                             },
+                            coverGridDensityStore = FakeCoverGridDensityStore,
                         )
                     }
                     factory { params -> detailViewModel(params.get(), params.getOrNull()) }
@@ -260,4 +263,11 @@ class RiffleScreenReadRouteTest {
 
         onNodeWithText("Read").assertIsDisplayed()
     }
+}
+
+private object FakeCoverGridDensityStore : CoverGridDensityStore {
+    override val scale = flowOf(1f)
+    override suspend fun setScale(value: Float) {}
+    override fun scale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket) = flowOf(1f)
+    override suspend fun setScale(sourceId: String, libraryId: String, bucket: ScreenDimensionBucket, value: Float) {}
 }
