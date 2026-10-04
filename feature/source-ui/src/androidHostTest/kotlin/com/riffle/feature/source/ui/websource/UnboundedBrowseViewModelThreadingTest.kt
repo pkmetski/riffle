@@ -19,6 +19,8 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +30,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -94,6 +98,10 @@ class UnboundedBrowseViewModelThreadingTest {
     private fun makeVm(
         serverItems: Flow<List<LibraryItem>>,
         computeDispatcher: DispatcherProvider,
+        coverGridDensityStore: CoverGridDensityStore = mockk<CoverGridDensityStore>(relaxed = true).also {
+            every { it.scale } returns MutableStateFlow(1f)
+            every { it.homeScale } returns MutableStateFlow(1f)
+        },
     ): ChitankaBrowseViewModel {
         val sourceRepo = mockk<SourceRepository>().also {
             coEvery { it.getActive() } returns chitankaSource
@@ -123,9 +131,6 @@ class UnboundedBrowseViewModelThreadingTest {
             coEvery { it.setSortModeName(any(), any(), any()) } returns Unit
             coEvery { it.setSelectedFacetKey(any(), any(), any()) } returns Unit
         }
-        val coverDensity = mockk<CoverGridDensityStore>(relaxed = true).also {
-            coEvery { it.scale } returns MutableStateFlow(1f)
-        }
         val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
         val gate = mockk<WebSourceItemGate>(relaxed = true)
         return ChitankaBrowseViewModel(
@@ -134,7 +139,7 @@ class UnboundedBrowseViewModelThreadingTest {
             catalogRegistry = registry,
             libraryItemUpserter = upserter,
             webSourceItemGate = gate,
-            coverGridDensityStore = coverDensity,
+            coverGridDensityStore = coverGridDensityStore,
             libraryFilterPreferencesStore = prefs,
             libraryObserver = libraryObserver,
             connectivityObserver = FakeConnectivityObserver(),
@@ -178,5 +183,52 @@ class UnboundedBrowseViewModelThreadingTest {
             "ownedItemIndex map ran on collector (Main) thread $collectorThread — got $buildThreads",
             buildThreads.any { it == collectorThread },
         )
+    }
+
+    @Test
+    fun homeCoverGridScaleReadFromHomeScaleNotGlobalScale() = runTest(testDispatcher) {
+        val store = mockk<CoverGridDensityStore>(relaxed = true).also {
+            every { it.scale } returns MutableStateFlow(1f)
+            every { it.homeScale } returns MutableStateFlow(1.8f)
+        }
+        val vm = makeVm(
+            serverItems = flowOf(emptyList()),
+            computeDispatcher = object : DispatcherProvider {
+                override val main: CoroutineDispatcher get() = testDispatcher
+                override val mainImmediate: CoroutineDispatcher get() = testDispatcher
+                override val io: CoroutineDispatcher get() = testDispatcher
+                override val default: CoroutineDispatcher get() = testDispatcher
+            },
+            coverGridDensityStore = store,
+        )
+        backgroundScope.launch { vm.homeCoverGridScale.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(1.8f, vm.homeCoverGridScale.value)
+    }
+
+    @Test
+    fun setHomeCoverGridScaleCallsSetHomeScaleNotSetScale() = runTest(testDispatcher) {
+        val store = mockk<CoverGridDensityStore>(relaxed = true).also {
+            every { it.scale } returns MutableStateFlow(1f)
+            every { it.homeScale } returns MutableStateFlow(1f)
+        }
+        val vm = makeVm(
+            serverItems = flowOf(emptyList()),
+            computeDispatcher = object : DispatcherProvider {
+                override val main: CoroutineDispatcher get() = testDispatcher
+                override val mainImmediate: CoroutineDispatcher get() = testDispatcher
+                override val io: CoroutineDispatcher get() = testDispatcher
+                override val default: CoroutineDispatcher get() = testDispatcher
+            },
+            coverGridDensityStore = store,
+        )
+
+        vm.setHomeCoverGridScale(1.4f)
+        testDispatcher.scheduler.advanceTimeBy(201)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { store.setHomeScale(1.4f) }
+        coVerify(exactly = 0) { store.setScale(any<Float>()) }
     }
 }
