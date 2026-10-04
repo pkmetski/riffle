@@ -91,20 +91,18 @@ class SettingsViewModel constructor(
         annotationSyncConfigStore.observe(),
         annotationSyncStatusStore.lastCycleOutcome,
         annotationDao.observePendingBookCountAcrossAll(),
-        annotationSyncStatusStore.lastSuccessAtMs,
-    ) { config, outcome, pendingCount, lastSyncMs ->
-        deriveRow(config, outcome, pendingCount, lastSyncMs)
+    ) { config, outcome, pendingCount ->
+        deriveRow(config, outcome, pendingCount)
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        deriveRow(null, CycleOutcome.NeverRun, 0, null),
+        deriveRow(null, CycleOutcome.NeverRun, 0),
     )
 
     private fun deriveRow(
         config: AnnotationSyncConfig?,
         outcome: CycleOutcome,
         pendingCount: Int,
-        lastSyncMs: Long?,
     ): AnnotationSyncRowState {
         val kind = deriveAnnotationSyncKind(config, outcome, pendingCount)
         val badge = when (kind) {
@@ -118,6 +116,9 @@ class SettingsViewModel constructor(
             AnnotationSyncKind.Pending -> AnnotationSyncRowState.Tone.Pending
             AnnotationSyncKind.Error -> AnnotationSyncRowState.Tone.Error
         }
+        // Extract atMs from the outcome directly so there's no race between the two StateFlows
+        // in AnnotationSyncStatusStore — the timestamp is always consistent with the outcome.
+        val lastSyncMs = (outcome as? CycleOutcome.Success)?.atMs
         return AnnotationSyncRowState(badge, "WebDAV", deriveSubtitle(config, outcome, pendingCount, lastSyncMs), subTone)
     }
 
