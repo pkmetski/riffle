@@ -135,14 +135,13 @@ class PlaylistSweepTest {
         syncerFactory = { _, _ -> syncer },
     )
 
-    // Library ids are scoped by source id in the store to prevent collision across sources that
-    // happen to share a library id (e.g. two web sources both serving "books"). Tests must
-    // therefore seed and assert on the scoped key "<sourceId>:<libraryId>".
-    private val scopedKey = "chitanka-1:books"
+    // Note: raw library IDs are used as store keys; different sources with the same library id
+    // (e.g. two web sources both serving "books") can collide. This is a known v1 limitation.
+    private val libraryKey = "books"
 
     @Test
     fun noOpWhenWebdavNotConfigured() = runTest {
-        val store = FakeLocalToReadStore().also { it.add(scopedKey, "item1") }
+        val store = FakeLocalToReadStore().also { it.add(libraryKey, "item1") }
         val syncer = FakeSyncer()
         sweep(syncer = syncer, store = store, config = null).run()
         assertEquals(0, syncer.pushes.size)
@@ -151,7 +150,7 @@ class PlaylistSweepTest {
     @Test
     fun localNewerPushesToRemote() = runTest {
         val store = FakeLocalToReadStore().also {
-            it.setAll(scopedKey, setOf("item1"), 2_000L) // local ts=2000
+            it.setAll(libraryKey, setOf("item1"), 2_000L) // local ts=2000
         }
         val syncer = FakeSyncer(
             pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("old"), 1_000L), // remote ts=1000
@@ -161,26 +160,26 @@ class PlaylistSweepTest {
         assertEquals(setOf("item1"), syncer.pushes[0].second.itemIds.toSet())
         // After a push the local store must NOT be updated (avoids perpetual re-push if server
         // clock differs from local clock).
-        assertEquals(2_000L, store.timestamps[scopedKey], "local timestamp must stay unchanged after push")
+        assertEquals(2_000L, store.timestamps[libraryKey], "local timestamp must stay unchanged after push")
     }
 
     @Test
     fun remoteNewerAdoptsRemoteItems() = runTest {
         val store = FakeLocalToReadStore().also {
-            it.setAll(scopedKey, setOf("old"), 1_000L) // local ts=1000
+            it.setAll(libraryKey, setOf("old"), 1_000L) // local ts=1000
         }
         val syncer = FakeSyncer(
             pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("new1"), 2_000L), // remote ts=2000
         )
         sweep(syncer = syncer, store = store).run()
-        assertEquals<Set<String>?>(setOf("new1"), store.items[scopedKey])
+        assertEquals<Set<String>?>(setOf("new1"), store.items[libraryKey])
         assertEquals(0, syncer.pushes.size)
     }
 
     @Test
     fun equalTimestampsNoOp() = runTest {
         val store = FakeLocalToReadStore().also {
-            it.setAll(scopedKey, setOf("item1"), 1_000L)
+            it.setAll(libraryKey, setOf("item1"), 1_000L)
         }
         val syncer = FakeSyncer(
             pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("item1"), 1_000L),
@@ -198,7 +197,7 @@ class PlaylistSweepTest {
 
     @Test
     fun nonWebSourceIsSkipped() = runTest {
-        val store = FakeLocalToReadStore().also { it.add("books", "item1") }
+        val store = FakeLocalToReadStore().also { it.add(libraryKey, "item1") }
         val syncer = FakeSyncer()
         sweep(syncer = syncer, sources = arrayOf(absSource()), store = store).run()
         assertEquals(0, syncer.pushes.size)
