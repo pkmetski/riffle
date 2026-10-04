@@ -14,7 +14,6 @@ import com.riffle.core.common.FileStore
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AndroidDeviceLabelResolver
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
-import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
@@ -267,7 +266,6 @@ import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.sources.webdav.WebDavProgressEnumerator
-import com.riffle.core.sources.webdav.WebDavPlaylistSyncer
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.AudiobookBookmarkReconciler
@@ -695,16 +693,11 @@ private val coreDataRepositoriesModule = module {
     single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<LocalToReadStore> { LocalToReadStoreImpl(get(named(DS_LOCAL_TO_READ)), get()) }
     single {
-        val config = get<AnnotationSyncConfigStore>().observe().value
-            ?: AnnotationSyncConfig("", "", "")
-        WebDavPlaylistSyncer(config, get())
-    }
-    single {
         PlaylistSweep(
             sourceRepository = get(),
             libraryDao = get(),
             localToReadStore = get(),
-            syncer = get(),
+            httpClient = get(),
             configStore = get(),
         )
     }

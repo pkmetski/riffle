@@ -89,7 +89,6 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSweepEnqueuer
-import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppUpdatePreferencesStore
@@ -178,7 +177,6 @@ import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
-import com.riffle.core.sources.webdav.WebDavPlaylistSyncer
 import com.riffle.core.sources.webdav.WebDavProgressEnumerator
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.AnnotationLockPort
@@ -783,16 +781,11 @@ private fun iosLibraryModule(
     single { IosAppActiveEvents() }
     single<Flow<Unit>>(named(ForegroundSyncDriver.APP_BECAME_ACTIVE)) { get<IosAppActiveEvents>().becameActive }
     single {
-        val config = get<AnnotationSyncConfigStore>().observe().value
-            ?: AnnotationSyncConfig("", "", "")
-        WebDavPlaylistSyncer(config, get<HttpClient>())
-    }
-    single {
         PlaylistSweep(
             sourceRepository = get(),
             libraryDao = get(),
             localToReadStore = get(),
-            syncer = get(),
+            httpClient = get<HttpClient>(),
             configStore = get(),
         )
     }

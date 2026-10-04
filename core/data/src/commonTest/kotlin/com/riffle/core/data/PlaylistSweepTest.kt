@@ -119,17 +119,27 @@ class PlaylistSweepTest {
         }
     }
 
+    /** Builds a [PlaylistSweep] that uses [syncer] regardless of config. */
+    private fun sweep(
+        syncer: FakeSyncer,
+        sources: Array<out com.riffle.core.models.Source> = arrayOf(chitankaSource()),
+        libraryIds: Array<out String> = arrayOf("books"),
+        store: FakeLocalToReadStore = FakeLocalToReadStore(),
+        config: AnnotationSyncConfig? = webDavConfig,
+    ) = PlaylistSweep(
+        sourceRepository = sourceRepo(*sources),
+        libraryDao = libraryDao(*libraryIds),
+        localToReadStore = store,
+        httpClient = HttpClient(MockEngine { respond(ByteArray(0), HttpStatusCode.OK, headersOf()) }),
+        configStore = configStore(config),
+        syncerFactory = { _, _ -> syncer },
+    )
+
     @Test
     fun noOpWhenWebdavNotConfigured() = runTest {
         val store = FakeLocalToReadStore().also { it.add("books", "item1") }
         val syncer = FakeSyncer()
-        PlaylistSweep(
-            sourceRepository = sourceRepo(chitankaSource()),
-            libraryDao = libraryDao("books"),
-            localToReadStore = store,
-            syncer = syncer,
-            configStore = configStore(config = null),
-        ).run()
+        sweep(syncer = syncer, store = store, config = null).run()
         assertEquals(0, syncer.pushes.size)
     }
 
@@ -141,13 +151,7 @@ class PlaylistSweepTest {
         val syncer = FakeSyncer(
             pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("old"), 1_000L), // remote ts=1000
         )
-        PlaylistSweep(
-            sourceRepository = sourceRepo(chitankaSource()),
-            libraryDao = libraryDao("books"),
-            localToReadStore = store,
-            syncer = syncer,
-            configStore = configStore(),
-        ).run()
+        sweep(syncer = syncer, store = store).run()
         assertEquals(1, syncer.pushes.size)
         assertEquals(setOf("item1"), syncer.pushes[0].second.itemIds.toSet())
     }
@@ -160,13 +164,7 @@ class PlaylistSweepTest {
         val syncer = FakeSyncer(
             pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("new1"), 2_000L), // remote ts=2000
         )
-        PlaylistSweep(
-            sourceRepository = sourceRepo(chitankaSource()),
-            libraryDao = libraryDao("books"),
-            localToReadStore = store,
-            syncer = syncer,
-            configStore = configStore(),
-        ).run()
+        sweep(syncer = syncer, store = store).run()
         assertEquals<Set<String>?>(setOf("new1"), store.items["books"])
         assertEquals(0, syncer.pushes.size)
     }
@@ -179,27 +177,14 @@ class PlaylistSweepTest {
         val syncer = FakeSyncer(
             pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("item1"), 1_000L),
         )
-        PlaylistSweep(
-            sourceRepository = sourceRepo(chitankaSource()),
-            libraryDao = libraryDao("books"),
-            localToReadStore = store,
-            syncer = syncer,
-            configStore = configStore(),
-        ).run()
+        sweep(syncer = syncer, store = store).run()
         assertEquals(0, syncer.pushes.size)
     }
 
     @Test
     fun noLibrariesInRoomIsGraceful() = runTest {
-        val store = FakeLocalToReadStore()
         val syncer = FakeSyncer()
-        PlaylistSweep(
-            sourceRepository = sourceRepo(chitankaSource()),
-            libraryDao = libraryDao(), // empty list
-            localToReadStore = store,
-            syncer = syncer,
-            configStore = configStore(),
-        ).run()
+        sweep(syncer = syncer, libraryIds = emptyArray()).run()
         assertEquals(0, syncer.pushes.size)
     }
 
@@ -207,13 +192,7 @@ class PlaylistSweepTest {
     fun nonWebSourceIsSkipped() = runTest {
         val store = FakeLocalToReadStore().also { it.add("books", "item1") }
         val syncer = FakeSyncer()
-        PlaylistSweep(
-            sourceRepository = sourceRepo(absSource()),
-            libraryDao = libraryDao("books"),
-            localToReadStore = store,
-            syncer = syncer,
-            configStore = configStore(),
-        ).run()
+        sweep(syncer = syncer, sources = arrayOf(absSource()), store = store).run()
         assertEquals(0, syncer.pushes.size)
     }
 }

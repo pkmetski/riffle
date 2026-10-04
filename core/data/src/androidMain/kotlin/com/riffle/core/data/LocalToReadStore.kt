@@ -6,13 +6,14 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.riffle.core.common.Clock
+import com.riffle.core.common.SystemClock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class LocalToReadStoreImpl constructor(
     private val dataStore: DataStore<Preferences>,
-    private val clock: Clock,
+    private val clock: Clock = SystemClock,
 ) : LocalToReadStore {
 
     override fun observeItemIds(libraryId: String): Flow<Set<String>> =

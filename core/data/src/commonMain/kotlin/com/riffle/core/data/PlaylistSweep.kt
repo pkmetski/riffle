@@ -1,11 +1,13 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.LibraryDao
+import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.sources.webdav.WebDavPlaylist
 import com.riffle.core.sources.webdav.WebDavPlaylistSyncer
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.first
 
 /**
@@ -17,28 +19,35 @@ import kotlinx.coroutines.flow.first
  * local.lastUpdateMs → adopt remote items. If local > remote → push local. Equal → no-op.
  *
  * Silently skips when WebDAV is not configured ([AnnotationSyncConfigStore.observe] returns null).
+ *
+ * A fresh [WebDavPlaylistSyncer] is constructed on each [run] call (after the config guard) so
+ * that credentials updated after app-start are always picked up — no stale singleton.
  */
 class PlaylistSweep(
     private val sourceRepository: SourceRepository,
     private val libraryDao: LibraryDao,
     private val localToReadStore: LocalToReadStore,
-    private val syncer: WebDavPlaylistSyncer,
+    private val httpClient: HttpClient,
     private val configStore: AnnotationSyncConfigStore,
+    /** Overridable in tests to inject a [WebDavPlaylistSyncer] fake without going through HTTP. */
+    internal val syncerFactory: (AnnotationSyncConfig, HttpClient) -> WebDavPlaylistSyncer =
+        { config, client -> WebDavPlaylistSyncer(config, client) },
 ) {
     suspend fun run() {
-        configStore.observe().value ?: return
+        val config = configStore.observe().value ?: return
+        val syncer = syncerFactory(config, httpClient)
         val sources = sourceRepository.observeAll().first()
         for (source in sources) {
             if (!source.type.isWebSource) continue
             val namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase())
             val libraryIds = libraryDao.libraryIdsForSource(source.id)
             for (libraryId in libraryIds) {
-                runCatching { syncLibrary(namespace, libraryId) }
+                runCatching { syncLibrary(syncer, namespace, libraryId) }
             }
         }
     }
 
-    private suspend fun syncLibrary(namespace: String, libraryId: String) {
+    private suspend fun syncLibrary(syncer: WebDavPlaylistSyncer, namespace: String, libraryId: String) {
         val playlistId = WebDavPlaylistSyncer.toReadPlaylistId(libraryId)
         val remote = syncer.pull(namespace, playlistId)
         val localTs = localToReadStore.lastUpdateMs(libraryId)
