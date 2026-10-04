@@ -799,6 +799,113 @@ class AudiobookPlayerViewModelBookmarkTest {
         vm2.clearForTest()
     }
 
+    /**
+     * Regression test for the "radio.es podcast remains uncompleted after playback ends" bug.
+     *
+     * Root cause: [AudiobookPlayerViewModel.positionSaveCoordinator] called
+     * `updateReadingProgressUseCase(itemId, progress)` (single-arg overload), which uses
+     * `sourceRepository.getActive()?.id` as the sourceId for the DB UPDATE. When the active source
+     * is ABS (or any source other than radio.es), the UPDATE targets a row that doesn't exist —
+     * 0 rows affected, readingProgress stays at whatever partial value was last written.
+     *
+     * After the fix, the two-arg overload is called with `navSourceId` so the DB UPDATE always
+     * targets the correct `(sourceId, itemId)` row regardless of which source is currently active.
+     */
+    @Test
+    fun `progress write on playback end uses navSourceId not the active source id`() = runTest(testDispatcher) {
+        val navSourceId = "radio-es-source"
+        val activeSourceId = "srv-1" // returned by FakeServerRepository.getActive()
+        val updateProgress = com.riffle.app.testing.NoopUpdateReadingProgress()
+
+        // Controller position = timeline.durationSec → audiobookProgressFraction = 1.0f
+        val controller = FakeController(position = timeline.durationSec)
+
+        val vm = AudiobookPlayerViewModel(
+            navItemId = itemId,
+            navSourceId = navSourceId,
+            navPlaylistId = null,
+            navPlaylistLibraryId = null,
+            navStartAtSec = -1f,
+            audiobookRepository = FakeAudiobookRepository(AudiobookSession(
+                trackUrls = listOf("http://x/track0"),
+                tracks = listOf(com.riffle.core.models.AudiobookTrackSpan(0, 0.0, timeline.durationSec)),
+                timeline = timeline,
+                serverCurrentTimeSec = 0.0,
+                serverLastUpdate = 0L,
+            )),
+            audiobookDownloadRepository = NoDownloadRepo,
+            audiobookCacheRepository = NoCacheRepo,
+            bundleAudiobookSource = NoBundleSource,
+            libraryObserver = FakeLibraryRepository(),
+            updateReadingProgressUseCase = updateProgress,
+            sourceRepository = FakeServerRepository(),
+            tokenStorage = FakeTokenStorage,
+            controller = controller,
+            readaloudHandoff = FakeReadaloudController(),
+            audioPlaybackPreferencesStore = FakePrefsStore,
+            listeningPreferencesStore = FakeListeningPreferencesStore,
+            audioIdentityResolver = FakeIdentityResolver,
+            readaloudLinkRepository = FakeLinkRepository,
+            readaloudAudioRepository = FakeAudioRepo,
+            nowPlayingStore = NowPlayingStore(),
+            audiobookPositionStore = FakePositionStore(),
+            openReconcileTargets = OpenReconcileTargets(),
+            progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            bookmarkStore = FakeBookmarkStore(),
+            connectivityObserver = FakeConnectivityObserver(online = true),
+            audiobookHandoffState = AudiobookHandoffState(),
+            followLoopOrchestrator = FollowLoopOrchestrator(
+                clock = object : Clock {
+                    override fun nowMs(): Long = fixedNow
+                    override fun nowNs(): Long = fixedNow * 1_000_000L
+                },
+                progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            ),
+            resumeResolver = AudiobookResumeResolver(
+                positionStore = FakePositionStore(),
+                clock = object : Clock {
+                    override fun nowMs(): Long = fixedNow
+                    override fun nowNs(): Long = fixedNow * 1_000_000L
+                },
+            ),
+            reconciliationCoordinator = AudiobookReconciliationCoordinator(
+                readerSyncFactory = TestReaderSyncFactory(),
+                openReconcileTargets = OpenReconcileTargets(),
+                audioSyncStore = FakeSyncStoreDouble(),
+                readingSyncStore = FakeSyncStore(),
+                readaloudResumeStore = FakeResumeStore,
+            ),
+            clock = object : Clock {
+                override fun nowMs(): Long = fixedNow
+                override fun nowNs(): Long = fixedNow * 1_000_000L
+            },
+            logger = RecordingLogger(),
+            playlistsRepository = NoopPlaylistsRepository,
+            contentCacheAccessStore = NoopContentCacheAccessStore,
+            progressSweep = io.mockk.mockk(relaxed = true),
+            sleepStopStore = NoopSleepStopStore,
+        )
+        runCurrent()
+
+        controller.emitEnded()
+        runCurrent()
+        runCurrent() // flush coroutine launched on progressFlushScope
+
+        val sourcedCall = updateProgress.sourcedCalls.firstOrNull { it.first == navSourceId }
+        assertNotNull(
+            "updateReadingProgressUseCase must be called with navSourceId='$navSourceId' — " +
+            "before the fix it used getActive().id='$activeSourceId' and wrote 0 rows for radio.es. " +
+            "sourcedCalls=${ updateProgress.sourcedCalls }",
+            sourcedCall,
+        )
+        assertEquals(
+            "readingProgress must be 1.0f (completed) — got ${ sourcedCall?.third }",
+            1.0f,
+            sourcedCall!!.third,
+        )
+        vm.clearForTest()
+    }
+
     // --- fakes ---
 
     private class FakeConnectivityObserver(online: Boolean) : com.riffle.core.domain.ConnectivityObserver {

@@ -140,7 +140,7 @@ class AudiobookPlayerViewModel constructor(
     private var reconciledResumeSec: Double = 0.0
 
     private val positionSaveCoordinator = PositionSaveCoordinator<Double>(
-        updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
+        updateProgress = { progress -> updateReadingProgressUseCase(sourceId, itemId, progress) },
         savePosition = { pos ->
             if (sourceId.isNotEmpty()) {
                 audiobookPositionStore.save(sourceId, itemId, pos)
