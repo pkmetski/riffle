@@ -3596,8 +3596,10 @@ class EpubReaderViewModel constructor(
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
         nowPlayingStore.clearIf { it is com.riffle.feature.player.NowPlaying.Readaloud && it.itemId == itemId }
-        // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
-        playerCoordinator.dispose()
+        // NOTE: do NOT call playerCoordinator.dispose() here. PlayerCoordinator is a Koin singleton
+        // (see AppKoinModules.kt + PlayerCoordinatorScopeTest). Cancelling its internal scope would
+        // permanently kill the AudioClockTicker coroutine that drives activeFragmentRef, so every
+        // subsequent readaloud session would see a permanently-null fragment ref and no highlight.
     }
 
     /**

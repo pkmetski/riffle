@@ -741,6 +741,25 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 }
             }
     }
+    // Colour-change re-paint: when the user changes cadenceHighlightColor in Settings and
+    // returns to the reader, re-apply the current sentence decoration with the new colour.
+    // This is a separate effect (not keyed into the main follow LaunchedEffect above) so that
+    // a colour change does NOT reset followedRef — resetting it would cause a spurious goTo
+    // call for the already-visible sentence the next time combine emits.
+    LaunchedEffect(cadence, navigator, resolvedPrefs?.cadenceHighlightColor) {
+        val ref = cadence.currentFragment.value ?: return@LaunchedEffect
+        val quotes = cadence.quotes.value
+        navigator.applyDecorations(
+            DECORATION_GROUP_CADENCE,
+            listOf(
+                cadenceDecoration(
+                    fragmentRef = ref,
+                    quote = quotes[ref],
+                    color = (resolvedPrefs ?: FormattingPreferences()).cadenceHighlightColor,
+                ),
+            ),
+        )
+    }
 
     // Intra-sentence page follow (paginated only): a sentence that wraps a column boundary leaves
     // its tail on the next page while the highlight is still on it. The ticker's per-sentence
