@@ -24,7 +24,7 @@ import kotlinx.serialization.json.Json
  * `/` is replaced with `.` in namespace and playlistId segments (Synology WebDAV quirk, same as
  * [WebDavProgressRemote.progressFileUrl]).
  */
-class WebDavPlaylistSyncer(
+open class WebDavPlaylistSyncer(
     private val config: AnnotationSyncConfig,
     private val httpClient: HttpClient,
 ) {
@@ -40,7 +40,7 @@ class WebDavPlaylistSyncer(
      * (parsed from the response header), falling back to [WebDavPlaylist.lastUpdate] if missing.
      * Returns -1 if the base URL is malformed or the PUT fails.
      */
-    suspend fun push(namespace: String, playlist: WebDavPlaylist): Long {
+    open suspend fun push(namespace: String, playlist: WebDavPlaylist): Long {
         if (basePath.isEmpty()) return -1L
         val url = fileUrl(namespace, playlist.id)
         val body = json.encodeToString(playlist)
@@ -60,7 +60,7 @@ class WebDavPlaylistSyncer(
      * Fetches the playlist for [playlistId] in [namespace]. Returns null if the file does not
      * exist (404), on any other non-success status, or if the base URL is malformed.
      */
-    suspend fun pull(namespace: String, playlistId: String): WebDavPlaylist? {
+    open suspend fun pull(namespace: String, playlistId: String): WebDavPlaylist? {
         if (basePath.isEmpty()) return null
         val url = fileUrl(namespace, playlistId)
         val response = httpClient.request(url) {
