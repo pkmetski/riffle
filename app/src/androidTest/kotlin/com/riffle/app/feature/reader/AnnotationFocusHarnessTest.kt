@@ -156,12 +156,16 @@ class AnnotationFocusHarnessTest : KoinTest {
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
 
-        // Navigate to the bookmark via the Annotations panel. Retry once: on loaded CI runners
-        // Readium's intra-chapter paginated navigation can fire its JS go() asynchronously after
-        // the Compose layer reports Ready. waitForWebViewScrollQuiet was unreliable here because
-        // scrollLeft stays at 0 if the navigation fires after Phase-1 expires (Phase-2 then
-        // declares the pre-navigation position as stable). Polling the phrase rect directly with a
-        // longer window is simpler and catches the navigation whenever Readium fires it.
+        // Navigate to the bookmark via the Annotations panel. Retry up to twice: on heavily-loaded
+        // CI runners Readium's intra-chapter paginated snap JS can race with multicol layout in a
+        // way that leaves scrollLeft at 0. The ColumnSnap rAF loop exits after ≥3 stable frames of
+        // scrollWidth; if the layout settles between two loop iterations the snap declares done
+        // with the pre-navigation scrollLeft. Re-tapping the bookmark re-drives the snap from the
+        // current position, which has the fully-applied multicol layout, so it lands correctly.
+        // waitForWebViewScrollQuiet was unreliable here because scrollLeft stays at 0 if the
+        // navigation fires after Phase-1 expires (Phase-2 then declares the pre-navigation
+        // position as stable). Polling the phrase rect directly with a longer window is simpler
+        // and catches the navigation whenever Readium fires it.
         fun tapBookmarkAndWait(): FocusResult {
             showTopAppBar()
             // The bar can still be animating in when the click injects — settle and retry once.
@@ -185,9 +189,8 @@ class AnnotationFocusHarnessTest : KoinTest {
         }
 
         var result = tapBookmarkAndWait()
-        if (!result.onScreen) {
-            result = tapBookmarkAndWait()
-        }
+        if (!result.onScreen) result = tapBookmarkAndWait()
+        if (!result.onScreen) result = tapBookmarkAndWait()
         assertTrue(
             "$orientation bookmark navigation did not land on the bookmarked position. $result",
             result.onScreen,
