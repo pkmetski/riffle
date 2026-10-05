@@ -26,16 +26,16 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_this_series
 import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.SeriesDetailViewModel
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_this_series
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.OfflineBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

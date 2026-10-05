@@ -45,7 +45,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -249,7 +248,10 @@ fun LibraryTabContent(
     onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        0 -> HomeTabContent(
+            projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded,
+            seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore,
+        )
         1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
@@ -273,7 +275,10 @@ fun LibraryTabContent(
             labels = PlaylistLabels.English,
             onPlaylistSelected = onPlaylistSelected,
         )
-        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        else -> HomeTabContent(
+            projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded,
+            seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore,
+        )
     }
 }
 

@@ -35,11 +35,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.feature.designsystem.generated.resources.ui_cached
+import com.riffle.feature.designsystem.generated.resources.ui_downloaded
 import com.riffle.feature.downloads.DownloadsUiState
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
@@ -51,23 +53,21 @@ import com.riffle.feature.library.ui.generated.resources.ui_audiobook
 import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.library.ui.generated.resources.ui_cancel
 import com.riffle.feature.library.ui.generated.resources.ui_clear_all
+import com.riffle.feature.library.ui.generated.resources.ui_clear_all_cached
 import com.riffle.feature.library.ui.generated.resources.ui_comic
 import com.riffle.feature.library.ui.generated.resources.ui_downloads
 import com.riffle.feature.library.ui.generated.resources.ui_no_cached_media
 import com.riffle.feature.library.ui.generated.resources.ui_no_downloaded_media
 import com.riffle.feature.library.ui.generated.resources.ui_readaloud
 import com.riffle.feature.library.ui.generated.resources.ui_remove_all
-import com.riffle.feature.library.ui.generated.resources.ui_clear_all_cached
 import com.riffle.feature.library.ui.generated.resources.ui_remove_all_downloads
 import com.riffle.feature.library.ui.generated.resources.ui_remove_named_item
 import com.riffle.feature.library.ui.generated.resources.ui_this_will_clear_all_cached_media_from_your_device
 import com.riffle.feature.library.ui.generated.resources.ui_this_will_remove_all_downloaded_media_from_your_device
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_cached
-import com.riffle.feature.designsystem.generated.resources.ui_downloaded
 import com.riffle.feature.source.ui.CacheSettingsDialog
 import com.riffle.feature.source.ui.CacheSettingsRow
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

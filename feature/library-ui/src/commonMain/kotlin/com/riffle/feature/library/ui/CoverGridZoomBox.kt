@@ -39,7 +39,10 @@ fun CoverGridZoomBox(
 
     var liveScale by remember(isHomeTab) { mutableFloatStateOf(persistedScale) }
     LaunchedEffect(persistedScale) { liveScale = persistedScale }
-    val onScaleChange: (Float) -> Unit = { liveScale = it; onActivePersist(it) }
+    val onScaleChange: (Float) -> Unit = {
+        liveScale = it
+        onActivePersist(it)
+    }
 
     CompositionLocalProvider(LocalCoverGridScale provides liveScale) {
         Box(modifier = modifier.pinchCoverZoom(liveScale, onScaleChange), content = content)
