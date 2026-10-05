@@ -31,10 +31,9 @@ import org.junit.Test
  * emulates the ABS `bookmark` surface. Verifies the full pipeline: chunk codec → target →
  * `AbsBookmarkApi` wire encoding → OkHttp → MockWebServer, then decode back the other way.
  *
- * Runs everywhere. Excluded from the default `./gradlew test` task by the `*IntegrationTest`
- * name pattern (see `core/data/build.gradle.kts` `testOptions` — `-PintegrationTests` includes it,
- * matching the `integration-test` GHA job). No `Assume` / silent-skip: if the assertions here
- * fail, CI turns red.
+ * Lives in `androidHostTest` so it only runs in the CI Integration job
+ * (`:core:data:testAndroidHostTest`), not in the Unit job. No `Assume` / silent-skip: if the
+ * assertions here fail, CI turns red.
  *
  * The mock's behaviour mirrors the real ABS server's observed contract (empirical probe results
  * folded into ADR 0057):
