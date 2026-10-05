@@ -8,18 +8,23 @@ interface ReadingSessionRepository {
     suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String? = null): ProgressSyncCycleResult
 
     /**
-     * Mark the item read/listened (`finished = true`) or unread/unlistened (`finished = false`)
-     * on ABS. Resets BOTH dimensions of the shared media-progress record in one PATCH: the ebook
-     * (`ebookProgress` → 1 or 0, `ebookLocation` cleared on unread) and the audio (`isFinished`
-     * flips `progress`/`currentTime`). Without the audio half, a finished/in-progress audiobook
-     * `progress` survives and re-shadows a 0 `ebookProgress` on the next library refresh (the
-     * "unread restores old progress" bug). Bumps the local position timestamp so the change syncs.
+     * Mark the item read/listened (`finished = true`) or unread/unlistened (`finished = false`).
+     * Uses [sourceId] to target the correct row — callers must pass the item's own source ID,
+     * not the currently-active source, so web-source items (radio.es, etc.) are written
+     * correctly even when an ABS server is active.
+     *
+     * Resets BOTH dimensions of the shared media-progress record in one PATCH for ABS sources:
+     * the ebook (`ebookProgress` → 1 or 0, `ebookLocation` cleared on unread) and the audio
+     * (`isFinished` flips `progress`/`currentTime`). Without the audio half, a finished/in-progress
+     * audiobook `progress` survives and re-shadows a 0 `ebookProgress` on the next library refresh
+     * (the "unread restores old progress" bug). Bumps the local position timestamp so the change
+     * syncs.
      *
      * Unread additionally wipes every LOCAL position store for the item (reading position, audiobook
      * position, readaloud resume) so reopening the book can't restore — and then re-save — a stale
      * position from a store the server reset didn't cover.
      */
-    suspend fun markFinished(itemId: String, finished: Boolean)
+    suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean)
 
     /**
      * Notify the ABS server that this user has just (re-)opened the item — used to drive the

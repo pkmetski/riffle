@@ -129,6 +129,7 @@ class MarkUnreadServerResetTest {
         val sourceRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
             override suspend fun getActive(): Source = source
+            override suspend fun getById(sourceId: String): Source? = if (sourceId == source.id) source else null
             override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) = Unit
             override suspend fun remove(sourceId: String) = Unit
@@ -190,7 +191,7 @@ class MarkUnreadServerResetTest {
         val api = StatefulAbsApi()
         api.seed("audio-1", Record(currentTime = 5_000.0, duration = 10_000.0, progress = 0.5, lastUpdate = 100L))
 
-        repo(api).markFinished("audio-1", finished = false)
+        repo(api).markFinished("s1", "audio-1", finished = false)
 
         val r = api.records.getValue("audio-1")
         assertEquals(0.0, r.currentTime, 1e-9)
@@ -207,7 +208,7 @@ class MarkUnreadServerResetTest {
         val api = StatefulAbsApi()
         api.seed("ebook-1", Record(ebookLocation = "epubcfi(/6/8!/4/1:0)", ebookProgress = 0.9f, lastUpdate = 100L))
 
-        repo(api).markFinished("ebook-1", finished = false)
+        repo(api).markFinished("s1", "ebook-1", finished = false)
 
         val r = api.records.getValue("ebook-1")
         assertEquals("", r.ebookLocation)
@@ -220,7 +221,7 @@ class MarkUnreadServerResetTest {
         val api = StatefulAbsApi()
         api.seed("audio-1", Record(currentTime = 3_000.0, duration = 10_000.0, progress = 0.3, lastUpdate = 100L))
 
-        repo(api).markFinished("audio-1", finished = true)
+        repo(api).markFinished("s1", "audio-1", finished = true)
 
         val r = api.records.getValue("audio-1")
         assertEquals(true, r.isFinished)

@@ -185,36 +185,35 @@ class ReadingSessionRepositoryImpl constructor(
         }
     }
 
-    override suspend fun markFinished(itemId: String, finished: Boolean) {
-        val source = sourceRepository.getActive() ?: return
+    override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) {
         val now = clock.nowMs()
         // Wipe EVERY local position store in both directions so the reader always reopens at the
         // start: mark-as-read = done, begin from scratch next time; mark-as-unread = start over.
         // Preserving the position on mark-as-read caused the detail screen to show the old audio
         // position (e.g. 47%) while the library showed 100%, because the local audiobookPositionStore
         // fed a contradicting current-time that was never reset.
-        positionStore.save(source.id, itemId, "")
-        audiobookPositionStore.save(source.id, itemId, 0.0)
-        readaloudResumeStore.clear(source.id, itemId)
+        positionStore.save(sourceId, itemId, "")
+        audiobookPositionStore.save(sourceId, itemId, 0.0)
+        readaloudResumeStore.clear(sourceId, itemId)
         if (!finished) {
             // For mark-as-unread, also dirty the audio row so the sync sweeper pushes currentTime=0
             // to the source and resets the audio dimension server-side too. For mark-as-read we
             // skip this: pushEbookProgress(isFinished=true) below already resets the server record;
             // bumping the audio timestamp would cause a spurious currentTime=0 sync on top of that.
-            audiobookPositionStore.updateLocalTimestamp(source.id, itemId, now)
+            audiobookPositionStore.updateLocalTimestamp(sourceId, itemId, now)
         }
         // Bump before catalog lookup: marks the ebook record dirty so the sync cycle pushes it
         // even if the catalog is unavailable right now.
-        positionStore.updateLocalTimestamp(source.id, itemId, now)
+        positionStore.updateLocalTimestamp(sourceId, itemId, now)
         // Immediately reflect the mark-read/unread in the library DB so the grid shows the correct
         // value before the next pullAllProgress sweep. Without this, the library stays at the old
         // progress until either the sweeper makes the row clean AND the post-loop runs — during that
         // window the library shows stale progress even though the intent is 100% / 0%.
         // Stamp with `now` so this explicit mark wins over any stale in-flight server pull
         // (last-update-wins); the source push below refreshes the server stamp too.
-        libraryItemDao.updateReadingProgressStamped(source.id, itemId, if (finished) 1.0f else 0.0f, now)
-        libraryItemDao.updateFinishedAt(source.id, itemId, if (finished) now else null)
-        val catalog = catalogRegistry.forSource(source) ?: return
+        libraryItemDao.updateReadingProgressStamped(sourceId, itemId, if (finished) 1.0f else 0.0f, now)
+        libraryItemDao.updateFinishedAt(sourceId, itemId, if (finished) now else null)
+        val catalog = catalogRegistry.forSourceId(sourceId) ?: return
         val peer = catalog as? ProgressPeerCapability ?: return
         // isFinished resets the audio half of the record too: true→progress 1, false→currentTime
         // and progress 0. Both halves move together so neither can re-shadow the other.
@@ -237,7 +236,7 @@ class ReadingSessionRepositoryImpl constructor(
             // that same server stamp — otherwise the durable sweep sees a dirty currentTime=0 row and
             // pushes it back with isFinished=false, un-finishing the book the user just marked read.
             if (ebookStamp != null) {
-                audiobookPositionStore.markSyncedAt(source.id, itemId, ebookStamp.takeIf { it > 0L } ?: now)
+                audiobookPositionStore.markSyncedAt(sourceId, itemId, ebookStamp.takeIf { it > 0L } ?: now)
             }
         } else {
             // For mark-as-unread: also push currentTime=0 to the audio peer immediately, then mark
@@ -248,7 +247,7 @@ class ReadingSessionRepositoryImpl constructor(
             // restoring the very progress value the user just cleared.
             val audioPeer = catalog as? AudiobookProgressPeerCapability
             if (audioPeer != null) {
-                val audioDuration = libraryItemDao.getById(source.id, itemId)?.audioDurationSec ?: 0.0
+                val audioDuration = libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0
                 val stamp = runCatching {
                     audioPeer.pushAudiobookProgress(
                         itemId = itemId,
@@ -259,7 +258,7 @@ class ReadingSessionRepositoryImpl constructor(
                     )
                 }.getOrNull()
                 if (stamp != null) {
-                    audiobookPositionStore.markSyncedAt(source.id, itemId, stamp.takeIf { it > 0L } ?: now)
+                    audiobookPositionStore.markSyncedAt(sourceId, itemId, stamp.takeIf { it > 0L } ?: now)
                 }
             }
         }
