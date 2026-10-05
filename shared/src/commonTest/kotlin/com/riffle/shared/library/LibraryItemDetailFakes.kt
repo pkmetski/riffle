@@ -211,7 +211,7 @@ internal class FakeMarkReadAcrossDimensions : MarkReadAcrossDimensions(
     FakeReadaloudLinkRepository,
     FakeSourceRepository,
 ) {
-    override suspend fun invoke(itemId: String, finished: Boolean) {}
+    override suspend fun invoke(sourceId: String, itemId: String, finished: Boolean) {}
 }
 
 internal class FakeAudiobookChapterCacheRepository : AudiobookChapterCacheRepository {
