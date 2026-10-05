@@ -1,4 +1,4 @@
-package com.riffle.shared.library
+package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -98,8 +98,6 @@ import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
-import com.riffle.feature.library.ui.PlaylistLabels
-import com.riffle.feature.library.ui.PlaylistsTabContent
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -227,7 +225,7 @@ fun LibraryItemsScreen(
  * is visible.
  */
 @Composable
-internal fun LibraryTabContent(
+fun LibraryTabContent(
     selectedTab: Int,
     projection: LibraryProjection,
     playlists: List<CatalogPlaylist>,

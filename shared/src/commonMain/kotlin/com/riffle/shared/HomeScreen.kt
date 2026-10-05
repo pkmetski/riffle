@@ -47,13 +47,15 @@ import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.navigation.NavigationDrawerViewModel
-import com.riffle.shared.downloads.DownloadsScreen
-import com.riffle.shared.library.CollectionDetailScreen
+import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.library.RiffleViewModel
+import com.riffle.feature.library.ui.CollectionDetailScreen
+import com.riffle.feature.library.ui.DownloadsScreen
+import com.riffle.feature.library.ui.LibraryItemsScreen
+import com.riffle.feature.library.ui.LibrarySectionScreen
+import com.riffle.feature.library.ui.RiffleScreen
+import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.shared.library.LibraryItemDetailScreen
-import com.riffle.shared.library.LibraryItemsScreen
-import com.riffle.shared.library.LibrarySectionScreen
-import com.riffle.shared.library.RiffleScreen
-import com.riffle.shared.library.SeriesDetailScreen
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
@@ -222,11 +224,53 @@ fun HomeScreen() {
                     )
                 }
             }
-            AppSection.Downloads -> DownloadsScreen(onBack = { appSection = AppSection.Library })
-            AppSection.Riffle -> RiffleScreen(
-                onOpenDrawer = { scope.launch { drawerState.open() } },
-                onBack = { appSection = AppSection.Library },
-            )
+            AppSection.Downloads -> {
+                val downloadsViewModel = koinInject<DownloadsViewModel>()
+                DownloadsScreen(
+                    onNavigateBack = { appSection = AppSection.Library },
+                    onItemSelected = { item ->
+                        // Navigate to item detail via library section
+                        appSection = AppSection.Library
+                    },
+                    viewModel = downloadsViewModel,
+                )
+            }
+            AppSection.Riffle -> {
+                val riffleViewModel = koinInject<RiffleViewModel>()
+                val riffleApplicationScope = koinInject<ApplicationScope>()
+                val riffleRecordItemOpened = koinInject<RecordItemOpened>()
+                var riffleNav by remember { mutableStateOf<LibraryNav?>(null) }
+                when (val current = riffleNav) {
+                    is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
+                        itemId = current.itemId,
+                        sourceId = current.sourceId,
+                        onBack = { riffleNav = null },
+                        onRead = { item ->
+                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
+                        },
+                        onFacetSelected = { facetLibraryId, facet, value ->
+                            riffleNav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
+                        },
+                    )
+                    is LibraryNav.FilteredBooks -> FilteredBooksHost(
+                        destination = current,
+                        onBack = { riffleNav = null },
+                        onItemSelected = { item -> riffleNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+                    )
+                    is LibraryNav.ReaderDestination -> ReaderHost(
+                        destination = current,
+                        onBack = { riffleNav = null },
+                        onPlaylistAdvance = { _, _ -> },
+                    )
+                    else -> RiffleScreen(
+                        viewModel = riffleViewModel,
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        onItemSelected = { sourceId, itemId ->
+                            riffleNav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+                        },
+                    )
+                }
+            }
             AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (val dest = destination) {
                     null -> CircularProgressIndicator()
@@ -341,7 +385,7 @@ private fun LibraryHost(
         is LibraryNav.Section -> LibrarySectionScreen(
             libraryId = libraryId,
             sectionType = current.sectionType,
-            onBack = ::pop,
+            onNavigateBack = ::pop,
             onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
         )
         is LibraryNav.ItemDetail -> LibraryItemDetailScreen(

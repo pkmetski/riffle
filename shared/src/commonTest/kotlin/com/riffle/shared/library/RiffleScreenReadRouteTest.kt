@@ -1,7 +1,6 @@
 package com.riffle.shared.library
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -9,11 +8,9 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
-import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
-import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
@@ -21,7 +18,6 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
@@ -29,10 +25,8 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
-import com.riffle.feature.library.FetchAudiobookChaptersUseCase
-import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
-import kotlinx.coroutines.CoroutineScope
+import com.riffle.feature.library.ui.RiffleScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -42,25 +36,17 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
-import org.koin.dsl.module
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
- * Regression for the Riffle hub's dead "Read" button and its unclickable annotated-book rows
- * (#1071 §10).
+ * Regression for the Riffle hub's item selection callbacks (#1071 §10, #1144).
  *
- * The hub used to pass `onReadNotSupported = { selectedItem = null }` into the detail sheet, so
- * tapping Read dismissed the sheet instead of opening the book — the per-library host next door
- * routed the same button through `readerNavForItem`. And the Annotations tab rendered its rows
- * with no click handler at all, so an annotated book could not be opened from the hub.
- *
- * The book here is [EbookFormat.Unsupported] on purpose: `readerNavForItem` returns null for it,
- * so the assertions can observe "the sheet stayed open" without needing a reader's Koin graph.
- * Under the old wiring the very same tap returned to the tab list.
+ * Tapping a book on the hub must fire [RiffleScreen.onItemSelected] and tapping an annotated book
+ * on the Annotations tab must fire [RiffleScreen.onAnnotatedBookClick]. Navigation to the detail
+ * screen is the caller's responsibility; [RiffleScreen] is now callback-based.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RiffleScreenReadRouteTest {
@@ -74,8 +60,6 @@ class RiffleScreenReadRouteTest {
         readingProgress = 0.3f,
         isCached = false,
         isDownloaded = false,
-        // No iOS reader for this format, so readerNavForItem() returns null and the sheet must
-        // simply stay put. Any dismissal is the bug.
         ebookFormat = EbookFormat.Unsupported,
         sourceId = "source1",
     )
@@ -151,117 +135,68 @@ class RiffleScreenReadRouteTest {
         override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
     }
 
-    private fun detailViewModel(itemId: String, sourceId: String?) = LibraryItemDetailViewModel(
-        itemId = itemId,
-        sourceId = sourceId,
-        libraryObserver = libraryObserver,
-        recordItemOpened = FakeRecordItemOpened(),
-        updateReadingProgressUseCase = FakeUpdateReadingProgress(),
-        markReadAcrossDimensions = FakeMarkReadAcrossDimensions(),
-        sourceRepository = sourceRepository,
-        tokenStorage = tokenStorage,
-        epubRepository = FakeEpubRepository(),
-        ebookCfiTranslatorFactory = FakeEbookCfiTranslatorFactory,
-        audiobookPositionStore = FakeAudiobookPositionStore(),
-        pdfRepository = FakePdfRepository(),
-        cbzRepository = FakeCbzRepository(),
-        toReadRepository = toReadRepository,
-        playlistsRepository = FakePlaylistsRepository(),
-        readaloudLinkRepository = FakeReadaloudLinkRepository,
-        readaloudAudioRepository = FakeReadaloudAudioRepository(),
-        audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-        audiobookCacheRepository = FakeAudiobookCacheRepository(),
-        localAvailabilityEvents = FakeLocalAvailabilityEvents(),
-        readaloudOfflineDownloader = FakeReadaloudOfflineDownloader,
-        connectivityObserver = connectivityObserver,
-        downloadManager = FakeDownloadManager(),
-        bookImportManager = FakeBookImportManager(),
-        crossEpubIndexBuildTrigger = FakeCrossEpubIndexBuildTrigger,
-        sidecarPrefetcher = FakeReadaloudSidecarPrefetcher,
-        epubTocExtractor = FakeEpubTocExtractor(),
-        pdfPageCountExtractor = FakePdfPageCountExtractor,
-        fetchAudiobookChaptersUseCase = FetchAudiobookChaptersUseCase(FakeAudiobookChapterCacheRepository()),
-        catalogRegistry = FakeCatalogRegistry,
-        libraryRefresher = FakeLibraryRefresher(),
-        saveLocalFileMetadataOverride = FakeLocalFileMetadataOverrideSaver,
-        copyCoverImage = FakeCoverImageCopier,
-        readingSpeedStore = FakeReadingSpeedStore(),
-        webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
-    )
+    private lateinit var viewModel: RiffleViewModel
 
     @BeforeTest
     fun setUp() {
-        // Both view models launch on viewModelScope (Dispatchers.Main). Unconfined makes the init
-        // work run inline during composition so the sheet reaches Ready deterministically.
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        startKoin {
-            modules(
-                module {
-                    single {
-                        RiffleViewModel(
-                            libraryObserver = libraryObserver,
-                            sourceRepository = sourceRepository,
-                            tokenStorage = tokenStorage,
-                            toReadRepository = toReadRepository,
-                            annotationsLibraryRepository = annotationsRepository,
-                            connectivityObserver = connectivityObserver,
-                            offlineAvailability = object : LibraryItemOfflineAvailability {
-                                override fun isAvailableOffline(item: LibraryItem): Boolean = false
-                            },
-                            coverGridDensityStore = FakeCoverGridDensityStore,
-                        )
-                    }
-                    factory { params -> detailViewModel(params.get(), params.getOrNull()) }
-                    // RiffleScreen resolves both of these to record the open when Read routes to
-                    // a reader (#1071 §17). Mechanical fixture update for the new dependency —
-                    // the recording itself is pinned by OpenItemForReadingTest.
-                    single<ApplicationScope> { DefaultApplicationScope(CoroutineScope(UnconfinedTestDispatcher())) }
-                    single<RecordItemOpened> { FakeRecordItemOpened() }
-                },
-            )
-        }
+        viewModel = RiffleViewModel(
+            libraryObserver = libraryObserver,
+            sourceRepository = sourceRepository,
+            tokenStorage = tokenStorage,
+            toReadRepository = toReadRepository,
+            annotationsLibraryRepository = annotationsRepository,
+            connectivityObserver = connectivityObserver,
+            offlineAvailability = object : LibraryItemOfflineAvailability {
+                override fun isAvailableOffline(item: LibraryItem): Boolean = false
+            },
+            coverGridDensityStore = FakeCoverGridDensityStore,
+        )
     }
 
     @AfterTest
     fun tearDown() {
-        stopKoin()
         Dispatchers.resetMain()
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun tappingAnInProgressRowOpensTheDetailSheet() = runComposeUiTest {
-        setContent { RiffleScreen(onOpenDrawer = {}, onBack = {}) }
+    fun tappingAnInProgressItemCallsOnItemSelected() = runComposeUiTest {
+        var selectedSourceId: String? = null
+        var selectedItemId: String? = null
+        setContent {
+            RiffleScreen(
+                viewModel = viewModel,
+                onOpenDrawer = {},
+                onItemSelected = { sourceId, itemId -> selectedSourceId = sourceId; selectedItemId = itemId },
+            )
+        }
 
         onNodeWithText("Hub Book").performClick()
 
-        onNodeWithText("Read").assertIsDisplayed()
+        assertEquals("source1", selectedSourceId, "Tapping an in-progress item must fire onItemSelected with the source ID")
+        assertEquals("item1", selectedItemId, "Tapping an in-progress item must fire onItemSelected with the item ID")
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun tappingReadDoesNotDismissTheDetailSheet() = runComposeUiTest {
-        setContent { RiffleScreen(onOpenDrawer = {}, onBack = {}) }
+    fun tappingAnAnnotatedBookCallsOnAnnotatedBookClick() = runComposeUiTest {
+        var selectedSourceId: String? = null
+        var selectedItemId: String? = null
+        setContent {
+            RiffleScreen(
+                viewModel = viewModel,
+                onOpenDrawer = {},
+                onItemSelected = { _, _ -> },
+                onAnnotatedBookClick = { sourceId, itemId -> selectedSourceId = sourceId; selectedItemId = itemId },
+            )
+        }
 
-        onNodeWithText("Hub Book").performClick()
-        onNodeWithText("Read").performClick()
-
-        // The old wiring set `selectedItem = null` here, dropping straight back to the tab list.
-        onNodeWithText("Read").assertIsDisplayed()
-        // NavigationBar (with its tabs) is only rendered on the hub; the detail sheet replaces it.
-        onNodeWithTag(TestTags.NAV_TAB_IN_PROGRESS).assertDoesNotExist()
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun tappingAnAnnotatedBookOpensItsDetailSheet() = runComposeUiTest {
-        setContent { RiffleScreen(onOpenDrawer = {}, onBack = {}) }
-
-        // NavigationBar shows icons — locate the tab by its stable testTag, not by label text.
         onNodeWithTag(TestTags.NAV_TAB_ANNOTATIONS).performClick()
         onNodeWithText("Annotated Title").performClick()
 
-        onNodeWithText("Read").assertIsDisplayed()
+        assertEquals("source1", selectedSourceId, "Tapping an annotated book must fire onAnnotatedBookClick with the source ID")
+        assertEquals("item1", selectedItemId, "Tapping an annotated book must fire onAnnotatedBookClick with the item ID")
     }
 }
 

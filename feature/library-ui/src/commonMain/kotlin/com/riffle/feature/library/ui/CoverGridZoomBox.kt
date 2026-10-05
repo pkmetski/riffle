@@ -1,4 +1,4 @@
-package com.riffle.shared.library
+package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -21,11 +21,10 @@ import kotlinx.coroutines.flow.StateFlow
  * together.
  *
  * When [isHomeTab] is true the provider uses [homeScaleFlow] so the Home shelf zoom is
- * independent of the all-books zoom. Accepts [StateFlow]s directly so call sites need not
- * collect them — this composable subscribes to whichever flow is active for the current tab.
+ * independent of the all-books zoom.
  */
 @Composable
-internal fun CoverGridZoomBox(
+fun CoverGridZoomBox(
     browseScaleFlow: StateFlow<Float>,
     onPersistScaleChange: (Float) -> Unit,
     homeScaleFlow: StateFlow<Float> = browseScaleFlow,

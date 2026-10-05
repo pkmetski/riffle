@@ -78,6 +78,45 @@ internal object LibraryUiGlyphs {
     val Check: ImageVector = glyph("Check") {
         listOf("M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z")
     }
+
+    /** `Icons.Filled.Delete` */
+    val Delete: ImageVector = glyph("Delete") {
+        listOf("M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z")
+    }
+
+    /** `Icons.AutoMirrored.Filled.MenuBook` */
+    val MenuBook: ImageVector = glyph("MenuBook", autoMirror = true) {
+        listOf(
+            "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 " +
+                "4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 " +
+                "3.75.4 5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05" +
+                ".25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15" +
+                ".65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z",
+        )
+    }
+
+    /** `Icons.Filled.PictureAsPdf` */
+    val PictureAsPdf: ImageVector = glyph("PictureAsPdf") {
+        listOf(
+            "M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 " +
+                "7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 " +
+                "1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9" +
+                " 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z",
+        )
+    }
+
+    /** `Icons.Filled.GridView` */
+    val GridView: ImageVector = glyph("GridView") {
+        listOf(
+            "M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm" +
+                "-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z",
+        )
+    }
+
+    /** `Icons.Filled.GraphicEq` */
+    val GraphicEq: ImageVector = glyph("GraphicEq") {
+        listOf("M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")
+    }
 }
 
 /**

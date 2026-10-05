@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Navigation drawer copy, shared by Android (:app) and iOS (:shared) through Compose Multiplatform
-  resources. Any edit here must be mirrored in values-es/ and values-bg/.
+  Library-UI module strings, shared by Android (:app) and iOS (:shared) through Compose
+  Multiplatform resources. Any edit here must be mirrored in values-es/ and values-bg/.
 -->
 <resources>
+    <!-- Navigation drawer -->
     <string name="ui_drawer_riffle" translatable="false">Riffle</string>
     <string name="ui_drawer_no_source">No source</string>
     <string name="ui_drawer_downloads">Downloads</string>
@@ -13,4 +14,54 @@
     <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
     <string name="ui_unable_to_connect_to_source">Unable to connect to source</string>
     <string name="ui_retry">Retry</string>
+
+    <!-- Generic navigation/actions used across library screens -->
+    <string name="ui_back">Back</string>
+    <string name="ui_cancel">Cancel</string>
+    <string name="ui_remove_all">Remove all</string>
+    <string name="ui_clear_all">Clear all</string>
+    <string name="ui_clear_all_cached">Clear all cached</string>
+    <string name="ui_this_will_clear_all_cached_media_from_your_device">This will clear all cached media from your device.</string>
+    <string name="ui_sort">Sort: %1$s</string>
+
+    <!-- Downloads screen -->
+    <string name="ui_downloads">Downloads</string>
+    <string name="ui_remove_all_downloads">Remove all downloads?</string>
+    <string name="ui_this_will_remove_all_downloaded_media_from_your_device">This will remove all downloaded media from your device.</string>
+    <string name="ui_remove_named_item">Remove %1$s</string>
+    <string name="ui_no_downloaded_media">No downloaded media</string>
+    <string name="ui_no_cached_media">No cached media</string>
+    <!-- Media type labels for download rows. Keep in step with feature/downloads label(). -->
+    <string name="ui_audiobook">Audiobook</string>
+    <string name="ui_comic">Comic</string>
+    <string name="ui_readaloud">Readaloud</string>
+
+    <!-- Annotations list screen -->
+    <string name="ui_annotations_count">Annotations (%1$d)</string>
+    <string name="ui_no_highlights_yet">No highlights yet.</string>
+    <string name="ui_long_press_text_while_reading_to_highlight_it">Long-press text while reading to highlight it.</string>
+
+    <!-- Library items screen — tab counts -->
+    <string name="ui_to_read_count">To Read (%1$d)</string>
+    <string name="ui_series_count">Series (%1$d)</string>
+    <string name="ui_collections_count">Collections (%1$d)</string>
+    <string name="ui_all_books_count">All Books (%1$d)</string>
+    <!-- "%1$d book(s)" suffix on series/collection tiles -->
+    <string name="ui_book_count">%1$d book(s)</string>
+    <!-- "Show all N annotations" footer in the Annotations tab -->
+    <string name="ui_show_all_annotations">Show all %1$d annotations</string>
+    <!-- Library items screen — books tab count label -->
+    <string name="ui_books">Books</string>
+    <!-- "Not Started" chip in the All Books tab -->
+    <string name="ui_not_started">Not Started</string>
+    <!-- Readaloud narration not supported for a format -->
+    <string name="ui_not_supported">Not supported</string>
+    <!-- Library items screen — empty states -->
+    <string name="ui_nothing_to_show_here">Nothing to show here</string>
+    <string name="ui_nothing_in_to_read">Nothing in To Read</string>
+    <string name="ui_no_series_in_this_library">No series in this library</string>
+    <string name="ui_no_collections_in_this_library">No collections in this library</string>
+    <string name="ui_no_unstarted_books">No unstarted books</string>
+    <string name="ui_no_results_for">No results for \'%1$s\'</string>
+    <string name="ui_remove_from_library">Remove from library</string>
 </resources>
