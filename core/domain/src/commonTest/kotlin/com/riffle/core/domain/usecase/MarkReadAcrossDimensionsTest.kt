@@ -84,7 +84,7 @@ class MarkReadAcrossDimensionsTest {
         ReadaloudLink("st-1", bookId, server, absItem, userConfirmed = true, identityResult = AudiobookIdentityResult.UNKNOWN)
 
     @Test
-    fun marksReadAcrossBothCoupledAbsItemsOnTheActiveServer() = runTest {
+    fun `marks read across both coupled ABS items on the active server`() = runTest {
         val mutator = RecordingMutator()
         val session = RecordingSession()
         val links = LinkRepo(
@@ -108,7 +108,7 @@ class MarkReadAcrossDimensionsTest {
     }
 
     @Test
-    fun fallsBackToTheOpenedItemWhenThereIsNoLink() = runTest {
+    fun `falls back to the opened item when there is no link`() = runTest {
         val mutator = RecordingMutator()
         val session = RecordingSession()
         val useCase = MarkReadAcrossDimensions(mutator, session, LinkRepo(emptyMap()), FakeServerRepository(activeServer()))
