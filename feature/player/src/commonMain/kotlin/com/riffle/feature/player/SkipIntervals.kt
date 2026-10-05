@@ -78,6 +78,22 @@ suspend fun AudioPlayerInterface.followSkipIntervals(store: ListeningPreferences
 fun resumePositionSec(currentSec: Double, rewindOnResumeSec: Double): Double =
     if (rewindOnResumeSec > 0.0) (currentSec - rewindOnResumeSec).coerceAtLeast(0.0) else currentSec
 
+/**
+ * Seeks to [positionSec] and resumes playback when paused. Chapter-list taps, prev/next chapter
+ * transport, and bookmark navigation all express a deliberate "play from here" intent — the seek
+ * must not leave the player paused.
+ *
+ * Separated from [AudiobookPlayerViewModel] so it can be unit-tested without the full VM.
+ */
+internal fun seekAndResumeIfPaused(
+    isPlaying: Boolean,
+    seek: () -> Unit,
+    play: () -> Unit,
+) {
+    seek()
+    if (!isPlaying) play()
+}
+
 /** Accessibility / notification label for the skip-forward control, e.g. `"Forward 30 seconds"`. */
 fun skipForwardLabel(seconds: Int): String = "Forward $seconds seconds"
 
