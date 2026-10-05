@@ -83,11 +83,14 @@ class AnnotationFocusHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
-        // Drain any in-flight recompositions before destroying the Activity. Without this,
-        // Compose's SlotTable gap-buffer can be in a partial state when performDestroy fires the
-        // lifecycle event, causing SlotWriter.moveSlotGapTo to compute a negative index and throw
-        // ArrayIndexOutOfBoundsException during composition disposal.
-        composeTestRule.waitForIdle()
+        // waitForIdle() is intentionally avoided here: the Readium WebView keeps triggering
+        // recompositions, so waitForIdle() can block indefinitely. Additionally, with
+        // androidx.navigation:navigation-compose ≥ 2.9.x, the navigation modifier's
+        // detach/attach lifecycle sequence can be in mid-flight when waitForIdle() drains the
+        // slot table, triggering `IllegalStateException: Must run runDetachLifecycle() once after
+        // runAttachLifecycle()`. A short sleep gives the last composition cycle time to settle
+        // naturally before the Activity is destroyed. (Same pattern as NavigationSnapHarnessTest.)
+        Thread.sleep(400)
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)
