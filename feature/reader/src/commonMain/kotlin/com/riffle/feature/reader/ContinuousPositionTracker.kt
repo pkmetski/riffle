@@ -439,7 +439,7 @@ object ContinuousPositionTracker {
     }
 
     /** What to do when Chromium reports a chapter WebView's internal scroll offset. */
-    enum class InternalScrollCorrection { NONE, ADOPT, FOLD_INTO_OUTER_SCROLL }
+    enum class InternalScrollCorrection { NONE, ADOPT, FOLD_INTO_OUTER_SCROLL, CLAMP_TO_MAX }
 
     /**
      * Decide how [ContinuousWindowController] reacts to Chromium moving a chapter WebView's own
@@ -458,6 +458,14 @@ object ContinuousPositionTracker {
      *    snapping the offset back would fight it every frame (jitter, selection stuck at the
      *    band's edge). Instead the controller adopts the new offset and scrolls the outer view by
      *    the same delta, so the gesture becomes an ordinary page scroll.
+     *  - [InternalScrollCorrection.CLAMP_TO_MAX]: [wantedPx] exceeds [maxScrollPx] by exactly
+     *    1 device px (JS Math.ceil vs Chromium floor) AND Chromium has drifted significantly below
+     *    [maxScrollPx]. The controller calls `scrollTo(maxScrollPx)` WITHOUT updating
+     *    `translationY` or `windowOffsetPx`; the resulting `onScrollChanged(maxScrollPx)` hits the
+     *    normal sub-px ADOPT path and stabilises both fields. Using ADOPT here instead would move
+     *    `translationY` to the drifted value, shifting the WebView so it no longer covers the last
+     *    screen of the chapter — the blank-end-of-chapter bug (field repro 2026-10-05, Samsung S23,
+     *    "AI Engineering" ch01, footnotes 16-27 invisible).
      */
     fun internalScrollCorrection(
         reportedPx: Int,
@@ -471,17 +479,19 @@ object ContinuousPositionTracker {
         if (kotlin.math.abs(reportedPx - wantedPx) <= tolerance) return InternalScrollCorrection.ADOPT
         if (wantedPx > maxScrollPx) {
             // wantedPx can exceed maxScrollPx by 1 device px when the JS content-height
-            // measurement uses Math.ceil while Chromium floors its own layout height. If the
-            // overshoot is within rounding tolerance, check whether the reported scroll has
-            // drifted meaningfully from maxScrollPx. Significant drift means Chromium's scroll
-            // is stuck well below the chapter end — returning ADOPT resets wv.windowOffsetPx so
-            // the next syncChapterWindows call re-issues scrollTo and corrects the position.
+            // measurement uses Math.ceil while Chromium floors its own layout height.
             // Large overshoot is genuine mid-reflow lag: leave it alone.
             val overshoot = wantedPx - maxScrollPx
             if (overshoot > tolerance) return InternalScrollCorrection.NONE
+            // Chromium is already at its max — nothing to push.
             if (kotlin.math.abs(reportedPx - maxScrollPx) <= tolerance) return InternalScrollCorrection.NONE
             if (msSinceContentHeightChange <= HEIGHT_CHANGE_SETTLE_MS) return InternalScrollCorrection.NONE
-            return InternalScrollCorrection.ADOPT
+            // Chromium has drifted significantly below its own max (e.g. 2520 px on an S23).
+            // ADOPT would be wrong here: it moves translationY to the drifted value, shifting the
+            // WebView so it no longer covers the chapter end — the blank-page bug. Instead signal
+            // CLAMP_TO_MAX so the controller calls scrollTo(maxScrollPx) without touching
+            // translationY; the resulting onScrollChanged(maxScrollPx) hits the sub-px ADOPT path.
+            return InternalScrollCorrection.CLAMP_TO_MAX
         }
         // Right after this chapter's content height changed, Chromium re-clamps its own scroll
         // against a renderer-side height that is still catching up and reports that value; it is
