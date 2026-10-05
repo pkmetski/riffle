@@ -699,6 +699,7 @@ private val coreDataRepositoriesModule = module {
             localToReadStore = get(),
             httpClient = get(),
             configStore = get(),
+            logger = get(),
         )
     }
     single<CrashReportRepository> { CrashReportRepositoryImpl(get(named(CRASH_REPORT_DIR))) }

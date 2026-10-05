@@ -787,6 +787,7 @@ private fun iosLibraryModule(
             localToReadStore = get(),
             httpClient = get<HttpClient>(),
             configStore = get(),
+            logger = get(),
         )
     }
     single {

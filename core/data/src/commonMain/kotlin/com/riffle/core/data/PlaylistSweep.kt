@@ -4,6 +4,9 @@ import com.riffle.core.database.LibraryDao
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.NoopLogger
 import com.riffle.core.sources.webdav.WebDavPlaylist
 import com.riffle.core.sources.webdav.WebDavPlaylistSyncer
 import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
@@ -32,19 +35,28 @@ class PlaylistSweep(
     /** Overridable in tests to inject a [WebDavPlaylistSyncer] fake without going through HTTP. */
     internal val syncerFactory: (AnnotationSyncConfig, HttpClient) -> WebDavPlaylistSyncer =
         { config, client -> WebDavPlaylistSyncer(config, client) },
+    private val logger: Logger = NoopLogger,
 ) {
     suspend fun run() {
-        val config = configStore.observe().value ?: return
+        val config = configStore.observe().value ?: run {
+            logger.d(LogChannel.Playlists) { "run: no WebDAV config — skipping" }
+            return
+        }
+        logger.d(LogChannel.Playlists) { "run: starting sweep baseUrl=${config.baseUrl}" }
         val syncer = syncerFactory(config, httpClient)
         val sources = sourceRepository.observeAll().first()
-        for (source in sources) {
-            if (!source.type.isWebSource) continue
+        val webSources = sources.filter { it.type.isWebSource }
+        logger.d(LogChannel.Playlists) { "run: ${sources.size} sources total, ${webSources.size} web sources" }
+        for (source in webSources) {
             val namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase())
             val libraryIds = libraryDao.libraryIdsForSource(source.id)
+            logger.d(LogChannel.Playlists) { "run: source=${source.type} namespace=$namespace libraryIds=$libraryIds" }
             for (libraryId in libraryIds) {
                 runCatching { syncLibrary(syncer, namespace, libraryId) }
+                    .onFailure { logger.d(LogChannel.Playlists) { "run: syncLibrary($libraryId) failed: $it" } }
             }
         }
+        logger.d(LogChannel.Playlists) { "run: sweep complete" }
     }
 
     private suspend fun syncLibrary(
@@ -55,6 +67,7 @@ class PlaylistSweep(
         val playlistId = WebDavPlaylistSyncer.toReadPlaylistId(libraryId)
         val remote = syncer.pull(namespace, playlistId)
         val localTs = localToReadStore.lastUpdateMs(libraryId)
+        logger.d(LogChannel.Playlists) { "syncLibrary: $libraryId remote=${remote?.lastUpdate} localTs=$localTs" }
         when {
             remote == null || localTs > remote.lastUpdate -> {
                 // Local is authoritative — push to remote. Do NOT update local timestamp after the
@@ -62,6 +75,7 @@ class PlaylistSweep(
                 // Last-Modified which may be newer. Storing serverTs would make localTs > localTs on
                 // the next sync and trigger another redundant push.
                 val localItems = localToReadStore.observeItemIds(libraryId).first().toList()
+                logger.d(LogChannel.Playlists) { "syncLibrary: pushing $libraryId items=$localItems ts=$localTs" }
                 val playlist = WebDavPlaylist(
                     id = playlistId,
                     name = "To Read",
@@ -73,9 +87,11 @@ class PlaylistSweep(
             }
             remote.lastUpdate > localTs -> {
                 // Remote is authoritative — adopt remote items.
+                logger.d(LogChannel.Playlists) { "syncLibrary: adopting remote $libraryId items=${remote.itemIds}" }
                 localToReadStore.setAll(libraryId, remote.itemIds.toSet(), remote.lastUpdate)
             }
             // Equal timestamps → no-op.
+            else -> logger.d(LogChannel.Playlists) { "syncLibrary: $libraryId no-op equal ts=$localTs" }
         }
     }
 }
