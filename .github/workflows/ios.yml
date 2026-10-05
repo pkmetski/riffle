@@ -100,6 +100,17 @@ jobs:
         id: xcode-version
         run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
 
+      - name: Read Kotlin version
+        id: kotlin-version
+        run: |
+          echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
       - name: Cache SPM SourcePackages
         uses: actions/cache@v6
         with:
@@ -240,6 +251,7 @@ jobs:
             -clonedSourcePackagesDirPath "$HOME/spm-packages" \
             -derivedDataPath "$HOME/derived-data" \
             -parallel-testing-enabled YES \
+            -parallel-testing-worker-count 2 \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild-unit-test.log; exit ${PIPESTATUS[0]}
 
