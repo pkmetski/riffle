@@ -67,6 +67,7 @@ class ReadingSessionRepositoryImplTest {
     private class FakeSourceRepository(private val source: Source?) : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = emptyFlow()
         override suspend fun getActive(): Source? = source
+        override suspend fun getById(sourceId: String): Source? = if (source?.id == sourceId) source else null
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             error("not needed in test")
         override suspend fun setActive(sourceId: String) {}
@@ -336,7 +337,7 @@ class ReadingSessionRepositoryImplTest {
         val itemDao = FakeLibraryItemDao()
         val repo = makeRepo(peer = peer, positionStore = posStore, audiobookStore = audioStore, readaloudResumeStore = resumeStore, itemDao = itemDao)
 
-        repo.markFinished("item-1", true)
+        repo.markFinished("src-1", "item-1", true)
 
         assertTrue(peer.pushed.isNotEmpty(), "markFinished(true) must push to ABS peer")
         assertEquals(1.0f, peer.pushed.last().third, "progress must be 1.0 when marking finished")
@@ -362,7 +363,7 @@ class ReadingSessionRepositoryImplTest {
         val itemDao = FakeLibraryItemDao()
         val repo = makeRepo(peer = peer, positionStore = posStore, audiobookStore = audioStore, readaloudResumeStore = resumeStore, itemDao = itemDao)
 
-        repo.markFinished("item-1", false)
+        repo.markFinished("src-1", "item-1", false)
 
         val savedLocator = posStore.saved["src-1" to "item-1"]
         assertTrue(savedLocator == null || savedLocator.isEmpty(), "ebook locator must be cleared on unread")
@@ -392,7 +393,7 @@ class ReadingSessionRepositoryImplTest {
         val itemDao = FakeLibraryItemDao()
         val repo = makeRepo(peer = peer, audiobookStore = audioStore, itemDao = itemDao)
 
-        repo.markFinished("item-1", false)
+        repo.markFinished("src-1", "item-1", false)
 
         assertEquals(1, peer.audioPushed.size, "audio push must fire once on mark-as-unread")
         assertEquals("item-1", peer.audioPushed[0].first)
@@ -409,7 +410,7 @@ class ReadingSessionRepositoryImplTest {
         val peer = RecordingAudioProgressPeer()
         val repo = makeRepo(peer = peer)
 
-        repo.markFinished("item-1", true)
+        repo.markFinished("src-1", "item-1", true)
 
         assertTrue(peer.audioPushed.isEmpty(), "mark-as-read must not push a separate audio 0")
     }
@@ -426,7 +427,7 @@ class ReadingSessionRepositoryImplTest {
         val audioStore = FakeAudiobookPositionStore().also { it.save("src-1", "item-1", 27000.0) }
         val repo = makeRepo(peer = peer, audiobookStore = audioStore)
 
-        repo.markFinished("item-1", true)
+        repo.markFinished("src-1", "item-1", true)
 
         assertTrue(
             audioStore.syncedAt.containsKey("src-1" to "item-1"),

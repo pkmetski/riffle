@@ -171,7 +171,7 @@ private object FakeReadingSessionRepository : ReadingSessionRepository {
         SyncSessionResult.Success
     override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult =
         ProgressSyncCycleResult.InSync
-    override suspend fun markFinished(itemId: String, finished: Boolean) {}
+    override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) {}
     override suspend fun touchOpenTimestamp(itemId: String) {}
 }
 

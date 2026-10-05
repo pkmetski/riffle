@@ -300,7 +300,7 @@ private class FakeReadingSessionRepository : ReadingSessionRepository {
         syncedPayloads += payload
         return ProgressSyncCycleResult.InSync
     }
-    override suspend fun markFinished(itemId: String, finished: Boolean) {}
+    override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) {}
     override suspend fun touchOpenTimestamp(itemId: String) {}
 }
 

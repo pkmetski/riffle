@@ -748,7 +748,8 @@ class LibraryItemDetailViewModel constructor(
 
     fun markAsRead() {
         viewModelScope.launch {
-            markReadAcrossDimensions(_itemId, finished = true)
+            val sourceId = _sourceId ?: (_uiState.value as? LibraryItemDetailUiState.Ready)?.item?.sourceId ?: return@launch
+            markReadAcrossDimensions(sourceId, _itemId, finished = true)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 toReadRepository.removeFromToRead(current.item.id, current.item.libraryId)
@@ -767,7 +768,8 @@ class LibraryItemDetailViewModel constructor(
 
     fun markAsUnread() {
         viewModelScope.launch {
-            markReadAcrossDimensions(_itemId, finished = false)
+            val sourceId = _sourceId ?: (_uiState.value as? LibraryItemDetailUiState.Ready)?.item?.sourceId ?: return@launch
+            markReadAcrossDimensions(sourceId, _itemId, finished = false)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 _uiState.value = current.copy(item = current.item.copy(readingProgress = 0.0f))

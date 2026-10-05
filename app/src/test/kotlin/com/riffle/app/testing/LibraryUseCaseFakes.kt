@@ -40,7 +40,7 @@ object NoopReadingSessionRepository : ReadingSessionRepository {
         com.riffle.core.models.SyncSessionResult.Success
     override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.models.SessionPayload, sourceId: String?) =
         com.riffle.core.models.ProgressSyncCycleResult.InSync
-    override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
+    override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) = Unit
     override suspend fun touchOpenTimestamp(itemId: String) = Unit
 }
 
@@ -75,8 +75,8 @@ class NoopMarkReadAcrossDimensions : MarkReadAcrossDimensions(
     NoopReadaloudLinkRepository,
     NoopServerRepository,
 ) {
-    val calls = mutableListOf<Pair<String, Boolean>>()
-    override suspend fun invoke(itemId: String, finished: Boolean) { calls += itemId to finished }
+    val calls = mutableListOf<Triple<String, String, Boolean>>()
+    override suspend fun invoke(sourceId: String, itemId: String, finished: Boolean) { calls += Triple(sourceId, itemId, finished) }
 }
 
 class NoopRefreshLibraries(

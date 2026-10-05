@@ -9,7 +9,11 @@ import com.riffle.core.domain.SourceRepository
  * Mark a book read or unread across **every** ABS item coupled by the same readaloud bundle — the
  * ebook AND its audiobook counterpart — so the two never disagree (a readaloud's ebook and
  * audiobook are separate ABS items that should track one finished state). Falls back to just the
- * given item when there's no link or no active server.
+ * given item when there is no link.
+ *
+ * [sourceId] must be the item's own source ID, not the currently-active source. This is required
+ * so web-source items (radio.es, Gutenberg, etc.) are written to the correct `library_items` row
+ * even when an ABS server is active at the same time.
  *
  * Owns the cross-cutting bug area where a "mark read" that only touched the ebook dimension left
  * the audiobook unfinished and the next sweep restored the old percentage.
@@ -20,20 +24,19 @@ open class MarkReadAcrossDimensions constructor(
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val sourceRepository: SourceRepository,
 ) {
-    open suspend operator fun invoke(itemId: String, finished: Boolean) {
+    open suspend operator fun invoke(sourceId: String, itemId: String, finished: Boolean) {
         val progress = if (finished) 1.0f else 0.0f
-        val sourceId = sourceRepository.getActive()?.id
-        val ids = if (sourceId != null) coupledAbsItemIds(sourceId, itemId) else listOf(itemId)
+        val ids = coupledAbsItemIds(sourceId, itemId)
         ids.forEach { id ->
-            libraryMutator.updateReadingProgress(id, progress)
-            readingSessionRepository.markFinished(id, finished)
+            libraryMutator.updateReadingProgress(sourceId, id, progress)
+            readingSessionRepository.markFinished(sourceId, id, finished)
         }
     }
 
     /**
-     * The set of ABS item ids on the active server that share this item's readaloud bundle (always
-     * includes [itemId]). Cross-server matches are excluded — [ReadingSessionRepository.markFinished]
-     * operates on the active server only.
+     * The set of ABS item ids on [sourceId]'s server that share this item's readaloud bundle
+     * (always includes [itemId]). Cross-server matches are excluded — [ReadingSessionRepository.markFinished]
+     * operates on the given source only.
      */
     private suspend fun coupledAbsItemIds(sourceId: String, itemId: String): List<String> {
         val link = readaloudLinkRepository.findByAbsItem(sourceId, itemId) ?: return listOf(itemId)

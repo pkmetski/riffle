@@ -269,7 +269,7 @@ class LibraryItemDetailViewModelTest {
     private val noOpSessionRepository = object : ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
         override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
-        override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
+        override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) = Unit
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
@@ -278,7 +278,7 @@ class LibraryItemDetailViewModelTest {
         val markFinishedCalls = mutableListOf<Pair<String, Boolean>>()
         override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
         override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
-        override suspend fun markFinished(itemId: String, finished: Boolean) { markFinishedCalls += itemId to finished }
+        override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) { markFinishedCalls += itemId to finished }
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
@@ -1169,6 +1169,7 @@ class LibraryItemDetailViewModelTest {
             sourceRepository = serverRepoReturning(activeServer()),
             sessionRepository = session,
             readaloudLinkRepository = linkRepoCoupling(listOf(ebookLink, audiobookLink)),
+            sourceId = "abs-1",
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -1225,6 +1226,7 @@ class LibraryItemDetailViewModelTest {
             sourceRepository = serverRepoReturning(activeServer()),
             sessionRepository = session,
             readaloudLinkRepository = linkRepoCoupling(listOf(ebookLink, audiobookLink)),
+            sourceId = "abs-1",
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()

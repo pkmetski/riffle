@@ -11,7 +11,6 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.SyncSessionResult
@@ -29,24 +28,24 @@ import kotlin.test.Test
 class MarkReadAcrossDimensionsTest {
 
     private class RecordingMutator : LibraryMutator {
-        val progressCalls = mutableListOf<Pair<String, Float>>()
+        val progressCalls = mutableListOf<Triple<String, String, Float>>()
         override suspend fun markItemOpened(itemId: String) = Unit
         override suspend fun currentReadingProgress(itemId: String): Float? = null
         override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {
-            progressCalls += itemId to progress
+            progressCalls += Triple("", itemId, progress)
         }
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
-            progressCalls += itemId to progress
+            progressCalls += Triple(sourceId, itemId, progress)
         }
         override suspend fun deleteItem(sourceId: String, itemId: String) = Unit
     }
 
     private class RecordingSession : ReadingSessionRepository {
-        val finished = mutableListOf<Pair<String, Boolean>>()
+        val finished = mutableListOf<Triple<String, String, Boolean>>()
         override suspend fun syncProgress(itemId: String, payload: SessionPayload) = SyncSessionResult.Success
         override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?) = ProgressSyncCycleResult.InSync
-        override suspend fun markFinished(itemId: String, finished: Boolean) { this.finished += itemId to finished }
+        override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) { this.finished += Triple(sourceId, itemId, finished) }
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
@@ -83,7 +82,7 @@ class MarkReadAcrossDimensionsTest {
         ReadaloudLink("st-1", bookId, server, absItem, userConfirmed = true, identityResult = AudiobookIdentityResult.UNKNOWN)
 
     @Test
-    fun `marks read across both coupled ABS items on the active server`() = runTest {
+    fun marksReadAcrossBothCoupledAbsItemsOnTheActiveServer() = runTest {
         val mutator = RecordingMutator()
         val session = RecordingSession()
         val links = LinkRepo(
@@ -94,37 +93,47 @@ class MarkReadAcrossDimensionsTest {
         )
         val useCase = MarkReadAcrossDimensions(mutator, session, links, FakeServerRepository(activeServer()))
 
-        useCase("ebook-item", finished = true)
+        useCase("abs-1", "ebook-item", finished = true)
 
-        assertEquals(setOf("ebook-item" to 1.0f, "audio-item" to 1.0f), mutator.progressCalls.toSet())
-        assertEquals(setOf("ebook-item" to true, "audio-item" to true), session.finished.toSet())
+        assertEquals(
+            setOf(Triple("abs-1", "ebook-item", 1.0f), Triple("abs-1", "audio-item", 1.0f)),
+            mutator.progressCalls.toSet(),
+        )
+        assertEquals(
+            setOf(Triple("abs-1", "ebook-item", true), Triple("abs-1", "audio-item", true)),
+            session.finished.toSet(),
+        )
     }
 
     @Test
-    fun `falls back to the opened item when there is no link`() = runTest {
+    fun fallsBackToTheOpenedItemWhenThereIsNoLink() = runTest {
         val mutator = RecordingMutator()
         val session = RecordingSession()
         val useCase = MarkReadAcrossDimensions(mutator, session, LinkRepo(emptyMap()), FakeServerRepository(activeServer()))
 
-        useCase("lonely-item", finished = false)
+        useCase("abs-1", "lonely-item", finished = false)
 
-        assertEquals(listOf("lonely-item" to 0.0f), mutator.progressCalls)
-        assertEquals(listOf("lonely-item" to false), session.finished)
+        assertEquals(listOf(Triple("abs-1", "lonely-item", 0.0f)), mutator.progressCalls)
+        assertEquals(listOf(Triple("abs-1", "lonely-item", false)), session.finished)
     }
 
     @Test
-    fun `falls back to the opened item when there is no active server`() = runTest {
+    fun usesCallerSourceIdNotActiveSourceForWebSourceItems() = runTest {
+        // Regression test: before the fix, MarkReadAcrossDimensions used sourceRepository.getActive()?.id
+        // as the sourceId, causing writes to (absSourceId, podcastId) — a non-existent row — when
+        // an ABS server was active and the user marked a radio.es podcast as read.
         val mutator = RecordingMutator()
         val session = RecordingSession()
         val useCase = MarkReadAcrossDimensions(
             mutator, session,
-            LinkRepo(mapOf("ebook-item" to link("ebook-item", "book-42"))),
-            FakeServerRepository(active = null),
+            LinkRepo(emptyMap()),
+            FakeServerRepository(activeServer(id = "abs-server")),
         )
 
-        useCase("ebook-item", finished = true)
+        useCase("radio-es-source", "podcast-42", finished = true)
 
-        assertEquals(listOf("ebook-item" to 1.0f), mutator.progressCalls)
-        assertEquals(listOf("ebook-item" to true), session.finished)
+        // Writes must target the radio.es source row, not the ABS row.
+        assertEquals(listOf(Triple("radio-es-source", "podcast-42", 1.0f)), mutator.progressCalls)
+        assertEquals(listOf(Triple("radio-es-source", "podcast-42", true)), session.finished)
     }
 }

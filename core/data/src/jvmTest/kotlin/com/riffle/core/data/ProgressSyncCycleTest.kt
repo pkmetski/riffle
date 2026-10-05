@@ -358,7 +358,7 @@ class ProgressSyncCycleTest {
         )
         val repo = buildRepo(api, positionStore)
 
-        repo.markFinished("item-1", finished = true)
+        repo.markFinished("s1", "item-1", finished = true)
 
         assertEquals(1, api.patchCallCount)
         assertEquals(1.0f, api.lastEbookPayload?.ebookProgress)
@@ -386,7 +386,7 @@ class ProgressSyncCycleTest {
         )
         val repo = buildRepo(api, positionStore, audiobookStore, resumeStore)
 
-        repo.markFinished("item-1", finished = false)
+        repo.markFinished("s1", "item-1", finished = false)
 
         assertEquals(1, api.patchCallCount)
         assertEquals(0.0f, api.lastEbookPayload?.ebookProgress)
@@ -419,7 +419,7 @@ class ProgressSyncCycleTest {
         )
         val repo = buildRepo(api, positionStore, audiobookStore, resumeStore)
 
-        repo.markFinished("item-1", finished = true)
+        repo.markFinished("s1", "item-1", finished = true)
 
         assertTrue(audiobookStore.saveCalled)
         assertEquals(0.0, audiobookStore.savedPayload)
@@ -494,7 +494,7 @@ class ProgressSyncCycleTest {
         )
         val repo = buildRepo(api, positionStore)
 
-        repo.markFinished("item-1", finished = true)
+        repo.markFinished("s1", "item-1", finished = true)
 
         assertEquals(1, api.patchCallCount)
         assertNotNull(positionStore.updatedTimestamp)
