@@ -172,7 +172,7 @@ class RiffleScreenReadRouteTest {
             )
         }
 
-        onNodeWithText("Hub Book").performClick()
+        onNodeWithText("Hub Book", useUnmergedTree = true).performClick()
 
         assertEquals("source1", selectedSourceId, "Tapping an in-progress item must fire onItemSelected with the source ID")
         assertEquals("item1", selectedItemId, "Tapping an in-progress item must fire onItemSelected with the item ID")
@@ -193,7 +193,7 @@ class RiffleScreenReadRouteTest {
         }
 
         onNodeWithTag(TestTags.NAV_TAB_ANNOTATIONS).performClick()
-        onNodeWithText("Annotated Title").performClick()
+        onNodeWithText("Annotated Title", useUnmergedTree = true).performClick()
 
         assertEquals("source1", selectedSourceId, "Tapping an annotated book must fire onAnnotatedBookClick with the source ID")
         assertEquals("item1", selectedItemId, "Tapping an annotated book must fire onAnnotatedBookClick with the item ID")
