@@ -6,10 +6,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Moved from jvmTest to commonTest so the pure-Kotlin parsing logic is verified on iOS as well.
- * No resource loading — fixture JSON is inlined so no JVM classloader is needed.
- */
 class GutenbergParserTest {
 
     @Test
