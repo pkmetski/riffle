@@ -7,10 +7,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Platform-free tests for [KomgaJson] DTO parsing. These run on both JVM and iOS via commonTest
- * so the JSON-decode contract is verified on the iOS target, not only Android.
- */
 class KomgaDtosParsingTest {
 
     @Test
