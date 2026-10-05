@@ -452,7 +452,14 @@ class AudiobookPlayerViewModel constructor(
 
     fun seekTo(positionSec: Double) {
         reconciledResumeSec = positionSec
-        controller.seekTo(positionSec)
+        seekAndResumeIfPaused(
+            isPlaying = controller.state.value.isPlaying,
+            seek = { controller.seekTo(positionSec) },
+            play = {
+                if (sourceId.isNotEmpty()) viewModelScope.launch { sleepStopStore.clearSleepStopped(sourceId, itemId) }
+                controller.play()
+            },
+        )
     }
 
     fun rewind() {
@@ -468,11 +475,11 @@ class AudiobookPlayerViewModel constructor(
     }
 
     fun previousChapter() {
-        timeline.previousChapterTargetSec(controller.currentAbsoluteSec())?.let { reconciledResumeSec = it; controller.seekTo(it) }
+        timeline.previousChapterTargetSec(controller.currentAbsoluteSec())?.let { seekTo(it) }
     }
 
     fun nextChapter() {
-        timeline.nextChapterTargetSec(controller.currentAbsoluteSec())?.let { reconciledResumeSec = it; controller.seekTo(it) }
+        timeline.nextChapterTargetSec(controller.currentAbsoluteSec())?.let { seekTo(it) }
     }
 
     fun currentPositionSec(): Double = controller.currentAbsoluteSec()
