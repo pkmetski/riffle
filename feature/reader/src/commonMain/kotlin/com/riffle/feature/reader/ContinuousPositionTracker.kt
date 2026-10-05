@@ -469,7 +469,20 @@ object ContinuousPositionTracker {
         if (reportedPx == wantedPx) return InternalScrollCorrection.NONE
         val tolerance = kotlin.math.ceil(density.toDouble()).toInt()
         if (kotlin.math.abs(reportedPx - wantedPx) <= tolerance) return InternalScrollCorrection.ADOPT
-        if (wantedPx > maxScrollPx) return InternalScrollCorrection.NONE
+        if (wantedPx > maxScrollPx) {
+            // wantedPx can exceed maxScrollPx by 1 device px when the JS content-height
+            // measurement uses Math.ceil while Chromium floors its own layout height. If the
+            // overshoot is within rounding tolerance, check whether the reported scroll has
+            // drifted meaningfully from maxScrollPx. Significant drift means Chromium's scroll
+            // is stuck well below the chapter end — returning ADOPT resets wv.windowOffsetPx so
+            // the next syncChapterWindows call re-issues scrollTo and corrects the position.
+            // Large overshoot is genuine mid-reflow lag: leave it alone.
+            val overshoot = wantedPx - maxScrollPx
+            if (overshoot > tolerance) return InternalScrollCorrection.NONE
+            if (kotlin.math.abs(reportedPx - maxScrollPx) <= tolerance) return InternalScrollCorrection.NONE
+            if (msSinceContentHeightChange <= HEIGHT_CHANGE_SETTLE_MS) return InternalScrollCorrection.NONE
+            return InternalScrollCorrection.ADOPT
+        }
         // Right after this chapter's content height changed, Chromium re-clamps its own scroll
         // against a renderer-side height that is still catching up and reports that value; it is
         // not a gesture. Folding it moved the outer scroll by (part of) the compensation the

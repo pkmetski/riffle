@@ -595,7 +595,9 @@ internal class ContinuousWindowController(
         // layout traversal, so wv.height would still be the old placeholder when it fires.
         // doOnNextLayout fires once the outer view's onLayout returns — by that point the full
         // descendant tree (including wv) has been measured and laid out, so wv.height == wvHeight.
-        port.postAfterLayout { syncChapterWindows() }
+        port.postAfterLayout {
+            syncChapterWindows()
+        }
     }
 
     /**
@@ -651,11 +653,12 @@ internal class ContinuousWindowController(
     private fun onWebViewInternalScroll(wv: ChapterWebView, scrollY: Int) {
         if (syncingWindows || foldingInternalScroll) return
         val wanted = wv.windowOffsetPx
+        val maxSc = wv.internalMaxScrollY()
         val decision = ContinuousPositionTracker.internalScrollCorrection(
             reportedPx = scrollY,
             wantedPx = wanted,
             density = wv.resources.displayMetrics.density,
-            maxScrollPx = wv.internalMaxScrollY(),
+            maxScrollPx = maxSc,
             msSinceContentHeightChange = android.os.SystemClock.uptimeMillis() - wv.contentHeightChangedAtMs,
         )
         when (decision) {
