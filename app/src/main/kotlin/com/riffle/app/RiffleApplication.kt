@@ -101,6 +101,10 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         // Durable offline annotation reconcile (ADR 0043): symmetric with progress.
         com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this)
         com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
+        // Durable playlist sync (WebDAV To Read lists): a foreground kick plus a 1h safety net so
+        // To Read changes propagate even when the app is rarely restarted.
+        com.riffle.app.sync.PlaylistSyncScheduler.sweepNow(this)
+        com.riffle.app.sync.PlaylistSyncScheduler.ensurePeriodic(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.sweepNow(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.ensurePeriodic(this)
 
