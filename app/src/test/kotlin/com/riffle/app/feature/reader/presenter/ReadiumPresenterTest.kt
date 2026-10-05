@@ -61,8 +61,8 @@ class ReadiumPresenterTest {
             mainDispatcher = kotlinx.coroutines.test.StandardTestDispatcher(),
         )
         presenter.applyDecorations(emptyList(), "annotations")
-        // No exception means contract preserved.
-        assertTrue(true)
+        // No fragment attached → stamp still null after the call.
+        assertNull(presenter.attachmentStamp())
     }
 
     @Test
