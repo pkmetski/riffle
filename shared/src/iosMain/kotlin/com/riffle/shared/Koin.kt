@@ -795,10 +795,11 @@ private fun iosLibraryModule(
         // Through the enqueuer so the driver's pass and an on-demand enqueue never run the
         // annotation sweep concurrently.
         val annotationSweeps = get<IosAnnotationSweepEnqueuer>()
+        val playlistSweep = get<PlaylistSweep>()
         ForegroundSyncDriver(
             runProgressSweep = { sweep.run() },
             runAnnotationSweep = { annotationSweeps.runNow() },
-            runPlaylistSweep = { get<PlaylistSweep>().run() },
+            runPlaylistSweep = { playlistSweep.run() },
             nowMs = get<Clock>()::nowMs,
         )
     }

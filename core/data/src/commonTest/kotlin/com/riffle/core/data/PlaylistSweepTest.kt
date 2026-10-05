@@ -110,8 +110,12 @@ class PlaylistSweepTest {
         httpClient = HttpClient(MockEngine { respond(ByteArray(0), HttpStatusCode.OK, headersOf()) }),
     ) {
         val pushes = mutableListOf<Pair<String, WebDavPlaylist>>()
+        var pullCount = 0
 
-        override suspend fun pull(namespace: String, playlistId: String): WebDavPlaylist? = pullResponse
+        override suspend fun pull(namespace: String, playlistId: String): WebDavPlaylist? {
+            pullCount++
+            return pullResponse
+        }
 
         override suspend fun push(namespace: String, playlist: WebDavPlaylist): Long {
             pushes += namespace to playlist
@@ -201,5 +205,49 @@ class PlaylistSweepTest {
         val syncer = FakeSyncer()
         sweep(syncer = syncer, sources = arrayOf(absSource()), store = store).run()
         assertEquals(0, syncer.pushes.size)
+    }
+
+    @Test
+    fun secondRunSkipsPullWhenInSync() = runTest {
+        // First run: local is newer → push. Cache records that remote now holds localTs.
+        val store = FakeLocalToReadStore().also {
+            it.setAll(libraryKey, setOf("item1"), 2_000L)
+        }
+        val syncer = FakeSyncer(
+            pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("old"), 1_000L),
+        )
+        val s = sweep(syncer = syncer, store = store)
+        s.run()
+        assertEquals(1, syncer.pullCount)
+        assertEquals(1, syncer.pushes.size)
+
+        // Second run: localTs is unchanged (2000). Cache says remote was updated to 2000 after push.
+        // Sweep must skip the GET entirely.
+        s.run()
+        assertEquals(1, syncer.pullCount) // no new pull
+        assertEquals(1, syncer.pushes.size) // no new push
+    }
+
+    @Test
+    fun cacheInvalidatedAfterLocalUpdate() = runTest {
+        // First run establishes cache at ts=2000.
+        val store = FakeLocalToReadStore().also {
+            it.setAll(libraryKey, setOf("item1"), 2_000L)
+        }
+        val syncer = FakeSyncer(
+            pullResponse = WebDavPlaylist("toread-books", "To Read", "books", listOf("item1"), 2_000L),
+        )
+        val s = sweep(syncer = syncer, store = store)
+        s.run()
+        assertEquals(1, syncer.pullCount) // first pull happened
+        assertEquals(0, syncer.pushes.size) // equal ts → no push
+
+        // User adds an item → localTs bumps to 3000.
+        store.setAll(libraryKey, setOf("item1", "item2"), 3_000L)
+
+        // Second run: localTs (3000) ≠ cached remote (2000) → pull again, then push.
+        s.run()
+        assertEquals(2, syncer.pullCount) // cache miss → GET fired
+        assertEquals(1, syncer.pushes.size) // local newer → pushed
     }
 }

@@ -28,7 +28,6 @@ open class WebDavPlaylistSyncer(
     private val config: AnnotationSyncConfig,
     private val httpClient: HttpClient,
 ) {
-    private val json = Json { ignoreUnknownKeys = true }
     private val authHeader: String = webDavBasicAuthHeader(config.username, config.password)
     private val basePath: String = parseWebDavBaseUrl(config.baseUrl)
         ?.toString()
@@ -118,6 +117,9 @@ open class WebDavPlaylistSyncer(
     private fun String.safeSegment() = replace('/', '.')
 
     companion object {
+        /** Shared [Json] instance — no need to allocate one per syncer construction. */
+        private val json = Json { ignoreUnknownKeys = true }
+
         /** Builds the deterministic playlist ID for a library's To Read list. */
         fun toReadPlaylistId(libraryId: String) = "toread-$libraryId"
     }

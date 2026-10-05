@@ -121,9 +121,6 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         val progressSweep = get<ProgressSweep>()
         val playlistSweep = get<PlaylistSweep>()
         applicationScope.launchSurvivable {
-            runCatching { playlistSweep.run() }
-        }
-        applicationScope.launchSurvivable {
             kickSweepsOnReconnect(
                 isOnline = connectivity.isOnline,
                 runProgressSweep = { runCatching { progressSweep.run() } },
