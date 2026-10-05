@@ -55,7 +55,7 @@ fun CollectionDetailScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,
-                        modifier = Modifier.testTag(TestTags.NAV_BACK),
+                        modifier = Modifier.testTag(TestTags.COLLECTION_DETAIL_BACK),
                     ) {
                         Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }

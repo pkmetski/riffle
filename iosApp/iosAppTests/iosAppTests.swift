@@ -78,9 +78,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(seriesTile.isHittable, "Series tile must be hittable before tap")
         seriesTile.tap()
 
-        let backArrow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let backArrow = app.descendants(matching: .any)
+            .matching(identifier: "series_detail_back").firstMatch
         XCTAssertTrue(
             backArrow.waitForExistence(timeout: 15),
             "Series detail screen should show a back arrow"
@@ -114,9 +113,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(collectionTile.isHittable, "Collection tile must be hittable before tap")
         collectionTile.tap()
 
-        let backArrow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let backArrow = app.descendants(matching: .any)
+            .matching(identifier: "collection_detail_back").firstMatch
         XCTAssertTrue(
             backArrow.waitForExistence(timeout: 15),
             "Collection detail screen should show a back arrow"
