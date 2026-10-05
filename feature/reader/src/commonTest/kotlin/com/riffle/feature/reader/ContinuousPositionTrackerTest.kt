@@ -1496,10 +1496,12 @@ class ContinuousPositionTrackerTest {
     fun `large overshoot beyond tolerance is genuine reflow lag and left alone`() {
         // wantedPx exceeds maxScrollPx by 10 (>> tolerance=3): Chromium is still reflowing.
         // Leave it alone; the next height measurement re-syncs.
+        // Chromium (reportedPx=47_590) is near its max but hasn't reached it — a realistic
+        // mid-reflow value where the layout hasn't settled yet.
         assertEquals(
             ContinuousPositionTracker.InternalScrollCorrection.NONE,
             ContinuousPositionTracker.internalScrollCorrection(
-                reportedPx = 136_739, wantedPx = 47_610, density = 2.625f, maxScrollPx = 47_600,
+                reportedPx = 47_590, wantedPx = 47_610, density = 2.625f, maxScrollPx = 47_600,
                 msSinceContentHeightChange = ContinuousPositionTracker.HEIGHT_CHANGE_SETTLE_MS + 1,
             ),
         )
