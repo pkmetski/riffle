@@ -73,12 +73,13 @@ jobs:
       # matches them — their host suites only run via testAndroidHostTest. Name them explicitly
       # or they silently never run. Same for :core:logging which has androidHostTest but no
       # jvm-target (only jvm for its shared logic).
-      # :core:data is excluded here: its commonTest runs under testAndroidHostTest in the
-      # Integration job, which also exercises the androidHostTest suite. Running jvmTest here too
-      # would double-count every commonTest and sharedJvmTest class.
+      # :core:data note: jvmTest runs both its commonTest and its jvmTest-specific suites
+      # (ProgressSyncIntegrationTest, ReadingSessionIntegrationTest, ProgressSyncCycleTest).
+      # The Integration job also runs core:data commonTest via testAndroidHostTest, so those
+      # common tests run twice. This is accepted: the jvmTest-specific suites use JVM-only APIs
+      # (OkHttp, MockWebServer) and cannot run under testAndroidHostTest.
       - run: >-
           ./gradlew test jvmTest
-          -x :core:data:jvmTest
           :feature:source-ui:testAndroidHostTest
           :feature:reader-ui:testAndroidHostTest
           :feature:design-system:testAndroidHostTest
