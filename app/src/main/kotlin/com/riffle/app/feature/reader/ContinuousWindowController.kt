@@ -595,7 +595,9 @@ internal class ContinuousWindowController(
         // layout traversal, so wv.height would still be the old placeholder when it fires.
         // doOnNextLayout fires once the outer view's onLayout returns — by that point the full
         // descendant tree (including wv) has been measured and laid out, so wv.height == wvHeight.
-        port.postAfterLayout { syncChapterWindows() }
+        port.postAfterLayout {
+            syncChapterWindows()
+        }
     }
 
     /**
@@ -651,15 +653,25 @@ internal class ContinuousWindowController(
     private fun onWebViewInternalScroll(wv: ChapterWebView, scrollY: Int) {
         if (syncingWindows || foldingInternalScroll) return
         val wanted = wv.windowOffsetPx
+        val maxSc = wv.internalMaxScrollY()
+        val msSettle = android.os.SystemClock.uptimeMillis() - wv.contentHeightChangedAtMs
         val decision = ContinuousPositionTracker.internalScrollCorrection(
             reportedPx = scrollY,
             wantedPx = wanted,
             density = wv.resources.displayMetrics.density,
-            maxScrollPx = wv.internalMaxScrollY(),
-            msSinceContentHeightChange = android.os.SystemClock.uptimeMillis() - wv.contentHeightChangedAtMs,
+            maxScrollPx = maxSc,
+            msSinceContentHeightChange = msSettle,
         )
         when (decision) {
             ContinuousPositionTracker.InternalScrollCorrection.NONE -> Unit
+            ContinuousPositionTracker.InternalScrollCorrection.CLAMP_TO_MAX -> {
+                // JS Math.ceil vs Chromium floor: wantedPx is 1 device px above maxSc, and
+                // Chromium has drifted significantly below maxSc. Push it back to maxSc WITHOUT
+                // updating windowOffsetPx or translationY — moving translationY here would shift
+                // the WebView so it no longer covers the chapter end (blank page bug). The
+                // subsequent onScrollChanged(maxSc) hits the normal sub-px ADOPT path.
+                wv.scrollTo(0, maxSc)
+            }
             ContinuousPositionTracker.InternalScrollCorrection.ADOPT -> {
                 wv.windowOffsetPx = scrollY
                 wv.translationY = scrollY.toFloat()

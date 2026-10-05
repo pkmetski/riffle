@@ -1447,6 +1447,66 @@ class ContinuousPositionTrackerTest {
         )
     }
 
+    @Test
+    fun `JS ceil vs Chromium floor 1-px overshoot with large drift clamps to max without moving translationY`() {
+        // Field repro 2026-10-05 on Samsung S23 (density=2.625) reading "AI Engineering" ch01:
+        // JS Math.ceil gave contentH=146819, so maxOffset=139259. Chromium's own layout gave
+        // scrollRange=146818, so maxSc=139258. The 1-px gap made wanted(139259) > maxSc(139258).
+        // Chromium drifted to 136739 (2519 px below maxSc). Previous fix returned ADOPT, which
+        // moved translationY to 136739 — the WebView's bottom (136739+7560=144299) then fell at
+        // exactly the top of the last viewport, so the entire last screen of ch01 was blank.
+        // Correct fix: CLAMP_TO_MAX — the controller calls scrollTo(maxSc) without touching
+        // translationY; the resulting onScrollChanged(maxSc) hits the sub-px ADOPT path.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.CLAMP_TO_MAX,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 136_739, wantedPx = 139_259, density = 2.625f, maxScrollPx = 139_258,
+                msSinceContentHeightChange = ContinuousPositionTracker.HEIGHT_CHANGE_SETTLE_MS + 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `JS ceil vs Chromium floor 1-px overshoot during height-change settle is still left alone`() {
+        // Same 1-px gap, but content height just changed. Fold-guard still applies.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 136_739, wantedPx = 139_259, density = 2.625f, maxScrollPx = 139_258,
+                msSinceContentHeightChange = ContinuousPositionTracker.HEIGHT_CHANGE_SETTLE_MS - 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `JS ceil vs Chromium floor 1-px overshoot at maxSc is adopted via tolerance path`() {
+        // Chromium already at maxSc=139258, wanted=139259 — the 1-px gap is within rounding
+        // tolerance (ceil(2.625)=3), so the early ADOPT path fires. ADOPT resets wv.windowOffsetPx
+        // so syncChapterWindows re-issues scrollTo on the next frame, then stabilises.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.ADOPT,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 139_258, wantedPx = 139_259, density = 2.625f, maxScrollPx = 139_258,
+                msSinceContentHeightChange = ContinuousPositionTracker.HEIGHT_CHANGE_SETTLE_MS + 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `large overshoot beyond tolerance is genuine reflow lag and left alone`() {
+        // wantedPx exceeds maxScrollPx by 10 (>> tolerance=3): Chromium is still reflowing.
+        // Leave it alone; the next height measurement re-syncs.
+        // Chromium (reportedPx=47_590) is near its max but hasn't reached it — a realistic
+        // mid-reflow value where the layout hasn't settled yet.
+        assertEquals(
+            ContinuousPositionTracker.InternalScrollCorrection.NONE,
+            ContinuousPositionTracker.internalScrollCorrection(
+                reportedPx = 47_590, wantedPx = 47_610, density = 2.625f, maxScrollPx = 47_600,
+                msSinceContentHeightChange = ContinuousPositionTracker.HEIGHT_CHANGE_SETTLE_MS + 1,
+            ),
+        )
+    }
+
     // ── adjustProgressionAtForwardBoundary ─────────────────────────────────────────────────────
 
     @Test
