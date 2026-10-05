@@ -72,6 +72,7 @@ import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.LocalToReadStoreImpl
 import com.riffle.core.data.OfflineAvailabilitySnapshot
 import com.riffle.core.data.PdfRepositoryImpl
+import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PlaylistsRepositoryImpl
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
@@ -690,7 +691,17 @@ private val coreDataRepositoriesModule = module {
 
     single<ToReadRepository> { ToReadRepositoryImpl(get(), get(), get()) }
     single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
-    single<LocalToReadStore> { LocalToReadStoreImpl(get(named(DS_LOCAL_TO_READ))) }
+    single<LocalToReadStore> { LocalToReadStoreImpl(get(named(DS_LOCAL_TO_READ)), get()) }
+    single {
+        PlaylistSweep(
+            sourceRepository = get(),
+            libraryDao = get(),
+            localToReadStore = get(),
+            httpClient = get(),
+            configStore = get(),
+            logger = get(),
+        )
+    }
     single<CrashReportRepository> { CrashReportRepositoryImpl(get(named(CRASH_REPORT_DIR))) }
     single<CrossEpubIndexBuildTrigger> {
         CrossEpubIndexBuilderService(

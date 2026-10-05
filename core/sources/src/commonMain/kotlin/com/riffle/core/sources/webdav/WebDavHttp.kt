@@ -18,6 +18,9 @@ fun webDavBasicAuthHeader(username: String, password: String): String =
 /** The single-quoted user agent WebDAV servers are most permissive towards. */
 internal const val WEBDAV_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
 
+/** Separator between path segments in WebDAV file names (namespace, item ID, suffix). */
+internal const val NAMESPACE_SEPARATOR = "__"
+
 internal const val WEBDAV_XML_CONTENT_TYPE = "application/xml; charset=utf-8"
 
 internal const val WEBDAV_PROPFIND_BODY =

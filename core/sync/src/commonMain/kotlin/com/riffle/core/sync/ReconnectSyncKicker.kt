@@ -28,9 +28,11 @@ suspend fun kickSweepsOnReconnect(
     isOnline: Flow<Boolean>,
     runProgressSweep: suspend () -> Unit,
     runAnnotationSweep: suspend () -> Unit,
+    runPlaylistSweep: suspend () -> Unit = {},
 ) {
     isOnline.collectReconnects {
         runProgressSweep()
         runAnnotationSweep()
+        runPlaylistSweep()
     }
 }

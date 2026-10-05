@@ -9,6 +9,7 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 private data class ToReadSnapshot(val playlistId: String?, val itemIds: Set<String>)
@@ -18,12 +19,16 @@ class IosToReadRepositoryImpl(
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val logger: Logger,
+    private val localToReadStore: LocalToReadStore,
 ) : ToReadRepository {
 
     private val cache = MutableStateFlow<Map<String, ToReadSnapshot>>(emptyMap())
 
     override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> =
-        cache.map { it[libraryId]?.itemIds ?: emptySet() }
+        combine(
+            cache.map { it[libraryId]?.itemIds ?: emptySet() },
+            localToReadStore.observeItemIds(libraryId),
+        ) { absIds, localIds -> absIds + localIds }
 
     override suspend fun refresh(libraryId: String): Boolean {
         val (baseUrl, token, insecureAllowed) = credentials() ?: return true
@@ -73,29 +78,57 @@ class IosToReadRepositoryImpl(
         }
     }
 
-    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
-        cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+    override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean {
+        val creds = credentials()
+        return if (creds != null) {
+            cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+        } else {
+            // Non-ABS active source — fall back to local store.
+            localToReadStore.isInToRead(libraryId, libraryItemId)
+        }
+    }
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentials() ?: return false
+        val creds = credentials() ?: run {
+            // Non-ABS active source — fall back to local store.
+            localToReadStore.add(libraryId, libraryItemId)
+            return true
+        }
         return addWithCreds(creds, libraryItemId, libraryId)
     }
 
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentials() ?: return false
+        val creds = credentials() ?: run {
+            // Non-ABS active source — fall back to local store.
+            localToReadStore.remove(libraryId, libraryItemId)
+            return true
+        }
         return removeWithCreds(creds, libraryItemId, libraryId)
     }
 
-    override suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean =
-        cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+    override suspend fun isInToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
+        val source = sourceRepository.getById(sourceId) ?: return false
+        if (source.type != SourceType.ABS) {
+            return localToReadStore.isInToRead(libraryId, libraryItemId)
+        }
+        return cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
+    }
 
     override suspend fun addToToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentialsForSource(sourceId) ?: return true // non-ABS source: no-op
+        val creds = credentialsForSource(sourceId)
+        if (creds == null) {
+            localToReadStore.add(libraryId, libraryItemId)
+            return true
+        }
         return addWithCreds(creds, libraryItemId, libraryId)
     }
 
     override suspend fun removeFromToReadForSource(sourceId: String, libraryItemId: String, libraryId: String): Boolean {
-        val creds = credentialsForSource(sourceId) ?: return true // non-ABS source: no-op
+        val creds = credentialsForSource(sourceId)
+        if (creds == null) {
+            localToReadStore.remove(libraryId, libraryItemId)
+            return true
+        }
         return removeWithCreds(creds, libraryItemId, libraryId)
     }
 

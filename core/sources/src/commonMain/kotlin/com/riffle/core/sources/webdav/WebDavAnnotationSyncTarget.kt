@@ -312,7 +312,6 @@ class WebDavAnnotationSyncTarget(
 
 
     companion object {
-        private const val NAMESPACE_SEPARATOR = "__"
         private const val ANNOTATION_NAME_PREFIX = "annotations-"
         private const val DEVICE_META_NAME_PREFIX = "device-meta-"
         private const val JSONLD_SUFFIX = ".jsonld"

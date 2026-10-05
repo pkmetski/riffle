@@ -16,6 +16,7 @@ import com.riffle.core.logging.loggingKoinModule
 import com.riffle.core.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
+import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.domain.ApplicationScope
@@ -100,6 +101,10 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         // Durable offline annotation reconcile (ADR 0043): symmetric with progress.
         com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this)
         com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
+        // Durable playlist sync (WebDAV To Read lists): a foreground kick plus a 1h safety net so
+        // To Read changes propagate even when the app is rarely restarted.
+        com.riffle.app.sync.PlaylistSyncScheduler.sweepNow(this)
+        com.riffle.app.sync.PlaylistSyncScheduler.ensurePeriodic(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.sweepNow(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.ensurePeriodic(this)
 
@@ -114,11 +119,13 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         val connectivity = get<com.riffle.core.domain.ConnectivityObserver>()
         val annotationSweep = get<AnnotationSweep>()
         val progressSweep = get<ProgressSweep>()
+        val playlistSweep = get<PlaylistSweep>()
         applicationScope.launchSurvivable {
             kickSweepsOnReconnect(
                 isOnline = connectivity.isOnline,
                 runProgressSweep = { runCatching { progressSweep.run() } },
                 runAnnotationSweep = { runCatching { annotationSweep.run() } },
+                runPlaylistSweep = { runCatching { playlistSweep.run() } },
             )
         }
 

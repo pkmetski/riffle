@@ -46,6 +46,7 @@ import com.riffle.core.data.IosLibraryObserverImpl
 import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
+import com.riffle.core.data.IosLocalToReadStore
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
 import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
@@ -53,7 +54,9 @@ import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
+import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
+import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
@@ -719,7 +722,8 @@ private fun iosLibraryModule(
     // Playlists tab. The AudiobookPlayerViewModel injection stays dead until navPlaylistId can be
     // supplied (see the factory above and #1072).
     single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
-    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get()) }
+    single<LocalToReadStore> { IosLocalToReadStore() }
+    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
     // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles
@@ -777,13 +781,25 @@ private fun iosLibraryModule(
     single { IosAppActiveEvents() }
     single<Flow<Unit>>(named(ForegroundSyncDriver.APP_BECAME_ACTIVE)) { get<IosAppActiveEvents>().becameActive }
     single {
+        PlaylistSweep(
+            sourceRepository = get(),
+            libraryDao = get(),
+            localToReadStore = get(),
+            httpClient = get<HttpClient>(),
+            configStore = get(),
+            logger = get(),
+        )
+    }
+    single {
         val sweep = get<ProgressSweep>()
         // Through the enqueuer so the driver's pass and an on-demand enqueue never run the
         // annotation sweep concurrently.
         val annotationSweeps = get<IosAnnotationSweepEnqueuer>()
+        val playlistSweep = get<PlaylistSweep>()
         ForegroundSyncDriver(
             runProgressSweep = { sweep.run() },
             runAnnotationSweep = { annotationSweeps.runNow() },
+            runPlaylistSweep = { playlistSweep.run() },
             nowMs = get<Clock>()::nowMs,
         )
     }

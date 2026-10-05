@@ -356,5 +356,10 @@ class ToReadRepositoryTest {
             map[libraryId] = map[libraryId].orEmpty() - libraryItemId
             flow.value = map.toMap()
         }
+        override suspend fun lastUpdateMs(libraryId: String): Long = 0L
+        override suspend fun setAll(libraryId: String, itemIds: Set<String>, lastUpdateMs: Long) {
+            map[libraryId] = itemIds
+            flow.value = map.toMap()
+        }
     }
 }
