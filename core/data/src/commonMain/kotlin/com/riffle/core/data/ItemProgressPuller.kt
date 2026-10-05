@@ -48,17 +48,13 @@ class ReconcilingItemProgressPuller constructor(
         // for web sources (ADR 0063). No need to check ProgressPeerCapability here — the factory
         // returns null when no remote is applicable.
         val ebookRemote = remoteFactory.ebook(sourceId, itemId)
-        if (ebookRemote != null) {
-            locks.withLock(sourceId, itemId, RemoteKind.EBOOK_POSITION) {
-                ebookReconciler.reconcile(sourceId, itemId, ebookRemote)
-            }
+        if (ebookRemote != null) locks.withLock(sourceId, itemId, RemoteKind.EBOOK_POSITION) {
+            ebookReconciler.reconcile(sourceId, itemId, ebookRemote)
         }
         if (catalog is AudiobookProgressPeerCapability) {
             val audioRemote = remoteFactory.audio(sourceId, itemId)
-            if (audioRemote != null) {
-                locks.withLock(sourceId, itemId, RemoteKind.AUDIO_POSITION) {
-                    audioReconciler.reconcile(sourceId, itemId, audioRemote)
-                }
+            if (audioRemote != null) locks.withLock(sourceId, itemId, RemoteKind.AUDIO_POSITION) {
+                audioReconciler.reconcile(sourceId, itemId, audioRemote)
             }
         }
     }

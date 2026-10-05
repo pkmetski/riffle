@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
-import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.models.AudiobookBookmark
+import com.riffle.core.domain.AudiobookBookmarkStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlin.uuid.ExperimentalUuidApi

@@ -29,10 +29,8 @@ open class StorytellerSidecarFetcher(
     sealed interface FetchResult {
         /** Sidecar bytes ready to write to disk. */
         data class Success(val bytes: ByteArray) : FetchResult
-
         /** Transient transport failure — caller should retry. */
         data object NetworkError : FetchResult
-
         /** Bundle has no SMIL (Storyteller not yet aligned) — no point retrying until alignment. */
         data object NotAligned : FetchResult
     }
@@ -56,9 +54,8 @@ open class StorytellerSidecarFetcher(
         val tempFile = File.createTempFile("sidecar_$bookId", ".tmp", tempDir())
         try {
             val full = fullBundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)
-            if (full !is NetworkResult.Success) {
-                FetchResult.NetworkError
-            } else {
+            if (full !is NetworkResult.Success) FetchResult.NetworkError
+            else {
                 full.value.body.use { source ->
                     tempFile.outputStream().use { out -> source.copyTo(out) }
                 }

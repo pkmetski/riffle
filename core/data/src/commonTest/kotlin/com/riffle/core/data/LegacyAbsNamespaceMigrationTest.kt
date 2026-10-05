@@ -3,10 +3,10 @@ package com.riffle.core.data
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import com.riffle.core.domain.KomgaWebSourceDescriptor
 import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * Regression tests for the pre-`abs_` legacy-file classifier that both [WebDavAnnotationSyncTarget]

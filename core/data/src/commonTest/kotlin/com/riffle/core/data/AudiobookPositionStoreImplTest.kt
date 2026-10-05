@@ -20,9 +20,7 @@ class AudiobookPositionStoreImplTest {
     private class FakeAudiobookPositionDao : AudiobookPositionDao {
         private val entities: MutableMap<Pair<String, String>, AudiobookPositionEntity> = mutableMapOf()
         val store: Map<Pair<String, String>, AudiobookPositionEntity> get() = entities
-        fun seed(entity: AudiobookPositionEntity) {
-            entities[entity.sourceId to entity.itemId] = entity
-        }
+        fun seed(entity: AudiobookPositionEntity) { entities[entity.sourceId to entity.itemId] = entity }
         override suspend fun upsert(entity: AudiobookPositionEntity) {
             entities[entity.sourceId to entity.itemId] = entity
         }
@@ -132,10 +130,8 @@ class AudiobookPositionStoreImplTest {
         store.save("source-A", "item-1", 99.0)
 
         val after = dao.store["source-A" to "item-1"]?.localUpdatedAt ?: 0L
-        assertTrue(
-            after > futureSourceStamp,
-            "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureSourceStamp"
-        )
+        assertTrue(after > futureSourceStamp,
+            "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureSourceStamp")
         assertEquals(99.0, store.load("source-A", "item-1")!!, 0.0001)
     }
 

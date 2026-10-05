@@ -5,10 +5,10 @@ import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * The Room-backed [com.riffle.core.domain.SyncPositionStore] behaviour of the position stores
@@ -24,9 +24,7 @@ class SyncPositionStoreTest {
 
     private class FakeReadingDao : ReadingPositionDao {
         val rows = mutableMapOf<Pair<String, String>, ReadingPositionEntity>()
-        override suspend fun upsert(entity: ReadingPositionEntity) {
-            rows[entity.sourceId to entity.itemId] = entity
-        }
+        override suspend fun upsert(entity: ReadingPositionEntity) { rows[entity.sourceId to entity.itemId] = entity }
         override suspend fun getByItemId(sourceId: String, itemId: String) = rows[sourceId to itemId]
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             rows[sourceId to itemId]?.let { rows[sourceId to itemId] = it.copy(localUpdatedAt = millis) }
@@ -187,9 +185,7 @@ class SyncPositionStoreTest {
 
     private class FakeAudioDao : AudiobookPositionDao {
         val rows = mutableMapOf<Pair<String, String>, AudiobookPositionEntity>()
-        override suspend fun upsert(entity: AudiobookPositionEntity) {
-            rows[entity.sourceId to entity.itemId] = entity
-        }
+        override suspend fun upsert(entity: AudiobookPositionEntity) { rows[entity.sourceId to entity.itemId] = entity }
         override suspend fun getByItemId(sourceId: String, itemId: String) = rows[sourceId to itemId]
         override suspend fun acceptServerIfUnchanged(
             sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,

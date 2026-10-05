@@ -31,4 +31,5 @@ class AbsBookmarkAnnotationSyncTargetFactory constructor(
             api = absBookmarkApi,
         )
     }
+
 }

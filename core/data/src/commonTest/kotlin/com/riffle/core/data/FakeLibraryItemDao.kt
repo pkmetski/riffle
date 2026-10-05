@@ -89,9 +89,7 @@ internal class FakeLibraryItemDao : LibraryItemDao {
                     asin = metadata.asin,
                     pageCount = metadata.pageCount,
                 )
-            } else {
-                existing
-            }
+            } else existing
         }
     }
 
@@ -142,9 +140,7 @@ internal class FakeLibraryItemDao : LibraryItemDao {
                         lastOpenedAt = timestamp,
                         addedAt = if (existing.addedAt == 0L) timestamp else existing.addedAt,
                     )
-                } else {
-                    existing
-                }
+                } else existing
             }
         }
     }

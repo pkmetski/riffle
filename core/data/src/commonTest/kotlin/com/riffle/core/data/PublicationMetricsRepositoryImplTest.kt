@@ -6,9 +6,9 @@ import com.riffle.core.database.PublicationMetricsCacheEntity
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.TestClock
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.Test
 
 class PublicationMetricsRepositoryImplTest {
 

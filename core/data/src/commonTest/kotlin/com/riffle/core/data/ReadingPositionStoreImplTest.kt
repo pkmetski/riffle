@@ -21,9 +21,7 @@ class ReadingPositionStoreImplTest {
     private class FakeReadingPositionDao : ReadingPositionDao {
         private val entities: MutableMap<Pair<String, String>, ReadingPositionEntity> = mutableMapOf()
         val store: Map<Pair<String, String>, ReadingPositionEntity> get() = entities
-        fun seed(entity: ReadingPositionEntity) {
-            entities[entity.sourceId to entity.itemId] = entity
-        }
+        fun seed(entity: ReadingPositionEntity) { entities[entity.sourceId to entity.itemId] = entity }
         override suspend fun upsert(entity: ReadingPositionEntity) {
             entities[entity.sourceId to entity.itemId] = entity
         }
@@ -122,10 +120,8 @@ class ReadingPositionStoreImplTest {
         store.save("source-A", "item-1", "fresh")
 
         val after = dao.store["source-A" to "item-1"]?.localUpdatedAt ?: 0L
-        assertTrue(
-            after > futureSourceStamp,
-            "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureSourceStamp"
-        )
+        assertTrue(after > futureSourceStamp,
+            "save() must advance localUpdatedAt past the adopted source stamp; was $after, source stamp $futureSourceStamp")
         assertEquals("fresh", store.load("source-A", "item-1"))
     }
 

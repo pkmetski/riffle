@@ -46,24 +46,20 @@ class AudiobookBundleDownloaderTest {
                 if (fromByte > 0 && honorRange) {
                     val tail = full.copyOfRange(fromByte.toInt(), full.size)
                     NetworkResult.Success(
-                        block(
-                            AudiobookBundleStream(
-                                body = ByteArrayInputStream(tail),
-                                totalBytes = full.size.toLong(),
-                                isPartial = true,
-                            )
-                        ),
+                        block(AudiobookBundleStream(
+                            body = ByteArrayInputStream(tail),
+                            totalBytes = full.size.toLong(),
+                            isPartial = true,
+                        )),
                     )
                 } else {
                     // Advertise the FULL length but serve only [serveBytes] — a silent truncation.
                     NetworkResult.Success(
-                        block(
-                            AudiobookBundleStream(
-                                body = ByteArrayInputStream(full.copyOfRange(0, serveBytes)),
-                                totalBytes = full.size.toLong(),
-                                isPartial = false,
-                            )
-                        ),
+                        block(AudiobookBundleStream(
+                            body = ByteArrayInputStream(full.copyOfRange(0, serveBytes)),
+                            totalBytes = full.size.toLong(),
+                            isPartial = false,
+                        )),
                     )
                 }
             } catch (t: java.io.IOException) {
@@ -90,8 +86,7 @@ class AudiobookBundleDownloaderTest {
         var lastTotal = 0L
 
         val result = downloader(FakeApi(), dir).download("s1", "u", "42", "t", false) { d, total ->
-            lastDownloaded = d
-            lastTotal = total
+            lastDownloaded = d; lastTotal = total
         }
 
         assertTrue(result is AudiobookBundleDownloader.Result.Success)

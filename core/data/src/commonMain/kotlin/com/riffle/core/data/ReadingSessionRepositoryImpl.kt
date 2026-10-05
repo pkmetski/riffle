@@ -4,19 +4,19 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
-import com.riffle.core.common.Clock
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.common.Clock
+import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.isFinishedReadingProgress
-import com.riffle.core.domain.keepsFinishedState
-import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.models.ServerProgress
 import com.riffle.core.models.SessionPayload
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SyncSessionResult
+import com.riffle.core.domain.isFinishedReadingProgress
+import com.riffle.core.domain.keepsFinishedState
 
 class ReadingSessionRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,

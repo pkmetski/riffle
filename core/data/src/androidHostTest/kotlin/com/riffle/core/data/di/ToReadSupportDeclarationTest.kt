@@ -7,12 +7,12 @@ import com.riffle.core.catalog.abs.AbsCatalog
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.catalog.komga.KomgaCatalog
-import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.catalog.radioes.RadioEsCatalog
+import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.data.localfiles.LocalFilesCatalog
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.ToReadSupport
 import com.riffle.core.domain.WebSourceDescriptors
-import com.riffle.core.models.SourceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,17 +68,13 @@ class ToReadSupportDeclarationTest {
             val declared = WebSourceDescriptors.forTypeOrError(type).toReadSupport
             val implementsPlaylists = PlaylistsCapability::class.java.isAssignableFrom(catalogClass.java)
             when (declared) {
-                ToReadSupport.Synced -> if (!implementsPlaylists) {
-                    mismatches +=
-                        "$type: descriptor says Synced but ${catalogClass.simpleName} does NOT implement PlaylistsCapability " +
+                ToReadSupport.Synced -> if (!implementsPlaylists) mismatches +=
+                    "$type: descriptor says Synced but ${catalogClass.simpleName} does NOT implement PlaylistsCapability " +
                         "→ every add will silently fall through to LocalToReadStore (the Komga bug)."
-                }
                 ToReadSupport.LocalOnly,
-                ToReadSupport.Unsupported -> if (implementsPlaylists) {
-                    mismatches +=
-                        "$type: descriptor says $declared but ${catalogClass.simpleName} implements PlaylistsCapability " +
+                ToReadSupport.Unsupported -> if (implementsPlaylists) mismatches +=
+                    "$type: descriptor says $declared but ${catalogClass.simpleName} implements PlaylistsCapability " +
                         "→ writes will hit the server the descriptor claims we don't sync to."
-                }
             }
         }
         assertEquals(
@@ -99,16 +95,12 @@ class ToReadSupportDeclarationTest {
             val implementsMarker = ToReadListCapability::class.java.isAssignableFrom(catalogClass.java)
             when (declared) {
                 ToReadSupport.Synced,
-                ToReadSupport.LocalOnly -> if (!implementsMarker) {
-                    mismatches +=
-                        "$type: descriptor says $declared but ${catalogClass.simpleName} does NOT implement " +
+                ToReadSupport.LocalOnly -> if (!implementsMarker) mismatches +=
+                    "$type: descriptor says $declared but ${catalogClass.simpleName} does NOT implement " +
                         "ToReadListCapability → the To Read tab will be hidden despite the descriptor promising support."
-                }
-                ToReadSupport.Unsupported -> if (implementsMarker) {
-                    mismatches +=
-                        "$type: descriptor says Unsupported but ${catalogClass.simpleName} implements " +
+                ToReadSupport.Unsupported -> if (implementsMarker) mismatches +=
+                    "$type: descriptor says Unsupported but ${catalogClass.simpleName} implements " +
                         "ToReadListCapability → the tab renders even though the descriptor claims we don't support it."
-                }
             }
         }
         assertEquals(

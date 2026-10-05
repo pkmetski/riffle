@@ -49,7 +49,7 @@ class CredentialedSourceInstaller constructor(
         val entity = SourceEntity(
             id = id,
             url = pending.url.value,
-            isActive = false, // overridden inside transaction
+            isActive = false,                    // overridden inside transaction
             insecureConnectionAllowed = pending.insecureConnectionAllowed,
             username = pending.username,
             serverType = pending.serverType.name,

@@ -13,10 +13,6 @@ class TestClock(initialMs: Long = 0L) : Clock {
     override fun nowMs(): Long = ms
     override fun nowNs(): Long = ms * 1_000_000L
 
-    fun setNowMs(ms: Long) {
-        this.ms = ms
-    }
-    fun advance(ms: Long) {
-        this.ms += ms
-    }
+    fun setNowMs(ms: Long) { this.ms = ms }
+    fun advance(ms: Long) { this.ms += ms }
 }

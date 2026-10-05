@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
@@ -44,10 +45,7 @@ object AnnotationFileHeaderCodec {
 
     private val recognisedHeaderTypes = setOf(HEADER_TYPE, LEGACY_HEADER_TYPE)
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = false
-    }
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
     /** Render an [AnnotationFileHeader] as the header JSON object string. */
     fun encodeHeader(header: AnnotationFileHeader): String = buildJsonObject {
@@ -63,11 +61,8 @@ object AnnotationFileHeaderCodec {
      */
     fun buildFileBody(header: AnnotationFileHeader, annotationJsonStrings: List<String>): String {
         val headerJson = encodeHeader(header)
-        return if (annotationJsonStrings.isEmpty()) {
-            "[\n$headerJson\n]"
-        } else {
-            "[\n$headerJson,\n" + annotationJsonStrings.joinToString(",\n") + "\n]"
-        }
+        return if (annotationJsonStrings.isEmpty()) "[\n$headerJson\n]"
+        else "[\n$headerJson,\n" + annotationJsonStrings.joinToString(",\n") + "\n]"
     }
 
     /**

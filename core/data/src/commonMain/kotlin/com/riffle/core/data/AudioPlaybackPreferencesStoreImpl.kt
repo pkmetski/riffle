@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudioPlaybackPreferencesEntity
-import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.models.AudioIdentity
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 
 /**
  * Persists per-book audio playback settings keyed by the resolved [AudioIdentity] (ADR 0040). Unlike

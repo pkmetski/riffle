@@ -95,10 +95,7 @@ class PlaylistsRepositoryImpl constructor(
         val parent = dao.getById(sourceId, playlistId) ?: return false
         val current = dao.itemIds(sourceId, playlistId)
         if (itemId in current) return true
-        return runCatching {
-            cap.addItemToPlaylist(playlistId, itemId)
-            true
-        }
+        return runCatching { cap.addItemToPlaylist(playlistId, itemId); true }
             .onSuccess {
                 val updatedItems = (current + itemId)
                     .mapIndexed { index, id -> PlaylistItemEntity(playlistId, sourceId, id, index) }
@@ -117,10 +114,7 @@ class PlaylistsRepositoryImpl constructor(
         val parent = dao.getById(sourceId, playlistId) ?: return false
         val current = dao.itemIds(sourceId, playlistId)
         if (itemId !in current) return true
-        return runCatching {
-            cap.removeItemFromPlaylist(playlistId, itemId)
-            true
-        }
+        return runCatching { cap.removeItemFromPlaylist(playlistId, itemId); true }
             .onSuccess {
                 val remaining = current - itemId
                 if (remaining.isEmpty()) {

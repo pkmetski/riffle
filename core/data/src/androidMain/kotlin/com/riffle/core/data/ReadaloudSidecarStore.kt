@@ -240,12 +240,10 @@ class ReadaloudSidecarStore private constructor(
         // Backoff covers transient server load; the dominant cost per attempt is the 240s network timeout.
         const val MAX_RETRIES = 3
         val RETRY_BACKOFF_MS = longArrayOf(30_000L, 60_000L, 120_000L)
-
         // 200 MB cap. A sidecar is the ~1 MB non-audio prefix, so this comfortably holds 100+ books
         // before eviction kicks in — enough that no realistic session hits the ceiling, but bounded
         // enough that a rarely-cleaned-cache install doesn't grow indefinitely.
         const val MAX_CACHE_BYTES: Long = 200L * 1024L * 1024L
-
         // Filename shape is `<sourceId><KEY_SEPARATOR><bookId>.<SIDECAR_EXTENSION>`. The extension
         // is .epub because the sidecar is an EPUB container carrying only the SMIL + text prefix
         // (no audio). Both are referenced from the cache-dir name and every listFiles filter, so

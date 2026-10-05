@@ -1,11 +1,11 @@
 package com.riffle.core.data
 
+import com.riffle.core.models.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
-import com.riffle.core.models.AnnotationDeviceMeta
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

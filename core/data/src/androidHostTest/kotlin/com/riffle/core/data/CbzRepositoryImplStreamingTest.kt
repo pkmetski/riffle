@@ -6,10 +6,11 @@ import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
-import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.LocalStore
@@ -18,7 +19,8 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
-import com.riffle.core.models.SourceType
+import java.io.File
+import java.io.InputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -30,8 +32,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
-import java.io.InputStream
 
 class CbzRepositoryImplStreamingTest {
 

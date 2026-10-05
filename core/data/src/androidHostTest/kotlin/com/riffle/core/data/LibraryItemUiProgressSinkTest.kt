@@ -1,9 +1,9 @@
 package com.riffle.core.data
 
-import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
-import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -165,4 +165,5 @@ class LibraryItemUiProgressSinkTest {
 
         coVerify { dao.updateReadingProgressFromServer(chitankaSourceId, itemId, 0.3f, Long.MAX_VALUE) }
     }
+
 }

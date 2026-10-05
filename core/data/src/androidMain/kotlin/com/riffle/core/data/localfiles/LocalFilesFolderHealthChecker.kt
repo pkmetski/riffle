@@ -26,11 +26,7 @@ class LocalFilesFolderHealthChecker constructor(
         // The managed imports folder is inside our own container: there is no grant to hold and
         // none to revoke, so grant-based health would report it broken forever.
         if (ManagedImportsFolders.isAppOwned(treeUri)) return true
-        val target = try {
-            Uri.parse(treeUri)
-        } catch (_: Throwable) {
-            return false
-        }
+        val target = try { Uri.parse(treeUri) } catch (_: Throwable) { return false }
         return context.contentResolver.persistedUriPermissions.any { grant ->
             grant.uri == target && grant.isReadPermission
         }

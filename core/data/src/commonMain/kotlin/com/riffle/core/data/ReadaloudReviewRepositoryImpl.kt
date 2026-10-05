@@ -13,14 +13,14 @@ import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsCandidate
 import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.UnmatchedReadaloud
-import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.ServerType
+import com.riffle.core.domain.UnmatchedReadaloud
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -65,23 +65,17 @@ class ReadaloudReviewRepositoryImpl(
             // against the same title on two ABS accounts piles their links into one card
             // ("2 ebook + 2 audiobook" per match). Switching the active ABS account flips the
             // visible set; nothing is permanently hidden.
-            val scopedLinks = if (absSourceId == null) {
-                links
-            } else {
-                links.filter { it.absSourceId == absSourceId }
-            }
-            val scopedCandidates = if (absSourceId == null) {
-                candidates
-            } else {
-                candidates.filter { it.absSourceId == absSourceId }
-            }
+            val scopedLinks = if (absSourceId == null) links
+                else links.filter { it.absSourceId == absSourceId }
+            val scopedCandidates = if (absSourceId == null) candidates
+                else candidates.filter { it.absSourceId == absSourceId }
             buildReview(storytellerSourceId, scopedLinks, scopedCandidates)
         }
-            // Reconcile writes each link individually, firing a Room invalidation per row. Without
-            // debounce, both this flow and every subscriber (Summary, Detail) run buildReview for
-            // every intermediate state and can diverge. 200 ms coalesces the burst into one settled
-            // emission after the reconcile pass finishes.
-            .debounce(200)
+        // Reconcile writes each link individually, firing a Room invalidation per row. Without
+        // debounce, both this flow and every subscriber (Summary, Detail) run buildReview for
+        // every intermediate state and can diverge. 200 ms coalesces the burst into one settled
+        // emission after the reconcile pass finishes.
+        .debounce(200)
 
     private suspend fun buildReview(
         storytellerSourceId: String,
@@ -96,7 +90,6 @@ class ReadaloudReviewRepositoryImpl(
         val candidatesByBook = candidates.groupBy { it.storytellerBookId }
 
         val libraryNameCache = mutableMapOf<String, String>()
-
         // Library ids are unique only within a Server (issue #113) — key the cache and the lookup
         // by (sourceId, libraryId) so two Servers' same-id libraries resolve to their own names.
         suspend fun libraryName(sourceId: String, libraryId: String): String =

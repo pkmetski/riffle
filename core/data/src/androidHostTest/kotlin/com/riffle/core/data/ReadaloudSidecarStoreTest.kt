@@ -1,11 +1,15 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
+import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerBundleApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -66,17 +70,9 @@ class ReadaloudSidecarStoreTest {
 
     private fun fetcher(block: (attempt: Int) -> ByteArray?): StorytellerSidecarFetcher {
         var attempt = 0
-        return object : StorytellerSidecarFetcher(
-            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
-            bundleApi = StorytellerBundleApi {
-                    _,
-                    _,
-                    _,
-                    _
-                ->
-                error("unreachable in fake")
-            }
-        ) {
+        return object : StorytellerSidecarFetcher(dispatchers = com.riffle.core.domain.DefaultDispatcherProvider, bundleApi = StorytellerBundleApi { _, _, _, _ ->
+            error("unreachable in fake")
+        }) {
             override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
                 block(attempt++)?.let { FetchResult.Success(it) } ?: FetchResult.NetworkError
         }
@@ -147,24 +143,15 @@ class ReadaloudSidecarStoreTest {
     @Test
     fun `prepare fails immediately without retrying when fetch returns NotAligned`() = testScope.runTest {
         var fetchCount = 0
-        val store =
-            store(object : StorytellerSidecarFetcher(
-                dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
-                bundleApi = StorytellerBundleApi {
-                        _,
-                        _,
-                        _,
-                        _
-                    ->
-                    error("unreachable in fake")
-                }
-            ) {
-                override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
-                    FetchResult.NotAligned.also { fetchCount++ }
-            })
+        val store = store(object : StorytellerSidecarFetcher(dispatchers = com.riffle.core.domain.DefaultDispatcherProvider, bundleApi = StorytellerBundleApi { _, _, _, _ ->
+            error("unreachable in fake")
+        }) {
+            override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
+                FetchResult.NotAligned.also { fetchCount++ }
+        })
         store.prepare("srv", "42")
         advanceUntilIdle()
-        assertEquals(1, fetchCount) // single attempt, no retries
+        assertEquals(1, fetchCount)  // single attempt, no retries
         assertEquals(ReadaloudSidecarStore.State.Failed, store.stateOf("srv", "42"))
         assertNull(store.cachedFile("srv", "42"))
     }
@@ -172,16 +159,11 @@ class ReadaloudSidecarStoreTest {
     @Test
     fun `prepare does not relaunch after all attempts exhausted`() = testScope.runTest {
         var fetchCount = 0
-        val store = store(
-            fetcher {
-                fetchCount++
-                null
-            }
-        )
+        val store = store(fetcher { fetchCount++; null })
         store.prepare("srv", "42")
         advanceUntilIdle()
         assertEquals(ReadaloudSidecarStore.State.Failed, store.stateOf("srv", "42"))
-        val countAfterFirstCycle = fetchCount // should be MAX_RETRIES + 1 = 4
+        val countAfterFirstCycle = fetchCount   // should be MAX_RETRIES + 1 = 4
 
         // A second prepare() must be a no-op — no more fetches, state stays Failed.
         store.prepare("srv", "42")
@@ -249,11 +231,7 @@ class ReadaloudSidecarStoreTest {
     private fun zipOf(vararg entries: Pair<String, ByteArray>): ByteArray {
         val bos = ByteArrayOutputStream()
         ZipOutputStream(bos).use { zos ->
-            for ((name, bytes) in entries) {
-                zos.putNextEntry(ZipEntry(name))
-                zos.write(bytes)
-                zos.closeEntry()
-            }
+            for ((name, bytes) in entries) { zos.putNextEntry(ZipEntry(name)); zos.write(bytes); zos.closeEntry() }
         }
         return bos.toByteArray()
     }

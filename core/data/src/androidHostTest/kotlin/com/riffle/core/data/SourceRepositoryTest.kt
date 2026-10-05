@@ -1,25 +1,26 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.models.InsecureConnectionType
+import com.riffle.core.models.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceFilesCleaner
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.models.InsecureConnectionType
-import com.riffle.core.models.Library
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.KomgaServerInfoApi
 import com.riffle.core.network.NetworkLibrary
-import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -53,20 +54,12 @@ class ServerRepositoryTest {
     private class FakeTokenStorage : TokenStorage {
         val tokens = mutableMapOf<String, String>()
         val passwords = mutableMapOf<String, String>()
-        override suspend fun saveToken(sourceId: String, token: String) {
-            tokens[sourceId] = token
-        }
+        override suspend fun saveToken(sourceId: String, token: String) { tokens[sourceId] = token }
         override suspend fun getToken(sourceId: String) = tokens[sourceId]
-        override suspend fun deleteToken(sourceId: String) {
-            tokens.remove(sourceId)
-        }
-        override suspend fun savePassword(sourceId: String, password: String) {
-            passwords[sourceId] = password
-        }
+        override suspend fun deleteToken(sourceId: String) { tokens.remove(sourceId) }
+        override suspend fun savePassword(sourceId: String, password: String) { passwords[sourceId] = password }
         override suspend fun getPassword(sourceId: String) = passwords[sourceId]
-        override suspend fun deletePassword(sourceId: String) {
-            passwords.remove(sourceId)
-        }
+        override suspend fun deletePassword(sourceId: String) { passwords.remove(sourceId) }
     }
 
     private fun fakeTokenStorage() = FakeTokenStorage()
@@ -82,24 +75,15 @@ class ServerRepositoryTest {
             store.removeAll { it.id == source.id }
             store.add(source)
         }
-        override suspend fun clearActiveFlag() {
-            store.replaceAll { it.copy(isActive = false) }
-        }
-        override suspend fun setActive(id: String) {
-            store.replaceAll { if (it.id == id) it.copy(isActive = true) else it }
-        }
-        override suspend fun setActiveAtomic(id: String) {
-            clearActiveFlag()
-            setActive(id)
-        }
+        override suspend fun clearActiveFlag() { store.replaceAll { it.copy(isActive = false) } }
+        override suspend fun setActive(id: String) { store.replaceAll { if (it.id == id) it.copy(isActive = true) else it } }
+        override suspend fun setActiveAtomic(id: String) { clearActiveFlag(); setActive(id) }
         override suspend fun upsertAsFirstIfNoActive(source: SourceEntity): SourceEntity {
             val toInsert = source.copy(isActive = getActive() == null)
             upsert(toInsert)
             return toInsert
         }
-        override suspend fun deleteById(id: String) {
-            store.removeAll { it.id == id }
-        }
+        override suspend fun deleteById(id: String) { store.removeAll { it.id == id } }
         override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
         override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
         override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
@@ -153,9 +137,7 @@ class ServerRepositoryTest {
             rows[sourceId].orEmpty().map { it.id }
         override suspend fun getById(sourceId: String, libraryId: String): LibraryEntity? =
             rows[sourceId].orEmpty().firstOrNull { it.id == libraryId }
-        override suspend fun deleteBySourceId(sourceId: String) {
-            rows.remove(sourceId)
-        }
+        override suspend fun deleteBySourceId(sourceId: String) { rows.remove(sourceId) }
         override suspend fun deleteById(sourceId: String, libraryId: String) {
             rows[sourceId]?.removeIf { it.id == libraryId }
         }
@@ -179,9 +161,7 @@ class ServerRepositoryTest {
 
     private class RecordingFilesCleaner : SourceFilesCleaner {
         val cleanedServerIds = mutableListOf<String>()
-        override suspend fun deleteAllForSource(sourceId: String) {
-            cleanedServerIds += sourceId
-        }
+        override suspend fun deleteAllForSource(sourceId: String) { cleanedServerIds += sourceId }
     }
 
     private fun fakeFilesCleaner() = RecordingFilesCleaner()
@@ -189,9 +169,7 @@ class ServerRepositoryTest {
     private class RecordingSidecarCache : com.riffle.core.domain.ReadaloudSidecarCache {
         val purgedSourceIds = mutableListOf<String>()
         override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): java.io.File? = null
-        override fun purgeSource(storytellerSourceId: String) {
-            purgedSourceIds += storytellerSourceId
-        }
+        override fun purgeSource(storytellerSourceId: String) { purgedSourceIds += storytellerSourceId }
     }
 
     private fun fakeSidecarCache() = RecordingSidecarCache()
@@ -269,18 +247,12 @@ class ServerRepositoryTest {
         sidecarCache: com.riffle.core.domain.ReadaloudSidecarCache = fakeSidecarCache(),
     ): SourceRepositoryImpl {
         val sidecarCacheProvider = { sidecarCache }
-
         // absApi/storytellerApi/libraryApi are still accepted so callers that don't hit the auth
         // path can leave them as `error`-throwing stubs unchanged. They're wired into the auth
         // helper below on demand.
-        @Suppress("UNUSED_PARAMETER")
-        val unused1 = absApi
-
-        @Suppress("UNUSED_PARAMETER")
-        val unused2 = storytellerApi
-
-        @Suppress("UNUSED_PARAMETER")
-        val unused3 = libraryApi
+        @Suppress("UNUSED_PARAMETER") val unused1 = absApi
+        @Suppress("UNUSED_PARAMETER") val unused2 = storytellerApi
+        @Suppress("UNUSED_PARAMETER") val unused3 = libraryApi
         val installer = com.riffle.core.data.credentialed.CredentialedSourceInstaller(
             sourceDao = dao,
             libraryDao = libraryDao,
@@ -408,8 +380,7 @@ class ServerRepositoryTest {
 
     @Test
     fun `authenticate wrong credentials surfaces message and persists nothing`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
         val absApi = AbsApi { _, _, _, _ -> NetworkResult.Auth }
         val auth = buildAbsAuth(absApi, libsApiNotCalled, storytellerApiNotCalled)
 
@@ -448,13 +419,10 @@ class ServerRepositoryTest {
 
     @Test
     fun `commit writes source token library cache and hidden ids together`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val url = SourceUrl.parse("https://abs.example.com")!!
         val pending = PendingSource(
@@ -516,14 +484,11 @@ class ServerRepositoryTest {
 
     @Test
     fun `two Storyteller services commit independently, each with their own Readaloud library row`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val storyteller = storytellerApiReturning(NetworkResult.Success("tok-st"))
-        val repo =
-            buildRepo(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pendingA = PendingSource(
             url = SourceUrl.parse("http://media-source:8001")!!,
@@ -568,13 +533,10 @@ class ServerRepositoryTest {
 
     @Test
     fun `commit Storyteller pending materialises Readaloud library with source-scoped id`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingSource(
             url = SourceUrl.parse("http://media-source:8001")!!,
@@ -596,13 +558,10 @@ class ServerRepositoryTest {
 
     @Test
     fun `commit Storyteller source is never marked active even when no source is active`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingSource(
             url = SourceUrl.parse("http://media-source:8001")!!,
@@ -623,13 +582,10 @@ class ServerRepositoryTest {
 
     @Test
     fun `commit persists serverType STORYTELLER and round-trips it`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingSource(
             url = SourceUrl.parse("http://media-source:8001")!!,
@@ -652,13 +608,10 @@ class ServerRepositoryTest {
     // and expect the persisted row to carry it — asserting that here so a regression would flip red.
     @Test
     fun `commit stamps SourceEntity type from pending sourceType, not hard-coded ABS`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         // Stand-in for a hypothetical Komga PendingSource — SourceType.CHITANKA is a convenient
         // non-ABS enum value that already exists in the domain. The point is that the persisted
@@ -699,13 +652,10 @@ class ServerRepositoryTest {
 
     @Test
     fun `commit persists the user-entered password alongside the token`() = runTest {
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingSource(
             url = SourceUrl.parse("https://abs.example.com")!!,
@@ -825,13 +775,10 @@ class ServerRepositoryTest {
         // source, get different randomly-minted local servers.id values, and their WebDAV paths
         // (keyed on servers.id) never overlap — neither sees the other's files. Fix: persist the
         // ABS-side stable user.id at commit time and use it as the WebDAV path namespace.
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.commit(
             PendingSource(
@@ -854,13 +801,10 @@ class ServerRepositoryTest {
     fun `commit Storyteller source leaves absUserId null — annotations live on ABS, not Storyteller`() = runTest {
         // Storyteller's auth response carries no user id (auth is username + token). Annotations
         // are ABS-side only (ADR 0028), so a Storyteller source has nothing to namespace.
-        val dao = fakeDao()
-        val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao()
-        val visibility = fakeVisibilityStore()
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo =
-            buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.commit(
             PendingSource(

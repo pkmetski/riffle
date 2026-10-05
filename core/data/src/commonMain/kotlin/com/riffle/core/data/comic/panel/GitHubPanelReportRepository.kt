@@ -44,52 +44,39 @@ class GitHubPanelReportRepository(
             // 2. Create issue linking the gist
             post(
                 "$apiBase/repos/$owner/$repoName/issues",
-                JsonObject(
-                    mapOf(
-                        "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
-                        "body" to JsonPrimitive(buildIssueBody(report, gistHtmlUrl, maskRawUrl)),
-                        "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
-                    )
-                ).toString(),
+                JsonObject(mapOf(
+                    "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
+                    "body" to JsonPrimitive(buildIssueBody(report, gistHtmlUrl, maskRawUrl)),
+                    "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
+                )).toString(),
             ).field("html_url")
         }
 
     private fun buildGistBody(report: PanelDetectionReport, pngBase64: String): String =
-        JsonObject(
-            mapOf(
-                "description" to JsonPrimitive(
-                    "Panel detection report: ${report.failureType.label} — page ${report.pageIndex}"
-                ),
-                "public" to JsonPrimitive(false),
-                "files" to JsonObject(
-                    mapOf(
-                        "mask.b64" to JsonObject(mapOf("content" to JsonPrimitive(pngBase64))),
-                        "metadata.json" to JsonObject(mapOf("content" to JsonPrimitive(buildMetadata(report)))),
-                    )
-                ),
-            )
-        ).toString()
+        JsonObject(mapOf(
+            "description" to JsonPrimitive(
+                "Panel detection report: ${report.failureType.label} — page ${report.pageIndex}"
+            ),
+            "public" to JsonPrimitive(false),
+            "files" to JsonObject(mapOf(
+                "mask.b64" to JsonObject(mapOf("content" to JsonPrimitive(pngBase64))),
+                "metadata.json" to JsonObject(mapOf("content" to JsonPrimitive(buildMetadata(report)))),
+            )),
+        )).toString()
 
     private fun buildMetadata(report: PanelDetectionReport): String =
         JsonObject(
             buildMap {
                 put("pageIndex", JsonPrimitive(report.pageIndex))
                 put("failureType", JsonPrimitive(report.failureType.label))
-                put(
-                    "detectedPanels",
-                    JsonArray(
-                        report.detectedPanels.map { p ->
-                            JsonObject(
-                                mapOf(
-                                    "x" to JsonPrimitive(p.x),
-                                    "y" to JsonPrimitive(p.y),
-                                    "w" to JsonPrimitive(p.width),
-                                    "h" to JsonPrimitive(p.height),
-                                )
-                            )
-                        }
-                    )
-                )
+                put("detectedPanels", JsonArray(report.detectedPanels.map { p ->
+                    JsonObject(mapOf(
+                        "x" to JsonPrimitive(p.x),
+                        "y" to JsonPrimitive(p.y),
+                        "w" to JsonPrimitive(p.width),
+                        "h" to JsonPrimitive(p.height),
+                    ))
+                }))
                 report.expectedPanelOrder?.let { order ->
                     put("expectedPanelOrder", JsonArray(order.map { JsonPrimitive(it) }))
                 }

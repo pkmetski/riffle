@@ -10,10 +10,10 @@ import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
 import com.riffle.core.domain.GutenbergWebSourceDescriptor
 import com.riffle.core.domain.RadioEsWebSourceDescriptor
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.logging.NoopLogger
-import com.riffle.core.models.SourceType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -95,7 +95,7 @@ class SingletonWebSourceInstallerTest {
         val svc = installer(sourceDao, libraryDao)
 
         val id = svc.install(SourceType.CHITANKA)
-        libraryDao.clear(id) // simulate out-of-band drawer damage
+        libraryDao.clear(id)          // simulate out-of-band drawer damage
         assertTrue(libraryDao.forSource(id).isEmpty())
 
         svc.install(SourceType.CHITANKA)
@@ -137,19 +137,14 @@ class SingletonWebSourceInstallerTest {
 
         override fun observeAll(): Flow<List<SourceEntity>> = flowOf(rows.values.toList())
         override suspend fun getActive(): SourceEntity? = rows.values.firstOrNull { it.isActive }
-        override suspend fun upsert(source: SourceEntity) {
-            rows[source.id] = source
-        }
+        override suspend fun upsert(source: SourceEntity) { rows[source.id] = source }
         override suspend fun clearActiveFlag() {
             for ((id, entity) in rows.toMap()) rows[id] = entity.copy(isActive = false)
         }
         override suspend fun setActive(id: String) {
             rows[id]?.let { rows[id] = it.copy(isActive = true) }
         }
-        override suspend fun setActiveAtomic(id: String) {
-            clearActiveFlag()
-            setActive(id)
-        }
+        override suspend fun setActiveAtomic(id: String) { clearActiveFlag(); setActive(id) }
         override suspend fun upsertAsFirstIfNoActive(source: SourceEntity): SourceEntity {
             val toInsert = source.copy(isActive = getActive() == null)
             upsert(toInsert)
@@ -158,9 +153,7 @@ class SingletonWebSourceInstallerTest {
         override suspend fun getById(id: String): SourceEntity? = rows[id]
         override suspend fun getByType(type: String): SourceEntity? =
             rows.values.firstOrNull { it.type == type }
-        override suspend fun deleteById(id: String) {
-            rows.remove(id)
-        }
+        override suspend fun deleteById(id: String) { rows.remove(id) }
         override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
         override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
         override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
@@ -197,9 +190,7 @@ class SingletonWebSourceInstallerTest {
         private val rows = mutableListOf<LibraryEntity>()
 
         fun forSource(sourceId: String): List<LibraryEntity> = rows.filter { it.sourceId == sourceId }
-        fun clear(sourceId: String) {
-            rows.removeAll { it.sourceId == sourceId }
-        }
+        fun clear(sourceId: String) { rows.removeAll { it.sourceId == sourceId } }
 
         override fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>> =
             flowOf(forSource(sourceId))

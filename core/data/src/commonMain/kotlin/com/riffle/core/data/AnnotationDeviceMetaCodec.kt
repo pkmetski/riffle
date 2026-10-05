@@ -23,10 +23,7 @@ object AnnotationDeviceMetaCodec {
 
     const val TYPE = "riffle:DeviceSyncMeta"
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = false
-    }
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
     /** Render an [AnnotationDeviceMeta] as the JSON object body for `device-meta-<deviceId>.json`. */
     fun encode(meta: AnnotationDeviceMeta): String = buildJsonObject {

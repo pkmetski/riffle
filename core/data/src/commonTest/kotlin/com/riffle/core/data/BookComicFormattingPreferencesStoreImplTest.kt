@@ -2,14 +2,14 @@ package com.riffle.core.data
 
 import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.BookComicFormattingPreferencesEntity
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.Test
 
 class BookComicFormattingPreferencesStoreImplTest {
 
@@ -133,9 +133,7 @@ class BookComicFormattingPreferencesStoreImplTest {
     @Test fun `save writes backgroundTheme override into entity`() = runTest {
         var saved: BookComicFormattingPreferencesEntity? = null
         val dao = object : BookComicFormattingPreferencesDao {
-            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) {
-                saved = entity
-            }
+            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) { saved = entity }
             override suspend fun getByItemId(sourceId: String, itemId: String) = null
             override suspend fun deleteByItemId(sourceId: String, itemId: String) {}
         }
@@ -151,9 +149,7 @@ class BookComicFormattingPreferencesStoreImplTest {
     @Test fun `save writes Dark when backgroundTheme override is DarkDim`() = runTest {
         var saved: BookComicFormattingPreferencesEntity? = null
         val dao = object : BookComicFormattingPreferencesDao {
-            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) {
-                saved = entity
-            }
+            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) { saved = entity }
             override suspend fun getByItemId(sourceId: String, itemId: String) = null
             override suspend fun deleteByItemId(sourceId: String, itemId: String) {}
         }

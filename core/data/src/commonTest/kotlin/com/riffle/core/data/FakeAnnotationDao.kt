@@ -1,9 +1,9 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.BookHighlightSummary
-import com.riffle.core.database.DirtySourceItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 

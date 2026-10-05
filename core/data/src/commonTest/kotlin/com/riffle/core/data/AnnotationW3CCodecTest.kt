@@ -249,8 +249,8 @@ class AnnotationW3CCodecTest {
     // Test 8: Timestamps (millis) round-trip via ISO 8601 conversion
     @Test
     fun `timestampRoundTrip converts millis to ISO 8601 and back correctly`() {
-        val createdMillis = 1640000000000L // 2021-12-20 10:26:40 UTC
-        val updatedMillis = 1640100000000L // 2021-12-21 14:00:00 UTC
+        val createdMillis = 1640000000000L  // 2021-12-20 10:26:40 UTC
+        val updatedMillis = 1640100000000L  // 2021-12-21 14:00:00 UTC
 
         val original = AnnotationEntity(
             id = "uuid-time",

@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudLinkDao
-import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.models.AudioIdentity
+import com.riffle.core.domain.AudioIdentityResolver
 
 /**
  * Resolves the canonical audio-settings key (ADR 0040): if any ABS item linked to the readaloud

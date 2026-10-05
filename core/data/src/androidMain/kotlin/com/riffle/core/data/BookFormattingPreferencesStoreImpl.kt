@@ -4,9 +4,10 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.models.ScreenDimensionBucket
 
 // Formatting is per-device, keyed by (sourceId, itemId, screenDimensionBucket). sourceId
 // prevents colliding item ids across Sources from sharing one row (ADR 0031); screenDimensionBucket

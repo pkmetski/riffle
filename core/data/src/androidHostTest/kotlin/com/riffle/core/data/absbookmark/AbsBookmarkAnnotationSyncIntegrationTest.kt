@@ -5,6 +5,7 @@ import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.createDefaultHttpClient
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -212,9 +213,7 @@ private class FakeAbsHandler : Dispatcher() {
     var deleteReturns404OnMiss: Boolean = false
 
     fun bookmarksFor(itemId: String): List<Bookmark> = state.filter { it.libraryItemId == itemId }
-    fun clear(itemId: String) {
-        state.removeAll { it.libraryItemId == itemId }
-    }
+    fun clear(itemId: String) { state.removeAll { it.libraryItemId == itemId } }
     fun addForeign(itemId: String, timeSec: Int, title: String) {
         state.add(Bookmark(itemId, timeSec, title, createdAt = 0L))
     }
@@ -251,21 +250,16 @@ private class FakeAbsHandler : Dispatcher() {
         // (see AbsMeBookmarksResponse). Real ABS actually returns a much larger user object;
         // ignoreUnknownKeys means we only need the `bookmarks` field to satisfy the client.
         val body = buildJsonObject {
-            put(
-                "bookmarks",
-                buildJsonArray {
-                    for (bm in state) {
-                        add(
-                            buildJsonObject {
-                                put("libraryItemId", bm.libraryItemId)
-                                put("title", bm.title)
-                                put("time", bm.timeSec)
-                                put("createdAt", bm.createdAt)
-                            }
-                        )
-                    }
+            put("bookmarks", buildJsonArray {
+                for (bm in state) {
+                    add(buildJsonObject {
+                        put("libraryItemId", bm.libraryItemId)
+                        put("title", bm.title)
+                        put("time", bm.timeSec)
+                        put("createdAt", bm.createdAt)
+                    })
                 }
-            )
+            })
         }.toString()
         return MockResponse().setResponseCode(200)
             .setHeader("Content-Type", "application/json")

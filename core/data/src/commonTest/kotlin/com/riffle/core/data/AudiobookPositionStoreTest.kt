@@ -3,18 +3,16 @@ package com.riffle.core.data
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.AudiobookPositionEntity
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.Test
 
 class AudiobookPositionStoreTest {
 
     private class FakeAudiobookPositionDao : AudiobookPositionDao {
         private val entities: MutableMap<Pair<String, String>, AudiobookPositionEntity> = mutableMapOf()
         val store: Map<Pair<String, String>, AudiobookPositionEntity> get() = entities
-        fun seed(entity: AudiobookPositionEntity) {
-            entities[entity.sourceId to entity.itemId] = entity
-        }
+        fun seed(entity: AudiobookPositionEntity) { entities[entity.sourceId to entity.itemId] = entity }
         override suspend fun upsert(entity: AudiobookPositionEntity) {
             entities[entity.sourceId to entity.itemId] = entity
         }

@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -538,17 +540,23 @@ class ReadaloudMatchingServiceTest {
 
     /** Simulates the race where the source is deleted between the read and the upsert. */
     private class FKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
-        override suspend fun upsert(entity: ReadaloudLinkEntity): Unit = throw SQLiteConstraintException("FOREIGN KEY constraint failed (code 787)")
+        override suspend fun upsert(entity: ReadaloudLinkEntity) {
+            throw SQLiteConstraintException("FOREIGN KEY constraint failed (code 787)")
+        }
     }
 
     /** Same race but via the generic driver path (Room 2.8.4+ / SQLDelight). */
     private class AndroidXFKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
-        override suspend fun upsert(entity: ReadaloudLinkEntity): Unit = throw SQLiteDriverException("Error code: 787, message: FOREIGN KEY constraint failed")
+        override suspend fun upsert(entity: ReadaloudLinkEntity) {
+            throw SQLiteDriverException("Error code: 787, message: FOREIGN KEY constraint failed")
+        }
     }
 
     /** Driver error that is NOT a constraint violation (e.g. SQLITE_FULL = code 13). */
     private class NonConstraintSQLiteFailingLinkDao : RecordingReadaloudLinkDao() {
-        override suspend fun upsert(entity: ReadaloudLinkEntity): Unit = throw SQLiteDriverException("Error code: 13, message: database or disk is full")
+        override suspend fun upsert(entity: ReadaloudLinkEntity) {
+            throw SQLiteDriverException("Error code: 13, message: database or disk is full")
+        }
     }
 
     private open class RecordingReadaloudLinkDao : ReadaloudLinkDao {
@@ -593,21 +601,12 @@ class ReadaloudMatchingServiceTest {
         /** Final persisted candidate state after a reconcile pass. */
         val rows: List<ReadaloudCandidateEntity> get() = store.toList()
 
-        fun seed(entity: ReadaloudCandidateEntity) {
-            store += entity
-        }
+        fun seed(entity: ReadaloudCandidateEntity) { store += entity }
 
-        override suspend fun upsert(entity: ReadaloudCandidateEntity) {
-            store += entity
-        }
-        override suspend fun upsertAll(entities: List<ReadaloudCandidateEntity>) {
-            store += entities
-        }
+        override suspend fun upsert(entity: ReadaloudCandidateEntity) { store += entity }
+        override suspend fun upsertAll(entities: List<ReadaloudCandidateEntity>) { store += entities }
         override suspend fun allRows(): List<ReadaloudCandidateEntity> = store.toList()
-        override suspend fun clearAll() {
-            clearAllCalled = true
-            store.clear()
-        }
+        override suspend fun clearAll() { clearAllCalled = true; store.clear() }
         override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(store.toList())
         override fun observeForStorytellerSource(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>> =
             flowOf(store.filter { it.storytellerSourceId == storytellerSourceId })
@@ -616,10 +615,8 @@ class ReadaloudMatchingServiceTest {
         }
         override suspend fun deleteCandidate(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) {
             store.removeAll {
-                it.storytellerSourceId == storytellerSourceId &&
-                    it.storytellerBookId == storytellerBookId &&
-                    it.absSourceId == absSourceId &&
-                    it.absLibraryItemId == absLibraryItemId
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
+                    it.absSourceId == absSourceId && it.absLibraryItemId == absLibraryItemId
             }
         }
     }
@@ -637,23 +634,19 @@ class ReadaloudMatchingServiceTest {
             )
         }
 
-        override suspend fun upsert(entity: ReadaloudDismissalEntity) {
-            store += entity
-        }
+        override suspend fun upsert(entity: ReadaloudDismissalEntity) { store += entity }
         override suspend fun allRows(): List<ReadaloudDismissalEntity> = store.toList()
         override fun observeAll(): Flow<List<ReadaloudDismissalEntity>> = flowOf(store.toList())
         override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudDismissalEntity> =
             store.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         override suspend fun isBookDismissed(storytellerSourceId: String, storytellerBookId: String): Boolean =
             store.any {
-                it.storytellerSourceId == storytellerSourceId &&
-                    it.storytellerBookId == storytellerBookId &&
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
                     it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
             }
         override suspend fun clearBookDismissal(storytellerSourceId: String, storytellerBookId: String) {
             store.removeAll {
-                it.storytellerSourceId == storytellerSourceId &&
-                    it.storytellerBookId == storytellerBookId &&
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
                     it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
             }
         }

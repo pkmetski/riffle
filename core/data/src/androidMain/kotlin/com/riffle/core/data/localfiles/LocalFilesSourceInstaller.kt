@@ -3,9 +3,9 @@ package com.riffle.core.data.localfiles
 import android.net.Uri
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.models.SourceType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
-import com.riffle.core.models.SourceType
 import java.util.UUID
 
 /**

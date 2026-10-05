@@ -4,13 +4,15 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
+import io.ktor.utils.io.ByteReadChannel
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
-import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
@@ -18,8 +20,10 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
-import com.riffle.core.models.SourceType
-import io.ktor.utils.io.ByteReadChannel
+import java.io.File
+import java.io.InputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -28,10 +32,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
-import java.io.InputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 class CbzRepositoryImplCorruptionTest {
 
@@ -62,9 +62,7 @@ class CbzRepositoryImplCorruptionTest {
         override fun get(sourceId: String, itemId: String): File? = file
         override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File =
             throw UnsupportedOperationException()
-        override fun delete(sourceId: String, itemId: String) {
-            deleted = true
-        }
+        override fun delete(sourceId: String, itemId: String) { deleted = true }
         override fun deleteSource(sourceId: String) {}
         override fun clear() {}
         override fun listItems() = emptyList<com.riffle.core.domain.StoredItemRef>()
@@ -165,9 +163,7 @@ class CbzRepositoryImplCorruptionTest {
             override fun get(sourceId: String, itemId: String): File? = null
             override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File =
                 throw RuntimeException("network cut")
-            override fun delete(sourceId: String, itemId: String) {
-                deleted = true
-            }
+            override fun delete(sourceId: String, itemId: String) { deleted = true }
             override fun deleteSource(sourceId: String) {}
             override fun clear() {}
             override fun listItems() = emptyList<com.riffle.core.domain.StoredItemRef>()

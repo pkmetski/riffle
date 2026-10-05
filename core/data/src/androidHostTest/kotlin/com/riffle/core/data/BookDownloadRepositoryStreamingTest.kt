@@ -4,8 +4,10 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
+import io.ktor.utils.io.ByteReadChannel
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
@@ -18,7 +20,6 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest

@@ -3,11 +3,11 @@ package com.riffle.core.data
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class ReadingPositionStoreTest {
 
@@ -18,9 +18,7 @@ class ReadingPositionStoreTest {
     private class FakeReadingPositionDao : ReadingPositionDao {
         private val entities: MutableMap<Pair<String, String>, ReadingPositionEntity> = mutableMapOf()
         val store: Map<Pair<String, String>, ReadingPositionEntity> get() = entities
-        fun seed(entity: ReadingPositionEntity) {
-            entities[entity.sourceId to entity.itemId] = entity
-        }
+        fun seed(entity: ReadingPositionEntity) { entities[entity.sourceId to entity.itemId] = entity }
         override suspend fun upsert(entity: ReadingPositionEntity) {
             entities[entity.sourceId to entity.itemId] = entity
         }

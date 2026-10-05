@@ -2,6 +2,8 @@ package com.riffle.core.data.comic
 
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.comic.ComicPageSource
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -9,8 +11,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * [ComicPageSource] backed by on-demand network fetches via [CbzRepository]. Used during the

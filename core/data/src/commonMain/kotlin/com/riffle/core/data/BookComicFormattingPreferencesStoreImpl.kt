@@ -22,10 +22,7 @@ class BookComicFormattingPreferencesStoreImpl constructor(
     }
 
     override suspend fun save(bookId: String, overrides: BookComicFormattingOverrides) {
-        if (overrides.isEmpty()) {
-            reset(bookId)
-            return
-        }
+        if (overrides.isEmpty()) { reset(bookId); return }
         val (sourceId, itemId) = bookId.split("::", limit = 2)
         dao.upsert(
             BookComicFormattingPreferencesEntity(

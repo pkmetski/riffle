@@ -4,27 +4,28 @@ import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -57,9 +58,7 @@ class MarkUnreadServerResetTest {
     /** Stateful ABS emulation — mirrors the live-verified `/api/me/progress/:id` PATCH semantics. */
     private class StatefulAbsApi(private var clock: Long = 1_000L) : AbsSessionApi {
         val records = mutableMapOf<String, Record>()
-        fun seed(itemId: String, r: Record) {
-            records[itemId] = r
-        }
+        fun seed(itemId: String, r: Record) { records[itemId] = r }
         private fun rec(itemId: String) = records.getOrPut(itemId) { Record() }
 
         override suspend fun syncEbookProgress(
@@ -70,15 +69,8 @@ class MarkUnreadServerResetTest {
             r.ebookLocation = payload.ebookLocation
             r.ebookProgress = payload.ebookProgress
             when (payload.isFinished) {
-                true -> {
-                    r.isFinished = true
-                    r.progress = 1.0
-                }
-                false -> {
-                    r.isFinished = false
-                    r.progress = 0.0
-                    r.currentTime = 0.0
-                }
+                true -> { r.isFinished = true; r.progress = 1.0 }
+                false -> { r.isFinished = false; r.progress = 0.0; r.currentTime = 0.0 }
                 null -> {}
             }
             r.lastUpdate = ++clock

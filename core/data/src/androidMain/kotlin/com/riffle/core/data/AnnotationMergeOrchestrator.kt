@@ -1,15 +1,15 @@
 package com.riffle.core.data
 
-import com.riffle.core.data.toFailedCycleOutcome
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
-import com.riffle.core.models.EmbeddedFigure
-import com.riffle.core.models.W3CAnnotation
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
+import com.riffle.core.data.toFailedCycleOutcome
+import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.W3CAnnotation
 
 /**
  * Owns the read-list → merge → upsert path executed on book-open and reused by the live-sync
@@ -207,14 +207,11 @@ internal class AnnotationMergeOrchestrator(
         return remote.map { r ->
             val key = figureMatchKey(r)
             val l = localByKey[key]
-            if (l == null) {
-                r
-            } else {
-                r.copy(
-                    imageBytes = r.imageBytes ?: l.imageBytes,
-                    charOffset = r.charOffset ?: l.charOffset,
-                )
-            }
+            if (l == null) r
+            else r.copy(
+                imageBytes = r.imageBytes ?: l.imageBytes,
+                charOffset = r.charOffset ?: l.charOffset,
+            )
         }
     }
 

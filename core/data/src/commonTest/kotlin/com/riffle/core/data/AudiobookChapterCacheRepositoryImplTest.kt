@@ -13,21 +13,21 @@ import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
-import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.domain.TestClock
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.core.domain.TestClock
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class AudiobookChapterCacheRepositoryImplTest {
 
@@ -226,12 +226,10 @@ class AudiobookChapterCacheRepositoryImplTest {
     @Test
     fun `fetchAndCacheChapters round-trips through getCachedChapters`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
-        val catalog = FakeCatalog(
-            listOf(
-                CatalogAudiobookChapter(0, 0.0, 300.0, "Prologue"),
-                CatalogAudiobookChapter(1, 300.0, 900.0, "Chapter 1"),
-            )
-        )
+        val catalog = FakeCatalog(listOf(
+            CatalogAudiobookChapter(0, 0.0, 300.0, "Prologue"),
+            CatalogAudiobookChapter(1, 300.0, 900.0, "Chapter 1"),
+        ))
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog), TestClock(NOW_MS))
 
         repo.fetchAndCacheChapters("srv", "item")

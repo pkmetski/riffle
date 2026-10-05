@@ -2,23 +2,23 @@ package com.riffle.core.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppThemeReaderThemes
-import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
-import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.core.domain.AutoReaderThemeMode
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.riffle.core.domain.LocalMinuteTime
 
 class FormattingPreferencesStoreImpl constructor(
     private val dataStore: DataStore<Preferences>,

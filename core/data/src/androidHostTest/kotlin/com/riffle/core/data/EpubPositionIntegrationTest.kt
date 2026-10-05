@@ -1,17 +1,21 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
-import com.riffle.core.domain.DefaultDispatcherProvider
-import com.riffle.core.domain.EpubOpenResult
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
+import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.TokenStorage
+import com.riffle.core.network.AbsApiClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
@@ -22,6 +26,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.IOException
 
 /**
  * Integration test: CFI persistence round-trip.
@@ -173,13 +178,7 @@ class EpubPositionIntegrationTest {
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeSource2, source1))
             override suspend fun getActive(): Source = activeSource2
             override suspend fun getById(sourceId: String): Source? =
-                if (sourceId == "source-1") {
-                    source1
-                } else if (sourceId == "source-2") {
-                    activeSource2
-                } else {
-                    null
-                }
+                if (sourceId == "source-1") source1 else if (sourceId == "source-2") activeSource2 else null
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
                 throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) = Unit

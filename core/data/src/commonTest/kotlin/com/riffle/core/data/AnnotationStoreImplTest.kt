@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.DirtySourceItem
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.DeviceIdStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,9 +11,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 private const val TEST_FONT = "Georgia, serif"
 
@@ -43,11 +43,8 @@ class AnnotationStoreImplTest {
             imageHref: String?,
             imageSvg: String?,
         ): AnnotationEntity? = rows.value.firstOrNull {
-            it.sourceId == sourceId &&
-                it.itemId == itemId &&
-                it.chapterHref == chapterHref &&
-                it.type == AnnotationEntity.TYPE_IMAGE &&
-                !it.deleted &&
+            it.sourceId == sourceId && it.itemId == itemId && it.chapterHref == chapterHref &&
+                it.type == AnnotationEntity.TYPE_IMAGE && !it.deleted &&
                 (imageHref == null || it.imageHref == imageHref) &&
                 (imageSvg == null || it.imageSvg == imageSvg)
         }
@@ -63,29 +60,21 @@ class AnnotationStoreImplTest {
 
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) {
-                    it.copy(
-                        deleted = true,
-                        updatedAt = maxOf(it.updatedAt + 1, updatedAt),
-                        lastModifiedByDeviceId = deviceId,
-                    )
-                } else {
-                    it
-                }
+                if (it.id == id) it.copy(
+                    deleted = true,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
         override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) {
-                    it.copy(
-                        color = color,
-                        updatedAt = maxOf(it.updatedAt + 1, updatedAt),
-                        lastModifiedByDeviceId = deviceId,
-                    )
-                } else {
-                    it
-                }
+                if (it.id == id) it.copy(
+                    color = color,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
@@ -105,9 +94,7 @@ class AnnotationStoreImplTest {
                         updatedAt = updatedAt,
                         lastModifiedByDeviceId = deviceId,
                     )
-                } else {
-                    row
-                }
+                } else row
             }
             return updated
         }
@@ -121,17 +108,14 @@ class AnnotationStoreImplTest {
             deviceId: String,
         ): Int = 0
 
+
         override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) {
-                    it.copy(
-                        note = note,
-                        updatedAt = maxOf(it.updatedAt + 1, updatedAt),
-                        lastModifiedByDeviceId = deviceId,
-                    )
-                } else {
-                    it
-                }
+                if (it.id == id) it.copy(
+                    note = note,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
@@ -143,15 +127,11 @@ class AnnotationStoreImplTest {
 
         override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) {
-                    it.copy(
-                        bookmarkTitle = title,
-                        updatedAt = maxOf(it.updatedAt + 1, updatedAt),
-                        lastModifiedByDeviceId = deviceId,
-                    )
-                } else {
-                    it
-                }
+                if (it.id == id) it.copy(
+                    bookmarkTitle = title,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
@@ -193,9 +173,7 @@ class AnnotationStoreImplTest {
                         updatedAt = maxOf(it.updatedAt + 1, updatedAt),
                         lastModifiedByDeviceId = deviceId,
                     )
-                } else {
-                    it
-                }
+                } else it
             }
             return updated
         }
@@ -555,38 +533,28 @@ class AnnotationStoreImplTest {
         )
         val s = storeWithUniqueIds()
         // Insert out-of-order
-        s.createHighlight(
-            "abs1", "item1", "cfi1", "text", "ch3.xhtml",
-            textBefore = "", textAfter = "", originFontFamily = TEST_FONT
-        )
+        s.createHighlight("abs1", "item1", "cfi1", "text", "ch3.xhtml",
+            textBefore = "", textAfter = "", originFontFamily = TEST_FONT)
             .also { rows.value = rows.value.map { e -> if (e.id == it.id) e.copy(spineIndex = 2, progression = 0.1) else e } }
-        s.createBookmark(
-            "abs1", "item1", "cfi2", "", "ch1.xhtml",
-            spineIndex = 0, progression = 0.9, bookmarkTitle = "bm1", originFontFamily = TEST_FONT
-        )
-        s.createHighlight(
-            "abs1", "item1", "cfi3", "text2", "ch1.xhtml",
-            textBefore = "", textAfter = "", originFontFamily = TEST_FONT
-        )
+        s.createBookmark("abs1", "item1", "cfi2", "", "ch1.xhtml",
+            spineIndex = 0, progression = 0.9, bookmarkTitle = "bm1", originFontFamily = TEST_FONT)
+        s.createHighlight("abs1", "item1", "cfi3", "text2", "ch1.xhtml",
+            textBefore = "", textAfter = "", originFontFamily = TEST_FONT)
             .also { rows.value = rows.value.map { e -> if (e.id == it.id) e.copy(spineIndex = 0, progression = 0.2) else e } }
 
         val result = storeWithUniqueIds().observeAnnotations("abs1", "item1").first()
         // ch1 progression=0.2, ch1 progression=0.9, ch3 progression=0.1
         assertEquals(3, result.size)
-        assertEquals(0, result[0].spineIndex)
-        assertEquals(0.2, result[0].progression, 0.001)
-        assertEquals(0, result[1].spineIndex)
-        assertEquals(0.9, result[1].progression, 0.001)
+        assertEquals(0, result[0].spineIndex); assertEquals(0.2, result[0].progression, 0.001)
+        assertEquals(0, result[1].spineIndex); assertEquals(0.9, result[1].progression, 0.001)
         assertEquals(2, result[2].spineIndex)
     }
 
     @Test
     fun `observeAnnotations excludes tombstoned annotations`() = runTest {
         val s = store()
-        val bm = s.createBookmark(
-            "abs1", "item1", "cfi", "", "ch.xhtml",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "x", originFontFamily = TEST_FONT
-        )
+        val bm = s.createBookmark("abs1", "item1", "cfi", "", "ch.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "x", originFontFamily = TEST_FONT)
         s.delete(bm.id)
         val result = s.observeAnnotations("abs1", "item1").first()
         assertTrue(result.isEmpty())
@@ -615,8 +583,7 @@ class AnnotationStoreImplTest {
         )
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = "images/g.png", imageSvg = null,
-        )
+            imageHref = "images/g.png", imageSvg = null,)
         assertEquals(created.id, found?.id)
     }
 
@@ -631,8 +598,7 @@ class AnnotationStoreImplTest {
         )
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = null, imageSvg = "<svg><rect/></svg>",
-        )
+            imageHref = null, imageSvg = "<svg><rect/></svg>",)
         assertEquals(created.id, found?.id)
     }
 
@@ -647,8 +613,7 @@ class AnnotationStoreImplTest {
         )
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = "images/other.png", imageSvg = null,
-        )
+            imageHref = "images/other.png", imageSvg = null,)
         assertNull(found)
     }
 
@@ -664,8 +629,7 @@ class AnnotationStoreImplTest {
         s.delete(created.id)
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = "images/g.png", imageSvg = null,
-        )
+            imageHref = "images/g.png", imageSvg = null,)
         assertNull(found)
     }
 }

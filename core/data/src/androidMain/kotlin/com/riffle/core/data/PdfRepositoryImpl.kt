@@ -2,17 +2,17 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
-import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
+import com.riffle.core.domain.JvmPdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.LibraryItem
 import java.io.File
 
 class PdfRepositoryImpl(

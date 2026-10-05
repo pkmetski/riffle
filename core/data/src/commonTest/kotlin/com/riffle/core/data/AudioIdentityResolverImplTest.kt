@@ -8,8 +8,8 @@ import com.riffle.core.models.AudioIdentity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class AudioIdentityResolverImplTest {
 
@@ -52,12 +52,8 @@ class AudioIdentityResolverImplTest {
     private class FakeLinkDao : ReadaloudLinkDao {
         override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()
-        fun seed(e: ReadaloudLinkEntity) {
-            store[e.absSourceId to e.absLibraryItemId] = e
-        }
-        override suspend fun upsert(entity: ReadaloudLinkEntity) {
-            store[entity.absSourceId to entity.absLibraryItemId] = entity
-        }
+        fun seed(e: ReadaloudLinkEntity) { store[e.absSourceId to e.absLibraryItemId] = e }
+        override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absSourceId to entity.absLibraryItemId] = entity }
         override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = store[absSourceId to absLibraryItemId]
         override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
             store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
@@ -65,9 +61,7 @@ class AudioIdentityResolverImplTest {
         override suspend fun allRows() = store.values.toList()
         override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
         override suspend fun countForSource(sourceId: String) = 0
-        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) {
-            store.remove(absSourceId to absLibraryItemId)
-        }
+        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) { store.remove(absSourceId to absLibraryItemId) }
         override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
             store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
                 .forEach { store.remove(it.absSourceId to it.absLibraryItemId) }
@@ -76,9 +70,7 @@ class AudioIdentityResolverImplTest {
 
     private class FakeLibraryItemDao : LibraryItemDao by ThrowingLibraryItemDao {
         private val items = mutableMapOf<Pair<String, String>, LibraryItemEntity>()
-        fun seed(e: LibraryItemEntity) {
-            items[e.sourceId to e.id] = e
-        }
+        fun seed(e: LibraryItemEntity) { items[e.sourceId to e.id] = e }
         override suspend fun getById(sourceId: String, itemId: String) = items[sourceId to itemId]
     }
 }

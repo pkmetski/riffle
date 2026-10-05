@@ -2,9 +2,9 @@ package com.riffle.core.data.comic.panel
 
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelStore
+import java.io.File
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.io.File
 
 /**
  * On-disk [PanelStore] — one JSON file per book, holding a list of [PagePanels]. Reads and writes
@@ -22,10 +22,7 @@ class JsonPanelStore constructor(
     private val rootDir: File,
 ) : PanelStore {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = false
-    }
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
     init {
         rootDir.mkdirs()

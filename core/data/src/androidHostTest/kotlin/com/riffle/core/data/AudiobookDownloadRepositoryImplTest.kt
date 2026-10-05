@@ -9,14 +9,16 @@ import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.network.createStreamingHttpClient
+import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.mockwebserver.MockResponse
@@ -28,8 +30,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
-import java.util.concurrent.TimeUnit
 
 class AudiobookDownloadRepositoryImplTest {
 
@@ -136,7 +136,9 @@ class AudiobookDownloadRepositoryImplTest {
         val cacheRoot = tmp.newFolder("cache")
         writeDownload(cacheRoot)
         val source = object : AudiobookRepository {
-            override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession? = throw AssertionError("cached audiobook promotion must not open a network session")
+            override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession? {
+                throw AssertionError("cached audiobook promotion must not open a network session")
+            }
             override suspend fun saveProgress(
                 sourceId: String,
                 itemId: String,
