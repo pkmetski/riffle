@@ -4172,10 +4172,8 @@ internal fun highlightsAnnotationToRender(
  * whatever title string it's given verbatim (see [HighlightsPublicationFactoryTest]'s docstring);
  * this is where the actual fallback is computed. `internal` so it's unit-testable from `app:test`.
  */
-internal fun deriveChapterTitle(href: String): String {
-    val name = href.substringAfterLast('/').substringBeforeLast('.')
-    return name.ifBlank { "Chapter" }
-}
+internal fun deriveChapterTitle(href: String): String =
+    com.riffle.feature.reader.highlights.deriveChapterTitle(href)
 
 /**
  * Elided-reader chapter heading, in priority order (ADR 0048 follow-up):
@@ -4275,24 +4273,8 @@ internal fun joinEmphasisStylesToHighlights(rows: List<AnnotationEntity>): List<
     }
 }
 
-internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
-    val live = rows
-        .filter { (it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE) && !it.deleted }
-        .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }))
-
-    val byHref = LinkedHashMap<String, MutableList<AnnotationEntity>>()
-    for (row in live) {
-        byHref.getOrPut(row.chapterHref) { mutableListOf() }.add(row)
-    }
-
-    return byHref.entries.map { (href, highlights) ->
-        ChapterElision(
-            href = href,
-            title = deriveChapterTitle(href),
-            highlights = highlights,
-        )
-    }
-}
+internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> =
+    com.riffle.feature.reader.highlights.buildChapterElisions(rows)
 
 /**
  * Resumes to chapter-level precision only (Task 10, ADR 0048): the synthesised Publication's

@@ -88,6 +88,8 @@ import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
+import com.riffle.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.highlights.buildChapterElisionsFromAnnotations
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toReadiumTextStyling
@@ -114,6 +116,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
@@ -129,7 +132,11 @@ import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
-actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
+actual fun EpubReaderScreen(
+    item: LibraryItem,
+    onBack: () -> Unit,
+    source: ReaderSource,
+) {
     KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()
     val downloader = koinInject<IosEpubDownloader>()
@@ -242,6 +249,22 @@ actual fun EpubReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 
     LaunchedEffect(item.id) {
+        if (source == ReaderSource.Highlights) {
+            // Elided Annotations View: build a synthetic EPUB from the book's highlights and
+            // open it from a temp directory. No position restore — always opens at the start.
+            val annotations = annotationStore.observeAnnotations(item.sourceId, item.id).first()
+            val chapters = buildChapterElisionsFromAnnotations(annotations)
+            val dirPath = IosElidedEpubAssembler.assemble(item, chapters)
+            if (dirPath == null) {
+                loadError = "No highlights to show"
+                return@LaunchedEffect
+            }
+            navigator.openSyntheticEpub(dirPath, null)
+            coordinator.start()
+            localPath = dirPath
+            return@LaunchedEffect
+        }
+
         val savedLocator = positionStore.load(item.sourceId, item.id)
 
         val cap = catalogRegistry.forSourceId(item.sourceId) as? LazyPublicationCapability

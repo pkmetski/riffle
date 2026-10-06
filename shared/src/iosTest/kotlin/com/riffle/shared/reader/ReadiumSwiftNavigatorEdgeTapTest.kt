@@ -39,6 +39,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
 
         override fun viewController(): UIViewController = UIViewController()
         override fun openEpub(filePath: String, locatorJson: String?) = Unit
+        override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goToLocator(locatorJson: String) = Unit
         override fun snapshotLocatorJson(): String? = null
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit

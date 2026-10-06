@@ -167,6 +167,12 @@ class ReadiumSwiftNavigator(
         bridge.openLazyEpub(shapeJson, locatorJson, fetcher)
     }
 
+    /** Open a synthetic exploded EPUB directory built by [IosElidedEpubAssembler]. */
+    fun openSyntheticEpub(dirPath: String, locatorJson: LocatorJson?) {
+        registerBridgeCallbacks()
+        bridge.openSyntheticEpub(dirPath, locatorJson)
+    }
+
     override fun close() {
         bridge.setLocatorCallback(null)
         bridge.setPageLoadCallback(null)
@@ -263,7 +269,9 @@ class ReadiumSwiftNavigator(
         return "[$items]"
     }
 
-    override suspend fun applyHighlightDomPatch(patchJson: String) {}
+    override suspend fun applyHighlightDomPatch(patchJson: String) {
+        evaluateJs(patchJson)
+    }
 
     override suspend fun followReadaloudSentence(text: String): NavigatorFollowResult =
         NavigatorFollowResult.Unavailable

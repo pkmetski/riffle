@@ -39,6 +39,7 @@ class ReadiumSwiftNavigatorFootnoteTest {
 
         override fun viewController(): UIViewController = UIViewController()
         override fun openEpub(filePath: String, locatorJson: String?) = Unit
+        override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goForward() = Unit
         override fun goBackward() = Unit
         override fun goToLocator(locatorJson: String) = Unit
@@ -87,7 +88,9 @@ class ReadiumSwiftNavigatorFootnoteTest {
 
         navigator.close()
 
-        kotlin.test.assertNull(bridge.footnoteCallback,
-            "close() must clear the footnote callback to prevent leaks")
+        kotlin.test.assertNull(
+            bridge.footnoteCallback,
+            "close() must clear the footnote callback to prevent leaks"
+        )
     }
 }
