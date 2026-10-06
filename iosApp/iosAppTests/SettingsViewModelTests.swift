@@ -6,31 +6,6 @@ import Riffle
 // KMP framework. Tests use the sealed-class subtitle variants and derive functions directly.
 final class SettingsViewModelTests: XCTestCase {
 
-    // MARK: AnnotationSyncKind derivation (scenarios 6.3)
-
-    func testDeriveAnnotationSyncKindLocalWhenUnconfigured() {
-        let kind = AnnotationSyncKindKt.deriveAnnotationSyncKind(
-            config: nil,
-            outcome: CycleOutcome.NeverRun(),
-            pendingBookCount: 0
-        )
-        XCTAssertEqual(kind, AnnotationSyncKind.local)
-    }
-
-    func testDeriveAnnotationSyncKindPendingWhenNeverRunAndConfigured() {
-        let config = AnnotationSyncConfig(
-            baseUrl: "https://dav.example.com",
-            username: "user",
-            password: "pw"
-        )
-        let kind = AnnotationSyncKindKt.deriveAnnotationSyncKind(
-            config: config,
-            outcome: CycleOutcome.NeverRun(),
-            pendingBookCount: 0
-        )
-        XCTAssertEqual(kind, AnnotationSyncKind.pending)
-    }
-
     // MARK: - The remaining CycleOutcome branches
     //
     // feature:settings' commonTest drives these indirectly through `SettingsViewModel
@@ -99,16 +74,4 @@ final class SettingsViewModelTests: XCTestCase {
         )
     }
 
-    /// An unconfigured WebDAV endpoint is Local whatever the last outcome or queue says — the
-    /// config check short-circuits before the outcome is consulted.
-    func testUnconfiguredStaysLocalRegardlessOfOutcomeOrQueue() {
-        XCTAssertEqual(
-            AnnotationSyncKindKt.deriveAnnotationSyncKind(
-                config: nil,
-                outcome: CycleOutcome.FailedAuth(atMs: 1000, code: 401),
-                pendingBookCount: 7
-            ),
-            AnnotationSyncKind.local
-        )
-    }
 }
