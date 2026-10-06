@@ -13,10 +13,11 @@ plugins {
 // platforms both draw for playlists, facet drill-ins and annotation search lives here; the
 // platform-bound hosting (Android's navigation graph, iOS's LibraryNav) stays where it is.
 //
-// Like :feature:reader-ui and :feature:player-ui, and unlike :feature:source-ui, this module
-// deliberately has no composeResources: every user-visible string is supplied by the host as a
-// [com.riffle.feature.library.ui.LibraryUiLabels], so Android keeps serving them from its own
-// `res/values*` (bg/es included) with no resource migration and no APK asset bridging.
+// Like :feature:source-ui, :feature:reader-ui and :feature:player-ui, this module has an
+// android+iOS topology so both hosts can render the same Compose screens. Strings are served via
+// composeResources (values/strings.xml + values-es/ + values-bg/) so both hosts use one set of
+// translations; the Android app also keeps its own res/values*/ copies for the Android-only
+// screens that still reference R.string.
 kotlin {
     android {
         namespace = "com.riffle.feature.library.ui"
@@ -56,6 +57,8 @@ kotlin {
             // forking a shared derivation, so this module reuses it rather than declaring a
             // second one. Both hosts already depend on :feature:reader-ui, so nothing new ships.
             implementation(project(":feature:reader-ui"))
+            // DownloadsScreen: LocalItemUi, DownloadsViewModel, LocalMediaType, formatBytes.
+            api(project(":feature:downloads"))
             implementation(libs.coil.compose)
             // NetworkHeaders/httpHeaders for the authenticated cover fetch on the
             // annotation-search rows. coil-network-core is the multiplatform half of the network
@@ -64,6 +67,8 @@ kotlin {
             implementation(libs.coil.network.core)
             implementation(libs.kotlinx.coroutines.core)
             api(libs.androidx.lifecycle.viewmodel)
+            // LibraryItemsScreen uses koinInject { parametersOf(...) } for its ViewModel defaults.
+            implementation(libs.koin.compose)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -98,6 +103,8 @@ tasks.withType<Test>().configureEach {
         excludeTestsMatching("com.riffle.feature.library.ui.PlaylistSurfaceRenderTest")
         excludeTestsMatching("com.riffle.feature.library.ui.FilteredBooksRenderTest")
         excludeTestsMatching("com.riffle.feature.library.ui.AnnotationSearchResultsRenderTest")
+        excludeTestsMatching("com.riffle.feature.library.ui.LibraryTabContentTest")
+        excludeTestsMatching("com.riffle.feature.library.ui.DownloadsConfirmationTest")
         isFailOnNoMatchingTests = false
     }
 }

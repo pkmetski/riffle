@@ -1,4 +1,4 @@
-package com.riffle.shared.library
+package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,7 +45,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -98,8 +97,6 @@ import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
-import com.riffle.feature.library.ui.PlaylistLabels
-import com.riffle.feature.library.ui.PlaylistsTabContent
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -227,7 +224,7 @@ fun LibraryItemsScreen(
  * is visible.
  */
 @Composable
-internal fun LibraryTabContent(
+fun LibraryTabContent(
     selectedTab: Int,
     projection: LibraryProjection,
     playlists: List<CatalogPlaylist>,
@@ -251,7 +248,10 @@ internal fun LibraryTabContent(
     onSearchAnnotations: (String) -> Unit,
 ) {
     when (selectedTab) {
-        0 -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        0 -> HomeTabContent(
+            projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded,
+            seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore,
+        )
         1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
@@ -275,7 +275,10 @@ internal fun LibraryTabContent(
             labels = PlaylistLabels.English,
             onPlaylistSelected = onPlaylistSelected,
         )
-        else -> HomeTabContent(projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded, seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore)
+        else -> HomeTabContent(
+            projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded,
+            seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore,
+        )
     }
 }
 
@@ -625,7 +628,12 @@ private fun AnnotationSearchField(onSearch: (String) -> Unit) {
 @Composable
 internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -> Unit) {
     val title = book.title ?: book.itemId
-    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = title }
+            .clickable(onClick = onClick),
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

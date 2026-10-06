@@ -1,4 +1,4 @@
-package com.riffle.shared.downloads
+package com.riffle.feature.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.downloads.DownloadsUiState
 import com.riffle.feature.downloads.LocalItemUi
 import com.riffle.feature.downloads.LocalMediaType
@@ -23,7 +24,7 @@ import kotlin.test.assertEquals
  * Android's counterpart is `app/src/main/.../downloads/DownloadsScreen.kt`'s own confirmation,
  * pinned by its harness coverage; this drives the shared screen on the iOS path.
  *
- * Runs as part of `:shared:iosSimulatorArm64Test`.
+ * Runs as part of `:feature:library-ui:iosSimulatorArm64Test`.
  */
 @OptIn(ExperimentalTestApi::class)
 class DownloadsConfirmationTest {
@@ -83,9 +84,9 @@ class DownloadsConfirmationTest {
                 onClearAllCached = {},
             )
         }
-        onNodeWithTag("DownloadsScreen.RemoveAllDownloads").assertIsDisplayed().performClick()
+        onNodeWithTag(TestTags.DOWNLOADS_REMOVE_ALL).assertIsDisplayed().performClick()
         assertEquals(0, removedAll, "the first tap must open a confirmation, not delete everything")
-        onNodeWithTag("DownloadsScreen.ConfirmRemoveAllDownloads").assertIsDisplayed().performClick()
+        onNodeWithTag(TestTags.DOWNLOADS_CONFIRM_REMOVE_ALL).assertIsDisplayed().performClick()
         assertEquals(1, removedAll)
     }
 
@@ -103,9 +104,9 @@ class DownloadsConfirmationTest {
                 onClearAllCached = { cleared++ },
             )
         }
-        onNodeWithTag("DownloadsScreen.ClearAllCached").performClick()
+        onNodeWithTag(TestTags.DOWNLOADS_CLEAR_CACHED).performClick()
         assertEquals(0, cleared)
-        onNodeWithTag("DownloadsScreen.ConfirmClearAllCached").performClick()
+        onNodeWithTag(TestTags.DOWNLOADS_CONFIRM_CLEAR_CACHED).performClick()
         assertEquals(1, cleared)
     }
 
@@ -122,7 +123,7 @@ class DownloadsConfirmationTest {
                 onClearAllCached = {},
             )
         }
-        onNodeWithTag("DownloadsScreen.ConfirmRemoveAllDownloads").assertDoesNotExist()
-        onNodeWithTag("DownloadsScreen.ConfirmClearAllCached").assertDoesNotExist()
+        onNodeWithTag(TestTags.DOWNLOADS_CONFIRM_REMOVE_ALL).assertDoesNotExist()
+        onNodeWithTag(TestTags.DOWNLOADS_CONFIRM_CLEAR_CACHED).assertDoesNotExist()
     }
 }

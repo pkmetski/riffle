@@ -39,10 +39,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(seeMoreTile.waitForExistence(timeout: 15), "Overflow '+N more' tile must be present")
         seeMoreTile.tap()
 
-        // BasicText+clickable in Compose maps to button trait on iOS; search all element types.
-        let backButton = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let backButton = app.descendants(matching: .any)
+            .matching(identifier: "library_section_back").firstMatch
         XCTAssertTrue(
             backButton.waitForExistence(timeout: 15),
             "Back button should appear after navigating into a section screen"
@@ -78,9 +76,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(seriesTile.isHittable, "Series tile must be hittable before tap")
         seriesTile.tap()
 
-        let backArrow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let backArrow = app.descendants(matching: .any)
+            .matching(identifier: "series_detail_back").firstMatch
         XCTAssertTrue(
             backArrow.waitForExistence(timeout: 15),
             "Series detail screen should show a back arrow"
@@ -114,9 +111,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(collectionTile.isHittable, "Collection tile must be hittable before tap")
         collectionTile.tap()
 
-        let backArrow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let backArrow = app.descendants(matching: .any)
+            .matching(identifier: "collection_detail_back").firstMatch
         XCTAssertTrue(
             backArrow.waitForExistence(timeout: 15),
             "Collection detail screen should show a back arrow"
@@ -148,9 +144,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(seriesTile2.isHittable, "Series tile must be hittable before tap")
         seriesTile2.tap()
 
-        let seriesDetailBack = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let seriesDetailBack = app.descendants(matching: .any)
+            .matching(identifier: "series_detail_back").firstMatch
         XCTAssertTrue(seriesDetailBack.waitForExistence(timeout: 15), "Series detail must open")
 
         let itemTile = app.buttons[StubAbsServer.testItemTitle].firstMatch
@@ -188,9 +183,8 @@ final class IosAppTests: AbsHarnessTestCase {
         XCTAssertTrue(collectionTile2.isHittable, "Collection tile must be hittable before tap")
         collectionTile2.tap()
 
-        let collectionDetailBack = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "←")
-        ).firstMatch
+        let collectionDetailBack = app.descendants(matching: .any)
+            .matching(identifier: "collection_detail_back").firstMatch
         XCTAssertTrue(collectionDetailBack.waitForExistence(timeout: 15), "Collection detail must open")
 
         let itemTile = app.buttons[StubAbsServer.testItemTitle].firstMatch

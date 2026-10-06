@@ -46,6 +46,9 @@ fun BookSectionGrid(
     onItemSelected: (LibraryItem) -> Unit,
     onSeeMore: (() -> Unit)? = null,
     showSeriesBadge: Boolean = false,
+    onItemLongPress: ((LibraryItem) -> Unit)? = null,
+    tokenMap: Map<String, String> = emptyMap(),
+    sourceBadgeProvider: ((LibraryItem) -> String?)? = null,
 ) {
     val minCell = shelfCoverMinCell()
     val spacing = 8.dp
@@ -64,12 +67,16 @@ fun BookSectionGrid(
             if (showSeeMore && index == preview.size) {
                 SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
             } else {
+                val item = preview[index]
+                val resolvedToken = tokenMap[item.sourceId] ?: token
                 BookCoverTile(
-                    item = preview[index],
-                    token = token,
-                    onClick = { onItemSelected(preview[index]) },
-                    hasReadaloudLink = preview[index].id in linkedItemIds,
-                    seriesNameBadge = if (showSeriesBadge) preview[index].seriesName else null,
+                    item = item,
+                    token = resolvedToken,
+                    onClick = { onItemSelected(item) },
+                    onLongClick = if (onItemLongPress != null) ({ onItemLongPress(item) }) else null,
+                    hasReadaloudLink = item.id in linkedItemIds,
+                    seriesNameBadge = if (showSeriesBadge) item.seriesName else null,
+                    sourceBadge = sourceBadgeProvider?.invoke(item),
                 )
             }
         }

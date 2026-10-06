@@ -1,4 +1,4 @@
-package com.riffle.shared.library
+package com.riffle.feature.library.ui
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

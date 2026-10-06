@@ -35,9 +35,9 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
-import com.riffle.shared.library.CoverGridZoomBox
+import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.shared.ScreenScopedViewModelHost
-import com.riffle.shared.library.LibraryTabContent
+import com.riffle.feature.library.ui.LibraryTabContent
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform

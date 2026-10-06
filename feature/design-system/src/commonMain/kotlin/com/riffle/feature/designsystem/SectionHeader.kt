@@ -48,6 +48,7 @@ fun SectionHeader(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     tag: String? = null,
+    actionTag: String? = null,
     contentPadding: PaddingValues = SectionHeaderPadding,
 ) {
     Row(
@@ -61,7 +62,10 @@ fun SectionHeader(
             modifier = if (tag != null) Modifier.testTag(tag) else Modifier,
         )
         if (actionLabel != null && onAction != null) {
-            TextButton(onClick = onAction) { Text(actionLabel) }
+            TextButton(
+                onClick = onAction,
+                modifier = if (actionTag != null) Modifier.testTag(actionTag) else Modifier,
+            ) { Text(actionLabel) }
         }
     }
 }

@@ -13,6 +13,8 @@ object TestTags {
     const val NAV_TAB_ANNOTATIONS = "nav_tab_annotations"
 
     // ── Library ───────────────────────────────────────────────────────────────
+    const val SERIES_DETAIL_BACK = "series_detail_back"
+    const val COLLECTION_DETAIL_BACK = "collection_detail_back"
     const val LIBRARY_SEARCH = "library_search"
     const val LIBRARY_FILTER = "library_filter"
     const val LIBRARY_SORT = "library_sort"
