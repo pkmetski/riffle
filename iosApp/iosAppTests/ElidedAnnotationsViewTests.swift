@@ -16,8 +16,8 @@ final class ElidedAnnotationsViewTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func fakeItem(id: String = "book1", title: String = "My Book") -> LibraryItem {
-        LibraryItem(
+    private func fakeItem(id: String = "book1", title: String = "My Book") -> Riffle.LibraryItem {
+        Riffle.LibraryItem(
             id: id,
             libraryId: "lib1",
             title: title,
