@@ -1,9 +1,7 @@
 package com.riffle.shared.library
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.hasAnyDescendant
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -174,7 +172,7 @@ class RiffleScreenReadRouteTest {
             )
         }
 
-        onNode(hasClickAction() and hasAnyDescendant(hasText("Hub Book")), useUnmergedTree = true).performClick()
+        onNodeWithContentDescription("Hub Book").performClick()
 
         assertEquals("source1", selectedSourceId, "Tapping an in-progress item must fire onItemSelected with the source ID")
         assertEquals("item1", selectedItemId, "Tapping an in-progress item must fire onItemSelected with the item ID")
@@ -195,7 +193,7 @@ class RiffleScreenReadRouteTest {
         }
 
         onNodeWithTag(TestTags.NAV_TAB_ANNOTATIONS).performClick()
-        onNode(hasClickAction() and hasAnyDescendant(hasText("Annotated Title")), useUnmergedTree = true).performClick()
+        onNodeWithContentDescription("Annotated Title").performClick()
 
         assertEquals("source1", selectedSourceId, "Tapping an annotated book must fire onAnnotatedBookClick with the source ID")
         assertEquals("item1", selectedItemId, "Tapping an annotated book must fire onAnnotatedBookClick with the item ID")

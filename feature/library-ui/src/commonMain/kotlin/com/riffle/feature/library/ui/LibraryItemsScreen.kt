@@ -628,7 +628,12 @@ private fun AnnotationSearchField(onSearch: (String) -> Unit) {
 @Composable
 internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -> Unit) {
     val title = book.title ?: book.itemId
-    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = title }
+            .clickable(onClick = onClick),
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
