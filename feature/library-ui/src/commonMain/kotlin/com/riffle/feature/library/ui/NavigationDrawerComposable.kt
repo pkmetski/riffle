@@ -65,10 +65,9 @@ import com.riffle.feature.library.ui.generated.resources.ui_drawer_riffle
 import com.riffle.feature.library.ui.generated.resources.ui_drawer_settings
 import com.riffle.feature.library.ui.generated.resources.ui_toggle_source_switcher
 import com.riffle.feature.source.ui.SourceIcon
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.source.ui.localizedSourceDisplayName
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
-import com.riffle.feature.source.ui.sourceDisplayName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
