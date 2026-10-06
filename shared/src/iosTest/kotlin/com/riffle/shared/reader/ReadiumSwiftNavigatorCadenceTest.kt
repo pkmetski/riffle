@@ -33,6 +33,7 @@ class ReadiumSwiftNavigatorCadenceTest {
 
         override fun viewController(): UIViewController = UIViewController()
         override fun openEpub(filePath: String, locatorJson: String?) = Unit
+        override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goForward() = Unit
         override fun goBackward() = Unit
         override fun goToLocator(locatorJson: String) = Unit

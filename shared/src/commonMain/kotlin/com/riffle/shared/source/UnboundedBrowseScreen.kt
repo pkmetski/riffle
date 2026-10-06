@@ -27,6 +27,8 @@ import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.tabIndexForAnnotations
+import com.riffle.feature.library.ui.CoverGridZoomBox
+import com.riffle.feature.library.ui.LibraryTabContent
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
@@ -35,9 +37,7 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseLibraryTabFor
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
-import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.shared.ScreenScopedViewModelHost
-import com.riffle.feature.library.ui.LibraryTabContent
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform

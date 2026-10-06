@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.highlights
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.feature.reader.highlights.ChapterElision
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -94,6 +94,36 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
+    func openSyntheticEpub(dirPath: String, locatorJson: String?) {
+        Task { @MainActor in
+            do {
+                guard let fileURL = FileURL(path: dirPath, isDirectory: true) else { return }
+
+                let httpClient = DefaultHTTPClient()
+                let assetRetriever = AssetRetriever(httpClient: httpClient)
+                let assetResult = await assetRetriever.retrieve(url: fileURL)
+                guard case .success(let asset) = assetResult else { return }
+
+                let opener = PublicationOpener(parser: CompositePublicationParser([EPUBParser()]))
+                let pubResult = await opener.open(asset: asset, allowUserInteraction: false)
+                guard case .success(let pub) = pubResult else { return }
+                self.publication = pub
+                self.prefetchToc(pub)
+                self.prefetchSpine(pub)
+
+                var initialLocator: Locator?
+                if let json = locatorJson,
+                   let jsonValue = try? JSONValue(jsonString: json) {
+                    initialLocator = try? Locator(json: jsonValue, warnings: nil)
+                }
+
+                try self.attach(publication: pub, initialLocator: initialLocator)
+            } catch {
+                // Ignore open errors — reader shows blank state
+            }
+        }
+    }
+
     /// Build the navigator, install it in the host controller and re-register every decoration
     /// group the Kotlin side asked to observe.
     ///

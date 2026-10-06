@@ -1,5 +1,9 @@
 package com.riffle.app.feature.reader.highlights
 
+import com.riffle.feature.reader.highlights.ELIDED_NOTE_ARIA_LABEL
+import com.riffle.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
+import com.riffle.feature.reader.highlights.HighlightsDomPatch
+import com.riffle.feature.reader.highlights.buildEmphasisInlineCss
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

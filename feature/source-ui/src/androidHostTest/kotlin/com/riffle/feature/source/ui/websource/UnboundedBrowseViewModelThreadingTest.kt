@@ -173,9 +173,10 @@ class UnboundedBrowseViewModelThreadingTest {
         // Wait until the compute dispatcher has settled: the catalog returns one item that is not
         // owned by any of the 50 server items, so filteredItems emits [catalogItem] once the
         // ownedItemIndex build completes on Dispatchers.Default.  StateFlow.first() returns the
-        // current value immediately — use the predicated form so we only proceed after the
-        // background pool has actually delivered a result.
-        vm.filteredItems.first { it.isNotEmpty() }
+        // current value immediately — require buildThreads.isNotEmpty() in the predicate so we
+        // only proceed once the background pool has *actually* run the map. Without this, the
+        // initial non-empty server-item list can satisfy it.isNotEmpty() before the index builds.
+        vm.filteredItems.first { it.isNotEmpty() && buildThreads.isNotEmpty() }
 
         val collectorThread = Thread.currentThread().name
         assertTrue("map inside ownedItemIndex never ran", buildThreads.isNotEmpty())

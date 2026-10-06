@@ -179,6 +179,19 @@ interface IosEpubNavigatorBridge {
     fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher)
 
     /**
+     * Open an exploded (unzipped) EPUB directory built by [IosElidedEpubAssembler].
+     *
+     * The elided Annotations View assembles a synthetic EPUB as a directory tree rather than a
+     * zip archive, because zipping from Kotlin/Native requires platform-specific compression code
+     * that is unnecessary here. Readium-Swift's [AssetRetriever] accepts a [FileURL] with
+     * [isDirectory: true] and routes it through the same EPUB parser as a zipped file.
+     *
+     * [dirPath] must be the absolute file-system path to the EPUB root directory
+     * (the one that contains `META-INF/container.xml`).
+     */
+    fun openSyntheticEpub(dirPath: String, locatorJson: String?)
+
+    /**
      * Apply formatting preferences to the Readium Swift navigator.
      *
      * Call before [openEpub]/[openLazyEpub] so the initial render uses the right settings, and

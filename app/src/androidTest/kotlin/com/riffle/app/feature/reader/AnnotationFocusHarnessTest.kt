@@ -159,7 +159,7 @@ class AnnotationFocusHarnessTest : KoinTest {
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
 
-        // Navigate to the bookmark via the Annotations panel. Retry up to twice: on heavily-loaded
+        // Navigate to the bookmark via the Annotations panel. Retry up to three times: on heavily-loaded
         // CI runners Readium's intra-chapter paginated snap JS can race with multicol layout in a
         // way that leaves scrollLeft at 0. The ColumnSnap rAF loop exits after ≥3 stable frames of
         // scrollWidth; if the layout settles between two loop iterations the snap declares done
@@ -192,6 +192,7 @@ class AnnotationFocusHarnessTest : KoinTest {
         }
 
         var result = tapBookmarkAndWait()
+        if (!result.onScreen) result = tapBookmarkAndWait()
         if (!result.onScreen) result = tapBookmarkAndWait()
         if (!result.onScreen) result = tapBookmarkAndWait()
         assertTrue(

@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import com.riffle.core.data.localfiles.FolderPickerInterface
+import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.RecordItemOpened
@@ -30,47 +32,46 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
+import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.ui.AnnotationSearchLabels
 import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
+import com.riffle.feature.library.ui.CollectionDetailScreen
+import com.riffle.feature.library.ui.DownloadsScreen
 import com.riffle.feature.library.ui.FilteredBooksLabels
 import com.riffle.feature.library.ui.FilteredBooksScreen
+import com.riffle.feature.library.ui.LibraryItemsScreen
+import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
+import com.riffle.feature.library.ui.RiffleScreen
+import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
-import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.navigation.NavigationDrawerViewModel
-import com.riffle.feature.downloads.DownloadsViewModel
-import com.riffle.feature.library.RiffleViewModel
-import com.riffle.feature.library.ui.CollectionDetailScreen
-import com.riffle.feature.library.ui.DownloadsScreen
-import com.riffle.feature.library.ui.LibraryItemsScreen
-import com.riffle.feature.library.ui.LibrarySectionScreen
-import com.riffle.feature.library.ui.RiffleScreen
-import com.riffle.feature.library.ui.SeriesDetailScreen
-import com.riffle.shared.library.LibraryItemDetailScreen
-import com.riffle.feature.settings.ui.SettingsScreen
+import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
+import com.riffle.feature.settings.ui.SettingsScreen
+import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
-import com.riffle.feature.source.ui.AddSourceBackend
-import com.riffle.core.data.localfiles.FolderPickerInterface
-import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
-import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
+import com.riffle.shared.library.LibraryItemDetailScreen
+import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.UnboundedBrowseScreen
 import com.riffle.shared.source.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -323,8 +324,12 @@ private fun LibraryHost(
     val recordItemOpened = koinInject<RecordItemOpened>()
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
 
-    fun push(dest: LibraryNav) { navStack = navStack + dest }
-    fun pop() { navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) } }
+    fun push(dest: LibraryNav) {
+        navStack = navStack + dest
+    }
+    fun pop() {
+        navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) }
+    }
 
     SideEffect { onReaderActiveChanged(navStack.last() is LibraryNav.ReaderDestination) }
     DisposableEffect(Unit) { onDispose { onReaderActiveChanged(false) } }
@@ -352,33 +357,39 @@ private fun LibraryHost(
                 showRecentlyAdded = sourceType?.isWebSource != true,
                 onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
                 onAnnotatedBookSelected = { sourceId, itemId ->
-                    push(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
+                    push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                 },
                 onSeriesSelected = { series ->
-                    push(LibraryNav.SeriesDetail(
-                        seriesId = series.id,
-                        seriesLibraryId = series.libraryId,
-                        seriesName = series.name,
-                    ))
+                    push(
+                        LibraryNav.SeriesDetail(
+                            seriesId = series.id,
+                            seriesLibraryId = series.libraryId,
+                            seriesName = series.name,
+                        )
+                    )
                 },
                 onCollectionSelected = { collection ->
-                    push(LibraryNav.CollectionDetail(
-                        collectionId = collection.id,
-                        collectionLibraryId = collection.libraryId,
-                        collectionName = collection.name,
-                    ))
+                    push(
+                        LibraryNav.CollectionDetail(
+                            collectionId = collection.id,
+                            collectionLibraryId = collection.libraryId,
+                            collectionName = collection.name,
+                        )
+                    )
                 },
                 onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
                 onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                 onPlaylistSelected = { playlist ->
-                    push(LibraryNav.PlaylistDetail(
-                        playlistId = playlist.id,
-                        playlistName = playlist.name,
-                        // The playlist's own rootId, not the host's libraryId: the Playlists tab
-                        // is only visible on an ABS audiobook root and the two are the same
-                        // today, but every PlaylistsRepository call keys on the playlist's root.
-                        playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
-                    ))
+                    push(
+                        LibraryNav.PlaylistDetail(
+                            playlistId = playlist.id,
+                            playlistName = playlist.name,
+                            // The playlist's own rootId, not the host's libraryId: the Playlists tab
+                            // is only visible on an ABS audiobook root and the two are the same
+                            // today, but every PlaylistsRepository call keys on the playlist's root.
+                            playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
+                        )
+                    )
                 },
             )
         }
@@ -408,13 +419,14 @@ private fun LibraryHost(
         is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
             destination = current,
             onBack = ::pop,
-            // Android opens the reader at the annotation's CFI; iOS's reader has no
-            // open-at-annotation entry point yet (#1072 §2 — the whole annotation seam is
-            // missing there), so a result opens the book's detail sheet, which is the furthest
-            // the iOS reader can currently be driven from outside.
             onOpenBook = { sourceId, itemId ->
-                push(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
+                push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
             },
+        )
+        is LibraryNav.ElidedReader -> ElidedReaderLoader(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            onBack = ::pop,
         )
         is LibraryNav.ReaderDestination -> {
             // End-of-book inside a playlist: the ViewModel has already found the next item id;
@@ -462,6 +474,44 @@ private fun LibraryHost(
             // AudiobookPlayerViewModel's end-of-book auto-advance reachable on iOS at all.
             onPlayItem = { item -> push(playlistPlayerNav(item, current)) },
         )
+    }
+}
+
+/**
+ * Loads a [LibraryItem] by [itemId]/[sourceId] and opens the elided Annotations View.
+ *
+ * The annotations tab only exposes `(sourceId, itemId)`, not a full [LibraryItem]. This loader
+ * bridges that gap: it suspends on [LibraryRepository.observeItem] until the item arrives, then
+ * passes it straight to [EpubReaderScreen] with [ReaderSource.Highlights]. A spinner is shown
+ * while the item is in flight (typically one DB read, <10 ms).
+ */
+@Composable
+internal fun ElidedReaderLoader(
+    itemId: String,
+    sourceId: String?,
+    onBack: () -> Unit,
+) {
+    val libraryObserver = koinInject<LibraryObserver>()
+    var item by remember { mutableStateOf<LibraryItem?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(itemId, sourceId) {
+        item =
+            if (sourceId != null) {
+                libraryObserver.getItem(sourceId, itemId)
+            } else {
+                libraryObserver.getItem(itemId)
+            }
+        loaded = true
+    }
+    val loadedItem = item
+    when {
+        loadedItem != null -> EpubReaderScreen(item = loadedItem, onBack = onBack, source = ReaderSource.Highlights)
+        loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Text("Book not found")
+        }
+        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
     }
 }
 

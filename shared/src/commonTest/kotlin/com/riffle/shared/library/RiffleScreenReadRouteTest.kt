@@ -5,7 +5,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.CommitSourceResult
@@ -25,6 +24,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.ui.RiffleScreen
 import kotlinx.coroutines.Dispatchers
@@ -168,7 +168,10 @@ class RiffleScreenReadRouteTest {
             RiffleScreen(
                 viewModel = viewModel,
                 onOpenDrawer = {},
-                onItemSelected = { sourceId, itemId -> selectedSourceId = sourceId; selectedItemId = itemId },
+                onItemSelected = { sourceId, itemId ->
+                    selectedSourceId = sourceId
+                    selectedItemId = itemId
+                },
             )
         }
 
@@ -188,7 +191,10 @@ class RiffleScreenReadRouteTest {
                 viewModel = viewModel,
                 onOpenDrawer = {},
                 onItemSelected = { _, _ -> },
-                onAnnotatedBookClick = { sourceId, itemId -> selectedSourceId = sourceId; selectedItemId = itemId },
+                onAnnotatedBookClick = { sourceId, itemId ->
+                    selectedSourceId = sourceId
+                    selectedItemId = itemId
+                },
             )
         }
 

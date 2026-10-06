@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.presenter
 
 import com.riffle.app.feature.reader.ContinuousNavigationView
-import com.riffle.app.feature.reader.highlights.HighlightsDomPatch
+import com.riffle.feature.reader.highlights.HighlightsDomPatch
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch

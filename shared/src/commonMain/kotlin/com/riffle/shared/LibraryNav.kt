@@ -29,6 +29,15 @@ internal sealed interface LibraryNav {
      * The sheet loads the item itself and hands it back through its `onRead` callback.
      */
     data class ItemDetail(val itemId: String, val sourceId: String?) : LibraryNav
+
+    /**
+     * Opens the elided Annotations View (ADR 0048) directly, without the detail sheet.
+     *
+     * Keyed by ids rather than by a [LibraryItem] — the annotations tab only exposes
+     * `(sourceId, itemId)`, not the full item. The host loads the item from [LibraryRepository]
+     * before handing it to [EpubReaderScreen] with [ReaderSource.Highlights].
+     */
+    data class ElidedReader(val itemId: String, val sourceId: String?) : LibraryNav
     data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
 
