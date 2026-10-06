@@ -81,7 +81,7 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
     /// podcast opened from the Home tab (where ABS is still the active source) wrote 0 DB rows.
     func testAudiobookProgressFractionAtCompletionIsOne() {
         let durationSec = 3600.0
-        let fraction = AudiobookProgressUtilsKt.audiobookProgressFraction(
+        let fraction = AudiobookProgressKt.audiobookProgressFraction(
             positionSec: durationSec,
             durationSec: durationSec
         )
@@ -93,7 +93,7 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
     /// so only a true end-of-stream event marks the book finished.
     func testAudiobookProgressFractionAtNinetyNinePercentIsNotCompleted() {
         let durationSec = 3600.0
-        let fraction = AudiobookProgressUtilsKt.audiobookProgressFraction(
+        let fraction = AudiobookProgressKt.audiobookProgressFraction(
             positionSec: durationSec * 0.99,
             durationSec: durationSec
         )
