@@ -22,6 +22,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.audiobookProgressFraction
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReaderSyncCoordinatorInterface

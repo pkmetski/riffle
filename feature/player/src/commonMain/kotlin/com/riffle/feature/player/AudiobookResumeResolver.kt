@@ -3,6 +3,7 @@ package com.riffle.feature.player
 import com.riffle.core.domain.AudiobookPositionReconciler
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudiobookSession
+import com.riffle.core.domain.AUDIOBOOK_FINISHED_EPS_SEC
 import com.riffle.core.common.Clock
 
 /**
