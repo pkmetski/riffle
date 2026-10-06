@@ -64,4 +64,41 @@
     <string name="ui_no_unstarted_books">No unstarted books</string>
     <string name="ui_no_results_for">No results for \'%1$s\'</string>
     <string name="ui_remove_from_library">Remove from library</string>
+
+    <!-- Item detail screen -->
+    <string name="ui_listen">Listen</string>
+    <string name="ui_to_read">To Read</string>
+    <string name="ui_in_to_read">In To-Read</string>
+    <string name="ui_summary">Summary</string>
+    <string name="ui_show_more">Show more</string>
+    <string name="ui_show_less">Show less</string>
+    <string name="ui_mark_as_read">Mark as read</string>
+    <string name="ui_mark_as_unread">Mark as unread</string>
+    <string name="ui_by">By</string>
+    <string name="ui_published">Published: </string>
+    <string name="ui_genres">Genres: </string>
+    <string name="ui_language">Language: </string>
+    <string name="ui_publisher">Publisher: %1$s</string>
+    <string name="ui_sections_count">%1$d sections</string>
+    <string name="ui_chapters_count">%1$d chapters</string>
+    <string name="ui_audiobook_duration_line">Audiobook · %1$s</string>
+    <string name="ui_duration_total">%1$s total</string>
+    <string name="ui_duration_total_remaining">%1$s total · %2$s remaining</string>
+    <string name="ui_reading_time_estimated">%1$s estimated</string>
+    <string name="ui_reading_time_estimated_total">%1$s estimated total</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s estimated total · %2$s remaining</string>
+    <string name="ui_pages">%1$d pages</string>
+    <string name="ui_pages_read">%1$d of %2$d pages read</string>
+    <string name="ui_progress_read">%1$d%% read</string>
+    <string name="ui_progress_listened">%1$d%% listened</string>
+    <string name="ui_nothing_to_read_or_listen">Nothing to read or listen to</string>
+    <string name="ui_edit_metadata">Edit metadata</string>
+    <string name="ui_upload_to">Upload to</string>
+    <string name="ui_show_all_readalouds">Show all readalouds</string>
+    <string name="ui_add_to_playlist">Add to playlist</string>
+    <string name="ui_connect_to_download_book">Connect to download</string>
+    <string name="ui_connect_to_download_audiobook">Connect to download audiobook</string>
+    <string name="ui_connect_to_download_readaloud_audio">Connect to download readaloud audio</string>
+    <string name="ui_connect_to_stream_audio">Connect to stream audio</string>
+    <string name="ui_read">Read</string>
 </resources>
