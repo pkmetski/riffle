@@ -22,24 +22,42 @@ internal fun stripHtmlTagsToText(html: String): String {
     while (i < html.length) {
         val c = html[i]
         when {
-            c == '<' -> { inTag = true; i++ }
-            c == '>' -> { inTag = false; out.append(' '); i++ }
+            c == '<' -> {
+                inTag = true
+                i++
+            }
+            c == '>' -> {
+                inTag = false
+                out.append(' ')
+                i++
+            }
             inTag -> i++
             c == '&' -> {
                 val end = html.indexOf(';', i)
                 if (end in (i + 1)..(i + 10)) {
                     out.append(decodeHtmlEntity(html.substring(i + 1, end)))
                     i = end + 1
-                } else { out.append(c); i++ }
+                } else {
+                    out.append(c)
+                    i++
+                }
             }
-            else -> { out.append(c); i++ }
+            else -> {
+                out.append(c)
+                i++
+            }
         }
     }
     return out.toString().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
 }
 
 private fun decodeHtmlEntity(body: String): String = when (body) {
-    "amp" -> "&"; "lt" -> "<"; "gt" -> ">"; "quot" -> "\""; "apos" -> "'"; "nbsp" -> " "
+    "amp" -> "&"
+    "lt" -> "<"
+    "gt" -> ">"
+    "quot" -> "\""
+    "apos" -> "'"
+    "nbsp" -> " "
     else -> when {
         body.startsWith("#x") || body.startsWith("#X") -> {
             val cp = body.drop(2).toIntOrNull(16)

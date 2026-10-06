@@ -54,8 +54,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -64,11 +64,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.TocEntry
-import com.riffle.feature.library.FacetType
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
@@ -77,25 +75,20 @@ import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.ChaptersState
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
+import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.TocState
-import com.riffle.feature.library.UploadDestination
 import com.riffle.feature.library.UploadPreflight
 import com.riffle.feature.library.bookDownloadAffordances
 import com.riffle.feature.library.bookDownloadOutcome
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_add_to_playlist
-import com.riffle.feature.library.ui.generated.resources.ui_audiobook
 import com.riffle.feature.library.ui.generated.resources.ui_audiobook_duration_line
 import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.library.ui.generated.resources.ui_by
 import com.riffle.feature.library.ui.generated.resources.ui_cancel
 import com.riffle.feature.library.ui.generated.resources.ui_chapters_count
-import com.riffle.feature.library.ui.generated.resources.ui_connect_to_download_audiobook
-import com.riffle.feature.library.ui.generated.resources.ui_connect_to_download_book
-import com.riffle.feature.library.ui.generated.resources.ui_connect_to_download_readaloud_audio
-import com.riffle.feature.library.ui.generated.resources.ui_connect_to_stream_audio
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total_remaining
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
@@ -116,7 +109,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_read
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated_total
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated_total_remaining
-import com.riffle.feature.library.ui.generated.resources.ui_readaloud
 import com.riffle.feature.library.ui.generated.resources.ui_sections_count
 import com.riffle.feature.library.ui.generated.resources.ui_show_all_readalouds
 import com.riffle.feature.library.ui.generated.resources.ui_show_less
@@ -125,7 +117,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_summary
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to
 import com.riffle.feature.source.ui.RiffleMessageScaffold
-import com.riffle.feature.source.ui.generated.resources.Res as SourceRes
 import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
 import com.riffle.feature.source.ui.generated.resources.ui_download_failed
@@ -139,6 +130,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import kotlin.math.roundToInt
+import com.riffle.feature.source.ui.generated.resources.Res as SourceRes
 
 private const val READ_PROGRESS_THRESHOLD = 0.99f
 private const val EXPANDED_WIDTH_BREAKPOINT_DP = 600
@@ -302,7 +294,10 @@ fun LibraryItemDetailScreen(
                 showOverflowMenu = showOverflowMenu,
                 onToggleOverflowMenu = { showOverflowMenu = !showOverflowMenu },
                 onDismissOverflowMenu = { showOverflowMenu = false },
-                onUploadTo = { showOverflowMenu = false; showUploadDestinationDialog = true },
+                onUploadTo = {
+                    showOverflowMenu = false
+                    showUploadDestinationDialog = true
+                },
                 messages = messages,
             ) { innerPadding ->
                 if (isExpandedWidth) {
@@ -424,7 +419,10 @@ private fun DetailReadyScaffold(
                                     if (state.capabilities.canEditMetadata) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(Res.string.ui_edit_metadata)) },
-                                            onClick = { /* metadata editing not yet implemented in shared screen */ onDismissOverflowMenu() },
+                                            onClick = {
+                                                /* metadata editing not yet implemented in shared screen */
+                                                onDismissOverflowMenu()
+                                            },
                                         )
                                     }
                                     if (state.capabilities.canUploadToConfiguredSource) {
@@ -468,7 +466,11 @@ private fun DetailLoadingContent(onBack: () -> Unit, bookImportState: BookImport
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(SourceRes.string.ui_loading), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = stringResource(SourceRes.string.ui_loading),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 if (bookImportState is BookImportState.InProgress) {
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator()
@@ -482,7 +484,11 @@ private fun DetailLoadingContent(onBack: () -> Unit, bookImportState: BookImport
 private fun DetailErrorContent(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(stringResource(SourceRes.string.ui_item_not_found), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = stringResource(SourceRes.string.ui_item_not_found),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(16.dp))
             TextButton(onClick = onBack) { Text(stringResource(SourceRes.string.ui_back_with_arrow)) }
         }
@@ -763,7 +769,7 @@ private fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modi
 }
 
 @Composable
-private fun AudiobookDurationLine(item: LibraryItem) {
+internal fun AudiobookDurationLine(item: LibraryItem) {
     if (!item.isListenable || item.audioDurationSec <= 0) return
     val durationStr = formatCompactDuration(item.audioDurationSec)
     val readingProgress = item.readingProgress
@@ -780,7 +786,7 @@ private fun AudiobookDurationLine(item: LibraryItem) {
 }
 
 @Composable
-private fun PublicationFactsLine(item: LibraryItem, estimatedTotalReadingTimeSec: Long?, pdfPageCount: Int?) {
+internal fun PublicationFactsLine(item: LibraryItem, estimatedTotalReadingTimeSec: Long?, pdfPageCount: Int?) {
     val text: String? = when (item.ebookFormat) {
         EbookFormat.Epub -> estimatedTotalReadingTimeSec?.let { totalSec ->
             val total = formatCompactDuration(totalSec.toDouble())
@@ -815,7 +821,7 @@ private fun PublicationFactsLine(item: LibraryItem, estimatedTotalReadingTimeSec
 }
 
 @Composable
-private fun ReadingProgressIndicator(item: LibraryItem) {
+internal fun ReadingProgressIndicator(item: LibraryItem) {
     val progress = item.readingProgress
     if (progress <= 0f) return
     val listened = item.isAudiobookOnly
@@ -912,21 +918,42 @@ private fun ActionRow(
             DownloadButton(state = downloadState, onDownload = onDownload, onRemove = onRemove)
         }
         if (affordances.showAudiobook && audiobookDownloadState != null) {
-            DownloadButton(state = audiobookDownloadState, onDownload = onDownloadAudiobook, onRemove = onRemoveAudiobook, enabled = affordances.audiobookEnabled)
+            DownloadButton(
+                state = audiobookDownloadState,
+                onDownload = onDownloadAudiobook,
+                onRemove = onRemoveAudiobook,
+                enabled = affordances.audiobookEnabled,
+            )
         }
         if (affordances.showReadaloud && readaloudDownloadState != null) {
-            ReadaloudDownloadButton(state = readaloudDownloadState, onDownload = onDownloadReadaloud, onRemove = onRemoveReadaloud, enabled = affordances.readaloudEnabled)
+            ReadaloudDownloadButton(
+                state = readaloudDownloadState,
+                onDownload = onDownloadReadaloud,
+                onRemove = onRemoveReadaloud,
+                enabled = affordances.readaloudEnabled,
+            )
         }
     }
 }
 
 @Composable
-private fun ReadToggleButton(isRead: Boolean, onMarkAsRead: () -> Unit, onMarkAsUnread: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ReadToggleButton(
+    isRead: Boolean,
+    onMarkAsRead: () -> Unit,
+    onMarkAsUnread: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(
         modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
-            .then(if (isRead) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape))
+            .then(
+                if (isRead) {
+                    Modifier.background(MaterialTheme.colorScheme.primary)
+                } else {
+                    Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                },
+            )
             .clickable(onClick = if (isRead) onMarkAsUnread else onMarkAsRead),
         contentAlignment = Alignment.Center,
     ) {
@@ -945,7 +972,13 @@ private fun ToReadToggleButton(isInToRead: Boolean, onToggle: () -> Unit, modifi
         modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
-            .then(if (isInToRead) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape))
+            .then(
+                if (isInToRead) {
+                    Modifier.background(MaterialTheme.colorScheme.primary)
+                } else {
+                    Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                },
+            )
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center,
     ) {
@@ -1000,7 +1033,7 @@ private fun TitleWithReadaloudBadge(title: String, hasReadaloud: Boolean, onRead
 }
 
 @Composable
-private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
+internal fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
     if (author.isBlank()) return
     val authors = author.split(", ").filter { it.isNotBlank() }
     val linkColor = MaterialTheme.colorScheme.primary
@@ -1022,7 +1055,7 @@ private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
 }
 
 @Composable
-private fun SeriesLine(seriesName: String, seriesId: String?, onSeriesClick: (String) -> Unit) {
+internal fun SeriesLine(seriesName: String, seriesId: String?, onSeriesClick: (String) -> Unit) {
     if (seriesId != null) {
         Text(
             text = seriesName,
@@ -1057,7 +1090,7 @@ private fun ChaptersRow(chaptersState: ChaptersState, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun CollapsibleDescription(html: String) {
+internal fun CollapsibleDescription(html: String) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = stringResource(Res.string.ui_summary), style = MaterialTheme.typography.titleLarge)
@@ -1077,13 +1110,15 @@ private fun CollapsibleDescription(html: String) {
 }
 
 @Composable
-private fun MetadataLines(item: LibraryItem, epubVersion: String?, onFacet: (FacetType, String) -> Unit) {
+internal fun MetadataLines(item: LibraryItem, epubVersion: String?, onFacet: (FacetType, String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         item.publishedYear?.takeIf { it.isNotBlank() }?.let { year ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(Res.string.ui_published), style = MaterialTheme.typography.bodyMedium)
-                Text(year, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onFacet(FacetType.YEAR, year) })
+                Text(
+                    year, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onFacet(FacetType.YEAR, year) }
+                )
             }
         }
         if (item.genres.isNotEmpty()) {
@@ -1091,7 +1126,11 @@ private fun MetadataLines(item: LibraryItem, epubVersion: String?, onFacet: (Fac
             val annotated = buildAnnotatedString {
                 append(stringResource(Res.string.ui_genres))
                 item.genres.forEachIndexed { index, genre ->
-                    withLink(LinkAnnotation.Clickable("genre", TextLinkStyles(SpanStyle(color = linkColor)), linkInteractionListener = { onFacet(FacetType.GENRE, genre) })) { append(genre) }
+                    withLink(
+                        LinkAnnotation.Clickable("genre", TextLinkStyles(SpanStyle(color = linkColor)), linkInteractionListener = {
+                            onFacet(FacetType.GENRE, genre)
+                        })
+                    ) { append(genre) }
                     if (index < item.genres.lastIndex) append(", ")
                 }
             }
@@ -1100,15 +1139,17 @@ private fun MetadataLines(item: LibraryItem, epubVersion: String?, onFacet: (Fac
         item.language?.takeIf { it.isNotBlank() }?.let { language ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(Res.string.ui_language), style = MaterialTheme.typography.bodyMedium)
-                Text(language, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onFacet(FacetType.LANGUAGE, language) })
+                Text(
+                    language, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onFacet(FacetType.LANGUAGE, language) }
+                )
             }
         }
         item.publisher?.takeIf { it.isNotBlank() }?.let { publisher ->
             Text(stringResource(Res.string.ui_publisher, publisher), style = MaterialTheme.typography.bodyMedium)
         }
         val formatLabel = when (item.ebookFormat) {
-            EbookFormat.Epub -> if (!epubVersion.isNullOrBlank()) "EPUB ${epubVersion}" else "EPUB"
+            EbookFormat.Epub -> if (!epubVersion.isNullOrBlank()) "EPUB $epubVersion" else "EPUB"
             EbookFormat.Pdf -> "PDF"
             EbookFormat.Cbz -> "CBZ"
             EbookFormat.Unsupported -> null
